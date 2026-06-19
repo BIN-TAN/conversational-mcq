@@ -5,12 +5,14 @@ import {
   getLlmRuntimeConfig,
   LlmConfigurationError
 } from "@/lib/llm/config";
+import { getTeacherLlmUsageStatus } from "@/lib/llm/usage/usage-serializers";
 
-export function getLlmReadiness() {
+export async function getLlmReadiness() {
   try {
     const runtime = getLlmRuntimeConfig();
     const prompts = listAgentPrompts();
     const modelReadiness = agentModelReadiness();
+    const usage = await getTeacherLlmUsageStatus();
 
     return {
       provider: runtime.provider,
@@ -28,6 +30,10 @@ export function getLlmReadiness() {
       agents_connected_to_classroom_workflows: false,
       prompts_active_in_classroom_workflows: false,
       connectivity_test_uses_synthetic_data_only: true,
+      students_use_openai_accounts: false,
+      students_provide_api_keys: false,
+      server_side_api_key_only: true,
+      usage,
       agent_names: agentNames,
       configuration_error: null
     };
@@ -45,6 +51,10 @@ export function getLlmReadiness() {
         agents_connected_to_classroom_workflows: false,
         prompts_active_in_classroom_workflows: false,
         connectivity_test_uses_synthetic_data_only: true,
+        students_use_openai_accounts: false,
+        students_provide_api_keys: false,
+        server_side_api_key_only: true,
+        usage: null,
         agent_names: agentNames,
         configuration_error: {
           code: error.code,

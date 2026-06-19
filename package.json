@@ -29,6 +29,8 @@
     "llm:contracts-smoke": "tsx prisma/llm-contracts-smoke-test.ts",
     "llm:execution-smoke": "tsx prisma/llm-execution-smoke-test.ts",
     "llm:redaction-smoke": "tsx prisma/llm-redaction-smoke-test.ts",
+    "llm:usage-smoke": "tsx prisma/llm-usage-smoke-test.ts",
+    "llm:status-smoke": "tsx prisma/llm-status-smoke-test.ts",
     "llm:connectivity": "tsx prisma/llm-connectivity.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

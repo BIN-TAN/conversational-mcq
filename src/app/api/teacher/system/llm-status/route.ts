@@ -10,7 +10,7 @@ export async function GET() {
   }
 
   try {
-    return NextResponse.json({ llm: getLlmReadiness() });
+    return NextResponse.json({ llm: await getLlmReadiness() });
   } catch (error) {
     console.error(error);
     return jsonApiError("llm_status_failed", "LLM status request failed.", 500);

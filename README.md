@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, and Phase 6A LLM infrastructure scaffolding. LLM agents are not connected to classroom workflows yet, and profiling, planning, and follow-up conversation remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, and Phase 6A.5 classroom LLM access/usage safeguards. LLM agents are not connected to classroom workflows yet, and profiling, planning, and follow-up conversation remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -84,6 +84,8 @@ npm run export:master-smoke
 npm run llm:contracts-smoke
 npm run llm:execution-smoke
 npm run llm:redaction-smoke
+npm run llm:usage-smoke
+npm run llm:status-smoke
 npm run typecheck
 npm run lint
 npm run build
@@ -557,14 +559,16 @@ Manual browser flow:
 
 See `docs/SUMMATIVE_OUTCOMES.md` and `docs/MASTER_CSV_EXPORT.md` for the detailed Phase 5B contracts.
 
-## Phase 6A LLM Infrastructure
+## Phase 6A And 6A.5 LLM Infrastructure
 
-Phase 6A adds generic LLM infrastructure only. It does not run agents on real classroom data, create profiles, create formative decisions, create follow-up rounds, alter `profiling_pending` sessions, or call OpenAI during normal verification.
+Phase 6A adds generic LLM infrastructure. Phase 6A.5 adds classroom LLM access controls, usage limits, live-call readiness checks, and teacher-visible usage monitoring. These phases do not run agents on real classroom data, create profiles, create formative decisions, create follow-up rounds, alter `profiling_pending` sessions, or call OpenAI during normal verification.
 
 Teacher route and API:
 
 - `/teacher/system/llm`
 - `GET /api/teacher/system/llm-status`
+
+Students never provide OpenAI API keys and never need OpenAI accounts. Future live calls must use a backend-controlled server-side API key and pass authentication, authorization, readiness, usage guard, and audit logging.
 
 LLM verification:
 
@@ -572,6 +576,8 @@ LLM verification:
 npm run llm:contracts-smoke
 npm run llm:execution-smoke
 npm run llm:redaction-smoke
+npm run llm:usage-smoke
+npm run llm:status-smoke
 ```
 
 Optional synthetic live connectivity check:
@@ -582,4 +588,6 @@ npm run llm:connectivity
 
 The connectivity script requires `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, `OPENAI_API_KEY`, and `OPENAI_MODEL_CONNECTIVITY_TEST`. It sends only fixed synthetic data and is not part of the offline verification path.
 
-See `docs/LLM_INFRASTRUCTURE.md`, `docs/AGENT_CONTRACTS.md`, and `docs/PROMPT_VERSIONING.md`.
+Usage safeguard variables are documented in `.env.example` and `docs/LLM_USAGE_LIMITS.md`.
+
+See `docs/LLM_INFRASTRUCTURE.md`, `docs/AGENT_CONTRACTS.md`, `docs/PROMPT_VERSIONING.md`, `docs/CLASSROOM_LLM_ACCESS.md`, and `docs/LLM_USAGE_LIMITS.md`.

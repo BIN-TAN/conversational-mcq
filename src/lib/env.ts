@@ -8,6 +8,26 @@ const optionalPositiveInt = z.preprocess(
   z.coerce.number().int().positive().optional()
 );
 
+const optionalNonnegativeNumber = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.coerce.number().nonnegative().optional()
+);
+
+const positiveIntWithDefault = (defaultValue: number) =>
+  z.preprocess(
+    (value) => (value === "" || value === undefined ? defaultValue : value),
+    z.coerce.number().int().positive()
+  );
+
+function isValidTimeZone(value: string) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const serverEnvSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
@@ -48,7 +68,20 @@ const serverEnvSchema = z.object({
   OPENAI_MAX_OUTPUT_TOKENS_PLANNING: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP: optionalPositiveInt,
   OPENAI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
-  OPENAI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2)
+  OPENAI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  LLM_DAILY_CLASS_CALL_LIMIT: positiveIntWithDefault(200),
+  LLM_DAILY_CLASS_TOKEN_LIMIT: positiveIntWithDefault(500_000),
+  LLM_DAILY_STUDENT_CALL_LIMIT: positiveIntWithDefault(25),
+  LLM_DAILY_STUDENT_TOKEN_LIMIT: positiveIntWithDefault(75_000),
+  LLM_SESSION_CALL_LIMIT: positiveIntWithDefault(20),
+  LLM_SESSION_TOKEN_LIMIT: positiveIntWithDefault(50_000),
+  LLM_AGENT_CALL_LIMIT_PER_SESSION: positiveIntWithDefault(8),
+  LLM_COST_WARNING_LIMIT_USD: optionalNonnegativeNumber,
+  LLM_COST_HARD_LIMIT_USD: optionalNonnegativeNumber,
+  LLM_USAGE_TIMEZONE: z
+    .string()
+    .default("UTC")
+    .refine(isValidTimeZone, "LLM_USAGE_TIMEZONE must be a valid IANA timezone")
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

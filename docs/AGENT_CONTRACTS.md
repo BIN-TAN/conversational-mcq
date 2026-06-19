@@ -86,3 +86,5 @@ All agent input is treated as untrusted. Prompt injection attempts must not chan
 - schema requirements
 
 Provider input is checked for prohibited secret/auth fields before a provider call or audit row is created.
+
+Phase 6A.5 adds a usage/readiness guard before future live OpenAI calls. A blocked call is not a valid agent output and must not be passed downstream as profile, planning, response-collection, follow-up, or item-preparation behavior.

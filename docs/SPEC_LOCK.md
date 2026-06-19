@@ -291,6 +291,26 @@ Provider input is server-side only and must be checked for secret/auth fields be
 
 The synthetic `llm:connectivity` command may call OpenAI only when explicitly configured. It must use fixed synthetic data and must not be used as evidence that classroom workflows are connected to agents.
 
+## Phase 6A.5 Classroom LLM Access And Usage Controls
+
+Phase 6A.5 implements classroom LLM access controls, usage-limit configuration, server-side usage guard checks, per-student/session/day/class accounting, teacher-visible usage monitoring, graceful blocked-call behavior, documentation, and smoke tests.
+
+Students never provide OpenAI API keys, never need OpenAI accounts, and never receive provider credentials. All future live calls must use a deployment-owner-controlled backend API key and must pass authentication, authorization, live-call readiness, usage guard checks, and audit logging before any provider request.
+
+The safe default remains `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`. Live OpenAI calls require explicit server-side environment configuration. Frontend code must not enable live calls, collect API keys, or expose provider secrets.
+
+Usage limits are operational safeguards, not pedagogical labels. They must not be used to infer ability, engagement, misconduct, or motivation. Blocked calls must preserve student progress, must not fabricate agent output, and must not change workflow state.
+
+Phase 6A.5 must not:
+
+- connect any agent to real classroom workflows
+- run profiling on real response packages
+- create student profiles, formative decisions, or follow-up rounds
+- alter `profiling_pending`
+- replace deterministic Response Collection presentation
+- implement live Item Preparation behavior
+- send classroom, student, transcript, reasoning, process-event, response-package, or summative outcome data to OpenAI
+
 ## Foundational Logging Services
 
 Process event logging validates `event_source` and the approved process-event taxonomy before writing. The database field remains a string to allow taxonomy expansion later. Process data remain engagement and evidence-sufficiency context, not misconduct labels.
@@ -324,6 +344,8 @@ Phase 5A includes only the read-only teacher_researcher session-review platform,
 Phase 5B includes only supervised summative outcome CSV upload, validation, audit batches, outcome revisions, one merged master CSV export, export jobs/downloads/local storage, data-management UI, fixtures, documentation, and smoke testing.
 
 Phase 6A includes only generic LLM infrastructure, provider configuration, strict agent contracts, draft prompt versioning, mock execution, synthetic connectivity support, audit logging, documentation, and smoke testing.
+
+Phase 6A.5 includes only classroom LLM access control, usage-limit configuration, usage accounting, usage guard checks, live-call readiness controls, teacher-visible usage monitoring, documentation, and smoke testing.
 
 Phase 1, Phase 1.5, Phase 2A, and Phase 2B must not implement:
 
@@ -434,6 +456,15 @@ Phase 6A must not implement:
 - profile, planning, follow-up, or agent-call fabrication
 - changes to deterministic initial administration behavior
 - changes to export semantics
+
+Phase 6A.5 must not implement:
+
+- Phase 6B Student Profiling Agent integration
+- live agent calls from classroom workflows
+- profile, planning, follow-up, response-collection, or item-preparation behavior
+- any frontend API-key entry or student-owned provider credential flow
+- any student-facing explanation of budget, cost, provider, API key, or rate-limit internals
+- workflow state changes caused by usage-limit checks
 
 ## Phase 3A Content Management Rules
 

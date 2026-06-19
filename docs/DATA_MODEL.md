@@ -305,6 +305,15 @@ The Phase 6A execution service validates input/output schemas, redacts audit pay
 
 Phase 6A mock smoke tests may create synthetic `agent_calls` rows and remove only their own rows. They must not create `student_profiles`, `formative_decisions`, or `followup_rounds`, and they must not alter assessment session phases.
 
+Phase 6A.5 adds usage-control audit fields to `agent_calls`:
+
+- `blocked_reason`: typed reason when a future live call is blocked before provider execution.
+- `usage_guard_snapshot`: server-side snapshot used for the decision.
+- `live_call_allowed`: whether a live provider call was permitted for that audit row.
+- `usage_window_start` and `usage_window_end`: UTC timestamps for the configured usage day.
+
+These fields support classroom usage safeguards and teacher-visible monitoring. They are operational controls, not student profile labels.
+
 ## Phase 5B Outcome And Export Records
 
 Phase 5B adds audited summative outcome import and master CSV export records while keeping the internal database normalized.

@@ -17,11 +17,17 @@ import {
 } from "@/lib/agents/redaction";
 import {
   getLlmRuntimeConfig,
+  LlmConfigurationError,
   resolveAgentModelConfig,
   type AgentModelConfig
 } from "@/lib/llm/config";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { SanitizedAgentError, StructuredAgentResult } from "@/lib/llm/providers/types";
+import {
+  checkLlmLiveCallReadiness,
+  type LlmUsageGuardBlockedReason,
+  type LlmUsageGuardResult
+} from "@/lib/llm/usage/usage-guard";
 import { toPrismaJson } from "@/lib/services/json";
 
 export type AgentExecutionResult<TOutput> =
@@ -56,6 +62,14 @@ export type AgentExecutionResult<TOutput> =
       status: "invalid_output";
       validation_error: string;
       agent_call_id: string;
+      retry_count: number;
+    }
+  | {
+      status: "blocked_by_usage_limit";
+      reason: LlmUsageGuardBlockedReason;
+      agent_call_id: string;
+      usage_snapshot: object;
+      retry_after?: string;
       retry_count: number;
     };
 
@@ -113,6 +127,14 @@ function toFailure(error: unknown): SanitizedAgentError {
   };
 }
 
+function usageWindowStart(result?: LlmUsageGuardResult | null) {
+  return result?.usage_snapshot.window_start ? new Date(result.usage_snapshot.window_start) : undefined;
+}
+
+function usageWindowEnd(result?: LlmUsageGuardResult | null) {
+  return result?.usage_snapshot.window_end ? new Date(result.usage_snapshot.window_end) : undefined;
+}
+
 export async function executeAgent<TAgentName extends AgentNameType>(
   input: ExecuteAgentInput<TAgentName>
 ): Promise<AgentExecutionResult<AgentOutputByName[TAgentName]>> {
@@ -126,10 +148,22 @@ export async function executeAgent<TAgentName extends AgentNameType>(
   const parsedInput = inputSchema.parse(input.input);
   assertNoProhibitedProviderInput(parsedInput);
 
-  const prompt = getPromptForAgent(agentName);
-  const modelConfig = input.model_config_override ?? resolveAgentModelConfig(agentName);
   const runtime = getLlmRuntimeConfig();
-  const provider = createLlmProvider();
+  const prompt = getPromptForAgent(agentName);
+  let modelConfig: AgentModelConfig;
+  let modelConfigured = true;
+
+  try {
+    modelConfig = input.model_config_override ?? resolveAgentModelConfig(agentName);
+  } catch (error) {
+    if (error instanceof LlmConfigurationError && error.code === "agent_model_missing") {
+      modelConfigured = false;
+      modelConfig = { model_name: "__model_not_configured__" };
+    } else {
+      throw error;
+    }
+  }
+
   const agentInvocationKey =
     input.agent_invocation_key ?? `agent-${agentName}-${randomUUID()}`;
 
@@ -171,6 +205,63 @@ export async function executeAgent<TAgentName extends AgentNameType>(
 
   const clientRequestId = `agent_req_${randomUUID()}`;
   const startedAt = new Date();
+  const usageGuardResult =
+    runtime.provider === "openai"
+      ? await checkLlmLiveCallReadiness({
+          agent_name: agentName,
+          assessment_session_db_id: input.assessment_session_db_id ?? null,
+          model_configured: modelConfigured
+        })
+      : null;
+
+  if (usageGuardResult && !usageGuardResult.allowed) {
+    const blockedCall = await prisma.agentCall.create({
+      data: {
+        id: randomUUID(),
+        assessment_session_db_id: input.assessment_session_db_id ?? null,
+        concept_unit_session_db_id: input.concept_unit_session_db_id ?? null,
+        agent_name: agentName,
+        agent_version: prompt.agent_version,
+        model_name: modelConfig.model_name,
+        provider: runtime.provider,
+        client_request_id: clientRequestId,
+        agent_invocation_key: agentInvocationKey,
+        prompt_hash: prompt.prompt_hash,
+        temperature:
+          modelConfig.temperature === undefined
+            ? null
+            : new Prisma.Decimal(modelConfig.temperature),
+        reasoning_effort: modelConfig.reasoning_effort ?? null,
+        verbosity: modelConfig.verbosity ?? null,
+        max_output_tokens: modelConfig.max_output_tokens ?? null,
+        prompt_version: prompt.prompt_version,
+        schema_version: prompt.schema_version,
+        input_payload: prismaJson(redactForAudit(parsedInput)),
+        output_validated: false,
+        validation_error: `LLM live call blocked: ${usageGuardResult.reason}.`,
+        error_category: usageGuardResult.reason,
+        blocked_reason: usageGuardResult.reason,
+        usage_guard_snapshot: prismaJson(usageGuardResult.usage_snapshot),
+        live_call_allowed: false,
+        usage_window_start: usageWindowStart(usageGuardResult),
+        usage_window_end: usageWindowEnd(usageGuardResult),
+        call_status: "failed",
+        started_at: startedAt,
+        completed_at: new Date()
+      }
+    });
+
+    return {
+      status: "blocked_by_usage_limit",
+      reason: usageGuardResult.reason,
+      agent_call_id: blockedCall.id,
+      usage_snapshot: usageGuardResult.usage_snapshot,
+      retry_after: usageGuardResult.retry_after,
+      retry_count: 0
+    };
+  }
+
+  const provider = createLlmProvider();
   const agentCall = await prisma.agentCall.create({
     data: {
       id: randomUUID(),
@@ -193,6 +284,12 @@ export async function executeAgent<TAgentName extends AgentNameType>(
       prompt_version: prompt.prompt_version,
       schema_version: prompt.schema_version,
       input_payload: prismaJson(redactForAudit(parsedInput)),
+      usage_guard_snapshot: usageGuardResult
+        ? prismaJson(usageGuardResult.usage_snapshot)
+        : undefined,
+      live_call_allowed: runtime.provider === "openai",
+      usage_window_start: usageWindowStart(usageGuardResult),
+      usage_window_end: usageWindowEnd(usageGuardResult),
       call_status: "started",
       started_at: startedAt
     }

@@ -45,3 +45,7 @@ Model names are configured through environment variables and are not part of pro
 ## Connectivity Prompt Use
 
 The synthetic connectivity script uses the Response Collection Agent contract because it is lightweight and does not require classroom data. It must remain synthetic-only.
+
+## Live-Call Guarding
+
+Prompt status does not activate classroom use. Future active prompts must still pass server-side live-call readiness and usage-limit checks before any OpenAI call. A configured prompt version is not permission to bypass authentication, authorization, budget safeguards, or usage audit logging.

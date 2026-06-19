@@ -505,6 +505,11 @@ model AgentCall {
   refusal_text               String?         @db.Text
   incomplete_reason          String?         @db.Text
   error_category             String?
+  blocked_reason             String?
+  usage_guard_snapshot       Json?
+  live_call_allowed          Boolean         @default(false)
+  usage_window_start         DateTime?       @db.Timestamptz(6)
+  usage_window_end           DateTime?       @db.Timestamptz(6)
   retry_count                Int             @default(0)
   call_status                AgentCallStatus @default(started)
   latency_ms                 Int?
@@ -528,6 +533,8 @@ model AgentCall {
   @@index([agent_name, call_status])
   @@index([provider, created_at])
   @@index([client_request_id])
+  @@index([blocked_reason, created_at])
+  @@index([live_call_allowed, created_at])
   @@map("agent_calls")
 }
 
