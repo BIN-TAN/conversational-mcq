@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, Database, FileJson, FileWarning, History, ListChecks, Table2, Users } from "lucide-react";
+import { Activity, BrainCircuit, Database, FileJson, FileWarning, History, ListChecks, Table2, Users } from "lucide-react";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -103,6 +103,16 @@ export default async function TeacherDashboardPage() {
             <h2 className="mt-4 text-lg font-semibold text-ink">Assessment list</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
               Review assessment status, public IDs, concept units, and item-set readiness.
+            </p>
+          </Link>
+          <Link
+            className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
+            href="/teacher/system/llm"
+          >
+            <BrainCircuit className="h-5 w-5 text-accent" aria-hidden="true" />
+            <h2 className="mt-4 text-lg font-semibold text-ink">LLM status</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Review provider readiness, draft prompt versions, schema versions, and mock-mode safety.
             </p>
           </Link>
         </section>

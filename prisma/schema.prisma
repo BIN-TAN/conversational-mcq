@@ -480,12 +480,21 @@ model ProcessEvent {
 
 model AgentCall {
   id                         String          @id @default(uuid()) @db.Uuid
-  assessment_session_db_id   String          @db.Uuid
+  assessment_session_db_id   String?         @db.Uuid
   concept_unit_session_db_id String?         @db.Uuid
   agent_name                 String
   agent_version              String
   model_name                 String
-  temperature                Decimal         @db.Decimal(4, 2)
+  provider                   String          @default("mock")
+  provider_response_id       String?
+  provider_request_id        String?
+  client_request_id          String?
+  agent_invocation_key       String?         @unique
+  prompt_hash                String?
+  temperature                Decimal?        @db.Decimal(4, 2)
+  reasoning_effort           String?
+  verbosity                  String?
+  max_output_tokens          Int?
   prompt_version             String
   schema_version             String
   input_payload              Json
@@ -493,6 +502,9 @@ model AgentCall {
   output_payload             Json?
   output_validated           Boolean         @default(false)
   validation_error           String?         @db.Text
+  refusal_text               String?         @db.Text
+  incomplete_reason          String?         @db.Text
+  error_category             String?
   retry_count                Int             @default(0)
   call_status                AgentCallStatus @default(started)
   latency_ms                 Int?
@@ -501,10 +513,12 @@ model AgentCall {
   total_tokens               Int?
   token_usage                Json?
   estimated_cost             Decimal?        @db.Decimal(12, 6)
+  started_at                 DateTime?       @db.Timestamptz(6)
+  completed_at               DateTime?       @db.Timestamptz(6)
   created_at                 DateTime        @default(now()) @db.Timestamptz(6)
   updated_at                 DateTime        @updatedAt @db.Timestamptz(6)
 
-  assessment_session   AssessmentSession   @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  assessment_session   AssessmentSession?  @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
   concept_unit_session ConceptUnitSession? @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
   student_profiles     StudentProfile[]    @relation("StudentProfileAgentCall")
   formative_decisions  FormativeDecision[] @relation("FormativeDecisionAgentCall")
@@ -512,6 +526,8 @@ model AgentCall {
   @@index([assessment_session_db_id, created_at])
   @@index([concept_unit_session_db_id, created_at])
   @@index([agent_name, call_status])
+  @@index([provider, created_at])
+  @@index([client_request_id])
   @@map("agent_calls")
 }
 

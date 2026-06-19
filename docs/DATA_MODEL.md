@@ -1,6 +1,6 @@
 # Data Model
 
-Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, and Phase 5B additions. The data model still does not imply LLM calls, profiling, planning, or follow-up orchestration.
+Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, and Phase 6A additions. The data model still does not imply active LLM calls, profiling, planning, or follow-up orchestration in classroom workflows.
 
 ## Identifier Convention
 
@@ -27,7 +27,7 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `student_action_idempotency_keys`: Student action idempotency records for repeated browser requests during initial administration.
 - `conversation_turns`: Student, agent, system, orchestrator, and teacher-researcher messages across initial and follow-up phases.
 - `process_events`: Process telemetry such as page visibility, pauses, invalid help requests, prompt injection attempts, and phase events.
-- `agent_calls`: Audit storage for future LLM calls. Phase 2A creates the table but does not call any LLM.
+- `agent_calls`: Audit storage for future LLM calls. Phase 6A adds provider/prompt/model audit fields and mock execution support, but classroom workflows still do not call any LLM.
 - `response_packages`: Structured packages assembled for downstream profiling/planning. `package_type` remains a string in the database but is validated in TypeScript.
 - `student_profiles`: Storage for the three-layer profile: ability, engagement, and integrated diagnostic profile.
 - `formative_decisions`: Storage for formative value decisions and action plans.
@@ -84,7 +84,7 @@ The schema indexes:
 - Item ordering within concept units.
 - Conversation turns by session and time.
 - Process events by session, concept-unit session, event type, item, and occurrence time.
-- Agent calls by session, concept-unit session, agent name, status, and creation time.
+- Agent calls by session, concept-unit session, agent name, status, provider, client request ID, optional invocation key, and creation time.
 - Student profiles and formative decisions by concept-unit session and creation time.
 - Follow-up rounds by concept-unit session and round index.
 - Summative outcomes by user and assessment date.
@@ -283,6 +283,27 @@ Phase 5A does not add database tables. It adds read-only services and teacher_re
 Normal Phase 5A API serializers remove internal UUID keys such as `id` and `*_db_id` from teacher-facing payloads. Stored JSON may contain historical internal keys from earlier package creation, but review serializers strip those keys before returning normal API responses.
 
 Phase 5A does not populate `student_profiles`, `formative_decisions`, `followup_rounds`, or `agent_calls`. Empty future-agent UI states must remain empty rather than calculating substitute profiles or decisions.
+
+## Phase 6A Agent-Call Audit Records
+
+Phase 6A makes `agent_calls.assessment_session_db_id` nullable so synthetic infrastructure tests and future non-session agent calls can be audited without attaching to a real student session. Classroom workflow calls later should attach to the relevant session when applicable.
+
+`agent_calls` now stores:
+
+- `provider`: `mock` or `openai`.
+- `provider_response_id` and `provider_request_id`: provider metadata when available.
+- `client_request_id`: server-generated request identifier.
+- `agent_invocation_key`: optional idempotency key for replay protection.
+- `prompt_hash`: SHA-256 hash of the registered prompt version, schema version, and instructions.
+- `reasoning_effort`, `verbosity`, and `max_output_tokens`: request options when configured.
+- `refusal_text`, `incomplete_reason`, and `error_category`: sanitized non-success outcomes.
+- `started_at` and `completed_at`: execution timing.
+
+Existing fields continue to store agent name, agent version, model name, prompt version, schema version, redacted input payload, raw output, output payload, validation status, retry count, latency, token usage, and call status.
+
+The Phase 6A execution service validates input/output schemas, redacts audit payloads, blocks prohibited secret/auth fields before provider execution, retries retryable provider failures, and records structured output validation results.
+
+Phase 6A mock smoke tests may create synthetic `agent_calls` rows and remove only their own rows. They must not create `student_profiles`, `formative_decisions`, or `followup_rounds`, and they must not alter assessment session phases.
 
 ## Phase 5B Outcome And Export Records
 

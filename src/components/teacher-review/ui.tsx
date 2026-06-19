@@ -124,6 +124,7 @@ export function TeacherReviewNav({ userId }: { userId: string }) {
     { href: "/teacher/content", label: "Content management" },
     { href: "/teacher/sessions", label: "Student sessions" },
     { href: "/teacher/data", label: "Data and outcomes" },
+    { href: "/teacher/system/llm", label: "LLM status" },
     { href: "/teacher/content/import-json", label: "JSON import" }
   ];
 

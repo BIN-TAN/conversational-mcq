@@ -251,7 +251,7 @@ export const followupRoundStatuses = [
 ] as const;
 export const FollowupRoundStatusSchema = z.enum(followupRoundStatuses);
 
-export const exportJobStatuses = ["requested", "running", "completed", "failed"] as const;
+export const exportJobStatuses = ["pending", "processing", "completed", "failed", "expired"] as const;
 export const ExportJobStatusSchema = z.enum(exportJobStatuses);
 
 export const responsePackageTypes = [

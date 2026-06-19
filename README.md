@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, and the Phase 5B summative outcome import plus master CSV export tools. LLM agents, OpenAI API integration, profiling, planning, and follow-up conversation are intentionally not implemented yet.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, and Phase 6A LLM infrastructure scaffolding. LLM agents are not connected to classroom workflows yet, and profiling, planning, and follow-up conversation remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -35,7 +35,7 @@ If either command is missing, update your shell PATH according to your Node inst
 
 4. Replace `SESSION_SECRET` with a local random value of at least 32 characters.
 
-5. Leave OpenAI variables blank until the later phases that implement model calls. They are placeholders only in the current backend phases.
+5. Leave OpenAI variables blank for normal local development. Phase 6A defaults to the mock provider and does not connect agents to classroom workflows.
 
 Do not commit `.env`, `.env.local`, real session secrets, or real API keys.
 
@@ -81,6 +81,9 @@ npm run student:ui-smoke
 npm run teacher:review-smoke
 npm run summative:import-smoke
 npm run export:master-smoke
+npm run llm:contracts-smoke
+npm run llm:execution-smoke
+npm run llm:redaction-smoke
 npm run typecheck
 npm run lint
 npm run build
@@ -553,3 +556,30 @@ Manual browser flow:
 8. Sign out, sign in as `student_demo` with `student_demo_access_code`, and confirm data/export pages and APIs are forbidden.
 
 See `docs/SUMMATIVE_OUTCOMES.md` and `docs/MASTER_CSV_EXPORT.md` for the detailed Phase 5B contracts.
+
+## Phase 6A LLM Infrastructure
+
+Phase 6A adds generic LLM infrastructure only. It does not run agents on real classroom data, create profiles, create formative decisions, create follow-up rounds, alter `profiling_pending` sessions, or call OpenAI during normal verification.
+
+Teacher route and API:
+
+- `/teacher/system/llm`
+- `GET /api/teacher/system/llm-status`
+
+LLM verification:
+
+```bash
+npm run llm:contracts-smoke
+npm run llm:execution-smoke
+npm run llm:redaction-smoke
+```
+
+Optional synthetic live connectivity check:
+
+```bash
+npm run llm:connectivity
+```
+
+The connectivity script requires `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, `OPENAI_API_KEY`, and `OPENAI_MODEL_CONNECTIVITY_TEST`. It sends only fixed synthetic data and is not part of the offline verification path.
+
+See `docs/LLM_INFRASTRUCTURE.md`, `docs/AGENT_CONTRACTS.md`, and `docs/PROMPT_VERSIONING.md`.

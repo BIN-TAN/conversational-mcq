@@ -27,12 +27,16 @@ The final Phase 0 patch is authoritative. If older planning notes conflict with 
 - Do not state that any specific OpenAI model is currently latest.
 - Model names must be configured through environment variables and must not be hardcoded.
 - Each future agent call must store the actual `model_name` used.
-- Phase 1 and Phase 1.5 do not call the OpenAI API.
+- Phase 6A defaults to `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`.
+- Live OpenAI calls require an explicit server-side environment gate, a configured API key, and environment-configured model names.
+- The OpenAI API key must never be exposed to the browser or committed to source control.
 
 ## Agent Schema Rules
 
 - Agent outputs use `output_status`, not the older agent-level `status`.
 - All agent outputs extend `AgentOutputBase`.
+- The five valid agent names are `item_preparation_agent`, `response_collection_agent`, `student_profiling_agent`, `formative_value_and_planning_agent`, and `followup_agent`.
+- Phase 6A prompt definitions are `draft` and are not active classroom prompts.
 - Student profiling must keep three connected layers:
   - `ability_profile`
   - `engagement_profile`
@@ -267,6 +271,26 @@ Current and future agent/profile/formative columns are present in the master CSV
 
 Spreadsheet formula-injection protection is required for user-controlled text when `spreadsheet_safe_text = true`. The protection is applied only to exported values and must not alter database records. Local export files are stored under `.data/exports`, not public static folders, and downloads require teacher_researcher authorization.
 
+## Phase 6A LLM Infrastructure
+
+Phase 6A implements generic LLM infrastructure only: the OpenAI SDK dependency, provider abstraction, mock provider, draft prompt registry, prompt hashing, strict Zod agent contracts, central execution service, redaction guardrails, agent-call audit logging, teacher-only LLM status surface, documentation, and smoke tests.
+
+Phase 6A must not:
+
+- connect any agent to real student or teacher workflows
+- run Student Profiling Agent on real response packages
+- create `student_profiles`
+- create `formative_decisions`
+- create `followup_rounds`
+- alter student sessions out of `profiling_pending`
+- replace deterministic Response Collection UI wording
+- implement live Item Preparation
+- send classroom data, student reasoning, transcripts, process data, response packages, or summative outcomes to OpenAI
+
+Provider input is server-side only and must be checked for secret/auth fields before a provider call. Agent-call audit rows must store redacted inputs, prompt version, schema version, agent version, prompt hash, model name, provider metadata, retry counts, token usage when available, and structured validation outcomes.
+
+The synthetic `llm:connectivity` command may call OpenAI only when explicitly configured. It must use fixed synthetic data and must not be used as evidence that classroom workflows are connected to agents.
+
 ## Foundational Logging Services
 
 Process event logging validates `event_source` and the approved process-event taxonomy before writing. The database field remains a string to allow taxonomy expansion later. Process data remain engagement and evidence-sufficiency context, not misconduct labels.
@@ -298,6 +322,8 @@ Phase 4B includes only the student-facing assessment list, ChatGPT-style initial
 Phase 5A includes only the read-only teacher_researcher session-review platform, teacher-only read APIs, review UI, fixtures, documentation, and smoke testing.
 
 Phase 5B includes only supervised summative outcome CSV upload, validation, audit batches, outcome revisions, one merged master CSV export, export jobs/downloads/local storage, data-management UI, fixtures, documentation, and smoke testing.
+
+Phase 6A includes only generic LLM infrastructure, provider configuration, strict agent contracts, draft prompt versioning, mock execution, synthetic connectivity support, audit logging, documentation, and smoke testing.
 
 Phase 1, Phase 1.5, Phase 2A, and Phase 2B must not implement:
 
@@ -396,6 +422,18 @@ Phase 5B must not implement:
 - fabricated profile, planning, follow-up, or agent-call data
 - summative outcome gradebook editing beyond audited replacement
 - separate CSV exports instead of the one merged master CSV
+
+Phase 6A must not implement:
+
+- OpenAI calls from classroom workflows
+- live agent execution over real classroom records
+- Student Profiling Agent behavior over real response packages
+- Formative Value and Planning Agent behavior
+- Follow-up Agent behavior
+- Item Preparation Agent content publication
+- profile, planning, follow-up, or agent-call fabrication
+- changes to deterministic initial administration behavior
+- changes to export semantics
 
 ## Phase 3A Content Management Rules
 
