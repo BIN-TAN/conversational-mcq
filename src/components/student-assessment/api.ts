@@ -1,0 +1,276 @@
+"use client";
+
+import {
+  AvailableAssessmentsResponseSchema,
+  ApiErrorSchema,
+  StartSessionResponseSchema,
+  StudentReviewResponseSchema,
+  StudentSessionStateSchema,
+  StudentTranscriptResponseSchema,
+  type AvailableAssessmentsResponse,
+  type ConfidenceRating,
+  type StartSessionResponse,
+  type StructuredStudentApiError,
+  type StudentReviewResponse,
+  type StudentSessionState,
+  type StudentTranscriptResponse
+} from "@/lib/student-assessment-ui/types";
+
+export type FrontendProcessEvent = {
+  event_type:
+    | "page_hidden"
+    | "page_visible"
+    | "long_pause"
+    | "inactivity_detected"
+    | "navigation_event"
+    | "refresh_recovery";
+  event_category?: string;
+  item_public_id?: string;
+  visibility_duration_ms?: number;
+  pause_duration_ms?: number;
+  client_occurred_at?: string;
+  payload?: Record<string, unknown>;
+};
+
+export function newClientActionId(prefix: string) {
+  const random =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  return `${prefix}-${random}`;
+}
+
+async function parseResponse<T>(
+  response: Response,
+  parse: (value: unknown) => T
+): Promise<T> {
+  const text = await response.text();
+  const json = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    throw normalizeStudentApiError(json, response.status);
+  }
+
+  return parse(json);
+}
+
+export function normalizeStudentApiError(
+  value: unknown,
+  status = 500
+): StructuredStudentApiError {
+  const parsed = ApiErrorSchema.safeParse(value);
+
+  if (!parsed.success) {
+    return {
+      code: "request_failed",
+      message: "The request could not be completed.",
+      status
+    };
+  }
+
+  if (typeof parsed.data.error === "string") {
+    return {
+      code: status === 401 ? "unauthorized" : "request_failed",
+      message: parsed.data.error,
+      status
+    };
+  }
+
+  return {
+    code: parsed.data.error.code,
+    message: parsed.data.error.message,
+    details: parsed.data.error.details,
+    status
+  };
+}
+
+async function get<T>(path: string, parse: (value: unknown) => T) {
+  const response = await fetch(path, {
+    method: "GET",
+    headers: { Accept: "application/json" }
+  });
+
+  return parseResponse(response, parse);
+}
+
+async function post<T>(
+  path: string,
+  body: Record<string, unknown>,
+  parse: (value: unknown) => T
+) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  return parseResponse(response, parse);
+}
+
+export function fetchAvailableAssessments(): Promise<AvailableAssessmentsResponse> {
+  return get("/api/student/assessments/available", (value) =>
+    AvailableAssessmentsResponseSchema.parse(value)
+  );
+}
+
+export function startAssessmentSession(
+  assessmentPublicId: string
+): Promise<StartSessionResponse> {
+  return post(
+    `/api/student/assessments/${assessmentPublicId}/sessions/start`,
+    {},
+    (value) => StartSessionResponseSchema.parse(value)
+  );
+}
+
+export function fetchSessionState(sessionPublicId: string): Promise<StudentSessionState> {
+  return get(`/api/student/sessions/${sessionPublicId}/state`, (value) =>
+    StudentSessionStateSchema.parse(value)
+  );
+}
+
+export function fetchStudentTranscript(
+  sessionPublicId: string
+): Promise<StudentTranscriptResponse> {
+  return get(`/api/student/sessions/${sessionPublicId}/transcript`, (value) =>
+    StudentTranscriptResponseSchema.parse(value)
+  );
+}
+
+export function fetchStudentReview(sessionPublicId: string): Promise<StudentReviewResponse> {
+  return get(`/api/student/sessions/${sessionPublicId}/review`, (value) =>
+    StudentReviewResponseSchema.parse(value)
+  );
+}
+
+export function beginConceptUnit(
+  sessionPublicId: string,
+  conceptUnitPublicId: string
+): Promise<StudentSessionState> {
+  return post(
+    `/api/student/sessions/${sessionPublicId}/concept-units/${conceptUnitPublicId}/start`,
+    {},
+    (value) => StudentSessionStateSchema.parse(value)
+  );
+}
+
+export function saveOption(input: {
+  sessionPublicId: string;
+  itemPublicId: string;
+  selectedOption: string;
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/items/${input.itemPublicId}/option`,
+    {
+      selected_option: input.selectedOption,
+      client_action_id: newClientActionId("option")
+    },
+    (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
+  );
+}
+
+export function saveReasoning(input: {
+  sessionPublicId: string;
+  itemPublicId: string;
+  reasoningText: string;
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/items/${input.itemPublicId}/reasoning`,
+    {
+      reasoning_text: input.reasoningText,
+      client_action_id: newClientActionId("reasoning")
+    },
+    (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
+  );
+}
+
+export function saveConfidence(input: {
+  sessionPublicId: string;
+  itemPublicId: string;
+  confidenceRating: ConfidenceRating;
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/items/${input.itemPublicId}/confidence`,
+    {
+      confidence_rating: input.confidenceRating,
+      client_action_id: newClientActionId("confidence")
+    },
+    (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
+  );
+}
+
+export async function submitItem(input: {
+  sessionPublicId: string;
+  itemPublicId: string;
+  confirmSkip?: boolean;
+  skipItem?: boolean;
+  skipReasoning?: boolean;
+  skipConfidence?: boolean;
+}) {
+  const result = await post(
+    `/api/student/sessions/${input.sessionPublicId}/items/${input.itemPublicId}/submit`,
+    {
+      confirm_skip: Boolean(input.confirmSkip),
+      skip_item: Boolean(input.skipItem),
+      skip_reasoning: Boolean(input.skipReasoning),
+      skip_confidence: Boolean(input.skipConfidence),
+      client_action_id: newClientActionId("submit")
+    },
+    (value) => value as { submission_status: string; missing_fields?: string[]; state: unknown }
+  );
+
+  return {
+    submission_status: result.submission_status,
+    missing_fields: result.missing_fields ?? [],
+    state: StudentSessionStateSchema.parse(result.state)
+  };
+}
+
+export function completeInitialConceptUnit(input: {
+  sessionPublicId: string;
+  conceptUnitPublicId: string;
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/concept-units/${input.conceptUnitPublicId}/complete-initial`,
+    {},
+    (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
+  );
+}
+
+export function exitSession(sessionPublicId: string) {
+  return post(
+    `/api/student/sessions/${sessionPublicId}/exit`,
+    {},
+    (value) => value as { exit_status: string; can_resume: boolean }
+  );
+}
+
+export function sendProcessEvents(
+  sessionPublicId: string,
+  events: FrontendProcessEvent[],
+  useBeacon = false
+) {
+  if (events.length === 0) {
+    return Promise.resolve();
+  }
+
+  const body = JSON.stringify({ events });
+  const path = `/api/student/sessions/${sessionPublicId}/events`;
+
+  if (useBeacon && typeof navigator !== "undefined" && "sendBeacon" in navigator) {
+    const blob = new Blob([body], { type: "application/json" });
+    navigator.sendBeacon(path, blob);
+    return Promise.resolve();
+  }
+
+  return fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    keepalive: true
+  }).then(() => undefined);
+}

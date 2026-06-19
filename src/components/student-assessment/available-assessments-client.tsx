@@ -1,0 +1,243 @@
+"use client";
+
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, Loader2, LogOut, Play, RefreshCcw } from "lucide-react";
+import {
+  fetchAvailableAssessments,
+  startAssessmentSession
+} from "./api";
+import type {
+  AvailableAssessment,
+  StructuredStudentApiError
+} from "@/lib/student-assessment-ui/types";
+
+function availabilityLabel(assessment: AvailableAssessment) {
+  if (assessment.availability_status === "completed") {
+    return "Completed";
+  }
+
+  if (assessment.can_resume) {
+    return "Resume available";
+  }
+
+  if (assessment.can_start) {
+    return "Available";
+  }
+
+  return "Unavailable";
+}
+
+function statusClass(assessment: AvailableAssessment) {
+  if (assessment.availability_status === "completed") {
+    return "border-slate-200 bg-slate-100 text-slate-700";
+  }
+
+  if (assessment.can_resume) {
+    return "border-blue-200 bg-blue-50 text-blue-800";
+  }
+
+  if (assessment.can_start) {
+    return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  }
+
+  return "border-amber-200 bg-amber-50 text-amber-800";
+}
+
+export function AvailableAssessmentsClient({ userId }: { userId: string }) {
+  const router = useRouter();
+  const [assessments, setAssessments] = useState<AvailableAssessment[]>([]);
+  const [error, setError] = useState<StructuredStudentApiError | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [pendingAssessment, setPendingAssessment] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  async function loadAssessments() {
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const result = await fetchAvailableAssessments();
+      setAssessments(result.assessments);
+    } catch (caught) {
+      const apiError = caught as StructuredStudentApiError;
+
+      if (apiError.status === 401) {
+        router.push("/student/login");
+        return;
+      }
+
+      setError(apiError);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadAssessments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleStart(assessment: AvailableAssessment) {
+    setPendingAssessment(assessment.assessment_public_id);
+    setError(null);
+
+    try {
+      const result = await startAssessmentSession(assessment.assessment_public_id);
+      startTransition(() => {
+        router.push(`/student/assessment/${result.session.session_public_id}`);
+      });
+    } catch (caught) {
+      setError(caught as StructuredStudentApiError);
+      setPendingAssessment(null);
+    }
+  }
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/student/login");
+  }
+
+  return (
+    <main className="min-h-screen bg-surface">
+      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-5 md:px-6">
+        <header className="flex flex-col gap-4 border-b border-line pb-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-accent">
+              Student assessment
+            </p>
+            <h1 className="mt-1 text-3xl font-semibold text-ink">Assessments</h1>
+            <p className="mt-2 text-sm text-muted">Signed in as {userId}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft"
+              onClick={() => void loadAssessments()}
+              type="button"
+            >
+              <RefreshCcw className="h-4 w-4" aria-hidden="true" />
+              Refresh
+            </button>
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft"
+              onClick={() => void handleLogout()}
+              type="button"
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              Sign out
+            </button>
+          </div>
+        </header>
+
+        <section className="py-6" aria-live="polite">
+          {isLoading ? (
+            <div className="flex items-center gap-2 rounded-lg border border-line bg-white p-4 text-sm text-muted">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Loading assessments
+            </div>
+          ) : null}
+
+          {error ? (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+              <div className="flex gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <div>
+                  <p className="font-semibold">{error.message}</p>
+                  <p className="mt-1 text-xs uppercase tracking-wide text-red-700">{error.code}</p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {!isLoading && assessments.length === 0 ? (
+            <div className="rounded-lg border border-line bg-white p-6">
+              <h2 className="text-lg font-semibold text-ink">No assessments available</h2>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Your teacher researcher has not published an available assessment yet.
+              </p>
+            </div>
+          ) : null}
+
+          <div className="grid gap-3">
+            {assessments.map((assessment) => {
+              const isBusy =
+                pendingAssessment === assessment.assessment_public_id || isPending;
+              const canOpen = assessment.can_resume && assessment.existing_session_public_id;
+
+              return (
+                <article
+                  className="rounded-lg border border-line bg-white p-4 shadow-soft"
+                  key={assessment.assessment_public_id}
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-lg font-semibold text-ink">{assessment.title}</h2>
+                        <span
+                          className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${statusClass(assessment)}`}
+                        >
+                          {availabilityLabel(assessment)}
+                        </span>
+                      </div>
+                      {assessment.description ? (
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
+                          {assessment.description}
+                        </p>
+                      ) : null}
+                      {assessment.existing_session_status ? (
+                        <p className="mt-3 text-xs uppercase tracking-wide text-muted">
+                          Session status: {assessment.existing_session_status}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      {assessment.can_start ? (
+                        <button
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                          data-testid={`start-assessment-${assessment.assessment_public_id}`}
+                          disabled={isBusy}
+                          onClick={() => void handleStart(assessment)}
+                          type="button"
+                        >
+                          {isBusy ? (
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <Play className="h-4 w-4" aria-hidden="true" />
+                          )}
+                          Start
+                        </button>
+                      ) : null}
+                      {canOpen ? (
+                        <button
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                          data-testid={`resume-assessment-${assessment.assessment_public_id}`}
+                          disabled={isBusy}
+                          onClick={() => void handleStart(assessment)}
+                          type="button"
+                        >
+                          <Play className="h-4 w-4" aria-hidden="true" />
+                          Resume
+                        </button>
+                      ) : null}
+                      {!assessment.can_start && !canOpen ? (
+                        <button
+                          className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-slate-50 px-4 text-sm font-semibold text-muted"
+                          disabled
+                          type="button"
+                        >
+                          {assessment.availability_status === "completed"
+                            ? "Completed"
+                            : "Unavailable"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}

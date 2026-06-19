@@ -1,0 +1,38 @@
+{
+  "assessment": {
+    "title": "Demo assessment",
+    "description": "Optional description"
+  },
+  "concept_units": [
+    {
+      "title": "Concept unit title",
+      "learning_objective": "Learning objective",
+      "related_concept_description": "Related concept description",
+      "administration_rules": {
+        "initial_administration": "no_feedback"
+      },
+      "items": [
+        {
+          "item_stem": "Question text",
+          "options": [
+            { "label": "A", "text": "Option A" },
+            { "label": "B", "text": "Option B" },
+            { "label": "C", "text": "Option C" }
+          ],
+          "correct_option": "A",
+          "distractor_rationales": {
+            "B": "Why B may indicate partial understanding",
+            "C": "Why C may indicate a misconception"
+          },
+          "expected_reasoning_patterns": [
+            "Expected correct reasoning pattern"
+          ],
+          "possible_misconception_indicators": [
+            "Possible misconception indicator"
+          ],
+          "administration_rules": {}
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "name": "conversational-mcq",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:smoke": "tsx prisma/smoke-test.ts",
+    "db:service-smoke": "tsx prisma/service-smoke-test.ts",
+    "content:smoke": "tsx prisma/content-smoke-test.ts",
+    "content:governance-smoke": "tsx prisma/content-governance-smoke-test.ts",
+    "student:initial-admin-smoke": "tsx prisma/student-initial-admin-smoke-test.ts",
+    "student:ui-smoke": "tsx prisma/student-ui-smoke-test.ts",
+    "demo:student-assessment": "tsx prisma/demo-student-assessment.ts",
+    "demo:student-assessment:cleanup": "tsx prisma/demo-student-assessment-cleanup.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.9.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.0.0",
+    "postcss": "^8.4.49",
+    "prisma": "^6.9.0",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

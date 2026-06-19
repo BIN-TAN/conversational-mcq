@@ -1,0 +1,175 @@
+import { z } from "zod";
+
+export const MissingEvidenceFieldSchema = z.enum(["answer", "reasoning", "confidence"]);
+export type MissingEvidenceField = z.infer<typeof MissingEvidenceFieldSchema>;
+
+export const ConfidenceRatingSchema = z.enum(["low", "medium", "high"]);
+export type ConfidenceRating = z.infer<typeof ConfidenceRatingSchema>;
+
+export const StudentSafeOptionSchema = z.object({
+  label: z.string(),
+  text: z.string()
+});
+export type StudentSafeOption = z.infer<typeof StudentSafeOptionSchema>;
+
+export const StudentSafeItemSchema = z.object({
+  item_public_id: z.string(),
+  item_order: z.number(),
+  item_stem: z.string(),
+  options: z.array(StudentSafeOptionSchema),
+  item_version: z.number(),
+  existing_selected_option: z.string().nullable(),
+  existing_reasoning_text: z.string().nullable(),
+  existing_confidence_rating: ConfidenceRatingSchema.nullable(),
+  submission_state: z.enum(["not_started", "draft", "missing_evidence_repair", "submitted"])
+});
+export type StudentSafeItem = z.infer<typeof StudentSafeItemSchema>;
+
+export const StudentAssessmentSummarySchema = z.object({
+  assessment_public_id: z.string(),
+  title: z.string(),
+  description: z.string().nullable()
+});
+export type StudentAssessmentSummary = z.infer<typeof StudentAssessmentSummarySchema>;
+
+export const AvailableAssessmentSchema = StudentAssessmentSummarySchema.extend({
+  availability_status: z.string(),
+  existing_session_public_id: z.string().nullable(),
+  existing_session_status: z.string().nullable(),
+  can_start: z.boolean(),
+  can_resume: z.boolean()
+});
+export type AvailableAssessment = z.infer<typeof AvailableAssessmentSchema>;
+
+export const AvailableAssessmentsResponseSchema = z.object({
+  assessments: z.array(AvailableAssessmentSchema)
+});
+export type AvailableAssessmentsResponse = z.infer<typeof AvailableAssessmentsResponseSchema>;
+
+export const StudentConceptUnitSchema = z.object({
+  concept_unit_public_id: z.string(),
+  title: z.string(),
+  learning_objective: z.string()
+});
+export type StudentConceptUnit = z.infer<typeof StudentConceptUnitSchema>;
+
+export const StudentSessionStateSchema = z.object({
+  session_public_id: z.string(),
+  session_status: z.string(),
+  current_phase: z.string(),
+  effective_phase: z.string(),
+  assessment: StudentAssessmentSummarySchema,
+  progress: z.object({
+    concept_unit_index: z.number(),
+    concept_unit_count: z.number(),
+    completed_item_count: z.number(),
+    total_item_count: z.number()
+  }),
+  current_concept_unit: StudentConceptUnitSchema.nullable(),
+  next_step: z.enum([
+    "concept_unit_intro",
+    "present_item",
+    "request_reasoning",
+    "request_confidence",
+    "missing_evidence_repair",
+    "item_complete",
+    "initial_concept_unit_complete",
+    "awaiting_profiling"
+  ]),
+  current_item: StudentSafeItemSchema.nullable(),
+  missing_evidence: z.array(MissingEvidenceFieldSchema),
+  can_exit: z.boolean(),
+  can_resume: z.boolean(),
+  session: z
+    .object({
+      session_public_id: z.string(),
+      session_status: z.string(),
+      current_phase: z.string(),
+      attempt_number: z.number()
+    })
+    .optional()
+});
+export type StudentSessionState = z.infer<typeof StudentSessionStateSchema>;
+
+export const StartSessionResponseSchema = z.object({
+  session: z.object({
+    session_public_id: z.string(),
+    session_status: z.string(),
+    current_phase: z.string(),
+    attempt_number: z.number()
+  }),
+  state: StudentSessionStateSchema
+});
+export type StartSessionResponse = z.infer<typeof StartSessionResponseSchema>;
+
+export const StudentConversationFrameSchema = z.object({
+  assistant_message: z.string(),
+  interaction_type: z.enum([
+    "assessment_intro",
+    "concept_unit_intro",
+    "present_item",
+    "request_reasoning",
+    "request_confidence",
+    "missing_evidence_repair",
+    "confirm_skip",
+    "item_completed",
+    "concept_unit_completed",
+    "awaiting_profiling",
+    "session_paused",
+    "error"
+  ]),
+  allowed_actions: z.array(z.string()),
+  current_item: StudentSafeItemSchema.nullable(),
+  missing_fields: z.array(MissingEvidenceFieldSchema),
+  can_review_responses: z.boolean(),
+  can_exit: z.boolean(),
+  can_continue: z.boolean()
+});
+export type StudentConversationFrame = z.infer<typeof StudentConversationFrameSchema>;
+
+export const StudentReviewItemSchema = StudentSafeItemSchema.extend({
+  missing_fields: z.array(MissingEvidenceFieldSchema),
+  can_edit: z.boolean(),
+  is_current: z.boolean()
+});
+export type StudentReviewItem = z.infer<typeof StudentReviewItemSchema>;
+
+export const StudentReviewResponseSchema = z.object({
+  session_public_id: z.string(),
+  locked: z.boolean(),
+  current_concept_unit: StudentConceptUnitSchema,
+  items: z.array(StudentReviewItemSchema)
+});
+export type StudentReviewResponse = z.infer<typeof StudentReviewResponseSchema>;
+
+export const StudentTranscriptEntrySchema = z.object({
+  actor: z.enum(["student"]),
+  message_text: z.string(),
+  created_at: z.string(),
+  interaction_type: z.string(),
+  item_public_id: z.string().nullable()
+});
+export type StudentTranscriptEntry = z.infer<typeof StudentTranscriptEntrySchema>;
+
+export const StudentTranscriptResponseSchema = z.object({
+  session_public_id: z.string(),
+  transcript: z.array(StudentTranscriptEntrySchema)
+});
+export type StudentTranscriptResponse = z.infer<typeof StudentTranscriptResponseSchema>;
+
+export const ApiErrorSchema = z.object({
+  error: z.union([
+    z.string(),
+    z.object({
+      code: z.string(),
+      message: z.string(),
+      details: z.record(z.unknown()).optional()
+    })
+  ])
+});
+export type StructuredStudentApiError = {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+  status: number;
+};

@@ -1,0 +1,648 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  student
+  teacher_researcher
+}
+
+enum AssessmentStatus {
+  draft
+  published
+  archived
+}
+
+enum ConceptUnitStatus {
+  draft
+  published
+  archived
+}
+
+enum ItemStatus {
+  draft
+  published
+  archived
+}
+
+enum AssessmentPhase {
+  not_started
+  session_started
+  concept_unit_intro
+  initial_item_administration
+  missing_evidence_repair
+  initial_concept_unit_completed
+  profiling_pending
+  profiling_completed
+  planning_pending
+  planning_completed
+  followup_active
+  followup_profile_update_pending
+  followup_planning_update_pending
+  followup_stopped
+  between_concept_units
+  session_completed
+  student_exited
+  needs_review
+}
+
+enum SessionStatus {
+  not_started
+  active
+  paused
+  completed
+  student_exited
+  needs_review
+}
+
+enum ConceptUnitSessionStatus {
+  not_started
+  initial_in_progress
+  initial_completed
+  followup_active
+  followup_completed
+  completed
+  student_exited
+  needs_review
+}
+
+enum FollowupStatus {
+  not_started
+  active
+  stopped
+  completed
+  incomplete
+  needs_review
+}
+
+enum ResponseCorrectness {
+  not_scored
+  correct
+  incorrect
+  unanswered
+}
+
+enum ConfidenceLevel {
+  low
+  medium
+  high
+}
+
+enum ActorType {
+  student
+  agent
+  system
+  orchestrator
+  teacher_researcher
+}
+
+enum EventSource {
+  frontend
+  backend
+  agent
+  system
+}
+
+enum AgentCallStatus {
+  started
+  succeeded
+  failed
+  invalid_output
+  needs_review
+}
+
+enum ProfileType {
+  initial
+  updated
+}
+
+enum AbilityProfile {
+  insufficient_evidence
+  minimal_or_no_demonstrated_understanding
+  fragmented_or_limited_understanding
+  partial_understanding
+  misconception_based_understanding
+  fragile_correct_understanding
+  procedural_or_application_error
+  mostly_correct_understanding
+  robust_transfer_ready_understanding
+}
+
+enum EngagementProfile {
+  insufficient_process_evidence
+  low_engagement
+  variable_engagement
+  adequate_engagement
+  productive_engagement
+  sustained_high_engagement
+}
+
+enum IntegratedDiagnosticProfile {
+  insufficient_evidence_for_formative_decision
+  low_engagement_limits_interpretability
+  conflicting_evidence_needs_clarification
+  developing_understanding_with_productive_engagement
+  misconception_with_sufficient_engagement
+  correct_but_fragile_understanding
+  correct_but_independence_uncertain
+  underconfident_but_reasoning_supported
+  robust_understanding_ready_for_transfer
+}
+
+enum EvidenceSufficiency {
+  insufficient
+  limited
+  adequate
+  strong
+}
+
+enum ConfidenceAlignment {
+  insufficient_evidence
+  underconfident
+  well_calibrated
+  overconfident
+  mixed
+}
+
+enum IndependenceInterpretability {
+  not_applicable
+  independent_understanding_likely
+  independent_understanding_uncertain
+  insufficient_evidence
+}
+
+enum FormativeValue {
+  diagnostic_clarification
+  reasoning_refinement
+  confidence_calibration
+  independent_understanding_verification
+  consolidation_or_transfer
+}
+
+enum FollowupRoundStatus {
+  not_started
+  active
+  completed
+  stopped
+  needs_review
+}
+
+enum ExportJobStatus {
+  requested
+  running
+  completed
+  failed
+}
+
+model User {
+  id               String   @id @default(uuid()) @db.Uuid
+  user_id          String   @unique
+  role             UserRole
+  password_hash    String?
+  access_code_hash String?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @updatedAt @db.Timestamptz(6)
+
+  created_assessments       Assessment[]        @relation("AssessmentCreator")
+  assessment_sessions       AssessmentSession[]
+  summative_outcomes        SummativeOutcome[]  @relation("SummativeOutcomeStudent")
+  uploaded_summative_outcomes SummativeOutcome[] @relation("SummativeOutcomeUploader")
+  export_jobs               ExportJob[]         @relation("ExportJobRequester")
+
+  @@map("users")
+}
+
+model Assessment {
+  id                    String           @id @default(uuid()) @db.Uuid
+  assessment_public_id  String           @unique @default(cuid())
+  title                 String
+  description           String?          @db.Text
+  status                AssessmentStatus @default(draft)
+  created_by_user_db_id String           @db.Uuid
+  created_at            DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime         @updatedAt @db.Timestamptz(6)
+
+  created_by          User                @relation("AssessmentCreator", fields: [created_by_user_db_id], references: [id], onDelete: Restrict)
+  concept_units       ConceptUnit[]
+  assessment_sessions AssessmentSession[]
+
+  @@index([created_by_user_db_id])
+  @@index([status])
+  @@map("assessments")
+}
+
+model ConceptUnit {
+  id                            String            @id @default(uuid()) @db.Uuid
+  concept_unit_public_id        String            @unique @default(cuid())
+  assessment_db_id              String            @db.Uuid
+  title                         String
+  learning_objective            String            @db.Text
+  related_concept_description   String            @db.Text
+  administration_rules          Json?
+  order_index                   Int
+  status                        ConceptUnitStatus @default(draft)
+  version                       Int               @default(1)
+  created_at                    DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime          @updatedAt @db.Timestamptz(6)
+
+  assessment                 Assessment           @relation(fields: [assessment_db_id], references: [id], onDelete: Restrict)
+  items                      Item[]
+  assessment_sessions_current AssessmentSession[] @relation("CurrentConceptUnit")
+  concept_unit_sessions      ConceptUnitSession[]
+
+  @@unique([assessment_db_id, order_index])
+  @@index([assessment_db_id, status])
+  @@index([assessment_db_id, order_index])
+  @@map("concept_units")
+}
+
+model Item {
+  id                                    String     @id @default(uuid()) @db.Uuid
+  item_public_id                        String     @unique @default(cuid())
+  concept_unit_db_id                    String     @db.Uuid
+  item_order                            Int
+  item_stem                             String     @db.Text
+  options                               Json
+  correct_option                        String
+  distractor_rationales                 Json?
+  expected_reasoning_patterns           Json?
+  possible_misconception_indicators     Json?
+  administration_rules                  Json?
+  included_in_published_set             Boolean    @default(true)
+  status                                ItemStatus @default(draft)
+  version                               Int        @default(1)
+  created_at                            DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at                            DateTime   @updatedAt @db.Timestamptz(6)
+
+  concept_unit      ConceptUnit       @relation(fields: [concept_unit_db_id], references: [id], onDelete: Restrict)
+  item_responses    ItemResponse[]
+  conversation_turns ConversationTurn[]
+  process_events    ProcessEvent[]
+
+  @@unique([concept_unit_db_id, item_order])
+  @@index([concept_unit_db_id, status])
+  @@index([concept_unit_db_id, item_order])
+  @@map("items")
+}
+
+model AssessmentSession {
+  id                         String          @id @default(uuid()) @db.Uuid
+  session_public_id          String          @unique @default(cuid())
+  user_db_id                 String          @db.Uuid
+  assessment_db_id           String          @db.Uuid
+  attempt_number             Int             @default(1)
+  status                     SessionStatus   @default(not_started)
+  current_phase              AssessmentPhase @default(not_started)
+  current_concept_unit_db_id String?         @db.Uuid
+  resume_phase               AssessmentPhase?
+  resume_context             Json?
+  needs_review               Boolean         @default(false)
+  needs_review_reason        String?         @db.Text
+  started_at                 DateTime?       @db.Timestamptz(6)
+  last_activity_at           DateTime?       @db.Timestamptz(6)
+  completed_at               DateTime?       @db.Timestamptz(6)
+  created_at                 DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime        @updatedAt @db.Timestamptz(6)
+
+  user                 User                 @relation(fields: [user_db_id], references: [id], onDelete: Restrict)
+  assessment           Assessment           @relation(fields: [assessment_db_id], references: [id], onDelete: Restrict)
+  current_concept_unit ConceptUnit?         @relation("CurrentConceptUnit", fields: [current_concept_unit_db_id], references: [id], onDelete: SetNull)
+  concept_unit_sessions ConceptUnitSession[]
+  conversation_turns   ConversationTurn[]
+  process_events       ProcessEvent[]
+  agent_calls          AgentCall[]
+  student_action_idempotency_keys StudentActionIdempotencyKey[]
+
+  @@unique([user_db_id, assessment_db_id, attempt_number])
+  @@index([user_db_id, status])
+  @@index([assessment_db_id, status])
+  @@index([status, current_phase])
+  @@index([current_concept_unit_db_id])
+  @@map("assessment_sessions")
+}
+
+model ConceptUnitSession {
+  id                              String                   @id @default(uuid()) @db.Uuid
+  assessment_session_db_id        String                   @db.Uuid
+  concept_unit_db_id              String                   @db.Uuid
+  status                          ConceptUnitSessionStatus @default(not_started)
+  initial_started_at              DateTime?                @db.Timestamptz(6)
+  initial_completed_at            DateTime?                @db.Timestamptz(6)
+  followup_started_at             DateTime?                @db.Timestamptz(6)
+  followup_completed_at           DateTime?                @db.Timestamptz(6)
+  followup_status                 FollowupStatus           @default(not_started)
+  followup_round_count            Int                      @default(0)
+  latest_student_profile_db_id    String?                  @db.Uuid
+  latest_formative_decision_db_id String?                  @db.Uuid
+  created_at                      DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at                      DateTime                 @updatedAt @db.Timestamptz(6)
+
+  assessment_session       AssessmentSession  @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit             ConceptUnit        @relation(fields: [concept_unit_db_id], references: [id], onDelete: Restrict)
+  latest_student_profile   StudentProfile?    @relation("LatestStudentProfile", fields: [latest_student_profile_db_id], references: [id], onDelete: SetNull)
+  latest_formative_decision FormativeDecision? @relation("LatestFormativeDecision", fields: [latest_formative_decision_db_id], references: [id], onDelete: SetNull)
+  item_responses           ItemResponse[]
+  conversation_turns       ConversationTurn[]
+  process_events           ProcessEvent[]
+  agent_calls              AgentCall[]
+  response_packages        ResponsePackage[]
+  student_profiles         StudentProfile[]   @relation("ConceptUnitSessionProfiles")
+  formative_decisions      FormativeDecision[] @relation("ConceptUnitSessionFormativeDecisions")
+  followup_rounds          FollowupRound[]
+
+  @@unique([assessment_session_db_id, concept_unit_db_id])
+  @@index([assessment_session_db_id, status])
+  @@index([concept_unit_db_id])
+  @@index([latest_student_profile_db_id])
+  @@index([latest_formative_decision_db_id])
+  @@map("concept_unit_sessions")
+}
+
+model ItemResponse {
+  id                              String              @id @default(uuid()) @db.Uuid
+  concept_unit_session_db_id      String              @db.Uuid
+  item_db_id                      String              @db.Uuid
+  selected_option                 String?
+  correct_option_snapshot         String
+  correctness                     ResponseCorrectness @default(not_scored)
+  reasoning_text                  String?             @db.Text
+  confidence_rating               ConfidenceLevel?
+  item_response_time_ms           Int?
+  item_started_at                 DateTime?           @db.Timestamptz(6)
+  item_submitted_at               DateTime?           @db.Timestamptz(6)
+  skipped_reasoning               Boolean             @default(false)
+  skipped_confidence              Boolean             @default(false)
+  skipped_item                    Boolean             @default(false)
+  revision_count                  Int                 @default(0)
+  missing_evidence_repair_offered Boolean             @default(false)
+  item_version_snapshot           Int
+  item_snapshot                   Json
+  client_submission_id            String?
+  created_at                      DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at                      DateTime            @updatedAt @db.Timestamptz(6)
+
+  concept_unit_session ConceptUnitSession @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  item                 Item               @relation(fields: [item_db_id], references: [id], onDelete: Restrict)
+
+  @@unique([concept_unit_session_db_id, item_db_id])
+  @@unique([concept_unit_session_db_id, client_submission_id])
+  @@index([item_db_id])
+  @@index([item_submitted_at])
+  @@map("item_responses")
+}
+
+model StudentActionIdempotencyKey {
+  id                       String   @id @default(uuid()) @db.Uuid
+  assessment_session_db_id String   @db.Uuid
+  client_action_id         String
+  action_type              String
+  request_hash             String
+  response_payload         Json?
+  created_at               DateTime @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime @updatedAt @db.Timestamptz(6)
+
+  assessment_session AssessmentSession @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+
+  @@unique([assessment_session_db_id, client_action_id])
+  @@index([assessment_session_db_id, action_type])
+  @@map("student_action_idempotency_keys")
+}
+
+model ConversationTurn {
+  id                         String          @id @default(uuid()) @db.Uuid
+  assessment_session_db_id   String          @db.Uuid
+  concept_unit_session_db_id String?         @db.Uuid
+  item_db_id                 String?         @db.Uuid
+  followup_round_db_id       String?         @db.Uuid
+  phase                      AssessmentPhase
+  actor_type                 ActorType
+  agent_name                 String?
+  message_text               String?         @db.Text
+  structured_payload         Json?
+  created_at                 DateTime        @default(now()) @db.Timestamptz(6)
+
+  assessment_session    AssessmentSession   @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit_session  ConceptUnitSession? @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  item                  Item?               @relation(fields: [item_db_id], references: [id], onDelete: Restrict)
+  followup_round        FollowupRound?      @relation(fields: [followup_round_db_id], references: [id], onDelete: Restrict)
+
+  @@index([assessment_session_db_id, created_at])
+  @@index([concept_unit_session_db_id, created_at])
+  @@index([item_db_id])
+  @@index([followup_round_db_id])
+  @@map("conversation_turns")
+}
+
+model ProcessEvent {
+  id                         String      @id @default(uuid()) @db.Uuid
+  assessment_session_db_id   String      @db.Uuid
+  concept_unit_session_db_id String?     @db.Uuid
+  item_db_id                 String?     @db.Uuid
+  event_type                 String
+  event_category             String
+  event_source               EventSource
+  visibility_duration_ms     Int?
+  pause_duration_ms          Int?
+  payload                    Json?
+  occurred_at                DateTime    @db.Timestamptz(6)
+  created_at                 DateTime    @default(now()) @db.Timestamptz(6)
+
+  assessment_session   AssessmentSession   @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit_session ConceptUnitSession? @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  item                 Item?               @relation(fields: [item_db_id], references: [id], onDelete: Restrict)
+
+  @@index([assessment_session_db_id, occurred_at])
+  @@index([concept_unit_session_db_id, occurred_at])
+  @@index([assessment_session_db_id, event_type, occurred_at])
+  @@index([event_type])
+  @@index([item_db_id])
+  @@map("process_events")
+}
+
+model AgentCall {
+  id                         String          @id @default(uuid()) @db.Uuid
+  assessment_session_db_id   String          @db.Uuid
+  concept_unit_session_db_id String?         @db.Uuid
+  agent_name                 String
+  agent_version              String
+  model_name                 String
+  temperature                Decimal         @db.Decimal(4, 2)
+  prompt_version             String
+  schema_version             String
+  input_payload              Json
+  raw_output                 Json?
+  output_payload             Json?
+  output_validated           Boolean         @default(false)
+  validation_error           String?         @db.Text
+  retry_count                Int             @default(0)
+  call_status                AgentCallStatus @default(started)
+  latency_ms                 Int?
+  input_tokens               Int?
+  output_tokens              Int?
+  total_tokens               Int?
+  token_usage                Json?
+  estimated_cost             Decimal?        @db.Decimal(12, 6)
+  created_at                 DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime        @updatedAt @db.Timestamptz(6)
+
+  assessment_session   AssessmentSession   @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit_session ConceptUnitSession? @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  student_profiles     StudentProfile[]    @relation("StudentProfileAgentCall")
+  formative_decisions  FormativeDecision[] @relation("FormativeDecisionAgentCall")
+
+  @@index([assessment_session_db_id, created_at])
+  @@index([concept_unit_session_db_id, created_at])
+  @@index([agent_name, call_status])
+  @@map("agent_calls")
+}
+
+model ResponsePackage {
+  id                         String   @id @default(uuid()) @db.Uuid
+  concept_unit_session_db_id String   @db.Uuid
+  package_type               String
+  payload                    Json
+  created_at                 DateTime @default(now()) @db.Timestamptz(6)
+
+  concept_unit_session ConceptUnitSession @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+
+  @@index([concept_unit_session_db_id, created_at])
+  @@index([package_type])
+  @@map("response_packages")
+}
+
+model StudentProfile {
+  id                              String                      @id @default(uuid()) @db.Uuid
+  concept_unit_session_db_id      String                      @db.Uuid
+  profile_type                    ProfileType
+  ability_profile                 AbilityProfile
+  ability_pattern_flags           Json
+  engagement_profile              EngagementProfile
+  engagement_pattern_flags        Json
+  integrated_diagnostic_profile   IntegratedDiagnosticProfile
+  integrated_profile_confidence   ConfidenceLevel
+  integrated_profile_rationale    String                      @db.Text
+  evidence_sufficiency            EvidenceSufficiency
+  confidence_alignment            ConfidenceAlignment
+  independence_interpretability   IndependenceInterpretability
+  misconception_indicators        Json
+  item_level_evidence             Json
+  reasoning_quality_summary       String                      @db.Text
+  engagement_summary              String                      @db.Text
+  process_interpretation_cautions Json
+  profile_confidence              ConfidenceLevel
+  rationale                       String                      @db.Text
+  recommended_next_evidence       Json
+  based_on_agent_call_db_id       String?                     @db.Uuid
+  created_at                      DateTime                    @default(now()) @db.Timestamptz(6)
+
+  concept_unit_session            ConceptUnitSession  @relation("ConceptUnitSessionProfiles", fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  based_on_agent_call             AgentCall?          @relation("StudentProfileAgentCall", fields: [based_on_agent_call_db_id], references: [id], onDelete: SetNull)
+  latest_for_concept_unit_sessions ConceptUnitSession[] @relation("LatestStudentProfile")
+  formative_decisions             FormativeDecision[] @relation("DecisionProfile")
+  updated_followup_rounds         FollowupRound[]     @relation("UpdatedStudentProfile")
+
+  @@index([concept_unit_session_db_id, created_at])
+  @@index([ability_profile])
+  @@index([engagement_profile])
+  @@index([integrated_diagnostic_profile])
+  @@index([based_on_agent_call_db_id])
+  @@map("student_profiles")
+}
+
+model FormativeDecision {
+  id                             String         @id @default(uuid()) @db.Uuid
+  concept_unit_session_db_id     String         @db.Uuid
+  student_profile_db_id          String         @db.Uuid
+  formative_value                FormativeValue
+  formative_action_plan          String         @db.Text
+  target_evidence                Json
+  success_criteria               Json
+  followup_prompt_constraints    Json
+  profile_update_triggers        Json
+  rationale                      String         @db.Text
+  mapping_followed               Boolean
+  mapping_deviation_reason       String?        @db.Text
+  based_on_agent_call_db_id      String?        @db.Uuid
+  created_at                     DateTime       @default(now()) @db.Timestamptz(6)
+
+  concept_unit_session           ConceptUnitSession  @relation("ConceptUnitSessionFormativeDecisions", fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  student_profile                StudentProfile      @relation("DecisionProfile", fields: [student_profile_db_id], references: [id], onDelete: Restrict)
+  based_on_agent_call            AgentCall?          @relation("FormativeDecisionAgentCall", fields: [based_on_agent_call_db_id], references: [id], onDelete: SetNull)
+  latest_for_concept_unit_sessions ConceptUnitSession[] @relation("LatestFormativeDecision")
+  followup_rounds                FollowupRound[]
+
+  @@index([concept_unit_session_db_id, created_at])
+  @@index([student_profile_db_id])
+  @@index([formative_value])
+  @@index([based_on_agent_call_db_id])
+  @@map("formative_decisions")
+}
+
+model FollowupRound {
+  id                            String               @id @default(uuid()) @db.Uuid
+  concept_unit_session_db_id    String               @db.Uuid
+  round_index                   Int
+  formative_decision_db_id      String               @db.Uuid
+  status                        FollowupRoundStatus  @default(not_started)
+  evidence_trigger_type         String?
+  started_at                    DateTime?            @db.Timestamptz(6)
+  completed_at                  DateTime?            @db.Timestamptz(6)
+  updated_student_profile_db_id String?              @db.Uuid
+  created_at                    DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime             @updatedAt @db.Timestamptz(6)
+
+  concept_unit_session    ConceptUnitSession @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  formative_decision      FormativeDecision  @relation(fields: [formative_decision_db_id], references: [id], onDelete: Restrict)
+  updated_student_profile StudentProfile?    @relation("UpdatedStudentProfile", fields: [updated_student_profile_db_id], references: [id], onDelete: SetNull)
+  conversation_turns      ConversationTurn[]
+
+  @@unique([concept_unit_session_db_id, round_index])
+  @@index([concept_unit_session_db_id, status])
+  @@index([formative_decision_db_id])
+  @@index([updated_student_profile_db_id])
+  @@map("followup_rounds")
+}
+
+model SummativeOutcome {
+  id                      String   @id @default(uuid()) @db.Uuid
+  user_db_id              String   @db.Uuid
+  user_id_snapshot        String
+  outcome_name            String
+  outcome_score           Decimal  @db.Decimal(10, 2)
+  max_score               Decimal  @db.Decimal(10, 2)
+  assessment_date         DateTime @db.Date
+  notes                   String?  @db.Text
+  uploaded_by_user_db_id  String   @db.Uuid
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime @updatedAt @db.Timestamptz(6)
+
+  user        User @relation("SummativeOutcomeStudent", fields: [user_db_id], references: [id], onDelete: Restrict)
+  uploaded_by User @relation("SummativeOutcomeUploader", fields: [uploaded_by_user_db_id], references: [id], onDelete: Restrict)
+
+  @@index([user_db_id, assessment_date])
+  @@index([uploaded_by_user_db_id])
+  @@index([outcome_name])
+  @@map("summative_outcomes")
+}
+
+model ExportJob {
+  id                      String          @id @default(uuid()) @db.Uuid
+  requested_by_user_db_id String          @db.Uuid
+  status                  ExportJobStatus @default(requested)
+  file_name               String?
+  row_count               Int?
+  created_at              DateTime        @default(now()) @db.Timestamptz(6)
+  completed_at            DateTime?       @db.Timestamptz(6)
+  error_message           String?         @db.Text
+
+  requested_by User @relation("ExportJobRequester", fields: [requested_by_user_db_id], references: [id], onDelete: Restrict)
+
+  @@index([requested_by_user_db_id, created_at])
+  @@index([status])
+  @@map("export_jobs")
+}
