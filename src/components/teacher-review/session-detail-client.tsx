@@ -1,0 +1,743 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { ChevronLeft, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import {
+  errorFromUnknown,
+  fetchItemResponses,
+  fetchProcessEvents,
+  fetchResponsePackages,
+  fetchSessionDetail,
+  fetchTranscript
+} from "./api";
+import type {
+  ItemResponsesResponse,
+  ProcessEventsResponse,
+  ResponsePackagesResponse,
+  SessionDetailResponse,
+  StructuredApiError,
+  TranscriptResponse
+} from "./types";
+import {
+  CopyButton,
+  EmptyState,
+  ErrorState,
+  formatDate,
+  formatDuration,
+  JsonDetails,
+  label,
+  LoadingState,
+  StatusPill
+} from "./ui";
+
+const tabs = [
+  "overview",
+  "item_responses",
+  "conversation_transcript",
+  "process_events",
+  "response_packages",
+  "future_agent_data"
+] as const;
+
+const eventTypes = [
+  "session_started",
+  "session_resumed",
+  "session_exited",
+  "session_completed",
+  "phase_entered",
+  "phase_exited",
+  "transition_validated",
+  "transition_rejected",
+  "item_presented",
+  "option_selected",
+  "reasoning_entered",
+  "reasoning_revised",
+  "confidence_selected",
+  "item_submitted",
+  "missing_evidence_detected",
+  "missing_evidence_repair_prompted",
+  "missing_evidence_skipped",
+  "invalid_help_request",
+  "prompt_injection_attempt",
+  "procedural_clarification_request",
+  "emotional_or_frustration_response",
+  "page_hidden",
+  "page_visible",
+  "long_pause",
+  "inactivity_detected",
+  "navigation_event",
+  "refresh_recovery",
+  "schema_validation_failed",
+  "agent_retry_scheduled",
+  "followup_turn_completed"
+];
+
+type Tab = (typeof tabs)[number];
+
+function responseStateTone(value: string) {
+  if (value === "answered_correctly") {
+    return "good" as const;
+  }
+
+  if (value === "answered_incorrectly") {
+    return "bad" as const;
+  }
+
+  if (value === "explicitly_skipped" || value === "response_not_finalized") {
+    return "warn" as const;
+  }
+
+  return "neutral" as const;
+}
+
+function correctnessTone(value: string) {
+  if (value === "correct") {
+    return "good" as const;
+  }
+
+  if (value === "incorrect") {
+    return "bad" as const;
+  }
+
+  if (value === "unanswered") {
+    return "warn" as const;
+  }
+
+  return "neutral" as const;
+}
+
+function Fact({ labelText, value }: { labelText: string; value: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-line bg-white p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{labelText}</p>
+      <div className="mt-2 text-sm font-medium text-ink">{value}</div>
+    </div>
+  );
+}
+
+export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicId: string }) {
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [detail, setDetail] = useState<SessionDetailResponse | null>(null);
+  const [itemResponses, setItemResponses] = useState<ItemResponsesResponse | null>(null);
+  const [transcript, setTranscript] = useState<TranscriptResponse | null>(null);
+  const [responsePackages, setResponsePackages] = useState<ResponsePackagesResponse | null>(null);
+  const [processEvents, setProcessEvents] = useState<ProcessEventsResponse | null>(null);
+  const [error, setError] = useState<StructuredApiError | null>(null);
+  const [processError, setProcessError] = useState<StructuredApiError | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [processLoading, setProcessLoading] = useState(true);
+  const [processFilters, setProcessFilters] = useState({
+    event_type: "",
+    event_source: "",
+    concept_unit_public_id: "",
+    page: 1,
+    page_size: 100
+  });
+
+  const loadCore = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const [detailResult, itemResult, transcriptResult, packageResult] =
+        await Promise.all([
+          fetchSessionDetail(sessionPublicId),
+          fetchItemResponses(sessionPublicId),
+          fetchTranscript(sessionPublicId),
+          fetchResponsePackages(sessionPublicId)
+        ]);
+
+      setDetail(detailResult);
+      setItemResponses(itemResult);
+      setTranscript(transcriptResult);
+      setResponsePackages(packageResult);
+    } catch (requestError) {
+      setError(errorFromUnknown(requestError));
+    } finally {
+      setLoading(false);
+    }
+  }, [sessionPublicId]);
+
+  const loadProcessEvents = useCallback(async () => {
+    setProcessLoading(true);
+    setProcessError(null);
+
+    try {
+      const result = await fetchProcessEvents(sessionPublicId, processFilters);
+      setProcessEvents(result);
+    } catch (requestError) {
+      setProcessError(errorFromUnknown(requestError));
+    } finally {
+      setProcessLoading(false);
+    }
+  }, [processFilters, sessionPublicId]);
+
+  useEffect(() => {
+    void loadCore();
+  }, [loadCore]);
+
+  useEffect(() => {
+    void loadProcessEvents();
+  }, [loadProcessEvents]);
+
+  function updateProcessFilter(key: keyof typeof processFilters, value: string | number) {
+    setProcessFilters((current) => ({
+      ...current,
+      [key]: value,
+      page: key === "page" ? Number(value) : 1
+    }));
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-accent"
+          href="/teacher/sessions"
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          Back to sessions
+        </Link>
+        <button
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-accent"
+          onClick={() => {
+            void loadCore();
+            void loadProcessEvents();
+          }}
+          type="button"
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          Refresh
+        </button>
+      </div>
+
+      {error ? <ErrorState error={error} /> : null}
+      {loading ? <LoadingState /> : null}
+
+      {!loading && detail ? (
+        <>
+          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-accent">
+                  session review
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-ink">
+                  {detail.student.user_id} · {detail.assessment.title}
+                </h2>
+                <p className="mt-2 text-sm text-muted">
+                  Session public ID: {detail.session.session_public_id}
+                </p>
+              </div>
+              <CopyButton value={detail.session.session_public_id} />
+            </div>
+          </section>
+
+          <div className="flex flex-wrap gap-2 border-b border-line">
+            {tabs.map((tab) => (
+              <button
+                className={`border-b-2 px-3 py-3 text-sm font-semibold ${
+                  activeTab === tab
+                    ? "border-accent text-accent"
+                    : "border-transparent text-muted hover:text-ink"
+                }`}
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                type="button"
+              >
+                {label(tab)}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "overview" ? <Overview detail={detail} /> : null}
+          {activeTab === "item_responses" && itemResponses ? (
+            <ItemResponsesSection data={itemResponses} />
+          ) : null}
+          {activeTab === "conversation_transcript" && transcript ? (
+            <TranscriptSection data={transcript} />
+          ) : null}
+          {activeTab === "process_events" ? (
+            <ProcessEventsSection
+              data={processEvents}
+              error={processError}
+              filters={processFilters}
+              loading={processLoading}
+              onUpdateFilter={updateProcessFilter}
+            />
+          ) : null}
+          {activeTab === "response_packages" && responsePackages ? (
+            <ResponsePackagesSection data={responsePackages} />
+          ) : null}
+          {activeTab === "future_agent_data" ? <FutureAgentSection detail={detail} /> : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function Overview({ detail }: { detail: SessionDetailResponse }) {
+  return (
+    <section className="space-y-5">
+      <div className="grid gap-3 md:grid-cols-3">
+        <Fact labelText="Student user_id" value={detail.student.user_id} />
+        <Fact labelText="Assessment" value={detail.assessment.title} />
+        <Fact
+          labelText="Assessment public ID"
+          value={
+            <div className="flex flex-wrap items-center gap-2">
+              <span>{detail.assessment.assessment_public_id}</span>
+              <CopyButton value={detail.assessment.assessment_public_id} />
+            </div>
+          }
+        />
+        <Fact labelText="Attempt" value={detail.session.attempt_number} />
+        <Fact labelText="Status" value={<StatusPill value={detail.session.status} />} />
+        <Fact labelText="Current phase" value={<StatusPill value={detail.session.current_phase} tone="warn" />} />
+        <Fact labelText="Started" value={<time title={detail.session.started_at ?? undefined}>{formatDate(detail.session.started_at)}</time>} />
+        <Fact labelText="Last activity" value={<time title={detail.session.last_activity_at ?? undefined}>{formatDate(detail.session.last_activity_at)}</time>} />
+        <Fact labelText="Completed" value={<time title={detail.session.completed_at ?? undefined}>{formatDate(detail.session.completed_at)}</time>} />
+        <Fact labelText="Current concept unit" value={detail.current_concept_unit?.title ?? "Not recorded"} />
+        <Fact labelText="Concept-unit progress" value={`${detail.summary.completed_concept_unit_count} / ${detail.summary.concept_unit_count}`} />
+        <Fact labelText="Item responses" value={detail.summary.item_response_count} />
+        <Fact
+          labelText="Needs review"
+          value={
+            detail.session.needs_review ? (
+              <div>
+                <StatusPill value="needs_review" tone="bad" />
+                <p className="mt-2 text-xs text-muted">{detail.session.needs_review_reason}</p>
+              </div>
+            ) : (
+              <StatusPill value="not_flagged" tone="good" />
+            )
+          }
+        />
+        <Fact
+          labelText="Content lock"
+          value={
+            detail.summary.assessment_content_locked ? (
+              <StatusPill value="locked_after_student_session" tone="warn" />
+            ) : (
+              <StatusPill value="not_locked" tone="neutral" />
+            )
+          }
+        />
+        <Fact labelText="Response packages" value={detail.summary.response_package_count} />
+      </div>
+
+      <section className="overflow-hidden rounded-lg border border-line bg-white">
+        <div className="border-b border-line p-4">
+          <h3 className="font-semibold text-ink">Concept-unit progress</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="border-b border-line bg-slate-50 text-xs uppercase tracking-wide text-muted">
+              <tr>
+                <th className="px-4 py-3">Order</th>
+                <th className="px-4 py-3">Concept unit</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Initial completed</th>
+                <th className="px-4 py-3">Follow-up</th>
+                <th className="px-4 py-3">Responses</th>
+                <th className="px-4 py-3">Packages</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {detail.concept_unit_sessions.map((conceptUnitSession) => (
+                <tr key={conceptUnitSession.concept_unit_public_id}>
+                  <td className="px-4 py-3">{conceptUnitSession.order_index}</td>
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-ink">{conceptUnitSession.title}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {conceptUnitSession.concept_unit_public_id}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusPill value={conceptUnitSession.status} />
+                  </td>
+                  <td className="px-4 py-3">
+                    {formatDate(conceptUnitSession.initial_completed_at)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusPill value={conceptUnitSession.followup_status} />
+                    <p className="mt-1 text-xs text-muted">
+                      {conceptUnitSession.followup_round_count} rounds
+                    </p>
+                  </td>
+                  <td className="px-4 py-3">{conceptUnitSession.item_response_count}</td>
+                  <td className="px-4 py-3">{conceptUnitSession.response_package_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function ItemResponsesSection({ data }: { data: ItemResponsesResponse }) {
+  if (data.concept_units.length === 0) {
+    return <EmptyState title="No concept-unit responses are recorded yet." />;
+  }
+
+  return (
+    <section className="space-y-4">
+      {data.concept_units.map((conceptUnit) => (
+        <article className="rounded-lg border border-line bg-white p-5" key={conceptUnit.concept_unit_public_id}>
+          <div className="border-b border-line pb-3">
+            <h3 className="text-lg font-semibold text-ink">{conceptUnit.title}</h3>
+            <p className="mt-1 text-sm text-muted">{conceptUnit.concept_unit_public_id}</p>
+          </div>
+          <div className="mt-4 space-y-4">
+            {conceptUnit.item_responses.map((response) => (
+              <div className="rounded-lg border border-line p-4" key={response.item_public_id}>
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                      Item {response.item_order} · {response.item_public_id}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-ink">
+                      {String(response.item_stem_snapshot)}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <StatusPill
+                      value={response.response_state}
+                      tone={responseStateTone(response.response_state)}
+                    />
+                    <StatusPill
+                      value={response.correctness}
+                      tone={correctnessTone(response.correctness)}
+                    />
+                  </div>
+                </div>
+                <dl className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Selected</dt>
+                    <dd className="mt-1 text-ink">{response.selected_option ?? "Not selected"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Correct option</dt>
+                    <dd className="mt-1 text-ink">{response.correct_option_snapshot}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Confidence</dt>
+                    <dd className="mt-1 text-ink">{response.confidence_rating ?? "Not recorded"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Response time</dt>
+                    <dd className="mt-1 text-ink">{formatDuration(response.item_response_time_ms)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Submitted</dt>
+                    <dd className="mt-1 text-ink">{formatDate(response.item_submitted_at)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Revisions</dt>
+                    <dd className="mt-1 text-ink">{response.revision_count}</dd>
+                  </div>
+                </dl>
+                <div className="mt-4 rounded-md bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Student reasoning</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+                    {response.reasoning_text ?? "No reasoning text recorded."}
+                  </p>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {response.skipped_item ? <StatusPill value="skipped_item" tone="warn" /> : null}
+                  {response.skipped_reasoning ? <StatusPill value="skipped_reasoning" tone="warn" /> : null}
+                  {response.skipped_confidence ? <StatusPill value="skipped_confidence" tone="warn" /> : null}
+                  {response.missing_evidence_repair_offered ? (
+                    <StatusPill value="missing_evidence_repair_offered" tone="warn" />
+                  ) : null}
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <JsonDetails value={response.options_snapshot} labelText="Administered options snapshot" />
+                  <JsonDetails value={response.administered_snapshot} labelText="Full administered item snapshot" />
+                </div>
+                <p className="mt-3 text-xs text-muted">
+                  Current content version: {response.current_content_version}; administered version:{" "}
+                  {response.item_version_snapshot ?? "not recorded"}.
+                </p>
+              </div>
+            ))}
+          </div>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function TranscriptSection({ data }: { data: TranscriptResponse }) {
+  if (data.turns.length === 0) {
+    return <EmptyState title="No transcript turns are recorded yet." />;
+  }
+
+  return (
+    <section className="space-y-3">
+      {data.turns.map((turn, index) => (
+        <article className="rounded-lg border border-line bg-white p-4" key={`${turn.created_at}-${index}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill value={turn.actor_type} />
+            <StatusPill value={turn.phase} tone="warn" />
+            {turn.agent_name ? <StatusPill value={turn.agent_name} /> : null}
+            <span className="text-xs text-muted">{formatDate(turn.created_at)}</span>
+          </div>
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink">
+            {turn.message_text ?? "No text message recorded."}
+          </p>
+          <p className="mt-2 text-xs text-muted">
+            {turn.concept_unit_public_id ? `Concept unit: ${turn.concept_unit_public_id}` : "No concept-unit association"}
+            {turn.item_public_id ? ` · Item: ${turn.item_public_id}` : ""}
+            {turn.followup_round_index !== null ? ` · Follow-up round ${turn.followup_round_index}` : ""}
+          </p>
+          <JsonDetails value={turn.structured_payload} labelText="Structured payload" />
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function ProcessEventsSection({
+  data,
+  error,
+  filters,
+  loading,
+  onUpdateFilter
+}: {
+  data: ProcessEventsResponse | null;
+  error: StructuredApiError | null;
+  filters: {
+    event_type: string;
+    event_source: string;
+    concept_unit_public_id: string;
+    page: number;
+    page_size: number;
+  };
+  loading: boolean;
+  onUpdateFilter: (key: keyof typeof filters, value: string | number) => void;
+}) {
+  return (
+    <section className="space-y-4">
+      <section className="rounded-lg border border-line bg-white p-4">
+        <p className="text-sm leading-6 text-muted">
+          {data?.interpretation_boundary ??
+            "Process events are contextual evidence for engagement and evidence sufficiency; they are not misconduct labels."}
+        </p>
+        <div className="mt-3 grid gap-3 md:grid-cols-4">
+          <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+            Event type
+            <select
+              className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+              onChange={(event) => onUpdateFilter("event_type", event.target.value)}
+              value={filters.event_type}
+            >
+              <option value="">All event types</option>
+              {eventTypes.map((eventType) => (
+                <option key={eventType} value={eventType}>
+                  {label(eventType)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+            Event source
+            <select
+              className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+              onChange={(event) => onUpdateFilter("event_source", event.target.value)}
+              value={filters.event_source}
+            >
+              <option value="">All sources</option>
+              {["frontend", "backend", "agent", "system"].map((source) => (
+                <option key={source} value={source}>
+                  {source}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+            Concept unit
+            <select
+              className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+              onChange={(event) => onUpdateFilter("concept_unit_public_id", event.target.value)}
+              value={filters.concept_unit_public_id}
+            >
+              <option value="">All concept units</option>
+              {data?.concept_units.map((conceptUnit) => (
+                <option
+                  key={conceptUnit.concept_unit_public_id}
+                  value={conceptUnit.concept_unit_public_id}
+                >
+                  {conceptUnit.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+            Page size
+            <select
+              className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+              onChange={(event) => onUpdateFilter("page_size", Number(event.target.value))}
+              value={filters.page_size}
+            >
+              {[50, 100, 250, 500].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
+
+      {error ? <ErrorState error={error} /> : null}
+      {loading ? <LoadingState label="Loading process events" /> : null}
+
+      {data ? (
+        <>
+          <div className="grid gap-3 md:grid-cols-4">
+            {[
+              "page_switch_count",
+              "long_pause_count",
+              "inactivity_count",
+              "navigation_event_count",
+              "invalid_help_request_count",
+              "prompt_injection_attempt_count",
+              "procedural_clarification_count",
+              "emotional_response_count",
+              "reasoning_revision_count",
+              "option_revision_count",
+              "validation_failure_count",
+              "agent_retry_count",
+              "followup_turn_count"
+            ].map((key) => (
+              <Fact key={key} labelText={label(key)} value={String(data.aggregates[key] ?? 0)} />
+            ))}
+          </div>
+
+          {data.events.length === 0 ? (
+            <EmptyState title="No process events match the current filters." />
+          ) : (
+            <section className="space-y-3">
+              {data.events.map((event, index) => (
+                <article className="rounded-lg border border-line bg-white p-4" key={`${event.occurred_at}-${index}`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusPill value={event.event_type} tone="warn" />
+                    <StatusPill value={event.event_source} />
+                    <StatusPill value={event.event_category} />
+                    <span className="text-xs text-muted">{formatDate(event.occurred_at)}</span>
+                  </div>
+                  <dl className="mt-3 grid gap-3 text-sm md:grid-cols-4">
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Concept unit</dt>
+                      <dd className="mt-1 text-ink">{event.concept_unit_public_id ?? "Not associated"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Item</dt>
+                      <dd className="mt-1 text-ink">{event.item_public_id ?? "Not associated"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Visibility duration</dt>
+                      <dd className="mt-1 text-ink">{formatDuration(event.visibility_duration_ms)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Pause duration</dt>
+                      <dd className="mt-1 text-ink">{formatDuration(event.pause_duration_ms)}</dd>
+                    </div>
+                  </dl>
+                  <JsonDetails value={event.payload} labelText="Technical process payload" />
+                </article>
+              ))}
+            </section>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
+            <p>
+              Page {data.pagination.page} of {data.pagination.total_pages} ·{" "}
+              {data.pagination.total} events
+            </p>
+            <div className="flex gap-2">
+              <button
+                className="h-9 rounded-md border border-line bg-white px-3 font-semibold text-ink disabled:opacity-50"
+                disabled={filters.page <= 1}
+                onClick={() => onUpdateFilter("page", filters.page - 1)}
+                type="button"
+              >
+                Previous
+              </button>
+              <button
+                className="h-9 rounded-md border border-line bg-white px-3 font-semibold text-ink disabled:opacity-50"
+                disabled={filters.page >= data.pagination.total_pages}
+                onClick={() => onUpdateFilter("page", filters.page + 1)}
+                type="button"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function ResponsePackagesSection({ data }: { data: ResponsePackagesResponse }) {
+  if (data.response_packages.length === 0) {
+    return <EmptyState title="No response packages are recorded yet." />;
+  }
+
+  return (
+    <section className="space-y-4">
+      {data.response_packages.map((responsePackage) => (
+        <article className="rounded-lg border border-line bg-white p-5" key={`${responsePackage.package_type}-${responsePackage.sequence}`}>
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-ink">
+                {label(responsePackage.package_type)}
+              </h3>
+              <p className="mt-1 text-sm text-muted">
+                {responsePackage.concept_unit_title} · {responsePackage.concept_unit_public_id}
+              </p>
+            </div>
+            <div className="text-sm text-muted">
+              Sequence {responsePackage.sequence} · {formatDate(responsePackage.created_at)}
+            </div>
+          </div>
+          <JsonDetails value={responsePackage.payload_summary} labelText="Readable package summary" />
+          <JsonDetails value={responsePackage.payload} labelText="Full stored package JSON" />
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function FutureAgentSection({ detail }: { detail: SessionDetailResponse }) {
+  const counts = detail.future_agent_data;
+
+  return (
+    <section className="space-y-4">
+      <EmptyState title="No student profile has been generated.">
+        Student profiling has not been generated because LLM agents are not implemented yet.
+      </EmptyState>
+      <EmptyState title="No formative decision has been generated.">
+        The Formative Value and Planning Agent is not implemented in Phase 5A.
+      </EmptyState>
+      <EmptyState title="No follow-up round has been generated.">
+        Follow-up conversation is intentionally deferred to a later phase.
+      </EmptyState>
+      <EmptyState title="No LLM agent call has been made.">
+        OpenAI API integration and all five agents remain unimplemented in Phase 5A.
+      </EmptyState>
+      <div className="grid gap-3 md:grid-cols-4">
+        <Fact labelText="Student profile rows" value={counts.student_profile_count} />
+        <Fact labelText="Formative decision rows" value={counts.formative_decision_count} />
+        <Fact labelText="Follow-up round rows" value={counts.followup_round_count} />
+        <Fact labelText="Agent call rows" value={counts.agent_call_count} />
+      </div>
+    </section>
+  );
+}

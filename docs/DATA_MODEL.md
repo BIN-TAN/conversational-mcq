@@ -1,6 +1,6 @@
 # Data Model
 
-Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, and Phase 4A additions. The data model still does not imply LLM calls, student chat UI, follow-up orchestration, or CSV export.
+Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, and Phase 5A additions. The data model still does not imply LLM calls, follow-up orchestration, summative upload, or CSV export.
 
 ## Identifier Convention
 
@@ -258,6 +258,22 @@ Initial response package payloads include:
 - relevant conversation turns
 - relevant process events
 - process counts, including page switching, long pauses, invalid help requests, prompt injection attempts, procedural clarifications, emotional responses, agent retries, validation failures, and follow-up turn count
+
+## Phase 5A Teacher Review Reads
+
+Phase 5A does not add database tables. It adds read-only services and teacher_researcher APIs over the existing normalized schema:
+
+- `assessment_sessions` supplies session status, phase, attempts, review flags, activity timestamps, and public session IDs.
+- `users.user_id` is the student-facing and research-facing identifier shown in review views.
+- `assessments`, `concept_units`, and `items` supply current content metadata and public IDs.
+- `item_responses.item_snapshot` and `item_version_snapshot` supply the administered item snapshot used for auditability.
+- `conversation_turns` supply chronological transcript evidence.
+- `process_events` supply chronological process context and neutral aggregate counts.
+- `response_packages.payload` supplies stored package evidence for later agent phases.
+
+Normal Phase 5A API serializers remove internal UUID keys such as `id` and `*_db_id` from teacher-facing payloads. Stored JSON may contain historical internal keys from earlier package creation, but review serializers strip those keys before returning normal API responses.
+
+Phase 5A does not populate `student_profiles`, `formative_decisions`, `followup_rounds`, or `agent_calls`. Empty future-agent UI states must remain empty rather than calculating substitute profiles or decisions.
 
 ## Diagram
 

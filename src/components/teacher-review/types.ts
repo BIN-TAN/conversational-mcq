@@ -1,0 +1,206 @@
+export type StructuredApiError = {
+  code: string;
+  message: string;
+  details?: unknown;
+};
+
+export type SessionListRow = {
+  session_public_id: string;
+  student_user_id: string;
+  student_display_name: string | null;
+  assessment_public_id: string;
+  assessment_title: string;
+  attempt_number: number;
+  session_status: string;
+  current_phase: string;
+  needs_review: boolean;
+  needs_review_reason: string | null;
+  started_at: string | null;
+  last_activity_at: string | null;
+  completed_at: string | null;
+  concept_unit_count: number;
+  completed_concept_unit_count: number;
+  current_concept_unit_title: string | null;
+  item_response_count: number;
+};
+
+export type SessionListResponse = {
+  sessions: SessionListRow[];
+  pagination: {
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+  };
+  filters: {
+    assessments: Array<{
+      assessment_public_id: string;
+      title: string;
+    }>;
+  };
+};
+
+export type SessionDetailResponse = {
+  session: {
+    session_public_id: string;
+    attempt_number: number;
+    status: string;
+    current_phase: string;
+    needs_review: boolean;
+    needs_review_reason: string | null;
+    started_at: string | null;
+    last_activity_at: string | null;
+    completed_at: string | null;
+  };
+  student: {
+    user_id: string;
+    display_name: string | null;
+  };
+  assessment: {
+    assessment_public_id: string;
+    title: string;
+    description: string | null;
+    content_state: {
+      content_state: string;
+      is_content_locked: boolean;
+      content_lock_reason: string | null;
+      has_student_sessions: boolean;
+    };
+  };
+  current_concept_unit: {
+    concept_unit_public_id: string;
+    title: string;
+  } | null;
+  concept_unit_sessions: Array<{
+    concept_unit_public_id: string;
+    title: string;
+    order_index: number;
+    status: string;
+    initial_started_at: string | null;
+    initial_completed_at: string | null;
+    followup_started_at: string | null;
+    followup_completed_at: string | null;
+    followup_status: string;
+    followup_round_count: number;
+    item_response_count: number;
+    response_package_count: number;
+  }>;
+  summary: {
+    concept_unit_count: number;
+    completed_concept_unit_count: number;
+    item_response_count: number;
+    response_package_count: number;
+    assessment_content_locked: boolean;
+  };
+  future_agent_data: {
+    student_profile_count: number;
+    formative_decision_count: number;
+    followup_round_count: number;
+    agent_call_count: number;
+    message: string;
+  };
+};
+
+export type ItemResponsesResponse = {
+  session_public_id: string;
+  concept_units: Array<{
+    concept_unit_public_id: string;
+    title: string;
+    order_index: number;
+    item_responses: Array<{
+      item_public_id: string;
+      item_order: number;
+      response_state: string;
+      item_stem_snapshot: unknown;
+      options_snapshot: unknown;
+      selected_option: string | null;
+      correct_option_snapshot: string;
+      correctness: string;
+      reasoning_text: string | null;
+      confidence_rating: string | null;
+      skipped_item: boolean;
+      skipped_reasoning: boolean;
+      skipped_confidence: boolean;
+      revision_count: number;
+      missing_evidence_repair_offered: boolean;
+      item_response_time_ms: number | null;
+      item_started_at: string | null;
+      item_submitted_at: string | null;
+      item_version_snapshot: number | null;
+      administered_snapshot: unknown;
+      current_content_version: number;
+    }>;
+  }>;
+};
+
+export type TranscriptResponse = {
+  session_public_id: string;
+  turns: Array<{
+    actor_type: string;
+    agent_name: string | null;
+    phase: string;
+    message_text: string | null;
+    created_at: string | null;
+    concept_unit_public_id: string | null;
+    concept_unit_title: string | null;
+    item_public_id: string | null;
+    item_order: number | null;
+    followup_round_index: number | null;
+    structured_payload: unknown;
+  }>;
+};
+
+export type ProcessEventsResponse = {
+  session_public_id: string;
+  aggregates: Record<string, unknown> & {
+    event_count_by_type: Record<string, number>;
+  };
+  events: Array<{
+    event_type: string;
+    event_category: string;
+    event_source: string;
+    occurred_at: string | null;
+    created_at: string | null;
+    visibility_duration_ms: number | null;
+    pause_duration_ms: number | null;
+    concept_unit_public_id: string | null;
+    concept_unit_title: string | null;
+    item_public_id: string | null;
+    item_order: number | null;
+    payload: unknown;
+  }>;
+  concept_units: Array<{
+    concept_unit_public_id: string;
+    title: string;
+  }>;
+  pagination: {
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+  };
+  interpretation_boundary: string;
+};
+
+export type ResponsePackagesResponse = {
+  session_public_id: string;
+  response_packages: Array<{
+    package_type: string;
+    created_at: string | null;
+    concept_unit_public_id: string;
+    concept_unit_title: string;
+    concept_unit_order_index: number;
+    sequence: number;
+    package_version: string | null;
+    payload_summary: unknown;
+    payload: unknown;
+  }>;
+};
+
+export type TeacherReviewBundle = {
+  detail: SessionDetailResponse;
+  itemResponses: ItemResponsesResponse;
+  transcript: TranscriptResponse;
+  processEvents: ProcessEventsResponse;
+  responsePackages: ResponsePackagesResponse;
+};

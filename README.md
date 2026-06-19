@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4A backend foundation for initial student administration; the student chat UI and LLM agents are intentionally not implemented yet.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI and the Phase 5A read-only teacher_researcher session-review platform. LLM agents, OpenAI API integration, follow-up conversation, CSV export, and summative outcome upload are intentionally not implemented yet.
 
 ## Local Setup
 
@@ -77,6 +77,8 @@ npm run db:service-smoke
 npm run content:smoke
 npm run content:governance-smoke
 npm run student:initial-admin-smoke
+npm run student:ui-smoke
+npm run teacher:review-smoke
 npm run typecheck
 npm run lint
 npm run build
@@ -132,10 +134,9 @@ Not implemented yet:
 
 - LLM agent calls
 - OpenAI API integration
-- concept-unit item management
-- student assessment flow
-- teacher dashboard data views
+- formative follow-up conversation
 - CSV export
+- summative outcome upload
 
 ## Phase 2A Database Verification
 
@@ -405,3 +406,66 @@ Manual browser flow:
 7. Confirm the final state is awaiting analysis/profiling and no correctness, profile, formative activity, or follow-up is shown.
 
 See `docs/STUDENT_INITIAL_ADMINISTRATION_UI.md` for the Phase 4B UI contract.
+
+## Phase 5A Teacher Session Review
+
+Phase 5A adds a read-only teacher_researcher review platform for existing assessment sessions. It does not add Phase 5B CSV export, summative outcome upload, OpenAI integration, LLM agents, profiling, planning, follow-up conversation, or fabricated agent outputs.
+
+Teacher routes:
+
+- `/teacher/dashboard`
+- `/teacher/sessions`
+- `/teacher/sessions/[sessionPublicId]`
+
+Teacher session-review APIs:
+
+- `GET /api/teacher/sessions`
+- `GET /api/teacher/sessions/[sessionPublicId]`
+- `GET /api/teacher/sessions/[sessionPublicId]/item-responses`
+- `GET /api/teacher/sessions/[sessionPublicId]/transcript`
+- `GET /api/teacher/sessions/[sessionPublicId]/process-events`
+- `GET /api/teacher/sessions/[sessionPublicId]/response-packages`
+
+Create the development review fixture:
+
+```bash
+npm run demo:teacher-review
+```
+
+Cleanup only the teacher-review demo assessment/session records:
+
+```bash
+npm run demo:teacher-review:cleanup
+```
+
+Phase 5A verification:
+
+```bash
+npm run prisma:generate
+npx prisma validate
+npx prisma migrate status
+npm run prisma:seed
+npm run db:smoke
+npm run db:service-smoke
+npm run content:smoke
+npm run content:governance-smoke
+npm run student:initial-admin-smoke
+npm run student:ui-smoke
+npm run teacher:review-smoke
+npm run typecheck
+npm run lint
+npm run build
+```
+
+Manual browser flow:
+
+1. Run `npm run db:up`.
+2. Run `npm run prisma:seed`.
+3. Run `npm run demo:teacher-review`.
+4. Run `npm run dev`.
+5. Sign in as `teacher_demo` with `teacher_demo_password`.
+6. Open `/teacher/dashboard`, then Student sessions.
+7. Search for `student_demo`, use status/phase filters, open the demo session, and review Overview, Item responses, Conversation transcript, Process events, Response packages, and Future agent data.
+8. Sign out, sign in as `student_demo` with `student_demo_access_code`, and confirm teacher pages/API routes are forbidden.
+
+See `docs/TEACHER_SESSION_REVIEW.md` for the Phase 5A review contract.

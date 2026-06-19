@@ -224,6 +224,20 @@ The student interface must not provide correctness feedback, hints, explanations
 
 Browser process-event logging is limited to approved frontend event types: `page_hidden`, `page_visible`, `long_pause`, `inactivity_detected`, `navigation_event`, and `refresh_recovery`. These events are technical/process context for engagement and evidence sufficiency; they are not misconduct labels and must not capture clipboard contents, keystrokes, external browsing history, or claims about GenAI use.
 
+## Phase 5A Teacher Session Review
+
+Phase 5A implements the read-only teacher_researcher session-review platform over existing assessment-session records. It supports session listing, filtering, session detail review, concept-unit progress, item responses, correctness, reasoning, confidence, skipped evidence, revisions, timing, conversation transcript, process-event timeline and aggregates, response-package viewing, administered content snapshots, documentation, development fixtures, and smoke testing.
+
+Teacher-review routes and APIs must require `teacher_researcher`, reject unauthenticated users, reject students with 403 at the API boundary, use public IDs at route boundaries, and avoid leaking internal UUIDs, password hashes, access-code hashes, cookies, auth tokens, environment variables, or secret configuration.
+
+Phase 5A is read-only for research records. It must not edit item responses, change correctness, edit reasoning, edit confidence, delete transcript turns, delete process events, modify response packages, create student profiles, create formative decisions, create follow-up rounds, call OpenAI, or invoke any LLM agent.
+
+The teacher UI may show correctness and answer snapshots as research evidence. It must not label students as high or low ability, rank performance, fabricate diagnostic profiles, fabricate formative values, or infer independence. Correctness is evidence, not a student profile.
+
+Process data shown in Phase 5A are process context for engagement and evidence sufficiency. The UI and APIs must not label cheating, dishonesty, confirmed GenAI use, or misconduct. Prompt-injection and invalid-help events remain boundary/process events, not profile judgments.
+
+Future agent sections may state that no student profile, formative decision, follow-up round, or LLM agent call exists. They must not show enum defaults as if they were generated agent output.
+
 ## Foundational Logging Services
 
 Process event logging validates `event_source` and the approved process-event taxonomy before writing. The database field remains a string to allow taxonomy expansion later. Process data remain engagement and evidence-sufficiency context, not misconduct labels.
@@ -325,6 +339,18 @@ Phase 4B must not implement:
 - formative follow-up conversation
 - teacher session-review dashboard details
 - master CSV export
+
+Phase 5A must not implement:
+
+- Phase 5B CSV export
+- summative outcome upload
+- OpenAI API integration
+- any of the five LLM agents
+- simulated Student Profiling Agent output
+- simulated Formative Value and Planning Agent output
+- follow-up conversation
+- fabricated profiles, formative values, or agent rationales
+- manual teacher editing of student answers, process events, response packages, profiles, or formative decisions
 
 ## Phase 3A Content Management Rules
 

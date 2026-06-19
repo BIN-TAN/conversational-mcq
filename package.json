@@ -18,6 +18,9 @@
     "student:ui-smoke": "tsx prisma/student-ui-smoke-test.ts",
     "demo:student-assessment": "tsx prisma/demo-student-assessment.ts",
     "demo:student-assessment:cleanup": "tsx prisma/demo-student-assessment-cleanup.ts",
+    "demo:teacher-review": "tsx prisma/demo-teacher-review.ts",
+    "demo:teacher-review:cleanup": "tsx prisma/demo-teacher-review-cleanup.ts",
+    "teacher:review-smoke": "tsx prisma/teacher-review-smoke-test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts"
