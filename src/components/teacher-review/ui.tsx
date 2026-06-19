@@ -123,6 +123,7 @@ export function TeacherReviewNav({ userId }: { userId: string }) {
     { href: "/teacher/dashboard", label: "Dashboard" },
     { href: "/teacher/content", label: "Content management" },
     { href: "/teacher/sessions", label: "Student sessions" },
+    { href: "/teacher/data", label: "Data and outcomes" },
     { href: "/teacher/content/import-json", label: "JSON import" }
   ];
 
@@ -137,9 +138,6 @@ export function TeacherReviewNav({ userId }: { userId: string }) {
           {link.label}
         </Link>
       ))}
-      <span className="rounded-md border border-dashed border-line px-3 py-2 text-muted">
-        CSV export planned
-      </span>
       <span className="ml-auto text-muted">Signed in as {userId}</span>
     </nav>
   );

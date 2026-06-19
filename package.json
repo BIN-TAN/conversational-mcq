@@ -21,6 +21,11 @@
     "demo:teacher-review": "tsx prisma/demo-teacher-review.ts",
     "demo:teacher-review:cleanup": "tsx prisma/demo-teacher-review-cleanup.ts",
     "teacher:review-smoke": "tsx prisma/teacher-review-smoke-test.ts",
+    "demo:data-export": "tsx prisma/demo-data-export.ts",
+    "demo:data-export:cleanup": "tsx prisma/demo-data-export-cleanup.ts",
+    "summative:import-smoke": "tsx prisma/summative-import-smoke-test.ts",
+    "export:master-smoke": "tsx prisma/master-export-smoke-test.ts",
+    "export:cleanup": "tsx prisma/export-cleanup.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts"
@@ -28,6 +33,8 @@
   "dependencies": {
     "@prisma/client": "^6.9.0",
     "clsx": "^2.1.1",
+    "csv-parse": "^7.0.0",
+    "csv-stringify": "^6.8.0",
     "lucide-react": "^0.468.0",
     "next": "^15.0.0",
     "react": "^19.0.0",

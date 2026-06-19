@@ -238,6 +238,35 @@ Process data shown in Phase 5A are process context for engagement and evidence s
 
 Future agent sections may state that no student profile, formative decision, follow-up round, or LLM agent call exists. They must not show enum defaults as if they were generated agent output.
 
+## Phase 5B Summative Outcomes And Master Export
+
+Phase 5B implements teacher_researcher-only supervised summative outcome CSV import and one merged master assessment CSV export. It must not implement OpenAI integration, LLM agents, profiling, formative planning, follow-up conversation, or fabricated agent outputs.
+
+Summative outcome import uses a preview-before-commit workflow:
+
+- Input columns are `user_id`, `outcome_name`, `outcome_score`, `max_score`, `assessment_date`, and optional `notes`.
+- `user_id` must resolve to an existing student user. Teacher_researcher accounts must not receive student outcomes.
+- Preview records import-batch audit data but must not create outcome records.
+- Commit uses the server-preserved normalized preview batch, not client-modified preview rows.
+- Invalid rows, unmatched users, duplicate source rows, and conflicting active records are reported and block default commit.
+- Exact duplicates of existing active outcomes may be treated as idempotent existing records.
+- Explicit replacement supersedes the previous active record and creates a new active revision.
+
+The internal database remains normalized. The exported `master_assessment_export.csv` is a derived research file, not the source of truth.
+
+Master export row grain is one row per student, per assessment session, per concept unit, per item response. Placeholder rows are required for:
+
+- `concept_unit_without_item_response`
+- `session_without_item_response`
+
+Incomplete and interrupted sessions must not disappear from export. Missing, skipped, incorrect, unanswered, and incomplete evidence must remain distinct.
+
+Multiple summative outcomes must not multiply item-response rows. Export repeats the selected primary outcome columns across the relevant student's rows and stores all active outcomes in `summative_outcomes_json`.
+
+Current and future agent/profile/formative columns are present in the master CSV, but they remain blank or empty arrays/counts until the relevant agents actually create database records. Correctness must not be converted into a profile, formative value, or independence interpretation.
+
+Spreadsheet formula-injection protection is required for user-controlled text when `spreadsheet_safe_text = true`. The protection is applied only to exported values and must not alter database records. Local export files are stored under `.data/exports`, not public static folders, and downloads require teacher_researcher authorization.
+
 ## Foundational Logging Services
 
 Process event logging validates `event_source` and the approved process-event taxonomy before writing. The database field remains a string to allow taxonomy expansion later. Process data remain engagement and evidence-sufficiency context, not misconduct labels.
@@ -265,6 +294,10 @@ Phase 3C includes only content governance, research-integrity lifecycle checks, 
 Phase 4A includes only the backend foundation for available assessments, atomic student session start/resume, deterministic initial concept-unit administration, student-safe item delivery, item response persistence/revisions/skips, missing-evidence repair, frontend process-event ingestion, initial response-package creation, API routes, documentation, and smoke tests. It must not implement Phase 4B, the student chat UI, OpenAI integration, LLM agents, profiling, formative planning, follow-up, the teacher session-review dashboard, or CSV export.
 
 Phase 4B includes only the student-facing assessment list, ChatGPT-style initial administration UI, deterministic conversation presenter, student-safe transcript/review display, option/reasoning/confidence controls, missing-evidence repair UI, explicit skip UI, review/revision UI, save/exit/resume/refresh behavior, approved browser process-event logging, demo fixture scripts, UI documentation, and UI smoke testing.
+
+Phase 5A includes only the read-only teacher_researcher session-review platform, teacher-only read APIs, review UI, fixtures, documentation, and smoke testing.
+
+Phase 5B includes only supervised summative outcome CSV upload, validation, audit batches, outcome revisions, one merged master CSV export, export jobs/downloads/local storage, data-management UI, fixtures, documentation, and smoke testing.
 
 Phase 1, Phase 1.5, Phase 2A, and Phase 2B must not implement:
 
@@ -351,6 +384,18 @@ Phase 5A must not implement:
 - follow-up conversation
 - fabricated profiles, formative values, or agent rationales
 - manual teacher editing of student answers, process events, response packages, profiles, or formative decisions
+
+Phase 5B must not implement:
+
+- OpenAI API integration
+- any of the five LLM agents
+- Student Profiling Agent behavior
+- Formative Value and Planning Agent behavior
+- Follow-up Agent behavior
+- formative follow-up conversation
+- fabricated profile, planning, follow-up, or agent-call data
+- summative outcome gradebook editing beyond audited replacement
+- separate CSV exports instead of the one merged master CSV
 
 ## Phase 3A Content Management Rules
 

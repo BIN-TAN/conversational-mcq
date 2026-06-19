@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, Database, FileJson, FileWarning, History, ListChecks, Users } from "lucide-react";
+import { Activity, Database, FileJson, FileWarning, History, ListChecks, Table2, Users } from "lucide-react";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -47,9 +47,9 @@ export default async function TeacherDashboardPage() {
           <h1 className="mt-2 text-3xl font-semibold text-ink">Dashboard</h1>
           <p className="mt-2 text-sm text-muted">Signed in as {user.user_id}</p>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
-            Use this teacher_researcher area to manage content and review existing student sessions.
-            CSV export, summative outcome upload, OpenAI integration, and LLM agent outputs remain
-            planned for later phases.
+            Use this teacher_researcher area to manage content, review existing student sessions,
+            and prepare supervised outcome imports and master CSV exports. OpenAI integration and
+            LLM agent outputs remain planned for later phases.
           </p>
         </header>
 
@@ -83,6 +83,16 @@ export default async function TeacherDashboardPage() {
             <h2 className="mt-4 text-lg font-semibold text-ink">JSON import</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
               Import manually prepared concept-based item sets through the Phase 3A API.
+            </p>
+          </Link>
+          <Link
+            className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
+            href="/teacher/data"
+          >
+            <Table2 className="h-5 w-5 text-accent" aria-hidden="true" />
+            <h2 className="mt-4 text-lg font-semibold text-ink">Data and outcomes</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Import supervised summative outcomes and generate the merged master assessment CSV.
             </p>
           </Link>
           <Link

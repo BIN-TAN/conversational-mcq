@@ -4,7 +4,7 @@ Phase 5A adds a read-only teacher_researcher platform for reviewing existing ass
 
 ## Routes
 
-- `/teacher/dashboard`: navigation entry for content management, student sessions, and JSON import.
+- `/teacher/dashboard`: navigation entry for content management, student sessions, data/outcomes, and JSON import.
 - `/teacher/sessions`: searchable, filterable session list.
 - `/teacher/sessions/[sessionPublicId]`: one-session detail review.
 
@@ -156,6 +156,8 @@ npm run teacher:review-smoke
 
 The smoke test verifies listing, search, status and phase filters, pagination, public-ID serialization, absence of internal UUID keys, item-response ordering, correctness visibility, skipped evidence distinction, chronological transcript and process events, aggregate counts, response-package summary, non-mutating package reads, absence of fabricated profiles/decisions, no OpenAI calls, and cleanup behavior.
 
-## Future Work
+## Related Data Management
 
-Phase 5B may add the merged master CSV export. A later phase may add summative outcome upload and linkage. Later agent phases may populate `agent_calls`, `student_profiles`, `formative_decisions`, and `followup_rounds` through backend-only OpenAI integration using environment-configured model names.
+Phase 5B adds `/teacher/data`, `/teacher/data/summative-outcomes`, and `/teacher/data/export` for supervised outcome import and the merged master CSV export. The session-review pages remain read-only and do not edit student answers, process events, response packages, profiles, or formative decisions.
+
+Later agent phases may populate `agent_calls`, `student_profiles`, `formative_decisions`, and `followup_rounds` through backend-only OpenAI integration using environment-configured model names.

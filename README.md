@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI and the Phase 5A read-only teacher_researcher session-review platform. LLM agents, OpenAI API integration, follow-up conversation, CSV export, and summative outcome upload are intentionally not implemented yet.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, and the Phase 5B summative outcome import plus master CSV export tools. LLM agents, OpenAI API integration, profiling, planning, and follow-up conversation are intentionally not implemented yet.
 
 ## Local Setup
 
@@ -79,6 +79,8 @@ npm run content:governance-smoke
 npm run student:initial-admin-smoke
 npm run student:ui-smoke
 npm run teacher:review-smoke
+npm run summative:import-smoke
+npm run export:master-smoke
 npm run typecheck
 npm run lint
 npm run build
@@ -130,13 +132,11 @@ Implemented:
 - auth-protected student and teacher page shells
 - health endpoint for app/database connectivity
 
-Not implemented yet:
+Outside Phase 1 and 1.5 scope:
 
 - LLM agent calls
 - OpenAI API integration
 - formative follow-up conversation
-- CSV export
-- summative outcome upload
 
 ## Phase 2A Database Verification
 
@@ -469,3 +469,87 @@ Manual browser flow:
 8. Sign out, sign in as `student_demo` with `student_demo_access_code`, and confirm teacher pages/API routes are forbidden.
 
 See `docs/TEACHER_SESSION_REVIEW.md` for the Phase 5A review contract.
+
+## Phase 5B Data Management And Master Export
+
+Phase 5B adds teacher_researcher-only data management for supervised summative outcomes and one merged master assessment CSV export. It does not add OpenAI integration, LLM agents, student profiling, formative planning, follow-up conversation, or fabricated agent outputs.
+
+Teacher routes:
+
+- `/teacher/data`
+- `/teacher/data/summative-outcomes`
+- `/teacher/data/export`
+
+Summative outcome APIs:
+
+- `POST /api/teacher/summative-outcomes/import/preview`
+- `POST /api/teacher/summative-outcomes/import/[batchPublicId]/commit`
+- `GET /api/teacher/summative-outcomes/import-batches`
+- `GET /api/teacher/summative-outcomes/import-batches/[batchPublicId]`
+- `GET /api/teacher/summative-outcomes/outcome-names`
+- `POST /api/teacher/summative-outcomes/[outcomePublicId]/replace`
+
+Master export APIs:
+
+- `POST /api/teacher/export/master-csv`
+- `GET /api/teacher/export/jobs`
+- `GET /api/teacher/export/[exportPublicId]`
+- `GET /api/teacher/export/[exportPublicId]/download`
+
+Outcome import CSV columns:
+
+```text
+user_id,outcome_name,outcome_score,max_score,assessment_date,notes
+```
+
+Create the development data/export fixture:
+
+```bash
+npm run demo:data-export
+```
+
+Cleanup only fixture-owned data/export records and fixture export files:
+
+```bash
+npm run demo:data-export:cleanup
+```
+
+Clean up expired local export files:
+
+```bash
+npm run export:cleanup
+```
+
+Phase 5B verification:
+
+```bash
+npm run prisma:generate
+npx prisma validate
+npx prisma migrate status
+npm run prisma:seed
+npm run db:smoke
+npm run db:service-smoke
+npm run content:smoke
+npm run content:governance-smoke
+npm run student:initial-admin-smoke
+npm run student:ui-smoke
+npm run teacher:review-smoke
+npm run summative:import-smoke
+npm run export:master-smoke
+npm run typecheck
+npm run lint
+npm run build
+```
+
+Manual browser flow:
+
+1. Run `npm run db:up`.
+2. Run `npm run prisma:seed`.
+3. Run `npm run demo:data-export`.
+4. Run `npm run dev`.
+5. Sign in as `teacher_demo` with `teacher_demo_password`.
+6. Open `/teacher/data/summative-outcomes`, preview a valid or invalid CSV, inspect validation results, and commit a valid preview.
+7. Open `/teacher/data/export`, select the demo assessment and primary outcome, generate the export, and download `master_assessment_export.csv`.
+8. Sign out, sign in as `student_demo` with `student_demo_access_code`, and confirm data/export pages and APIs are forbidden.
+
+See `docs/SUMMATIVE_OUTCOMES.md` and `docs/MASTER_CSV_EXPORT.md` for the detailed Phase 5B contracts.

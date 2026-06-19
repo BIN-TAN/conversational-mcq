@@ -1,6 +1,6 @@
 # Data Model
 
-Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, and Phase 5A additions. The data model still does not imply LLM calls, follow-up orchestration, summative upload, or CSV export.
+Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, and Phase 5B additions. The data model still does not imply LLM calls, profiling, planning, or follow-up orchestration.
 
 ## Identifier Convention
 
@@ -32,8 +32,9 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `student_profiles`: Storage for the three-layer profile: ability, engagement, and integrated diagnostic profile.
 - `formative_decisions`: Storage for formative value decisions and action plans.
 - `followup_rounds`: Iterative follow-up rounds. There is no pedagogical maximum number of rounds.
-- `summative_outcomes`: Future linkage to supervised summative assessment scores by `users.user_id`.
-- `export_jobs`: Future export job tracking. CSV generation is not implemented in Phase 2A.
+- `summative_outcomes`: Audited linkage to supervised summative assessment scores by `users.user_id`, with active/superseded revisions.
+- `summative_outcome_import_batches`: Audited preview/commit batches for teacher_researcher CSV imports.
+- `export_jobs`: Teacher_researcher master CSV export job tracking with public export IDs and local storage keys.
 
 ## Key Relations
 
@@ -50,6 +51,9 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `conversation_turns`, `process_events`, and `agent_calls` attach to assessment sessions and optionally concept-unit sessions or items.
 - `student_profiles`, `formative_decisions`, `followup_rounds`, and `response_packages` attach to concept-unit sessions.
 - `summative_outcomes.user_db_id -> users.id` and also stores `user_id_snapshot`.
+- `summative_outcomes.import_batch_db_id -> summative_outcome_import_batches.id` when created from an import batch.
+- `summative_outcome_import_batches.uploaded_by_user_db_id -> users.id`.
+- `export_jobs.requested_by_user_db_id -> users.id`.
 
 ## Uniqueness Constraints
 
@@ -62,6 +66,10 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `item_responses`: unique `concept_unit_session_db_id + client_submission_id` for idempotent client submission handling.
 - `student_action_idempotency_keys`: unique `assessment_session_db_id + client_action_id` for idempotent item actions.
 - `followup_rounds`: unique `concept_unit_session_db_id + round_index`.
+- `summative_outcomes.outcome_public_id`: unique public outcome identifier.
+- `summative_outcomes`: active records are logically unique by `user_db_id + outcome_name + assessment_date`; older versions are preserved as `superseded`.
+- `summative_outcome_import_batches.batch_public_id`: unique public import-batch identifier.
+- `export_jobs.export_public_id`: unique public export-job identifier.
 
 The schema intentionally avoids constraints that would prevent future legitimate reassessment attempts across different assessment sessions.
 
@@ -80,7 +88,8 @@ The schema indexes:
 - Student profiles and formative decisions by concept-unit session and creation time.
 - Follow-up rounds by concept-unit session and round index.
 - Summative outcomes by user and assessment date.
-- Export jobs by requester and status.
+- Summative outcome import batches by uploader and status.
+- Export jobs by requester, status, and expiration.
 
 ## Deletion Behavior
 
@@ -275,6 +284,43 @@ Normal Phase 5A API serializers remove internal UUID keys such as `id` and `*_db
 
 Phase 5A does not populate `student_profiles`, `formative_decisions`, `followup_rounds`, or `agent_calls`. Empty future-agent UI states must remain empty rather than calculating substitute profiles or decisions.
 
+## Phase 5B Outcome And Export Records
+
+Phase 5B adds audited summative outcome import and master CSV export records while keeping the internal database normalized.
+
+`summative_outcome_import_batches` stores preview and commit audit metadata:
+
+- `batch_public_id` is the teacher-facing import batch identifier.
+- `uploaded_by_user_db_id` links to the teacher_researcher who uploaded or pasted the CSV.
+- count fields store total, valid, invalid, duplicate, conflict, unmatched, and committed row counts.
+- `validation_summary` stores teacher-facing validation details.
+- `normalized_rows` stores the server-preserved normalized preview representation used at commit time.
+- Preview writes only the batch record. It does not write `summative_outcomes`.
+
+`summative_outcomes` stores supervised outcomes:
+
+- `outcome_public_id` is the teacher-facing outcome identifier.
+- `user_db_id` links to the student user; `user_id_snapshot` preserves the research-facing ID at import time.
+- `import_batch_db_id` and `source_row_number` link records back to import audit context when available.
+- `record_status` is `active` or `superseded`.
+- `revision_number` and `supersedes_outcome_db_id` preserve replacement history.
+- Active exports use only active outcome records by default.
+
+The logical active duplicate key is `user_db_id + outcome_name + assessment_date`. Exact duplicates can be treated as idempotent existing records. Conflicting values for the same logical key are rejected unless an explicit replacement action supersedes the previous active record and creates a new active revision.
+
+`export_jobs` stores master CSV jobs:
+
+- `export_public_id` is the teacher-facing export identifier.
+- `requested_by_user_db_id` links to the requesting teacher_researcher.
+- `status` is `pending`, `processing`, `completed`, `failed`, or `expired`.
+- `file_name` is normally `master_assessment_export.csv`.
+- `storage_key` is server-generated and never accepted from clients.
+- `row_count`, `options`, `export_schema_version`, timestamps, expiration, and failure message support auditability.
+
+Local Phase 5B export files are written under `.data/exports`, outside public static folders. Production deployment should replace this local storage with persistent object storage while preserving authorization and path-traversal protections.
+
+The master CSV is a derived analysis file. It is not a denormalized database source of truth. Normal exports use public IDs and `users.user_id`, not internal UUIDs.
+
 ## Diagram
 
 ```mermaid
@@ -282,6 +328,7 @@ erDiagram
   users ||--o{ assessments : creates
   users ||--o{ assessment_sessions : starts
   users ||--o{ summative_outcomes : has
+  users ||--o{ summative_outcome_import_batches : uploads
   users ||--o{ export_jobs : requests
 
   assessments ||--o{ concept_units : contains
@@ -311,4 +358,6 @@ erDiagram
   student_profiles ||--o{ formative_decisions : informs
   formative_decisions ||--o{ followup_rounds : guides
   followup_rounds ||--o{ conversation_turns : contains
+  summative_outcome_import_batches ||--o{ summative_outcomes : creates
+  summative_outcomes ||--o{ summative_outcomes : supersedes
 ```
