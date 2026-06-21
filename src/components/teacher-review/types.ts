@@ -84,6 +84,8 @@ export type SessionDetailResponse = {
     followup_round_count: number;
     item_response_count: number;
     response_package_count: number;
+    can_run_profiling: boolean;
+    latest_student_profile: TeacherStudentProfile | null;
   }>;
   summary: {
     concept_unit_count: number;
@@ -98,6 +100,54 @@ export type SessionDetailResponse = {
     followup_round_count: number;
     agent_call_count: number;
     message: string;
+  };
+};
+
+export type TeacherStudentProfile = {
+  profile_type: string;
+  ability_profile: string;
+  ability_pattern_flags: unknown;
+  engagement_profile: string;
+  engagement_pattern_flags: unknown;
+  integrated_diagnostic_profile: string;
+  integrated_profile_confidence: string;
+  integrated_profile_rationale: string;
+  evidence_sufficiency: string;
+  confidence_alignment: string;
+  independence_interpretability: string;
+  misconception_indicators: unknown;
+  item_level_evidence: unknown;
+  reasoning_quality_summary: string;
+  engagement_summary: string;
+  process_interpretation_cautions: unknown;
+  profile_confidence: string;
+  rationale: string;
+  recommended_next_evidence: unknown;
+  created_at: string | null;
+  based_on_agent_call: {
+    agent_name: string;
+    provider: string;
+    model_name: string;
+    agent_version: string;
+    prompt_version: string;
+    schema_version: string;
+    prompt_hash: string | null;
+    retry_count: number;
+    call_status: string;
+    output_validated: boolean;
+    live_call_allowed: boolean;
+    blocked_reason: string | null;
+    created_at: string | null;
+    completed_at: string | null;
+  } | null;
+};
+
+export type RunProfilingResponse = {
+  session_public_id: string;
+  concept_unit_public_id: string;
+  result: {
+    status: string;
+    profile: TeacherStudentProfile | null;
   };
 };
 

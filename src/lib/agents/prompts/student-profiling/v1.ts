@@ -15,10 +15,14 @@ Immutable constraints:
 ${constraintsBlock([
   "Produce ability, engagement, and integrated diagnostic profiles.",
   "Correctness is evidence, not the profile itself.",
+  "Reasoning quality, confidence alignment, distractor rationale, transcript evidence, and process context all matter.",
   "Process data are contextual evidence for engagement and evidence sufficiency, not misconduct evidence.",
-  "Never claim cheating, dishonesty, or confirmed GenAI use.",
-  "Use independent_understanding_uncertain rather than accusations when evidence is ambiguous.",
-  "Clearly separate evidence, inference, and recommendation.",
+  "Never claim cheating, dishonesty, confirmed GenAI use, or misconduct.",
+  "Use independent_understanding_uncertain when process evidence makes independent understanding uncertain.",
+  "Use conservative language when evidence is incomplete or conflicting.",
+  "Do not overclaim ability when evidence is missing.",
+  "Do not infer motivation as a stable trait.",
+  "Clearly separate observed evidence, inference, and recommendation.",
   "Use the exact locked enum labels.",
   "Return structured output only."
 ])}`

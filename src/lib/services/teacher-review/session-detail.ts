@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { serializeStudentProfileForTeacher } from "@/lib/agents/student-profiling/serializers";
 import { serializeAssessmentContentState } from "@/lib/services/content/governance";
 import { TeacherReviewServiceError } from "./errors";
 import { serializeDate } from "./serializers";
@@ -60,6 +61,28 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
           followup_completed_at: true,
           followup_status: true,
           followup_round_count: true,
+          latest_student_profile: {
+            include: {
+              based_on_agent_call: {
+                select: {
+                  agent_name: true,
+                  provider: true,
+                  model_name: true,
+                  agent_version: true,
+                  prompt_version: true,
+                  schema_version: true,
+                  prompt_hash: true,
+                  retry_count: true,
+                  call_status: true,
+                  output_validated: true,
+                  live_call_allowed: true,
+                  blocked_reason: true,
+                  created_at: true,
+                  completed_at: true
+                }
+              }
+            }
+          },
           concept_unit: {
             select: {
               concept_unit_public_id: true,
@@ -161,7 +184,14 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       followup_status: conceptUnitSession.followup_status,
       followup_round_count: conceptUnitSession.followup_round_count,
       item_response_count: conceptUnitSession._count.item_responses,
-      response_package_count: conceptUnitSession._count.response_packages
+      response_package_count: conceptUnitSession._count.response_packages,
+      can_run_profiling:
+        session.current_phase === "profiling_pending" &&
+        Boolean(conceptUnitSession.initial_completed_at) &&
+        !conceptUnitSession.latest_student_profile,
+      latest_student_profile: conceptUnitSession.latest_student_profile
+        ? serializeStudentProfileForTeacher(conceptUnitSession.latest_student_profile)
+        : null
     })),
     summary: {
       concept_unit_count: conceptUnitCount,
@@ -176,7 +206,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       followup_round_count: followupRoundCount,
       agent_call_count: session._count.agent_calls,
       message:
-        "No diagnostic or formative agent-generated data are created in Phase 5A."
+        "Student Profiling Agent records may exist after Phase 6B. Formative planning and follow-up remain unimplemented."
     }
   };
 }

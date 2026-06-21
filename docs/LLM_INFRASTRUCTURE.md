@@ -1,6 +1,6 @@
 # LLM Infrastructure
 
-Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. These phases do not connect any LLM agent to student or teacher workflows.
+Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration.
 
 ## Phase Boundary
 
@@ -26,26 +26,40 @@ Implemented in Phase 6A.5:
 - Student-safe unavailable-message placeholder.
 - Smoke tests for usage guards and teacher status access.
 
-Not implemented in Phase 6A:
+Implemented in Phase 6B:
 
-- No live classroom OpenAI calls.
-- No agent is invoked by student assessment, teacher content management, session review, export, or summative outcome workflows.
-- No Student Profiling Agent output is created from real response packages.
-- No `student_profiles`, `formative_decisions`, or `followup_rounds` rows are created.
-- No student session is advanced out of `profiling_pending`.
+- Backend `StudentProfilingInput` builder from an `initial_concept_unit_response_package` and allowlisted evidence.
+- Student Profiling Agent execution through `executeAgent`.
+- Validated `StudentProfileOutput` persistence to `student_profiles`.
+- Agent-call/process-event audit trail for profiling start, success, failure, and validation outcomes.
+- Idempotent profiling invocation keys.
+- Teacher-only manual profiling trigger and saved-profile display.
+- Neutral student post-analysis state after `profiling_completed`.
+- Profiling smoke test that runs in mock mode and does not call OpenAI.
+
+Not implemented in Phase 6B:
+
+- No Formative Value and Planning Agent execution.
+- No `formative_decisions` rows are created.
+- No Follow-up Agent execution or follow-up conversation.
+- No `followup_rounds` rows are created.
+- No Response Collection Agent LLM behavior.
+- No live Item Preparation Agent behavior.
+- No student-facing profile, correctness, or diagnostic display.
+- No inferred profile filling in CSV export.
 - No response collection UI text is replaced by an LLM.
-- No student text, transcript, process data, item reasoning, summative outcome, or classroom record is sent to OpenAI.
+- Normal development and verification use mock mode and send no student text, transcript, process data, item reasoning, summative outcome, or classroom record to OpenAI.
 - No student provides an OpenAI API key or needs an OpenAI account.
 
 ## Providers
 
-`LLM_PROVIDER=mock` is the default. The mock provider is used by all Phase 6A smoke tests and does not make network calls.
+`LLM_PROVIDER=mock` is the default. The mock provider is used by Phase 6 smoke tests and does not make network calls.
 
 `LLM_PROVIDER=openai` is allowed only when `LLM_LIVE_CALLS_ENABLED=true`, `OPENAI_API_KEY` is present, and the relevant model name is configured. This deliberate gate prevents accidental live provider use during local development.
 
 The OpenAI provider uses the Responses API with structured Zod output parsing where supported by the SDK. Requests are server-side only, use `store: false`, and do not expose the API key to the browser.
 
-All future classroom calls must use the server-side deployment key. Browser clients must never send or receive provider credentials.
+All live classroom calls must use the server-side deployment key. Browser clients must never send or receive provider credentials.
 
 ## Environment Variables
 
@@ -98,6 +112,8 @@ No model name is hardcoded. No documentation should describe a specific model as
 
 Phase 6A mock smoke tests create only synthetic audit rows and clean them up afterward.
 
+Phase 6B Student Profiling Agent calls attach to the relevant assessment session and concept-unit session. Mock provider outputs are marked as infrastructure-testing outputs and should not be interpreted as validated research inferences.
+
 ## Teacher Status Surface
 
 Teacher-only API:
@@ -135,8 +151,9 @@ npm run llm:execution-smoke
 npm run llm:redaction-smoke
 npm run llm:usage-smoke
 npm run llm:status-smoke
+npm run agent:profiling-smoke
 ```
 
-These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, and the absence of workflow side effects. They do not call OpenAI.
+These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, idempotency, usage-blocked behavior, and the absence of planning/follow-up side effects. They do not call OpenAI.
 
 See `docs/CLASSROOM_LLM_ACCESS.md` and `docs/LLM_USAGE_LIMITS.md` for the Phase 6A.5 operational contract.

@@ -32,6 +32,7 @@
     "llm:usage-smoke": "tsx prisma/llm-usage-smoke-test.ts",
     "llm:status-smoke": "tsx prisma/llm-status-smoke-test.ts",
     "llm:connectivity": "tsx prisma/llm-connectivity.ts",
+    "agent:profiling-smoke": "tsx prisma/agent-profiling-smoke-test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts"

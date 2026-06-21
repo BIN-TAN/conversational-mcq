@@ -1,6 +1,6 @@
 # Prompt Versioning
 
-Phase 6A introduces a draft prompt registry for future agent execution. These prompts are contracts for infrastructure testing and are not active classroom prompts.
+Phase 6A introduces a draft prompt registry for agent execution. Phase 6B uses the registered Student Profiling Agent prompt through a controlled backend service after initial concept-unit administration. Other agent prompts remain contract-only.
 
 ## Registry Fields
 
@@ -34,7 +34,7 @@ The prompt hash is a SHA-256 digest over the prompt version, schema version, and
 - `active`: may be connected to a workflow only in a later approved phase.
 - `retired`: retained for audit but not used for new calls.
 
-Phase 6A uses only `draft`.
+Phase 6B does not make prompt status a bypass. A profiling call still requires backend authorization, provider configuration, model environment configuration, live-call readiness, usage guard approval, strict input/output validation, and audit logging.
 
 ## Change Rules
 
@@ -49,3 +49,14 @@ The synthetic connectivity script uses the Response Collection Agent contract be
 ## Live-Call Guarding
 
 Prompt status does not activate classroom use. Future active prompts must still pass server-side live-call readiness and usage-limit checks before any OpenAI call. A configured prompt version is not permission to bypass authentication, authorization, budget safeguards, or usage audit logging.
+
+Phase 6B Student Profiling Agent prompt constraints include:
+
+- separate observed evidence from inference
+- correctness is evidence, not the profile itself
+- reasoning quality, confidence alignment, distractor rationale, transcript evidence, and process context all matter
+- process data are contextual evidence only
+- never use cheating, confirmed GenAI use, or misconduct language
+- use conservative language when evidence is incomplete or conflicting
+- do not infer motivation as a stable trait
+- output only the required schema

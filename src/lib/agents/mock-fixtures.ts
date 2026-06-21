@@ -48,25 +48,61 @@ export function mockOutputForAgent(agentName: AgentName) {
       return {
         ...base,
         agent_name: agentName,
+        warnings: [
+          "Mock provider output for infrastructure testing only; not a validated research inference."
+        ],
         profile_type: "initial",
-        ability_profile: "insufficient_evidence",
-        ability_pattern_flags: ["no_clear_pattern"],
-        engagement_profile: "insufficient_process_evidence",
-        engagement_pattern_flags: ["no_clear_pattern"],
-        integrated_diagnostic_profile: "insufficient_evidence_for_formative_decision",
+        ability_profile: "partial_understanding",
+        ability_pattern_flags: [
+          "incorrect_answer_strong_partial_reasoning",
+          "confidence_reasoning_mismatch"
+        ],
+        engagement_profile: "adequate_engagement",
+        engagement_pattern_flags: ["repeated_revision_present"],
+        integrated_diagnostic_profile: "conflicting_evidence_needs_clarification",
         integrated_profile_confidence: "low",
-        integrated_profile_rationale: "Mock output only; not generated from classroom evidence.",
-        evidence_sufficiency: "insufficient",
-        confidence_alignment: "insufficient_evidence",
-        independence_interpretability: "insufficient_evidence",
-        misconception_indicators: [],
-        item_level_evidence: [],
-        reasoning_quality_summary: "Mock output only.",
-        engagement_summary: "Mock output only.",
-        process_interpretation_cautions: ["Mock output must not be used as a student profile."],
+        integrated_profile_rationale:
+          "Mock output only. The fixture combines mixed correctness, reasoning, confidence, and process context to exercise the three-layer profile contract.",
+        evidence_sufficiency: "limited",
+        confidence_alignment: "mixed",
+        independence_interpretability: "independent_understanding_uncertain",
+        misconception_indicators: [
+          {
+            indicator: "mock_distractor_aligned_reasoning",
+            evidence_reference: "mock-item-2",
+            confidence: "low"
+          }
+        ],
+        item_level_evidence: [
+          {
+            item_public_id: "mock-item-1",
+            correctness: "correct",
+            reasoning_quality: "supported",
+            confidence_rating: "high"
+          },
+          {
+            item_public_id: "mock-item-2",
+            correctness: "incorrect",
+            reasoning_quality: "partial",
+            confidence_rating: "medium"
+          }
+        ],
+        reasoning_quality_summary:
+          "Mock output only. Example evidence shows supported reasoning on one item and partial or conflicting reasoning on another.",
+        engagement_summary:
+          "Mock output only. Example process context suggests adequate participation with revisions.",
+        process_interpretation_cautions: [
+          "Mock output must not be used as a validated student profile.",
+          "Process context is engagement and evidence-sufficiency context, not misconduct evidence."
+        ],
         profile_confidence: "low",
         rationale: "Mock provider fixture for infrastructure testing.",
-        recommended_next_evidence: []
+        recommended_next_evidence: [
+          {
+            evidence_type: "clarify_reasoning",
+            reason: "Mock next-evidence request for later planning phases."
+          }
+        ]
       };
     case "formative_value_and_planning_agent":
       return {

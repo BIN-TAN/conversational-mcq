@@ -95,7 +95,9 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
                   : {
                       ...base,
                       assistant_message:
-                        "The initial questions are complete. The system is preparing the next step.",
+                        state.effective_phase === "profiling_completed"
+                          ? "Your initial responses have been reviewed. The next support step is not available yet in this prototype."
+                          : "The initial questions are complete. The system is preparing the next step.",
                       interaction_type: "awaiting_profiling",
                       allowed_actions: ["review_responses"],
                       can_continue: false

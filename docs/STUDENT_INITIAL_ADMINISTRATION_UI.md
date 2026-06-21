@@ -130,6 +130,14 @@ These are technical defaults, not psychological thresholds. The UI does not log 
 
 After initial concept-unit completion, the UI shows a neutral awaiting-analysis state. It does not fabricate ability, engagement, integrated diagnostic, evidence-sufficiency, confidence-alignment, formative-value, or follow-up content.
 
+After Phase 6B profiling completes, the same student-safe interaction state shows:
+
+```text
+Your initial responses have been reviewed. The next support step is not available yet in this prototype.
+```
+
+The student UI still does not show profile labels, evidence sufficiency, independence interpretability, correctness, diagnostic rationale, formative value, or follow-up prompts.
+
 ## Demo Fixture
 
 Create a local browser-testing fixture:
@@ -154,4 +162,4 @@ Run:
 npm run student:ui-smoke
 ```
 
-The smoke test verifies availability, deterministic conversation frames, option/reasoning/confidence action wiring, missing-evidence repair rendering, skip confirmation, awaiting-profiling rendering, review locking, safe transcript output, and absence of forbidden student-facing fields.
+The smoke test verifies availability, deterministic conversation frames, option/reasoning/confidence action wiring, missing-evidence repair rendering, skip confirmation, awaiting-profiling rendering, review locking, safe transcript output, and absence of forbidden student-facing fields. Phase 6B adds `npm run agent:profiling-smoke` to verify that post-profiling student payloads remain profile-free.

@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, and Phase 6A.5 classroom LLM access/usage safeguards. LLM agents are not connected to classroom workflows yet, and profiling, planning, and follow-up conversation remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, and Phase 6B Student Profiling Agent integration after initial concept-unit administration. Formative planning, follow-up conversation, Response Collection Agent LLM behavior, and live Item Preparation behavior remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -86,6 +86,7 @@ npm run llm:execution-smoke
 npm run llm:redaction-smoke
 npm run llm:usage-smoke
 npm run llm:status-smoke
+npm run agent:profiling-smoke
 npm run typecheck
 npm run lint
 npm run build
@@ -176,6 +177,18 @@ npm run build
 ```
 
 The service smoke test creates temporary records, verifies phase transition acceptance/rejection, logs process events and conversation turns, creates an `initial_concept_unit_response_package`, checks event aggregation, and cleans up only the temporary records it created.
+
+## Phase 6B Student Profiling Verification
+
+Phase 6B connects only the Student Profiling Agent after initial concept-unit completion. The default path uses the mock provider and does not call OpenAI.
+
+```bash
+npm run agent:profiling-smoke
+```
+
+The smoke test creates temporary completed initial concept-unit sessions, builds allowlisted profiling input from response-package evidence, verifies prohibited secret/auth fields are absent, executes `student_profiling_agent` through `executeAgent`, persists a validated `student_profiles` row, updates the latest profile pointer, transitions the session to `profiling_completed`, verifies teacher-only trigger authorization, confirms student-facing payloads do not expose profile labels, checks idempotency, invalid-output handling, usage-blocked handling, and cleans up only its temporary records.
+
+Live OpenAI profiling is disabled unless server-side environment variables explicitly set `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, `OPENAI_API_KEY`, and `OPENAI_MODEL_PROFILING`, and the usage guard allows the call.
 
 ## Phase 3A Content Management Verification
 

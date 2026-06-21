@@ -36,7 +36,7 @@ The final Phase 0 patch is authoritative. If older planning notes conflict with 
 - Agent outputs use `output_status`, not the older agent-level `status`.
 - All agent outputs extend `AgentOutputBase`.
 - The five valid agent names are `item_preparation_agent`, `response_collection_agent`, `student_profiling_agent`, `formative_value_and_planning_agent`, and `followup_agent`.
-- Phase 6A prompt definitions are `draft` and are not active classroom prompts.
+- Phase 6A prompt definitions are `draft`. Phase 6B uses the Student Profiling Agent prompt only through the controlled backend profiling service; prompt status does not bypass authorization, usage guards, model environment configuration, or audit logging.
 - Student profiling must keep three connected layers:
   - `ability_profile`
   - `engagement_profile`
@@ -311,6 +311,41 @@ Phase 6A.5 must not:
 - implement live Item Preparation behavior
 - send classroom, student, transcript, reasoning, process-event, response-package, or summative outcome data to OpenAI
 
+## Phase 6B Student Profiling Agent Integration
+
+Phase 6B connects only the Student Profiling Agent to the backend workflow after initial concept-unit administration. It converts an `initial_concept_unit_response_package` into one audited `student_profiles` row through the existing `executeAgent` service, strict `StudentProfileOutput` validation, agent-call audit logging, usage/readiness guards, and idempotent invocation keys.
+
+The locked three-layer profile design remains binding:
+
+- `ability_profile`
+- `engagement_profile`
+- `integrated_diagnostic_profile`
+
+Correctness is evidence, not the profile itself. Process data are contextual evidence for engagement and evidence sufficiency, not misconduct evidence. The system must never claim cheating, dishonesty, confirmed GenAI use, or misconduct. Independence language is limited to the locked `independence_interpretability` enum, including `independent_understanding_uncertain` and `insufficient_evidence`.
+
+The safe default remains mock execution. Live OpenAI profiling may occur only when server-side environment variables explicitly configure `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, `OPENAI_API_KEY`, `OPENAI_MODEL_PROFILING`, and the usage guard allows the call. Frontend code must not expose model configuration or provider secrets.
+
+Phase 6B may:
+
+- build an allowlisted `StudentProfilingInput` from concept-unit metadata, response-package evidence, item responses, teacher-side item diagnostic metadata, transcript turns, and process-event context
+- execute `student_profiling_agent` through `executeAgent`
+- persist validated `StudentProfileOutput` to `student_profiles`
+- update `concept_unit_sessions.latest_student_profile_db_id`
+- transition an eligible session from `profiling_pending` to `profiling_completed`
+- show saved profile fields to teacher_researcher users
+- show only a neutral post-analysis state to students
+
+Phase 6B must not:
+
+- implement the Formative Value and Planning Agent
+- create `formative_decisions`
+- implement the Follow-up Agent or follow-up conversation
+- create `followup_rounds`
+- implement Response Collection Agent LLM behavior
+- implement live Item Preparation Agent behavior
+- reveal profile labels, correctness, or diagnostic summaries to students
+- fill master CSV profile columns unless a real saved profile already exists
+
 ## Foundational Logging Services
 
 Process event logging validates `event_source` and the approved process-event taxonomy before writing. The database field remains a string to allow taxonomy expansion later. Process data remain engagement and evidence-sufficiency context, not misconduct labels.
@@ -346,6 +381,8 @@ Phase 5B includes only supervised summative outcome CSV upload, validation, audi
 Phase 6A includes only generic LLM infrastructure, provider configuration, strict agent contracts, draft prompt versioning, mock execution, synthetic connectivity support, audit logging, documentation, and smoke testing.
 
 Phase 6A.5 includes only classroom LLM access control, usage-limit configuration, usage accounting, usage guard checks, live-call readiness controls, teacher-visible usage monitoring, documentation, and smoke testing.
+
+Phase 6B includes only Student Profiling Agent backend integration after initial concept-unit administration, profile input building, strict output validation, `student_profiles` persistence, profile audit logging, teacher manual trigger/display, neutral student post-analysis copy, and profiling smoke testing. It does not implement formative planning, follow-up, Response Collection Agent LLM behavior, live Item Preparation behavior, or CSV profile inference.
 
 Phase 1, Phase 1.5, Phase 2A, and Phase 2B must not implement:
 

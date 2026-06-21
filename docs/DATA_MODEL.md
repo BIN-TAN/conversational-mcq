@@ -314,6 +314,26 @@ Phase 6A.5 adds usage-control audit fields to `agent_calls`:
 
 These fields support classroom usage safeguards and teacher-visible monitoring. They are operational controls, not student profile labels.
 
+## Phase 6B Student Profile Records
+
+Phase 6B uses the existing `student_profiles` table for validated Student Profiling Agent output after initial concept-unit administration. No schema migration is required for Phase 6B.
+
+Profile creation rules:
+
+- Input is built from an allowlisted `StudentProfilingInput`, not raw Prisma objects.
+- The input may include teacher/researcher-side item diagnostic metadata such as distractor rationales and possible misconception indicators because the agent is backend-only.
+- Password hashes, access-code hashes, cookies, auth tokens, API keys, environment variables, unrelated summative outcomes, and unnecessary internal UUIDs are excluded.
+- A profile row is created only when `executeAgent` returns a schema-valid `StudentProfileOutput`.
+- `student_profiles.based_on_agent_call_db_id` links the profile to the audited `agent_calls` row.
+- `concept_unit_sessions.latest_student_profile_db_id` points to the latest saved profile for the concept-unit session.
+- The assessment session moves from `profiling_pending` to `profiling_completed` after successful profile persistence.
+
+Idempotency is enforced through `agent_calls.agent_invocation_key`, derived from concept-unit session, response package, profile type, prompt version, schema version, and prompt hash. Retrying the same successful profiling request returns the existing profile instead of creating a duplicate.
+
+Failed, refused, incomplete, invalid-output, or usage-blocked profiling executions do not create `student_profiles`, `formative_decisions`, or `followup_rounds`.
+
+Mock provider profile rows are infrastructure-testing records and should not be interpreted as validated research inferences.
+
 ## Phase 5B Outcome And Export Records
 
 Phase 5B adds audited summative outcome import and master CSV export records while keeping the internal database normalized.

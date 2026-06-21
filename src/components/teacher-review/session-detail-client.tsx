@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { ChevronLeft, RefreshCw } from "lucide-react";
+import { BrainCircuit, ChevronLeft, Loader2, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import {
   errorFromUnknown,
@@ -10,7 +10,8 @@ import {
   fetchProcessEvents,
   fetchResponsePackages,
   fetchSessionDetail,
-  fetchTranscript
+  fetchTranscript,
+  runStudentProfiling
 } from "./api";
 import type {
   ItemResponsesResponse,
@@ -18,6 +19,7 @@ import type {
   ResponsePackagesResponse,
   SessionDetailResponse,
   StructuredApiError,
+  TeacherStudentProfile,
   TranscriptResponse
 } from "./types";
 import {
@@ -128,6 +130,11 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
   const [processError, setProcessError] = useState<StructuredApiError | null>(null);
   const [loading, setLoading] = useState(true);
   const [processLoading, setProcessLoading] = useState(true);
+  const [profilingAction, setProfilingAction] = useState<{
+    concept_unit_public_id: string;
+    error: StructuredApiError | null;
+    status: string | null;
+  } | null>(null);
   const [processFilters, setProcessFilters] = useState({
     event_type: "",
     event_source: "",
@@ -188,6 +195,31 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
       [key]: value,
       page: key === "page" ? Number(value) : 1
     }));
+  }
+
+  async function handleRunProfiling(conceptUnitPublicId: string) {
+    setProfilingAction({
+      concept_unit_public_id: conceptUnitPublicId,
+      error: null,
+      status: "running"
+    });
+
+    try {
+      const result = await runStudentProfiling(sessionPublicId, conceptUnitPublicId);
+      setProfilingAction({
+        concept_unit_public_id: conceptUnitPublicId,
+        error: null,
+        status: result.result.status
+      });
+      await loadCore();
+      await loadProcessEvents();
+    } catch (requestError) {
+      setProfilingAction({
+        concept_unit_public_id: conceptUnitPublicId,
+        error: errorFromUnknown(requestError),
+        status: null
+      });
+    }
   }
 
   return (
@@ -271,7 +303,13 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
           {activeTab === "response_packages" && responsePackages ? (
             <ResponsePackagesSection data={responsePackages} />
           ) : null}
-          {activeTab === "future_agent_data" ? <FutureAgentSection detail={detail} /> : null}
+          {activeTab === "future_agent_data" ? (
+            <FutureAgentSection
+              detail={detail}
+              onRunProfiling={(conceptUnitPublicId) => void handleRunProfiling(conceptUnitPublicId)}
+              profilingAction={profilingAction}
+            />
+          ) : null}
         </>
       ) : null}
     </div>
@@ -715,22 +753,151 @@ function ResponsePackagesSection({ data }: { data: ResponsePackagesResponse }) {
   );
 }
 
-function FutureAgentSection({ detail }: { detail: SessionDetailResponse }) {
+function ProfileDetails({ profile }: { profile: TeacherStudentProfile }) {
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="grid gap-3 md:grid-cols-3">
+        <Fact labelText="Ability profile" value={<StatusPill value={profile.ability_profile} />} />
+        <Fact labelText="Engagement profile" value={<StatusPill value={profile.engagement_profile} />} />
+        <Fact labelText="Integrated diagnostic profile" value={<StatusPill value={profile.integrated_diagnostic_profile} tone="warn" />} />
+        <Fact labelText="Integrated confidence" value={profile.integrated_profile_confidence} />
+        <Fact labelText="Evidence sufficiency" value={profile.evidence_sufficiency} />
+        <Fact labelText="Confidence alignment" value={profile.confidence_alignment} />
+        <Fact labelText="Independence interpretability" value={profile.independence_interpretability} />
+        <Fact labelText="Profile confidence" value={profile.profile_confidence} />
+        <Fact labelText="Created" value={formatDate(profile.created_at)} />
+      </div>
+      <section className="rounded-lg border border-line bg-slate-50 p-4">
+        <h4 className="text-sm font-semibold text-ink">Integrated rationale</h4>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+          {profile.integrated_profile_rationale}
+        </p>
+      </section>
+      <section className="rounded-lg border border-line bg-slate-50 p-4">
+        <h4 className="text-sm font-semibold text-ink">Reasoning and engagement summaries</h4>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+          {profile.reasoning_quality_summary}
+        </p>
+        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink">
+          {profile.engagement_summary}
+        </p>
+      </section>
+      <section className="rounded-lg border border-line bg-slate-50 p-4">
+        <h4 className="text-sm font-semibold text-ink">Profile rationale</h4>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+          {profile.rationale}
+        </p>
+      </section>
+      <div className="grid gap-3 md:grid-cols-2">
+        <JsonDetails value={profile.ability_pattern_flags} labelText="Ability pattern flags" />
+        <JsonDetails value={profile.engagement_pattern_flags} labelText="Engagement pattern flags" />
+        <JsonDetails value={profile.misconception_indicators} labelText="Misconception indicators" />
+        <JsonDetails value={profile.item_level_evidence} labelText="Item-level evidence" />
+        <JsonDetails value={profile.process_interpretation_cautions} labelText="Process interpretation cautions" />
+        <JsonDetails value={profile.recommended_next_evidence} labelText="Recommended next evidence" />
+        <JsonDetails value={profile.based_on_agent_call} labelText="Based-on agent call metadata" />
+      </div>
+    </div>
+  );
+}
+
+function FutureAgentSection({
+  detail,
+  onRunProfiling,
+  profilingAction
+}: {
+  detail: SessionDetailResponse;
+  onRunProfiling: (conceptUnitPublicId: string) => void;
+  profilingAction: {
+    concept_unit_public_id: string;
+    error: StructuredApiError | null;
+    status: string | null;
+  } | null;
+}) {
   const counts = detail.future_agent_data;
 
   return (
     <section className="space-y-4">
-      <EmptyState title="No student profile has been generated.">
-        Student profiling has not been generated because LLM agents are not implemented yet.
-      </EmptyState>
+      <section className="rounded-lg border border-line bg-white p-5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-ink">Student profiling</h3>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Process data are contextual evidence for engagement and evidence sufficiency; they are not misconduct labels.
+            </p>
+          </div>
+          <StatusPill value={counts.student_profile_count > 0 ? "profiles_available" : "profiling_not_generated"} />
+        </div>
+        <div className="mt-4 space-y-4">
+          {detail.concept_unit_sessions.map((conceptUnitSession) => {
+            const actionMatches =
+              profilingAction?.concept_unit_public_id === conceptUnitSession.concept_unit_public_id;
+            const isRunning = actionMatches && profilingAction?.status === "running";
+
+            return (
+              <article className="rounded-lg border border-line p-4" key={conceptUnitSession.concept_unit_public_id}>
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="font-semibold text-ink">{conceptUnitSession.title}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {conceptUnitSession.concept_unit_public_id}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <StatusPill value={conceptUnitSession.status} />
+                      {conceptUnitSession.latest_student_profile ? (
+                        <StatusPill value="profiling_completed" tone="good" />
+                      ) : conceptUnitSession.can_run_profiling ? (
+                        <StatusPill value="profiling_pending" tone="warn" />
+                      ) : (
+                        <StatusPill value="no_profile" />
+                      )}
+                    </div>
+                  </div>
+                  {conceptUnitSession.can_run_profiling ? (
+                    <button
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={isRunning}
+                      onClick={() => onRunProfiling(conceptUnitSession.concept_unit_public_id)}
+                      type="button"
+                    >
+                      {isRunning ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <BrainCircuit className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      Run profiling
+                    </button>
+                  ) : null}
+                </div>
+                {actionMatches && profilingAction?.error ? (
+                  <div className="mt-4">
+                    <ErrorState error={profilingAction.error} />
+                  </div>
+                ) : null}
+                {actionMatches && profilingAction?.status && profilingAction.status !== "running" ? (
+                  <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                    Profiling result: {label(profilingAction.status)}
+                  </p>
+                ) : null}
+                {conceptUnitSession.latest_student_profile ? (
+                  <ProfileDetails profile={conceptUnitSession.latest_student_profile} />
+                ) : conceptUnitSession.can_run_profiling ? (
+                  <p className="mt-4 text-sm text-muted">Profiling pending.</p>
+                ) : (
+                  <p className="mt-4 text-sm text-muted">
+                    No student profile has been generated for this concept unit.
+                  </p>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </section>
       <EmptyState title="No formative decision has been generated.">
-        The Formative Value and Planning Agent is not implemented in Phase 5A.
+        The Formative Value and Planning Agent is not implemented in Phase 6B.
       </EmptyState>
       <EmptyState title="No follow-up round has been generated.">
         Follow-up conversation is intentionally deferred to a later phase.
-      </EmptyState>
-      <EmptyState title="No LLM agent call has been made.">
-        OpenAI API integration and all five agents remain unimplemented in Phase 5A.
       </EmptyState>
       <div className="grid gap-3 md:grid-cols-4">
         <Fact labelText="Student profile rows" value={counts.student_profile_count} />
