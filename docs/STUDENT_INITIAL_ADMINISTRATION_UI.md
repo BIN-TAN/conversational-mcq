@@ -1,6 +1,6 @@
 # Student Initial Administration UI
 
-Phase 4B implements the protected student-facing platform for initial concept-unit administration. It uses the Phase 4A backend and does not call OpenAI, implement LLM agents, fabricate profiles, start follow-up, add teacher session review, or create CSV export.
+Phase 4B implements the protected student-facing platform for initial concept-unit administration. Phase 6D1 extends the same student session page with first-round follow-up conversation after planning completes. The student UI does not call OpenAI directly, fabricate profiles, expose profile/planning labels, add teacher session review, or create CSV export.
 
 ## Routes
 
@@ -47,6 +47,8 @@ The UI uses `StudentConversationFrame`:
     | "item_completed"
     | "concept_unit_completed"
     | "awaiting_profiling"
+    | "followup_active"
+    | "followup_stopped"
     | "session_paused"
     | "error";
   allowed_actions: string[];
@@ -142,13 +144,15 @@ While Phase 6C planning is running or queued, the student-safe state may show:
 The next support step is being prepared. Your progress has been saved.
 ```
 
-After Phase 6C planning completes, the student-safe state may show:
+After Phase 6C planning completes and before the teacher starts follow-up, the student-safe state may show:
 
 ```text
 A support plan has been prepared. Interactive follow-up is not available yet in this prototype.
 ```
 
-The student UI still does not show profile labels, evidence sufficiency, independence interpretability, correctness, diagnostic rationale, formative value, action plans, target evidence, success criteria, or follow-up prompts.
+After Phase 6D1 follow-up starts, the student-safe state shows an active open-ended conversation area. Students can send submitted free-text messages, review locked initial responses, save and exit, or stop the follow-up round. After stopping, the state shows neutral stopped copy and disables further sends for that round.
+
+The student UI still does not show profile labels, evidence sufficiency, independence interpretability, correctness, diagnostic rationale, formative value, action plans, target evidence, success criteria, answer keys, hidden prompts, or teacher-only diagnostic metadata.
 
 ## Demo Fixture
 
@@ -174,4 +178,4 @@ Run:
 npm run student:ui-smoke
 ```
 
-The smoke test verifies availability, deterministic conversation frames, option/reasoning/confidence action wiring, missing-evidence repair rendering, skip confirmation, awaiting-analysis rendering, review locking, safe transcript output, and absence of forbidden student-facing fields. Phase 6B adds `npm run agent:profiling-smoke` to verify that post-profiling student payloads remain profile-free. Phase 6C adds `npm run agent:planning-smoke` to verify that post-planning student payloads remain profile-free and planning-label-free.
+The smoke test verifies availability, deterministic conversation frames, option/reasoning/confidence action wiring, missing-evidence repair rendering, skip confirmation, awaiting-analysis rendering, review locking, safe transcript output, and absence of forbidden student-facing fields. Phase 6B adds `npm run agent:profiling-smoke` to verify that post-profiling student payloads remain profile-free. Phase 6C adds `npm run agent:planning-smoke` to verify that post-planning student payloads remain profile-free and planning-label-free. Phase 6D1 adds `npm run student:followup-ui-smoke` to verify active/stopped follow-up UI state, follow-up transcript safety, review locking, and absence of profile/planning labels.

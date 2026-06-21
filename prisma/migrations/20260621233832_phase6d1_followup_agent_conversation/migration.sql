@@ -1,0 +1,14 @@
+-- RenameIndex
+ALTER INDEX "assessment_sessions_user_db_id_assessment_db_id_attempt_number_" RENAME TO "assessment_sessions_user_db_id_assessment_db_id_attempt_num_key";
+
+-- RenameIndex
+ALTER INDEX "student_action_idempotency_keys_assessment_session_db_id_action" RENAME TO "student_action_idempotency_keys_assessment_session_db_id_ac_idx";
+
+-- RenameIndex
+ALTER INDEX "student_action_idempotency_keys_assessment_session_db_id_client" RENAME TO "student_action_idempotency_keys_assessment_session_db_id_cl_key";
+
+-- RenameIndex
+ALTER INDEX "summative_outcome_import_batches_uploaded_by_user_db_id_created" RENAME TO "summative_outcome_import_batches_uploaded_by_user_db_id_cre_idx";
+
+-- RenameIndex
+ALTER INDEX "summative_outcomes_user_db_id_outcome_name_assessment_date_reco" RENAME TO "summative_outcomes_user_db_id_outcome_name_assessment_date__idx";

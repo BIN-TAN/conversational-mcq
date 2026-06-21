@@ -126,6 +126,21 @@ Process data may inform engagement and evidence sufficiency. It must never be tr
 - Follow-up has no pedagogical maximum number of turns.
 - Technical safeguards are required: idle timeout, resume support, API retry limits, daily usage logging, token and cost tracking, runaway loop detection, and dashboard flags for unusually long follow-up sessions.
 - Safeguards support reliability, cost awareness, and teacher_researcher visibility. They should not automatically block the student unless there is a technical failure or policy-breaking behavior.
+- Phase 6D1 implements only the first open-ended follow-up conversation round after a saved profile and saved formative decision exist.
+- Phase 6D1 follow-up messages may provide post-initial support according to the saved formative decision, but must not overwrite initial item responses, reveal correctness, reveal profile labels, reveal formative-value labels, or expose teacher-only metadata to students.
+
+`followup_action_type` values:
+
+- `explanation`
+- `hint`
+- `clarification_prompt`
+- `reasoning_refinement_prompt`
+- `misconception_correction`
+- `transfer_task`
+- `confidence_calibration_prompt`
+- `independent_verification_prompt`
+- `off_topic_redirect`
+- `move_on_offer`
 
 ## Prompt Injection Protection
 
@@ -386,6 +401,38 @@ Phase 6C must not:
 
 Phase 6C uses a manual teacher trigger as a temporary controlled-testing policy. Automatic planning after profiling is intentionally deferred until the profile-planning-follow-up pipeline is validated.
 
+## Phase 6D1 Follow-Up Agent Conversation
+
+Phase 6D1 connects only the Follow-up Agent for the first open-ended follow-up conversation round after a valid saved Student Profiling Agent output and valid saved Formative Value and Planning Agent output exist. It converts the latest `formative_decisions` plan into one active `followup_rounds` conversation through `executeAgent`, strict schema validation, semantic validation, usage/readiness guards, and agent-call audit logging.
+
+Phase 6D1 may:
+
+- build an allowlisted `FollowupInput` from the latest profile, latest formative decision, item evidence, current follow-up round state, recent bounded transcript context, process-event aggregates, and Phase 6D1 constraints
+- execute `followup_agent` through `executeAgent`
+- create one first-round `followup_rounds` record after teacher_researcher starts follow-up
+- append student and assistant follow-up turns to `conversation_turns`
+- link follow-up agent calls to `agent_calls.followup_round_db_id`
+- log neutral follow-up process events, including prompt-injection-like messages as process context
+- transition an eligible session from `planning_completed` to `followup_active`
+- allow the student to stop the active follow-up round and transition to `followup_stopped`
+- show saved follow-up rounds and safe follow-up transcript metadata to teacher_researcher users
+- show only conversation text and neutral state to students
+
+Phase 6D1 must not:
+
+- implement Phase 6D2 profile updates
+- rerun or update the Student Profiling Agent from follow-up evidence
+- rerun or update formative planning after follow-up
+- create follow-up evidence update packages
+- move automatically to the next concept unit
+- modify initial item responses
+- reveal profile labels, formative labels, target evidence, success criteria, correctness, answer keys, hidden prompts, or teacher-only metadata to students
+- implement Response Collection Agent LLM behavior
+- implement live Item Preparation Agent behavior
+- modify master CSV export behavior
+
+The safe default remains mock execution. Live OpenAI follow-up may occur only when server-side environment variables explicitly configure `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, `OPENAI_API_KEY`, `OPENAI_MODEL_FOLLOWUP`, and the usage guard allows the call. Frontend code must not expose model configuration or provider secrets.
+
 ## Foundational Logging Services
 
 Process event logging validates `event_source` and the approved process-event taxonomy before writing. The database field remains a string to allow taxonomy expansion later. Process data remain engagement and evidence-sufficiency context, not misconduct labels.
@@ -425,6 +472,8 @@ Phase 6A.5 includes only classroom LLM access control, usage-limit configuration
 Phase 6B includes only Student Profiling Agent backend integration after initial concept-unit administration, profile input building, strict output validation, `student_profiles` persistence, profile audit logging, teacher manual trigger/display, neutral student post-analysis copy, and profiling smoke testing. It does not implement formative planning, follow-up, Response Collection Agent LLM behavior, live Item Preparation behavior, or CSV profile inference.
 
 Phase 6C includes only Formative Value and Planning Agent backend integration after a saved profile, planning input building, default mapping, semantic validation, `formative_decisions` persistence, latest decision pointer update, teacher manual trigger/display, neutral student post-planning copy, and planning smoke testing. It does not implement follow-up delivery, follow-up rounds, iterative profile updating, Response Collection Agent LLM behavior, live Item Preparation behavior, or CSV export changes.
+
+Phase 6D1 includes only first-round Follow-up Agent backend integration after a saved profile and saved formative decision, follow-up input building, strict output validation, semantic validation, `followup_rounds` creation, follow-up conversation turns, teacher manual trigger/display, student follow-up messaging/stopping, and follow-up smoke testing. It does not implement iterative profile updates, replanning after follow-up, follow-up evidence packages, next-concept-unit movement, Response Collection Agent LLM behavior, live Item Preparation behavior, or CSV export changes.
 
 Phase 1, Phase 1.5, Phase 2A, and Phase 2B must not implement:
 

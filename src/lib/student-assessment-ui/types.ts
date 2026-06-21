@@ -74,12 +74,27 @@ export const StudentSessionStateSchema = z.object({
     "missing_evidence_repair",
     "item_complete",
     "initial_concept_unit_complete",
-    "awaiting_profiling"
+    "awaiting_profiling",
+    "followup_active",
+    "followup_stopped"
   ]),
   current_item: StudentSafeItemSchema.nullable(),
   missing_evidence: z.array(MissingEvidenceFieldSchema),
   can_exit: z.boolean(),
   can_resume: z.boolean(),
+  followup: z
+    .object({
+      round_index: z.number(),
+      status: z.string(),
+      started_at: z.string().nullable(),
+      completed_at: z.string().nullable(),
+      can_send: z.boolean(),
+      can_stop: z.boolean(),
+      can_save_exit: z.boolean(),
+      message_max_chars: z.number()
+    })
+    .nullable()
+    .optional(),
   session: z
     .object({
       session_public_id: z.string(),
@@ -115,6 +130,8 @@ export const StudentConversationFrameSchema = z.object({
     "item_completed",
     "concept_unit_completed",
     "awaiting_profiling",
+    "followup_active",
+    "followup_stopped",
     "session_paused",
     "error"
   ]),
@@ -143,10 +160,12 @@ export const StudentReviewResponseSchema = z.object({
 export type StudentReviewResponse = z.infer<typeof StudentReviewResponseSchema>;
 
 export const StudentTranscriptEntrySchema = z.object({
-  actor: z.enum(["student"]),
+  actor: z.enum(["student", "assistant"]),
   message_text: z.string(),
   created_at: z.string(),
   interaction_type: z.string(),
+  phase: z.string().optional(),
+  followup_round_index: z.number().nullable().optional(),
   item_public_id: z.string().nullable()
 });
 export type StudentTranscriptEntry = z.infer<typeof StudentTranscriptEntrySchema>;

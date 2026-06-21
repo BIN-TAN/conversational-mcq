@@ -12,7 +12,8 @@ import {
   fetchSessionDetail,
   fetchTranscript,
   runFormativePlanning,
-  runStudentProfiling
+  runStudentProfiling,
+  startFollowup
 } from "./api";
 import type {
   ItemResponsesResponse,
@@ -21,6 +22,7 @@ import type {
   SessionDetailResponse,
   StructuredApiError,
   TeacherFormativeDecision,
+  TeacherFollowupRound,
   TeacherStudentProfile,
   TranscriptResponse
 } from "./types";
@@ -78,7 +80,11 @@ const eventTypes = [
   "formative_planning_started",
   "formative_planning_succeeded",
   "formative_planning_failed",
-  "followup_turn_completed"
+  "followup_started",
+  "followup_turn_completed",
+  "followup_task_assigned",
+  "off_topic_followup",
+  "followup_stopped"
 ];
 
 type Tab = (typeof tabs)[number];
@@ -141,6 +147,11 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
     status: string | null;
   } | null>(null);
   const [planningAction, setPlanningAction] = useState<{
+    concept_unit_public_id: string;
+    error: StructuredApiError | null;
+    status: string | null;
+  } | null>(null);
+  const [followupAction, setFollowupAction] = useState<{
     concept_unit_public_id: string;
     error: StructuredApiError | null;
     status: string | null;
@@ -257,6 +268,31 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
     }
   }
 
+  async function handleStartFollowup(conceptUnitPublicId: string) {
+    setFollowupAction({
+      concept_unit_public_id: conceptUnitPublicId,
+      error: null,
+      status: "running"
+    });
+
+    try {
+      const result = await startFollowup(sessionPublicId, conceptUnitPublicId);
+      setFollowupAction({
+        concept_unit_public_id: conceptUnitPublicId,
+        error: null,
+        status: result.result.status
+      });
+      await loadCore();
+      await loadProcessEvents();
+    } catch (requestError) {
+      setFollowupAction({
+        concept_unit_public_id: conceptUnitPublicId,
+        error: errorFromUnknown(requestError),
+        status: null
+      });
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
@@ -341,8 +377,10 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
           {activeTab === "future_agent_data" ? (
             <FutureAgentSection
               detail={detail}
+              followupAction={followupAction}
               onRunPlanning={(conceptUnitPublicId) => void handleRunPlanning(conceptUnitPublicId)}
               onRunProfiling={(conceptUnitPublicId) => void handleRunProfiling(conceptUnitPublicId)}
+              onStartFollowup={(conceptUnitPublicId) => void handleStartFollowup(conceptUnitPublicId)}
               planningAction={planningAction}
               profilingAction={profilingAction}
             />
@@ -879,16 +917,109 @@ function DecisionDetails({ decision }: { decision: TeacherFormativeDecision }) {
   );
 }
 
+function FollowupRoundDetails({ round }: { round: TeacherFollowupRound }) {
+  return (
+    <div className="mt-4 space-y-4">
+      {round.mock_output_notice ? (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          {round.mock_output_notice}
+        </section>
+      ) : null}
+      <div className="grid gap-3 md:grid-cols-4">
+        <Fact labelText="Round" value={round.round_index} />
+        <Fact labelText="Status" value={<StatusPill value={round.status} />} />
+        <Fact labelText="Started" value={formatDate(round.started_at)} />
+        <Fact labelText="Completed" value={formatDate(round.completed_at)} />
+      </div>
+      <section className="rounded-lg border border-line bg-slate-50 p-4">
+        <h4 className="text-sm font-semibold text-ink">Follow-up transcript</h4>
+        <div className="mt-3 space-y-3">
+          {round.transcript.length === 0 ? (
+            <p className="text-sm text-muted">No follow-up transcript turns are recorded.</p>
+          ) : (
+            round.transcript.map((turn, index) => (
+              <article className="rounded-md border border-line bg-white p-3" key={`${turn.created_at}-${index}`}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusPill value={turn.actor_type} />
+                  {turn.agent_name ? <StatusPill value={turn.agent_name} /> : null}
+                  <span className="text-xs text-muted">{formatDate(turn.created_at)}</span>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+                  {turn.message_text ?? "No text message recorded."}
+                </p>
+                <JsonDetails value={turn.structured_payload} labelText="Safe structured metadata" />
+              </article>
+            ))
+          )}
+        </div>
+      </section>
+      <section className="rounded-lg border border-line bg-slate-50 p-4">
+        <h4 className="text-sm font-semibold text-ink">Follow-up agent calls</h4>
+        <div className="mt-3 space-y-3">
+          {round.agent_calls.length === 0 ? (
+            <p className="text-sm text-muted">No Follow-up Agent calls are recorded.</p>
+          ) : (
+            round.agent_calls.map((call, index) => (
+              <article className="rounded-md border border-line bg-white p-3" key={`${call.created_at}-${index}`}>
+                <div className="flex flex-wrap gap-2">
+                  <StatusPill value={call.provider} />
+                  <StatusPill value={call.call_status} />
+                  <StatusPill value={call.mock_or_live} tone={call.mock_or_live === "mock" ? "warn" : "good"} />
+                </div>
+                <dl className="mt-3 grid gap-3 text-sm md:grid-cols-3">
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Model</dt>
+                    <dd className="mt-1 text-ink">{call.model_name}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Prompt</dt>
+                    <dd className="mt-1 text-ink">{call.prompt_version}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Schema</dt>
+                    <dd className="mt-1 text-ink">{call.schema_version}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Latency</dt>
+                    <dd className="mt-1 text-ink">{formatDuration(call.latency_ms)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Tokens</dt>
+                    <dd className="mt-1 text-ink">{call.total_tokens ?? 0}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Output validated</dt>
+                    <dd className="mt-1 text-ink">{call.output_validated ? "yes" : "no"}</dd>
+                  </div>
+                </dl>
+                <JsonDetails value={{ prompt_hash: call.prompt_hash, blocked_reason: call.blocked_reason }} labelText="Audit metadata" />
+              </article>
+            ))
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function FutureAgentSection({
   detail,
+  followupAction,
   onRunPlanning,
   onRunProfiling,
+  onStartFollowup,
   planningAction,
   profilingAction
 }: {
   detail: SessionDetailResponse;
+  followupAction: {
+    concept_unit_public_id: string;
+    error: StructuredApiError | null;
+    status: string | null;
+  } | null;
   onRunPlanning: (conceptUnitPublicId: string) => void;
   onRunProfiling: (conceptUnitPublicId: string) => void;
+  onStartFollowup: (conceptUnitPublicId: string) => void;
   planningAction: {
     concept_unit_public_id: string;
     error: StructuredApiError | null;
@@ -1064,9 +1195,90 @@ function FutureAgentSection({
           })}
         </div>
       </section>
-      <EmptyState title="No follow-up round has been generated.">
-        Follow-up conversation is intentionally deferred to a later phase.
-      </EmptyState>
+      <section className="rounded-lg border border-line bg-white p-5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-ink">Follow-up conversation</h3>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Phase 6D1 starts one first follow-up round and records open-ended conversation. It does not update profiles or replan.
+            </p>
+          </div>
+          <StatusPill value={counts.followup_round_count > 0 ? "rounds_available" : "followup_not_started"} />
+        </div>
+        <div className="mt-4 space-y-4">
+          {detail.concept_unit_sessions.map((conceptUnitSession) => {
+            const actionMatches =
+              followupAction?.concept_unit_public_id === conceptUnitSession.concept_unit_public_id;
+            const isRunning = actionMatches && followupAction?.status === "running";
+            const hasActiveRound = conceptUnitSession.followup_rounds.some((round) => round.status === "active");
+
+            return (
+              <article className="rounded-lg border border-line p-4" key={`followup-${conceptUnitSession.concept_unit_public_id}`}>
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="font-semibold text-ink">{conceptUnitSession.title}</p>
+                    <p className="mt-1 text-xs text-muted">{conceptUnitSession.concept_unit_public_id}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {conceptUnitSession.latest_formative_decision ? (
+                        <StatusPill value="planning_completed" tone="good" />
+                      ) : (
+                        <StatusPill value="decision_required" />
+                      )}
+                      {hasActiveRound ? (
+                        <StatusPill value="followup_active" tone="good" />
+                      ) : conceptUnitSession.can_start_followup ? (
+                        <StatusPill value="followup_ready" tone="warn" />
+                      ) : conceptUnitSession.followup_rounds.length > 0 ? (
+                        <StatusPill value="followup_recorded" />
+                      ) : (
+                        <StatusPill value="no_round" />
+                      )}
+                    </div>
+                  </div>
+                  {conceptUnitSession.can_start_followup ? (
+                    <button
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={isRunning}
+                      onClick={() => onStartFollowup(conceptUnitSession.concept_unit_public_id)}
+                      type="button"
+                    >
+                      {isRunning ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <BrainCircuit className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      Start follow-up
+                    </button>
+                  ) : null}
+                </div>
+                {actionMatches && followupAction?.error ? (
+                  <div className="mt-4">
+                    <ErrorState error={followupAction.error} />
+                  </div>
+                ) : null}
+                {actionMatches && followupAction?.status && followupAction.status !== "running" ? (
+                  <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                    Follow-up result: {label(followupAction.status)}
+                  </p>
+                ) : null}
+                {conceptUnitSession.followup_rounds.length > 0 ? (
+                  <div className="space-y-4">
+                    {conceptUnitSession.followup_rounds.map((round) => (
+                      <FollowupRoundDetails round={round} key={round.round_index} />
+                    ))}
+                  </div>
+                ) : conceptUnitSession.can_start_followup ? (
+                  <p className="mt-4 text-sm text-muted">Follow-up ready.</p>
+                ) : (
+                  <p className="mt-4 text-sm text-muted">
+                    No follow-up round has been generated for this concept unit.
+                  </p>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </section>
       <div className="grid gap-3 md:grid-cols-4">
         <Fact labelText="Student profile rows" value={counts.student_profile_count} />
         <Fact labelText="Formative decision rows" value={counts.formative_decision_count} />

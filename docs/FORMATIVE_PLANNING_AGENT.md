@@ -1,12 +1,12 @@
 # Formative Value And Planning Agent
 
-Phase 6C integrates only the Formative Value and Planning Agent after a valid saved Student Profiling Agent output exists.
+Phase 6C integrates only the Formative Value and Planning Agent after a valid saved Student Profiling Agent output exists. Phase 6D1 may consume the saved decision as input to the Follow-up Agent, but it must not modify the decision or rerun planning.
 
 ## Scope
 
 The service converts one saved `student_profiles` record plus the matching `initial_concept_unit_response_package` into one validated `formative_decisions` row.
 
-It does not create follow-up rounds, deliver follow-up activities, update the profile, modify item responses, change correctness, send feedback to students, alter the master CSV export, or call OpenAI during normal verification.
+It does not create follow-up rounds, deliver follow-up activities, update the profile, modify item responses, change correctness, send feedback to students, alter the master CSV export, or call OpenAI during normal verification. Phase 6D1 creates follow-up rounds downstream from a saved decision without changing this planning record.
 
 ## Approved Formative Values
 
@@ -82,11 +82,13 @@ The route uses public IDs, requires `teacher_researcher`, rejects students with 
 
 Students do not see formative values, action plans, target evidence, success criteria, profile labels, correctness, or rationales.
 
-After planning completes, the student UI may show only:
+After planning completes and before follow-up starts, the student UI may show only:
 
 ```text
 A support plan has been prepared. Interactive follow-up is not available yet in this prototype.
 ```
+
+After Phase 6D1 starts follow-up, students see only conversation text and still do not see formative labels or action-plan metadata.
 
 ## Idempotency
 
@@ -128,4 +130,10 @@ Run:
 npm run agent:planning-smoke
 ```
 
-The smoke test verifies safe input building, prohibited field exclusion, default mapping derivation, execution through `executeAgent`, agent-call audit, schema and semantic validation, decision persistence, latest decision pointer update, phase transition to `planning_completed`, teacher serializer behavior, student payload safety, idempotency, mapping-deviation handling, invalid-output handling, usage-blocked handling, teacher API authorization, and absence of follow-up rounds and OpenAI network calls.
+The smoke test verifies safe input building, prohibited field exclusion, default mapping derivation, execution through `executeAgent`, agent-call audit, schema and semantic validation, decision persistence, latest decision pointer update, phase transition to `planning_completed`, teacher serializer behavior, student payload safety, idempotency, mapping-deviation handling, invalid-output handling, usage-blocked handling, teacher API authorization, and absence of follow-up side effects during planning itself.
+
+Phase 6D1 follow-up verification is covered by:
+
+```bash
+npm run agent:followup-smoke
+```

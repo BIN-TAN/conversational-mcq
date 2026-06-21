@@ -55,7 +55,26 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
     can_continue: true
   };
   const frame: StudentConversationFrame =
-    state.next_step === "concept_unit_intro"
+    state.next_step === "followup_active"
+      ? {
+          ...base,
+          assistant_message:
+            "Continue the follow-up conversation in your own words. Your initial responses are locked and saved.",
+          interaction_type: "followup_active",
+          allowed_actions: ["send_followup_message", "save_exit", "stop_followup"],
+          can_review_responses: true
+        }
+      : state.next_step === "followup_stopped"
+        ? {
+            ...base,
+            assistant_message:
+              "This follow-up round has been stopped. Your conversation has been saved.",
+            interaction_type: "followup_stopped",
+            allowed_actions: ["review_responses"],
+            can_review_responses: true,
+            can_continue: false
+          }
+        : state.next_step === "concept_unit_intro"
       ? {
           ...base,
           assistant_message:

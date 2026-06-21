@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { serializeFormativeDecisionForTeacher } from "@/lib/agents/formative-planning/serializers";
+import { serializeFollowupRoundForTeacher } from "@/lib/agents/followup/serializers";
 import { serializeStudentProfileForTeacher } from "@/lib/agents/student-profiling/serializers";
 import { serializeAssessmentContentState } from "@/lib/services/content/governance";
 import { TeacherReviewServiceError } from "./errors";
@@ -100,6 +101,51 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
                   output_validated: true,
                   live_call_allowed: true,
                   blocked_reason: true,
+                  created_at: true,
+                  completed_at: true
+                }
+              }
+            }
+          },
+          followup_rounds: {
+            orderBy: [{ round_index: "asc" }],
+            include: {
+              formative_decision: {
+                select: {
+                  formative_value: true,
+                  created_at: true
+                }
+              },
+              conversation_turns: {
+                orderBy: [{ created_at: "asc" }],
+                select: {
+                  actor_type: true,
+                  agent_name: true,
+                  message_text: true,
+                  structured_payload: true,
+                  created_at: true
+                }
+              },
+              agent_calls: {
+                where: { agent_name: "followup_agent" },
+                orderBy: [{ created_at: "asc" }],
+                select: {
+                  agent_name: true,
+                  provider: true,
+                  model_name: true,
+                  agent_version: true,
+                  prompt_version: true,
+                  schema_version: true,
+                  prompt_hash: true,
+                  retry_count: true,
+                  call_status: true,
+                  output_validated: true,
+                  live_call_allowed: true,
+                  blocked_reason: true,
+                  latency_ms: true,
+                  input_tokens: true,
+                  output_tokens: true,
+                  total_tokens: true,
                   created_at: true,
                   completed_at: true
                 }
@@ -216,12 +262,18 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
         ["profiling_completed", "planning_pending"].includes(session.current_phase) &&
         Boolean(conceptUnitSession.latest_student_profile) &&
         !conceptUnitSession.latest_formative_decision,
+      can_start_followup:
+        session.current_phase === "planning_completed" &&
+        Boolean(conceptUnitSession.latest_student_profile) &&
+        Boolean(conceptUnitSession.latest_formative_decision) &&
+        !conceptUnitSession.followup_rounds.some((round) => round.status === "active"),
       latest_student_profile: conceptUnitSession.latest_student_profile
         ? serializeStudentProfileForTeacher(conceptUnitSession.latest_student_profile)
         : null,
       latest_formative_decision: conceptUnitSession.latest_formative_decision
         ? serializeFormativeDecisionForTeacher(conceptUnitSession.latest_formative_decision)
-        : null
+        : null,
+      followup_rounds: conceptUnitSession.followup_rounds.map(serializeFollowupRoundForTeacher)
     })),
     summary: {
       concept_unit_count: conceptUnitCount,
@@ -236,7 +288,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       followup_round_count: followupRoundCount,
       agent_call_count: session._count.agent_calls,
       message:
-        "Student Profiling Agent records may exist after Phase 6B. Formative planning and follow-up remain unimplemented."
+        "Student Profiling, Formative Planning, and first-round Follow-up Agent records may exist after Phase 6D1. Iterative profile updating and replanning remain unimplemented."
     }
   };
 }

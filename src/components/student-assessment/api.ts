@@ -32,6 +32,26 @@ export type FrontendProcessEvent = {
   payload?: Record<string, unknown>;
 };
 
+type StudentFollowupApiState = {
+  session_public_id: string;
+  current_phase: string;
+  followup: {
+    round_index: number;
+    status: string;
+    started_at: string | null;
+    completed_at: string | null;
+    turns: Array<{
+      actor: "student" | "assistant";
+      message_text: string;
+      created_at: string | null;
+    }>;
+    can_send: boolean;
+    can_stop: boolean;
+    can_save_exit: boolean;
+    message_max_chars: number;
+  } | null;
+};
+
 export function newClientActionId(prefix: string) {
   const random =
     typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -246,6 +266,35 @@ export function exitSession(sessionPublicId: string) {
     `/api/student/sessions/${sessionPublicId}/exit`,
     {},
     (value) => value as { exit_status: string; can_resume: boolean }
+  );
+}
+
+export function sendFollowupMessage(input: {
+  sessionPublicId: string;
+  message: string;
+  clientMessageId?: string;
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/followup/messages`,
+    {
+      message: input.message,
+      client_message_id: input.clientMessageId ?? newClientActionId("followup-message")
+    },
+    (value) =>
+      value as {
+        message_status: string;
+        assistant_message: string | null;
+        student_safe_message?: string;
+        state: StudentFollowupApiState;
+      }
+  );
+}
+
+export function stopFollowup(sessionPublicId: string) {
+  return post(
+    `/api/student/sessions/${sessionPublicId}/followup/stop`,
+    {},
+    (value) => value as { stop_status: string; state: StudentFollowupApiState }
   );
 }
 

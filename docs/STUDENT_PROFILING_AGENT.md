@@ -1,10 +1,10 @@
 # Student Profiling Agent
 
-Phase 6B integrates only the Student Profiling Agent after initial concept-unit administration. Phase 6C may consume the saved profile as planning input, but it must not modify or regenerate the profile.
+Phase 6B integrates only the Student Profiling Agent after initial concept-unit administration. Phase 6C may consume the saved profile as planning input, and Phase 6D1 may consume it as backend-only follow-up context, but neither phase may modify or regenerate the profile.
 
 ## Scope
 
-The service converts one `initial_concept_unit_response_package` into one validated `student_profiles` record. It does not create follow-up rounds, student feedback, explanations, tutoring, or CSV-inferred profile values.
+The service converts one `initial_concept_unit_response_package` into one validated `student_profiles` record. It does not create follow-up rounds, student feedback, explanations, tutoring, or CSV-inferred profile values. Phase 6D1 follow-up records remain downstream conversation records and do not update profiles.
 
 Phase 6C creates a separate `formative_decisions` row only after a valid saved profile exists. That planning step is downstream of profiling and preserves the saved profile audit record unchanged.
 
@@ -83,11 +83,13 @@ The route uses public IDs, requires `teacher_researcher`, rejects students with 
 
 ## Student UI
 
-Students do not see profile labels or correctness. After profiling completes and before planning completes, the student UI shows only neutral progress copy. After Phase 6C planning completes, students still do not see profile or planning labels. The student UI may show:
+Students do not see profile labels or correctness. After profiling completes and before planning completes, the student UI shows only neutral progress copy. After Phase 6C planning completes, students still do not see profile or planning labels. Before Phase 6D1 follow-up starts, the student UI may show:
 
 ```text
 A support plan has been prepared. Interactive follow-up is not available yet in this prototype.
 ```
+
+During Phase 6D1 follow-up, students see only conversation text, not profile labels, evidence-sufficiency labels, independence labels, or diagnostic rationale.
 
 ## Idempotency
 

@@ -88,6 +88,8 @@ export type SessionDetailResponse = {
     latest_student_profile: TeacherStudentProfile | null;
     can_run_planning: boolean;
     latest_formative_decision: TeacherFormativeDecision | null;
+    can_start_followup: boolean;
+    followup_rounds: TeacherFollowupRound[];
   }>;
   summary: {
     concept_unit_count: number;
@@ -191,6 +193,57 @@ export type RunPlanningResponse = {
     status: string;
     decision: TeacherFormativeDecision | null;
     default_formative_value: string;
+  };
+};
+
+export type TeacherFollowupRound = {
+  round_index: number;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  updated_student_profile_present: boolean;
+  formative_decision: {
+    formative_value: string;
+    created_at: string | null;
+  };
+  transcript: Array<{
+    actor_type: string;
+    agent_name: string | null;
+    message_text: string | null;
+    created_at: string | null;
+    structured_payload: unknown;
+  }>;
+  agent_calls: Array<{
+    agent_name: string;
+    provider: string;
+    model_name: string;
+    agent_version: string;
+    prompt_version: string;
+    schema_version: string;
+    prompt_hash: string | null;
+    retry_count: number;
+    call_status: string;
+    output_validated: boolean;
+    live_call_allowed: boolean;
+    blocked_reason: string | null;
+    latency_ms: number | null;
+    input_tokens: number | null;
+    output_tokens: number | null;
+    total_tokens: number | null;
+    created_at: string | null;
+    completed_at: string | null;
+    mock_or_live: string;
+  }>;
+  mock_output_notice: string | null;
+};
+
+export type StartFollowupResponse = {
+  session_public_id: string;
+  concept_unit_public_id: string;
+  result: {
+    status: string;
+    round: TeacherFollowupRound | null;
+    student_state?: unknown;
   };
 };
 

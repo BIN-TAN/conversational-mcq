@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, and Phase 6C Formative Value and Planning Agent integration. Follow-up conversation, follow-up rounds, Response Collection Agent LLM behavior, live Item Preparation behavior, and master CSV agent-field changes remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, and Phase 6D1 first-round Follow-up Agent conversation. Iterative profile updates, replanning after follow-up, Response Collection Agent LLM behavior, live Item Preparation behavior, follow-up evidence packages, and master CSV agent-field changes remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -88,6 +88,8 @@ npm run llm:usage-smoke
 npm run llm:status-smoke
 npm run agent:profiling-smoke
 npm run agent:planning-smoke
+npm run agent:followup-smoke
+npm run student:followup-ui-smoke
 npm run typecheck
 npm run lint
 npm run build
@@ -204,6 +206,21 @@ The smoke test creates temporary profiled concept-unit sessions, builds allowlis
 Live OpenAI planning is disabled unless server-side environment variables explicitly set `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, `OPENAI_API_KEY`, and `OPENAI_MODEL_PLANNING`, and the usage guard allows the call.
 
 See `docs/FORMATIVE_PLANNING_AGENT.md` for the Phase 6C planning contract.
+
+## Phase 6D1 Follow-Up Verification
+
+Phase 6D1 connects only the Follow-up Agent for the first open-ended follow-up conversation round after a saved profile and saved formative decision exist. The default path uses the mock provider and does not call OpenAI.
+
+```bash
+npm run agent:followup-smoke
+npm run student:followup-ui-smoke
+```
+
+The smoke tests create temporary planned concept-unit sessions, start a teacher-triggered follow-up round, verify allowlisted follow-up input, strict output validation, semantic validation, idempotent student messages, bounded provider context, usage-blocked handling, agent-call audit, process-event logging, teacher review display, student-safe conversation state, stop behavior, no profile updates, no replanning, no next concept-unit start, and no OpenAI network calls.
+
+Live OpenAI follow-up is disabled unless server-side environment variables explicitly set `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, `OPENAI_API_KEY`, and `OPENAI_MODEL_FOLLOWUP`, and the usage guard allows the call.
+
+See `docs/FOLLOWUP_AGENT.md` and `docs/FOLLOWUP_CONVERSATION.md` for the Phase 6D1 contracts.
 
 ## Phase 3A Content Management Verification
 
@@ -618,4 +635,4 @@ The connectivity script requires `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=
 
 Usage safeguard variables are documented in `.env.example` and `docs/LLM_USAGE_LIMITS.md`.
 
-See `docs/LLM_INFRASTRUCTURE.md`, `docs/AGENT_CONTRACTS.md`, `docs/PROMPT_VERSIONING.md`, `docs/CLASSROOM_LLM_ACCESS.md`, `docs/LLM_USAGE_LIMITS.md`, `docs/STUDENT_PROFILING_AGENT.md`, and `docs/FORMATIVE_PLANNING_AGENT.md`.
+See `docs/LLM_INFRASTRUCTURE.md`, `docs/AGENT_CONTRACTS.md`, `docs/PROMPT_VERSIONING.md`, `docs/CLASSROOM_LLM_ACCESS.md`, `docs/LLM_USAGE_LIMITS.md`, `docs/STUDENT_PROFILING_AGENT.md`, `docs/FORMATIVE_PLANNING_AGENT.md`, `docs/FOLLOWUP_AGENT.md`, and `docs/FOLLOWUP_CONVERSATION.md`.

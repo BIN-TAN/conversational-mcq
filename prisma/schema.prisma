@@ -482,6 +482,7 @@ model AgentCall {
   id                         String          @id @default(uuid()) @db.Uuid
   assessment_session_db_id   String?         @db.Uuid
   concept_unit_session_db_id String?         @db.Uuid
+  followup_round_db_id       String?         @db.Uuid
   agent_name                 String
   agent_version              String
   model_name                 String
@@ -525,11 +526,13 @@ model AgentCall {
 
   assessment_session   AssessmentSession?  @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
   concept_unit_session ConceptUnitSession? @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  followup_round       FollowupRound?      @relation(fields: [followup_round_db_id], references: [id], onDelete: Restrict)
   student_profiles     StudentProfile[]    @relation("StudentProfileAgentCall")
   formative_decisions  FormativeDecision[] @relation("FormativeDecisionAgentCall")
 
   @@index([assessment_session_db_id, created_at])
   @@index([concept_unit_session_db_id, created_at])
+  @@index([followup_round_db_id, created_at])
   @@index([agent_name, call_status])
   @@index([provider, created_at])
   @@index([client_request_id])
@@ -637,6 +640,7 @@ model FollowupRound {
   formative_decision      FormativeDecision  @relation(fields: [formative_decision_db_id], references: [id], onDelete: Restrict)
   updated_student_profile StudentProfile?    @relation("UpdatedStudentProfile", fields: [updated_student_profile_db_id], references: [id], onDelete: SetNull)
   conversation_turns      ConversationTurn[]
+  agent_calls             AgentCall[]
 
   @@unique([concept_unit_session_db_id, round_index])
   @@index([concept_unit_session_db_id, status])

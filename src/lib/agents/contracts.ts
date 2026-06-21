@@ -36,13 +36,16 @@ export const InterventionType = z.enum([
 ]);
 
 export const FollowupActionType = z.enum([
-  "ask_clarifying_question",
-  "request_reasoning_extension",
-  "request_confidence_reflection",
-  "request_transfer_application",
-  "offer_move_on",
-  "redirect_off_topic",
-  "stop_followup"
+  "explanation",
+  "hint",
+  "clarification_prompt",
+  "reasoning_refinement_prompt",
+  "misconception_correction",
+  "transfer_task",
+  "confidence_calibration_prompt",
+  "independent_verification_prompt",
+  "off_topic_redirect",
+  "move_on_offer"
 ]);
 
 export type InterventionType = z.infer<typeof InterventionType>;
@@ -165,11 +168,16 @@ export const FormativePlanningOutput = AgentOutputBase.extend({
 }).strict();
 
 export const FollowupInput = z.object({
+  turn_type: z.enum(["opening", "student_reply"]),
   latest_student_profile: JsonRecord,
   latest_formative_decision: JsonRecord,
   formative_action_plan: z.string(),
-  current_followup_transcript: z.array(JsonRecord),
-  student_message: z.string(),
+  target_evidence: z.array(z.string()),
+  success_criteria: z.array(z.string()),
+  followup_prompt_constraints: z.array(z.string()),
+  current_followup_round: JsonRecord,
+  recent_followup_transcript: z.array(JsonRecord),
+  student_message: z.string().nullable(),
   concept_unit_metadata: JsonRecord,
   relevant_item_evidence: JsonArray,
   process_context: JsonRecord,
@@ -181,7 +189,7 @@ export const FollowupOutput = AgentOutputBase.extend({
   assistant_message: z.string(),
   followup_action_type: FollowupActionType,
   target_formative_value: FormativeValueSchema,
-  evidence_request: z.string(),
+  evidence_request: z.string().optional(),
   expects_student_response: z.boolean(),
   evidence_trigger_candidate: z.boolean(),
   should_offer_move_on: z.boolean(),

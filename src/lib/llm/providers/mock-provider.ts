@@ -17,6 +17,17 @@ export type MockProviderMode =
   | "planning_mapping_deviation"
   | "planning_bad_mapping_deviation"
   | "planning_contradictory_mapping"
+  | "followup_opening"
+  | "followup_reasoning_refinement"
+  | "followup_diagnostic_clarification"
+  | "followup_confidence_calibration"
+  | "followup_independent_verification"
+  | "followup_consolidation_transfer"
+  | "followup_off_topic"
+  | "followup_prompt_injection"
+  | "followup_evidence_trigger"
+  | "followup_move_on_offer"
+  | "followup_bad_target_formative_value"
   | "timeout";
 
 const attemptsByRequest = new Map<string, number>();
@@ -192,6 +203,105 @@ export class MockLlmProvider implements LlmProvider {
           input_tokens: 10,
           output_tokens: 20,
           total_tokens: 30,
+          raw: { mock: true }
+        },
+        latency_ms: Date.now() - startedAt
+      };
+    }
+
+    if (request.agent_name === "followup_agent") {
+      const input = request.input as Record<string, unknown>;
+      const decision = input.latest_formative_decision as Record<string, unknown> | undefined;
+      const studentMessage =
+        typeof input.student_message === "string" ? input.student_message : "";
+      const targetFormativeValue =
+        typeof decision?.formative_value === "string"
+          ? decision.formative_value
+          : "diagnostic_clarification";
+      const badTarget =
+        targetFormativeValue === "diagnostic_clarification"
+          ? "reasoning_refinement"
+          : "diagnostic_clarification";
+      const modeToAction: Record<string, string> = {
+        followup_reasoning_refinement: "reasoning_refinement_prompt",
+        followup_diagnostic_clarification: "clarification_prompt",
+        followup_confidence_calibration: "confidence_calibration_prompt",
+        followup_independent_verification: "independent_verification_prompt",
+        followup_consolidation_transfer: "transfer_task",
+        followup_off_topic: "off_topic_redirect",
+        followup_prompt_injection: "off_topic_redirect",
+        followup_evidence_trigger: "clarification_prompt",
+        followup_move_on_offer: "move_on_offer"
+      };
+      const action = modeToAction[mode] ?? "clarification_prompt";
+      const opening = input.turn_type === "opening";
+      const output = {
+        agent_name: request.agent_name,
+        agent_version: "6d1-draft",
+        prompt_version: "mock-followup-v2",
+        schema_version: "mock-followup-output-v2",
+        output_status: "ok",
+        warnings: [
+          "Mock provider output for infrastructure testing only; not validated formative guidance."
+        ],
+        assistant_message: opening
+          ? "Let's look at your thinking for this concept together. Start by explaining what part of the question felt most important to your choice."
+          : mode === "followup_off_topic"
+            ? "Let's bring this back to the concept we are working on. What part of the original idea can you explain in your own words?"
+            : mode === "followup_prompt_injection"
+              ? "I can only continue with this learning conversation. Please describe your reasoning about the concept in your own words."
+              : `Thanks for your response${studentMessage ? `: "${studentMessage.slice(0, 80)}"` : ""}. What evidence from the concept supports that thinking?`,
+        followup_action_type: action,
+        target_formative_value:
+          mode === "followup_bad_target_formative_value" ? badTarget : targetFormativeValue,
+        evidence_request: "Explain the reasoning evidence that supports your current thinking.",
+        expects_student_response: mode !== "followup_move_on_offer",
+        evidence_trigger_candidate: mode === "followup_evidence_trigger",
+        should_offer_move_on: mode === "followup_move_on_offer",
+        off_topic_detected: mode === "followup_off_topic" || mode === "followup_prompt_injection",
+        events_to_log:
+          mode === "followup_off_topic"
+            ? [
+                {
+                  event_type: "off_topic_followup",
+                  event_category: "followup",
+                  event_source: "agent",
+                  payload: { mock: true }
+                }
+              ]
+            : mode === "followup_prompt_injection"
+              ? [
+                  {
+                    event_type: "prompt_injection_attempt",
+                    event_category: "followup",
+                    event_source: "agent",
+                    payload: { mock: true }
+                  }
+                ]
+              : mode === "followup_evidence_trigger"
+                ? [
+                    {
+                      event_type: "followup_task_assigned",
+                      event_category: "followup",
+                      event_source: "agent",
+                      payload: { mock: true }
+                    }
+                  ]
+                : []
+      } as unknown as TOutput;
+
+      return {
+        provider: "mock",
+        client_request_id: request.client_request_id,
+        provider_request_id: `mock_req_${randomUUID()}`,
+        provider_response_id: `mock_resp_${randomUUID()}`,
+        status: "completed",
+        parsed_output: output,
+        raw_output: output,
+        usage: {
+          input_tokens: 12,
+          output_tokens: 24,
+          total_tokens: 36,
           raw: { mock: true }
         },
         latency_ms: Date.now() - startedAt

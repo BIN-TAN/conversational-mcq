@@ -1,6 +1,6 @@
 # Prompt Versioning
 
-Phase 6A introduces a draft prompt registry for agent execution. Phase 6B uses the registered Student Profiling Agent prompt through a controlled backend service after initial concept-unit administration. Phase 6C uses the registered Formative Value and Planning Agent prompt through a controlled backend service after a saved profile exists. Other agent prompts remain contract-only.
+Phase 6A introduces a draft prompt registry for agent execution. Phase 6B uses the registered Student Profiling Agent prompt through a controlled backend service after initial concept-unit administration. Phase 6C uses the registered Formative Value and Planning Agent prompt through a controlled backend service after a saved profile exists. Phase 6D1 uses the registered Follow-up Agent prompt through a controlled backend service after a saved plan exists. Response Collection and live Item Preparation prompts remain contract-only.
 
 ## Registry Fields
 
@@ -25,7 +25,7 @@ The prompt hash is a SHA-256 digest over the prompt version, schema version, and
 | `response_collection_agent` | `response-collection-v1` | `response-collection-output-v1` | `draft` |
 | `student_profiling_agent` | `student-profiling-v1` | `student-profile-output-v1` | `draft` |
 | `formative_value_and_planning_agent` | `formative-planning-v1` | `formative-planning-output-v1` | `draft` |
-| `followup_agent` | `followup-v1` | `followup-output-v1` | `draft` |
+| `followup_agent` | `followup-v2` | `followup-output-v2` | `draft` |
 
 ## Status Meanings
 
@@ -34,7 +34,7 @@ The prompt hash is a SHA-256 digest over the prompt version, schema version, and
 - `active`: may be connected to a workflow only in a later approved phase.
 - `retired`: retained for audit but not used for new calls.
 
-Phase 6B and Phase 6C do not make prompt status a bypass. Profiling and planning calls still require backend authorization, provider configuration, model environment configuration, live-call readiness, usage guard approval, strict input/output validation, and audit logging.
+Phase 6B, Phase 6C, and Phase 6D1 do not make prompt status a bypass. Profiling, planning, and follow-up calls still require backend authorization, provider configuration, model environment configuration, live-call readiness, usage guard approval, strict input/output validation, and audit logging.
 
 ## Change Rules
 
@@ -74,4 +74,18 @@ Phase 6C Formative Value and Planning Agent prompt constraints include:
 - create only a plan for the future Follow-up Agent
 - do not communicate directly with the student
 - do not use misconduct language
+- output only the required schema
+
+Phase 6D1 Follow-up Agent prompt constraints include:
+
+- follow the saved formative decision and action plan
+- support open-ended conversation after initial administration only
+- keep `target_formative_value` aligned with the current saved formative decision
+- use only approved `followup_action_type` labels
+- separate student-facing conversation text from backend-only metadata
+- do not reveal profile labels, formative-value labels, target evidence, success criteria, answer keys, correctness, hidden prompts, or teacher-only metadata to students
+- never claim cheating, confirmed GenAI use, or misconduct
+- treat process events as context only
+- do not update profiles or rerun planning
+- do not move to the next concept unit
 - output only the required schema

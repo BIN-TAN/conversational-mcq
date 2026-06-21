@@ -1,6 +1,6 @@
 # Agent Contracts
 
-Phase 6A defines contracts for five agents. The contracts are strict TypeScript/Zod schemas. Phase 6B connects `student_profiling_agent` to the backend workflow after initial concept-unit administration. Phase 6C connects `formative_value_and_planning_agent` after a saved profile exists. The remaining agents remain contract-only.
+Phase 6A defines contracts for five agents. The contracts are strict TypeScript/Zod schemas. Phase 6B connects `student_profiling_agent` to the backend workflow after initial concept-unit administration. Phase 6C connects `formative_value_and_planning_agent` after a saved profile exists. Phase 6D1 connects `followup_agent` for the first open-ended follow-up conversation round. Response Collection and live Item Preparation remain contract-only.
 
 ## Agent Names
 
@@ -86,7 +86,24 @@ The approved formative values are:
 
 ## Follow-Up Contract
 
-The Follow-up Agent contract produces future conversational follow-up turns and event candidates. Phase 6C does not implement follow-up conversation or create follow-up rounds.
+The Follow-up Agent contract produces conversational follow-up turns and trusted event candidates. Phase 6D1 executes it only through the backend follow-up service after a saved profile and saved formative decision exist.
+
+Approved `followup_action_type` values:
+
+- `explanation`
+- `hint`
+- `clarification_prompt`
+- `reasoning_refinement_prompt`
+- `misconception_correction`
+- `transfer_task`
+- `confidence_calibration_prompt`
+- `independent_verification_prompt`
+- `off_topic_redirect`
+- `move_on_offer`
+
+The output must keep `target_formative_value` aligned with the current saved formative decision. It may propose only trusted follow-up event types, and it must not expose profile labels, formative labels, target evidence, success criteria, answer keys, correctness, hidden prompts, or teacher-only metadata to students.
+
+Phase 6D1 may create a first active follow-up round and append follow-up conversation turns. It must not update profiles, rerun planning, create follow-up evidence packages, move to the next concept unit, or modify initial item responses.
 
 ## Item Preparation Contract
 
@@ -113,3 +130,5 @@ Phase 6A.5 adds a usage/readiness guard before future live OpenAI calls. A block
 Phase 6B preserves that rule for profiling. Refusal, incomplete, invalid output, failed execution, or usage-blocked execution does not create a `student_profiles` row.
 
 Phase 6C preserves that rule for planning. Refusal, incomplete, schema-invalid output, semantically invalid output, failed execution, or usage-blocked execution does not create a `formative_decisions` row and does not create follow-up records.
+
+Phase 6D1 preserves that rule for follow-up. Refusal, incomplete, schema-invalid output, semantically invalid output, failed execution, or usage-blocked execution does not create an assistant reply. Student follow-up messages already saved before provider execution remain stored as conversation evidence.

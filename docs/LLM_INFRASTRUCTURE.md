@@ -1,6 +1,6 @@
 # LLM Infrastructure
 
-Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration. Phase 6C connects only the Formative Value and Planning Agent after a saved student profile.
+Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration. Phase 6C connects only the Formative Value and Planning Agent after a saved student profile. Phase 6D1 connects only the Follow-up Agent for the first open-ended follow-up conversation round.
 
 ## Phase Boundary
 
@@ -49,10 +49,25 @@ Implemented in Phase 6C:
 - Neutral student post-planning state.
 - Planning smoke test that runs in mock mode and does not call OpenAI.
 
-Not implemented in Phase 6C:
+Implemented in Phase 6D1:
 
-- No Follow-up Agent execution or follow-up conversation.
-- No `followup_rounds` rows are created.
+- Backend `FollowupInput` builder from the latest saved profile, latest saved formative decision, current round, student message, bounded transcript, item evidence, and process context.
+- Follow-up semantic validation for action type, target formative value alignment, trusted event types, prohibited disclosures, and no misconduct language.
+- Follow-up Agent execution through `executeAgent`.
+- First-round `followup_rounds` creation through a teacher-only manual trigger.
+- Follow-up conversation turns persisted to `conversation_turns`.
+- `agent_calls.followup_round_db_id` audit linkage.
+- Neutral process-event logging for follow-up start, turns, prompt-injection-like messages, validation outcomes, and stop.
+- Student-safe follow-up messaging and stop APIs.
+- Teacher review display of saved follow-up rounds.
+- Follow-up smoke tests that run in mock mode and do not call OpenAI.
+
+Not implemented in Phase 6D1:
+
+- No iterative profile update from follow-up evidence.
+- No replanning after follow-up.
+- No follow-up evidence update packages.
+- No automatic next-concept-unit movement.
 - No Response Collection Agent LLM behavior.
 - No live Item Preparation Agent behavior.
 - No student-facing profile, planning, correctness, or diagnostic display.
@@ -103,6 +118,9 @@ Phase 6A LLM variables are optional unless intentionally enabling live connectiv
 - `LLM_COST_WARNING_LIMIT_USD`
 - `LLM_COST_HARD_LIMIT_USD`
 - `LLM_USAGE_TIMEZONE`
+- `FOLLOWUP_CONTEXT_MAX_TURNS`
+- `FOLLOWUP_MESSAGE_MAX_CHARS`
+- `FOLLOWUP_CONTEXT_MAX_CHARS`
 
 No model name is hardcoded. No documentation should describe a specific model as currently latest.
 
@@ -125,6 +143,8 @@ Phase 6A mock smoke tests create only synthetic audit rows and clean them up aft
 Phase 6B Student Profiling Agent calls attach to the relevant assessment session and concept-unit session. Mock provider outputs are marked as infrastructure-testing outputs and should not be interpreted as validated research inferences.
 
 Phase 6C Formative Value and Planning Agent calls also attach to the relevant assessment session and concept-unit session. Mock planning outputs are infrastructure-testing fixtures, not validated educational guidance.
+
+Phase 6D1 Follow-up Agent calls attach to the relevant assessment session, concept-unit session, and follow-up round. Mock follow-up outputs are infrastructure-testing fixtures, not validated formative guidance.
 
 ## Teacher Status Surface
 
@@ -165,8 +185,10 @@ npm run llm:usage-smoke
 npm run llm:status-smoke
 npm run agent:profiling-smoke
 npm run agent:planning-smoke
+npm run agent:followup-smoke
+npm run student:followup-ui-smoke
 ```
 
-These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, Formative Planning Agent integration, idempotency, usage-blocked behavior, and the absence of follow-up side effects. They do not call OpenAI.
+These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, Formative Planning Agent integration, Follow-up Agent integration, idempotency, usage-blocked behavior, and the absence of Phase 6D2 profile-update or replanning side effects. They do not call OpenAI.
 
 See `docs/CLASSROOM_LLM_ACCESS.md` and `docs/LLM_USAGE_LIMITS.md` for the Phase 6A.5 operational contract.

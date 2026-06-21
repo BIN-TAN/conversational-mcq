@@ -138,7 +138,7 @@ export function mockOutputForAgent(agentName: AgentName) {
         ...base,
         agent_name: agentName,
         assistant_message: "Mock follow-up message.",
-        followup_action_type: "ask_clarifying_question",
+        followup_action_type: "clarification_prompt",
         target_formative_value: "diagnostic_clarification",
         evidence_request: "Mock evidence request.",
         expects_student_response: true,

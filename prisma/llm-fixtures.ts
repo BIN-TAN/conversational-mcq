@@ -52,10 +52,20 @@ export function fixtureInputForAgent<TAgentName extends AgentName>(
       } as unknown as AgentInputByName[TAgentName];
     case "followup_agent":
       return {
+        turn_type: "student_reply",
         latest_student_profile: mockOutputForAgent("student_profiling_agent"),
         latest_formative_decision: mockOutputForAgent("formative_value_and_planning_agent"),
         formative_action_plan: "Synthetic plan",
-        current_followup_transcript: [],
+        target_evidence: ["Synthetic target evidence."],
+        success_criteria: ["Synthetic success criterion."],
+        followup_prompt_constraints: ["Synthetic follow-up constraint."],
+        current_followup_round: {
+          round_index: 1,
+          status: "active",
+          started_at: "2026-06-21T17:00:00.000Z",
+          completed_at: null
+        },
+        recent_followup_transcript: [],
         student_message: "Synthetic student message",
         concept_unit_metadata: { concept_unit_public_id: "synthetic_concept" },
         relevant_item_evidence: [],

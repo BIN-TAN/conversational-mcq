@@ -20,6 +20,7 @@ All routes require `teacher_researcher` authentication. Student users are redire
 - `GET /api/teacher/sessions/[sessionPublicId]/response-packages`
 - `POST /api/teacher/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]/run-profiling`
 - `POST /api/teacher/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]/run-planning`
+- `POST /api/teacher/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]/start-followup`
 
 Normal API responses use public IDs such as `session_public_id`, `assessment_public_id`, `concept_unit_public_id`, `item_public_id`, and `users.user_id`. Internal UUIDs, password hashes, access-code hashes, cookies, auth tokens, and environment values are not returned.
 
@@ -108,7 +109,7 @@ Where available, Phase 5A shows administered snapshots from `item_responses.item
 
 ## Future Agent Data
 
-Phase 6B activates Student Profiling Agent review data. Phase 6C activates Formative Value and Planning Agent review data after a saved profile exists.
+Phase 6B activates Student Profiling Agent review data. Phase 6C activates Formative Value and Planning Agent review data after a saved profile exists. Phase 6D1 activates first-round Follow-up Agent conversation review after a saved formative decision exists.
 
 When a concept-unit session is eligible and the assessment session is in `profiling_pending`, teacher_researcher users may run profiling from the Future agent data tab. The trigger:
 
@@ -159,13 +160,29 @@ After planning succeeds, the teacher review page displays the saved decision fie
 
 The UI must not show planning data as direct student feedback and must not label cheating, dishonesty, confirmed GenAI use, or misconduct.
 
-Phase 6C still does not create or simulate:
+When a concept-unit session has a saved profile, saved formative decision, no active follow-up round, and the assessment session is in `planning_completed`, teacher_researcher users may start the first follow-up round from the Future agent data tab. The trigger:
 
-- follow-up rounds
-- follow-up activities
-- iterative profile updates
+- requires teacher_researcher authentication
+- rejects student and unauthenticated users
+- uses route public IDs
+- runs the backend Follow-up Agent service
+- creates an auditable `followup_rounds` attempt and activates it only after a valid opening message is generated
+- does not expose provider secrets, hidden prompts, internal UUIDs, raw provider configuration, or raw environment values
+- does not update profiles, rerun planning, create evidence packages, or move to the next concept unit
 
-The Future agent data section shows empty states when planning or follow-up records do not exist. It must not show enum defaults as actual planning outputs.
+After follow-up starts, the teacher review page displays saved follow-up round data:
+
+- round index and status
+- started and completed timestamps
+- formative decision reference
+- chronological follow-up transcript
+- trusted structured action metadata
+- follow-up agent-call audit metadata
+- mock-output notice when the provider was mock
+
+The UI must not show follow-up process flags as misconduct and must not infer independence from process context in Phase 6D1.
+
+The Future agent data section shows empty states when planning or follow-up records do not exist. It must not show enum defaults as actual planning or follow-up outputs.
 
 ## Demo Fixture
 
@@ -212,4 +229,4 @@ The smoke test verifies listing, search, status and phase filters, pagination, p
 
 Phase 5B adds `/teacher/data`, `/teacher/data/summative-outcomes`, and `/teacher/data/export` for supervised outcome import and the merged master CSV export. The session-review pages remain read-only and do not edit student answers, process events, response packages, profiles, or formative decisions.
 
-Phase 6B may populate `agent_calls` and `student_profiles` for Student Profiling Agent execution. Phase 6C may populate `agent_calls` and `formative_decisions` for Formative Value and Planning Agent execution. Later phases may populate `followup_rounds` through backend-only integration using environment-configured model names.
+Phase 6B may populate `agent_calls` and `student_profiles` for Student Profiling Agent execution. Phase 6C may populate `agent_calls` and `formative_decisions` for Formative Value and Planning Agent execution. Phase 6D1 may populate `followup_rounds`, follow-up conversation turns, process events, and `agent_calls.followup_round_db_id` through backend-only integration using environment-configured model names.

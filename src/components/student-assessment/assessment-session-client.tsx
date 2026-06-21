@@ -12,6 +12,8 @@ import {
   MessageSquareText,
   PanelRightOpen,
   Save,
+  Send,
+  Square,
   X
 } from "lucide-react";
 import { buildSkipConfirmationFrame, buildStudentConversationFrame } from "@/lib/student-assessment-ui/presenter";
@@ -32,10 +34,13 @@ import {
   fetchSessionState,
   fetchStudentReview,
   fetchStudentTranscript,
+  newClientActionId,
   saveConfidence,
   saveOption,
   saveReasoning,
+  sendFollowupMessage,
   startAssessmentSession,
+  stopFollowup,
   submitItem
 } from "./api";
 import { useStudentProcessEvents } from "./process-events";
@@ -100,10 +105,25 @@ function AssistantBubble({ frame }: { frame: StudentConversationFrame }) {
 }
 
 function StudentBubble({ entry }: { entry: StudentTranscriptEntry }) {
+  if (entry.actor === "assistant") {
+    return (
+      <div className="flex justify-start">
+        <div className="max-w-3xl rounded-lg rounded-bl-sm border border-line bg-white p-4 shadow-soft">
+          <div className="flex gap-3">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent">
+              <MessageSquareText className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{entry.message_text}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex justify-end">
       <div className="max-w-2xl rounded-lg rounded-br-sm bg-[#23312d] p-4 text-white">
-        <p className="text-sm leading-6">{entry.message_text}</p>
+        <p className="whitespace-pre-wrap text-sm leading-6">{entry.message_text}</p>
       </div>
     </div>
   );
@@ -225,6 +245,7 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [reasoningDraft, setReasoningDraft] = useState("");
+  const [followupDraft, setFollowupDraft] = useState("");
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
   const [skipConfirmation, setSkipConfirmation] = useState<MissingEvidenceField[] | null>(null);
 
@@ -488,6 +509,16 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
       }
     }
 
+    if (state?.next_step === "followup_active" && followupDraft.trim()) {
+      const shouldExit = window.confirm(
+        "You have an unsent follow-up message. Save and exit without sending it?"
+      );
+
+      if (!shouldExit) {
+        return;
+      }
+    }
+
     setIsBusy(true);
 
     try {
@@ -522,6 +553,77 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
     );
   }
 
+  async function handleSendFollowup() {
+    const trimmed = followupDraft.trim();
+
+    if (!trimmed) {
+      setError({
+        code: "validation_failed",
+        message: "Enter a message before sending.",
+        status: 400
+      });
+      return;
+    }
+
+    if (state?.followup && trimmed.length > state.followup.message_max_chars) {
+      setError({
+        code: "validation_failed",
+        message: "The follow-up message is too long.",
+        status: 400
+      });
+      return;
+    }
+
+    setError(null);
+    setStatusMessage("");
+    setIsBusy(true);
+
+    try {
+      const result = await sendFollowupMessage({
+        sessionPublicId,
+        message: trimmed,
+        clientMessageId: newClientActionId("followup-message")
+      });
+      const nextState = await fetchSessionState(sessionPublicId);
+
+      setState(nextState);
+      setFollowupDraft("");
+      setStatusMessage(
+        result.message_status === "assistant_replied"
+          ? "Message sent."
+          : result.student_safe_message ?? "Message saved."
+      );
+      await refreshSecondaryData();
+    } catch (caught) {
+      setError(caught as StructuredStudentApiError);
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function handleStopFollowup() {
+    if (!window.confirm("Stop this follow-up round? Your conversation will be saved.")) {
+      return;
+    }
+
+    setError(null);
+    setStatusMessage("");
+    setIsBusy(true);
+
+    try {
+      await stopFollowup(sessionPublicId);
+      const nextState = await fetchSessionState(sessionPublicId);
+
+      setState(nextState);
+      setStatusMessage("Follow-up stopped.");
+      await refreshSecondaryData();
+    } catch (caught) {
+      setError(caught as StructuredStudentApiError);
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   if (isLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-surface px-4">
@@ -544,7 +646,9 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
   }
 
   const currentItem = state.current_item;
-  const locked = review?.locked ?? state.next_step === "awaiting_profiling";
+  const locked =
+    review?.locked ??
+    ["awaiting_profiling", "followup_active", "followup_stopped"].includes(state.next_step);
   const questionProgress =
     state.progress.total_item_count > 0
       ? `Question ${Math.min(
@@ -617,7 +721,10 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
                   frame={frame}
                   isBusy={isBusy}
                   locked={locked}
+                  followupDraft={followupDraft}
                   reasoningDraft={reasoningDraft}
+                  state={state}
+                  setFollowupDraft={setFollowupDraft}
                   setReasoningDraft={setReasoningDraft}
                   onBegin={() => void handleBegin()}
                   onCompleteConceptUnit={() => void handleCompleteConceptUnit()}
@@ -628,13 +735,17 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
                   onSkipEvidence={(item, field) => void handleSkipEvidence(item, field)}
                   onSkipItem={(item) => void handleSkipItem(item)}
                   onSubmit={(item) => void handleSubmit(item)}
+                  onSendFollowup={() => void handleSendFollowup()}
                   onShowSkipConfirmation={(fields) => setSkipConfirmation(fields)}
+                  onStopFollowup={() => void handleStopFollowup()}
                   onConfidence={(item, confidence) => void handleConfidence(item, confidence)}
                 />
               </div>
-              <div className="mt-4">
-                <HelpDisclosure />
-              </div>
+              {state.next_step === "followup_active" || state.next_step === "followup_stopped" ? null : (
+                <div className="mt-4">
+                  <HelpDisclosure />
+                </div>
+              )}
             </div>
           </section>
 
@@ -691,7 +802,10 @@ function InteractionControls({
   frame,
   isBusy,
   locked,
+  followupDraft,
   reasoningDraft,
+  state,
+  setFollowupDraft,
   setReasoningDraft,
   onBegin,
   onCompleteConceptUnit,
@@ -700,16 +814,21 @@ function InteractionControls({
   onOption,
   onReasoning,
   onShowSkipConfirmation,
+  onSendFollowup,
   onSkipConfirmationCancel,
   onSkipEvidence,
   onSkipItem,
-  onSubmit
+  onSubmit,
+  onStopFollowup
 }: {
   currentItem: StudentSafeItem | null;
   frame: StudentConversationFrame;
   isBusy: boolean;
   locked: boolean;
+  followupDraft: string;
   reasoningDraft: string;
+  state: StudentSessionState;
+  setFollowupDraft: (value: string) => void;
   setReasoningDraft: (value: string) => void;
   onBegin: () => void;
   onCompleteConceptUnit: () => void;
@@ -717,12 +836,76 @@ function InteractionControls({
   onConfidence: (item: StudentSafeItem, confidence: ConfidenceRating) => void;
   onOption: (item: StudentSafeItem, label: string) => void;
   onReasoning: (item: StudentSafeItem) => void;
+  onSendFollowup: () => void;
   onShowSkipConfirmation: (fields: MissingEvidenceField[]) => void;
   onSkipConfirmationCancel: () => void;
   onSkipEvidence: (item: StudentSafeItem, field: "reasoning" | "confidence") => void;
   onSkipItem: (item: StudentSafeItem) => void;
   onSubmit: (item: StudentSafeItem) => void;
+  onStopFollowup: () => void;
 }) {
+  if (frame.interaction_type === "followup_active") {
+    const maxChars = state.followup?.message_max_chars ?? 6000;
+
+    return (
+      <div className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+          Follow-up conversation · initial responses locked
+        </p>
+        <textarea
+          className="min-h-28 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:opacity-60"
+          data-testid="followup-message-input"
+          disabled={isBusy}
+          maxLength={maxChars}
+          onChange={(event) => setFollowupDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              onSendFollowup();
+            }
+          }}
+          placeholder="Write your follow-up response..."
+          value={followupDraft}
+        />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-muted">
+            {followupDraft.length} / {maxChars}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="stop-followup"
+              disabled={isBusy || !state.followup?.can_stop}
+              onClick={onStopFollowup}
+              type="button"
+            >
+              <Square className="h-4 w-4" aria-hidden="true" />
+              Stop follow-up
+            </button>
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="send-followup-message"
+              disabled={isBusy || !followupDraft.trim() || !state.followup?.can_send}
+              onClick={onSendFollowup}
+              type="button"
+            >
+              {isBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (frame.interaction_type === "followup_stopped") {
+    return (
+      <p className="rounded-md border border-line bg-white px-3 py-2 text-sm text-muted">
+        This follow-up round is stopped. Your transcript is saved.
+      </p>
+    );
+  }
+
   if (frame.interaction_type === "concept_unit_intro") {
     return (
       <button

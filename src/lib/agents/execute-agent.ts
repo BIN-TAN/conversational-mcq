@@ -78,6 +78,7 @@ export type ExecuteAgentInput<TAgentName extends AgentNameType> = {
   input: AgentInputByName[TAgentName];
   assessment_session_db_id?: string | null;
   concept_unit_session_db_id?: string | null;
+  followup_round_db_id?: string | null;
   agent_invocation_key?: string;
   force_new_invocation?: boolean;
   metadata?: Record<string, string>;
@@ -220,6 +221,7 @@ export async function executeAgent<TAgentName extends AgentNameType>(
         id: randomUUID(),
         assessment_session_db_id: input.assessment_session_db_id ?? null,
         concept_unit_session_db_id: input.concept_unit_session_db_id ?? null,
+        followup_round_db_id: input.followup_round_db_id ?? null,
         agent_name: agentName,
         agent_version: prompt.agent_version,
         model_name: modelConfig.model_name,
@@ -267,6 +269,7 @@ export async function executeAgent<TAgentName extends AgentNameType>(
       id: randomUUID(),
       assessment_session_db_id: input.assessment_session_db_id ?? null,
       concept_unit_session_db_id: input.concept_unit_session_db_id ?? null,
+      followup_round_db_id: input.followup_round_db_id ?? null,
       agent_name: agentName,
       agent_version: prompt.agent_version,
       model_name: modelConfig.model_name,

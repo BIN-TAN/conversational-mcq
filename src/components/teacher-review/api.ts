@@ -11,6 +11,7 @@ import type {
   RunPlanningResponse,
   RunProfilingResponse,
   SessionDetailResponse,
+  StartFollowupResponse,
   SessionListResponse,
   StructuredApiError,
   TranscriptResponse
@@ -85,6 +86,13 @@ export function runStudentProfiling(sessionPublicId: string, conceptUnitPublicId
 export function runFormativePlanning(sessionPublicId: string, conceptUnitPublicId: string) {
   return apiRequest<RunPlanningResponse>(
     `/api/teacher/sessions/${sessionPublicId}/concept-units/${conceptUnitPublicId}/run-planning`,
+    { method: "POST" }
+  );
+}
+
+export function startFollowup(sessionPublicId: string, conceptUnitPublicId: string) {
+  return apiRequest<StartFollowupResponse>(
+    `/api/teacher/sessions/${sessionPublicId}/concept-units/${conceptUnitPublicId}/start-followup`,
     { method: "POST" }
   );
 }

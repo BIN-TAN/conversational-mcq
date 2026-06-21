@@ -81,7 +81,10 @@ const serverEnvSchema = z.object({
   LLM_USAGE_TIMEZONE: z
     .string()
     .default("UTC")
-    .refine(isValidTimeZone, "LLM_USAGE_TIMEZONE must be a valid IANA timezone")
+    .refine(isValidTimeZone, "LLM_USAGE_TIMEZONE must be a valid IANA timezone"),
+  FOLLOWUP_CONTEXT_MAX_TURNS: positiveIntWithDefault(24),
+  FOLLOWUP_MESSAGE_MAX_CHARS: positiveIntWithDefault(6000),
+  FOLLOWUP_CONTEXT_MAX_CHARS: positiveIntWithDefault(50000)
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

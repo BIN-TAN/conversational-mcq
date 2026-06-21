@@ -6,6 +6,7 @@ import { ConfidenceLevelSchema, ProcessEventTypeSchema } from "@/lib/domain/enum
 import { toPrismaJson } from "@/lib/services/json";
 import { generatePublicId } from "@/lib/services/ids";
 import { logConversationTurn } from "@/lib/services/conversation-turns";
+import { getFollowupContextConfig } from "@/lib/agents/followup/context";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { updateAssessmentSessionPhase, markSessionExited } from "@/lib/services/session-state";
 import { createResponsePackage } from "@/lib/services/response-packages";
@@ -32,7 +33,9 @@ export const InitialAdministrationStep = z.enum([
   "missing_evidence_repair",
   "item_complete",
   "initial_concept_unit_complete",
-  "awaiting_profiling"
+  "awaiting_profiling",
+  "followup_active",
+  "followup_stopped"
 ]);
 
 type InitialAdministrationStep = z.infer<typeof InitialAdministrationStep>;
@@ -723,7 +726,11 @@ export async function getStudentSessionState(input: {
   const missingEvidence = responseMissingFields(currentResponse);
   let nextStep: InitialAdministrationStep = "concept_unit_intro";
 
-  if (
+  if (effectivePhase === "followup_active") {
+    nextStep = "followup_active";
+  } else if (effectivePhase === "followup_stopped") {
+    nextStep = "followup_stopped";
+  } else if (
     effectivePhase === "profiling_pending" ||
     effectivePhase === "initial_concept_unit_completed" ||
     conceptUnitSession?.initial_completed_at
@@ -751,6 +758,23 @@ export async function getStudentSessionState(input: {
   const conceptUnitIndex = currentConceptUnit
     ? publishedConceptUnits.findIndex((unit) => unit.id === currentConceptUnit.id)
     : -1;
+  const activeOrLatestFollowupRound =
+    conceptUnitSession && ["followup_active", "followup_stopped"].includes(effectivePhase)
+      ? await prisma.followupRound.findFirst({
+          where: {
+            concept_unit_session_db_id: conceptUnitSession.id,
+            status: effectivePhase === "followup_active" ? "active" : "stopped"
+          },
+          orderBy: [{ round_index: "desc" }],
+          select: {
+            round_index: true,
+            status: true,
+            started_at: true,
+            completed_at: true
+          }
+        })
+      : null;
+  const followupConfig = getFollowupContextConfig();
   const result = {
     session: serializeStudentSessionSummary(session),
     session_public_id: session.session_public_id,
@@ -771,7 +795,19 @@ export async function getStudentSessionState(input: {
     current_item: currentItem ? serializeStudentSafeItem(currentItem, currentResponse) : null,
     missing_evidence: nextStep === "missing_evidence_repair" ? missingEvidence : [],
     can_exit: session.status !== "completed",
-    can_resume: session.status !== "completed"
+    can_resume: session.status !== "completed",
+    followup: activeOrLatestFollowupRound
+      ? {
+          round_index: activeOrLatestFollowupRound.round_index,
+          status: activeOrLatestFollowupRound.status,
+          started_at: activeOrLatestFollowupRound.started_at?.toISOString() ?? null,
+          completed_at: activeOrLatestFollowupRound.completed_at?.toISOString() ?? null,
+          can_send: effectivePhase === "followup_active" && activeOrLatestFollowupRound.status === "active",
+          can_stop: effectivePhase === "followup_active" && activeOrLatestFollowupRound.status === "active",
+          can_save_exit: true,
+          message_max_chars: followupConfig.message_max_chars
+        }
+      : null
   };
 
   assertStudentPayloadIsSafe(result);
@@ -1798,6 +1834,11 @@ export async function getStudentReviewResponses(input: {
     Boolean(conceptUnitSession?.initial_completed_at) ||
     session.current_phase === "initial_concept_unit_completed" ||
     session.current_phase === "profiling_pending" ||
+    session.current_phase === "profiling_completed" ||
+    session.current_phase === "planning_pending" ||
+    session.current_phase === "planning_completed" ||
+    session.current_phase === "followup_active" ||
+    session.current_phase === "followup_stopped" ||
     session.current_phase === "session_completed";
   const currentState = await getStudentSessionState(input);
   const result = {
@@ -1821,6 +1862,7 @@ export async function getStudentReviewResponses(input: {
 }
 
 function studentTranscriptMessage(input: {
+  actor_type?: string;
   message_text: string | null;
   structured_payload: unknown;
 }) {
@@ -1846,9 +1888,15 @@ function studentTranscriptMessage(input: {
 }
 
 function studentTranscriptInteractionType(input: {
+  actor_type?: string;
+  phase?: string;
   message_text: string | null;
   structured_payload: unknown;
 }) {
+  if (input.phase === "followup_active" || input.phase === "followup_stopped") {
+    return input.actor_type === "agent" ? "followup_assistant" : "followup_student";
+  }
+
   if (input.message_text) {
     return "reasoning";
   }
@@ -1878,11 +1926,20 @@ export async function getStudentSafeTranscript(input: {
   const turns = await prisma.conversationTurn.findMany({
     where: {
       assessment_session_db_id: owned.id,
-      actor_type: "student"
+      OR: [
+        { actor_type: "student" },
+        {
+          actor_type: "agent",
+          phase: {
+            in: ["followup_active", "followup_stopped"]
+          }
+        }
+      ]
     },
     orderBy: [{ created_at: "asc" }],
     select: {
       actor_type: true,
+      phase: true,
       message_text: true,
       structured_payload: true,
       created_at: true,
@@ -1890,16 +1947,23 @@ export async function getStudentSafeTranscript(input: {
         select: {
           item_public_id: true
         }
+      },
+      followup_round: {
+        select: {
+          round_index: true
+        }
       }
     }
   });
   const result = {
     session_public_id: input.session_public_id,
     transcript: turns.map((turn) => ({
-      actor: turn.actor_type,
+      actor: turn.actor_type === "agent" ? "assistant" : "student",
       message_text: studentTranscriptMessage(turn),
       created_at: turn.created_at.toISOString(),
       interaction_type: studentTranscriptInteractionType(turn),
+      phase: turn.phase,
+      followup_round_index: turn.followup_round?.round_index ?? null,
       item_public_id: turn.item?.item_public_id ?? null
     }))
   };

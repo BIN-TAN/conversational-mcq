@@ -1,6 +1,6 @@
 # Data Model
 
-Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, and Phase 6 additions. The data model supports audited profiling and planning records, but it still does not imply follow-up orchestration or student-facing agent feedback.
+Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, and Phase 6 additions. The data model supports audited profiling, planning, and first-round follow-up records, but it still does not imply iterative profile updates, replanning after follow-up, or Response Collection Agent behavior.
 
 ## Identifier Convention
 
@@ -27,7 +27,7 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `student_action_idempotency_keys`: Student action idempotency records for repeated browser requests during initial administration.
 - `conversation_turns`: Student, agent, system, orchestrator, and teacher-researcher messages across initial and follow-up phases.
 - `process_events`: Process telemetry such as page visibility, pauses, invalid help requests, prompt injection attempts, and phase events.
-- `agent_calls`: Audit storage for future LLM calls. Phase 6A adds provider/prompt/model audit fields and mock execution support, but classroom workflows still do not call any LLM.
+- `agent_calls`: Audit storage for LLM calls. Phase 6A adds provider/prompt/model audit fields and mock execution support; Phase 6B, Phase 6C, and Phase 6D1 connect profiling, planning, and follow-up through controlled backend services.
 - `response_packages`: Structured packages assembled for downstream profiling/planning. `package_type` remains a string in the database but is validated in TypeScript.
 - `student_profiles`: Storage for the three-layer profile: ability, engagement, and integrated diagnostic profile.
 - `formative_decisions`: Storage for formative value decisions and action plans.
@@ -48,7 +48,7 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `concept_unit_sessions.concept_unit_db_id -> concept_units.id`
 - `item_responses.concept_unit_session_db_id -> concept_unit_sessions.id`
 - `item_responses.item_db_id -> items.id`
-- `conversation_turns`, `process_events`, and `agent_calls` attach to assessment sessions and optionally concept-unit sessions or items.
+- `conversation_turns`, `process_events`, and `agent_calls` attach to assessment sessions and optionally concept-unit sessions, items, or follow-up rounds.
 - `student_profiles`, `formative_decisions`, `followup_rounds`, and `response_packages` attach to concept-unit sessions.
 - `summative_outcomes.user_db_id -> users.id` and also stores `user_id_snapshot`.
 - `summative_outcomes.import_batch_db_id -> summative_outcome_import_batches.id` when created from an import batch.
@@ -84,7 +84,7 @@ The schema indexes:
 - Item ordering within concept units.
 - Conversation turns by session and time.
 - Process events by session, concept-unit session, event type, item, and occurrence time.
-- Agent calls by session, concept-unit session, agent name, status, provider, client request ID, optional invocation key, and creation time.
+- Agent calls by session, concept-unit session, follow-up round, agent name, status, provider, client request ID, optional invocation key, and creation time.
 - Student profiles and formative decisions by concept-unit session and creation time.
 - Follow-up rounds by concept-unit session and round index.
 - Summative outcomes by user and assessment date.
@@ -301,6 +301,8 @@ Phase 6A makes `agent_calls.assessment_session_db_id` nullable so synthetic infr
 
 Existing fields continue to store agent name, agent version, model name, prompt version, schema version, redacted input payload, raw output, output payload, validation status, retry count, latency, token usage, and call status.
 
+Phase 6D1 adds `agent_calls.followup_round_db_id` so Follow-up Agent audit rows can be linked to the exact follow-up round that produced the assistant turn.
+
 The Phase 6A execution service validates input/output schemas, redacts audit payloads, blocks prohibited secret/auth fields before provider execution, retries retryable provider failures, and records structured output validation results.
 
 Phase 6A mock smoke tests may create synthetic `agent_calls` rows and remove only their own rows. They must not create `student_profiles`, `formative_decisions`, or `followup_rounds`, and they must not alter assessment session phases.
@@ -355,6 +357,28 @@ Idempotency is enforced through `agent_calls.agent_invocation_key`, derived from
 Failed, refused, incomplete, schema-invalid, semantically invalid, or usage-blocked planning executions do not create `formative_decisions` or `followup_rounds`.
 
 Mock provider planning rows are infrastructure-testing records and should not be interpreted as validated educational guidance.
+
+## Phase 6D1 Follow-Up Records
+
+Phase 6D1 uses the existing `followup_rounds` and `conversation_turns` tables, plus the new `agent_calls.followup_round_db_id` audit link, for the first open-ended follow-up conversation round after planning completes.
+
+Follow-up creation rules:
+
+- Input is built from an allowlisted `FollowupInput`, not raw Prisma objects.
+- The input uses the latest saved profile, latest saved formative decision, item response evidence, current round state, bounded recent transcript, latest student reply when applicable, process-event aggregates, and Phase 6D1 constraints.
+- Password hashes, access-code hashes, cookies, auth tokens, API keys, environment variables, unrelated summative outcomes, and unnecessary internal UUIDs are excluded.
+- A teacher_researcher manual trigger creates an auditable follow-up round attempt and activates it only after a valid opening assistant message is generated.
+- Student follow-up messages are stored as `conversation_turns` before provider execution so failed assistant replies do not discard student evidence.
+- Assistant replies are stored only when `executeAgent` returns a schema-valid `FollowupOutput` and semantic validation passes.
+- `agent_calls.followup_round_db_id` links follow-up agent executions to the active round.
+- The assessment session moves from `planning_completed` to `followup_active` after a valid opening turn.
+- Student stop marks the round `stopped` and moves the assessment session to `followup_stopped`.
+
+Idempotency is enforced through student action idempotency keys for student-submitted follow-up messages and through agent invocation keys for provider calls. Repeating the same successful student message does not duplicate student or assistant turns.
+
+Failed, refused, incomplete, schema-invalid, semantically invalid, or usage-blocked follow-up executions do not create an assistant reply, do not update `student_profiles`, do not update `formative_decisions`, do not create response packages, and do not start another concept unit.
+
+Mock provider follow-up rows are infrastructure-testing records and should not be interpreted as validated formative guidance.
 
 ## Phase 5B Outcome And Export Records
 
@@ -430,6 +454,7 @@ erDiagram
   student_profiles ||--o{ formative_decisions : informs
   formative_decisions ||--o{ followup_rounds : guides
   followup_rounds ||--o{ conversation_turns : contains
+  followup_rounds ||--o{ agent_calls : audits
   summative_outcome_import_batches ||--o{ summative_outcomes : creates
   summative_outcomes ||--o{ summative_outcomes : supersedes
 ```
