@@ -108,15 +108,28 @@ export function mockOutputForAgent(agentName: AgentName) {
       return {
         ...base,
         agent_name: agentName,
+        warnings: [
+          "Mock provider output for infrastructure testing only; not validated educational guidance."
+        ],
         formative_value: "diagnostic_clarification",
-        formative_action_plan: "Mock plan only; not connected to workflow.",
-        target_evidence: [],
-        success_criteria: [],
-        followup_prompt_constraints: {
-          mock_only: true
-        },
-        profile_update_triggers: [],
-        rationale: "Mock provider fixture for infrastructure testing.",
+        formative_action_plan:
+          "Mock plan only. Ask the future Follow-up Agent to clarify the student's reasoning with one neutral evidence request.",
+        target_evidence: [
+          "Student explains the relationship between the selected option and the concept evidence."
+        ],
+        success_criteria: [
+          "Student provides enough reasoning to distinguish misunderstanding from incomplete evidence."
+        ],
+        followup_prompt_constraints: [
+          "Do not reveal correctness.",
+          "Do not provide hints, tutoring, or explanations.",
+          "Ask only for additional evidence."
+        ],
+        profile_update_triggers: [
+          "New reasoning resolves conflicting or insufficient evidence in the saved profile."
+        ],
+        rationale:
+          "Mock provider fixture for infrastructure testing. The default mapping is followed for diagnostic clarification.",
         mapping_followed: true,
         mapping_deviation_reason: null
       };

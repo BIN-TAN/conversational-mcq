@@ -11,6 +11,7 @@ import {
   fetchResponsePackages,
   fetchSessionDetail,
   fetchTranscript,
+  runFormativePlanning,
   runStudentProfiling
 } from "./api";
 import type {
@@ -19,6 +20,7 @@ import type {
   ResponsePackagesResponse,
   SessionDetailResponse,
   StructuredApiError,
+  TeacherFormativeDecision,
   TeacherStudentProfile,
   TranscriptResponse
 } from "./types";
@@ -73,6 +75,9 @@ const eventTypes = [
   "refresh_recovery",
   "schema_validation_failed",
   "agent_retry_scheduled",
+  "formative_planning_started",
+  "formative_planning_succeeded",
+  "formative_planning_failed",
   "followup_turn_completed"
 ];
 
@@ -131,6 +136,11 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
   const [loading, setLoading] = useState(true);
   const [processLoading, setProcessLoading] = useState(true);
   const [profilingAction, setProfilingAction] = useState<{
+    concept_unit_public_id: string;
+    error: StructuredApiError | null;
+    status: string | null;
+  } | null>(null);
+  const [planningAction, setPlanningAction] = useState<{
     concept_unit_public_id: string;
     error: StructuredApiError | null;
     status: string | null;
@@ -222,6 +232,31 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
     }
   }
 
+  async function handleRunPlanning(conceptUnitPublicId: string) {
+    setPlanningAction({
+      concept_unit_public_id: conceptUnitPublicId,
+      error: null,
+      status: "running"
+    });
+
+    try {
+      const result = await runFormativePlanning(sessionPublicId, conceptUnitPublicId);
+      setPlanningAction({
+        concept_unit_public_id: conceptUnitPublicId,
+        error: null,
+        status: result.result.status
+      });
+      await loadCore();
+      await loadProcessEvents();
+    } catch (requestError) {
+      setPlanningAction({
+        concept_unit_public_id: conceptUnitPublicId,
+        error: errorFromUnknown(requestError),
+        status: null
+      });
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
@@ -306,7 +341,9 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
           {activeTab === "future_agent_data" ? (
             <FutureAgentSection
               detail={detail}
+              onRunPlanning={(conceptUnitPublicId) => void handleRunPlanning(conceptUnitPublicId)}
               onRunProfiling={(conceptUnitPublicId) => void handleRunProfiling(conceptUnitPublicId)}
+              planningAction={planningAction}
               profilingAction={profilingAction}
             />
           ) : null}
@@ -801,13 +838,62 @@ function ProfileDetails({ profile }: { profile: TeacherStudentProfile }) {
   );
 }
 
+function DecisionDetails({ decision }: { decision: TeacherFormativeDecision }) {
+  return (
+    <div className="mt-4 space-y-4">
+      {decision.mock_output_notice ? (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          {decision.mock_output_notice}
+        </section>
+      ) : null}
+      <div className="grid gap-3 md:grid-cols-3">
+        <Fact labelText="Formative value" value={<StatusPill value={decision.formative_value} tone="warn" />} />
+        <Fact labelText="Mapping followed" value={decision.mapping_followed ? "yes" : "no"} />
+        <Fact labelText="Created" value={formatDate(decision.created_at)} />
+      </div>
+      <section className="rounded-lg border border-line bg-slate-50 p-4">
+        <h4 className="text-sm font-semibold text-ink">Formative action plan</h4>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+          {decision.formative_action_plan}
+        </p>
+      </section>
+      <section className="rounded-lg border border-line bg-slate-50 p-4">
+        <h4 className="text-sm font-semibold text-ink">Rationale</h4>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+          {decision.rationale}
+        </p>
+        {decision.mapping_deviation_reason ? (
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink">
+            Mapping deviation: {decision.mapping_deviation_reason}
+          </p>
+        ) : null}
+      </section>
+      <div className="grid gap-3 md:grid-cols-2">
+        <JsonDetails value={decision.target_evidence} labelText="Target evidence" />
+        <JsonDetails value={decision.success_criteria} labelText="Success criteria" />
+        <JsonDetails value={decision.followup_prompt_constraints} labelText="Future follow-up constraints" />
+        <JsonDetails value={decision.profile_update_triggers} labelText="Profile update triggers" />
+        <JsonDetails value={decision.based_on_agent_call} labelText="Based-on agent call metadata" />
+      </div>
+    </div>
+  );
+}
+
 function FutureAgentSection({
   detail,
+  onRunPlanning,
   onRunProfiling,
+  planningAction,
   profilingAction
 }: {
   detail: SessionDetailResponse;
+  onRunPlanning: (conceptUnitPublicId: string) => void;
   onRunProfiling: (conceptUnitPublicId: string) => void;
+  planningAction: {
+    concept_unit_public_id: string;
+    error: StructuredApiError | null;
+    status: string | null;
+  } | null;
   profilingAction: {
     concept_unit_public_id: string;
     error: StructuredApiError | null;
@@ -893,9 +979,91 @@ function FutureAgentSection({
           })}
         </div>
       </section>
-      <EmptyState title="No formative decision has been generated.">
-        The Formative Value and Planning Agent is not implemented in Phase 6B.
-      </EmptyState>
+      <section className="rounded-lg border border-line bg-white p-5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-ink">Formative planning</h3>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Planning creates a saved future-support plan only. It does not deliver follow-up to students.
+            </p>
+          </div>
+          <StatusPill value={counts.formative_decision_count > 0 ? "decisions_available" : "planning_not_generated"} />
+        </div>
+        <div className="mt-4 space-y-4">
+          {detail.concept_unit_sessions.map((conceptUnitSession) => {
+            const actionMatches =
+              planningAction?.concept_unit_public_id === conceptUnitSession.concept_unit_public_id;
+            const isRunning = actionMatches && planningAction?.status === "running";
+            const planningPending =
+              detail.session.current_phase === "planning_pending" &&
+              Boolean(conceptUnitSession.latest_student_profile) &&
+              !conceptUnitSession.latest_formative_decision;
+
+            return (
+              <article className="rounded-lg border border-line p-4" key={`planning-${conceptUnitSession.concept_unit_public_id}`}>
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="font-semibold text-ink">{conceptUnitSession.title}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {conceptUnitSession.concept_unit_public_id}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {conceptUnitSession.latest_student_profile ? (
+                        <StatusPill value="profile_completed" tone="good" />
+                      ) : (
+                        <StatusPill value="profile_required" />
+                      )}
+                      {conceptUnitSession.latest_formative_decision ? (
+                        <StatusPill value="planning_completed" tone="good" />
+                      ) : conceptUnitSession.can_run_planning ? (
+                        <StatusPill value={planningPending ? "planning_pending" : "planning_ready"} tone="warn" />
+                      ) : (
+                        <StatusPill value="no_decision" />
+                      )}
+                    </div>
+                  </div>
+                  {conceptUnitSession.can_run_planning ? (
+                    <button
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={isRunning}
+                      onClick={() => onRunPlanning(conceptUnitSession.concept_unit_public_id)}
+                      type="button"
+                    >
+                      {isRunning ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <BrainCircuit className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      Run formative planning
+                    </button>
+                  ) : null}
+                </div>
+                {actionMatches && planningAction?.error ? (
+                  <div className="mt-4">
+                    <ErrorState error={planningAction.error} />
+                  </div>
+                ) : null}
+                {actionMatches && planningAction?.status && planningAction.status !== "running" ? (
+                  <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                    Planning result: {label(planningAction.status)}
+                  </p>
+                ) : null}
+                {conceptUnitSession.latest_formative_decision ? (
+                  <DecisionDetails decision={conceptUnitSession.latest_formative_decision} />
+                ) : conceptUnitSession.can_run_planning ? (
+                  <p className="mt-4 text-sm text-muted">
+                    {planningPending ? "Planning pending." : "Planning ready."}
+                  </p>
+                ) : (
+                  <p className="mt-4 text-sm text-muted">
+                    No formative decision has been generated for this concept unit.
+                  </p>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </section>
       <EmptyState title="No follow-up round has been generated.">
         Follow-up conversation is intentionally deferred to a later phase.
       </EmptyState>

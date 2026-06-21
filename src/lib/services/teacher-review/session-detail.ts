@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { serializeFormativeDecisionForTeacher } from "@/lib/agents/formative-planning/serializers";
 import { serializeStudentProfileForTeacher } from "@/lib/agents/student-profiling/serializers";
 import { serializeAssessmentContentState } from "@/lib/services/content/governance";
 import { TeacherReviewServiceError } from "./errors";
@@ -62,6 +63,28 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
           followup_status: true,
           followup_round_count: true,
           latest_student_profile: {
+            include: {
+              based_on_agent_call: {
+                select: {
+                  agent_name: true,
+                  provider: true,
+                  model_name: true,
+                  agent_version: true,
+                  prompt_version: true,
+                  schema_version: true,
+                  prompt_hash: true,
+                  retry_count: true,
+                  call_status: true,
+                  output_validated: true,
+                  live_call_allowed: true,
+                  blocked_reason: true,
+                  created_at: true,
+                  completed_at: true
+                }
+              }
+            }
+          },
+          latest_formative_decision: {
             include: {
               based_on_agent_call: {
                 select: {
@@ -189,8 +212,15 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
         session.current_phase === "profiling_pending" &&
         Boolean(conceptUnitSession.initial_completed_at) &&
         !conceptUnitSession.latest_student_profile,
+      can_run_planning:
+        ["profiling_completed", "planning_pending"].includes(session.current_phase) &&
+        Boolean(conceptUnitSession.latest_student_profile) &&
+        !conceptUnitSession.latest_formative_decision,
       latest_student_profile: conceptUnitSession.latest_student_profile
         ? serializeStudentProfileForTeacher(conceptUnitSession.latest_student_profile)
+        : null,
+      latest_formative_decision: conceptUnitSession.latest_formative_decision
+        ? serializeFormativeDecisionForTeacher(conceptUnitSession.latest_formative_decision)
         : null
     })),
     summary: {

@@ -14,6 +14,9 @@ export type MockProviderMode =
   | "transient_error"
   | "permanent_error"
   | "invalid_output"
+  | "planning_mapping_deviation"
+  | "planning_bad_mapping_deviation"
+  | "planning_contradictory_mapping"
   | "timeout";
 
 const attemptsByRequest = new Map<string, number>();
@@ -131,6 +134,64 @@ export class MockLlmProvider implements LlmProvider {
           input_tokens: 1,
           output_tokens: 1,
           total_tokens: 2,
+          raw: { mock: true }
+        },
+        latency_ms: Date.now() - startedAt
+      };
+    }
+
+    if (
+      request.agent_name === "formative_value_and_planning_agent" &&
+      (mode === "planning_mapping_deviation" ||
+        mode === "planning_bad_mapping_deviation" ||
+        mode === "planning_contradictory_mapping")
+    ) {
+      const output = {
+        agent_name: request.agent_name,
+        agent_version: "6a-draft",
+        prompt_version: "mock-prompt-v1",
+        schema_version: "mock-schema-v1",
+        output_status: "ok",
+        warnings: [
+          "Mock provider output for infrastructure testing only; not validated educational guidance."
+        ],
+        formative_value: "reasoning_refinement",
+        formative_action_plan:
+          "Mock plan only. Ask the future Follow-up Agent to request a short explanation that connects the selected option to the key concept.",
+        target_evidence: [
+          "Student can explain why the selected option follows from the concept evidence."
+        ],
+        success_criteria: [
+          "Student gives a concept-linked reason without relying only on option wording."
+        ],
+        followup_prompt_constraints: [
+          "Do not reveal correctness.",
+          "Ask for reasoning evidence only; do not tutor."
+        ],
+        profile_update_triggers: [
+          "Update profile only if new reasoning substantially clarifies the integrated diagnostic profile."
+        ],
+        rationale:
+          "Mock deviation fixture. The selected value differs from the default because the provided evidence suggests a reasoning-focused next step would be more informative.",
+        mapping_followed: mode === "planning_contradictory_mapping",
+        mapping_deviation_reason:
+          mode === "planning_bad_mapping_deviation"
+            ? ""
+            : "The default mapping points to diagnostic clarification, but the evidence in this synthetic fixture already identifies the diagnostic issue and needs reasoning refinement."
+      } as unknown as TOutput;
+
+      return {
+        provider: "mock",
+        client_request_id: request.client_request_id,
+        provider_request_id: `mock_req_${randomUUID()}`,
+        provider_response_id: `mock_resp_${randomUUID()}`,
+        status: "completed",
+        parsed_output: output,
+        raw_output: output,
+        usage: {
+          input_tokens: 10,
+          output_tokens: 20,
+          total_tokens: 30,
           raw: { mock: true }
         },
         latency_ms: Date.now() - startedAt

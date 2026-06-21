@@ -1,6 +1,6 @@
 # Data Model
 
-Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, and Phase 6A additions. The data model still does not imply active LLM calls, profiling, planning, or follow-up orchestration in classroom workflows.
+Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, and Phase 6 additions. The data model supports audited profiling and planning records, but it still does not imply follow-up orchestration or student-facing agent feedback.
 
 ## Identifier Convention
 
@@ -333,6 +333,28 @@ Idempotency is enforced through `agent_calls.agent_invocation_key`, derived from
 Failed, refused, incomplete, invalid-output, or usage-blocked profiling executions do not create `student_profiles`, `formative_decisions`, or `followup_rounds`.
 
 Mock provider profile rows are infrastructure-testing records and should not be interpreted as validated research inferences.
+
+## Phase 6C Formative Decision Records
+
+Phase 6C uses the existing `formative_decisions` table for validated Formative Value and Planning Agent output after a saved Student Profiling Agent profile exists. No schema migration is required for Phase 6C.
+
+Decision creation rules:
+
+- Input is built from an allowlisted `FormativePlanningInput`, not raw Prisma objects.
+- The input uses the latest saved `student_profiles` row, the latest `initial_concept_unit_response_package`, public concept metadata, previous safe formative-decision summaries, the approved formative-value taxonomy, and the default integrated-profile-to-formative-value mapping.
+- Password hashes, access-code hashes, cookies, auth tokens, API keys, environment variables, unrelated summative outcomes, and unnecessary internal UUIDs are excluded.
+- A decision row is created only when `executeAgent` returns a schema-valid `FormativePlanningOutput` and semantic validation passes.
+- Semantic validation checks the default mapping metadata, substantive deviation rationale when needed, nonempty planning fields, and prohibited misconduct or certainty language.
+- `formative_decisions.student_profile_db_id` links the decision to the saved profile used as input.
+- `formative_decisions.based_on_agent_call_db_id` links the decision to the audited `agent_calls` row.
+- `concept_unit_sessions.latest_formative_decision_db_id` points to the latest saved decision for the concept-unit session.
+- The assessment session moves from `profiling_completed` through `planning_pending` to `planning_completed` after successful decision persistence.
+
+Idempotency is enforced through `agent_calls.agent_invocation_key`, derived from concept-unit session, saved profile, response package, prompt version, schema version, and prompt hash. Retrying the same successful planning request returns the existing decision instead of creating a duplicate.
+
+Failed, refused, incomplete, schema-invalid, semantically invalid, or usage-blocked planning executions do not create `formative_decisions` or `followup_rounds`.
+
+Mock provider planning rows are infrastructure-testing records and should not be interpreted as validated educational guidance.
 
 ## Phase 5B Outcome And Export Records
 

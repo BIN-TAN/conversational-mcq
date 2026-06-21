@@ -1,6 +1,6 @@
 # LLM Infrastructure
 
-Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration.
+Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration. Phase 6C connects only the Formative Value and Planning Agent after a saved student profile.
 
 ## Phase Boundary
 
@@ -37,16 +37,26 @@ Implemented in Phase 6B:
 - Neutral student post-analysis state after `profiling_completed`.
 - Profiling smoke test that runs in mock mode and does not call OpenAI.
 
-Not implemented in Phase 6B:
+Implemented in Phase 6C:
 
-- No Formative Value and Planning Agent execution.
-- No `formative_decisions` rows are created.
+- Backend `FormativePlanningInput` builder from the latest saved profile and allowlisted response-package evidence.
+- Central default integrated-profile-to-formative-value mapping.
+- Semantic validation for mapping metadata, nonempty planning fields, and prohibited claims.
+- Formative Value and Planning Agent execution through `executeAgent`.
+- Validated `FormativePlanningOutput` persistence to `formative_decisions`.
+- Latest formative-decision pointer update.
+- Teacher-only manual planning trigger and saved-decision display.
+- Neutral student post-planning state.
+- Planning smoke test that runs in mock mode and does not call OpenAI.
+
+Not implemented in Phase 6C:
+
 - No Follow-up Agent execution or follow-up conversation.
 - No `followup_rounds` rows are created.
 - No Response Collection Agent LLM behavior.
 - No live Item Preparation Agent behavior.
-- No student-facing profile, correctness, or diagnostic display.
-- No inferred profile filling in CSV export.
+- No student-facing profile, planning, correctness, or diagnostic display.
+- No new master CSV agent-field behavior.
 - No response collection UI text is replaced by an LLM.
 - Normal development and verification use mock mode and send no student text, transcript, process data, item reasoning, summative outcome, or classroom record to OpenAI.
 - No student provides an OpenAI API key or needs an OpenAI account.
@@ -114,6 +124,8 @@ Phase 6A mock smoke tests create only synthetic audit rows and clean them up aft
 
 Phase 6B Student Profiling Agent calls attach to the relevant assessment session and concept-unit session. Mock provider outputs are marked as infrastructure-testing outputs and should not be interpreted as validated research inferences.
 
+Phase 6C Formative Value and Planning Agent calls also attach to the relevant assessment session and concept-unit session. Mock planning outputs are infrastructure-testing fixtures, not validated educational guidance.
+
 ## Teacher Status Surface
 
 Teacher-only API:
@@ -152,8 +164,9 @@ npm run llm:redaction-smoke
 npm run llm:usage-smoke
 npm run llm:status-smoke
 npm run agent:profiling-smoke
+npm run agent:planning-smoke
 ```
 
-These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, idempotency, usage-blocked behavior, and the absence of planning/follow-up side effects. They do not call OpenAI.
+These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, Formative Planning Agent integration, idempotency, usage-blocked behavior, and the absence of follow-up side effects. They do not call OpenAI.
 
 See `docs/CLASSROOM_LLM_ACCESS.md` and `docs/LLM_USAGE_LIMITS.md` for the Phase 6A.5 operational contract.

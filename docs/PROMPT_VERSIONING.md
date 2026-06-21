@@ -1,6 +1,6 @@
 # Prompt Versioning
 
-Phase 6A introduces a draft prompt registry for agent execution. Phase 6B uses the registered Student Profiling Agent prompt through a controlled backend service after initial concept-unit administration. Other agent prompts remain contract-only.
+Phase 6A introduces a draft prompt registry for agent execution. Phase 6B uses the registered Student Profiling Agent prompt through a controlled backend service after initial concept-unit administration. Phase 6C uses the registered Formative Value and Planning Agent prompt through a controlled backend service after a saved profile exists. Other agent prompts remain contract-only.
 
 ## Registry Fields
 
@@ -34,7 +34,7 @@ The prompt hash is a SHA-256 digest over the prompt version, schema version, and
 - `active`: may be connected to a workflow only in a later approved phase.
 - `retired`: retained for audit but not used for new calls.
 
-Phase 6B does not make prompt status a bypass. A profiling call still requires backend authorization, provider configuration, model environment configuration, live-call readiness, usage guard approval, strict input/output validation, and audit logging.
+Phase 6B and Phase 6C do not make prompt status a bypass. Profiling and planning calls still require backend authorization, provider configuration, model environment configuration, live-call readiness, usage guard approval, strict input/output validation, and audit logging.
 
 ## Change Rules
 
@@ -59,4 +59,19 @@ Phase 6B Student Profiling Agent prompt constraints include:
 - never use cheating, confirmed GenAI use, or misconduct language
 - use conservative language when evidence is incomplete or conflicting
 - do not infer motivation as a stable trait
+- output only the required schema
+
+Phase 6C Formative Value and Planning Agent prompt constraints include:
+
+- primarily use `integrated_diagnostic_profile`
+- also consider ability, engagement, evidence sufficiency, confidence alignment, independence interpretability, misconception indicators, and process cautions
+- select exactly one approved formative value
+- treat the default mapping as a strong guide
+- explain any mapping deviation
+- distinguish evidence from inference
+- do not modify or regenerate the student profile
+- do not create or deliver a follow-up activity
+- create only a plan for the future Follow-up Agent
+- do not communicate directly with the student
+- do not use misconduct language
 - output only the required schema

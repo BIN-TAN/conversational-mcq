@@ -1,6 +1,6 @@
 # Agent Contracts
 
-Phase 6A defines contracts for five agents. The contracts are strict TypeScript/Zod schemas. Phase 6B connects only `student_profiling_agent` to the backend workflow after initial concept-unit administration; the other agents remain contract-only.
+Phase 6A defines contracts for five agents. The contracts are strict TypeScript/Zod schemas. Phase 6B connects `student_profiling_agent` to the backend workflow after initial concept-unit administration. Phase 6C connects `formative_value_and_planning_agent` after a saved profile exists. The remaining agents remain contract-only.
 
 ## Agent Names
 
@@ -72,15 +72,25 @@ The Response Collection Agent contract may later produce student-facing procedur
 
 ## Formative Planning Contract
 
-The Formative Value and Planning Agent contract selects one locked formative value and produces a plan for later follow-up. It should primarily use the integrated diagnostic profile when that profile exists. Phase 6B does not execute this agent or create formative decisions.
+The Formative Value and Planning Agent contract selects one locked formative value and produces a plan for later follow-up. It primarily uses the integrated diagnostic profile while considering ability profile, engagement profile, evidence sufficiency, confidence alignment, independence interpretability, misconception indicators, and process interpretation cautions.
+
+Phase 6C executes this agent only through the backend planning service. It may create one `formative_decisions` row after semantic validation. It must not create follow-up rounds, deliver activities to students, modify the saved profile, or communicate directly with students.
+
+The approved formative values are:
+
+- `diagnostic_clarification`
+- `reasoning_refinement`
+- `confidence_calibration`
+- `independent_understanding_verification`
+- `consolidation_or_transfer`
 
 ## Follow-Up Contract
 
-The Follow-up Agent contract produces future conversational follow-up turns and event candidates. Phase 6B does not implement follow-up conversation or create follow-up rounds.
+The Follow-up Agent contract produces future conversational follow-up turns and event candidates. Phase 6C does not implement follow-up conversation or create follow-up rounds.
 
 ## Item Preparation Contract
 
-The Item Preparation Agent contract is advisory. The teacher_researcher remains the final content authority. Phase 6B does not implement live item preparation or automatic publishing.
+The Item Preparation Agent contract is advisory. The teacher_researcher remains the final content authority. Phase 6C does not implement live item preparation or automatic publishing.
 
 ## Guardrails
 
@@ -100,4 +110,6 @@ Provider input is checked for prohibited secret/auth fields before a provider ca
 
 Phase 6A.5 adds a usage/readiness guard before future live OpenAI calls. A blocked call is not a valid agent output and must not be passed downstream as profile, planning, response-collection, follow-up, or item-preparation behavior.
 
-Phase 6B preserves that rule for profiling. Refusal, incomplete, invalid output, failed execution, or usage-blocked execution does not create a `student_profiles` row and does not create planning or follow-up records.
+Phase 6B preserves that rule for profiling. Refusal, incomplete, invalid output, failed execution, or usage-blocked execution does not create a `student_profiles` row.
+
+Phase 6C preserves that rule for planning. Refusal, incomplete, schema-invalid output, semantically invalid output, failed execution, or usage-blocked execution does not create a `formative_decisions` row and does not create follow-up records.

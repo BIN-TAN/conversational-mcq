@@ -1,10 +1,12 @@
 # Student Profiling Agent
 
-Phase 6B integrates only the Student Profiling Agent after initial concept-unit administration.
+Phase 6B integrates only the Student Profiling Agent after initial concept-unit administration. Phase 6C may consume the saved profile as planning input, but it must not modify or regenerate the profile.
 
 ## Scope
 
-The service converts one `initial_concept_unit_response_package` into one validated `student_profiles` record. It does not create formative decisions, follow-up rounds, student feedback, explanations, tutoring, or CSV-inferred profile values.
+The service converts one `initial_concept_unit_response_package` into one validated `student_profiles` record. It does not create follow-up rounds, student feedback, explanations, tutoring, or CSV-inferred profile values.
+
+Phase 6C creates a separate `formative_decisions` row only after a valid saved profile exists. That planning step is downstream of profiling and preserves the saved profile audit record unchanged.
 
 The profile has three connected layers:
 
@@ -81,10 +83,10 @@ The route uses public IDs, requires `teacher_researcher`, rejects students with 
 
 ## Student UI
 
-Students do not see profile labels or correctness. After profiling completes, the student UI shows only:
+Students do not see profile labels or correctness. After profiling completes and before planning completes, the student UI shows only neutral progress copy. After Phase 6C planning completes, students still do not see profile or planning labels. The student UI may show:
 
 ```text
-Your initial responses have been reviewed. The next support step is not available yet in this prototype.
+A support plan has been prepared. Interactive follow-up is not available yet in this prototype.
 ```
 
 ## Idempotency

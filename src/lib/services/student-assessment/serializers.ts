@@ -22,7 +22,17 @@ const forbiddenStudentKeys = new Set([
   "ability_profile",
   "engagement_profile",
   "integrated_diagnostic_profile",
-  "formative_value"
+  "formative_value",
+  "formative_action_plan",
+  "target_evidence",
+  "success_criteria",
+  "followup_prompt_constraints",
+  "profile_update_triggers",
+  "mapping_followed",
+  "mapping_deviation_reason",
+  "agent_call",
+  "output_payload",
+  "raw_output"
 ]);
 
 function safeOptions(value: unknown): SafeOptions {

@@ -5,6 +5,22 @@ import type {
 } from "./types";
 import { StudentConversationFrameSchema } from "./types";
 
+function awaitingAnalysisMessage(phase: string) {
+  if (phase === "profiling_completed") {
+    return "Your initial responses have been reviewed. The system is preparing the next support step.";
+  }
+
+  if (phase === "planning_pending") {
+    return "The next support step is being prepared. Your progress has been saved.";
+  }
+
+  if (phase === "planning_completed") {
+    return "A support plan has been prepared. Interactive follow-up is not available yet in this prototype.";
+  }
+
+  return "The initial questions are complete. The system is preparing the next step.";
+}
+
 function fieldLabel(field: MissingEvidenceField) {
   if (field === "answer") {
     return "answer choice";
@@ -94,10 +110,7 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
                     }
                   : {
                       ...base,
-                      assistant_message:
-                        state.effective_phase === "profiling_completed"
-                          ? "Your initial responses have been reviewed. The next support step is not available yet in this prototype."
-                          : "The initial questions are complete. The system is preparing the next step.",
+                      assistant_message: awaitingAnalysisMessage(state.effective_phase),
                       interaction_type: "awaiting_profiling",
                       allowed_actions: ["review_responses"],
                       can_continue: false

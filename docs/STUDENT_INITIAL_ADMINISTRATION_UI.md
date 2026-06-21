@@ -126,17 +126,29 @@ NEXT_PUBLIC_INACTIVITY_MS
 
 These are technical defaults, not psychological thresholds. The UI does not log clipboard contents, keystrokes, external browsing history, or claims about GenAI use. Process data remain engagement and evidence-sufficiency context, not misconduct evidence.
 
-## Awaiting Profiling
+## Awaiting Analysis
 
 After initial concept-unit completion, the UI shows a neutral awaiting-analysis state. It does not fabricate ability, engagement, integrated diagnostic, evidence-sufficiency, confidence-alignment, formative-value, or follow-up content.
 
 After Phase 6B profiling completes, the same student-safe interaction state shows:
 
 ```text
-Your initial responses have been reviewed. The next support step is not available yet in this prototype.
+Your initial responses have been reviewed. The system is preparing the next support step.
 ```
 
-The student UI still does not show profile labels, evidence sufficiency, independence interpretability, correctness, diagnostic rationale, formative value, or follow-up prompts.
+While Phase 6C planning is running or queued, the student-safe state may show:
+
+```text
+The next support step is being prepared. Your progress has been saved.
+```
+
+After Phase 6C planning completes, the student-safe state may show:
+
+```text
+A support plan has been prepared. Interactive follow-up is not available yet in this prototype.
+```
+
+The student UI still does not show profile labels, evidence sufficiency, independence interpretability, correctness, diagnostic rationale, formative value, action plans, target evidence, success criteria, or follow-up prompts.
 
 ## Demo Fixture
 
@@ -162,4 +174,4 @@ Run:
 npm run student:ui-smoke
 ```
 
-The smoke test verifies availability, deterministic conversation frames, option/reasoning/confidence action wiring, missing-evidence repair rendering, skip confirmation, awaiting-profiling rendering, review locking, safe transcript output, and absence of forbidden student-facing fields. Phase 6B adds `npm run agent:profiling-smoke` to verify that post-profiling student payloads remain profile-free.
+The smoke test verifies availability, deterministic conversation frames, option/reasoning/confidence action wiring, missing-evidence repair rendering, skip confirmation, awaiting-analysis rendering, review locking, safe transcript output, and absence of forbidden student-facing fields. Phase 6B adds `npm run agent:profiling-smoke` to verify that post-profiling student payloads remain profile-free. Phase 6C adds `npm run agent:planning-smoke` to verify that post-planning student payloads remain profile-free and planning-label-free.

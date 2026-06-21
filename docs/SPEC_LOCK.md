@@ -346,6 +346,46 @@ Phase 6B must not:
 - reveal profile labels, correctness, or diagnostic summaries to students
 - fill master CSV profile columns unless a real saved profile already exists
 
+## Phase 6C Formative Value And Planning Agent Integration
+
+Phase 6C connects only the Formative Value and Planning Agent after a valid Student Profiling Agent output has been saved. It converts the latest validated `student_profiles` record into one audited `formative_decisions` row through `executeAgent`, strict schema validation, semantic validation, usage/readiness guards, and agent-call audit logging.
+
+The approved formative value taxonomy remains exactly:
+
+- `diagnostic_clarification`
+- `reasoning_refinement`
+- `confidence_calibration`
+- `independent_understanding_verification`
+- `consolidation_or_transfer`
+
+The centralized default guide maps integrated diagnostic profiles to likely formative values. It is a strong default, not an absolute rule. Any deviation must set `mapping_followed=false` and provide a substantive `mapping_deviation_reason`.
+
+Phase 6C may:
+
+- build an allowlisted `FormativePlanningInput` from the latest student profile, initial response package, concept metadata, previous formative decisions, the approved value taxonomy, and the default mapping
+- execute `formative_value_and_planning_agent` through `executeAgent`
+- semantically validate the selected formative value, mapping metadata, nonempty planning fields, and prohibited-claim boundaries
+- persist valid output to `formative_decisions`
+- update `concept_unit_sessions.latest_formative_decision_db_id`
+- transition an eligible session from `profiling_completed` through `planning_pending` to `planning_completed`
+- show saved planning fields to teacher_researcher users
+- show only neutral post-planning state to students
+
+Phase 6C must not:
+
+- implement the Follow-up Agent
+- create `followup_rounds`
+- deliver formative activities to students
+- implement iterative profile updating
+- modify the saved student profile
+- modify response packages
+- implement Response Collection Agent LLM behavior
+- implement live Item Preparation Agent behavior
+- reveal planning labels, plans, target evidence, success criteria, profile labels, correctness, or rationales to students
+- modify master CSV export behavior
+
+Phase 6C uses a manual teacher trigger as a temporary controlled-testing policy. Automatic planning after profiling is intentionally deferred until the profile-planning-follow-up pipeline is validated.
+
 ## Foundational Logging Services
 
 Process event logging validates `event_source` and the approved process-event taxonomy before writing. The database field remains a string to allow taxonomy expansion later. Process data remain engagement and evidence-sufficiency context, not misconduct labels.
@@ -383,6 +423,8 @@ Phase 6A includes only generic LLM infrastructure, provider configuration, stric
 Phase 6A.5 includes only classroom LLM access control, usage-limit configuration, usage accounting, usage guard checks, live-call readiness controls, teacher-visible usage monitoring, documentation, and smoke testing.
 
 Phase 6B includes only Student Profiling Agent backend integration after initial concept-unit administration, profile input building, strict output validation, `student_profiles` persistence, profile audit logging, teacher manual trigger/display, neutral student post-analysis copy, and profiling smoke testing. It does not implement formative planning, follow-up, Response Collection Agent LLM behavior, live Item Preparation behavior, or CSV profile inference.
+
+Phase 6C includes only Formative Value and Planning Agent backend integration after a saved profile, planning input building, default mapping, semantic validation, `formative_decisions` persistence, latest decision pointer update, teacher manual trigger/display, neutral student post-planning copy, and planning smoke testing. It does not implement follow-up delivery, follow-up rounds, iterative profile updating, Response Collection Agent LLM behavior, live Item Preparation behavior, or CSV export changes.
 
 Phase 1, Phase 1.5, Phase 2A, and Phase 2B must not implement:
 

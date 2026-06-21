@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, and Phase 6B Student Profiling Agent integration after initial concept-unit administration. Formative planning, follow-up conversation, Response Collection Agent LLM behavior, and live Item Preparation behavior remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, and Phase 6C Formative Value and Planning Agent integration. Follow-up conversation, follow-up rounds, Response Collection Agent LLM behavior, live Item Preparation behavior, and master CSV agent-field changes remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -87,6 +87,7 @@ npm run llm:redaction-smoke
 npm run llm:usage-smoke
 npm run llm:status-smoke
 npm run agent:profiling-smoke
+npm run agent:planning-smoke
 npm run typecheck
 npm run lint
 npm run build
@@ -189,6 +190,20 @@ npm run agent:profiling-smoke
 The smoke test creates temporary completed initial concept-unit sessions, builds allowlisted profiling input from response-package evidence, verifies prohibited secret/auth fields are absent, executes `student_profiling_agent` through `executeAgent`, persists a validated `student_profiles` row, updates the latest profile pointer, transitions the session to `profiling_completed`, verifies teacher-only trigger authorization, confirms student-facing payloads do not expose profile labels, checks idempotency, invalid-output handling, usage-blocked handling, and cleans up only its temporary records.
 
 Live OpenAI profiling is disabled unless server-side environment variables explicitly set `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, `OPENAI_API_KEY`, and `OPENAI_MODEL_PROFILING`, and the usage guard allows the call.
+
+## Phase 6C Formative Planning Verification
+
+Phase 6C connects only the Formative Value and Planning Agent after a saved student profile. The default path uses the mock provider and does not call OpenAI.
+
+```bash
+npm run agent:planning-smoke
+```
+
+The smoke test creates temporary profiled concept-unit sessions, builds allowlisted planning input, verifies summative outcomes and secret/auth fields are absent, derives the default formative value from the integrated diagnostic profile, executes planning through `executeAgent`, semantically validates mapping metadata and nonempty fields, persists a `formative_decisions` row, updates the latest decision pointer, transitions the session to `planning_completed`, verifies teacher-only trigger authorization, confirms student-facing payloads do not expose planning/profile labels, checks idempotency, mapping-deviation behavior, invalid-output/refusal/incomplete/usage-blocked handling, and cleans up only its temporary records.
+
+Live OpenAI planning is disabled unless server-side environment variables explicitly set `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, `OPENAI_API_KEY`, and `OPENAI_MODEL_PLANNING`, and the usage guard allows the call.
+
+See `docs/FORMATIVE_PLANNING_AGENT.md` for the Phase 6C planning contract.
 
 ## Phase 3A Content Management Verification
 
@@ -603,4 +618,4 @@ The connectivity script requires `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=
 
 Usage safeguard variables are documented in `.env.example` and `docs/LLM_USAGE_LIMITS.md`.
 
-See `docs/LLM_INFRASTRUCTURE.md`, `docs/AGENT_CONTRACTS.md`, `docs/PROMPT_VERSIONING.md`, `docs/CLASSROOM_LLM_ACCESS.md`, and `docs/LLM_USAGE_LIMITS.md`.
+See `docs/LLM_INFRASTRUCTURE.md`, `docs/AGENT_CONTRACTS.md`, `docs/PROMPT_VERSIONING.md`, `docs/CLASSROOM_LLM_ACCESS.md`, `docs/LLM_USAGE_LIMITS.md`, `docs/STUDENT_PROFILING_AGENT.md`, and `docs/FORMATIVE_PLANNING_AGENT.md`.

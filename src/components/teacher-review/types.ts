@@ -86,6 +86,8 @@ export type SessionDetailResponse = {
     response_package_count: number;
     can_run_profiling: boolean;
     latest_student_profile: TeacherStudentProfile | null;
+    can_run_planning: boolean;
+    latest_formative_decision: TeacherFormativeDecision | null;
   }>;
   summary: {
     concept_unit_count: number;
@@ -142,12 +144,53 @@ export type TeacherStudentProfile = {
   } | null;
 };
 
+export type TeacherFormativeDecision = {
+  formative_value: string;
+  formative_action_plan: string;
+  target_evidence: unknown;
+  success_criteria: unknown;
+  followup_prompt_constraints: unknown;
+  profile_update_triggers: unknown;
+  rationale: string;
+  mapping_followed: boolean;
+  mapping_deviation_reason: string | null;
+  created_at: string | null;
+  based_on_agent_call: {
+    agent_name: string;
+    provider: string;
+    model_name: string;
+    agent_version: string;
+    prompt_version: string;
+    schema_version: string;
+    prompt_hash: string | null;
+    retry_count: number;
+    call_status: string;
+    output_validated: boolean;
+    live_call_allowed: boolean;
+    blocked_reason: string | null;
+    created_at: string | null;
+    completed_at: string | null;
+    mock_or_live: string;
+  } | null;
+  mock_output_notice: string | null;
+};
+
 export type RunProfilingResponse = {
   session_public_id: string;
   concept_unit_public_id: string;
   result: {
     status: string;
     profile: TeacherStudentProfile | null;
+  };
+};
+
+export type RunPlanningResponse = {
+  session_public_id: string;
+  concept_unit_public_id: string;
+  result: {
+    status: string;
+    decision: TeacherFormativeDecision | null;
+    default_formative_value: string;
   };
 };
 

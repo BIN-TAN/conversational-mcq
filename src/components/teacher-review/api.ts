@@ -8,6 +8,7 @@ import type {
   ItemResponsesResponse,
   ProcessEventsResponse,
   ResponsePackagesResponse,
+  RunPlanningResponse,
   RunProfilingResponse,
   SessionDetailResponse,
   SessionListResponse,
@@ -77,6 +78,13 @@ export function fetchResponsePackages(sessionPublicId: string) {
 export function runStudentProfiling(sessionPublicId: string, conceptUnitPublicId: string) {
   return apiRequest<RunProfilingResponse>(
     `/api/teacher/sessions/${sessionPublicId}/concept-units/${conceptUnitPublicId}/run-profiling`,
+    { method: "POST" }
+  );
+}
+
+export function runFormativePlanning(sessionPublicId: string, conceptUnitPublicId: string) {
+  return apiRequest<RunPlanningResponse>(
+    `/api/teacher/sessions/${sessionPublicId}/concept-units/${conceptUnitPublicId}/run-planning`,
     { method: "POST" }
   );
 }
