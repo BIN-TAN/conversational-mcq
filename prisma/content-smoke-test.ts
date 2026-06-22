@@ -159,7 +159,8 @@ async function main() {
 
     const published = await publishConceptUnit({
       teacher_user_db_id: teacher.id,
-      concept_unit_public_id: conceptUnit.concept_unit_public_id
+      concept_unit_public_id: conceptUnit.concept_unit_public_id,
+      confirm_publish_without_current_verification: true
     });
     assert(published.concept_unit.status === "published", "Concept unit was not published.");
     assertNoInternalIds(published);

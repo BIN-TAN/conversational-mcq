@@ -10,27 +10,33 @@ const base = {
 
 export function mockOutputForAgent(agentName: AgentName) {
   switch (agentName) {
-    case "item_preparation_agent":
+    case "item_verification_agent":
       return {
         ...base,
         agent_name: agentName,
-        normalized_concept_unit: {
-          title: "Mock concept unit",
-          teacher_review_required: true
-        },
-        normalized_items: [
+        agent_version: "7d-draft",
+        prompt_version: "mock-item-verification-v1",
+        schema_version: "mock-item-verification-output-v1",
+        warnings: [
+          "Mock provider output for infrastructure testing only; not a validated item-quality judgment."
+        ],
+        verification_status: "verified_with_warnings",
+        set_level_findings: [],
+        item_results: [
           {
-            item_order: 1,
-            item_stem: "Mock item stem",
-            options: [
-              { label: "A", text: "Mock option A" },
-              { label: "B", text: "Mock option B" }
-            ]
+            item_public_id: "mock-item-1",
+            findings: [
+              {
+                issue_code: "possible_ambiguity",
+                item_public_id: "mock-item-1",
+                location: "item_stem",
+                brief_explanation:
+                  "Mock warning only. The stem may allow more than one interpretation."
+              }
+            ],
+            teacher_review_required: true
           }
         ],
-        item_quality_flags: ["teacher_review_required"],
-        ambiguity_warnings: [],
-        missing_required_fields: [],
         teacher_review_required: true
       };
     case "response_collection_agent":

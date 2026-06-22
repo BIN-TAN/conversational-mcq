@@ -13,7 +13,7 @@ These job types are implemented through Phase 6D2B:
 - `run_followup_planning_update`
 - `finalize_followup_update`
 
-Follow-up evidence updating is staged: profile update output and planning update output are saved on the update cycle first, then activated together only during finalization. Countdown timers and live Item Preparation behavior are not implemented. Phase 7C Response Collection Agent handling is student-message-triggered during initial administration and is not a workflow job type. Workflow jobs themselves do not generate CSV files or mutate export rows directly.
+Follow-up evidence updating is staged: profile update output and planning update output are saved on the update cycle first, then activated together only during finalization. Countdown timers and item generation or rewriting behavior are not implemented. Phase 7C Response Collection Agent handling is student-message-triggered during initial administration and is not a workflow job type. Workflow jobs themselves do not generate CSV files or mutate export rows directly.
 
 ## Statuses
 

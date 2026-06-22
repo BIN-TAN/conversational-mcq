@@ -1,12 +1,12 @@
 # Agent Contracts
 
-Phase 6A defines contracts for five agents. The contracts are strict TypeScript/Zod schemas. Phase 6B connects `student_profiling_agent` to the backend workflow after initial concept-unit administration. Phase 6C connects `formative_value_and_planning_agent` after a saved profile exists. Phase 6D1 connects `followup_agent` for the first open-ended follow-up conversation round. Phase 6D2B extends follow-up output for substantive evidence detection and uses staged updated profiling/planning. Phase 7C connects `response_collection_agent` to student free-text messages during initial administration. Live Item Preparation remains contract-only.
+Phase 6A defines contracts for five agents. The contracts are strict TypeScript/Zod schemas. Phase 6B connects `student_profiling_agent` to the backend workflow after initial concept-unit administration. Phase 6C connects `formative_value_and_planning_agent` after a saved profile exists. Phase 6D1 connects `followup_agent` for the first open-ended follow-up conversation round. Phase 6D2B extends follow-up output for substantive evidence detection and uses staged updated profiling/planning. Phase 7C connects `response_collection_agent` to student free-text messages during initial administration. Phase 7D replaces the former Item Preparation concept with `item_verification_agent` for advisory verification of teacher-authored item sets.
 
 ## Agent Names
 
 The only valid agent names are:
 
-- `item_preparation_agent`
+- `item_verification_agent`
 - `response_collection_agent`
 - `student_profiling_agent`
 - `formative_value_and_planning_agent`
@@ -127,9 +127,26 @@ Opening turns must use `student_turn_substantive=false`, `evidence_trigger_candi
 
 The orchestration layer, not the Follow-up Agent, decides whether to create a follow-up evidence update package and enqueue updated profiling/planning. The Follow-up Agent must not update profiles, rerun planning, create follow-up evidence packages, move to the next concept unit, or modify initial item responses.
 
-## Item Preparation Contract
+## Item Verification Contract
 
-The Item Preparation Agent contract is advisory. The teacher_researcher remains the final content authority. Phase 6C does not implement live item preparation or automatic publishing.
+The Item Verification Agent verifies teacher-authored concept-based item sets. It may identify possible issues in relevance, learning-objective alignment, ambiguity, answer-key consistency, distractor quality, answer cues, duplication, or insufficient information.
+
+It must not generate concepts, learning objectives, stems, options, distractors, replacement content, rewrites, or suggested correct answers. Findings contain only an issue code, location, optional item/option reference, and concise explanation. Teacher review remains final, and warnings are advisory.
+
+Approved issue codes:
+
+- `possible_concept_misalignment`
+- `possible_learning_objective_misalignment`
+- `possible_ambiguity`
+- `possible_multiple_correct_answers`
+- `possible_answer_key_inconsistency`
+- `weak_or_implausible_distractor`
+- `overlapping_or_indistinguishable_options`
+- `possible_answer_cue`
+- `substantially_duplicate_item`
+- `insufficient_information_to_verify`
+
+The retired `item_preparation_agent` name may exist in historical `agent_calls` rows but is not part of the active agent registry.
 
 ## Guardrails
 
@@ -147,7 +164,7 @@ All agent input is treated as untrusted. Prompt injection attempts must not chan
 
 Provider input is checked for prohibited secret/auth fields before a provider call or audit row is created.
 
-Phase 6A.5 adds a usage/readiness guard before future live OpenAI calls. A blocked call is not a valid agent output and must not be passed downstream as profile, planning, response-collection, follow-up, or item-preparation behavior.
+Phase 6A.5 adds a usage/readiness guard before future live OpenAI calls. A blocked call is not a valid agent output and must not be passed downstream as profile, planning, response-collection, follow-up, or item-verification behavior.
 
 Phase 6B preserves that rule for profiling. Refusal, incomplete, invalid output, failed execution, or usage-blocked execution does not create a `student_profiles` row.
 

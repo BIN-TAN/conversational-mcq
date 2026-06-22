@@ -7,6 +7,7 @@ import {
   assertConceptUnitCanPublish,
   INCLUDED_ITEM_RANGE
 } from "./governance";
+import { getVerificationPublicationPolicy } from "@/lib/agents/item-verification/publication-policy";
 import { ItemDraftInputSchema, zodIssuesToContentIssues } from "./validation";
 
 export type PublishValidationResult = {
@@ -181,6 +182,7 @@ export async function validateConceptUnitPublishable(input: {
 export async function publishConceptUnit(input: {
   teacher_user_db_id: string;
   concept_unit_public_id: string;
+  confirm_publish_without_current_verification?: boolean;
 }) {
   await assertConceptUnitCanPublish(input);
   const validation = await validateConceptUnitPublishable(input);
@@ -213,6 +215,23 @@ export async function publishConceptUnit(input: {
     },
     select: { id: true }
   });
+
+  const verificationPolicy = await getVerificationPublicationPolicy({
+    concept_unit_db_id: conceptUnit.id,
+    teacher_confirmed_without_current_verification:
+      input.confirm_publish_without_current_verification
+  });
+
+  if (!verificationPolicy.allowed) {
+    throw new ContentServiceError(
+      verificationPolicy.reason,
+      verificationPolicy.reason === "warnings_need_acknowledgement"
+        ? "Current AI verification warnings must be acknowledged before publishing."
+        : "Publish without current AI verification requires explicit teacher confirmation.",
+      409,
+      { verification_policy: verificationPolicy }
+    );
+  }
 
   await prisma.$transaction([
     prisma.item.updateMany({
@@ -257,7 +276,7 @@ export async function publishConceptUnit(input: {
     }
   });
 
-  return { concept_unit: serializeConceptUnit(published), validation };
+  return { concept_unit: serializeConceptUnit(published), validation, verification_policy: verificationPolicy };
 }
 
 export async function publishAssessment(input: {

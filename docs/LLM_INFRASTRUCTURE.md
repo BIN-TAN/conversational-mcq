@@ -1,6 +1,6 @@
 # LLM Infrastructure
 
-Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration. Phase 6C connects only the Formative Value and Planning Agent after a saved student profile. Phase 6D1 connects only the Follow-up Agent for the first open-ended follow-up conversation round. Phase 6D2B adds staged iterative follow-up evidence updates within the current concept unit. Phase 6D3 adds deterministic student-led concept progression and final assessment completion. Phase 7C connects the Response Collection Agent only for submitted free-text messages during initial administration.
+Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration. Phase 6C connects only the Formative Value and Planning Agent after a saved student profile. Phase 6D1 connects only the Follow-up Agent for the first open-ended follow-up conversation round. Phase 6D2B adds staged iterative follow-up evidence updates within the current concept unit. Phase 6D3 adds deterministic student-led concept progression and final assessment completion. Phase 7C connects the Response Collection Agent only for submitted free-text messages during initial administration. Phase 7D replaces the former Item Preparation concept with advisory Item Verification for teacher-authored item sets.
 
 ## Phase Boundary
 
@@ -85,10 +85,23 @@ Phase 7C implements:
 - Agent-call audit rows only for actual Response Collection Agent executions.
 - Initial chat UI for free-text messages with option and confidence controls remaining authoritative.
 
-Not implemented through Phase 7C:
+Phase 7D implements:
+
+- Active agent identity `item_verification_agent`.
+- Strict Item Verification input/output contracts and prompt metadata.
+- Advisory semantic verification of teacher-authored concept-unit item sets.
+- Deterministic structural validation before any verification agent call.
+- Content fingerprinting so verification applies only to the exact item-set version.
+- Warning acknowledgement for current verification fingerprints.
+- Publication policy allowing teacher-confirmed publication without current AI verification after deterministic validation passes.
+- Teacher-only verification APIs and UI.
+- Mock verification fixtures and smoke tests that do not call OpenAI.
+
+Not implemented through Phase 7D:
 
 - No automatic next-concept-unit movement.
-- No live Item Preparation Agent behavior.
+- No item generation or rewriting behavior.
+- No concept generation, concept recommendation, replacement distractors, or suggested item revisions.
 - No student-facing profile, planning, correctness, or diagnostic display.
 - No adaptive routing.
 - No correctness feedback, answer explanation, tutoring, or content help during initial administration.
@@ -129,7 +142,7 @@ Phase 6A LLM variables are optional unless intentionally enabling live connectiv
 - `LLM_PROVIDER`
 - `LLM_LIVE_CALLS_ENABLED`
 - `OPENAI_API_KEY`
-- `OPENAI_MODEL_ITEM_PREP`
+- `OPENAI_MODEL_ITEM_VERIFICATION`
 - `OPENAI_MODEL_RESPONSE_COLLECTION`
 - `OPENAI_MODEL_PROFILING`
 - `OPENAI_MODEL_PLANNING`
@@ -188,6 +201,8 @@ Phase 6D2B follow-up update cycles create new agent-call audit rows for updated 
 
 Phase 7C Response Collection Agent calls attach to the relevant assessment session, concept-unit session, and current item when an actual agent execution occurs. Deterministic fallback does not create fake provider metadata or successful agent-call rows.
 
+Phase 7D Item Verification Agent calls attach to `item_verification_runs`, which link to teacher-authored concept units and preserve the content fingerprint, deterministic validation result, warning count, acknowledgement metadata, and optional agent-call audit link. They do not attach to student sessions and must not include student records.
+
 ## Teacher Status Surface
 
 Teacher-only API:
@@ -230,6 +245,10 @@ npm run response-collection:fallback-smoke
 npm run response-collection:service-fallback-smoke
 npm run student:initial-chat-ui-smoke
 npm run response-collection:mode-smoke
+npm run agent:item-verification-smoke
+npm run content:verification-publish-smoke
+npm run item:verification-ui-smoke
+npm run agent:item-verification-rename-smoke
 npm run agent:profiling-smoke
 npm run agent:planning-smoke
 npm run agent:followup-smoke

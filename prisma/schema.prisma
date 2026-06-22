@@ -337,6 +337,13 @@ enum StudentAccountEventType {
   student_reactivated
 }
 
+enum ItemVerificationRunStatus {
+  pending
+  completed
+  failed
+  stale
+}
+
 model User {
   id                    String            @id @default(uuid()) @db.Uuid
   user_id               String            @unique
@@ -363,23 +370,24 @@ model User {
   uploaded_roster_import_batches            RosterImportBatch[]           @relation("RosterImportUploader")
   student_account_events                    StudentAccountEvent[]         @relation("StudentAccountEvents")
   performed_student_account_events          StudentAccountEvent[]         @relation("StudentAccountEventPerformer")
+  acknowledged_item_verification_runs       ItemVerificationRun[]         @relation("ItemVerificationAcknowledgement")
 
   @@map("users")
 }
 
 model Assessment {
-  id                    String                 @id @default(uuid()) @db.Uuid
-  assessment_public_id  String                 @unique @default(cuid())
-  title                 String
-  description           String?                @db.Text
-  status                AssessmentStatus       @default(draft)
-  workflow_mode         AssessmentWorkflowMode @default(automatic)
+  id                       String                 @id @default(uuid()) @db.Uuid
+  assessment_public_id     String                 @unique @default(cuid())
+  title                    String
+  description              String?                @db.Text
+  status                   AssessmentStatus       @default(draft)
+  workflow_mode            AssessmentWorkflowMode @default(automatic)
   response_collection_mode ResponseCollectionMode @default(llm_assisted)
-  release_at            DateTime?              @db.Timestamptz(6)
-  close_at              DateTime?              @db.Timestamptz(6)
-  created_by_user_db_id String                 @db.Uuid
-  created_at            DateTime               @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime               @updatedAt @db.Timestamptz(6)
+  release_at               DateTime?              @db.Timestamptz(6)
+  close_at                 DateTime?              @db.Timestamptz(6)
+  created_by_user_db_id    String                 @db.Uuid
+  created_at               DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime               @updatedAt @db.Timestamptz(6)
 
   created_by          User                @relation("AssessmentCreator", fields: [created_by_user_db_id], references: [id], onDelete: Restrict)
   concept_units       ConceptUnit[]
@@ -395,21 +403,24 @@ model Assessment {
 }
 
 model ConceptUnit {
-  id                          String            @id @default(uuid()) @db.Uuid
-  concept_unit_public_id      String            @unique @default(cuid())
-  assessment_db_id            String            @db.Uuid
-  title                       String
-  learning_objective          String            @db.Text
-  related_concept_description String            @db.Text
-  administration_rules        Json?
-  order_index                 Int
-  status                      ConceptUnitStatus @default(draft)
-  version                     Int               @default(1)
-  created_at                  DateTime          @default(now()) @db.Timestamptz(6)
-  updated_at                  DateTime          @updatedAt @db.Timestamptz(6)
+  id                                 String            @id @default(uuid()) @db.Uuid
+  concept_unit_public_id             String            @unique @default(cuid())
+  assessment_db_id                   String            @db.Uuid
+  title                              String
+  learning_objective                 String            @db.Text
+  related_concept_description        String            @db.Text
+  administration_rules               Json?
+  order_index                        Int
+  status                             ConceptUnitStatus @default(draft)
+  version                            Int               @default(1)
+  latest_item_verification_run_db_id String?           @db.Uuid
+  created_at                         DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at                         DateTime          @updatedAt @db.Timestamptz(6)
 
   assessment                      Assessment                 @relation(fields: [assessment_db_id], references: [id], onDelete: Restrict)
   items                           Item[]
+  latest_item_verification_run    ItemVerificationRun?       @relation("LatestItemVerificationRun", fields: [latest_item_verification_run_db_id], references: [id], onDelete: SetNull)
+  item_verification_runs          ItemVerificationRun[]      @relation("ConceptUnitItemVerifications")
   assessment_sessions_current     AssessmentSession[]        @relation("CurrentConceptUnit")
   concept_unit_sessions           ConceptUnitSession[]
   destination_progression_records ConceptProgressionRecord[] @relation("DestinationConceptUnitProgression")
@@ -417,6 +428,7 @@ model ConceptUnit {
   @@unique([assessment_db_id, order_index])
   @@index([assessment_db_id, status])
   @@index([assessment_db_id, order_index])
+  @@index([latest_item_verification_run_db_id])
   @@map("concept_units")
 }
 
@@ -450,27 +462,27 @@ model Item {
 }
 
 model AssessmentSession {
-  id                          String                 @id @default(uuid()) @db.Uuid
-  session_public_id           String                 @unique @default(cuid())
-  user_db_id                  String                 @db.Uuid
-  assessment_db_id            String                 @db.Uuid
-  attempt_number              Int                    @default(1)
-  status                      SessionStatus          @default(not_started)
-  current_phase               AssessmentPhase        @default(not_started)
-  workflow_mode_snapshot      AssessmentWorkflowMode @default(manual_review)
+  id                                String                 @id @default(uuid()) @db.Uuid
+  session_public_id                 String                 @unique @default(cuid())
+  user_db_id                        String                 @db.Uuid
+  assessment_db_id                  String                 @db.Uuid
+  attempt_number                    Int                    @default(1)
+  status                            SessionStatus          @default(not_started)
+  current_phase                     AssessmentPhase        @default(not_started)
+  workflow_mode_snapshot            AssessmentWorkflowMode @default(manual_review)
   response_collection_mode_snapshot ResponseCollectionMode @default(deterministic)
-  current_concept_unit_db_id  String?                @db.Uuid
-  resume_phase                AssessmentPhase?
-  resume_context              Json?
-  needs_review                Boolean                @default(false)
-  needs_review_reason         String?                @db.Text
-  automation_paused_at        DateTime?              @db.Timestamptz(6)
-  automation_exception_reason String?                @db.Text
-  started_at                  DateTime?              @db.Timestamptz(6)
-  last_activity_at            DateTime?              @db.Timestamptz(6)
-  completed_at                DateTime?              @db.Timestamptz(6)
-  created_at                  DateTime               @default(now()) @db.Timestamptz(6)
-  updated_at                  DateTime               @updatedAt @db.Timestamptz(6)
+  current_concept_unit_db_id        String?                @db.Uuid
+  resume_phase                      AssessmentPhase?
+  resume_context                    Json?
+  needs_review                      Boolean                @default(false)
+  needs_review_reason               String?                @db.Text
+  automation_paused_at              DateTime?              @db.Timestamptz(6)
+  automation_exception_reason       String?                @db.Text
+  started_at                        DateTime?              @db.Timestamptz(6)
+  last_activity_at                  DateTime?              @db.Timestamptz(6)
+  completed_at                      DateTime?              @db.Timestamptz(6)
+  created_at                        DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at                        DateTime               @updatedAt @db.Timestamptz(6)
 
   user                            User                          @relation(fields: [user_db_id], references: [id], onDelete: Restrict)
   assessment                      Assessment                    @relation(fields: [assessment_db_id], references: [id], onDelete: Restrict)
@@ -742,6 +754,7 @@ model AgentCall {
   followup_profile_update_cycles  FollowupUpdateCycle[] @relation("FollowupProfileAgentCall")
   followup_planning_update_cycles FollowupUpdateCycle[] @relation("FollowupPlanningAgentCall")
   followup_opening_update_cycles  FollowupUpdateCycle[] @relation("FollowupOpeningAgentCall")
+  item_verification_runs          ItemVerificationRun[] @relation("ItemVerificationAgentCall")
 
   @@index([assessment_session_db_id, created_at])
   @@index([concept_unit_session_db_id, created_at])
@@ -752,6 +765,39 @@ model AgentCall {
   @@index([blocked_reason, created_at])
   @@index([live_call_allowed, created_at])
   @@map("agent_calls")
+}
+
+model ItemVerificationRun {
+  id                              String                    @id @default(uuid()) @db.Uuid
+  verification_public_id          String                    @unique @default(cuid())
+  concept_unit_db_id              String                    @db.Uuid
+  content_fingerprint             String
+  concept_unit_version            Int
+  status                          ItemVerificationRunStatus @default(pending)
+  verification_status             String
+  deterministic_validation_result Json
+  agent_call_db_id                String?                   @db.Uuid
+  output_payload                  Json?
+  warning_count                   Int                       @default(0)
+  teacher_review_required         Boolean                   @default(false)
+  acknowledged_by_user_db_id      String?                   @db.Uuid
+  acknowledged_at                 DateTime?                 @db.Timestamptz(6)
+  failure_message                 String?                   @db.Text
+  created_at                      DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at                      DateTime                  @updatedAt @db.Timestamptz(6)
+
+  concept_unit            ConceptUnit   @relation("ConceptUnitItemVerifications", fields: [concept_unit_db_id], references: [id], onDelete: Restrict)
+  agent_call              AgentCall?    @relation("ItemVerificationAgentCall", fields: [agent_call_db_id], references: [id], onDelete: SetNull)
+  acknowledged_by         User?         @relation("ItemVerificationAcknowledgement", fields: [acknowledged_by_user_db_id], references: [id], onDelete: SetNull)
+  latest_for_concept_unit ConceptUnit[] @relation("LatestItemVerificationRun")
+
+  @@index([concept_unit_db_id, created_at])
+  @@index([content_fingerprint])
+  @@index([status])
+  @@index([verification_status])
+  @@index([agent_call_db_id])
+  @@index([acknowledged_by_user_db_id])
+  @@map("item_verification_runs")
 }
 
 model ResponsePackage {

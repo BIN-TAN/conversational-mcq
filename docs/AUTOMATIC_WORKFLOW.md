@@ -71,7 +71,7 @@ Students do not see job names, provider names, model names, token counts, budget
 
 Phase 6D3 still does not implement:
 
-- live Item Preparation Agent behavior
+- item generation or rewriting behavior
 - adaptive concept routing
 - CSV export changes
 - countdown timers

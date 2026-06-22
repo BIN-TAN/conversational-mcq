@@ -46,6 +46,55 @@ async function main() {
     );
   }
 
+  assert(agentNames.includes("item_verification_agent"), "Active agents should include item_verification_agent.");
+  assert(
+    !agentNames.includes("item_preparation_agent" as never),
+    "Active agents should not include retired item_preparation_agent."
+  );
+  assert(
+    agentInputSchemas.item_verification_agent.safeParse(fixtureInputForAgent("item_verification_agent")).success,
+    "ItemVerificationInput should validate."
+  );
+  assert(
+    agentOutputSchemas.item_verification_agent.safeParse(mockOutputForAgent("item_verification_agent")).success,
+    "ItemVerificationOutput should validate."
+  );
+  assert(
+    !agentOutputSchemas.item_verification_agent.safeParse({
+      ...mockOutputForAgent("item_verification_agent"),
+      item_results: [
+        {
+          item_public_id: "mock-item-1",
+          findings: [
+            {
+              issue_code: "generated_replacement_item",
+              location: "item_stem",
+              brief_explanation: "Bad issue code."
+            }
+          ],
+          teacher_review_required: true
+        }
+      ]
+    }).success,
+    "Unknown Item Verification issue codes should fail."
+  );
+  assert(
+    !agentOutputSchemas.item_verification_agent.safeParse({
+      ...mockOutputForAgent("item_verification_agent"),
+      suggested_stem: "Generated rewrite"
+    }).success,
+    "Suggested rewrite fields should fail strict ItemVerificationOutput parsing."
+  );
+  assert(
+    !agentOutputSchemas.item_verification_agent.safeParse({
+      ...mockOutputForAgent("item_verification_agent"),
+      generated_item: {
+        item_stem: "Generated replacement item"
+      }
+    }).success,
+    "Generated item fields should fail strict ItemVerificationOutput parsing."
+  );
+
   const badProfile = {
     ...mockOutputForAgent("student_profiling_agent"),
     ability_profile: "high_ability"

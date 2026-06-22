@@ -14,6 +14,21 @@ export type MockProviderMode =
   | "transient_error"
   | "permanent_error"
   | "invalid_output"
+  | "item_verification_no_warnings"
+  | "item_verification_warning"
+  | "item_verification_concept_misalignment"
+  | "item_verification_learning_objective_misalignment"
+  | "item_verification_ambiguous_stem"
+  | "item_verification_multiple_correct_answers"
+  | "item_verification_answer_key_inconsistency"
+  | "item_verification_weak_distractor"
+  | "item_verification_overlapping_options"
+  | "item_verification_answer_cue"
+  | "item_verification_duplicate_items"
+  | "item_verification_insufficient_information"
+  | "item_verification_invalid_rewrite"
+  | "item_verification_invalid_option"
+  | "item_verification_invalid_generated_option"
   | "planning_mapping_deviation"
   | "planning_bad_mapping_deviation"
   | "planning_contradictory_mapping"
@@ -148,6 +163,194 @@ export class MockLlmProvider implements LlmProvider {
           input_tokens: 1,
           output_tokens: 1,
           total_tokens: 2,
+          raw: { mock: true }
+        },
+        latency_ms: Date.now() - startedAt
+      };
+    }
+
+    if (request.agent_name === "item_verification_agent") {
+      const input = request.input as {
+        items?: Array<{ item_public_id: string; options?: Array<{ label: string }> }>;
+      };
+      const firstItemPublicId = input.items?.[0]?.item_public_id ?? "mock-item-1";
+      const firstOptionLabel = input.items?.[0]?.options?.[1]?.label ?? "B";
+      const baseOutput = {
+        agent_name: request.agent_name,
+        agent_version: "7d-draft",
+        prompt_version: "mock-item-verification-v1",
+        schema_version: "mock-item-verification-output-v1",
+        output_status: "ok",
+        warnings: [
+          "Mock provider output for infrastructure testing only; not a validated item-quality judgment."
+        ],
+        verification_status: "verified_no_warnings",
+        set_level_findings: [],
+        item_results: (input.items ?? []).map((item) => ({
+          item_public_id: item.item_public_id,
+          findings: [],
+          teacher_review_required: false
+        })),
+        teacher_review_required: false
+      } as Record<string, unknown>;
+
+      const warningByMode: Partial<Record<MockProviderMode, {
+        issue_code: string;
+        location: string;
+        option_label?: string;
+        brief_explanation: string;
+        set_level?: boolean;
+      }>> = {
+        item_verification_warning: {
+          issue_code: "possible_ambiguity",
+          location: "item_stem",
+          brief_explanation:
+            "The wording in the stem may allow more than one interpretation."
+        },
+        item_verification_concept_misalignment: {
+          issue_code: "possible_concept_misalignment",
+          location: "item_stem",
+          brief_explanation:
+            "The item may not directly target the teacher-defined concept."
+        },
+        item_verification_learning_objective_misalignment: {
+          issue_code: "possible_learning_objective_misalignment",
+          location: "item_stem",
+          brief_explanation:
+            "The item may not provide clear evidence for the stated learning objective."
+        },
+        item_verification_ambiguous_stem: {
+          issue_code: "possible_ambiguity",
+          location: "item_stem",
+          brief_explanation:
+            "The wording in the stem may allow more than one interpretation."
+        },
+        item_verification_multiple_correct_answers: {
+          issue_code: "possible_multiple_correct_answers",
+          location: "option",
+          option_label: firstOptionLabel,
+          brief_explanation:
+            "More than one option may be reasonably defensible from the stem."
+        },
+        item_verification_answer_key_inconsistency: {
+          issue_code: "possible_answer_key_inconsistency",
+          location: "correct_option",
+          brief_explanation:
+            "The teacher-selected correct option may not align with the stem and options."
+        },
+        item_verification_weak_distractor: {
+          issue_code: "weak_or_implausible_distractor",
+          location: "distractor_rationale",
+          option_label: firstOptionLabel,
+          brief_explanation:
+            "A distractor may be too implausible to provide useful diagnostic evidence."
+        },
+        item_verification_overlapping_options: {
+          issue_code: "overlapping_or_indistinguishable_options",
+          location: "option",
+          option_label: firstOptionLabel,
+          brief_explanation:
+            "Two options may be difficult to distinguish based on the stem."
+        },
+        item_verification_answer_cue: {
+          issue_code: "possible_answer_cue",
+          location: "item_stem",
+          brief_explanation:
+            "The stem or option pattern may contain an unintended cue."
+        },
+        item_verification_duplicate_items: {
+          issue_code: "substantially_duplicate_item",
+          location: "item_set",
+          brief_explanation:
+            "Two items in the set may ask for substantially the same evidence.",
+          set_level: true
+        },
+        item_verification_insufficient_information: {
+          issue_code: "insufficient_information_to_verify",
+          location: "concept_unit",
+          brief_explanation:
+            "The supplied concept metadata may be insufficient for semantic verification.",
+          set_level: true
+        }
+      };
+
+      if (mode === "item_verification_invalid_rewrite") {
+        baseOutput.verification_status = "verified_with_warnings";
+        baseOutput.item_results = [
+          {
+            item_public_id: firstItemPublicId,
+            findings: [
+              {
+                issue_code: "possible_ambiguity",
+                item_public_id: firstItemPublicId,
+                location: "item_stem",
+                brief_explanation: "Rewrite as: this is a prohibited replacement wording."
+              }
+            ],
+            teacher_review_required: true
+          }
+        ];
+        baseOutput.teacher_review_required = true;
+      } else if (
+        mode === "item_verification_invalid_option" ||
+        mode === "item_verification_invalid_generated_option"
+      ) {
+        baseOutput.verification_status = "verified_with_warnings";
+        baseOutput.item_results = [
+          {
+            item_public_id: firstItemPublicId,
+            findings: [
+              {
+                issue_code: "weak_or_implausible_distractor",
+                item_public_id: firstItemPublicId,
+                location: "option",
+                option_label: firstOptionLabel,
+                brief_explanation: "Replace with a generated option, which is not allowed."
+              }
+            ],
+            teacher_review_required: true
+          }
+        ];
+        baseOutput.teacher_review_required = true;
+      } else if (warningByMode[mode]) {
+        const warning = warningByMode[mode]!;
+        const finding = {
+          issue_code: warning.issue_code,
+          item_public_id: warning.set_level ? undefined : firstItemPublicId,
+          location: warning.location,
+          option_label: warning.option_label,
+          brief_explanation: warning.brief_explanation
+        };
+
+        baseOutput.verification_status =
+          mode === "item_verification_insufficient_information"
+            ? "unable_to_verify"
+            : "verified_with_warnings";
+        baseOutput.set_level_findings = warning.set_level ? [finding] : [];
+        baseOutput.item_results = warning.set_level
+          ? baseOutput.item_results
+          : [
+              {
+                item_public_id: firstItemPublicId,
+                findings: [finding],
+                teacher_review_required: true
+              }
+            ];
+        baseOutput.teacher_review_required = true;
+      }
+
+      return {
+        provider: "mock",
+        client_request_id: request.client_request_id,
+        provider_request_id: `mock_req_${randomUUID()}`,
+        provider_response_id: `mock_resp_${randomUUID()}`,
+        status: "completed",
+        parsed_output: baseOutput as TOutput,
+        raw_output: baseOutput,
+        usage: {
+          input_tokens: 10,
+          output_tokens: 20,
+          total_tokens: 30,
           raw: { mock: true }
         },
         latency_ms: Date.now() - startedAt

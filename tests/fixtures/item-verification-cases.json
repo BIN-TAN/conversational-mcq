@@ -1,0 +1,245 @@
+[
+  {
+    "case_id": "valid_no_warnings",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": [],
+    "expected_teacher_review_required": false,
+    "agent_call_should_occur": true,
+    "mock_mode": "item_verification_no_warnings"
+  },
+  {
+    "case_id": "possible_concept_misalignment",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": ["possible_concept_misalignment"],
+    "expected_teacher_review_required": true,
+    "agent_call_should_occur": true,
+    "mock_mode": "item_verification_concept_misalignment"
+  },
+  {
+    "case_id": "possible_learning_objective_misalignment",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": ["possible_learning_objective_misalignment"],
+    "expected_teacher_review_required": true,
+    "agent_call_should_occur": true,
+    "mock_mode": "item_verification_learning_objective_misalignment"
+  },
+  {
+    "case_id": "ambiguous_stem",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": ["possible_ambiguity"],
+    "expected_teacher_review_required": true,
+    "agent_call_should_occur": true,
+    "mock_mode": "item_verification_ambiguous_stem"
+  },
+  {
+    "case_id": "possible_multiple_correct_answers",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": ["possible_multiple_correct_answers"],
+    "expected_teacher_review_required": true,
+    "agent_call_should_occur": true,
+    "mock_mode": "item_verification_multiple_correct_answers"
+  },
+  {
+    "case_id": "possible_answer_key_inconsistency",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": ["possible_answer_key_inconsistency"],
+    "expected_teacher_review_required": true,
+    "agent_call_should_occur": true,
+    "mock_mode": "item_verification_answer_key_inconsistency"
+  },
+  {
+    "case_id": "weak_distractor",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": ["weak_or_implausible_distractor"],
+    "expected_teacher_review_required": true,
+    "agent_call_should_occur": true,
+    "mock_mode": "item_verification_weak_distractor"
+  },
+  {
+    "case_id": "overlapping_options",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": ["overlapping_or_indistinguishable_options"],
+    "expected_teacher_review_required": true,
+    "agent_call_should_occur": true,
+    "mock_mode": "item_verification_overlapping_options"
+  },
+  {
+    "case_id": "possible_answer_cue",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": ["possible_answer_cue"],
+    "expected_teacher_review_required": true,
+    "agent_call_should_occur": true,
+    "mock_mode": "item_verification_answer_cue"
+  },
+  {
+    "case_id": "duplicate_items",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": ["substantially_duplicate_item"],
+    "expected_teacher_review_required": true,
+    "agent_call_should_occur": true,
+    "mock_mode": "item_verification_duplicate_items"
+  },
+  {
+    "case_id": "insufficient_information",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": ["insufficient_information_to_verify"],
+    "expected_teacher_review_required": true,
+    "agent_call_should_occur": true,
+    "mock_mode": "item_verification_insufficient_information"
+  },
+  {
+    "case_id": "structural_too_few_items",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 1,
+    "expected_deterministic_validation_result": "fail",
+    "expected_warning_issue_codes": [],
+    "expected_teacher_review_required": false,
+    "agent_call_should_occur": false,
+    "mock_mode": "item_verification_no_warnings"
+  },
+  {
+    "case_id": "invalid_suggested_rewrite",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": ["possible_ambiguity"],
+    "expected_teacher_review_required": true,
+    "agent_call_should_occur": true,
+    "mock_mode": "item_verification_invalid_rewrite",
+    "expected_semantic_validation_result": "fail"
+  },
+  {
+    "case_id": "invalid_generated_option",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": ["weak_or_implausible_distractor"],
+    "expected_teacher_review_required": true,
+    "agent_call_should_occur": true,
+    "mock_mode": "item_verification_invalid_generated_option",
+    "expected_semantic_validation_result": "fail"
+  },
+  {
+    "case_id": "provider_refusal",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": [],
+    "expected_teacher_review_required": false,
+    "agent_call_should_occur": true,
+    "mock_mode": "refusal",
+    "expected_execution_result": "failure"
+  },
+  {
+    "case_id": "provider_incomplete",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": [],
+    "expected_teacher_review_required": false,
+    "agent_call_should_occur": true,
+    "mock_mode": "incomplete",
+    "expected_execution_result": "failure"
+  },
+  {
+    "case_id": "provider_timeout",
+    "concept_metadata": {
+      "title": "Teacher-defined concept",
+      "learning_objective": "Identify evidence for the teacher-defined concept.",
+      "related_concept_description": "Synthetic metadata for local verification tests."
+    },
+    "items": 3,
+    "expected_deterministic_validation_result": "pass",
+    "expected_warning_issue_codes": [],
+    "expected_teacher_review_required": false,
+    "agent_call_should_occur": true,
+    "mock_mode": "timeout",
+    "expected_execution_result": "failure"
+  }
+]

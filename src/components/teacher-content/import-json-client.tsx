@@ -87,7 +87,7 @@ export function ImportJsonClient() {
       <PageHeader
         eyebrow="content import"
         title="JSON import"
-        description="Manual concept-based item-set import. This is not the future Item Preparation Agent."
+        description="Manual concept-based item-set import. This does not call Item Verification and does not generate or rewrite content."
       />
 
       <ErrorPanel error={error} />

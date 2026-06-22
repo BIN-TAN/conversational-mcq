@@ -1,6 +1,6 @@
 # Prompt Versioning
 
-Phase 6A introduces a draft prompt registry for agent execution. Phase 6B uses the registered Student Profiling Agent prompt through a controlled backend service after initial concept-unit administration. Phase 6C uses the registered Formative Value and Planning Agent prompt through a controlled backend service after a saved profile exists. Phase 6D1 uses the registered Follow-up Agent prompt through a controlled backend service after a saved plan exists. Phase 6D2B bumps the Follow-up Agent prompt/schema for substantive evidence-trigger classification. Phase 7C uses the registered Response Collection Agent prompt for initial-administration free-text messages when the session snapshot and server-side readiness allow it. Live Item Preparation prompts remain contract-only.
+Phase 6A introduces a draft prompt registry for agent execution. Phase 6B uses the registered Student Profiling Agent prompt through a controlled backend service after initial concept-unit administration. Phase 6C uses the registered Formative Value and Planning Agent prompt through a controlled backend service after a saved profile exists. Phase 6D1 uses the registered Follow-up Agent prompt through a controlled backend service after a saved plan exists. Phase 6D2B bumps the Follow-up Agent prompt/schema for substantive evidence-trigger classification. Phase 7C uses the registered Response Collection Agent prompt for initial-administration free-text messages when the session snapshot and server-side readiness allow it. Phase 7D registers the Item Verification Agent for advisory verification of teacher-authored item sets.
 
 ## Registry Fields
 
@@ -21,7 +21,7 @@ The prompt hash is a SHA-256 digest over the prompt version, schema version, and
 
 | Agent | Prompt version | Schema version | Status |
 | --- | --- | --- | --- |
-| `item_preparation_agent` | `item-preparation-v1` | `item-preparation-output-v1` | `draft` |
+| `item_verification_agent` | `item-verification-v1` | `item-verification-output-v1` | `draft` |
 | `response_collection_agent` | `response-collection-v2` | `response-collection-output-v2` | `draft` |
 | `student_profiling_agent` | `student-profiling-v1` | `student-profile-output-v1` | `draft` |
 | `formative_value_and_planning_agent` | `formative-planning-v1` | `formative-planning-output-v1` | `draft` |
@@ -41,6 +41,8 @@ Phase 6B, Phase 6C, and Phase 6D1 do not make prompt status a bypass. Profiling,
 Prompt text changes require a prompt version review. Breaking output-schema changes require a schema version change. Any active future agent call must persist prompt version, schema version, agent version, model name, and prompt hash.
 
 Model names are configured through environment variables and are not part of prompt source code. Do not hardcode model names or describe any model as currently latest.
+
+`item_preparation_agent` and its prompt/schema names are retired. Historical audit rows may still contain the old string, but new calls must use `item_verification_agent`.
 
 ## Connectivity Prompt Use
 
@@ -100,6 +102,19 @@ Phase 7C Response Collection Agent prompt constraints include:
 - never claim cheating, confirmed GenAI use, or misconduct
 - reasoning evidence segments must be exact substrings of the original student message
 - refuse invalid help requests neutrally and keep the backend on the current step
+- output only the required schema
+
+Phase 7D Item Verification Agent prompt constraints include:
+
+- verify teacher-authored content only
+- do not generate concepts, learning objectives, items, alternative item versions, replacement distractors, replacement correct answers, or course-content recommendations
+- do not rewrite item stems or options
+- do not propose replacement wording
+- do not reassign items to other concepts
+- identify only possible semantic verification issues using the locked issue-code enum
+- use conservative language and distinguish possible issues from confirmed errors
+- teacher subject-matter judgment remains final
+- do not use student data
 - output only the required schema
 
 ## Phase 6D2A Automatic Workflow

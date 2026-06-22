@@ -6,14 +6,38 @@ export function fixtureInputForAgent<TAgentName extends AgentName>(
   agentName: TAgentName
 ): AgentInputByName[TAgentName] {
   switch (agentName) {
-    case "item_preparation_agent":
+    case "item_verification_agent":
       return {
-        teacher_draft: { title: "Synthetic draft" },
-        learning_objective: "Synthetic objective",
-        related_concept_description: "Synthetic concept description",
-        items: [{ item_stem: "Synthetic item", options: [] }],
-        teacher_constraints: { exactly_three_to_four_items: true },
-        administration_rules: { no_feedback_during_initial_administration: true }
+        concept_unit: {
+          concept_unit_public_id: "synthetic_concept",
+          title: "Synthetic concept",
+          learning_objective: "Synthetic learning objective",
+          related_concept_description: "Synthetic concept description",
+          version: 1
+        },
+        items: [
+          {
+            item_public_id: "mock-item-1",
+            item_order: 1,
+            item_stem: "Synthetic item stem",
+            options: [
+              { label: "A", text: "Synthetic option A" },
+              { label: "B", text: "Synthetic option B" }
+            ],
+            correct_option: "A",
+            distractor_rationales: { B: "Synthetic rationale" },
+            expected_reasoning_patterns: ["Synthetic reasoning pattern"],
+            possible_misconception_indicators: ["Synthetic misconception indicator"],
+            version: 1
+          }
+        ],
+        verification_constraints: {
+          advisory_only: true,
+          teacher_final_authority: true,
+          do_not_generate_or_rewrite_content: true,
+          deterministic_validation_already_passed: true,
+          no_student_data_in_input: true
+        }
       } as unknown as AgentInputByName[TAgentName];
     case "response_collection_agent":
       return {

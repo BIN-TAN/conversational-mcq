@@ -111,6 +111,39 @@ export const FollowupEvidenceTriggerReason = z.enum([
 
 export type FollowupEvidenceTriggerReason = z.infer<typeof FollowupEvidenceTriggerReason>;
 
+export const ItemVerificationIssueCode = z.enum([
+  "possible_concept_misalignment",
+  "possible_learning_objective_misalignment",
+  "possible_ambiguity",
+  "possible_multiple_correct_answers",
+  "possible_answer_key_inconsistency",
+  "weak_or_implausible_distractor",
+  "overlapping_or_indistinguishable_options",
+  "possible_answer_cue",
+  "substantially_duplicate_item",
+  "insufficient_information_to_verify"
+]);
+export type ItemVerificationIssueCode = z.infer<typeof ItemVerificationIssueCode>;
+
+export const ItemVerificationFindingLocation = z.enum([
+  "concept_unit",
+  "item_stem",
+  "correct_option",
+  "option",
+  "distractor_rationale",
+  "item_set"
+]);
+export type ItemVerificationFindingLocation = z.infer<typeof ItemVerificationFindingLocation>;
+
+export const ItemVerificationFinding = z.object({
+  issue_code: ItemVerificationIssueCode,
+  item_public_id: z.string().optional(),
+  location: ItemVerificationFindingLocation,
+  option_label: z.string().optional(),
+  brief_explanation: z.string().min(1).max(600)
+}).strict();
+export type ItemVerificationFinding = z.infer<typeof ItemVerificationFinding>;
+
 const JsonRecord = z.record(z.unknown());
 const JsonArray = z.array(z.unknown());
 const SafeProcessEvent = z.object({
@@ -136,22 +169,50 @@ const SafeResponseCollectionEvent = SafeProcessEvent.extend({
   ])
 }).strict();
 
-export const ItemPreparationInput = z.object({
-  teacher_draft: JsonRecord,
-  learning_objective: z.string(),
-  related_concept_description: z.string(),
-  items: z.array(JsonRecord),
-  teacher_constraints: JsonRecord.optional(),
-  administration_rules: JsonRecord.optional()
+export const ItemVerificationInput = z.object({
+  concept_unit: z.object({
+    concept_unit_public_id: z.string(),
+    title: z.string(),
+    learning_objective: z.string(),
+    related_concept_description: z.string(),
+    version: z.number().int().nonnegative()
+  }).strict(),
+  items: z.array(z.object({
+    item_public_id: z.string(),
+    item_order: z.number().int(),
+    item_stem: z.string(),
+    options: z.array(z.object({
+      label: z.string(),
+      text: z.string()
+    }).strict()),
+    correct_option: z.string(),
+    distractor_rationales: JsonRecord,
+    expected_reasoning_patterns: z.array(z.string()),
+    possible_misconception_indicators: z.array(z.string()),
+    version: z.number().int().nonnegative()
+  }).strict()),
+  verification_constraints: z.object({
+    advisory_only: z.literal(true),
+    teacher_final_authority: z.literal(true),
+    do_not_generate_or_rewrite_content: z.literal(true),
+    deterministic_validation_already_passed: z.literal(true),
+    no_student_data_in_input: z.literal(true)
+  }).strict()
 }).strict();
 
-export const ItemPreparationOutput = AgentOutputBase.extend({
-  agent_name: z.literal("item_preparation_agent"),
-  normalized_concept_unit: JsonRecord,
-  normalized_items: z.array(JsonRecord),
-  item_quality_flags: z.array(z.string()),
-  ambiguity_warnings: z.array(z.string()),
-  missing_required_fields: z.array(z.string()),
+export const ItemVerificationOutput = AgentOutputBase.extend({
+  agent_name: z.literal("item_verification_agent"),
+  verification_status: z.enum([
+    "verified_no_warnings",
+    "verified_with_warnings",
+    "unable_to_verify"
+  ]),
+  set_level_findings: z.array(ItemVerificationFinding),
+  item_results: z.array(z.object({
+    item_public_id: z.string(),
+    findings: z.array(ItemVerificationFinding),
+    teacher_review_required: z.boolean()
+  }).strict()),
   teacher_review_required: z.boolean()
 }).strict();
 
@@ -292,7 +353,7 @@ export const FollowupOutput = AgentOutputBase.extend({
 }).strict();
 
 export const agentInputSchemas = {
-  item_preparation_agent: ItemPreparationInput,
+  item_verification_agent: ItemVerificationInput,
   response_collection_agent: ResponseCollectionInput,
   student_profiling_agent: StudentProfilingInput,
   formative_value_and_planning_agent: FormativePlanningInput,
@@ -300,7 +361,7 @@ export const agentInputSchemas = {
 } as const;
 
 export const agentOutputSchemas = {
-  item_preparation_agent: ItemPreparationOutput,
+  item_verification_agent: ItemVerificationOutput,
   response_collection_agent: ResponseCollectionOutput,
   student_profiling_agent: StudentProfileOutput,
   formative_value_and_planning_agent: FormativePlanningOutput,

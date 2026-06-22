@@ -10,6 +10,7 @@ export type PublicIdKind =
   | "export"
   | "workflow_job"
   | "workflow_override"
+  | "item_verification"
   | "followup_update_cycle"
   | "concept_progression"
   | "roster_import_batch"
@@ -25,6 +26,7 @@ const prefixes: Record<PublicIdKind, string> = {
   export: "export",
   workflow_job: "wfjob",
   workflow_override: "wfo",
+  item_verification: "iver",
   followup_update_cycle: "fuc",
   concept_progression: "cpr",
   roster_import_batch: "rib",

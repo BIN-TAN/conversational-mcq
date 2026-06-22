@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, Phase 7B complete master CSV export coverage for persisted platform records, and Phase 7C Response Collection Agent integration for student free-text messages during initial administration. Live Item Preparation behavior, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, and student self-registration remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, Phase 7B complete master CSV export coverage for persisted platform records, Phase 7C Response Collection Agent integration for student free-text messages during initial administration, and Phase 7D Item Verification Agent governance for teacher-authored item sets. Item generation, item rewriting, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, and student self-registration remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -98,6 +98,10 @@ npm run response-collection:fallback-smoke
 npm run response-collection:service-fallback-smoke
 npm run student:initial-chat-ui-smoke
 npm run response-collection:mode-smoke
+npm run agent:item-verification-smoke
+npm run content:verification-publish-smoke
+npm run item:verification-ui-smoke
+npm run agent:item-verification-rename-smoke
 npm run agent:profiling-smoke
 npm run agent:planning-smoke
 npm run agent:followup-smoke
@@ -709,4 +713,4 @@ The connectivity script requires `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=
 
 Usage safeguard variables are documented in `.env.example` and `docs/LLM_USAGE_LIMITS.md`.
 
-See `docs/LLM_INFRASTRUCTURE.md`, `docs/AGENT_CONTRACTS.md`, `docs/PROMPT_VERSIONING.md`, `docs/CLASSROOM_LLM_ACCESS.md`, `docs/LLM_USAGE_LIMITS.md`, `docs/STUDENT_PROFILING_AGENT.md`, `docs/FORMATIVE_PLANNING_AGENT.md`, `docs/FOLLOWUP_AGENT.md`, `docs/FOLLOWUP_CONVERSATION.md`, `docs/FOLLOWUP_EVIDENCE_UPDATES.md`, `docs/ITERATIVE_FOLLOWUP_UPDATES.md`, and `docs/FOLLOWUP_UPDATE_ATOMICITY.md`.
+See `docs/LLM_INFRASTRUCTURE.md`, `docs/AGENT_CONTRACTS.md`, `docs/PROMPT_VERSIONING.md`, `docs/CLASSROOM_LLM_ACCESS.md`, `docs/LLM_USAGE_LIMITS.md`, `docs/STUDENT_PROFILING_AGENT.md`, `docs/FORMATIVE_PLANNING_AGENT.md`, `docs/FOLLOWUP_AGENT.md`, `docs/FOLLOWUP_CONVERSATION.md`, `docs/FOLLOWUP_EVIDENCE_UPDATES.md`, `docs/ITERATIVE_FOLLOWUP_UPDATES.md`, `docs/FOLLOWUP_UPDATE_ATOMICITY.md`, `docs/ITEM_VERIFICATION_AGENT.md`, and `docs/ITEM_VERIFICATION_WORKFLOW.md`.

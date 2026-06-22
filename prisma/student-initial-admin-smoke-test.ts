@@ -186,7 +186,8 @@ async function main() {
 
     await publishConceptUnit({
       teacher_user_db_id: teacher.id,
-      concept_unit_public_id: conceptUnit.concept_unit_public_id
+      concept_unit_public_id: conceptUnit.concept_unit_public_id,
+      confirm_publish_without_current_verification: true
     });
     await publishAssessment({
       teacher_user_db_id: teacher.id,

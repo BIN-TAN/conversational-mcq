@@ -43,10 +43,10 @@ function configured(value?: string | null) {
 }
 
 const agentEnvKeys = {
-  item_preparation_agent: {
-    model: "OPENAI_MODEL_ITEM_PREP",
-    reasoning: "OPENAI_REASONING_EFFORT_ITEM_PREP",
-    maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_ITEM_PREP"
+  item_verification_agent: {
+    model: "OPENAI_MODEL_ITEM_VERIFICATION",
+    reasoning: "OPENAI_REASONING_EFFORT_ITEM_VERIFICATION",
+    maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_ITEM_VERIFICATION"
   },
   response_collection_agent: {
     model: "OPENAI_MODEL_RESPONSE_COLLECTION",

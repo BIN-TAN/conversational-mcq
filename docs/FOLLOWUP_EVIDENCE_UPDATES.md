@@ -21,7 +21,7 @@ Implemented:
 Not implemented:
 
 - Response Collection Agent LLM behavior
-- live Item Preparation Agent behavior
+- item generation or rewriting behavior
 - formative follow-up beyond the current concept
 - master CSV changes
 - any student-facing diagnostic/profile/formative labels

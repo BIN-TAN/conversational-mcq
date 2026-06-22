@@ -47,7 +47,7 @@ Manual-review sessions flag teacher review and expose a teacher-only Run follow-
 
 ## Boundaries
 
-Phase 6D2B does not start another concept unit, select a next concept, mark the assessment completed, implement Response Collection Agent LLM behavior, implement live Item Preparation behavior, alter initial responses, modify the master CSV export, or expose diagnostic/profile/planning labels to students.
+Phase 6D2B does not start another concept unit, select a next concept, mark the assessment completed, implement Response Collection Agent LLM behavior, implement item generation or rewriting behavior, alter initial responses, modify the master CSV export, or expose diagnostic/profile/planning labels to students.
 
 See `docs/FOLLOWUP_EVIDENCE_UPDATES.md` and `docs/FOLLOWUP_UPDATE_ATOMICITY.md` for the detailed implementation rules.
 

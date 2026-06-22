@@ -2,13 +2,13 @@ import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
 import { computePromptHash } from "@/lib/agents/prompt-hash";
 import { formativePlanningPromptV1 } from "./formative-planning/v1";
 import { followupPromptV1 } from "./followup/v1";
-import { itemPreparationPromptV1 } from "./item-preparation/v1";
+import { itemVerificationPromptV1 } from "./item-verification/v1";
 import { responseCollectionPromptV1 } from "./response-collection/v1";
 import { studentProfilingPromptV1 } from "./student-profiling/v1";
 import type { AgentPromptDefinition } from "./types";
 
 const promptDefinitions = [
-  itemPreparationPromptV1,
+  itemVerificationPromptV1,
   responseCollectionPromptV1,
   studentProfilingPromptV1,
   formativePlanningPromptV1,

@@ -67,6 +67,57 @@ export type ConceptUnitDetail = ConceptUnitSummary & {
   items: ItemDetail[];
 };
 
+export type ItemVerificationFinding = {
+  issue_code: string;
+  item_public_id?: string;
+  location: string;
+  option_label?: string;
+  brief_explanation: string;
+};
+
+export type ItemVerificationRun = {
+  verification_public_id: string;
+  status: string;
+  verification_status: string;
+  is_current: boolean;
+  is_stale: boolean;
+  content_fingerprint: string;
+  concept_unit_version: number;
+  warning_count: number;
+  teacher_review_required: boolean;
+  acknowledged: boolean;
+  acknowledged_at: string | null;
+  acknowledged_by: { user_id: string; display_name: string | null } | null;
+  agent_call: {
+    provider: string;
+    model_name: string;
+    prompt_version: string;
+    schema_version: string;
+    call_status: string;
+    live_call_allowed: boolean;
+  } | null;
+  output: {
+    verification_status: string;
+    set_level_findings: ItemVerificationFinding[];
+    item_results: Array<{
+      item_public_id: string;
+      findings: ItemVerificationFinding[];
+      teacher_review_required: boolean;
+    }>;
+    teacher_review_required: boolean;
+  } | null;
+  failure_message: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ItemVerificationStatus = {
+  content_fingerprint: string;
+  deterministic_validation: PublishValidation;
+  latest_verification: ItemVerificationRun | null;
+  content_state: ContentGovernanceFields;
+};
+
 export type ItemOption = {
   label: string;
   text: string;

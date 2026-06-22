@@ -29,3 +29,9 @@ The master CSV remains course-domain agnostic. It exports teacher-defined assess
 ## Phase 7C Response Collection
 
 The Response Collection Agent remains course-domain agnostic. It receives student-safe current item wording, visible options, current response state, recent bounded transcript, and procedural policy. It does not receive a fixed subject ontology or hardcoded example answers. It must not receive answer keys, distractor rationales, expected reasoning patterns, misconception indicators, or teacher diagnostic metadata during initial administration.
+
+## Phase 7D Item Verification
+
+The Item Verification Agent remains course-domain agnostic. It verifies only the teacher-defined concept metadata and teacher-authored MCQ item set supplied for the current concept unit. It may flag possible relevance, alignment, ambiguity, answer-key, distractor, cueing, duplication, or insufficient-information issues, but it must not recommend a different concept taxonomy, generate course content, rewrite learning objectives, rewrite items, or suggest replacement options.
+
+One deployment still represents one course context in v1. Item verification uses public content IDs and content fingerprints for auditability; it does not introduce a course table or change the meaning of `users.user_id`.

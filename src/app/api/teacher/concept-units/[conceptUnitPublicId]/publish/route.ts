@@ -3,7 +3,7 @@ import { requireTeacherResearcher, contentRouteError } from "@/lib/services/cont
 import { publishConceptUnit } from "@/lib/services/content/publishing";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ conceptUnitPublicId: string }> }
 ) {
   const auth = await requireTeacherResearcher();
@@ -14,9 +14,12 @@ export async function POST(
 
   try {
     const params = await context.params;
+    const body = await request.json().catch(() => ({}));
     const result = await publishConceptUnit({
       teacher_user_db_id: auth.user.user_db_id,
-      concept_unit_public_id: params.conceptUnitPublicId
+      concept_unit_public_id: params.conceptUnitPublicId,
+      confirm_publish_without_current_verification:
+        Boolean(body?.confirm_publish_without_current_verification)
     });
 
     return NextResponse.json(result);

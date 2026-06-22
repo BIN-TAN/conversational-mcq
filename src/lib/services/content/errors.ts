@@ -12,6 +12,8 @@ export type ContentErrorCode =
   | "cannot_return_to_draft_after_student_session"
   | "assessment_archived"
   | "publish_validation_failed"
+  | "warnings_need_acknowledgement"
+  | "current_verification_missing_or_stale"
   | "internal_error";
 
 export type ContentValidationIssue = {

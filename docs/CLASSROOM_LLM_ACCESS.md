@@ -48,6 +48,6 @@ Phase 6D2A can connect existing profiling, planning, and first follow-up startup
 
 Phase 7C permits Response Collection Agent execution only for submitted student free-text messages during initial administration when the assessment session snapshot is `llm_assisted` and provider readiness/usage checks allow it. Routine item presentation remains deterministic. If `LLM_PROVIDER=mock` and `ALLOW_MOCK_RESPONSE_COLLECTION_IN_STUDENT_WORKFLOW=false`, ordinary student workflow uses deterministic fallback instead of mock-generated student-facing text.
 
-Phase 7C still does not implement live Item Preparation behavior, adaptive concept routing, student-entered provider credentials, correctness feedback, hints, explanations, or content tutoring during initial administration.
+Phase 7D replaces Item Preparation with advisory Item Verification for teacher-authored content. It still does not implement item generation, item rewriting, concept generation, adaptive concept routing, student-entered provider credentials, correctness feedback, hints, explanations, or content tutoring during initial administration.
 
 See `docs/LLM_USAGE_LIMITS.md` for operational safeguards.

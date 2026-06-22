@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const AgentName = z.enum([
-  "item_preparation_agent",
+  "item_verification_agent",
   "response_collection_agent",
   "student_profiling_agent",
   "formative_value_and_planning_agent",

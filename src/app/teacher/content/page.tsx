@@ -6,7 +6,7 @@ const notes = [
   "Create assessments, concept units, and MCQ items manually.",
   "Publish validation is handled by the backend and cannot be bypassed here.",
   "Archive content instead of deleting research-relevant records.",
-  "No LLM Item Preparation Agent is implemented in this phase."
+  "Item Verification highlights advisory warnings only; it does not generate or rewrite content."
 ];
 
 export default function TeacherContentHomePage() {

@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   CheckCircle,
+  AlertTriangle,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -14,7 +15,13 @@ import {
 } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import { parseJsonObject, stringifyJson } from "./form-utils";
-import type { ConceptUnitDetail, ItemDetail, StructuredApiError } from "./types";
+import type {
+  ConceptUnitDetail,
+  ItemDetail,
+  ItemVerificationFinding,
+  ItemVerificationStatus,
+  StructuredApiError
+} from "./types";
 import {
   Button,
   ContentStateBadge,
@@ -41,6 +48,15 @@ type ItemsResponse = {
   items: ItemDetail[];
 };
 
+type VerificationResponse = ItemVerificationStatus;
+
+type RunVerificationResponse = {
+  status: string;
+  deterministic_validation: ItemVerificationStatus["deterministic_validation"];
+  verification: ItemVerificationStatus["latest_verification"];
+  content_fingerprint: string;
+};
+
 export function ConceptUnitDetailClient({
   conceptUnitPublicId
 }: {
@@ -56,6 +72,7 @@ export function ConceptUnitDetailClient({
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [verification, setVerification] = useState<ItemVerificationStatus | null>(null);
 
   const loadConceptUnit = useCallback(async () => {
     setIsLoading(true);
@@ -70,6 +87,10 @@ export function ConceptUnitDetailClient({
       setLearningObjective(data.concept_unit.learning_objective);
       setRelatedDescription(data.concept_unit.related_concept_description);
       setAdministrationRules(stringifyJson(data.concept_unit.administration_rules));
+      const verificationData = await apiRequest<VerificationResponse>(
+        `/api/teacher/concept-units/${conceptUnitPublicId}/verification`
+      );
+      setVerification(verificationData);
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
@@ -106,7 +127,7 @@ export function ConceptUnitDetailClient({
     }
   }
 
-  async function publishConceptUnit() {
+  async function publishConceptUnit(confirmWithoutCurrentVerification = false) {
     setBusyAction("publish");
     setError(null);
     setSuccess(null);
@@ -114,17 +135,113 @@ export function ConceptUnitDetailClient({
     try {
       const data = await apiRequest<ConceptUnitResponse>(
         `/api/teacher/concept-units/${conceptUnitPublicId}/publish`,
-        { method: "POST" }
+        {
+          method: "POST",
+          body: JSON.stringify({
+            confirm_publish_without_current_verification: confirmWithoutCurrentVerification
+          })
+        }
       );
       setSuccess(
         `Concept unit published with ${data.validation?.active_item_count ?? "validated"} active items.`
       );
       await loadConceptUnit();
     } catch (caught) {
+      const parsed = errorFromUnknown(caught);
+
+      if (parsed.code === "current_verification_missing_or_stale") {
+        const confirmed = window.confirm(
+          "The deterministic format checks passed, but there is no current AI semantic verification for this exact item-set version. You may still publish based on your own review."
+        );
+
+        if (confirmed) {
+          setBusyAction(null);
+          await publishConceptUnit(true);
+          return;
+        }
+      }
+
+      setError(parsed);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function runVerification(mockMode?: string) {
+    setBusyAction("verify");
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const data = await apiRequest<RunVerificationResponse>(
+        `/api/teacher/concept-units/${conceptUnitPublicId}/verify`,
+        {
+          method: "POST",
+          body: JSON.stringify(mockMode ? { mock_mode: mockMode } : {})
+        }
+      );
+
+      if (data.status === "deterministic_validation_failed") {
+        setSuccess("Deterministic validation must pass before AI semantic verification can run.");
+      } else if (data.status === "already_verified") {
+        setSuccess("Current item-set fingerprint already has a completed verification.");
+      } else if (data.status.endsWith("failed")) {
+        setSuccess("Verification did not complete. Deterministic validation remains available.");
+      } else {
+        setSuccess("Verification completed.");
+      }
+
+      await loadConceptUnit();
+    } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
       setBusyAction(null);
     }
+  }
+
+  async function acknowledgeWarnings() {
+    if (!verification?.latest_verification) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "These are advisory AI-generated warnings. Review them using your subject-matter judgment. Acknowledging them does not mean the warnings are correct; it confirms that you reviewed them before publishing."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setBusyAction("acknowledge-verification");
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await apiRequest(
+        `/api/teacher/concept-units/${conceptUnitPublicId}/verification/${verification.latest_verification.verification_public_id}/acknowledge`,
+        { method: "POST" }
+      );
+      setSuccess("Verification warnings acknowledged for this item-set fingerprint.");
+      await loadConceptUnit();
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  function renderFinding(finding: ItemVerificationFinding, index: number) {
+    return (
+      <li className="rounded-md border border-amber-200 bg-amber-50 p-3" key={`${finding.issue_code}-${index}`}>
+        <p className="font-semibold text-amber-950">{finding.issue_code.replaceAll("_", " ")}</p>
+        <p className="mt-1 text-xs text-amber-900">
+          {finding.location}
+          {finding.option_label ? ` · option ${finding.option_label}` : ""}
+          {finding.item_public_id ? ` · ${finding.item_public_id}` : ""}
+        </p>
+        <p className="mt-2 text-sm text-amber-950">{finding.brief_explanation}</p>
+      </li>
+    );
   }
 
   async function archiveConceptUnit() {
@@ -338,7 +455,7 @@ export function ConceptUnitDetailClient({
                 </Button>
                 <Button
                   disabled={isLocked || conceptUnit.status === "archived" || busyAction === "publish"}
-                  onClick={publishConceptUnit}
+                  onClick={() => publishConceptUnit(false)}
                   type="button"
                   variant="secondary"
                 >
@@ -367,6 +484,135 @@ export function ConceptUnitDetailClient({
                 </Button>
               </div>
             </form>
+
+            <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+              <div className="flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-ink">Verification</h2>
+                  <p className="mt-1 text-sm leading-6 text-muted">
+                    You define the concepts and items. The system checks structure and highlights possible relevance or quality issues for your review.
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-muted">
+                    Verification does not replace teacher subject-matter judgment.
+                  </p>
+                </div>
+                <Button
+                  disabled={Boolean(busyAction) || isLocked || conceptUnit.status === "archived"}
+                  onClick={() => runVerification()}
+                  type="button"
+                  variant="secondary"
+                >
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  Run verification
+                </Button>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-md border border-line p-3 text-sm">
+                  <p className="text-muted">Deterministic validation</p>
+                  <p className="font-semibold text-ink">
+                    {verification?.deterministic_validation.ok ? "passes" : "needs fixes"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    Included active items: {verification?.deterministic_validation.included_active_item_count ?? includedActiveItemCount}
+                  </p>
+                </div>
+                <div className="rounded-md border border-line p-3 text-sm">
+                  <p className="text-muted">Current AI verification</p>
+                  <p className="font-semibold text-ink">
+                    {verification?.latest_verification
+                      ? verification.latest_verification.is_current
+                        ? verification.latest_verification.verification_status.replaceAll("_", " ")
+                        : "stale"
+                      : "not run"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    Warnings: {verification?.latest_verification?.warning_count ?? 0}
+                  </p>
+                </div>
+              </div>
+
+              {verification?.deterministic_validation.errors?.length ? (
+                <ul className="mt-4 space-y-2 text-sm">
+                  {verification.deterministic_validation.errors.map((issue) => (
+                    <li className="rounded-md border border-red-200 bg-red-50 p-3 text-red-900" key={`${issue.path}-${issue.code}`}>
+                      <span className="font-semibold">{issue.path}</span>: {issue.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {verification?.latest_verification ? (
+                <div className="mt-4 space-y-4">
+                  <div className="rounded-md border border-line bg-slate-50 p-3 text-sm text-muted">
+                    <p>
+                      Source: {verification.latest_verification.agent_call?.provider ?? "none"} · model{" "}
+                      {verification.latest_verification.agent_call?.model_name ?? "not recorded"} · prompt{" "}
+                      {verification.latest_verification.agent_call?.prompt_version ?? "not recorded"} · schema{" "}
+                      {verification.latest_verification.agent_call?.schema_version ?? "not recorded"}
+                    </p>
+                    <p className="mt-1">
+                      Status: {verification.latest_verification.status} · current{" "}
+                      {verification.latest_verification.is_current ? "yes" : "no"} · acknowledged{" "}
+                      {verification.latest_verification.acknowledged ? "yes" : "no"}
+                    </p>
+                  </div>
+
+                  {verification.latest_verification.warning_count > 0 &&
+                  verification.latest_verification.is_current &&
+                  !verification.latest_verification.acknowledged ? (
+                    <Button
+                      disabled={busyAction === "acknowledge-verification"}
+                      onClick={acknowledgeWarnings}
+                      type="button"
+                      variant="secondary"
+                    >
+                      <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                      Acknowledge warnings
+                    </Button>
+                  ) : null}
+
+                  {verification.latest_verification.failure_message ? (
+                    <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+                      {verification.latest_verification.failure_message}
+                    </p>
+                  ) : null}
+
+                  {verification.latest_verification.output?.set_level_findings.length ? (
+                    <div>
+                      <h3 className="font-semibold text-ink">Set-level findings</h3>
+                      <ul className="mt-2 space-y-2">
+                        {verification.latest_verification.output.set_level_findings.map(renderFinding)}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {verification.latest_verification.output?.item_results.some(
+                    (result) => result.findings.length > 0
+                  ) ? (
+                    <div>
+                      <h3 className="font-semibold text-ink">Per-item findings</h3>
+                      <div className="mt-2 space-y-3">
+                        {verification.latest_verification.output.item_results
+                          .filter((result) => result.findings.length > 0)
+                          .map((result) => (
+                            <div className="rounded-md border border-line p-3" key={result.item_public_id}>
+                              <p className="font-mono text-xs text-muted">{result.item_public_id}</p>
+                              <ul className="mt-2 space-y-2">
+                                {result.findings.map(renderFinding)}
+                              </ul>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="mt-4 rounded-md border border-line bg-slate-50 p-3 text-sm text-muted">
+                  No AI semantic verification has been recorded for this concept unit.
+                </p>
+              )}
+            </section>
 
             <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
               <div className="flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-center md:justify-between">

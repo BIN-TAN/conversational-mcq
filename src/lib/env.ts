@@ -51,13 +51,19 @@ const serverEnvSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
-  OPENAI_MODEL_ITEM_PREP: z.string().optional(),
+  OPENAI_MODEL_ITEM_VERIFICATION: z.string().optional(),
   OPENAI_MODEL_RESPONSE_COLLECTION: z.string().optional(),
   OPENAI_MODEL_PROFILING: z.string().optional(),
   OPENAI_MODEL_PLANNING: z.string().optional(),
   OPENAI_MODEL_FOLLOWUP: z.string().optional(),
   OPENAI_MODEL_CONNECTIVITY_TEST: z.string().optional(),
-  OPENAI_REASONING_EFFORT_ITEM_PREP: optionalEnum(["none", "minimal", "low", "medium", "high"]),
+  OPENAI_REASONING_EFFORT_ITEM_VERIFICATION: optionalEnum([
+    "none",
+    "minimal",
+    "low",
+    "medium",
+    "high"
+  ]),
   OPENAI_REASONING_EFFORT_RESPONSE_COLLECTION: optionalEnum([
     "none",
     "minimal",
@@ -68,7 +74,7 @@ const serverEnvSchema = z.object({
   OPENAI_REASONING_EFFORT_PROFILING: optionalEnum(["none", "minimal", "low", "medium", "high"]),
   OPENAI_REASONING_EFFORT_PLANNING: optionalEnum(["none", "minimal", "low", "medium", "high"]),
   OPENAI_REASONING_EFFORT_FOLLOWUP: optionalEnum(["none", "minimal", "low", "medium", "high"]),
-  OPENAI_MAX_OUTPUT_TOKENS_ITEM_PREP: optionalPositiveInt,
+  OPENAI_MAX_OUTPUT_TOKENS_ITEM_VERIFICATION: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_RESPONSE_COLLECTION: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_PROFILING: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_PLANNING: optionalPositiveInt,

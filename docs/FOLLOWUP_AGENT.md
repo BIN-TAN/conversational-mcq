@@ -190,7 +190,7 @@ The usage guard must also allow the call. Browser code never receives provider c
 Phase 6D3 still does not implement:
 
 - Response Collection Agent LLM behavior
-- live Item Preparation Agent behavior
+- item generation or rewriting behavior
 - adaptive concept routing
 - master CSV follow-up/profile field filling beyond already stored records
 - a pedagogical maximum number of follow-up turns

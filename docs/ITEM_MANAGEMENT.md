@@ -105,6 +105,18 @@ Validation failures return:
 }
 ```
 
+Phase 7D keeps deterministic structural validation authoritative and adds advisory Item Verification. Deterministic validation runs before any verification agent call and before publication. Structural validation errors cannot be bypassed.
+
+When deterministic validation passes, publication is allowed if one of these is true:
+
+- the current content fingerprint has a completed verification with no warnings
+- the current verification warnings were explicitly acknowledged by a teacher_researcher
+- the teacher_researcher explicitly confirms publication without current AI verification
+
+Publishing without current AI verification is an explicit teacher action for missing, stale, failed, or unavailable verification. It does not describe AI verification as mandatory expert validation, and it does not bypass deterministic structural validation.
+
+Item Verification never edits item stems, options, correct answers, distractor rationales, item order, concept assignment, or publication state. Findings are advisory warnings only.
+
 ## Versioning And Archive Policy
 
 Draft content can be edited. Content-relevant updates increment `version`.
@@ -175,7 +187,7 @@ Existing assessment import:
 }
 ```
 
-The import is validated before writes where possible and uses a database transaction for writes. It generates public IDs with the shared helper and returns created public IDs plus validation results. It is manual JSON import only; no LLM Item Preparation Agent is implemented.
+The import is validated before writes where possible and uses a database transaction for writes. It generates public IDs with the shared helper and returns created public IDs plus validation results. It is manual JSON import only; it does not call the Item Verification Agent and does not generate or rewrite content.
 
 The UI import page is `/teacher/content/import-json`. A sample import payload is available at `docs/sample-concept-unit-import.json`.
 
@@ -197,6 +209,9 @@ The UI import page is `/teacher/content/import-json`. A sample import payload is
 - `POST /api/teacher/concept-units/[conceptUnitPublicId]/publish`
 - `POST /api/teacher/concept-units/[conceptUnitPublicId]/return-to-draft`
 - `POST /api/teacher/concept-units/[conceptUnitPublicId]/reorder-items`
+- `POST /api/teacher/concept-units/[conceptUnitPublicId]/verify`
+- `GET /api/teacher/concept-units/[conceptUnitPublicId]/verification`
+- `POST /api/teacher/concept-units/[conceptUnitPublicId]/verification/[verificationPublicId]/acknowledge`
 - `GET /api/teacher/concept-units/[conceptUnitPublicId]/items`
 - `POST /api/teacher/concept-units/[conceptUnitPublicId]/items`
 - `GET /api/teacher/items/[itemPublicId]`

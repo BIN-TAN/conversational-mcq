@@ -59,7 +59,8 @@ There is no `courses` table in v1. A deployment instance represents one course c
 
 - Agent outputs use `output_status`, not the older agent-level `status`.
 - All agent outputs extend `AgentOutputBase`.
-- The five valid agent names are `item_preparation_agent`, `response_collection_agent`, `student_profiling_agent`, `formative_value_and_planning_agent`, and `followup_agent`.
+- The five valid active agent names are `item_verification_agent`, `response_collection_agent`, `student_profiling_agent`, `formative_value_and_planning_agent`, and `followup_agent`.
+- `item_preparation_agent` is retired. Historical audit rows may preserve that string, but new calls must use `item_verification_agent`.
 - Phase 6A prompt definitions are `draft`. Phase 6B uses the Student Profiling Agent prompt only through the controlled backend profiling service; prompt status does not bypass authorization, usage guards, model environment configuration, or audit logging.
 - Student profiling must keep three connected layers:
   - `ability_profile`
@@ -382,6 +383,33 @@ Forbidden behavior:
 - no OpenAI call unless live calls are explicitly enabled server-side and usage guards allow it
 - no changes to profiling, planning, follow-up, concept progression, scoring, feedback, or adaptive routing
 
+## Phase 7D Item Verification Agent
+
+Phase 7D replaces the former Item Preparation Agent concept with the narrower `item_verification_agent`.
+
+Allowed behavior:
+
+- verify teacher-authored concept-based item sets before student administration
+- run deterministic structural validation before any Item Verification Agent call
+- block publication on deterministic structural errors
+- use an allowlisted input containing concept-unit metadata and included item content only
+- identify possible relevance, learning-objective alignment, ambiguity, multiple-answer, answer-key, distractor, cueing, duplication, or insufficient-information issues
+- persist verification runs with public verification IDs, content fingerprints, deterministic validation result, optional agent-call linkage, warning counts, and acknowledgement metadata
+- mark previous verification stale when current verification-relevant content fingerprint changes
+- allow teacher_researcher acknowledgement of current advisory warnings
+- allow teacher_researcher publication without current AI verification only after explicit confirmation and only when deterministic validation passes
+
+Forbidden behavior:
+
+- no concept generation, learning-objective generation, item generation, alternative-item generation, item rewriting, option rewriting, replacement distractors, replacement correct answers, or course-content recommendations
+- no automatic item edits, concept reassignment, correct-option changes, warning acknowledgement, or publication
+- no student data, student responses, transcripts, profiles, formative decisions, process events, summative outcomes, credentials, session cookies, auth tokens, API keys, database URLs, or raw environment values in verification input
+- no student-facing exposure of verification findings, status, fingerprints, provider/model metadata, prompt versions, or acknowledgements
+- no master analytical CSV schema-version change or item-verification columns in Phase 7D
+- no live OpenAI calls in normal smoke tests
+
+Deterministic validation remains authoritative for structural publishing requirements. LLM semantic findings are advisory warnings only; they never override teacher subject-matter judgment and may be acknowledged without treating the warning as correct.
+
 Spreadsheet formula-injection protection is required for user-controlled text when `spreadsheet_safe_text = true`. The protection is applied only to exported values and must not alter database records. Local export files are stored under `.data/exports`, not public static folders, and downloads require teacher_researcher authorization.
 
 ## Phase 6A LLM Infrastructure
@@ -397,7 +425,7 @@ Phase 6A must not:
 - create `followup_rounds`
 - alter student sessions out of `profiling_pending`
 - replace deterministic Response Collection UI wording
-- implement live Item Preparation
+- implement item generation or rewriting
 - send classroom data, student reasoning, transcripts, process data, response packages, or summative outcomes to OpenAI
 
 Provider input is server-side only and must be checked for secret/auth fields before a provider call. Agent-call audit rows must store redacted inputs, prompt version, schema version, agent version, prompt hash, model name, provider metadata, retry counts, token usage when available, and structured validation outcomes.
@@ -421,7 +449,7 @@ Phase 6A.5 must not:
 - create student profiles, formative decisions, or follow-up rounds
 - alter `profiling_pending`
 - replace deterministic Response Collection presentation
-- implement live Item Preparation behavior
+- implement item generation or rewriting behavior
 - send classroom, student, transcript, reasoning, process-event, response-package, or summative outcome data to OpenAI
 
 ## Phase 6B Student Profiling Agent Integration
@@ -455,7 +483,7 @@ Phase 6B must not:
 - implement the Follow-up Agent or follow-up conversation
 - create `followup_rounds`
 - implement Response Collection Agent LLM behavior
-- implement live Item Preparation Agent behavior
+- implement item generation or rewriting behavior
 - reveal profile labels, correctness, or diagnostic summaries to students
 - fill master CSV profile columns unless a real saved profile already exists
 
@@ -493,7 +521,7 @@ Phase 6C must not:
 - modify the saved student profile
 - modify response packages
 - implement Response Collection Agent LLM behavior
-- implement live Item Preparation Agent behavior
+- implement item generation or rewriting behavior
 - reveal planning labels, plans, target evidence, success criteria, profile labels, correctness, or rationales to students
 - modify master CSV export behavior
 
@@ -526,7 +554,7 @@ Phase 6D1 must not:
 - modify initial item responses
 - reveal profile labels, formative labels, target evidence, success criteria, correctness, answer keys, hidden prompts, or teacher-only metadata to students
 - implement Response Collection Agent LLM behavior
-- implement live Item Preparation Agent behavior
+- implement item generation or rewriting behavior
 - modify master CSV export behavior
 
 The safe default remains mock execution. Live OpenAI follow-up may occur only when server-side environment variables explicitly configure `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, `OPENAI_API_KEY`, `OPENAI_MODEL_FOLLOWUP`, and the usage guard allows the call. Frontend code must not expose model configuration or provider secrets.
@@ -567,11 +595,11 @@ Phase 6A includes only generic LLM infrastructure, provider configuration, stric
 
 Phase 6A.5 includes only classroom LLM access control, usage-limit configuration, usage accounting, usage guard checks, live-call readiness controls, teacher-visible usage monitoring, documentation, and smoke testing.
 
-Phase 6B includes only Student Profiling Agent backend integration after initial concept-unit administration, profile input building, strict output validation, `student_profiles` persistence, profile audit logging, teacher manual trigger/display, neutral student post-analysis copy, and profiling smoke testing. It does not implement formative planning, follow-up, Response Collection Agent LLM behavior, live Item Preparation behavior, or CSV profile inference.
+Phase 6B includes only Student Profiling Agent backend integration after initial concept-unit administration, profile input building, strict output validation, `student_profiles` persistence, profile audit logging, teacher manual trigger/display, neutral student post-analysis copy, and profiling smoke testing. It does not implement formative planning, follow-up, Response Collection Agent LLM behavior, item generation or rewriting behavior, or CSV profile inference.
 
-Phase 6C includes only Formative Value and Planning Agent backend integration after a saved profile, planning input building, default mapping, semantic validation, `formative_decisions` persistence, latest decision pointer update, teacher manual trigger/display, neutral student post-planning copy, and planning smoke testing. It does not implement follow-up delivery, follow-up rounds, iterative profile updating, Response Collection Agent LLM behavior, live Item Preparation behavior, or CSV export changes.
+Phase 6C includes only Formative Value and Planning Agent backend integration after a saved profile, planning input building, default mapping, semantic validation, `formative_decisions` persistence, latest decision pointer update, teacher manual trigger/display, neutral student post-planning copy, and planning smoke testing. It does not implement follow-up delivery, follow-up rounds, iterative profile updating, Response Collection Agent LLM behavior, item generation or rewriting behavior, or CSV export changes.
 
-Phase 6D1 includes only first-round Follow-up Agent backend integration after a saved profile and saved formative decision, follow-up input building, strict output validation, semantic validation, `followup_rounds` creation, follow-up conversation turns, teacher manual trigger/display, student follow-up messaging/stopping, and follow-up smoke testing. It does not implement iterative profile updates, replanning after follow-up, follow-up evidence packages, next-concept-unit movement, Response Collection Agent LLM behavior, live Item Preparation behavior, or CSV export changes.
+Phase 6D1 includes only first-round Follow-up Agent backend integration after a saved profile and saved formative decision, follow-up input building, strict output validation, semantic validation, `followup_rounds` creation, follow-up conversation turns, teacher manual trigger/display, student follow-up messaging/stopping, and follow-up smoke testing. It does not implement iterative profile updates, replanning after follow-up, follow-up evidence packages, next-concept-unit movement, Response Collection Agent LLM behavior, item generation or rewriting behavior, or CSV export changes.
 
 Phase 1, Phase 1.5, Phase 2A, and Phase 2B must not implement:
 
@@ -593,7 +621,7 @@ Phase 3A must not implement:
 - Student Profiling Agent
 - Formative Planning Agent
 - Follow-up Agent
-- Item Preparation Agent
+- Item Verification Agent
 - formative follow-up loop
 - master CSV export
 
@@ -607,7 +635,7 @@ Phase 3B must not implement:
 - Student Profiling Agent
 - Formative Planning Agent
 - Follow-up Agent
-- Item Preparation Agent
+- Item Verification Agent
 - formative follow-up loop
 - full dashboard session review, transcripts, profiles, process logs, flags, or agent-call views
 - master CSV export
@@ -631,7 +659,7 @@ Phase 4A must not implement:
 - Student Profiling Agent
 - Formative Value and Planning Agent
 - Follow-up Agent
-- Item Preparation Agent
+- Item Verification Agent
 - profiling, formative planning, or follow-up
 - teacher session-review dashboard details
 - master CSV export
@@ -678,7 +706,7 @@ Phase 6A must not implement:
 - Student Profiling Agent behavior over real response packages
 - Formative Value and Planning Agent behavior
 - Follow-up Agent behavior
-- Item Preparation Agent content publication
+- Item Verification Agent behavior
 - profile, planning, follow-up, or agent-call fabrication
 - changes to deterministic initial administration behavior
 - changes to export semantics
@@ -687,7 +715,7 @@ Phase 6A.5 must not implement:
 
 - Phase 6B Student Profiling Agent integration
 - live agent calls from classroom workflows
-- profile, planning, follow-up, response-collection, or item-preparation behavior
+- profile, planning, follow-up, response-collection, or item-verification behavior
 - any frontend API-key entry or student-owned provider credential flow
 - any student-facing explanation of budget, cost, provider, API key, or rate-limit internals
 - workflow state changes caused by usage-limit checks
@@ -709,6 +737,6 @@ Phase 6A.5 must not implement:
 - Updating concept-unit or item content increments version when content-relevant fields change.
 - If an item already has student responses, destructive mutation of `item_stem`, `options`, `correct_option`, or `distractor_rationales` is rejected.
 - Normal API routes must archive rather than hard-delete content.
-- JSON import is manual content upload only; it is not the future Item Preparation Agent and must not call an LLM.
+- JSON import is manual content upload only; it is not the Item Verification Agent and must not call an LLM.
 - The Phase 3B UI must use the Phase 3A APIs for content writes and publishing. It must not bypass backend validation.
 - Teacher_researcher UI may show correct options and distractor rationales. Student routes must not expose them.
