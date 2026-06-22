@@ -4,6 +4,7 @@ import { createSessionToken, setSessionCookie, toClientUser, toPublicUser } from
 import { prisma } from "@/lib/db";
 import { jsonError } from "@/lib/http";
 import { verifySecret } from "@/lib/password";
+import { normalizeUserId } from "@/lib/services/student-accounts/validation";
 
 const loginSchema = z
   .object({
@@ -25,19 +26,22 @@ export async function POST(request: Request) {
   }
 
   try {
+    const normalizedUserId = normalizeUserId(payload.user_id);
     const user = await prisma.user.findUnique({
-      where: { user_id: payload.user_id },
+      where: { user_id_normalized: normalizedUserId },
       select: {
         id: true,
         user_id: true,
         role: true,
         password_hash: true,
-        access_code_hash: true
+        access_code_hash: true,
+        account_status: true,
+        auth_version: true
       }
     });
 
     if (!user) {
-      return jsonError("Invalid credentials.", 401);
+      return jsonError("Invalid user ID or access code.", 401);
     }
 
     const passwordMatches = payload.password
@@ -47,18 +51,23 @@ export async function POST(request: Request) {
       ? await verifySecret(payload.access_code, user.access_code_hash)
       : false;
 
-    const isAllowed =
-      user.role === "teacher_researcher"
-        ? passwordMatches
-        : passwordMatches || accessCodeMatches;
+    const isAllowed = user.role === "teacher_researcher" ? passwordMatches : accessCodeMatches;
 
     if (!isAllowed) {
-      return jsonError("Invalid credentials.", 401);
+      return jsonError("Invalid user ID or access code.", 401);
+    }
+
+    if (user.role === "student" && user.account_status !== "active") {
+      return jsonError("This account is currently unavailable.", 403);
     }
 
     const publicUser = toPublicUser(user);
     const response = NextResponse.json({ user: toClientUser(publicUser) });
     setSessionCookie(response, createSessionToken(publicUser));
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { last_login_at: new Date() }
+    });
 
     return response;
   } catch {

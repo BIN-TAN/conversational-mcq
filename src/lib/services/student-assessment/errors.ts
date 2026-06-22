@@ -4,6 +4,7 @@ export type StudentAssessmentErrorCode =
   | "assessment_not_published"
   | "assessment_not_released"
   | "assessment_closed_to_new_starts"
+  | "account_unavailable"
   | "assessment_manual_review_not_available"
   | "invalid_assessment_availability_window"
   | "assessment_has_no_valid_published_concept_unit"

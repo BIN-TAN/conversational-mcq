@@ -13,6 +13,7 @@ import { assertStudentPayloadIsSafe } from "../src/lib/services/student-assessme
 import { getTeacherReviewSessionDetail } from "../src/lib/services/teacher-review/session-detail";
 import { generatePublicId } from "../src/lib/services/ids";
 import { hashSecret } from "../src/lib/password";
+import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
 const port = 3217;
@@ -182,6 +183,7 @@ async function createPlanningFixture(input: {
   const teacher = await prisma.user.create({
     data: {
       user_id: `${input.prefix}_${input.suffix}_teacher`,
+      user_id_normalized: normalizeUserId(`${input.prefix}_${input.suffix}_teacher`),
       role: "teacher_researcher",
       password_hash: teacherPasswordHash
     }
@@ -189,6 +191,7 @@ async function createPlanningFixture(input: {
   const student = await prisma.user.create({
     data: {
       user_id: `${input.prefix}_${input.suffix}_student`,
+      user_id_normalized: normalizeUserId(`${input.prefix}_${input.suffix}_student`),
       role: "student",
       access_code_hash: studentAccessCodeHash
     }

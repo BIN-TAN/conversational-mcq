@@ -50,7 +50,8 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
       completed_at: true,
       user: {
         select: {
-          user_id: true
+          user_id: true,
+          display_name: true
         }
       },
       assessment: {
@@ -131,7 +132,7 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
       return {
         session_public_id: session.session_public_id,
         student_user_id: session.user.user_id,
-        student_display_name: null,
+        student_display_name: session.user.display_name,
         assessment_public_id: session.assessment.assessment_public_id,
         assessment_title: session.assessment.title,
         attempt_number: session.attempt_number,

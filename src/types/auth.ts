@@ -4,6 +4,7 @@ export type PublicUser = {
   user_db_id: string;
   user_id: string;
   role: AppRole;
+  auth_version: number;
 };
 
 export type ClientUser = {

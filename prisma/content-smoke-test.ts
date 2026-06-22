@@ -12,6 +12,7 @@ import {
   validateConceptUnitPublishable
 } from "../src/lib/services/content/publishing";
 import { ContentServiceError } from "../src/lib/services/content/errors";
+import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
 
@@ -66,6 +67,7 @@ async function ensureDemoTeacher() {
     },
     create: {
       user_id: "teacher_demo",
+      user_id_normalized: normalizeUserId("teacher_demo"),
       role: "teacher_researcher",
       password_hash: passwordHash
     }

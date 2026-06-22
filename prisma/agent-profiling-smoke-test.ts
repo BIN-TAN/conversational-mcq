@@ -11,6 +11,7 @@ import { getTeacherReviewSessionDetail } from "../src/lib/services/teacher-revie
 import { hashSecret } from "../src/lib/password";
 import { generatePublicId } from "../src/lib/services/ids";
 import { createResponsePackage } from "../src/lib/services/response-packages";
+import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
 const port = 3216;
@@ -197,6 +198,7 @@ async function createProfilingFixture(input: {
   const teacher = await prisma.user.create({
     data: {
       user_id: `${input.prefix}_${input.suffix}_teacher`,
+      user_id_normalized: normalizeUserId(`${input.prefix}_${input.suffix}_teacher`),
       role: "teacher_researcher",
       password_hash: teacherPasswordHash
     }
@@ -204,6 +206,7 @@ async function createProfilingFixture(input: {
   const student = await prisma.user.create({
     data: {
       user_id: `${input.prefix}_${input.suffix}_student`,
+      user_id_normalized: normalizeUserId(`${input.prefix}_${input.suffix}_student`),
       role: "student",
       access_code_hash: studentAccessCodeHash
     }

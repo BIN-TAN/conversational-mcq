@@ -30,7 +30,8 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       completed_at: true,
       user: {
         select: {
-          user_id: true
+          user_id: true,
+          display_name: true
         }
       },
       assessment: {
@@ -319,7 +320,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
     },
     student: {
       user_id: session.user.user_id,
-      display_name: null
+      display_name: session.user.display_name
     },
     assessment: {
       assessment_public_id: session.assessment.assessment_public_id,

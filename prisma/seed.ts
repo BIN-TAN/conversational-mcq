@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { hashSecret } from "../src/lib/password";
+import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
 
@@ -18,13 +19,19 @@ async function main() {
     where: { user_id: teacherUserId },
     update: {
       role: "teacher_researcher",
+      user_id_normalized: normalizeUserId(teacherUserId),
+      account_status: "active",
+      auth_version: 1,
       password_hash: teacherPasswordHash,
       access_code_hash: null
     },
     create: {
       user_id: teacherUserId,
+      user_id_normalized: normalizeUserId(teacherUserId),
       role: "teacher_researcher",
-      password_hash: teacherPasswordHash
+      password_hash: teacherPasswordHash,
+      account_status: "active",
+      auth_version: 1
     }
   });
 
@@ -32,13 +39,21 @@ async function main() {
     where: { user_id: studentUserId },
     update: {
       role: "student",
+      user_id_normalized: normalizeUserId(studentUserId),
+      account_status: "active",
+      auth_version: 1,
       password_hash: null,
-      access_code_hash: studentAccessCodeHash
+      access_code_hash: studentAccessCodeHash,
+      credential_updated_at: new Date()
     },
     create: {
       user_id: studentUserId,
+      user_id_normalized: normalizeUserId(studentUserId),
       role: "student",
-      access_code_hash: studentAccessCodeHash
+      access_code_hash: studentAccessCodeHash,
+      account_status: "active",
+      auth_version: 1,
+      credential_updated_at: new Date()
     }
   });
 

@@ -12,6 +12,7 @@ type SessionClaims = {
   user_db_id: string;
   user_id: string;
   role: AppRole;
+  auth_version: number;
   iat: number;
   exp: number;
 };
@@ -39,11 +40,13 @@ export function toPublicUser(user: {
   id: string;
   user_id: string;
   role: AppRole;
+  auth_version: number;
 }): PublicUser {
   return {
     user_db_id: user.id,
     user_id: user.user_id,
-    role: user.role
+    role: user.role,
+    auth_version: user.auth_version
   };
 }
 
@@ -61,6 +64,7 @@ export function createSessionToken(user: PublicUser): string {
     user_db_id: user.user_db_id,
     user_id: user.user_id,
     role: user.role,
+    auth_version: user.auth_version,
     iat: now,
     exp: now + SESSION_TTL_SECONDS
   };
@@ -122,9 +126,7 @@ export function clearSessionCookie(response: NextResponse): void {
   });
 }
 
-export async function getCurrentUser(): Promise<PublicUser | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+export async function getUserForSessionToken(token?: string): Promise<PublicUser | null> {
   const claims = verifySessionToken(token);
 
   if (!claims) {
@@ -134,13 +136,32 @@ export async function getCurrentUser(): Promise<PublicUser | null> {
   const user = await prisma.user
     .findUnique({
       where: { id: claims.user_db_id },
-      select: { id: true, user_id: true, role: true }
+      select: {
+        id: true,
+        user_id: true,
+        role: true,
+        account_status: true,
+        auth_version: true
+      }
     })
     .catch(() => null);
 
-  if (!user || user.user_id !== claims.user_id || user.role !== claims.role) {
+  if (
+    !user ||
+    user.user_id !== claims.user_id ||
+    user.role !== claims.role ||
+    user.auth_version !== claims.auth_version ||
+    (user.role === "student" && user.account_status !== "active")
+  ) {
     return null;
   }
 
   return toPublicUser(user);
+}
+
+export async function getCurrentUser(): Promise<PublicUser | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+
+  return getUserForSessionToken(token);
 }

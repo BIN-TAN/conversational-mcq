@@ -12,6 +12,11 @@ enum UserRole {
   teacher_researcher
 }
 
+enum UserAccountStatus {
+  active
+  inactive
+}
+
 enum AssessmentStatus {
   draft
   published
@@ -311,14 +316,37 @@ enum SummativeOutcomeRecordStatus {
   superseded
 }
 
+enum RosterImportStatus {
+  previewed
+  committed
+  failed
+  cancelled
+}
+
+enum StudentAccountEventType {
+  student_created_manually
+  student_created_by_roster
+  display_name_updated
+  access_code_reset
+  student_deactivated
+  student_reactivated
+}
+
 model User {
-  id               String   @id @default(uuid()) @db.Uuid
-  user_id          String   @unique
-  role             UserRole
-  password_hash    String?
-  access_code_hash String?
-  created_at       DateTime @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime @updatedAt @db.Timestamptz(6)
+  id                    String            @id @default(uuid()) @db.Uuid
+  user_id               String            @unique
+  user_id_normalized    String            @unique
+  display_name          String?
+  role                  UserRole
+  password_hash         String?
+  access_code_hash      String?
+  account_status        UserAccountStatus @default(active)
+  auth_version          Int               @default(1)
+  deactivated_at        DateTime?         @db.Timestamptz(6)
+  credential_updated_at DateTime?         @db.Timestamptz(6)
+  last_login_at         DateTime?         @db.Timestamptz(6)
+  created_at            DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime          @updatedAt @db.Timestamptz(6)
 
   created_assessments                       Assessment[]                  @relation("AssessmentCreator")
   assessment_sessions                       AssessmentSession[]
@@ -327,6 +355,9 @@ model User {
   uploaded_summative_outcome_import_batches SummativeOutcomeImportBatch[] @relation("SummativeOutcomeImportUploader")
   export_jobs                               ExportJob[]                   @relation("ExportJobRequester")
   workflow_overrides_created                WorkflowOverride[]            @relation("WorkflowOverrideCreator")
+  uploaded_roster_import_batches            RosterImportBatch[]           @relation("RosterImportUploader")
+  student_account_events                    StudentAccountEvent[]         @relation("StudentAccountEvents")
+  performed_student_account_events          StudentAccountEvent[]         @relation("StudentAccountEventPerformer")
 
   @@map("users")
 }
@@ -984,6 +1015,56 @@ model SummativeOutcomeImportBatch {
   @@index([uploaded_by_user_db_id, created_at])
   @@index([status])
   @@map("summative_outcome_import_batches")
+}
+
+model RosterImportBatch {
+  id                             String             @id @default(uuid()) @db.Uuid
+  batch_public_id                String             @unique @default(cuid())
+  uploaded_by_user_db_id         String             @db.Uuid
+  source_file_name               String?
+  status                         RosterImportStatus @default(previewed)
+  total_rows                     Int                @default(0)
+  new_student_rows               Int                @default(0)
+  existing_unchanged_rows        Int                @default(0)
+  display_name_change_rows       Int                @default(0)
+  invalid_rows                   Int                @default(0)
+  duplicate_rows                 Int                @default(0)
+  role_conflict_rows             Int                @default(0)
+  committed_new_students         Int                @default(0)
+  committed_display_name_updates Int                @default(0)
+  normalized_preview_payload     Json
+  validation_summary             Json
+  created_at                     DateTime           @default(now()) @db.Timestamptz(6)
+  committed_at                   DateTime?          @db.Timestamptz(6)
+  updated_at                     DateTime           @updatedAt @db.Timestamptz(6)
+
+  uploaded_by            User                  @relation("RosterImportUploader", fields: [uploaded_by_user_db_id], references: [id], onDelete: Restrict)
+  student_account_events StudentAccountEvent[]
+
+  @@index([uploaded_by_user_db_id, created_at])
+  @@index([status, created_at])
+  @@map("roster_import_batches")
+}
+
+model StudentAccountEvent {
+  id                        String                  @id @default(uuid()) @db.Uuid
+  event_public_id           String                  @unique @default(cuid())
+  student_user_db_id        String                  @db.Uuid
+  performed_by_user_db_id   String                  @db.Uuid
+  event_type                StudentAccountEventType
+  roster_import_batch_db_id String?                 @db.Uuid
+  metadata                  Json
+  created_at                DateTime                @default(now()) @db.Timestamptz(6)
+
+  student             User               @relation("StudentAccountEvents", fields: [student_user_db_id], references: [id], onDelete: Restrict)
+  performed_by        User               @relation("StudentAccountEventPerformer", fields: [performed_by_user_db_id], references: [id], onDelete: Restrict)
+  roster_import_batch RosterImportBatch? @relation(fields: [roster_import_batch_db_id], references: [id], onDelete: SetNull)
+
+  @@index([student_user_db_id, created_at])
+  @@index([performed_by_user_db_id, created_at])
+  @@index([roster_import_batch_db_id])
+  @@index([event_type, created_at])
+  @@map("student_account_events")
 }
 
 model ExportJob {

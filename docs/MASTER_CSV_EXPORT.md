@@ -42,7 +42,7 @@ Every row includes:
 - agent audit fields
 - summative outcome fields
 
-Internal UUIDs are not normal export identifiers.
+Internal UUIDs are not normal export identifiers. Phase 7A normalized login matching does not change export identity: the master CSV continues to export canonical `users.user_id`.
 
 ## Ordering
 

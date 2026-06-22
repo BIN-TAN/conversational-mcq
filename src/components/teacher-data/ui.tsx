@@ -19,6 +19,7 @@ export function formatDate(value?: string | null) {
 export function DataNav({ userId }: { userId: string }) {
   const links = [
     { href: "/teacher/dashboard", label: "Dashboard" },
+    { href: "/teacher/students", label: "Student accounts" },
     { href: "/teacher/content", label: "Content management" },
     { href: "/teacher/sessions", label: "Student sessions" },
     { href: "/teacher/data", label: "Data and outcomes" },

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
+import { normalizeUserId } from "@/lib/services/student-accounts/validation";
 import { SummativeOutcomeServiceError } from "./errors";
 import { publicPreviewRow, serializeDate, serializeSummativeOutcome } from "./serializers";
 
@@ -32,6 +33,7 @@ const replaceOutcomeSchema = z.object({
 type NormalizedRow = {
   source_row_number: number;
   user_id: string;
+  user_id_normalized: string;
   user_db_id?: string;
   outcome_name: string;
   outcome_score?: string;
@@ -84,8 +86,8 @@ function normalizeNotes(value: unknown) {
   return text.length > 0 ? text : null;
 }
 
-function logicalKey(row: Pick<NormalizedRow, "user_id" | "outcome_name" | "assessment_date">) {
-  return `${row.user_id}||${row.outcome_name}||${row.assessment_date}`;
+function logicalKey(row: Pick<NormalizedRow, "user_id_normalized" | "outcome_name" | "assessment_date">) {
+  return `${row.user_id_normalized}||${row.outcome_name}||${row.assessment_date}`;
 }
 
 function csvRecords(csvText: string): Array<{ record: Record<string, string>; rowNumber: number }> {
@@ -152,6 +154,7 @@ export async function previewSummativeOutcomeImport(input: {
   const sourceRows: NormalizedRow[] = records.map(({ record, rowNumber }) => {
     const validationErrors: NormalizedRow["validation_errors"] = [];
     const userId = (record.user_id ?? "").trim();
+    const userIdNormalized = userId ? normalizeUserId(userId) : "";
     const outcomeName = (record.outcome_name ?? "").trim();
     const outcomeScoreValue = parseFiniteNumber(record.outcome_score ?? "");
     const maxScoreValue = parseFiniteNumber(record.max_score ?? "");
@@ -216,13 +219,14 @@ export async function previewSummativeOutcomeImport(input: {
     const normalized: NormalizedRow = {
       source_row_number: rowNumber,
       user_id: userId,
+      user_id_normalized: userIdNormalized,
       outcome_name: outcomeName,
       outcome_score: outcomeScoreValue === null ? undefined : String(outcomeScoreValue),
       max_score: maxScoreValue === null ? undefined : String(maxScoreValue),
       assessment_date: assessmentDate,
       notes: normalizeNotes(record.notes),
       logical_key: logicalKey({
-        user_id: userId,
+        user_id_normalized: userIdNormalized,
         outcome_name: outcomeName,
         assessment_date: assessmentDate
       }),
@@ -253,22 +257,22 @@ export async function previewSummativeOutcomeImport(input: {
     }
   }
 
-  const candidateUserIds = [...new Set(sourceRows.map((row) => row.user_id).filter(Boolean))];
+  const candidateUserIds = [...new Set(sourceRows.map((row) => row.user_id_normalized).filter(Boolean))];
   const users =
     candidateUserIds.length > 0
       ? await prisma.user.findMany({
-          where: { user_id: { in: candidateUserIds } },
-          select: { id: true, user_id: true, role: true }
+          where: { user_id_normalized: { in: candidateUserIds } },
+          select: { id: true, user_id: true, user_id_normalized: true, role: true }
         })
       : [];
-  const usersByUserId = new Map(users.map((user) => [user.user_id, user]));
+  const usersByUserId = new Map(users.map((user) => [user.user_id_normalized, user]));
 
   for (const row of sourceRows) {
     if (row.row_status !== "valid") {
       continue;
     }
 
-    const user = usersByUserId.get(row.user_id);
+    const user = usersByUserId.get(row.user_id_normalized);
 
     if (!user) {
       row.row_status = "unmatched_user";

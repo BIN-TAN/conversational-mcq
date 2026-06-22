@@ -13,6 +13,7 @@ import {
   createReadyFollowupFixture,
   setPhase6D3SmokeEnv
 } from "./concept-progression-smoke-helpers";
+import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
 const prefix = `phase6d3_nonintervention_${Date.now()}_${randomUUID().slice(0, 8)}`;
@@ -95,6 +96,7 @@ async function main() {
     const ordinaryStudent = await prisma.user.create({
       data: {
         user_id: `${prefix}_ordinary_student`,
+        user_id_normalized: normalizeUserId(`${prefix}_ordinary_student`),
         role: "student",
         access_code_hash: accessCodeHash
       }

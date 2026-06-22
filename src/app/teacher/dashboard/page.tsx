@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, BrainCircuit, Database, FileJson, FileWarning, History, ListChecks, Table2, Users } from "lucide-react";
+import { Activity, BrainCircuit, Database, FileJson, FileWarning, History, ListChecks, Table2, UserRoundCog, Users } from "lucide-react";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -54,6 +54,17 @@ export default async function TeacherDashboardPage() {
         </header>
 
         <section className="mt-6 grid gap-4 md:grid-cols-3">
+          <Link
+            className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
+            href="/teacher/students"
+          >
+            <UserRoundCog className="h-5 w-5 text-accent" aria-hidden="true" />
+            <h2 className="mt-4 text-lg font-semibold text-ink">Student accounts</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Import rosters, create accounts, reset access codes, and manage active or inactive
+              status.
+            </p>
+          </Link>
           <Link
             className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
             href="/teacher/sessions"

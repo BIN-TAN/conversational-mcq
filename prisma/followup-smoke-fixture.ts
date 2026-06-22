@@ -5,6 +5,7 @@ import { createResponsePackage } from "../src/lib/services/response-packages";
 import { hashSecret } from "../src/lib/password";
 import { runInitialStudentProfiling } from "../src/lib/agents/student-profiling/service";
 import { runInitialFormativePlanning } from "../src/lib/agents/formative-planning/service";
+import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 export const followupSmokeEnvKeys = [
   "LLM_PROVIDER",
@@ -217,6 +218,7 @@ export async function createFollowupSmokeFixture(
   const teacher = await prisma.user.create({
     data: {
       user_id: `${input.prefix}_${input.suffix}_teacher`,
+      user_id_normalized: normalizeUserId(`${input.prefix}_${input.suffix}_teacher`),
       role: "teacher_researcher",
       password_hash: teacherPasswordHash
     }
@@ -224,6 +226,7 @@ export async function createFollowupSmokeFixture(
   const student = await prisma.user.create({
     data: {
       user_id: `${input.prefix}_${input.suffix}_student`,
+      user_id_normalized: normalizeUserId(`${input.prefix}_${input.suffix}_student`),
       role: "student",
       access_code_hash: studentAccessCodeHash
     }

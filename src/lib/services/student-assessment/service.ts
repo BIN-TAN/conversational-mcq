@@ -264,6 +264,7 @@ async function validPublishedConceptUnits(
 }
 
 async function getOwnedSession(input: { student_user_db_id: string; session_public_id: string }) {
+  await assertActiveStudentAccount(input.student_user_db_id);
   const session = await prisma.assessmentSession.findFirst({
     where: {
       session_public_id: input.session_public_id,
@@ -281,6 +282,21 @@ async function getOwnedSession(input: { student_user_db_id: string; session_publ
   }
 
   return session;
+}
+
+async function assertActiveStudentAccount(studentUserDbId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: studentUserDbId },
+    select: { role: true, account_status: true }
+  });
+
+  if (!user || user.role !== "student" || user.account_status !== "active") {
+    throw new StudentAssessmentServiceError(
+      "account_unavailable",
+      "This account is currently unavailable.",
+      403
+    );
+  }
 }
 
 async function withActionIdempotency<T extends Record<string, unknown>>(
@@ -349,6 +365,7 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
 }
 
 export async function listAvailableAssessments(input: { student_user_db_id: string }) {
+  await assertActiveStudentAccount(input.student_user_db_id);
   const assessments = await prisma.assessment.findMany({
     where: { status: { in: ["published", "archived"] } },
     orderBy: [{ created_at: "desc" }],
@@ -431,6 +448,7 @@ export async function startOrResumeStudentAssessmentSession(input: {
   student_user_db_id: string;
   assessment_public_id: string;
 }) {
+  await assertActiveStudentAccount(input.student_user_db_id);
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -754,6 +772,7 @@ export async function getStudentSessionState(input: {
   student_user_db_id: string;
   session_public_id: string;
 }) {
+  await assertActiveStudentAccount(input.student_user_db_id);
   const session = await prisma.assessmentSession.findFirst({
     where: {
       session_public_id: input.session_public_id,

@@ -349,7 +349,7 @@ async function buildMasterExportRows(options: MasterExportOptions) {
   const sessions = await prisma.assessmentSession.findMany({
     where: sessionWhere,
     include: {
-      user: { select: { id: true, user_id: true } },
+      user: { select: { id: true, user_id: true, display_name: true } },
       assessment: {
         select: {
           assessment_public_id: true,
@@ -477,7 +477,7 @@ async function buildMasterExportRows(options: MasterExportOptions) {
       row.export_schema_version = MASTER_EXPORT_SCHEMA_VERSION;
       row.row_type = rowType;
       row.user_id = session.user.user_id;
-      row.student_display_name = "";
+      row.student_display_name = session.user.display_name ?? "";
       row.session_id = session.session_public_id;
       row.assessment_id = session.assessment.assessment_public_id;
       row.assessment_title = session.assessment.title;

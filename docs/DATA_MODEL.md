@@ -1,6 +1,6 @@
 # Data Model
 
-Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, and Phase 6 additions. The data model supports audited profiling, planning, first-round follow-up records, Phase 6D2B staged iterative follow-up evidence updates inside the current concept unit, and Phase 6D3 deterministic student-led concept progression/completion. It still does not imply adaptive concept routing, Response Collection Agent behavior, live Item Preparation behavior, or master CSV filling for iterative profile/planning fields.
+Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, Phase 6, and Phase 7A additions. The data model supports roster-managed student accounts, audited profiling, planning, first-round follow-up records, Phase 6D2B staged iterative follow-up evidence updates inside the current concept unit, and Phase 6D3 deterministic student-led concept progression/completion. It still does not imply adaptive concept routing, Response Collection Agent behavior, live Item Preparation behavior, or master CSV filling for iterative profile/planning fields.
 
 ## Identifier Convention
 
@@ -17,7 +17,7 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 
 ## Model Purposes
 
-- `users`: Existing auth users. `user_id` is the classroom and research linkage ID.
+- `users`: Existing auth users. `user_id` is the canonical classroom and research linkage ID. `user_id_normalized` is used for case/trim-insensitive matching and uniqueness. `display_name` is optional. `account_status`, `auth_version`, `credential_updated_at`, `deactivated_at`, and `last_login_at` support roster-managed student accounts.
 - `assessments`: Top-level assessment containers created by a teacher researcher.
 - `concept_units`: Concept-based item sets. A service-layer rule will later enforce 3 to 4 items.
 - `items`: Versioned MCQ item content, including structured options, rationales, expected reasoning, misconception indicators, administration rules, and the teacher-selected `included_in_published_set` membership flag.
@@ -39,6 +39,8 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `export_jobs`: Teacher_researcher master CSV export job tracking with public export IDs and local storage keys.
 - `workflow_jobs`: Phase 6D2A Postgres-backed asynchronous jobs for automatic profiling, planning, and first follow-up startup.
 - `workflow_overrides`: Append-only teacher_researcher exception controls for automatic sessions.
+- `roster_import_batches`: Phase 7A teacher_researcher roster preview/commit audit batches. They store normalized preview payloads but never plaintext access codes.
+- `student_account_events`: Phase 7A append-only audit events for student creation, display-name update, access-code reset, deactivation, and reactivation. They never store plaintext access codes or hashes.
 
 ## Key Relations
 
@@ -65,10 +67,16 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `workflow_overrides.assessment_session_db_id -> assessment_sessions.id`.
 - `workflow_overrides.concept_unit_session_db_id -> concept_unit_sessions.id` when scoped to a concept unit.
 - `workflow_overrides.created_by_user_db_id -> users.id`.
+- `roster_import_batches.uploaded_by_user_db_id -> users.id`.
+- `student_account_events.student_user_db_id -> users.id`.
+- `student_account_events.performed_by_user_db_id -> users.id`.
+- `student_account_events.roster_import_batch_db_id -> roster_import_batches.id` when the event came from a roster commit.
 
 ## Uniqueness Constraints
 
 - Public IDs are unique for assessments, concept units, items, and assessment sessions.
+- `users.user_id`: unique canonical classroom/research ID.
+- `users.user_id_normalized`: unique normalized classroom/research ID, preventing case-only duplicates.
 - `concept_units`: unique `assessment_db_id + order_index`.
 - `items`: unique `concept_unit_db_id + item_order`.
 - `assessment_sessions`: unique `user_db_id + assessment_db_id + attempt_number` so v1 has one default attempt while future teacher-authorized retakes can use attempt 2 or later.
@@ -89,6 +97,8 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `workflow_jobs.job_public_id`: unique public workflow-job identifier.
 - `workflow_jobs.idempotency_key`: unique logical job key so the same automatic step does not execute successfully twice.
 - `workflow_overrides.override_public_id`: unique public override identifier.
+- `roster_import_batches.batch_public_id`: unique public roster import batch identifier.
+- `student_account_events.event_public_id`: unique public account-event identifier.
 
 The schema intentionally avoids constraints that would prevent future legitimate reassessment attempts across different assessment sessions.
 
@@ -112,6 +122,48 @@ The schema indexes:
 - Workflow jobs by status/run-after time, session/status, concept-unit/status, and lock time.
 - Workflow overrides by session, concept-unit, action type, and creation time.
 - Concept progression records by assessment session/request time, source concept-unit session/status, destination concept, source profile/decision, progression type/status, and final update cycle.
+- User lookup by `user_id_normalized`.
+- Roster import batches by uploader, status, and creation time.
+- Student account events by student, performer, event type, batch, and creation time.
+
+## Phase 7A Student Accounts
+
+Phase 7A adds roster-managed student account fields to `users`:
+
+- `user_id_normalized`: trim/Unicode-normalized/lowercase match key.
+- `display_name`: optional teacher-managed display label.
+- `account_status`: `active` or `inactive`.
+- `auth_version`: included in server-managed sessions so credential resets and status changes invalidate old cookies.
+- `deactivated_at`: administrative deactivation timestamp.
+- `credential_updated_at`: access-code reset or creation timestamp.
+- `last_login_at`: successful login timestamp.
+
+Student login resolves by `user_id_normalized` but preserves canonical `users.user_id` for display, route parameters, summative outcome linkage, and master CSV export. Normal teacher UI/API routes cannot edit `users.user_id` or `users.user_id_normalized`.
+
+`roster_import_batches` records preview/commit audit data:
+
+- `batch_public_id`
+- uploader relation
+- source file name
+- status: `previewed`, `committed`, `failed`, or `cancelled`
+- preview counts
+- committed counts
+- normalized preview payload
+- validation summary
+- timestamps
+
+Preview never creates users or access codes. Commit creates valid new students, optionally applies display-name changes, and returns plaintext access codes only in the authenticated response.
+
+`student_account_events` is append-only:
+
+- `student_created_manually`
+- `student_created_by_roster`
+- `display_name_updated`
+- `access_code_reset`
+- `student_deactivated`
+- `student_reactivated`
+
+Account events do not store plaintext access codes, access-code hashes, passwords, session cookies, or environment values.
 
 ## Phase 6D2A Assessment Availability And Workflow
 

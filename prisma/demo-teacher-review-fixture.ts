@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { hashSecret } from "../src/lib/password";
 import { createResponsePackage } from "../src/lib/services/response-packages";
+import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 export const teacherReviewAssessmentPublicId = "assessment_demo_teacher_review";
 export const teacherReviewConceptUnitPublicId = "concept_demo_teacher_review_initial";
@@ -71,11 +72,13 @@ export async function ensureTeacherReviewDemoUsers(prisma: PrismaClient) {
     where: { user_id: teacherUserId },
     update: {
       role: "teacher_researcher",
+      user_id_normalized: normalizeUserId(teacherUserId),
       password_hash: teacherPasswordHash,
       access_code_hash: null
     },
     create: {
       user_id: teacherUserId,
+      user_id_normalized: normalizeUserId(teacherUserId),
       role: "teacher_researcher",
       password_hash: teacherPasswordHash
     }
@@ -84,11 +87,13 @@ export async function ensureTeacherReviewDemoUsers(prisma: PrismaClient) {
     where: { user_id: studentUserId },
     update: {
       role: "student",
+      user_id_normalized: normalizeUserId(studentUserId),
       password_hash: null,
       access_code_hash: studentAccessCodeHash
     },
     create: {
       user_id: studentUserId,
+      user_id_normalized: normalizeUserId(studentUserId),
       role: "student",
       access_code_hash: studentAccessCodeHash
     }

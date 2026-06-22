@@ -23,10 +23,27 @@ There is no `courses` table in v1. A deployment instance represents one course c
 
 ## Authentication
 
-- Student login requires `user_id` plus a roster-issued access code or password.
+- Student login requires `user_id` plus a roster-issued access code or password. Phase 7A classroom accounts use assigned access codes; login with `user_id` alone is invalid.
 - Teacher researcher login requires a password.
 - Login with `user_id` alone is not allowed.
 - Sessions use secure HTTP-only cookies.
+- Student self-registration, email delivery, SMS delivery, and student-created passwords are not implemented in v1.
+- Access-code reset, student deactivation, and student reactivation increment `users.auth_version` and invalidate old student cookies.
+- Inactive students cannot log in, start assessments, resume sessions, participate in follow-up, or complete assessments. Existing research records remain preserved.
+
+## Student Account Management
+
+- `users.user_id` is the canonical classroom and research ID and is immutable through normal teacher UI/API routes.
+- `users.user_id_normalized` supports trim, Unicode normalization, and lowercase matching. Case-only duplicates such as `Student001` and `student001` are forbidden.
+- Canonical `users.user_id` remains unchanged for display, routes, summative outcome linkage, and master CSV export.
+- `users.display_name` is optional and may be updated by the teacher_researcher without changing research linkage.
+- `users.account_status` is `active` or `inactive`.
+- Plaintext access codes must never be stored in the database, process events, account audit records, import history, exports, or Git fixtures.
+- Plaintext access codes may be shown only immediately after manual student creation, roster commit for newly created students, or access-code reset.
+- No hard-delete teacher UI/API exists for students. Use deactivation to preserve longitudinal classroom and research linkage.
+- Roster import is preview-before-commit. Preview does not create users, generate access codes, reset codes, update display names, or deactivate missing students.
+- Missing rows in a later roster import must not automatically deactivate students.
+- Teacher accounts must not be manageable through student roster actions.
 
 ## Model Configuration
 

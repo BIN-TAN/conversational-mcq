@@ -19,6 +19,12 @@ Teacher review remains retrospective and read-only for active student records. T
 
 The teacher must not approve, deny, force, skip, reopen, edit, or complete an individual active student workflow in normal classroom mode.
 
+## Account Administration
+
+Phase 7A account actions are administrative access controls, not assessment interventions. A teacher_researcher may create accounts, reset access codes, deactivate accounts, and reactivate accounts. These actions must not edit answers, alter correctness, change profiles, change formative decisions, complete sessions, cancel sessions, or move a student through concept progression.
+
+Inactive accounts cannot log in or continue a session, but existing assessment records, transcripts, process events, profiles, decisions, and outcomes remain preserved.
+
 ## Development Controls
 
 `DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED=false` by default.

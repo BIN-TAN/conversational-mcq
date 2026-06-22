@@ -20,7 +20,7 @@ See `docs/sample-summative-outcomes.csv`.
 
 ## Validation Rules
 
-- `user_id` must match an existing student `users.user_id`.
+- `user_id` must match an existing student through normalized `users.user_id_normalized` lookup. The matched student's canonical `users.user_id` remains the research linkage ID.
 - Teacher_researcher accounts are rejected as outcome recipients.
 - `outcome_name` must be nonempty.
 - `outcome_score` must be numeric, finite, and between zero and `max_score`.

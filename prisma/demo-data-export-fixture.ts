@@ -4,6 +4,7 @@ import { hashSecret } from "../src/lib/password";
 import { createResponsePackage } from "../src/lib/services/response-packages";
 import { deleteExportFile } from "../src/lib/services/master-export/storage";
 import { ensureTeacherReviewDemoUsers } from "./demo-teacher-review-fixture";
+import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 export const dataExportAssessmentPublicId = "assessment_demo_data_export";
 export const dataExportConceptUnitPublicId = "concept_demo_data_export_initial";
@@ -56,11 +57,13 @@ async function ensureDataExportUsers(prisma: PrismaClient) {
     where: { user_id: dataExportSecondStudentUserId },
     update: {
       role: "student",
+      user_id_normalized: normalizeUserId(dataExportSecondStudentUserId),
       password_hash: null,
       access_code_hash: accessCodeHash
     },
     create: {
       user_id: dataExportSecondStudentUserId,
+      user_id_normalized: normalizeUserId(dataExportSecondStudentUserId),
       role: "student",
       access_code_hash: accessCodeHash
     }

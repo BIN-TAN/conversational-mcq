@@ -5,6 +5,7 @@ import { StudentAssessmentServiceError } from "../src/lib/services/student-asses
 import { updateAssessment } from "../src/lib/services/content/assessments";
 import { ContentServiceError } from "../src/lib/services/content/errors";
 import { cleanupFollowupSmoke, assert } from "./followup-smoke-fixture";
+import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
 const prefix = `phase6d2a_availability_${Date.now()}`;
@@ -94,12 +95,14 @@ async function main() {
   const teacher = await prisma.user.create({
     data: {
       user_id: `${prefix}_teacher`,
+      user_id_normalized: normalizeUserId(`${prefix}_teacher`),
       role: "teacher_researcher"
     }
   });
   const student = await prisma.user.create({
     data: {
       user_id: `${prefix}_student`,
+      user_id_normalized: normalizeUserId(`${prefix}_student`),
       role: "student"
     }
   });

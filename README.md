@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, and Phase 6D3 student-led concept progression plus final assessment completion. Response Collection Agent LLM behavior, live Item Preparation behavior, adaptive concept routing, countdown timers, and master CSV profile/follow-up column filling remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, and Phase 7A roster/student-account management. Response Collection Agent LLM behavior, live Item Preparation behavior, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, student self-registration, and master CSV profile/follow-up column filling remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -104,6 +104,10 @@ npm run concept:progression-smoke
 npm run assessment:completion-smoke
 npm run classroom:nonintervention-smoke
 npm run student:progression-ui-smoke
+npm run roster:import-smoke
+npm run student:account-smoke
+npm run student:account-ui-smoke
+npm run auth:account-status-smoke
 npm run typecheck
 npm run lint
 npm run build
@@ -141,6 +145,26 @@ Protected route shells:
 
 - `/student/assessment` requires a student session.
 - `/teacher/dashboard` requires a teacher_researcher session.
+
+Student account management routes:
+
+- `/teacher/students`
+- `/teacher/students/new`
+- `/teacher/students/import`
+- `/teacher/students/[userId]`
+
+Roster/account commands:
+
+```bash
+npm run demo:roster
+npm run demo:roster:cleanup
+npm run roster:import-smoke
+npm run student:account-smoke
+npm run student:account-ui-smoke
+npm run auth:account-status-smoke
+```
+
+Students are created by the teacher_researcher. Students do not self-register and do not need email addresses. Student login uses `user_id` plus an assigned access code. Access codes are stored only as hashes and plaintext codes are shown only immediately after create/import/reset.
 
 ## Phase 1 And 1.5 Scope
 

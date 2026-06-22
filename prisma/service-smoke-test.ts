@@ -11,6 +11,7 @@ import {
   updateAssessmentSessionPhase
 } from "../src/lib/services/session-state";
 import { createResponsePackage } from "../src/lib/services/response-packages";
+import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
 
@@ -29,11 +30,13 @@ async function ensureDemoUsers() {
     where: { user_id: "teacher_demo" },
     update: {
       role: "teacher_researcher",
+      user_id_normalized: normalizeUserId("teacher_demo"),
       password_hash: teacherPasswordHash,
       access_code_hash: null
     },
     create: {
       user_id: "teacher_demo",
+      user_id_normalized: normalizeUserId("teacher_demo"),
       role: "teacher_researcher",
       password_hash: teacherPasswordHash
     }
@@ -42,11 +45,13 @@ async function ensureDemoUsers() {
     where: { user_id: "student_demo" },
     update: {
       role: "student",
+      user_id_normalized: normalizeUserId("student_demo"),
       password_hash: null,
       access_code_hash: studentAccessCodeHash
     },
     create: {
       user_id: "student_demo",
+      user_id_normalized: normalizeUserId("student_demo"),
       role: "student",
       access_code_hash: studentAccessCodeHash
     }

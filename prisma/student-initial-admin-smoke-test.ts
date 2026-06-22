@@ -21,6 +21,7 @@ import {
 } from "../src/lib/services/student-assessment/service";
 import { StudentAssessmentServiceError } from "../src/lib/services/student-assessment/errors";
 import { assertStudentPayloadIsSafe } from "../src/lib/services/student-assessment/serializers";
+import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
 
@@ -121,11 +122,13 @@ async function main() {
       where: { user_id: "teacher_demo" },
       update: {
         role: "teacher_researcher",
+        user_id_normalized: normalizeUserId("teacher_demo"),
         password_hash: teacherPasswordHash,
         access_code_hash: null
       },
       create: {
         user_id: "teacher_demo",
+        user_id_normalized: normalizeUserId("teacher_demo"),
         role: "teacher_researcher",
         password_hash: teacherPasswordHash
       }
@@ -133,6 +136,7 @@ async function main() {
     const student = await prisma.user.create({
       data: {
         user_id: `${prefix}_student`,
+        user_id_normalized: normalizeUserId(`${prefix}_student`),
         role: "student",
         access_code_hash: studentAccessCodeHash
       }
@@ -140,6 +144,7 @@ async function main() {
     const otherStudent = await prisma.user.create({
       data: {
         user_id: `${prefix}_other_student`,
+        user_id_normalized: normalizeUserId(`${prefix}_other_student`),
         role: "student",
         access_code_hash: otherAccessCodeHash
       }

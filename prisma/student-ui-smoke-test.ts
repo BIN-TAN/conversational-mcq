@@ -19,6 +19,7 @@ import {
   demoAssessmentPublicId,
   ensureDemoStudentAssessment
 } from "./demo-student-assessment-fixture";
+import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
 
@@ -118,6 +119,7 @@ async function main() {
   const student = await prisma.user.create({
     data: {
       user_id: userId,
+      user_id_normalized: normalizeUserId(userId),
       role: "student",
       access_code_hash: accessCodeHash
     }
