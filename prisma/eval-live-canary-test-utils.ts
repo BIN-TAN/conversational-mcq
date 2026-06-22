@@ -9,10 +9,12 @@ export function assert(condition: unknown, message: string): asserts condition {
 export async function cleanupLiveCanaryRecords(prisma: PrismaClient) {
   const runs = await prisma.evalRun.findMany({
     where: {
-      OR: [
-        { run_mode: "live_provider", model_snapshot: "gpt-5.4-mini-2026-03-17" },
-        { suite: { title: "Phase 7E2A live canary" } }
-      ]
+      run_mode: "live_provider",
+      model_snapshot: "gpt-5.4-mini-2026-03-17",
+      model_config: {
+        path: ["mock_provider_smoke"],
+        equals: true
+      }
     },
     select: { id: true }
   });
@@ -34,7 +36,12 @@ export async function cleanupLiveCanaryRecords(prisma: PrismaClient) {
   });
   await prisma.evalRunItem.deleteMany({ where: { run_db_id: { in: runIds } } });
   await prisma.evalRun.deleteMany({ where: { id: { in: runIds } } });
-  await prisma.evalSuite.deleteMany({ where: { title: "Phase 7E2A live canary" } });
+  await prisma.evalSuite.deleteMany({
+    where: {
+      title: "Phase 7E2A live canary",
+      runs: { none: {} }
+    }
+  });
 }
 
 export async function operationalCounts(prisma: PrismaClient) {

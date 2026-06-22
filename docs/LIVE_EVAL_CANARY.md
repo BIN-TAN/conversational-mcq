@@ -58,6 +58,19 @@ npm run eval:live-canary:report -- --run <run_public_id>
 
 Without `--confirm-paid-api`, the paid command refuses to run.
 
+To inspect an existing live canary run without making any provider request:
+
+```bash
+npm run eval:live-canary:inspect -- --run <run_public_id>
+```
+
+The inspect command is read-only. It displays the run status, item statuses,
+provider response/request IDs where present, whether raw output and usage are
+persisted, where usage was found, sanitized error categories/messages, whether
+the run is safe to resume, and whether a fresh run is recommended. It never
+prints API keys, authorization headers, database URLs, session secrets, cookies,
+or raw environment values.
+
 ## Execution Rules
 
 Live-provider canary execution:
@@ -75,3 +88,26 @@ The teacher UI can display live-run metadata and results, but it does not contai
 ## Resume
 
 Live canary runs are resumable by run ID. Completed run items are skipped. Pending or retryable items may continue according to the retry policy. Permanent failures remain preserved and are not silently replaced.
+
+Runs with status `budget_unverifiable` are not automatically resumable. If a
+provider request was counted but usage was not persisted, the budget guard cannot
+verify cost for that request. Use the inspect command and start a fresh canary
+run unless a teacher/researcher intentionally performs a documented manual
+recovery action outside the automated runner.
+
+## Usage Parsing
+
+The live canary parser accepts the current Responses API usage shape:
+
+```text
+usage.input_tokens
+usage.output_tokens
+usage.total_tokens
+usage.input_tokens_details.cached_tokens
+usage.output_tokens_details.reasoning_tokens
+```
+
+It also accepts the normalized internal provider shape and optional missing
+cached/reasoning-token details. If usage is missing or token fields are
+malformed, the run pauses as `budget_unverifiable`; the runner does not
+fabricate token counts or continue through remaining cases.

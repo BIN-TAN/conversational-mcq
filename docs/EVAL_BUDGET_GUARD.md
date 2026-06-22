@@ -33,8 +33,24 @@ After the provider returns usage, the runner:
 - calculates estimated cost from actual usage
 - updates run totals
 - marks missing usage as `budget_unverifiable`
+- marks malformed usage as `budget_unverifiable`
+- pauses rather than continuing when cost cannot be verified
 
 Retries count toward the provider request limit. Mock token metadata used in smoke tests is not real billing data.
+
+The Phase 7E2A parser supports the Responses API usage shape:
+
+```text
+usage.input_tokens
+usage.output_tokens
+usage.total_tokens
+usage.input_tokens_details.cached_tokens
+usage.output_tokens_details.reasoning_tokens
+```
+
+Cached-input and reasoning-token details may be absent and remain blank/null in
+the database. Required input/output token counts must be finite non-negative
+integers. The runner never estimates actual cost from malformed provider usage.
 
 ## Smoke Test
 

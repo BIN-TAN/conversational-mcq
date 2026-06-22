@@ -758,12 +758,23 @@ npm run eval:live-canary -- --confirm-paid-api
 npm run eval:live-canary:report -- --run <run_public_id>
 ```
 
+Read-only inspection of an existing live canary run:
+
+```bash
+npm run eval:live-canary:inspect -- --run <run_public_id>
+```
+
+The inspect command makes no provider request. It reports run status, item statuses,
+provider IDs when present, usage availability, sanitized errors, and whether a
+fresh run is safer than resuming.
+
 Do not paste the API key into chat or a browser form. Keep classroom settings as `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`.
 
 Offline verification commands:
 
 ```bash
 npm run eval:live-canary-runner-smoke
+npm run eval:usage-parser-smoke
 npm run eval:budget-smoke
 npm run eval:live-isolation-smoke
 npm run eval:canary-report-smoke

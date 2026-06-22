@@ -101,6 +101,26 @@ export function costFromActualUsage(input: {
     };
   }
 
+  if (
+    !Number.isFinite(input.input_tokens) ||
+    !Number.isInteger(input.input_tokens) ||
+    input.input_tokens < 0 ||
+    !Number.isFinite(input.output_tokens) ||
+    !Number.isInteger(input.output_tokens) ||
+    input.output_tokens < 0 ||
+    (input.cached_input_tokens !== null &&
+      input.cached_input_tokens !== undefined &&
+      (!Number.isFinite(input.cached_input_tokens) ||
+        !Number.isInteger(input.cached_input_tokens) ||
+        input.cached_input_tokens < 0))
+  ) {
+    return {
+      ok: false as const,
+      reason: "usage_malformed",
+      message: "Provider usage contained invalid token counts; budget cannot be verified."
+    };
+  }
+
   return {
     ok: true as const,
     estimated_cost_usd: calculateEvalCostUsd(input)

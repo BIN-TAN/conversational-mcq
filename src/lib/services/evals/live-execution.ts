@@ -8,7 +8,7 @@ import { getPromptForAgent } from "@/lib/agents/prompts/registry";
 import { prisma } from "@/lib/db";
 import { getServerEnv } from "@/lib/env";
 import { OpenAIResponsesProvider } from "@/lib/llm/providers/openai-responses-provider";
-import type { LlmProvider, LlmUsage } from "@/lib/llm/providers/types";
+import type { LlmProvider } from "@/lib/llm/providers/types";
 import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
 import type { PublicUser } from "@/types/auth";
@@ -29,6 +29,7 @@ import { loadLiveCanaryManifest } from "./canary-manifest";
 import { EvalServiceError } from "./errors";
 import { seedEvalFixtures } from "./service";
 import { getEvalPricingEntry, estimateEvalRequestUpperBoundUsd } from "./pricing";
+import { parseEvalProviderUsage, usageTokenCounts } from "./usage-parser";
 import {
   safetyValidateOutput,
   schemaValidateAgentOutput,
@@ -542,7 +543,11 @@ function reproducibilityManifest(plan: CanaryPlan, runPublicId: string) {
   };
 }
 
-async function createOrResumeLiveCanaryRun(plan: CanaryPlan, runPublicId?: string) {
+async function createOrResumeLiveCanaryRun(
+  plan: CanaryPlan,
+  runPublicId?: string,
+  mockProviderSmoke = false
+) {
   const suite = await ensureCanarySuite(plan.teacher.id);
 
   if (runPublicId) {
@@ -557,6 +562,14 @@ async function createOrResumeLiveCanaryRun(plan: CanaryPlan, runPublicId?: strin
 
     if (existing.run_mode !== "live_provider") {
       throw new EvalServiceError("not_live_canary_run", "Only live_provider runs can be resumed.", 400);
+    }
+
+    if (existing.status === "budget_unverifiable") {
+      throw new EvalServiceError(
+        "budget_unverifiable_resume_blocked",
+        "This live canary run has unverifiable provider usage and must not be resumed automatically.",
+        400
+      );
     }
 
     if (existing.model_snapshot !== EVAL_CANARY_MODEL_SNAPSHOT) {
@@ -584,7 +597,8 @@ async function createOrResumeLiveCanaryRun(plan: CanaryPlan, runPublicId?: strin
         run_config_hash: plan.config_hash,
         max_output_tokens_by_agent: plan.config_snapshot.max_output_tokens_by_agent,
         estimated_upper_bound_cost_usd: plan.total_estimated_upper_bound_usd,
-        pricing: plan.pricing
+        pricing: plan.pricing,
+        ...(mockProviderSmoke ? { mock_provider_smoke: true } : {})
       }),
       prompt_version: "multi-agent-canary",
       schema_version: "multi-agent-canary",
@@ -655,14 +669,60 @@ function isRetryableCategory(category?: string) {
   return ["timeout", "network", "rate_limit", "provider_5xx"].includes(category ?? "");
 }
 
-function tokensFromUsage(usage?: LlmUsage) {
-  return {
-    input_tokens: usage?.input_tokens ?? null,
-    cached_input_tokens: usage?.cached_input_tokens ?? null,
-    output_tokens: usage?.output_tokens ?? null,
-    reasoning_tokens: usage?.reasoning_tokens ?? null,
-    total_tokens: usage?.total_tokens ?? null
-  };
+function jsonRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? { ...(value as Record<string, unknown>) }
+    : {};
+}
+
+async function updateRunUsageAggregation(runDbId: string) {
+  const [run, items] = await Promise.all([
+    prisma.evalRun.findUniqueOrThrow({
+      where: { id: runDbId },
+      select: { model_config: true }
+    }),
+    prisma.evalRunItem.findMany({
+      where: { run_db_id: runDbId },
+      select: {
+        input_tokens: true,
+        cached_input_tokens: true,
+        output_tokens: true,
+        reasoning_tokens: true,
+        total_tokens: true,
+        estimated_cost_usd: true
+      }
+    })
+  ]);
+  const usageTotals = items.reduce(
+    (totals, item) => ({
+      input_tokens: totals.input_tokens + (item.input_tokens ?? 0),
+      cached_input_tokens: totals.cached_input_tokens + (item.cached_input_tokens ?? 0),
+      output_tokens: totals.output_tokens + (item.output_tokens ?? 0),
+      reasoning_tokens: totals.reasoning_tokens + (item.reasoning_tokens ?? 0),
+      total_tokens: totals.total_tokens + (item.total_tokens ?? 0),
+      estimated_cost_usd: totals.estimated_cost_usd + Number(item.estimated_cost_usd ?? 0)
+    }),
+    {
+      input_tokens: 0,
+      cached_input_tokens: 0,
+      output_tokens: 0,
+      reasoning_tokens: 0,
+      total_tokens: 0,
+      estimated_cost_usd: 0
+    }
+  );
+  const modelConfig = jsonRecord(run.model_config);
+
+  await prisma.evalRun.update({
+    where: { id: runDbId },
+    data: {
+      estimated_cost_usd: usageTotals.estimated_cost_usd,
+      model_config: prismaJson({
+        ...modelConfig,
+        usage_totals: usageTotals
+      })
+    }
+  });
 }
 
 async function processRunItem(input: {
@@ -765,7 +825,74 @@ async function processRunItem(input: {
     throw new Error("Provider execution did not produce a result.");
   }
 
-  const tokenCounts = tokensFromUsage(lastResult.usage);
+  const usageParse = parseEvalProviderUsage({
+    usage: lastResult.usage,
+    raw_output: lastResult.raw_output
+  });
+  const tokenCounts = usageTokenCounts(usageParse);
+
+  if (lastResult.status === "failed") {
+    const executionStatus = lastResult.error?.retryable ? "failed_retryable" : "failed_permanent";
+    const usageCost = usageParse.ok
+      ? costFromActualUsage({
+          model_snapshot: EVAL_CANARY_MODEL_SNAPSHOT,
+          input_tokens: tokenCounts.input_tokens,
+          cached_input_tokens: tokenCounts.cached_input_tokens,
+          output_tokens: tokenCounts.output_tokens
+        })
+      : null;
+
+    await prisma.evalRunItem.update({
+      where: { id: input.runItemDbId },
+      data: {
+        raw_output: prismaJson(lastResult.raw_output ?? null),
+        parsed_output: Prisma.JsonNull,
+        output_validated: false,
+        schema_validation_error: lastResult.error?.message ?? "Provider execution failed.",
+        semantic_validation_result: prismaJson({
+          ok: false,
+          issues: [lastResult.error?.message ?? "Provider execution failed."],
+          warnings: usageParse.ok
+            ? [`Provider usage found at ${usageParse.usage_found_at}.`]
+            : [usageParse.message]
+        }),
+        safety_validation_result: prismaJson({ ok: true, issues: [], warnings: [], critical_failure_flags: [] }),
+        execution_status: executionStatus,
+        provider_response_id: lastResult.provider_response_id,
+        provider_request_id: lastResult.provider_request_id,
+        client_request_id: lastResult.client_request_id,
+        error_category: lastResult.error?.category ?? "unexpected_provider_response",
+        retry_count: retryCount,
+        latency_ms: lastResult.latency_ms,
+        token_usage: prismaJson({
+          provider_usage: usageParse.ok ? usageParse.usage : null,
+          usage_found_at: usageParse.usage_found_at,
+          usage_parse_status: usageParse.ok ? "parsed" : usageParse.reason,
+          usage_parse_warnings: usageParse.warnings,
+          budget_reservation: reservation.reservation,
+          provider_requests_for_item: providerRequestsForItem
+        }),
+        ...tokenCounts,
+        estimated_cost_usd: usageCost?.ok ? usageCost.estimated_cost_usd : null,
+        completed_at: new Date()
+      }
+    });
+
+    if (usageCost?.ok) {
+      await updateRunUsageAggregation(input.runDbId);
+    }
+
+    await prisma.evalRun.update({
+      where: { id: input.runDbId },
+      data: {
+        status: lastResult.error?.retryable ? "paused" : "failed",
+        error_message: lastResult.error?.message ?? "Provider execution failed."
+      }
+    });
+
+    return { stop: true, status: executionStatus };
+  }
+
   const actualCost = costFromActualUsage({
     model_snapshot: EVAL_CANARY_MODEL_SNAPSHOT,
     input_tokens: tokenCounts.input_tokens,
@@ -774,23 +901,33 @@ async function processRunItem(input: {
   });
 
   if (!actualCost.ok) {
+    const usageErrorReason = usageParse.ok ? actualCost.reason : usageParse.reason;
+    const usageErrorMessage = usageParse.ok ? actualCost.message : usageParse.message;
+
     await prisma.evalRunItem.update({
       where: { id: input.runItemDbId },
       data: {
         raw_output: prismaJson(lastResult.raw_output ?? null),
         parsed_output: Prisma.JsonNull,
         output_validated: false,
-        schema_validation_error: actualCost.message,
-        semantic_validation_result: prismaJson({ ok: false, issues: [actualCost.message], warnings: [] }),
-        safety_validation_result: prismaJson({ ok: false, issues: [actualCost.message], warnings: [], critical_failure_flags: [] }),
+        schema_validation_error: usageErrorMessage,
+        semantic_validation_result: prismaJson({ ok: false, issues: [usageErrorMessage], warnings: usageParse.warnings }),
+        safety_validation_result: prismaJson({ ok: false, issues: [usageErrorMessage], warnings: [], critical_failure_flags: [] }),
         execution_status: "budget_unverifiable",
         provider_response_id: lastResult.provider_response_id,
         provider_request_id: lastResult.provider_request_id,
         client_request_id: lastResult.client_request_id,
-        error_category: actualCost.reason,
+        error_category: usageErrorReason,
         retry_count: retryCount,
         latency_ms: lastResult.latency_ms,
-        token_usage: prismaJson(lastResult.usage ?? null),
+        token_usage: prismaJson({
+          provider_usage: usageParse.ok ? usageParse.usage : null,
+          usage_found_at: usageParse.usage_found_at,
+          usage_parse_status: usageParse.ok ? "parsed" : usageParse.reason,
+          usage_parse_warnings: usageParse.warnings,
+          budget_reservation: reservation.reservation,
+          provider_requests_for_item: providerRequestsForItem
+        }),
         ...tokenCounts,
         completed_at: new Date()
       }
@@ -799,11 +936,15 @@ async function processRunItem(input: {
       where: { id: input.runDbId },
       data: {
         status: "budget_unverifiable",
-        error_message: actualCost.message
+        error_message: usageErrorMessage
       }
     });
 
     return { stop: true, status: "budget_unverifiable" };
+  }
+
+  if (!usageParse.ok) {
+    throw new Error("Usage parse invariant failed after budget verification.");
   }
 
   const schema =
@@ -837,12 +978,7 @@ async function processRunItem(input: {
     semanticValid: semantic.ok
   });
 
-  const executionStatus =
-    lastResult.status === "failed"
-      ? lastResult.error?.retryable
-        ? "failed_retryable"
-        : "failed_permanent"
-      : lastResult.status;
+  const executionStatus = lastResult.status;
 
   await prisma.evalRunItem.update({
     where: { id: input.runItemDbId },
@@ -861,7 +997,10 @@ async function processRunItem(input: {
       retry_count: retryCount,
       latency_ms: lastResult.latency_ms,
       token_usage: prismaJson({
-        ...(lastResult.usage ?? {}),
+        provider_usage: usageParse.usage,
+        usage_found_at: usageParse.usage_found_at,
+        usage_parse_status: "parsed",
+        usage_parse_warnings: usageParse.warnings,
         budget_reservation: reservation.reservation,
         provider_requests_for_item: providerRequestsForItem
       }),
@@ -870,14 +1009,7 @@ async function processRunItem(input: {
       completed_at: new Date()
     }
   });
-  await prisma.evalRun.update({
-    where: { id: input.runDbId },
-    data: {
-      estimated_cost_usd: {
-        increment: actualCost.estimated_cost_usd
-      }
-    }
-  });
+  await updateRunUsageAggregation(input.runDbId);
 
   return { stop: false, status: executionStatus };
 }
@@ -947,7 +1079,11 @@ export async function runLiveCanary(options: LiveCanaryRunOptions) {
     );
   }
 
-  const run = await createOrResumeLiveCanaryRun(plan, options.runPublicId);
+  const run = await createOrResumeLiveCanaryRun(
+    plan,
+    options.runPublicId,
+    options.allowMockProvider === true
+  );
   await ensureRunItems({
     runDbId: run.id,
     runPublicId: run.run_public_id,
@@ -1073,6 +1209,117 @@ export async function getLiveCanaryRunSummary(runPublicId: string) {
       !Array.isArray(run.reproducibility_manifest)
         ? (run.reproducibility_manifest as { application_git_commit?: unknown }).application_git_commit ?? null
         : null
+  };
+}
+
+function usageCandidateFromTokenUsage(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as { provider_usage?: unknown };
+
+  return record.provider_usage && typeof record.provider_usage === "object"
+    ? (record.provider_usage as Parameters<typeof parseEvalProviderUsage>[0]["usage"])
+    : undefined;
+}
+
+export async function inspectLiveCanaryRun(runPublicId: string) {
+  const run = await prisma.evalRun.findUnique({
+    where: { run_public_id: runPublicId },
+    include: {
+      run_items: {
+        include: { eval_case: true },
+        orderBy: [{ run_order: "asc" }, { repetition_index: "asc" }]
+      }
+    }
+  });
+
+  if (!run) {
+    throw new EvalServiceError("run_not_found", "Evaluation run was not found.", 404);
+  }
+
+  const itemStatuses = run.run_items.map((item) => {
+    const rawOutputExists = item.raw_output !== null && item.raw_output !== undefined;
+    const tokenUsageExists = item.token_usage !== null && item.token_usage !== undefined;
+    const persistedUsageExists =
+      typeof item.input_tokens === "number" && typeof item.output_tokens === "number";
+    const parsed = persistedUsageExists
+      ? null
+      : parseEvalProviderUsage({
+          usage: usageCandidateFromTokenUsage(item.token_usage),
+          raw_output: item.raw_output
+        });
+
+    return {
+      run_item_public_id: item.run_item_public_id,
+      run_order: item.run_order,
+      case_id: item.eval_case.case_id,
+      agent_name: item.eval_case.agent_name,
+      execution_status: item.execution_status,
+      provider_response_id: item.provider_response_id,
+      provider_request_id: item.provider_request_id,
+      raw_output_exists: rawOutputExists,
+      token_usage_exists: tokenUsageExists,
+      usage_exists: persistedUsageExists || parsed?.ok === true,
+      usage_found_at: persistedUsageExists
+        ? "eval_run_items.token_columns"
+        : (parsed?.usage_found_at ?? null),
+      usage_parse_status: persistedUsageExists
+        ? "persisted"
+        : parsed?.ok
+          ? "parsed"
+          : parsed?.reason ?? "usage_missing",
+      sanitized_error_category: item.error_category,
+      sanitized_error_message: item.schema_validation_error
+    };
+  });
+  const unverifiableItems = itemStatuses.filter(
+    (item) => item.execution_status === "budget_unverifiable"
+  );
+  const unverifiableWithoutUsage = unverifiableItems.some((item) => !item.usage_exists);
+  const safeToResume =
+    run.run_mode === "live_provider" &&
+    run.status !== "budget_unverifiable" &&
+    unverifiableItems.length === 0 &&
+    run.run_items.some((item) => item.execution_status === "pending" || item.execution_status === "failed_retryable");
+  const freshRunRecommended =
+    run.status === "budget_unverifiable" ||
+    (run.provider_request_count > 0 && unverifiableWithoutUsage);
+
+  return {
+    run: {
+      run_public_id: run.run_public_id,
+      status: run.status,
+      run_mode: run.run_mode,
+      model_snapshot: run.model_snapshot,
+      reasoning_effort: run.reasoning_effort,
+      planned_run_item_count: run.planned_run_item_count,
+      provider_request_count: run.provider_request_count,
+      estimated_cost_usd: decimalToNumber(run.estimated_cost_usd),
+      error_message: run.error_message,
+      canary_gate_status: run.canary_gate_status
+    },
+    item_statuses: itemStatuses,
+    usage_summary: {
+      persisted_usage_item_count: itemStatuses.filter((item) => item.usage_found_at === "eval_run_items.token_columns").length,
+      parsed_usage_item_count: itemStatuses.filter((item) => item.usage_parse_status === "parsed").length,
+      usage_missing_item_count: itemStatuses.filter((item) => item.usage_parse_status === "usage_missing").length,
+      usage_malformed_item_count: itemStatuses.filter((item) => item.usage_parse_status === "usage_malformed").length
+    },
+    safe_to_resume: safeToResume,
+    fresh_run_recommended: freshRunRecommended,
+    recommendation: freshRunRecommended
+      ? "create_fresh_canary_run"
+      : safeToResume
+        ? "resume_existing_run"
+        : "manual_review_required",
+    notes: [
+      "This inspect command is read-only and makes no provider requests.",
+      unverifiableWithoutUsage
+        ? "At least one provider request is counted without usable persisted usage; do not resume automatically."
+        : "No counted provider request lacks usage in the persisted eval records."
+    ]
   };
 }
 
