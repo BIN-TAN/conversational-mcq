@@ -1,6 +1,6 @@
 # Student Initial Administration UI
 
-Phase 4B implements the protected student-facing platform for initial concept-unit administration. Phase 6D1 extends the same student session page with first-round follow-up conversation after planning completes. The student UI does not call OpenAI directly, fabricate profiles, expose profile/planning labels, add teacher session review, or create CSV export.
+Phase 4B implements the protected student-facing platform for initial concept-unit administration. Phase 6D1 extends the same student session page with first-round follow-up conversation after planning completes. Phase 7C adds an initial-administration free-text composer whose submitted messages are handled by the Response Collection Agent or deterministic fallback. The student UI does not call OpenAI directly, fabricate profiles, expose profile/planning labels, add teacher session review, or create CSV export.
 
 ## Routes
 
@@ -61,13 +61,17 @@ The UI uses `StudentConversationFrame`:
 }
 ```
 
-The backend orchestrator determines state and allowed actions. The deterministic presenter generates temporary safe wording. A future Response Collection Agent may generate natural wording inside this contract, but it must not control phase transitions, correctness, answer keys, evidence requirements, or no-feedback rules.
+The backend orchestrator determines state and allowed actions. Routine item presentation remains deterministic. In Phase 7C, the Response Collection Agent may respond only to submitted free-text messages during allowed initial-administration phases when the session snapshot and server-side readiness allow it. It must not control phase transitions, correctness, answer keys, evidence requirements, option selection, confidence selection, or no-feedback rules.
 
 ## Interaction Behavior
 
 Option selection uses buttons with option label and text. Selecting or revising an option calls the Phase 4A option endpoint with a client idempotency key. The UI never infers or shows correctness.
 
 Reasoning uses free text only when reasoning is relevant. The UI sends reasoning only when the student saves it. It does not send keystrokes, score reasoning, classify reasoning, summarize reasoning, or critique reasoning.
+
+Phase 7C also keeps an open initial chat composer during active initial-administration item states. Students may use it to provide or revise reasoning, ask procedural questions, express uncertainty, request help, request skipping, or ask to save and exit. The backend preserves the full submitted message in the transcript, may save verified exact reasoning segments, and returns only student-safe assistant text and updated state.
+
+Natural language cannot officially select an option or confidence. Text such as `I choose C` or `I am highly confident` is preserved in the transcript but requires the student to use the option buttons or confidence controls.
 
 Confidence uses exactly `low`, `medium`, and `high`, displayed as low, medium, and high confidence. It does not provide calibration feedback.
 
@@ -171,6 +175,18 @@ I’m reviewing your latest response so the next step can be better matched to y
 Students may still save/exit, review locked responses, or request stop while the update is pending. The UI does not show cycle IDs, job stages, model/provider names, profile labels, formative values, correctness, or internal error details.
 
 The student UI still does not show profile labels, evidence sufficiency, independence interpretability, correctness, diagnostic rationale, formative value, action plans, target evidence, success criteria, answer keys, hidden prompts, or teacher-only diagnostic metadata.
+
+## Phase 7C Initial Chat Safety
+
+The initial chat composer shows a reminder:
+
+```text
+Use the answer buttons to select an option and the confidence buttons to report confidence.
+```
+
+Student-safe responses may include assistant text, current interaction state, current student-safe item, saved reasoning, selected option, confidence, missing evidence, allowed controls, and a generic fallback indicator. They do not include recognized intent labels, process-event labels, agent-call IDs, provider names, model names, prompt versions, validation details, profiles, formative values, answer keys, correctness, teacher metadata, or internal UUIDs.
+
+Requests for hints, explanations, content clarification, answer checks, or answer choices are refused neutrally during initial administration. Frustration or uncertainty receives procedural support only. Prompt-injection attempts are ignored, preserved as untrusted transcript text, and logged as neutral process context rather than misconduct.
 
 ## Demo Fixture
 

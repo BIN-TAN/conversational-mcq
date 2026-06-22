@@ -18,24 +18,34 @@ export async function runOpenAIConnectivityTest() {
       allowed_interaction_type: "procedural_message",
       current_item_student_safe: {
         synthetic: true,
-        item_public_id: "synthetic_connectivity_item"
+        item_public_id: "synthetic_connectivity_item",
+        item_order: 1,
+        item_stem: "Synthetic connectivity item",
+        options: [
+          { label: "A", text: "Synthetic option A" },
+          { label: "B", text: "Synthetic option B" }
+        ],
+        item_version: 1
       },
-      student_message_or_action: {
-        synthetic: true,
-        message: "Return the required structured output for a connectivity test."
-      },
+      student_message: "Return the required structured output for a connectivity test.",
       collected_response_state: {
-        synthetic: true
+        selected_option: null,
+        reasoning_present: false,
+        confidence_rating: null
       },
       missing_evidence_state: {
-        synthetic: true
+        missing_fields: []
       },
       recent_student_safe_transcript: [],
       orchestration_constraints: {
         synthetic_connectivity_test: true,
         no_student_data: true,
         no_teacher_content: true
-      }
+      },
+      procedural_policy: {
+        connectivity_test: true
+      },
+      allowed_student_controls: ["free_text_message"]
     }
   });
 }

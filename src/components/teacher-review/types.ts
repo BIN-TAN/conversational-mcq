@@ -14,6 +14,8 @@ export type SessionListRow = {
   session_status: string;
   current_phase: string;
   workflow_mode_snapshot: string;
+  response_collection_mode_snapshot: string;
+  assessment_response_collection_mode: string;
   automation_state: string;
   failed_workflow_job_count: number;
   pending_workflow_job_count: number;
@@ -51,6 +53,7 @@ export type SessionDetailResponse = {
     status: string;
     current_phase: string;
     workflow_mode_snapshot: string;
+    response_collection_mode_snapshot: string;
     automation_state: string;
     automation_paused_at: string | null;
     automation_exception_reason: string | null;
@@ -68,6 +71,7 @@ export type SessionDetailResponse = {
     assessment_public_id: string;
     title: string;
     description: string | null;
+    response_collection_mode: string;
     content_state: {
       content_state: string;
       is_content_locked: boolean;

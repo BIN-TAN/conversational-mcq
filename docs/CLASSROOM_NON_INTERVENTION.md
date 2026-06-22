@@ -25,6 +25,10 @@ Phase 7A account actions are administrative access controls, not assessment inte
 
 Inactive accounts cannot log in or continue a session, but existing assessment records, transcripts, process events, profiles, decisions, and outcomes remain preserved.
 
+## Response Collection
+
+Phase 7C Response Collection Agent handling does not create a teacher intervention channel. Teachers configure assessment response collection mode before student use. During active answering, the agent or deterministic fallback may respond to submitted student free-text within the no-feedback policy, but it cannot change option selection, confidence, phase, item order, concept progression, profile creation, planning, follow-up, or completion. Teacher review remains retrospective and read-only.
+
 ## Development Controls
 
 `DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED=false` by default.

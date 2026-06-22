@@ -65,7 +65,7 @@ initial_concept_unit_complete
 awaiting_profiling
 ```
 
-This is an orchestration boundary. A future Response Collection Agent may generate natural language inside the allowed step, but it must not change phases, answer keys, evidence requirements, no-feedback rules, or session ownership checks.
+This is an orchestration boundary. Phase 7C Response Collection Agent handling may respond to submitted free-text messages inside allowed initial-administration phases, but it must not change phases, answer keys, evidence requirements, no-feedback rules, option selection, confidence selection, or session ownership checks.
 
 ## Student-Safe Serialization
 
@@ -193,11 +193,14 @@ POST /api/student/sessions/[sessionPublicId]/items/[itemPublicId]/submit
 POST /api/student/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]/complete-initial
 POST /api/student/sessions/[sessionPublicId]/events
 POST /api/student/sessions/[sessionPublicId]/exit
+POST /api/student/sessions/[sessionPublicId]/initial/messages
 ```
 
 ## Phase Boundary
 
-Phase 4A is not the final rule-based conversational experience. The existing student assessment page can remain a placeholder. Phase 4B may build the ChatGPT-style interface on top of these route boundaries, and later phases may add Response Collection Agent language generation, profiling, planning, and follow-up. Those later components must still obey the deterministic backend phase, ownership, no-answer-leak, and no-feedback rules defined here.
+Phase 7C adds `POST /api/student/sessions/[sessionPublicId]/initial/messages` for submitted free-text messages. The route requires student authentication, verifies session ownership, derives the current item and phase server-side, persists the full student message before agent/fallback handling, enforces idempotency, and returns only student-safe state. The client cannot supply correctness, selected option, confidence, phase, or response collection mode through this route.
+
+All later components must still obey the deterministic backend phase, ownership, no-answer-leak, and no-feedback rules defined here.
 
 ## Phase 4B UI Integration
 

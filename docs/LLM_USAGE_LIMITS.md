@@ -1,6 +1,6 @@
 # LLM Usage Limits
 
-Phase 6A.5 adds server-side operational safeguards for future LLM calls. These limits are reliability and budget controls, not pedagogical labels.
+Phase 6A.5 adds server-side operational safeguards for LLM calls. These limits are reliability and budget controls, not pedagogical labels.
 
 ## Environment Variables
 
@@ -49,7 +49,7 @@ type LlmUsageGuardResult =
     };
 ```
 
-Blocked calls do not call OpenAI and do not fabricate agent output.
+Blocked calls do not call OpenAI and do not fabricate agent output. In Phase 7C initial-administration free-text handling, a blocked Response Collection Agent call falls back to deterministic safe wording and records fallback as process context rather than as a successful model call.
 
 ## Accounting Source
 

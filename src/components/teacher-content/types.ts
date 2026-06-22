@@ -29,6 +29,7 @@ export type AssessmentSummary = ContentGovernanceFields & {
   description: string | null;
   status: ContentStatus;
   workflow_mode: "manual_review" | "automatic";
+  response_collection_mode: "deterministic" | "llm_assisted";
   release_at: string | null;
   close_at: string | null;
   release_at_course_time: string | null;

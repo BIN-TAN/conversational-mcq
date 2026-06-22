@@ -18,13 +18,45 @@ export function fixtureInputForAgent<TAgentName extends AgentName>(
     case "response_collection_agent":
       return {
         current_phase: "initial_item_administration",
-        allowed_interaction_type: "procedural_message",
-        current_item_student_safe: { item_public_id: "synthetic_item", stem: "Synthetic stem" },
-        student_message_or_action: { message: "Synthetic message" },
-        collected_response_state: { selected_option: null },
-        missing_evidence_state: { missing: [] },
+        allowed_interaction_type: "initial_free_text",
+        current_item_student_safe: {
+          item_public_id: "synthetic_item",
+          item_order: 1,
+          item_stem: "Synthetic stem",
+          options: [
+            { label: "A", text: "Synthetic option A" },
+            { label: "B", text: "Synthetic option B" }
+          ],
+          item_version: 1
+        },
+        student_message: "Synthetic message",
+        collected_response_state: {
+          selected_option: null,
+          reasoning_present: false,
+          confidence_rating: null
+        },
+        missing_evidence_state: { missing_fields: ["answer", "reasoning", "confidence"] },
         recent_student_safe_transcript: [],
-        orchestration_constraints: { no_feedback: true }
+        orchestration_constraints: {
+          no_feedback_during_initial_administration: true,
+          backend_controls_phase_and_progression: true,
+          natural_language_cannot_set_option_or_confidence: true
+        },
+        procedural_policy: {
+          answer_buttons_choose_options: true,
+          confidence_buttons_report_confidence: true,
+          save_and_exit_available: true
+        },
+        allowed_student_controls: [
+          "option_buttons",
+          "confidence_controls",
+          "free_text_message",
+          "skip_reasoning_button",
+          "skip_confidence_button",
+          "skip_item_button",
+          "save_exit_button",
+          "submit_button"
+        ]
       } as unknown as AgentInputByName[TAgentName];
     case "student_profiling_agent":
       return {

@@ -295,9 +295,9 @@ Student routes:
 
 The backend orchestrator remains authoritative for assessment state, allowed actions, item order, concept-unit order, correctness calculation, content locking, response locking, and missing-evidence requirements. The frontend must not independently calculate correctness, infer scores, override phase transitions, skip item order, or decide evidence sufficiency.
 
-The student UI uses a stable `StudentConversationFrame` contract with deterministic Phase 4B wording. The future Response Collection Agent may later generate natural wording inside the same contract, but it must not control phase transitions, correctness, answer keys, evidence requirements, or no-feedback rules. Replacing deterministic wording with an LLM must not require rebuilding the student UI.
+The student UI uses a stable `StudentConversationFrame` contract and an initial free-text composer. Phase 7C allows the Response Collection Agent to interpret student free-text messages only when the session snapshot is `llm_assisted` and server-side readiness permits it. The agent must not control phase transitions, correctness, answer keys, evidence requirements, no-feedback rules, option selection, confidence selection, profiling, planning, follow-up, or completion.
 
-Initial administration remains structured data collection inside a conversational shell. The UI may use clickable MCQ options, free-text reasoning input, low/medium/high confidence controls, explicit skip actions, a review panel, save-and-exit, resume, and refresh recovery. It must not behave like an unrestricted chat system before the Response Collection Agent exists.
+Initial administration remains structured data collection inside a conversational shell. The UI may use clickable MCQ options, free-text reasoning input, low/medium/high confidence controls, explicit skip actions, a review panel, save-and-exit, resume, refresh recovery, and an initial free-text message composer. Natural-language statements such as "I choose C" or "I have high confidence" must not set option or confidence; students must use the structured controls.
 
 The student interface must not provide correctness feedback, hints, explanations, tutoring, content clarification, profile labels, formative labels, ability estimates, engagement estimates, process interpretation cautions, or agent rationale during initial administration.
 
@@ -346,14 +346,41 @@ Current and future agent/profile/formative columns are present in the master CSV
 
 Phase 7B completes the master CSV for persisted platform records through Phase 7A. It remains export-only:
 
-- `MASTER_EXPORT_SCHEMA_VERSION` is `1.1.0`.
+- `MASTER_EXPORT_SCHEMA_VERSION` is `1.2.0`.
 - The system still exports one merged `master_assessment_export.csv`.
 - Account status, assessment availability, workflow snapshots, activated profile/decision fields, follow-up rounds, follow-up update cycles, concept progression, assessment completion, workflow jobs/overrides, agent audit metadata, and summative outcomes are exported when they already exist.
 - Item-row profile, formative, follow-up, update-cycle, and progression histories are scoped to that row's concept-unit session.
 - Session-only placeholder rows leave concept-specific scalar fields blank.
 - Failed or staged update-cycle outputs remain audit/history data and must not populate active/latest scalar profile or formative columns.
 - Internal UUIDs, credential hashes, access codes, cookies, auth headers, API keys, session secrets, database URLs, and environment values must not be exported.
+- Phase 7C adds response collection mode and response-collection aggregate columns without changing row grain.
 - Phase 7B must not call OpenAI, run agents, create profiles, create decisions, create follow-up rounds, modify records, fabricate values, add adaptive routing, or create separate analytical CSV files.
+
+## Phase 7C Response Collection Agent
+
+Phase 7C integrates the Response Collection Agent only for student free-text messages during initial administration.
+
+Allowed behavior:
+
+- assessments have `response_collection_mode` with new assessments defaulting to `llm_assisted`
+- existing assessments and sessions are backfilled to deterministic behavior
+- assessment sessions snapshot `response_collection_mode_snapshot`
+- teacher_researcher content UI can choose response collection mode before student data collection starts
+- student initial administration keeps option and confidence controls as structured buttons/controls
+- the initial free-text composer may preserve student reasoning and procedural questions
+- the Response Collection Agent may run only for allowed initial-administration free-text messages when session snapshot and server-side readiness allow it
+- deterministic fallback is used for deterministic sessions, mock-disabled ordinary workflow, live-readiness failure, usage blocking, execution failure, or semantic validation failure
+- teacher review and master export show response collection mode, free-text turns, fallback events, and neutral process aggregates
+
+Forbidden behavior:
+
+- natural language must not set selected option, confidence, correctness, phase, item order, profile, planning, follow-up, or completion
+- no correctness feedback, hints, explanations, tutoring, answer recommendations, or content clarification during initial administration
+- no student-facing provider, model, prompt, usage, profile, formative, or diagnostic labels
+- no misconduct, cheating, or confirmed GenAI-use language
+- no use of mock Response Collection Agent output in ordinary student workflow unless `ALLOW_MOCK_RESPONSE_COLLECTION_IN_STUDENT_WORKFLOW=true`
+- no OpenAI call unless live calls are explicitly enabled server-side and usage guards allow it
+- no changes to profiling, planning, follow-up, concept progression, scoring, feedback, or adaptive routing
 
 Spreadsheet formula-injection protection is required for user-controlled text when `spreadsheet_safe_text = true`. The protection is applied only to exported values and must not alter database records. Local export files are stored under `.data/exports`, not public static folders, and downloads require teacher_researcher authorization.
 

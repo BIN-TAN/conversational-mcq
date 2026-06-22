@@ -25,3 +25,7 @@ Concept progression remains course-domain agnostic. The backend uses teacher-def
 ## Phase 7B Export
 
 The master CSV remains course-domain agnostic. It exports teacher-defined assessment, concept-unit, item, profile, decision, follow-up, progression, workflow, and summative outcome records without adding subject-specific columns or changing the canonical identity meaning of `users.user_id`.
+
+## Phase 7C Response Collection
+
+The Response Collection Agent remains course-domain agnostic. It receives student-safe current item wording, visible options, current response state, recent bounded transcript, and procedural policy. It does not receive a fixed subject ontology or hardcoded example answers. It must not receive answer keys, distractor rationales, expected reasoning patterns, misconception indicators, or teacher diagnostic metadata during initial administration.

@@ -92,9 +92,7 @@ async function main() {
 
     const formulaLikeInput = {
       ...input,
-      student_message_or_action: {
-        message: "=This is untrusted student-like text, not a secret."
-      }
+      student_message: "=This is untrusted student-like text, not a secret."
     };
     const safeResult = await executeAgent({
       agent_name: "response_collection_agent",

@@ -51,6 +51,54 @@ export const FollowupActionType = z.enum([
 export type InterventionType = z.infer<typeof InterventionType>;
 export type FollowupActionType = z.infer<typeof FollowupActionType>;
 
+export const ResponseCollectionIntent = z.enum([
+  "reasoning_submission",
+  "reasoning_revision",
+  "procedural_clarification",
+  "content_clarification_request",
+  "hint_request",
+  "correctness_request",
+  "explanation_request",
+  "invalid_help_request",
+  "frustration_or_uncertainty",
+  "skip_request",
+  "save_exit_request",
+  "prompt_injection_attempt",
+  "off_topic",
+  "unclear"
+]);
+export type ResponseCollectionIntent = z.infer<typeof ResponseCollectionIntent>;
+
+export const ResponseCollectionReasoningCaptureStatus = z.enum([
+  "none",
+  "new_reasoning",
+  "reasoning_revision"
+]);
+export type ResponseCollectionReasoningCaptureStatus = z.infer<
+  typeof ResponseCollectionReasoningCaptureStatus
+>;
+
+export const ResponseCollectionRequestedControlAction = z.enum([
+  "none",
+  "skip_reasoning",
+  "skip_confidence",
+  "skip_item",
+  "save_and_exit"
+]);
+export type ResponseCollectionRequestedControlAction = z.infer<
+  typeof ResponseCollectionRequestedControlAction
+>;
+
+export const ResponseCollectionRecommendedInteractionOutcome = z.enum([
+  "stay_current_step",
+  "advance_if_backend_allows",
+  "offer_skip",
+  "offer_save_and_exit"
+]);
+export type ResponseCollectionRecommendedInteractionOutcome = z.infer<
+  typeof ResponseCollectionRecommendedInteractionOutcome
+>;
+
 export const FollowupEvidenceTriggerReason = z.enum([
   "substantive_explanation",
   "reasoning_revision",
@@ -70,6 +118,22 @@ const SafeProcessEvent = z.object({
   event_category: z.string(),
   event_source: EventSourceSchema,
   payload: JsonRecord.optional()
+}).strict();
+const SafeResponseCollectionEvent = SafeProcessEvent.extend({
+  event_type: z.enum([
+    "invalid_help_request",
+    "prompt_injection_attempt",
+    "procedural_clarification_request",
+    "emotional_or_frustration_response",
+    "response_collection_agent_invoked",
+    "response_collection_agent_succeeded",
+    "response_collection_agent_failed",
+    "response_collection_fallback_used",
+    "response_collection_reasoning_extracted",
+    "response_collection_reasoning_extraction_failed",
+    "schema_validation_succeeded",
+    "schema_validation_failed"
+  ])
 }).strict();
 
 export const ItemPreparationInput = z.object({
@@ -94,23 +158,32 @@ export const ItemPreparationOutput = AgentOutputBase.extend({
 export const ResponseCollectionInput = z.object({
   current_phase: AssessmentPhaseSchema,
   allowed_interaction_type: z.enum([
-    "mcq_option",
     "reasoning_text",
-    "confidence_rating",
     "procedural_message",
-    "skip_confirmation"
+    "initial_free_text"
   ]),
   current_item_student_safe: JsonRecord,
-  student_message_or_action: JsonRecord,
+  student_message: z.string().min(1),
   collected_response_state: JsonRecord,
   missing_evidence_state: JsonRecord,
   recent_student_safe_transcript: z.array(JsonRecord),
-  orchestration_constraints: JsonRecord
+  orchestration_constraints: JsonRecord,
+  procedural_policy: JsonRecord,
+  allowed_student_controls: z.array(z.enum([
+    "option_buttons",
+    "confidence_controls",
+    "free_text_message",
+    "skip_reasoning_button",
+    "skip_confidence_button",
+    "skip_item_button",
+    "save_exit_button",
+    "submit_button"
+  ]))
 }).strict();
 
 export const ResponseCollectionOutput = AgentOutputBase.extend({
   agent_name: z.literal("response_collection_agent"),
-  assistant_message: z.string(),
+  assistant_message: z.string().min(1),
   intervention_type: InterventionType,
   should_advance: z.boolean(),
   blocked_content_help: z.boolean(),
@@ -122,7 +195,14 @@ export const ResponseCollectionOutput = AgentOutputBase.extend({
     "missing_confidence",
     "multiple_missing_fields"
   ]),
-  events_to_log: z.array(SafeProcessEvent)
+  recognized_intents: z.array(ResponseCollectionIntent),
+  reasoning_capture_status: ResponseCollectionReasoningCaptureStatus,
+  reasoning_evidence_segments: z.array(z.string().min(1)),
+  requires_option_button: z.boolean(),
+  requires_confidence_control: z.boolean(),
+  requested_control_action: ResponseCollectionRequestedControlAction,
+  recommended_interaction_outcome: ResponseCollectionRecommendedInteractionOutcome,
+  events_to_log: z.array(SafeResponseCollectionEvent)
 }).strict();
 
 export const StudentProfilingInput = z.object({

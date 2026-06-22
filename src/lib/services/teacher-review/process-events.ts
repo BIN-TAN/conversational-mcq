@@ -141,6 +141,18 @@ export async function getTeacherReviewProcessEvents(
       option_revision_count: optionRevisionCount,
       validation_failure_count: countEvents(eventCounts, ["schema_validation_failed"]),
       agent_retry_count: countEvents(eventCounts, ["agent_retry_scheduled"]),
+      response_collection_agent_call_count: countEvents(eventCounts, [
+        "response_collection_agent_invoked"
+      ]),
+      response_collection_fallback_count: countEvents(eventCounts, [
+        "response_collection_fallback_used"
+      ]),
+      response_collection_reasoning_extraction_count: countEvents(eventCounts, [
+        "response_collection_reasoning_extracted"
+      ]),
+      response_collection_reasoning_extraction_failure_count: countEvents(eventCounts, [
+        "response_collection_reasoning_extraction_failed"
+      ]),
       followup_turn_count: followupTurnCount
     },
     events: events.map((event) => ({

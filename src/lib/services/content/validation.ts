@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AssessmentWorkflowModeSchema } from "@/lib/domain/enums";
+import { AssessmentWorkflowModeSchema, ResponseCollectionModeSchema } from "@/lib/domain/enums";
 import type { ContentValidationIssue } from "./errors";
 
 const nonEmptyText = z.string().trim().min(1);
@@ -18,6 +18,7 @@ export const AssessmentDraftInputSchema = z
     title: nonEmptyText,
     description: optionalText,
     workflow_mode: AssessmentWorkflowModeSchema.default("automatic"),
+    response_collection_mode: ResponseCollectionModeSchema.default("llm_assisted"),
     release_at_course_time: optionalText,
     close_at_course_time: optionalText
   })
@@ -28,6 +29,7 @@ export const AssessmentUpdateInputSchema = z
     title: nonEmptyText.optional(),
     description: optionalText,
     workflow_mode: AssessmentWorkflowModeSchema.optional(),
+    response_collection_mode: ResponseCollectionModeSchema.optional(),
     release_at_course_time: optionalText,
     close_at_course_time: optionalText
   })

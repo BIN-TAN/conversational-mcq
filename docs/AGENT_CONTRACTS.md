@@ -1,6 +1,6 @@
 # Agent Contracts
 
-Phase 6A defines contracts for five agents. The contracts are strict TypeScript/Zod schemas. Phase 6B connects `student_profiling_agent` to the backend workflow after initial concept-unit administration. Phase 6C connects `formative_value_and_planning_agent` after a saved profile exists. Phase 6D1 connects `followup_agent` for the first open-ended follow-up conversation round. Phase 6D2B extends follow-up output for substantive evidence detection and uses staged updated profiling/planning. Response Collection and live Item Preparation remain contract-only.
+Phase 6A defines contracts for five agents. The contracts are strict TypeScript/Zod schemas. Phase 6B connects `student_profiling_agent` to the backend workflow after initial concept-unit administration. Phase 6C connects `formative_value_and_planning_agent` after a saved profile exists. Phase 6D1 connects `followup_agent` for the first open-ended follow-up conversation round. Phase 6D2B extends follow-up output for substantive evidence detection and uses staged updated profiling/planning. Phase 7C connects `response_collection_agent` to student free-text messages during initial administration. Live Item Preparation remains contract-only.
 
 ## Agent Names
 
@@ -69,7 +69,11 @@ Mock provider profile outputs are valid for infrastructure and UI testing only; 
 
 ## Response Collection Contract
 
-The Response Collection Agent contract may later produce student-facing procedural wording. It must not control phase transitions, correctness, item ordering, evidence requirements, or answer keys. During initial administration it must not provide correctness feedback, hints, explanations, tutoring, or content clarification.
+The Response Collection Agent handles only student free-text messages during initial administration when the assessment session snapshot is `llm_assisted` and server-side provider readiness permits execution. Option selection and confidence reporting remain structured controls. Natural language cannot set selected option, confidence, correctness, phase, item order, profile, planning, follow-up, or completion.
+
+The output schema uses fixed enums for recognized intents, reasoning capture status, requested control action, and recommended interaction outcome. Reasoning evidence segments must be exact substrings of the student message. Backend semantic validation rejects unsafe assistant text, non-verbatim reasoning segments, content help, correctness feedback, answer recommendations, phase changes, profile/planning fields, or misconduct language.
+
+If the configured path is deterministic, mock calls are not explicitly allowed for student workflow, live provider readiness fails, usage guard blocks a live call, or output validation fails, the service uses a deterministic fallback. Fallback preserves the student turn, may save safe exact reasoning segments, refuses answer help neutrally, and does not create fake agent-call metadata.
 
 ## Formative Planning Contract
 

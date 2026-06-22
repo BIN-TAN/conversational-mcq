@@ -45,6 +45,8 @@ Rows show student `user_id`, assessment title, attempt number, status, current p
 
 Phase 6D2A rows also show workflow mode snapshot, automation state, pending workflow-job count, and failed workflow-job count.
 
+Phase 7C rows also show the session response collection mode snapshot so reviewers can distinguish deterministic collection from LLM-assisted free-text handling.
+
 ## Session Detail
 
 The detail view has tabs for:
@@ -103,8 +105,14 @@ Neutral aggregate cards include:
 - validation failure count
 - agent retry count
 - follow-up turn count
+- response collection agent call count
+- response collection fallback count
+- response collection reasoning extraction count
+- response collection reasoning extraction failure count
 
 Process events are contextual evidence for engagement and evidence sufficiency. They are not misconduct labels. Phase 5A does not infer independence or make diagnostic judgments from process traces.
+
+Phase 7C process timelines may include Response Collection Agent events, deterministic fallback events, procedural clarification requests, invalid help requests, prompt-injection attempts, frustration/uncertainty context, and reasoning extraction success/failure. These remain neutral process context and are not cheating, dishonesty, confirmed GenAI use, or misconduct labels.
 
 ## Response Packages
 
@@ -252,3 +260,5 @@ Phase 5B adds `/teacher/data`, `/teacher/data/summative-outcomes`, and `/teacher
 Phase 6B may populate `agent_calls` and `student_profiles` for Student Profiling Agent execution. Phase 6C may populate `agent_calls` and `formative_decisions` for Formative Value and Planning Agent execution. Phase 6D1 may populate `followup_rounds`, follow-up conversation turns, process events, and `agent_calls.followup_round_db_id` through backend-only integration using environment-configured model names.
 
 Phase 6D3 may populate `concept_progression_records`. Teacher session review displays progression history read-only. It does not expose approve, deny, advance, complete, reopen, edit, or force-move controls for active student sessions. Active-session intervention controls are hidden and rejected unless `DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED=true`.
+
+Phase 7C may populate initial-administration free-text transcript turns from students, Response Collection Agent assistant turns, deterministic fallback assistant turns, neutral process events, and actual response collection `agent_calls`. Teacher review displays these read-only and does not allow editing student answers, reasoning, confidence, process events, or response packages.

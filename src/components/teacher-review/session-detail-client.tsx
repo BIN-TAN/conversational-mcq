@@ -84,6 +84,12 @@ const eventTypes = [
   "refresh_recovery",
   "schema_validation_failed",
   "agent_retry_scheduled",
+  "response_collection_agent_invoked",
+  "response_collection_agent_succeeded",
+  "response_collection_agent_failed",
+  "response_collection_fallback_used",
+  "response_collection_reasoning_extracted",
+  "response_collection_reasoning_extraction_failed",
   "formative_planning_started",
   "formative_planning_succeeded",
   "formative_planning_failed",
@@ -537,6 +543,14 @@ function Overview({
         <Fact labelText="Concept-unit progress" value={`${detail.summary.completed_concept_unit_count} / ${detail.summary.concept_unit_count}`} />
         <Fact labelText="Item responses" value={detail.summary.item_response_count} />
         <Fact
+          labelText="Response collection"
+          value={
+            detail.session.response_collection_mode_snapshot === "llm_assisted"
+              ? "LLM-assisted conversation"
+              : "Deterministic collection"
+          }
+        />
+        <Fact
           labelText="Needs review"
           value={
             detail.session.needs_review ? (
@@ -572,6 +586,7 @@ function Overview({
           </div>
           <div className="flex flex-wrap gap-2">
             <StatusPill value={detail.automation.workflow_mode_snapshot} />
+            <StatusPill value={detail.session.response_collection_mode_snapshot} />
             <StatusPill
               value={detail.automation.automation_state}
               tone={detail.automation.automation_state === "automatic_failed" ? "bad" : "neutral"}
@@ -971,6 +986,10 @@ function ProcessEventsSection({
               "option_revision_count",
               "validation_failure_count",
               "agent_retry_count",
+              "response_collection_agent_call_count",
+              "response_collection_fallback_count",
+              "response_collection_reasoning_extraction_count",
+              "response_collection_reasoning_extraction_failure_count",
               "followup_turn_count"
             ].map((key) => (
               <Fact key={key} labelText={label(key)} value={String(data.aggregates[key] ?? 0)} />

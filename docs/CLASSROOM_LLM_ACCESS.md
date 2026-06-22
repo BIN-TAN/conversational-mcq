@@ -1,6 +1,6 @@
 # Classroom LLM Access
 
-Phase 6A.5 defines access-control rules for future classroom LLM use. It does not activate any LLM agent in student or teacher workflows.
+Phase 6A.5 defines access-control rules for classroom LLM use. Later phases activate specific backend-only agents behind the same server-side readiness and usage guards.
 
 ## Server-Side Key Model
 
@@ -30,7 +30,7 @@ A future live OpenAI call is allowed only when all of these are true:
 - the relevant agent model environment variable is configured
 - the usage guard allows the call
 
-If any check fails, the system returns a typed blocked result and does not call OpenAI.
+If any check fails, the system returns a typed blocked result or uses an approved deterministic fallback for the specific workflow, and does not call OpenAI.
 
 ## Student-Facing Fallback
 
@@ -46,6 +46,8 @@ It must not mention budget, cost, API keys, rate limits, or provider internals.
 
 Phase 6D2A can connect existing profiling, planning, and first follow-up startup services to an asynchronous backend workflow when an assessment session snapshot is `automatic`. Phase 6D2B extends that workflow with staged follow-up evidence updates inside the current concept unit. These services still use the Phase 6A.5 live-call gate and usage guard. In normal local development and smoke tests, `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`, so no OpenAI call occurs.
 
-Phase 6D3 still does not replace deterministic Response Collection presentation, implement live Item Preparation behavior, add adaptive concept routing, or add student-entered provider credentials. Phase 7B separately exports already persisted profile, planning, follow-up, progression, workflow, and agent-audit records without changing classroom behavior.
+Phase 7C permits Response Collection Agent execution only for submitted student free-text messages during initial administration when the assessment session snapshot is `llm_assisted` and provider readiness/usage checks allow it. Routine item presentation remains deterministic. If `LLM_PROVIDER=mock` and `ALLOW_MOCK_RESPONSE_COLLECTION_IN_STUDENT_WORKFLOW=false`, ordinary student workflow uses deterministic fallback instead of mock-generated student-facing text.
+
+Phase 7C still does not implement live Item Preparation behavior, adaptive concept routing, student-entered provider credentials, correctness feedback, hints, explanations, or content tutoring during initial administration.
 
 See `docs/LLM_USAGE_LIMITS.md` for operational safeguards.

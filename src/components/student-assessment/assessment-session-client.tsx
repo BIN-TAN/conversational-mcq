@@ -39,6 +39,7 @@ import {
   saveConfidence,
   saveOption,
   saveReasoning,
+  sendInitialMessage,
   sendFollowupMessage,
   requestProgression,
   startAssessmentSession,
@@ -247,6 +248,7 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [reasoningDraft, setReasoningDraft] = useState("");
+  const [initialChatDraft, setInitialChatDraft] = useState("");
   const [followupDraft, setFollowupDraft] = useState("");
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
   const [skipConfirmation, setSkipConfirmation] = useState<MissingEvidenceField[] | null>(null);
@@ -603,6 +605,52 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
     }
   }
 
+  async function handleSendInitialMessage() {
+    const trimmed = initialChatDraft.trim();
+
+    if (!trimmed) {
+      setError({
+        code: "validation_failed",
+        message: "Enter a message before sending.",
+        status: 400
+      });
+      return;
+    }
+
+    const maxChars = state?.initial_chat.message_max_chars ?? 6000;
+
+    if (trimmed.length > maxChars) {
+      setError({
+        code: "validation_failed",
+        message: "The message is too long.",
+        details: { max_chars: maxChars },
+        status: 400
+      });
+      return;
+    }
+
+    setError(null);
+    setStatusMessage("");
+    setIsBusy(true);
+
+    try {
+      const result = await sendInitialMessage({
+        sessionPublicId,
+        message: trimmed,
+        clientMessageId: newClientActionId("initial-message")
+      });
+
+      setState(result.state);
+      setInitialChatDraft("");
+      setStatusMessage(result.reasoning_saved ? "Message sent. Reasoning saved." : "Message sent.");
+      await refreshSecondaryData();
+    } catch (caught) {
+      setError(caught as StructuredStudentApiError);
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   async function handleStopFollowup() {
     if (!window.confirm("Stop this follow-up round? Your conversation will be saved.")) {
       return;
@@ -794,9 +842,11 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
                   isBusy={isBusy}
                   locked={locked}
                   followupDraft={followupDraft}
+                  initialChatDraft={initialChatDraft}
                   reasoningDraft={reasoningDraft}
                   state={state}
                   setFollowupDraft={setFollowupDraft}
+                  setInitialChatDraft={setInitialChatDraft}
                   setReasoningDraft={setReasoningDraft}
                   onBegin={() => void handleBegin()}
                   onCompleteConceptUnit={() => void handleCompleteConceptUnit()}
@@ -807,6 +857,7 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
                   onSkipEvidence={(item, field) => void handleSkipEvidence(item, field)}
                   onSkipItem={(item) => void handleSkipItem(item)}
                   onSubmit={(item) => void handleSubmit(item)}
+                  onSendInitialMessage={() => void handleSendInitialMessage()}
                   onSendFollowup={() => void handleSendFollowup()}
                   onShowSkipConfirmation={(fields) => setSkipConfirmation(fields)}
                   onStopFollowup={() => void handleStopFollowup()}
@@ -874,15 +925,70 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
   );
 }
 
+function InitialChatComposer({
+  disabled,
+  draft,
+  maxChars,
+  onChange,
+  onSend
+}: {
+  disabled: boolean;
+  draft: string;
+  maxChars: number;
+  onChange: (value: string) => void;
+  onSend: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-line bg-white p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+        Initial response message
+      </p>
+      <textarea
+        className="mt-2 min-h-24 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-slate-50 disabled:opacity-70"
+        data-testid="initial-chat-message-input"
+        disabled={disabled}
+        maxLength={maxChars}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+            event.preventDefault();
+            onSend();
+          }
+        }}
+        placeholder="Write your reasoning or ask a procedural question..."
+        value={draft}
+      />
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-muted">
+          Use the option buttons to choose an answer and the confidence buttons to report
+          confidence. {draft.length} / {maxChars}
+        </p>
+        <button
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="send-initial-chat-message"
+          disabled={disabled || !draft.trim()}
+          onClick={onSend}
+          type="button"
+        >
+          {disabled ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}
+          Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function InteractionControls({
   currentItem,
   frame,
   isBusy,
   locked,
   followupDraft,
+  initialChatDraft,
   reasoningDraft,
   state,
   setFollowupDraft,
+  setInitialChatDraft,
   setReasoningDraft,
   onBegin,
   onCompleteConceptUnit,
@@ -894,6 +1000,7 @@ function InteractionControls({
   onProgressionChoice,
   onSaveExit,
   onShowSkipConfirmation,
+  onSendInitialMessage,
   onSendFollowup,
   onSkipConfirmationCancel,
   onSkipEvidence,
@@ -906,9 +1013,11 @@ function InteractionControls({
   isBusy: boolean;
   locked: boolean;
   followupDraft: string;
+  initialChatDraft: string;
   reasoningDraft: string;
   state: StudentSessionState;
   setFollowupDraft: (value: string) => void;
+  setInitialChatDraft: (value: string) => void;
   setReasoningDraft: (value: string) => void;
   onBegin: () => void;
   onCompleteConceptUnit: () => void;
@@ -925,6 +1034,7 @@ function InteractionControls({
       | "complete_assessment"
   ) => void;
   onSaveExit: () => void;
+  onSendInitialMessage: () => void;
   onSendFollowup: () => void;
   onShowSkipConfirmation: (fields: MissingEvidenceField[]) => void;
   onSkipConfirmationCancel: () => void;
@@ -1160,6 +1270,16 @@ function InteractionControls({
     return <p className="text-sm text-muted">No action is needed right now.</p>;
   }
 
+  const initialComposer = (
+    <InitialChatComposer
+      disabled={isBusy || locked}
+      draft={initialChatDraft}
+      maxChars={state.initial_chat.message_max_chars}
+      onChange={setInitialChatDraft}
+      onSend={onSendInitialMessage}
+    />
+  );
+
   if (frame.interaction_type === "present_item") {
     return (
       <div className="space-y-3">
@@ -1178,6 +1298,7 @@ function InteractionControls({
         >
           Skip this item
         </button>
+        {initialComposer}
       </div>
     );
   }
@@ -1219,6 +1340,7 @@ function InteractionControls({
             Skip reasoning
           </button>
         </div>
+        {initialComposer}
       </div>
     );
   }
@@ -1241,6 +1363,7 @@ function InteractionControls({
         >
           Skip confidence
         </button>
+        {initialComposer}
       </div>
     );
   }
@@ -1304,22 +1427,26 @@ function InteractionControls({
             Continue without it
           </button>
         </div>
+        {initialComposer}
       </div>
     );
   }
 
   if (frame.interaction_type === "item_completed") {
     return (
-      <button
-        className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
-        data-testid="submit-item"
-        disabled={isBusy || locked}
-        onClick={() => onSubmit(currentItem)}
-        type="button"
-      >
-        <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        Submit response
-      </button>
+      <div className="space-y-3">
+        <button
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="submit-item"
+          disabled={isBusy || locked}
+          onClick={() => onSubmit(currentItem)}
+          type="button"
+        >
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          Submit response
+        </button>
+        {initialComposer}
+      </div>
     );
   }
 

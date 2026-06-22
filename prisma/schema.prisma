@@ -28,6 +28,11 @@ enum AssessmentWorkflowMode {
   automatic
 }
 
+enum ResponseCollectionMode {
+  deterministic
+  llm_assisted
+}
+
 enum ConceptUnitStatus {
   draft
   published
@@ -369,6 +374,7 @@ model Assessment {
   description           String?                @db.Text
   status                AssessmentStatus       @default(draft)
   workflow_mode         AssessmentWorkflowMode @default(automatic)
+  response_collection_mode ResponseCollectionMode @default(llm_assisted)
   release_at            DateTime?              @db.Timestamptz(6)
   close_at              DateTime?              @db.Timestamptz(6)
   created_by_user_db_id String                 @db.Uuid
@@ -382,6 +388,7 @@ model Assessment {
   @@index([created_by_user_db_id])
   @@index([status])
   @@index([workflow_mode])
+  @@index([response_collection_mode])
   @@index([release_at])
   @@index([close_at])
   @@map("assessments")
@@ -451,6 +458,7 @@ model AssessmentSession {
   status                      SessionStatus          @default(not_started)
   current_phase               AssessmentPhase        @default(not_started)
   workflow_mode_snapshot      AssessmentWorkflowMode @default(manual_review)
+  response_collection_mode_snapshot ResponseCollectionMode @default(deterministic)
   current_concept_unit_db_id  String?                @db.Uuid
   resume_phase                AssessmentPhase?
   resume_context              Json?
@@ -482,6 +490,7 @@ model AssessmentSession {
   @@index([assessment_db_id, status])
   @@index([status, current_phase])
   @@index([workflow_mode_snapshot, current_phase])
+  @@index([response_collection_mode_snapshot, current_phase])
   @@index([current_concept_unit_db_id])
   @@map("assessment_sessions")
 }

@@ -275,6 +275,12 @@ export function TeacherSessionListClient() {
                       <p className="mt-1 text-xs text-muted">
                         {session.workflow_mode_snapshot === "automatic" ? "Automatic" : "Manual review"}
                       </p>
+                      <p className="mt-1 text-xs text-muted">
+                        Response collection:{" "}
+                        {session.response_collection_mode_snapshot === "llm_assisted"
+                          ? "LLM-assisted"
+                          : "Deterministic"}
+                      </p>
                       {session.failed_workflow_job_count > 0 || session.pending_workflow_job_count > 0 ? (
                         <p className="mt-1 text-xs text-muted">
                           {session.pending_workflow_job_count} pending, {session.failed_workflow_job_count} failed

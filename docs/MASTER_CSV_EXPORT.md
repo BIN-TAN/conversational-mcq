@@ -1,6 +1,6 @@
 # Master CSV Export
 
-Phase 7B completes the one-file analysis export for all platform data implemented through Phase 7A:
+Phase 7B completes the one-file analysis export for all platform data implemented through Phase 7A. Phase 7C increments the schema for Response Collection Agent mode and free-text process aggregates:
 
 ```text
 master_assessment_export.csv
@@ -10,7 +10,7 @@ The internal database remains normalized. The CSV is a derived research file, no
 
 ## Scope Boundaries
 
-Phase 7B is export-only. It does not call OpenAI, run agents, create profiles, create formative decisions, create follow-up rounds, create update cycles, create progression records, modify student answers, or change classroom workflow state.
+Phase 7B is export-only. Phase 7C adds columns for response collection mode snapshots, initial free-text message counts, Response Collection Agent call counts, deterministic fallback counts, and reasoning-extraction counts. The export still does not call OpenAI, run agents, create profiles, create formative decisions, create follow-up rounds, create update cycles, create progression records, modify student answers, or change classroom workflow state.
 
 The export reads persisted records only. Active/latest profile and formative scalar columns are populated only from saved activated `student_profiles` and `formative_decisions` rows. Failed or staged update-cycle payloads remain audit/history data and must not populate latest scalar profile or planning columns.
 
@@ -50,6 +50,7 @@ Every row includes:
 - export metadata and formula-sanitization flag
 - classroom identity and account status using canonical `users.user_id`
 - assessment availability and workflow-mode snapshots
+- response collection mode and session snapshot
 - session state, automation state, needs-review state, and completion state
 - concept-unit metadata and version
 - item response evidence and administered item snapshots
@@ -164,10 +165,24 @@ The page supports assessment filter, session status filter, primary outcome sele
 Current version:
 
 ```text
-MASTER_EXPORT_SCHEMA_VERSION=1.1.0
+MASTER_EXPORT_SCHEMA_VERSION=1.2.0
 ```
 
 Future breaking column changes require a schema-version increment.
+
+## Phase 7C Response Collection Columns
+
+Phase 7C adds these stable columns without changing row grain or multiplying rows:
+
+- `assessment_response_collection_mode`
+- `session_response_collection_mode_snapshot`
+- `initial_free_text_student_message_count`
+- `response_collection_agent_call_count`
+- `response_collection_fallback_count`
+- `response_collection_reasoning_extraction_count`
+- `response_collection_reasoning_extraction_failure_count`
+
+The agent-call count summarizes actual audited `response_collection_agent` calls only. Deterministic fallback turns are counted separately and must not be treated as successful model calls.
 
 ## Fixture And Smoke Tests
 

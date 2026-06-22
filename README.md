@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, and Phase 7B complete master CSV export coverage for persisted platform records. Response Collection Agent LLM behavior, live Item Preparation behavior, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, and student self-registration remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, Phase 7B complete master CSV export coverage for persisted platform records, and Phase 7C Response Collection Agent integration for student free-text messages during initial administration. Live Item Preparation behavior, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, and student self-registration remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -40,6 +40,8 @@ If either command is missing, update your shell PATH according to your Node inst
 6. `COURSE_TIMEZONE` defaults to `America/Edmonton`. Assessment release/close inputs use this IANA timezone while PostgreSQL stores UTC timestamps.
 
 7. Keep `DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED=false` and `ALLOW_MANUAL_REVIEW_STUDENT_STARTS=false` for normal classroom behavior. Development smoke tests opt into these only when needed.
+
+8. Keep `ALLOW_MOCK_RESPONSE_COLLECTION_IN_STUDENT_WORKFLOW=false` for ordinary local classroom-style workflow. Set it to `true` only for explicit Response Collection Agent infrastructure testing with the mock provider.
 
 Do not commit `.env`, `.env.local`, real session secrets, or real API keys.
 
@@ -91,6 +93,11 @@ npm run llm:execution-smoke
 npm run llm:redaction-smoke
 npm run llm:usage-smoke
 npm run llm:status-smoke
+npm run agent:response-collection-smoke
+npm run response-collection:fallback-smoke
+npm run response-collection:service-fallback-smoke
+npm run student:initial-chat-ui-smoke
+npm run response-collection:mode-smoke
 npm run agent:profiling-smoke
 npm run agent:planning-smoke
 npm run agent:followup-smoke

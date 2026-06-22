@@ -37,11 +37,22 @@ export function mockOutputForAgent(agentName: AgentName) {
       return {
         ...base,
         agent_name: agentName,
-        assistant_message: "Mock procedural message.",
+        agent_version: "7c-draft",
+        prompt_version: "mock-response-collection-v2",
+        schema_version: "mock-response-collection-output-v2",
+        assistant_message:
+          "I saved the reasoning you provided. Use the option buttons to choose an answer and the confidence buttons to report confidence.",
         intervention_type: "procedural_clarification",
         should_advance: false,
         blocked_content_help: false,
         missing_evidence_status: "not_applicable",
+        recognized_intents: ["reasoning_submission"],
+        reasoning_capture_status: "new_reasoning",
+        reasoning_evidence_segments: ["Synthetic message"],
+        requires_option_button: false,
+        requires_confidence_control: false,
+        requested_control_action: "none",
+        recommended_interaction_outcome: "stay_current_step",
         events_to_log: []
       };
     case "student_profiling_agent":

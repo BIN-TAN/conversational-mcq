@@ -41,6 +41,7 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
       status: true,
       current_phase: true,
       workflow_mode_snapshot: true,
+      response_collection_mode_snapshot: true,
       automation_paused_at: true,
       automation_exception_reason: true,
       needs_review: true,
@@ -58,6 +59,7 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
         select: {
           assessment_public_id: true,
           title: true,
+          response_collection_mode: true,
           _count: {
             select: {
               concept_units: true
@@ -139,6 +141,8 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
         session_status: session.status,
         current_phase: session.current_phase,
         workflow_mode_snapshot: session.workflow_mode_snapshot,
+        response_collection_mode_snapshot: session.response_collection_mode_snapshot,
+        assessment_response_collection_mode: session.assessment.response_collection_mode,
         automation_state: deriveAutomationState({
           workflow_mode_snapshot: session.workflow_mode_snapshot,
           current_phase: session.current_phase,

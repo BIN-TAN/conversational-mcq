@@ -1,6 +1,6 @@
 # Master Export Data Dictionary
 
-This dictionary documents `MASTER_EXPORT_SCHEMA_VERSION=1.1.0`.
+This dictionary documents `MASTER_EXPORT_SCHEMA_VERSION=1.2.0`.
 
 All timestamps are UTC ISO strings unless noted. Blank cells mean the source value is null, not applicable to the row grain, or intentionally suppressed by export options. JSON columns use stable JSON serialization and omit internal UUID keys and secret/auth fields.
 
@@ -28,6 +28,8 @@ All timestamps are UTC ISO strings unless noted. Blank cells mean the source val
 - `assessment_status`: current assessment status.
 - `assessment_workflow_mode`: current assessment workflow mode.
 - `session_workflow_mode_snapshot`: workflow mode copied to the session when it started.
+- `assessment_response_collection_mode`: current assessment response collection mode: `deterministic` or `llm_assisted`.
+- `session_response_collection_mode_snapshot`: response collection mode copied to the session when it started.
 - `assessment_release_at_utc`: assessment release timestamp if configured.
 - `assessment_close_at_utc`: assessment close timestamp if configured.
 - `course_timezone`: configured course timezone for schedule display/parsing.
@@ -108,6 +110,11 @@ These are neutral event counts. They are not misconduct labels.
 - `followup_update_failure_count`
 - `concept_progression_request_count`
 - `unresolved_progression_confirmation_count`
+- `initial_free_text_student_message_count`
+- `response_collection_agent_call_count`
+- `response_collection_fallback_count`
+- `response_collection_reasoning_extraction_count`
+- `response_collection_reasoning_extraction_failure_count`
 
 ## Transcript And Raw Evidence
 

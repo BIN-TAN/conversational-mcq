@@ -21,6 +21,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       status: true,
       current_phase: true,
       workflow_mode_snapshot: true,
+      response_collection_mode_snapshot: true,
       automation_paused_at: true,
       automation_exception_reason: true,
       needs_review: true,
@@ -39,6 +40,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
           assessment_public_id: true,
           title: true,
           description: true,
+          response_collection_mode: true,
           status: true,
           _count: {
             select: {
@@ -309,6 +311,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       status: session.status,
       current_phase: session.current_phase,
       workflow_mode_snapshot: session.workflow_mode_snapshot,
+      response_collection_mode_snapshot: session.response_collection_mode_snapshot,
       automation_state: automationState,
       automation_paused_at: serializeDate(session.automation_paused_at),
       automation_exception_reason: session.automation_exception_reason,
@@ -326,6 +329,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       assessment_public_id: session.assessment.assessment_public_id,
       title: session.assessment.title,
       description: session.assessment.description,
+      response_collection_mode: session.assessment.response_collection_mode,
       content_state: serializeAssessmentContentState(session.assessment)
     },
     automation: {

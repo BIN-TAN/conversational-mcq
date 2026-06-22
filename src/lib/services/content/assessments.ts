@@ -97,6 +97,7 @@ export async function createAssessment(input: {
         title: data.title,
         description: data.description ?? null,
         workflow_mode: data.workflow_mode,
+        response_collection_mode: data.response_collection_mode,
         release_at: availability.release_at,
         close_at: availability.close_at,
         status: "draft",
@@ -180,6 +181,18 @@ export async function updateAssessment(input: {
     await assertAssessmentEditable(input);
   }
 
+  if (hasOwn(data, "response_collection_mode") && assessment._count.assessment_sessions > 0) {
+    throw new ContentServiceError(
+      "content_locked_after_student_session",
+      "Response collection mode cannot be changed because student data collection has started.",
+      409,
+      {
+        assessment_public_id: assessment.assessment_public_id,
+        lock_reason: "student_session_exists"
+      }
+    );
+  }
+
   const release_at = hasOwn(data, "release_at_course_time")
     ? parseCourseDateTimeField("release_at_course_time", data.release_at_course_time ?? null)
     : assessment.release_at;
@@ -210,6 +223,7 @@ export async function updateAssessment(input: {
       title: data.title,
       description: data.description,
       workflow_mode: data.workflow_mode,
+      response_collection_mode: data.response_collection_mode,
       release_at,
       close_at
     },

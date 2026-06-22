@@ -16,6 +16,8 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [workflowMode, setWorkflowMode] = useState<"automatic" | "manual_review">("automatic");
+  const [responseCollectionMode, setResponseCollectionMode] =
+    useState<"llm_assisted" | "deterministic">("llm_assisted");
   const [releaseAt, setReleaseAt] = useState("");
   const [closeAt, setCloseAt] = useState("");
   const [error, setError] = useState<StructuredApiError | null>(null);
@@ -33,6 +35,7 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
           title,
           description: description.trim() ? description : null,
           workflow_mode: workflowMode,
+          response_collection_mode: responseCollectionMode,
           release_at_course_time: releaseAt || null,
           close_at_course_time: closeAt || null
         })
@@ -91,6 +94,30 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
           Manual review: The system will wait for the teacher/researcher to review and
           trigger each AI-supported step.
         </p>
+        <Field label="Response collection mode">
+          <select
+            className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+            onChange={(event) =>
+              setResponseCollectionMode(event.target.value as "llm_assisted" | "deterministic")
+            }
+            value={responseCollectionMode}
+          >
+            <option value="llm_assisted">LLM-assisted conversation</option>
+            <option value="deterministic">Deterministic collection</option>
+          </select>
+        </Field>
+        {responseCollectionMode === "llm_assisted" ? (
+          <p className="text-sm leading-6 text-muted">
+            Student free-text messages are interpreted by the Response Collection Agent. Option
+            and confidence selections still use structured controls, and no content help is
+            provided during initial administration.
+          </p>
+        ) : (
+          <p className="text-sm leading-6 text-muted">
+            The system uses fixed initial-administration prompts. Free text is collected as
+            reasoning only when the current step explicitly requests reasoning.
+          </p>
+        )}
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Release date/time">
             <input

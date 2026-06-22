@@ -71,12 +71,13 @@ Students do not see job names, provider names, model names, token counts, budget
 
 Phase 6D3 still does not implement:
 
-- Response Collection Agent LLM behavior
 - live Item Preparation Agent behavior
 - adaptive concept routing
 - CSV export changes
 - countdown timers
 - a pedagogical maximum number of follow-up turns
+
+Phase 7C adds Response Collection Agent handling only for submitted initial-administration free-text messages. It does not change automatic profiling/planning/follow-up jobs or concept progression.
 
 ## Verification
 

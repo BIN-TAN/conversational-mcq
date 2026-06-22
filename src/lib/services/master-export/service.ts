@@ -100,6 +100,18 @@ function aggregateEvents(events: Array<{ event_type: string; payload: unknown }>
     unresolved_progression_confirmation_count: countEvent(events, [
       "unresolved_progression_confirmation",
       "concept_progression_unresolved_confirmed"
+    ]),
+    response_collection_agent_call_count: countEvent(events, [
+      "response_collection_agent_invoked"
+    ]),
+    response_collection_fallback_count: countEvent(events, [
+      "response_collection_fallback_used"
+    ]),
+    response_collection_reasoning_extraction_count: countEvent(events, [
+      "response_collection_reasoning_extracted"
+    ]),
+    response_collection_reasoning_extraction_failure_count: countEvent(events, [
+      "response_collection_reasoning_extraction_failed"
     ])
   };
 }
@@ -707,6 +719,7 @@ async function buildMasterExportRows(options: MasterExportOptions) {
           title: true,
           status: true,
           workflow_mode: true,
+          response_collection_mode: true,
           release_at: true,
           close_at: true
         }
@@ -910,6 +923,9 @@ async function buildMasterExportRows(options: MasterExportOptions) {
       row.assessment_status = session.assessment.status;
       row.assessment_workflow_mode = session.assessment.workflow_mode;
       row.session_workflow_mode_snapshot = session.workflow_mode_snapshot;
+      row.assessment_response_collection_mode = session.assessment.response_collection_mode;
+      row.session_response_collection_mode_snapshot =
+        session.response_collection_mode_snapshot;
       row.assessment_release_at_utc = iso(session.assessment.release_at);
       row.assessment_close_at_utc = iso(session.assessment.close_at);
       row.course_timezone = courseTimezone;
@@ -952,6 +968,10 @@ async function buildMasterExportRows(options: MasterExportOptions) {
       }
 
       Object.assign(row, aggregates);
+      row.initial_free_text_student_message_count = initialTurns.filter((turn) => {
+        const payload = asRecord(turn.structured_payload);
+        return turn.actor_type === "student" && payload.source === "initial_free_text";
+      }).length;
       Object.assign(row, sessionCompletion, sessionWorkflowFields);
       row.initial_conversation_transcript_text = transcriptText(initialTurns);
       row.followup_conversation_transcript_text = transcriptText(followupTurns);

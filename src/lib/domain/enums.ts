@@ -9,6 +9,9 @@ export const AssessmentStatusSchema = z.enum(assessmentStatuses);
 export const assessmentWorkflowModes = ["manual_review", "automatic"] as const;
 export const AssessmentWorkflowModeSchema = z.enum(assessmentWorkflowModes);
 
+export const responseCollectionModes = ["deterministic", "llm_assisted"] as const;
+export const ResponseCollectionModeSchema = z.enum(responseCollectionModes);
+
 export const conceptUnitStatuses = ["draft", "published", "archived"] as const;
 export const ConceptUnitStatusSchema = z.enum(conceptUnitStatuses);
 
@@ -210,7 +213,13 @@ export const processEventTypes = [
   "move_next_requested",
   "export_requested",
   "export_completed",
-  "export_failed"
+  "export_failed",
+  "response_collection_agent_invoked",
+  "response_collection_agent_succeeded",
+  "response_collection_agent_failed",
+  "response_collection_fallback_used",
+  "response_collection_reasoning_extracted",
+  "response_collection_reasoning_extraction_failed"
 ] as const;
 export const ProcessEventTypeSchema = z.enum(processEventTypes);
 

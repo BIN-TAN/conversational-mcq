@@ -1,7 +1,7 @@
 import { stringify } from "csv-stringify/sync";
 import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
 
-export const MASTER_EXPORT_SCHEMA_VERSION = "1.1.0";
+export const MASTER_EXPORT_SCHEMA_VERSION = "1.2.0";
 
 export const MASTER_EXPORT_COLUMNS = [
   "export_generated_at",
@@ -20,6 +20,8 @@ export const MASTER_EXPORT_COLUMNS = [
   "assessment_status",
   "assessment_workflow_mode",
   "session_workflow_mode_snapshot",
+  "assessment_response_collection_mode",
+  "session_response_collection_mode_snapshot",
   "assessment_release_at_utc",
   "assessment_close_at_utc",
   "course_timezone",
@@ -89,6 +91,11 @@ export const MASTER_EXPORT_COLUMNS = [
   "followup_update_failure_count",
   "concept_progression_request_count",
   "unresolved_progression_confirmation_count",
+  "initial_free_text_student_message_count",
+  "response_collection_agent_call_count",
+  "response_collection_fallback_count",
+  "response_collection_reasoning_extraction_count",
+  "response_collection_reasoning_extraction_failure_count",
   "initial_conversation_transcript_text",
   "followup_conversation_transcript_text",
   "full_conversation_transcript_text",
@@ -241,6 +248,8 @@ const textColumns = new Set<MasterExportColumn>([
   "assessment_status",
   "assessment_workflow_mode",
   "session_workflow_mode_snapshot",
+  "assessment_response_collection_mode",
+  "session_response_collection_mode_snapshot",
   "automation_state",
   "automation_exception_reason",
   "needs_review_reason",

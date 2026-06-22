@@ -22,6 +22,7 @@ export function serializeAssessment(
     | "description"
     | "status"
     | "workflow_mode"
+    | "response_collection_mode"
     | "release_at"
     | "close_at"
     | "created_at"
@@ -38,6 +39,7 @@ export function serializeAssessment(
     description: assessment.description,
     status: assessment.status,
     workflow_mode: assessment.workflow_mode,
+    response_collection_mode: assessment.response_collection_mode,
     release_at: assessment.release_at?.toISOString() ?? null,
     close_at: assessment.close_at?.toISOString() ?? null,
     release_at_course_time: formatCourseDateTime(assessment.release_at),

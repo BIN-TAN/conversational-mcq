@@ -1,6 +1,6 @@
 # LLM Infrastructure
 
-Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration. Phase 6C connects only the Formative Value and Planning Agent after a saved student profile. Phase 6D1 connects only the Follow-up Agent for the first open-ended follow-up conversation round. Phase 6D2B adds staged iterative follow-up evidence updates within the current concept unit. Phase 6D3 adds deterministic student-led concept progression and final assessment completion.
+Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration. Phase 6C connects only the Formative Value and Planning Agent after a saved student profile. Phase 6D1 connects only the Follow-up Agent for the first open-ended follow-up conversation round. Phase 6D2B adds staged iterative follow-up evidence updates within the current concept unit. Phase 6D3 adds deterministic student-led concept progression and final assessment completion. Phase 7C connects the Response Collection Agent only for submitted free-text messages during initial administration.
 
 ## Phase Boundary
 
@@ -76,14 +76,23 @@ Implemented in Phase 6D2B:
 - Student-safe neutral updating state with no profile/planning labels.
 - Smoke tests that run in mock mode and do not call OpenAI.
 
-Not implemented in Phase 6D2B:
+Phase 7C implements:
+
+- Response Collection Agent contract version `response-collection-output-v2`.
+- Student-safe response collection input building with no answer keys or teacher diagnostic metadata.
+- Semantic validation for exact reasoning segments, no feedback, no phase control, and no option/confidence mutation.
+- Deterministic fallback when mode is deterministic, provider readiness fails, usage is blocked, mock workflow is not explicitly allowed, execution fails, or output validation fails.
+- Agent-call audit rows only for actual Response Collection Agent executions.
+- Initial chat UI for free-text messages with option and confidence controls remaining authoritative.
+
+Not implemented through Phase 7C:
 
 - No automatic next-concept-unit movement.
-- No Response Collection Agent LLM behavior.
 - No live Item Preparation Agent behavior.
 - No student-facing profile, planning, correctness, or diagnostic display.
-- No new master CSV agent-field behavior.
-- No response collection UI text is replaced by an LLM.
+- No adaptive routing.
+- No correctness feedback, answer explanation, tutoring, or content help during initial administration.
+- No mock Response Collection Agent output in ordinary student workflow unless `ALLOW_MOCK_RESPONSE_COLLECTION_IN_STUDENT_WORKFLOW=true`.
 - Normal development and verification use mock mode and send no student text, transcript, process data, item reasoning, summative outcome, or classroom record to OpenAI.
 - No student provides an OpenAI API key or needs an OpenAI account.
 
@@ -144,6 +153,10 @@ Phase 6A LLM variables are optional unless intentionally enabling live connectiv
 - `FOLLOWUP_MESSAGE_MAX_CHARS`
 - `FOLLOWUP_CONTEXT_MAX_CHARS`
 - `FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE`
+- `ALLOW_MOCK_RESPONSE_COLLECTION_IN_STUDENT_WORKFLOW`
+- `INITIAL_CHAT_MESSAGE_MAX_CHARS`
+- `RESPONSE_COLLECTION_CONTEXT_MAX_TURNS`
+- `RESPONSE_COLLECTION_CONTEXT_MAX_CHARS`
 
 No model name is hardcoded. No documentation should describe a specific model as currently latest.
 
@@ -172,6 +185,8 @@ Phase 6D1 Follow-up Agent calls attach to the relevant assessment session, conce
 Phase 6D2A automatic workflow jobs call the same profiling, planning, and follow-up services asynchronously when a session snapshot is `automatic`. They do not bypass provider readiness, usage guards, schema validation, semantic validation, prompt/version audit logging, or mock-mode defaults.
 
 Phase 6D2B follow-up update cycles create new agent-call audit rows for updated profiling, updated planning, and next-round opening generation when applicable. Candidate outputs are stored as staged JSON on `followup_update_cycles`; they are not active profiles or active decisions until final transaction success.
+
+Phase 7C Response Collection Agent calls attach to the relevant assessment session, concept-unit session, and current item when an actual agent execution occurs. Deterministic fallback does not create fake provider metadata or successful agent-call rows.
 
 ## Teacher Status Surface
 
@@ -210,6 +225,11 @@ npm run llm:execution-smoke
 npm run llm:redaction-smoke
 npm run llm:usage-smoke
 npm run llm:status-smoke
+npm run agent:response-collection-smoke
+npm run response-collection:fallback-smoke
+npm run response-collection:service-fallback-smoke
+npm run student:initial-chat-ui-smoke
+npm run response-collection:mode-smoke
 npm run agent:profiling-smoke
 npm run agent:planning-smoke
 npm run agent:followup-smoke

@@ -291,6 +291,35 @@ export function sendFollowupMessage(input: {
   );
 }
 
+export function sendInitialMessage(input: {
+  sessionPublicId: string;
+  message: string;
+  clientMessageId?: string;
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/initial/messages`,
+    {
+      message: input.message,
+      client_message_id: input.clientMessageId ?? newClientActionId("initial-message")
+    },
+    (value) => {
+      const result = value as {
+        message_status: string;
+        assistant_message: string;
+        reasoning_saved: boolean;
+        state: unknown;
+      };
+
+      return {
+        message_status: result.message_status,
+        assistant_message: result.assistant_message,
+        reasoning_saved: result.reasoning_saved,
+        state: StudentSessionStateSchema.parse(result.state)
+      };
+    }
+  );
+}
+
 export function stopFollowup(sessionPublicId: string) {
   return post(
     `/api/student/sessions/${sessionPublicId}/followup/stop`,

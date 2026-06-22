@@ -1,6 +1,6 @@
 # Data Model
 
-Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, Phase 6, Phase 7A, and Phase 7B additions. The data model supports roster-managed student accounts, audited profiling, planning, first-round follow-up records, Phase 6D2B staged iterative follow-up evidence updates inside the current concept unit, Phase 6D3 deterministic student-led concept progression/completion, and Phase 7B export of persisted platform records. It still does not imply adaptive concept routing, Response Collection Agent behavior, or live Item Preparation behavior.
+Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, Phase 6, Phase 7A, Phase 7B, and Phase 7C additions. The data model supports roster-managed student accounts, audited profiling, planning, first-round follow-up records, Phase 6D2B staged iterative follow-up evidence updates inside the current concept unit, Phase 6D3 deterministic student-led concept progression/completion, Phase 7B export of persisted platform records, and Phase 7C response collection mode snapshots for initial-administration free-text handling. It still does not imply adaptive concept routing or live Item Preparation behavior.
 
 ## Identifier Convention
 
@@ -18,10 +18,10 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 ## Model Purposes
 
 - `users`: Existing auth users. `user_id` is the canonical classroom and research linkage ID. `user_id_normalized` is used for case/trim-insensitive matching and uniqueness. `display_name` is optional. `account_status`, `auth_version`, `credential_updated_at`, `deactivated_at`, and `last_login_at` support roster-managed student accounts.
-- `assessments`: Top-level assessment containers created by a teacher researcher.
+- `assessments`: Top-level assessment containers created by a teacher researcher. `response_collection_mode` controls future session behavior for initial-administration free-text handling.
 - `concept_units`: Concept-based item sets. A service-layer rule will later enforce 3 to 4 items.
 - `items`: Versioned MCQ item content, including structured options, rationales, expected reasoning, misconception indicators, administration rules, and the teacher-selected `included_in_published_set` membership flag.
-- `assessment_sessions`: A student assessment attempt for one assessment.
+- `assessment_sessions`: A student assessment attempt for one assessment. `response_collection_mode_snapshot` freezes the assessment's response collection mode for that attempt.
 - `concept_unit_sessions`: A student's progress through a concept unit within a session.
 - `item_responses`: Initial item responses with correctness, confidence, reasoning, idempotency, and item content snapshots.
 - `student_action_idempotency_keys`: Student action idempotency records for repeated browser requests during initial administration.
@@ -125,6 +125,21 @@ The schema indexes:
 - User lookup by `user_id_normalized`.
 - Roster import batches by uploader, status, and creation time.
 - Student account events by student, performer, event type, batch, and creation time.
+- Assessment and session response collection mode for Phase 7C review/export filters.
+
+## Phase 7C Response Collection Mode
+
+Phase 7C adds:
+
+- `ResponseCollectionMode`: `deterministic` or `llm_assisted`.
+- `assessments.response_collection_mode`: teacher-configured mode for future sessions. New assessments default to `llm_assisted`; existing migrated assessments are backfilled to `deterministic`.
+- `assessment_sessions.response_collection_mode_snapshot`: copied from the assessment when the session starts. Existing migrated sessions are backfilled to `deterministic`.
+
+Changing assessment mode is governed like other content-affecting assessment settings. After student sessions exist, normal content governance blocks mode changes for that assessment. Existing sessions keep their snapshot and are not altered by later teacher edits.
+
+The Response Collection Agent receives only student-safe current item content and procedural policy. It does not receive answer keys, correctness, distractor rationales, expected reasoning patterns, misconception indicators, profile labels, formative decisions, summative outcomes, passwords, access-code hashes, session cookies, API keys, database URLs, or raw environment values.
+
+Free-text student messages are persisted as `conversation_turns` before agent or fallback handling. Response Collection Agent and deterministic fallback assistant turns are also persisted as conversation turns with safe structured metadata. Process events record neutral activity such as `response_collection_fallback_used`, `response_collection_reasoning_extracted`, `invalid_help_request`, and `prompt_injection_attempt`; these events are context, not misconduct evidence.
 
 ## Phase 7A Student Accounts
 

@@ -464,6 +464,7 @@ export async function startOrResumeStudentAssessmentSession(input: {
               description: true,
               status: true,
               workflow_mode: true,
+              response_collection_mode: true,
               release_at: true,
               close_at: true
             }
@@ -671,6 +672,7 @@ export async function startOrResumeStudentAssessmentSession(input: {
               status: "active",
               current_phase: "concept_unit_intro",
               workflow_mode_snapshot: assessment.workflow_mode,
+              response_collection_mode_snapshot: assessment.response_collection_mode,
               current_concept_unit_db_id: firstConceptUnit.id,
               started_at: now,
               last_activity_at: now
@@ -985,6 +987,9 @@ export async function getStudentSessionState(input: {
     missing_evidence: nextStep === "missing_evidence_repair" ? missingEvidence : [],
     can_exit: session.status !== "completed",
     can_resume: session.status !== "completed",
+    initial_chat: {
+      message_max_chars: getServerEnv().INITIAL_CHAT_MESSAGE_MAX_CHARS
+    },
     followup: activeOrLatestFollowupRound
       ? {
           round_index: activeOrLatestFollowupRound.round_index,
@@ -2149,7 +2154,9 @@ export async function getStudentSafeTranscript(input: {
           phase: {
             in: ["followup_active", "followup_stopped"]
           }
-        }
+        },
+        { agent_name: "response_collection_agent" },
+        { agent_name: "deterministic_response_collection_fallback" }
       ]
     },
     orderBy: [{ created_at: "asc" }],
@@ -2174,7 +2181,7 @@ export async function getStudentSafeTranscript(input: {
   const result = {
     session_public_id: input.session_public_id,
     transcript: turns.map((turn) => ({
-      actor: turn.actor_type === "agent" ? "assistant" : "student",
+      actor: turn.actor_type === "student" ? "student" : "assistant",
       message_text: studentTranscriptMessage(turn),
       created_at: turn.created_at.toISOString(),
       interaction_type: studentTranscriptInteractionType(turn),

@@ -36,6 +36,8 @@ export function AssessmentDetailClient({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [workflowMode, setWorkflowMode] = useState<"automatic" | "manual_review">("automatic");
+  const [responseCollectionMode, setResponseCollectionMode] =
+    useState<"llm_assisted" | "deterministic">("llm_assisted");
   const [releaseAt, setReleaseAt] = useState("");
   const [closeAt, setCloseAt] = useState("");
   const [error, setError] = useState<StructuredApiError | null>(null);
@@ -57,6 +59,7 @@ export function AssessmentDetailClient({
       setTitle(data.assessment.title);
       setDescription(data.assessment.description ?? "");
       setWorkflowMode(data.assessment.workflow_mode);
+      setResponseCollectionMode(data.assessment.response_collection_mode);
       setReleaseAt(data.assessment.release_at_course_time_input);
       setCloseAt(data.assessment.close_at_course_time_input);
     } catch (caught) {
@@ -117,6 +120,7 @@ export function AssessmentDetailClient({
           method: "PUT",
           body: JSON.stringify({
             workflow_mode: workflowMode,
+            response_collection_mode: responseCollectionMode,
             release_at_course_time: releaseAt || null,
             close_at_course_time: closeAt || null
           })
@@ -132,6 +136,7 @@ export function AssessmentDetailClient({
           : previous
       );
       setWorkflowMode(data.assessment.workflow_mode);
+      setResponseCollectionMode(data.assessment.response_collection_mode);
       setReleaseAt(data.assessment.release_at_course_time_input);
       setCloseAt(data.assessment.close_at_course_time_input);
       setSuccess("Assessment availability and workflow saved.");
@@ -375,6 +380,38 @@ export function AssessmentDetailClient({
                     <option value="manual_review">Manual review</option>
                   </select>
                 </Field>
+                <Field label="Response collection mode">
+                  <select
+                    className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:bg-slate-100 disabled:text-muted"
+                    disabled={isLocked}
+                    onChange={(event) =>
+                      setResponseCollectionMode(
+                        event.target.value as "llm_assisted" | "deterministic"
+                      )
+                    }
+                    value={responseCollectionMode}
+                  >
+                    <option value="llm_assisted">LLM-assisted conversation</option>
+                    <option value="deterministic">Deterministic collection</option>
+                  </select>
+                </Field>
+                {responseCollectionMode === "llm_assisted" ? (
+                  <p className="text-sm leading-6 text-muted">
+                    Student free-text messages are interpreted by the Response Collection Agent.
+                    Option and confidence selections still use structured controls, and no content
+                    help is provided during initial administration.
+                  </p>
+                ) : (
+                  <p className="text-sm leading-6 text-muted">
+                    The system uses fixed initial-administration prompts. Free text is collected as
+                    reasoning only when the current step explicitly requests reasoning.
+                  </p>
+                )}
+                {isLocked ? (
+                  <p className="rounded-md border border-line bg-slate-50 px-3 py-2 text-sm text-muted">
+                    Existing student sessions keep their saved response collection mode snapshot.
+                  </p>
+                ) : null}
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label={`Release date/time (${assessment.course_timezone})`}>
                     <input
@@ -501,6 +538,14 @@ export function AssessmentDetailClient({
                   <dt className="text-muted">Workflow mode</dt>
                   <dd className="font-medium text-ink">
                     {assessment.workflow_mode === "automatic" ? "Automatic" : "Manual review"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Response collection</dt>
+                  <dd className="font-medium text-ink">
+                    {assessment.response_collection_mode === "llm_assisted"
+                      ? "LLM-assisted conversation"
+                      : "Deterministic collection"}
                   </dd>
                 </div>
                 <div>

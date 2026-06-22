@@ -28,6 +28,9 @@ export type MockProviderMode =
   | "followup_evidence_trigger"
   | "followup_move_on_offer"
   | "followup_bad_target_formative_value"
+  | "response_collection_reasoning"
+  | "response_collection_help_request"
+  | "response_collection_prompt_injection"
   | "timeout";
 
 const attemptsByRequest = new Map<string, number>();
@@ -333,6 +336,77 @@ export class MockLlmProvider implements LlmProvider {
     }
 
     const output = mockOutputForAgent(request.agent_name) as Record<string, unknown>;
+
+    if (request.agent_name === "response_collection_agent") {
+      const input = request.input as Record<string, unknown>;
+      const message = typeof input.student_message === "string" ? input.student_message : "";
+      const lower = message.toLowerCase();
+      const helpRequested =
+        mode === "response_collection_help_request" ||
+        /\b(correct|answer|hint|explain|explanation|help me solve|which option|tell me)\b/.test(lower);
+      const promptInjection =
+        mode === "response_collection_prompt_injection" ||
+        /\b(ignore (the )?(rules|instructions)|system prompt|developer message|jailbreak)\b/.test(lower);
+      const optionText = /\b(i choose|my answer is|answer is|option)\s+[a-f]\b/i.test(message);
+      const confidenceText = /\b(low|medium|high)\s+confidence\b/i.test(message);
+      const reasoningSegment =
+        !helpRequested && !promptInjection && message.trim().length > 0 ? message.trim() : "";
+
+      output.agent_version = "7c-draft";
+      output.prompt_version = "mock-response-collection-v2";
+      output.schema_version = "mock-response-collection-output-v2";
+      output.assistant_message = helpRequested || promptInjection
+        ? "I can't provide hints, explanations, answer checks, or answer choices during the initial questions. Use the option buttons to choose an answer and the confidence buttons to report confidence."
+        : reasoningSegment
+          ? "I saved the reasoning you provided. Use the option buttons to choose an answer and the confidence buttons to report confidence."
+          : "Use the option buttons to choose an answer and the confidence buttons to report confidence.";
+      output.blocked_content_help = helpRequested || promptInjection;
+      output.recognized_intents = [
+        ...(reasoningSegment ? ["reasoning_submission"] : []),
+        ...(helpRequested ? ["invalid_help_request"] : []),
+        ...(promptInjection ? ["prompt_injection_attempt"] : []),
+        ...(optionText ? ["reasoning_submission"] : []),
+        ...(confidenceText ? ["procedural_clarification"] : []),
+        ...(!reasoningSegment && !helpRequested && !promptInjection ? ["unclear"] : [])
+      ];
+      output.reasoning_capture_status = reasoningSegment ? "new_reasoning" : "none";
+      output.reasoning_evidence_segments = reasoningSegment ? [reasoningSegment] : [];
+      output.requires_option_button = optionText;
+      output.requires_confidence_control = confidenceText;
+      output.requested_control_action = /\b(save|exit)\b/i.test(message)
+        ? "save_and_exit"
+        : /\bskip\b/i.test(message)
+          ? "skip_item"
+          : "none";
+      output.recommended_interaction_outcome =
+        output.requested_control_action === "save_and_exit"
+          ? "offer_save_and_exit"
+          : output.requested_control_action === "skip_item"
+            ? "offer_skip"
+            : "stay_current_step";
+      output.events_to_log = [
+        ...(helpRequested
+          ? [
+              {
+                event_type: "invalid_help_request",
+                event_category: "initial_administration",
+                event_source: "agent",
+                payload: { mock: true }
+              }
+            ]
+          : []),
+        ...(promptInjection
+          ? [
+              {
+                event_type: "prompt_injection_attempt",
+                event_category: "initial_administration",
+                event_source: "agent",
+                payload: { mock: true }
+              }
+            ]
+          : [])
+      ];
+    }
 
     if (request.agent_name === "student_profiling_agent") {
       const input = request.input as Record<string, unknown>;

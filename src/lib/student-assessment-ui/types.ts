@@ -104,6 +104,9 @@ export const StudentSessionStateSchema = z.object({
   missing_evidence: z.array(MissingEvidenceFieldSchema),
   can_exit: z.boolean(),
   can_resume: z.boolean(),
+  initial_chat: z.object({
+    message_max_chars: z.number()
+  }),
   followup: z
     .object({
       round_index: z.number(),

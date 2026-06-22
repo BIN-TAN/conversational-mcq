@@ -32,6 +32,10 @@ export type ProcessEventAggregation = {
   emotional_response_count: number;
   agent_retry_count: number;
   validation_failure_count: number;
+  response_collection_agent_call_count: number;
+  response_collection_fallback_count: number;
+  response_collection_reasoning_extraction_count: number;
+  response_collection_reasoning_extraction_failure_count: number;
   followup_turn_count: number;
 };
 
@@ -106,6 +110,18 @@ export async function aggregateProcessEventsByConceptUnitSession(
     emotional_response_count: countEvents(eventCountByType, ["emotional_or_frustration_response"]),
     agent_retry_count: countEvents(eventCountByType, ["agent_retry_scheduled"]),
     validation_failure_count: countEvents(eventCountByType, ["schema_validation_failed"]),
+    response_collection_agent_call_count: countEvents(eventCountByType, [
+      "response_collection_agent_invoked"
+    ]),
+    response_collection_fallback_count: countEvents(eventCountByType, [
+      "response_collection_fallback_used"
+    ]),
+    response_collection_reasoning_extraction_count: countEvents(eventCountByType, [
+      "response_collection_reasoning_extracted"
+    ]),
+    response_collection_reasoning_extraction_failure_count: countEvents(eventCountByType, [
+      "response_collection_reasoning_extraction_failed"
+    ]),
     followup_turn_count: followupTurnCount
   };
 }
