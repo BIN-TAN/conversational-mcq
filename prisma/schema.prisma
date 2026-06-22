@@ -344,6 +344,30 @@ enum ItemVerificationRunStatus {
   stale
 }
 
+enum EvalCaseSource {
+  synthetic
+  teacher_authored
+  deidentified
+}
+
+enum EvalRunMode {
+  mock
+  imported_output
+  live_provider
+}
+
+enum EvalRecordStatus {
+  active
+  archived
+}
+
+enum EvalRunStatus {
+  pending
+  running
+  completed
+  failed
+}
+
 model User {
   id                    String            @id @default(uuid()) @db.Uuid
   user_id               String            @unique
@@ -371,6 +395,9 @@ model User {
   student_account_events                    StudentAccountEvent[]         @relation("StudentAccountEvents")
   performed_student_account_events          StudentAccountEvent[]         @relation("StudentAccountEventPerformer")
   acknowledged_item_verification_runs       ItemVerificationRun[]         @relation("ItemVerificationAcknowledgement")
+  created_eval_suites                       EvalSuite[]                   @relation("EvalSuiteCreator")
+  created_eval_runs                         EvalRun[]                     @relation("EvalRunCreator")
+  eval_annotations                          EvalAnnotation[]              @relation("EvalAnnotationAuthor")
 
   @@map("users")
 }
@@ -798,6 +825,154 @@ model ItemVerificationRun {
   @@index([agent_call_db_id])
   @@index([acknowledged_by_user_db_id])
   @@map("item_verification_runs")
+}
+
+model EvalSuite {
+  id                    String           @id @default(uuid()) @db.Uuid
+  suite_public_id       String           @unique @default(cuid())
+  title                 String
+  description           String?          @db.Text
+  agent_name            String
+  status                EvalRecordStatus @default(active)
+  created_by_user_db_id String           @db.Uuid
+  created_at            DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime         @updatedAt @db.Timestamptz(6)
+
+  created_by User       @relation("EvalSuiteCreator", fields: [created_by_user_db_id], references: [id], onDelete: Restrict)
+  cases      EvalCase[]
+  runs       EvalRun[]
+
+  @@unique([agent_name, title])
+  @@index([agent_name, status])
+  @@index([created_by_user_db_id])
+  @@map("eval_suites")
+}
+
+model EvalCase {
+  id                  String           @id @default(uuid()) @db.Uuid
+  case_public_id      String           @unique @default(cuid())
+  suite_db_id         String           @db.Uuid
+  case_id             String
+  agent_name          String
+  title               String
+  description         String?          @db.Text
+  input_payload       Json
+  expected_output     Json?
+  gold_labels         Json?
+  rubric_expectations Json?
+  safety_expectations Json?
+  case_source         EvalCaseSource
+  status              EvalRecordStatus @default(active)
+  created_at          DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime         @updatedAt @db.Timestamptz(6)
+
+  suite     EvalSuite     @relation(fields: [suite_db_id], references: [id], onDelete: Restrict)
+  run_items EvalRunItem[]
+
+  @@unique([suite_db_id, case_id])
+  @@index([agent_name, status])
+  @@index([case_source])
+  @@map("eval_cases")
+}
+
+model EvalRun {
+  id                    String        @id @default(uuid()) @db.Uuid
+  run_public_id         String        @unique @default(cuid())
+  suite_db_id           String        @db.Uuid
+  agent_name            String
+  provider              String
+  model_name            String
+  model_config          Json?
+  prompt_version        String
+  schema_version        String
+  prompt_hash           String
+  run_mode              EvalRunMode
+  repetition_count      Int           @default(1)
+  status                EvalRunStatus @default(pending)
+  created_by_user_db_id String        @db.Uuid
+  started_at            DateTime?     @db.Timestamptz(6)
+  completed_at          DateTime?     @db.Timestamptz(6)
+  created_at            DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime      @updatedAt @db.Timestamptz(6)
+
+  suite      EvalSuite     @relation(fields: [suite_db_id], references: [id], onDelete: Restrict)
+  created_by User          @relation("EvalRunCreator", fields: [created_by_user_db_id], references: [id], onDelete: Restrict)
+  run_items  EvalRunItem[]
+
+  @@index([suite_db_id, created_at])
+  @@index([agent_name, status])
+  @@index([run_mode, status])
+  @@index([created_by_user_db_id])
+  @@map("eval_runs")
+}
+
+model EvalRunItem {
+  id                         String   @id @default(uuid()) @db.Uuid
+  run_item_public_id         String   @unique @default(cuid())
+  run_db_id                  String   @db.Uuid
+  case_db_id                 String   @db.Uuid
+  repetition_index           Int
+  input_payload              Json
+  raw_output                 Json?
+  parsed_output              Json?
+  output_validated           Boolean  @default(false)
+  schema_validation_error    String?  @db.Text
+  semantic_validation_result Json?
+  safety_validation_result   Json?
+  execution_status           String
+  latency_ms                 Int?
+  token_usage                Json?
+  created_at                 DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime @updatedAt @db.Timestamptz(6)
+
+  run         EvalRun          @relation(fields: [run_db_id], references: [id], onDelete: Restrict)
+  eval_case   EvalCase         @relation(fields: [case_db_id], references: [id], onDelete: Restrict)
+  annotations EvalAnnotation[]
+
+  @@unique([run_db_id, case_db_id, repetition_index])
+  @@index([run_db_id, created_at])
+  @@index([case_db_id])
+  @@index([execution_status])
+  @@index([output_validated])
+  @@map("eval_run_items")
+}
+
+model EvalAnnotation {
+  id                      String   @id @default(uuid()) @db.Uuid
+  annotation_public_id    String   @unique @default(cuid())
+  run_item_db_id          String   @db.Uuid
+  annotated_by_user_db_id String   @db.Uuid
+  blind_review            Boolean  @default(true)
+  overall_rating          Int?
+  pass_fail               String?
+  rubric_scores           Json?
+  safety_flags            Json?
+  notes                   String?  @db.Text
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime @updatedAt @db.Timestamptz(6)
+
+  run_item     EvalRunItem @relation(fields: [run_item_db_id], references: [id], onDelete: Restrict)
+  annotated_by User        @relation("EvalAnnotationAuthor", fields: [annotated_by_user_db_id], references: [id], onDelete: Restrict)
+
+  @@unique([run_item_db_id, annotated_by_user_db_id])
+  @@index([annotated_by_user_db_id, created_at])
+  @@index([pass_fail])
+  @@map("eval_annotations")
+}
+
+model EvalRubric {
+  id               String   @id @default(uuid()) @db.Uuid
+  rubric_public_id String   @unique @default(cuid())
+  agent_name       String
+  rubric_version   String
+  schema_version   String
+  criteria         Json
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([agent_name, rubric_version])
+  @@index([agent_name])
+  @@map("eval_rubrics")
 }
 
 model ResponsePackage {

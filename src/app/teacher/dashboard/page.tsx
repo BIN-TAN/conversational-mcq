@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, BrainCircuit, Database, FileJson, FileWarning, History, ListChecks, Table2, UserRoundCog, Users } from "lucide-react";
+import { Activity, BrainCircuit, Database, FileJson, FileWarning, History, ListChecks, Microscope, Table2, UserRoundCog, Users } from "lucide-react";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -124,6 +124,17 @@ export default async function TeacherDashboardPage() {
             <h2 className="mt-4 text-lg font-semibold text-ink">LLM status</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
               Review provider readiness, draft prompt versions, schema versions, and mock-mode safety.
+            </p>
+          </Link>
+          <Link
+            className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
+            href="/teacher/evals"
+          >
+            <Microscope className="h-5 w-5 text-accent" aria-hidden="true" />
+            <h2 className="mt-4 text-lg font-semibold text-ink">Model evaluation</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Load synthetic cases, run mock agent evaluations, annotate outputs, and export
+              development-evaluation results before live model testing.
             </p>
           </Link>
         </section>

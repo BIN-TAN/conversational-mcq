@@ -14,7 +14,13 @@ export type PublicIdKind =
   | "followup_update_cycle"
   | "concept_progression"
   | "roster_import_batch"
-  | "student_account_event";
+  | "student_account_event"
+  | "eval_suite"
+  | "eval_case"
+  | "eval_run"
+  | "eval_run_item"
+  | "eval_annotation"
+  | "eval_rubric";
 
 const prefixes: Record<PublicIdKind, string> = {
   assessment: "asmt",
@@ -30,7 +36,13 @@ const prefixes: Record<PublicIdKind, string> = {
   followup_update_cycle: "fuc",
   concept_progression: "cpr",
   roster_import_batch: "rib",
-  student_account_event: "sae"
+  student_account_event: "sae",
+  eval_suite: "evs",
+  eval_case: "evc",
+  eval_run: "evr",
+  eval_run_item: "evi",
+  eval_annotation: "eva",
+  eval_rubric: "evrub"
 };
 
 function utcDateStamp(date = new Date()): string {

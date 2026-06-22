@@ -1,0 +1,508 @@
+[
+  {
+    "case_id": "iva_clean_item_set_001",
+    "agent_name": "item_verification_agent",
+    "title": "Clean item set",
+    "description": "Synthetic item set expected to pass without warnings.",
+    "input_payload": {
+      "concept_unit": {
+        "concept_unit_public_id": "eval_cu_patterns",
+        "title": "Recognizing Patterns",
+        "learning_objective": "Identify a rule from simple evidence.",
+        "related_concept_description": "Students compare examples and infer a general rule.",
+        "version": 1
+      },
+      "items": [
+        {
+          "item_public_id": "eval_item_patterns_1",
+          "item_order": 1,
+          "item_stem": "A sequence adds 3 each step: 4, 7, 10. Which value comes next?",
+          "options": [
+            { "label": "A", "text": "13" },
+            { "label": "B", "text": "12" },
+            { "label": "C", "text": "14" }
+          ],
+          "correct_option": "A",
+          "distractor_rationales": {
+            "B": "Adds 2 instead of 3.",
+            "C": "Adds 4 instead of 3."
+          },
+          "expected_reasoning_patterns": ["Identify the constant increase of 3."],
+          "possible_misconception_indicators": ["Treats the increase as changing."],
+          "version": 1
+        },
+        {
+          "item_public_id": "eval_item_patterns_2",
+          "item_order": 2,
+          "item_stem": "Which statement best describes the pattern 2, 4, 8, 16?",
+          "options": [
+            { "label": "A", "text": "Each term doubles." },
+            { "label": "B", "text": "Each term adds 2." },
+            { "label": "C", "text": "Each term triples." }
+          ],
+          "correct_option": "A",
+          "distractor_rationales": {
+            "B": "Applies only from 2 to 4.",
+            "C": "Confuses multiplication rules."
+          },
+          "expected_reasoning_patterns": ["Compare ratios between terms."],
+          "possible_misconception_indicators": ["Uses only the first difference."],
+          "version": 1
+        }
+      ],
+      "verification_constraints": {
+        "advisory_only": true,
+        "teacher_final_authority": true,
+        "do_not_generate_or_rewrite_content": true,
+        "deterministic_validation_already_passed": true,
+        "no_student_data_in_input": true
+      }
+    },
+    "expected_output_shape": { "verification_status": "verified_no_warnings" },
+    "gold_labels": { "mock_mode": "item_verification_no_warnings", "expected_issue_code": null },
+    "rubric_expectations": { "must_not_rewrite": true, "should_flag_issue": false },
+    "safety_expectations": { "no_student_data": true, "no_content_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "iva_concept_misalignment_002",
+    "agent_name": "item_verification_agent",
+    "title": "Possible concept misalignment",
+    "description": "Synthetic case where the item may not target the concept.",
+    "input_payload": {
+      "concept_unit": {
+        "concept_unit_public_id": "eval_cu_patterns",
+        "title": "Recognizing Patterns",
+        "learning_objective": "Identify a rule from simple evidence.",
+        "related_concept_description": "Students compare examples and infer a general rule.",
+        "version": 1
+      },
+      "items": [
+        {
+          "item_public_id": "eval_item_misaligned_1",
+          "item_order": 1,
+          "item_stem": "Which paragraph best summarizes a story character's feelings?",
+          "options": [
+            { "label": "A", "text": "The character is nervous." },
+            { "label": "B", "text": "The character is excited." },
+            { "label": "C", "text": "The character is bored." }
+          ],
+          "correct_option": "A",
+          "distractor_rationales": {
+            "B": "Confuses excitement with anxiety.",
+            "C": "Ignores evidence in the story."
+          },
+          "expected_reasoning_patterns": ["Use textual evidence."],
+          "possible_misconception_indicators": ["Relies on one word only."],
+          "version": 1
+        }
+      ],
+      "verification_constraints": {
+        "advisory_only": true,
+        "teacher_final_authority": true,
+        "do_not_generate_or_rewrite_content": true,
+        "deterministic_validation_already_passed": true,
+        "no_student_data_in_input": true
+      }
+    },
+    "expected_output_shape": { "issue_code": "possible_concept_misalignment" },
+    "gold_labels": { "mock_mode": "item_verification_concept_misalignment", "expected_issue_code": "possible_concept_misalignment" },
+    "rubric_expectations": { "must_not_rewrite": true, "should_flag_issue": true },
+    "safety_expectations": { "no_student_data": true, "no_content_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "iva_objective_misalignment_003",
+    "agent_name": "item_verification_agent",
+    "title": "Possible learning-objective misalignment",
+    "description": "Synthetic case where evidence may not support the stated objective.",
+    "input_payload": {
+      "concept_unit": {
+        "concept_unit_public_id": "eval_cu_evidence",
+        "title": "Using Evidence",
+        "learning_objective": "Explain how evidence supports a claim.",
+        "related_concept_description": "Students connect evidence to a claim.",
+        "version": 1
+      },
+      "items": [
+        {
+          "item_public_id": "eval_item_objective_1",
+          "item_order": 1,
+          "item_stem": "Which term appears in the example?",
+          "options": [
+            { "label": "A", "text": "Sample" },
+            { "label": "B", "text": "Pattern" },
+            { "label": "C", "text": "Claim" }
+          ],
+          "correct_option": "A",
+          "distractor_rationales": {
+            "B": "Term is not shown.",
+            "C": "Term is not shown."
+          },
+          "expected_reasoning_patterns": ["Recall a visible term."],
+          "possible_misconception_indicators": ["Matches familiar vocabulary without evidence."],
+          "version": 1
+        }
+      ],
+      "verification_constraints": {
+        "advisory_only": true,
+        "teacher_final_authority": true,
+        "do_not_generate_or_rewrite_content": true,
+        "deterministic_validation_already_passed": true,
+        "no_student_data_in_input": true
+      }
+    },
+    "expected_output_shape": { "issue_code": "possible_learning_objective_misalignment" },
+    "gold_labels": { "mock_mode": "item_verification_learning_objective_misalignment", "expected_issue_code": "possible_learning_objective_misalignment" },
+    "rubric_expectations": { "must_not_rewrite": true, "should_flag_issue": true },
+    "safety_expectations": { "no_student_data": true, "no_content_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "iva_ambiguous_stem_004",
+    "agent_name": "item_verification_agent",
+    "title": "Ambiguous stem",
+    "description": "Synthetic stem may permit multiple interpretations.",
+    "input_payload": {
+      "concept_unit": {
+        "concept_unit_public_id": "eval_cu_patterns",
+        "title": "Recognizing Patterns",
+        "learning_objective": "Identify a rule from simple evidence.",
+        "related_concept_description": "Students compare examples and infer a general rule.",
+        "version": 1
+      },
+      "items": [
+        {
+          "item_public_id": "eval_item_ambiguous_1",
+          "item_order": 1,
+          "item_stem": "Which option is better for the pattern?",
+          "options": [
+            { "label": "A", "text": "It increases." },
+            { "label": "B", "text": "It changes." },
+            { "label": "C", "text": "It continues." }
+          ],
+          "correct_option": "A",
+          "distractor_rationales": {
+            "B": "Too broad.",
+            "C": "Too broad."
+          },
+          "expected_reasoning_patterns": ["Identify the specific rule."],
+          "possible_misconception_indicators": ["Selects vague descriptors."],
+          "version": 1
+        }
+      ],
+      "verification_constraints": {
+        "advisory_only": true,
+        "teacher_final_authority": true,
+        "do_not_generate_or_rewrite_content": true,
+        "deterministic_validation_already_passed": true,
+        "no_student_data_in_input": true
+      }
+    },
+    "expected_output_shape": { "issue_code": "possible_ambiguity" },
+    "gold_labels": { "mock_mode": "item_verification_ambiguous_stem", "expected_issue_code": "possible_ambiguity" },
+    "rubric_expectations": { "must_not_rewrite": true, "should_flag_issue": true },
+    "safety_expectations": { "no_student_data": true, "no_content_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "iva_multiple_correct_005",
+    "agent_name": "item_verification_agent",
+    "title": "Possible multiple correct answers",
+    "description": "Synthetic options may include more than one defensible answer.",
+    "input_payload": {
+      "concept_unit": {
+        "concept_unit_public_id": "eval_cu_classify",
+        "title": "Classifying Examples",
+        "learning_objective": "Classify an example using a stated rule.",
+        "related_concept_description": "Students apply a rule to a simple example.",
+        "version": 1
+      },
+      "items": [
+        {
+          "item_public_id": "eval_item_multiple_1",
+          "item_order": 1,
+          "item_stem": "Which option describes an example that changes over time?",
+          "options": [
+            { "label": "A", "text": "A plant growing taller." },
+            { "label": "B", "text": "A cup cooling down." },
+            { "label": "C", "text": "A closed book on a desk." }
+          ],
+          "correct_option": "A",
+          "distractor_rationales": {
+            "B": "Also changes over time.",
+            "C": "No change described."
+          },
+          "expected_reasoning_patterns": ["Apply the stated rule."],
+          "possible_misconception_indicators": ["Uses only one type of change."],
+          "version": 1
+        }
+      ],
+      "verification_constraints": {
+        "advisory_only": true,
+        "teacher_final_authority": true,
+        "do_not_generate_or_rewrite_content": true,
+        "deterministic_validation_already_passed": true,
+        "no_student_data_in_input": true
+      }
+    },
+    "expected_output_shape": { "issue_code": "possible_multiple_correct_answers" },
+    "gold_labels": { "mock_mode": "item_verification_multiple_correct_answers", "expected_issue_code": "possible_multiple_correct_answers" },
+    "rubric_expectations": { "must_not_rewrite": true, "should_flag_issue": true },
+    "safety_expectations": { "no_student_data": true, "no_content_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "iva_answer_key_inconsistency_006",
+    "agent_name": "item_verification_agent",
+    "title": "Possible answer-key inconsistency",
+    "description": "Synthetic answer key may not match the item evidence.",
+    "input_payload": {
+      "concept_unit": {
+        "concept_unit_public_id": "eval_cu_patterns",
+        "title": "Recognizing Patterns",
+        "learning_objective": "Identify a rule from simple evidence.",
+        "related_concept_description": "Students compare examples and infer a general rule.",
+        "version": 1
+      },
+      "items": [
+        {
+          "item_public_id": "eval_item_key_1",
+          "item_order": 1,
+          "item_stem": "The pattern is 5, 10, 15. What comes next?",
+          "options": [
+            { "label": "A", "text": "20" },
+            { "label": "B", "text": "25" },
+            { "label": "C", "text": "15" }
+          ],
+          "correct_option": "B",
+          "distractor_rationales": {
+            "A": "Correct continuation but not keyed.",
+            "C": "Repeats a term."
+          },
+          "expected_reasoning_patterns": ["Add 5 to the previous term."],
+          "possible_misconception_indicators": ["Confuses next term with later term."],
+          "version": 1
+        }
+      ],
+      "verification_constraints": {
+        "advisory_only": true,
+        "teacher_final_authority": true,
+        "do_not_generate_or_rewrite_content": true,
+        "deterministic_validation_already_passed": true,
+        "no_student_data_in_input": true
+      }
+    },
+    "expected_output_shape": { "issue_code": "possible_answer_key_inconsistency" },
+    "gold_labels": { "mock_mode": "item_verification_answer_key_inconsistency", "expected_issue_code": "possible_answer_key_inconsistency" },
+    "rubric_expectations": { "must_not_rewrite": true, "should_flag_issue": true },
+    "safety_expectations": { "no_student_data": true, "no_content_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "iva_weak_distractor_007",
+    "agent_name": "item_verification_agent",
+    "title": "Weak distractor",
+    "description": "Synthetic distractor is too implausible to be diagnostically useful.",
+    "input_payload": {
+      "concept_unit": {
+        "concept_unit_public_id": "eval_cu_patterns",
+        "title": "Recognizing Patterns",
+        "learning_objective": "Identify a rule from simple evidence.",
+        "related_concept_description": "Students compare examples and infer a general rule.",
+        "version": 1
+      },
+      "items": [
+        {
+          "item_public_id": "eval_item_weak_1",
+          "item_order": 1,
+          "item_stem": "A sequence adds 4 each step: 1, 5, 9. Which value comes next?",
+          "options": [
+            { "label": "A", "text": "13" },
+            { "label": "B", "text": "The moon" },
+            { "label": "C", "text": "14" }
+          ],
+          "correct_option": "A",
+          "distractor_rationales": {
+            "B": "Not a numeric continuation.",
+            "C": "Adds 5 instead of 4."
+          },
+          "expected_reasoning_patterns": ["Identify the constant increase of 4."],
+          "possible_misconception_indicators": ["Adds the wrong interval."],
+          "version": 1
+        }
+      ],
+      "verification_constraints": {
+        "advisory_only": true,
+        "teacher_final_authority": true,
+        "do_not_generate_or_rewrite_content": true,
+        "deterministic_validation_already_passed": true,
+        "no_student_data_in_input": true
+      }
+    },
+    "expected_output_shape": { "issue_code": "weak_or_implausible_distractor" },
+    "gold_labels": { "mock_mode": "item_verification_weak_distractor", "expected_issue_code": "weak_or_implausible_distractor" },
+    "rubric_expectations": { "must_not_rewrite": true, "should_flag_issue": true },
+    "safety_expectations": { "no_student_data": true, "no_content_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "iva_overlapping_options_008",
+    "agent_name": "item_verification_agent",
+    "title": "Overlapping options",
+    "description": "Synthetic options are hard to distinguish.",
+    "input_payload": {
+      "concept_unit": {
+        "concept_unit_public_id": "eval_cu_classify",
+        "title": "Classifying Examples",
+        "learning_objective": "Classify an example using a stated rule.",
+        "related_concept_description": "Students apply a rule to a simple example.",
+        "version": 1
+      },
+      "items": [
+        {
+          "item_public_id": "eval_item_overlap_1",
+          "item_order": 1,
+          "item_stem": "Which option best classifies the example?",
+          "options": [
+            { "label": "A", "text": "A change over time" },
+            { "label": "B", "text": "A process that changes" },
+            { "label": "C", "text": "No change" }
+          ],
+          "correct_option": "A",
+          "distractor_rationales": {
+            "B": "Overlaps heavily with A.",
+            "C": "Contradicts the example."
+          },
+          "expected_reasoning_patterns": ["Use the classification rule."],
+          "possible_misconception_indicators": ["Cannot distinguish overlapping labels."],
+          "version": 1
+        }
+      ],
+      "verification_constraints": {
+        "advisory_only": true,
+        "teacher_final_authority": true,
+        "do_not_generate_or_rewrite_content": true,
+        "deterministic_validation_already_passed": true,
+        "no_student_data_in_input": true
+      }
+    },
+    "expected_output_shape": { "issue_code": "overlapping_or_indistinguishable_options" },
+    "gold_labels": { "mock_mode": "item_verification_overlapping_options", "expected_issue_code": "overlapping_or_indistinguishable_options" },
+    "rubric_expectations": { "must_not_rewrite": true, "should_flag_issue": true },
+    "safety_expectations": { "no_student_data": true, "no_content_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "iva_answer_cue_009",
+    "agent_name": "item_verification_agent",
+    "title": "Possible answer cue",
+    "description": "Synthetic item contains a cue that may reveal the key.",
+    "input_payload": {
+      "concept_unit": {
+        "concept_unit_public_id": "eval_cu_evidence",
+        "title": "Using Evidence",
+        "learning_objective": "Explain how evidence supports a claim.",
+        "related_concept_description": "Students connect evidence to a claim.",
+        "version": 1
+      },
+      "items": [
+        {
+          "item_public_id": "eval_item_cue_1",
+          "item_order": 1,
+          "item_stem": "Which answer correctly uses evidence to support the claim?",
+          "options": [
+            { "label": "A", "text": "The correct evidence is matched to the claim." },
+            { "label": "B", "text": "A detail is mentioned." },
+            { "label": "C", "text": "The claim is repeated." }
+          ],
+          "correct_option": "A",
+          "distractor_rationales": {
+            "B": "Mentions detail without connection.",
+            "C": "Repeats without evidence."
+          },
+          "expected_reasoning_patterns": ["Connect evidence to claim."],
+          "possible_misconception_indicators": ["Equates evidence with repetition."],
+          "version": 1
+        }
+      ],
+      "verification_constraints": {
+        "advisory_only": true,
+        "teacher_final_authority": true,
+        "do_not_generate_or_rewrite_content": true,
+        "deterministic_validation_already_passed": true,
+        "no_student_data_in_input": true
+      }
+    },
+    "expected_output_shape": { "issue_code": "possible_answer_cue" },
+    "gold_labels": { "mock_mode": "item_verification_answer_cue", "expected_issue_code": "possible_answer_cue" },
+    "rubric_expectations": { "must_not_rewrite": true, "should_flag_issue": true },
+    "safety_expectations": { "no_student_data": true, "no_content_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "iva_duplicate_items_010",
+    "agent_name": "item_verification_agent",
+    "title": "Substantially duplicate items",
+    "description": "Synthetic item set includes redundant evidence targets.",
+    "input_payload": {
+      "concept_unit": {
+        "concept_unit_public_id": "eval_cu_patterns",
+        "title": "Recognizing Patterns",
+        "learning_objective": "Identify a rule from simple evidence.",
+        "related_concept_description": "Students compare examples and infer a general rule.",
+        "version": 1
+      },
+      "items": [
+        {
+          "item_public_id": "eval_item_duplicate_1",
+          "item_order": 1,
+          "item_stem": "A pattern adds 2 each step: 3, 5, 7. What comes next?",
+          "options": [
+            { "label": "A", "text": "9" },
+            { "label": "B", "text": "10" },
+            { "label": "C", "text": "8" }
+          ],
+          "correct_option": "A",
+          "distractor_rationales": {
+            "B": "Adds 3.",
+            "C": "Adds 1."
+          },
+          "expected_reasoning_patterns": ["Add 2."],
+          "possible_misconception_indicators": ["Uses wrong interval."],
+          "version": 1
+        },
+        {
+          "item_public_id": "eval_item_duplicate_2",
+          "item_order": 2,
+          "item_stem": "A pattern adds 2 each step: 4, 6, 8. What comes next?",
+          "options": [
+            { "label": "A", "text": "10" },
+            { "label": "B", "text": "11" },
+            { "label": "C", "text": "9" }
+          ],
+          "correct_option": "A",
+          "distractor_rationales": {
+            "B": "Adds 3.",
+            "C": "Adds 1."
+          },
+          "expected_reasoning_patterns": ["Add 2."],
+          "possible_misconception_indicators": ["Uses wrong interval."],
+          "version": 1
+        }
+      ],
+      "verification_constraints": {
+        "advisory_only": true,
+        "teacher_final_authority": true,
+        "do_not_generate_or_rewrite_content": true,
+        "deterministic_validation_already_passed": true,
+        "no_student_data_in_input": true
+      }
+    },
+    "expected_output_shape": { "issue_code": "substantially_duplicate_item" },
+    "gold_labels": { "mock_mode": "item_verification_duplicate_items", "expected_issue_code": "substantially_duplicate_item" },
+    "rubric_expectations": { "must_not_rewrite": true, "should_flag_issue": true },
+    "safety_expectations": { "no_student_data": true, "no_content_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  }
+]

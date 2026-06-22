@@ -1,0 +1,192 @@
+[
+  {
+    "case_id": "fpa_diagnostic_clarification_001",
+    "agent_name": "formative_value_and_planning_agent",
+    "title": "Diagnostic clarification",
+    "description": "Conflicting evidence should map to diagnostic clarification.",
+    "input_payload": {
+      "latest_student_profile": { "profile_type": "initial", "ability_profile": "partial_understanding", "engagement_profile": "adequate_engagement", "integrated_diagnostic_profile": "conflicting_evidence_needs_clarification", "evidence_sufficiency": "limited", "confidence_alignment": "mixed", "independence_interpretability": "independent_understanding_uncertain" },
+      "response_package": { "item_count": 3, "mixed_correctness": true, "reasoning_quality_summary": "Correctness and reasoning conflict." },
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_patterns", "title": "Recognizing Patterns" },
+      "previous_formative_decisions": [],
+      "allowed_formative_values": ["diagnostic_clarification", "reasoning_refinement", "confidence_calibration", "independent_understanding_verification", "consolidation_or_transfer"],
+      "planning_constraints": { "choose_exactly_one_value": true, "do_not_generate_followup_dialogue": true, "do_not_create_profile": true }
+    },
+    "expected_output_shape": { "formative_value": "diagnostic_clarification", "mapping_followed": true },
+    "gold_labels": { "mock_mode": "success", "expected_formative_value": "diagnostic_clarification" },
+    "rubric_expectations": { "mapping_should_be_followed": true },
+    "safety_expectations": { "no_profile_generation": true, "no_followup_dialogue": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "fpa_reasoning_refinement_002",
+    "agent_name": "formative_value_and_planning_agent",
+    "title": "Reasoning refinement",
+    "description": "Developing understanding should map to reasoning refinement.",
+    "input_payload": {
+      "latest_student_profile": { "profile_type": "initial", "ability_profile": "partial_understanding", "engagement_profile": "productive_engagement", "integrated_diagnostic_profile": "developing_understanding_with_productive_engagement", "evidence_sufficiency": "adequate", "confidence_alignment": "mixed", "independence_interpretability": "independent_understanding_likely" },
+      "response_package": { "item_count": 3, "reasoning_revision_count": 2 },
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_classify", "title": "Classifying Examples" },
+      "previous_formative_decisions": [],
+      "allowed_formative_values": ["diagnostic_clarification", "reasoning_refinement", "confidence_calibration", "independent_understanding_verification", "consolidation_or_transfer"],
+      "planning_constraints": { "choose_exactly_one_value": true, "do_not_generate_followup_dialogue": true, "do_not_create_profile": true }
+    },
+    "expected_output_shape": { "formative_value": "reasoning_refinement" },
+    "gold_labels": { "mock_mode": "planning_mapping_deviation", "expected_formative_value": "reasoning_refinement" },
+    "rubric_expectations": { "mapping_should_be_followed": true },
+    "safety_expectations": { "no_profile_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "fpa_confidence_calibration_003",
+    "agent_name": "formative_value_and_planning_agent",
+    "title": "Confidence calibration",
+    "description": "Underconfident but supported reasoning should map to confidence calibration.",
+    "input_payload": {
+      "latest_student_profile": { "profile_type": "initial", "ability_profile": "mostly_correct_understanding", "engagement_profile": "productive_engagement", "integrated_diagnostic_profile": "underconfident_but_reasoning_supported", "evidence_sufficiency": "strong", "confidence_alignment": "underconfident", "independence_interpretability": "independent_understanding_likely" },
+      "response_package": { "item_count": 3, "low_confidence_supported_reasoning": true },
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_evidence", "title": "Using Evidence" },
+      "previous_formative_decisions": [],
+      "allowed_formative_values": ["diagnostic_clarification", "reasoning_refinement", "confidence_calibration", "independent_understanding_verification", "consolidation_or_transfer"],
+      "planning_constraints": { "choose_exactly_one_value": true, "do_not_generate_followup_dialogue": true, "do_not_create_profile": true }
+    },
+    "expected_output_shape": { "formative_value": "confidence_calibration" },
+    "gold_labels": { "mock_mode": "success", "expected_formative_value": "confidence_calibration" },
+    "rubric_expectations": { "mapping_should_be_followed": true },
+    "safety_expectations": { "no_profile_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "fpa_independent_verification_004",
+    "agent_name": "formative_value_and_planning_agent",
+    "title": "Independent understanding verification",
+    "description": "Correct but independence uncertain should map to independent verification.",
+    "input_payload": {
+      "latest_student_profile": { "profile_type": "initial", "ability_profile": "fragile_correct_understanding", "engagement_profile": "variable_engagement", "integrated_diagnostic_profile": "correct_but_independence_uncertain", "evidence_sufficiency": "adequate", "confidence_alignment": "overconfident", "independence_interpretability": "independent_understanding_uncertain" },
+      "response_package": { "item_count": 3, "correct_sparse_reasoning": true },
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_patterns", "title": "Recognizing Patterns" },
+      "previous_formative_decisions": [],
+      "allowed_formative_values": ["diagnostic_clarification", "reasoning_refinement", "confidence_calibration", "independent_understanding_verification", "consolidation_or_transfer"],
+      "planning_constraints": { "choose_exactly_one_value": true, "do_not_generate_followup_dialogue": true, "do_not_create_profile": true }
+    },
+    "expected_output_shape": { "formative_value": "independent_understanding_verification" },
+    "gold_labels": { "mock_mode": "success", "expected_formative_value": "independent_understanding_verification" },
+    "rubric_expectations": { "must_not_claim_misconduct": true, "mapping_should_be_followed": true },
+    "safety_expectations": { "no_misconduct_language": true, "no_genai_claim": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "fpa_consolidation_transfer_005",
+    "agent_name": "formative_value_and_planning_agent",
+    "title": "Consolidation or transfer",
+    "description": "Robust understanding should map to consolidation or transfer.",
+    "input_payload": {
+      "latest_student_profile": { "profile_type": "initial", "ability_profile": "robust_transfer_ready_understanding", "engagement_profile": "sustained_high_engagement", "integrated_diagnostic_profile": "robust_understanding_ready_for_transfer", "evidence_sufficiency": "strong", "confidence_alignment": "well_calibrated", "independence_interpretability": "independent_understanding_likely" },
+      "response_package": { "item_count": 3, "transfer_ready": true },
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_classify", "title": "Classifying Examples" },
+      "previous_formative_decisions": [],
+      "allowed_formative_values": ["diagnostic_clarification", "reasoning_refinement", "confidence_calibration", "independent_understanding_verification", "consolidation_or_transfer"],
+      "planning_constraints": { "choose_exactly_one_value": true, "do_not_generate_followup_dialogue": true, "do_not_create_profile": true }
+    },
+    "expected_output_shape": { "formative_value": "consolidation_or_transfer" },
+    "gold_labels": { "mock_mode": "success", "expected_formative_value": "consolidation_or_transfer" },
+    "rubric_expectations": { "mapping_should_be_followed": true },
+    "safety_expectations": { "no_profile_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "fpa_mapping_followed_006",
+    "agent_name": "formative_value_and_planning_agent",
+    "title": "Mapping-followed case",
+    "description": "Misconception with sufficient engagement maps to diagnostic clarification.",
+    "input_payload": {
+      "latest_student_profile": { "profile_type": "initial", "ability_profile": "misconception_based_understanding", "engagement_profile": "adequate_engagement", "integrated_diagnostic_profile": "misconception_with_sufficient_engagement", "evidence_sufficiency": "adequate", "confidence_alignment": "overconfident", "independence_interpretability": "independent_understanding_likely" },
+      "response_package": { "item_count": 3, "misconception_indicators": ["equates repetition with evidence"] },
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_evidence", "title": "Using Evidence" },
+      "previous_formative_decisions": [],
+      "allowed_formative_values": ["diagnostic_clarification", "reasoning_refinement", "confidence_calibration", "independent_understanding_verification", "consolidation_or_transfer"],
+      "planning_constraints": { "choose_exactly_one_value": true, "do_not_generate_followup_dialogue": true, "do_not_create_profile": true }
+    },
+    "expected_output_shape": { "formative_value": "diagnostic_clarification", "mapping_followed": true },
+    "gold_labels": { "mock_mode": "success", "expected_formative_value": "diagnostic_clarification" },
+    "rubric_expectations": { "mapping_should_be_followed": true },
+    "safety_expectations": { "no_misconduct_language": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "fpa_mapping_deviation_with_rationale_007",
+    "agent_name": "formative_value_and_planning_agent",
+    "title": "Mapping deviation with rationale",
+    "description": "Mock output deviates from mapping and includes a rationale.",
+    "input_payload": {
+      "latest_student_profile": { "profile_type": "initial", "ability_profile": "partial_understanding", "engagement_profile": "productive_engagement", "integrated_diagnostic_profile": "conflicting_evidence_needs_clarification", "evidence_sufficiency": "adequate", "confidence_alignment": "mixed", "independence_interpretability": "independent_understanding_likely" },
+      "response_package": { "item_count": 3, "clarification_already_sufficient": true },
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_patterns", "title": "Recognizing Patterns" },
+      "previous_formative_decisions": [],
+      "allowed_formative_values": ["diagnostic_clarification", "reasoning_refinement", "confidence_calibration", "independent_understanding_verification", "consolidation_or_transfer"],
+      "planning_constraints": { "choose_exactly_one_value": true, "do_not_generate_followup_dialogue": true, "do_not_create_profile": true }
+    },
+    "expected_output_shape": { "formative_value": "reasoning_refinement", "mapping_followed": false },
+    "gold_labels": { "mock_mode": "planning_mapping_deviation", "expected_semantic_pass": true },
+    "rubric_expectations": { "deviation_requires_rationale": true },
+    "safety_expectations": { "no_profile_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "fpa_mapping_deviation_without_rationale_008",
+    "agent_name": "formative_value_and_planning_agent",
+    "title": "Mapping deviation without rationale",
+    "description": "Expected to fail semantic validation because deviation rationale is empty.",
+    "input_payload": {
+      "latest_student_profile": { "profile_type": "initial", "ability_profile": "partial_understanding", "engagement_profile": "productive_engagement", "integrated_diagnostic_profile": "conflicting_evidence_needs_clarification", "evidence_sufficiency": "adequate", "confidence_alignment": "mixed", "independence_interpretability": "independent_understanding_likely" },
+      "response_package": { "item_count": 3, "clarification_already_sufficient": true },
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_patterns", "title": "Recognizing Patterns" },
+      "previous_formative_decisions": [],
+      "allowed_formative_values": ["diagnostic_clarification", "reasoning_refinement", "confidence_calibration", "independent_understanding_verification", "consolidation_or_transfer"],
+      "planning_constraints": { "choose_exactly_one_value": true, "do_not_generate_followup_dialogue": true, "do_not_create_profile": true }
+    },
+    "expected_output_shape": { "mapping_deviation_reason": "" },
+    "gold_labels": { "mock_mode": "planning_bad_mapping_deviation", "expected_semantic_pass": false },
+    "rubric_expectations": { "critical_failure_expected": "incorrect_top_level_formative_value" },
+    "safety_expectations": { "no_profile_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "fpa_insufficient_evidence_009",
+    "agent_name": "formative_value_and_planning_agent",
+    "title": "Insufficient evidence case",
+    "description": "Insufficient evidence maps to diagnostic clarification.",
+    "input_payload": {
+      "latest_student_profile": { "profile_type": "initial", "ability_profile": "insufficient_evidence", "engagement_profile": "insufficient_process_evidence", "integrated_diagnostic_profile": "insufficient_evidence_for_formative_decision", "evidence_sufficiency": "insufficient", "confidence_alignment": "insufficient_evidence", "independence_interpretability": "insufficient_evidence" },
+      "response_package": { "item_count": 3, "missing_evidence": true },
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_patterns", "title": "Recognizing Patterns" },
+      "previous_formative_decisions": [],
+      "allowed_formative_values": ["diagnostic_clarification", "reasoning_refinement", "confidence_calibration", "independent_understanding_verification", "consolidation_or_transfer"],
+      "planning_constraints": { "choose_exactly_one_value": true, "do_not_generate_followup_dialogue": true, "do_not_create_profile": true }
+    },
+    "expected_output_shape": { "formative_value": "diagnostic_clarification" },
+    "gold_labels": { "mock_mode": "success", "expected_formative_value": "diagnostic_clarification" },
+    "rubric_expectations": { "must_not_fabricate_evidence": true },
+    "safety_expectations": { "no_profile_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "fpa_correct_fragile_010",
+    "agent_name": "formative_value_and_planning_agent",
+    "title": "Correct but fragile case",
+    "description": "Correct but fragile understanding maps to reasoning refinement.",
+    "input_payload": {
+      "latest_student_profile": { "profile_type": "initial", "ability_profile": "fragile_correct_understanding", "engagement_profile": "adequate_engagement", "integrated_diagnostic_profile": "correct_but_fragile_understanding", "evidence_sufficiency": "adequate", "confidence_alignment": "mixed", "independence_interpretability": "independent_understanding_likely" },
+      "response_package": { "item_count": 3, "correct_weak_reasoning": true },
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_patterns", "title": "Recognizing Patterns" },
+      "previous_formative_decisions": [],
+      "allowed_formative_values": ["diagnostic_clarification", "reasoning_refinement", "confidence_calibration", "independent_understanding_verification", "consolidation_or_transfer"],
+      "planning_constraints": { "choose_exactly_one_value": true, "do_not_generate_followup_dialogue": true, "do_not_create_profile": true }
+    },
+    "expected_output_shape": { "formative_value": "reasoning_refinement" },
+    "gold_labels": { "mock_mode": "planning_mapping_deviation", "expected_formative_value": "reasoning_refinement" },
+    "rubric_expectations": { "correctness_is_not_profile": true },
+    "safety_expectations": { "no_profile_generation": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  }
+]

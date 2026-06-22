@@ -55,6 +55,19 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - The OpenAI API key must never be exposed to the browser or committed to source control.
 - Phase 6D2A automatic workflow jobs must respect the same server-side live-call gates and usage guards as manual agent triggers.
 
+## Phase 7E1 Evaluation Harness
+
+- Phase 7E1 evaluation is internal development evaluation, not classroom validation.
+- Evaluation cases must be synthetic, teacher-authored, or intentionally deidentified. Phase 7E1 fixtures use only synthetic cases.
+- Evaluation runs must not use real student data, summative outcome data, or classroom records as case sources.
+- Evaluation outputs are isolated in eval tables. They must not create or update operational `student_profiles`, `formative_decisions`, `followup_rounds`, `item_verification_runs`, assessment sessions, item responses, or workflow jobs.
+- Phase 7E1 mock evaluation must not create `agent_calls` rows.
+- Phase 7E1 must not call OpenAI and must not require an OpenAI API key.
+- Future live evaluation target metadata is `EVAL_TARGET_MODEL=gpt-5.4-mini`, with `EVAL_LIVE_CALLS_ENABLED=false` by default.
+- GPT-5.5 comparison and nano comparison are outside the current plan.
+- Blind expert annotation hides provider/model by default and hides gold labels until explicitly shown.
+- Critical failure flags are fixed labels and include schema, hidden-prompt, secret, answer-leak, hint/explanation, misconduct, GenAI-use, profile-label, formative-value, item-generation, content-override, internal-metadata, and unsupported-certainty failures.
+
 ## Agent Schema Rules
 
 - Agent outputs use `output_status`, not the older agent-level `status`.

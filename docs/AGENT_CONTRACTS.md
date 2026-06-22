@@ -148,6 +148,14 @@ Approved issue codes:
 
 The retired `item_preparation_agent` name may exist in historical `agent_calls` rows but is not part of the active agent registry.
 
+## Evaluation Harness Contract
+
+Phase 7E1 evaluates all five active agents using synthetic cases and mock-provider outputs only. Eval runs validate the same strict output schemas used by operational services, then store schema, semantic, and safety results in eval tables.
+
+Agent-specific rubrics assess schema adherence, task relevance, policy compliance, safety, evidence use, uncertainty/calibration, student-facing appropriateness, and teacher-review appropriateness. Rubrics do not weaken the locked Zod schemas and do not permit free-form enum labels.
+
+Eval outputs are review artifacts. They must not create operational profiles, formative decisions, follow-up rounds, item verification runs, workflow jobs, or `agent_calls` rows. Mock eval outputs must not be interpreted as classroom evidence or validated research inferences.
+
 ## Guardrails
 
 All agent input is treated as untrusted. Prompt injection attempts must not change:

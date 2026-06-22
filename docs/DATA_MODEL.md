@@ -543,6 +543,45 @@ Phase 7B export services read the normalized records without mutating them. The 
 
 Concept-specific export histories are scoped to each row's `concept_unit_session`. Failed/staged update-cycle JSON remains audit evidence and does not populate active/latest scalar profile or formative-decision fields. Session-only placeholder rows leave concept-specific scalar fields blank.
 
+## Phase 7E1 Evaluation Harness
+
+Phase 7E1 adds normalized evaluation tables that are separate from classroom workflow records.
+
+`eval_suites` groups cases by active agent:
+
+- `suite_public_id` is the teacher-facing suite identifier.
+- `agent_name` must be one of the five active agents.
+- `created_by_user_db_id` links to the teacher_researcher who created or seeded the suite.
+
+`eval_cases` stores synthetic, teacher-authored, or deidentified evaluation inputs:
+
+- `case_public_id` is the teacher-facing case identifier.
+- `case_source` is `synthetic`, `teacher_authored`, or `deidentified`.
+- Phase 7E1 fixtures populate only `synthetic` cases.
+- `input_payload`, `expected_output`, `gold_labels`, rubric expectations, and safety expectations contain eval-only evidence.
+
+`eval_runs` stores one mock or future imported/live run for one suite:
+
+- `run_public_id` is the teacher-facing run identifier.
+- `run_mode` is `mock`, `imported_output`, or `live_provider`.
+- Phase 7E1 implements only `mock`; live provider execution is not available.
+- `provider=mock` rows may store `EVAL_TARGET_MODEL` as future target metadata, not as a live provider call.
+
+`eval_run_items` stores one output per case repetition:
+
+- `run_item_public_id` is the teacher-facing item identifier.
+- schema validation, semantic validation, safety validation, latency, token metadata, raw output, and parsed output are captured for review.
+- Eval outputs do not create `agent_calls`, `student_profiles`, `formative_decisions`, `followup_rounds`, `item_verification_runs`, sessions, item responses, or workflow jobs.
+
+`eval_annotations` stores teacher_researcher expert review:
+
+- one annotation per run item per teacher is upserted.
+- blind review, overall rating, pass/fail, rubric scores, critical failure flags, and notes are retained.
+
+`eval_rubrics` stores agent-specific rubric definitions and fixed critical failure flags.
+
+All eval API responses use public IDs and omit password hashes, access-code hashes, cookies, API keys, database URLs, and internal UUIDs.
+
 ## Diagram
 
 ```mermaid
@@ -583,4 +622,13 @@ erDiagram
   followup_rounds ||--o{ agent_calls : audits
   summative_outcome_import_batches ||--o{ summative_outcomes : creates
   summative_outcomes ||--o{ summative_outcomes : supersedes
+
+  users ||--o{ eval_suites : creates
+  users ||--o{ eval_runs : creates
+  users ||--o{ eval_annotations : annotates
+  eval_suites ||--o{ eval_cases : contains
+  eval_suites ||--o{ eval_runs : evaluated_by
+  eval_cases ||--o{ eval_run_items : executed_as
+  eval_runs ||--o{ eval_run_items : contains
+  eval_run_items ||--o{ eval_annotations : reviewed_by
 ```

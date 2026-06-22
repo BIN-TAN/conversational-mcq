@@ -13,6 +13,12 @@ const optionalNonnegativeNumber = z.preprocess(
   z.coerce.number().nonnegative().optional()
 );
 
+const nonnegativeNumberWithDefault = (defaultValue: number) =>
+  z.preprocess(
+    (value) => (value === "" || value === undefined ? defaultValue : value),
+    z.coerce.number().nonnegative()
+  );
+
 const positiveIntWithDefault = (defaultValue: number) =>
   z.preprocess(
     (value) => (value === "" || value === undefined ? defaultValue : value),
@@ -112,7 +118,11 @@ const serverEnvSchema = z.object({
   WORKFLOW_JOB_BASE_RETRY_MS: positiveIntWithDefault(5000),
   WORKFLOW_JOB_MAX_RETRY_MS: positiveIntWithDefault(300000),
   WORKFLOW_JOB_LEASE_TIMEOUT_MS: positiveIntWithDefault(300000),
-  WORKFLOW_JOB_POLL_INTERVAL_MS: positiveIntWithDefault(2000)
+  WORKFLOW_JOB_POLL_INTERVAL_MS: positiveIntWithDefault(2000),
+  EVAL_TARGET_MODEL: z.string().min(1).default("gpt-5.4-mini"),
+  EVAL_DEFAULT_REPETITIONS: positiveIntWithDefault(2),
+  EVAL_LIVE_CALLS_ENABLED: booleanWithDefault(false),
+  EVAL_COST_HARD_LIMIT_USD: nonnegativeNumberWithDefault(50)
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

@@ -50,4 +50,6 @@ Phase 7C permits Response Collection Agent execution only for submitted student 
 
 Phase 7D replaces Item Preparation with advisory Item Verification for teacher-authored content. It still does not implement item generation, item rewriting, concept generation, adaptive concept routing, student-entered provider credentials, correctness feedback, hints, explanations, or content tutoring during initial administration.
 
+Phase 7E1 adds an internal evaluation harness for synthetic cases only. It uses mock evaluation by default, does not call OpenAI, does not require an API key, and does not change classroom workflows. Future live evaluation requires a separate `EVAL_LIVE_CALLS_ENABLED=true` gate and must still use only synthetic, teacher-authored, or intentionally deidentified cases.
+
 See `docs/LLM_USAGE_LIMITS.md` for operational safeguards.

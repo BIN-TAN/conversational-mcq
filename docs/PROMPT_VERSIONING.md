@@ -117,6 +117,12 @@ Phase 7D Item Verification Agent prompt constraints include:
 - do not use student data
 - output only the required schema
 
+## Phase 7E1 Evaluation Prompt Metadata
+
+Evaluation runs record each active agent's prompt version, schema version, and prompt hash so mock and future live results can be compared against a stable prompt contract.
+
+Phase 7E1 does not promote prompt status, does not run live OpenAI evaluation, and does not make classroom workflow decisions from eval outputs. Eval results are development artifacts for expert review.
+
 ## Phase 6D2A Automatic Workflow
 
 Phase 6D2A does not add new prompt contracts. Automatic workflow jobs reuse the existing Student Profiling Agent, Formative Value and Planning Agent, and Follow-up Agent prompt versions through the same `executeAgent` infrastructure. Workflow mode does not bypass prompt status, schema validation, usage guards, model environment configuration, or audit logging.

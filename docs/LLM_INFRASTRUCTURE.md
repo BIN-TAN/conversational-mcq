@@ -203,6 +203,19 @@ Phase 7C Response Collection Agent calls attach to the relevant assessment sessi
 
 Phase 7D Item Verification Agent calls attach to `item_verification_runs`, which link to teacher-authored concept units and preserve the content fingerprint, deterministic validation result, warning count, acknowledgement metadata, and optional agent-call audit link. They do not attach to student sessions and must not include student records.
 
+Phase 7E1 evaluation runs use the mock provider directly inside the evaluation harness. They reuse the active prompt/version metadata and output schemas, but they do not call `executeAgent`, do not write `agent_calls`, and do not mutate classroom workflow tables. Evaluation outputs are stored only in eval tables.
+
+Evaluation configuration defaults:
+
+```text
+EVAL_TARGET_MODEL=gpt-5.4-mini
+EVAL_DEFAULT_REPETITIONS=2
+EVAL_LIVE_CALLS_ENABLED=false
+EVAL_COST_HARD_LIMIT_USD=50
+```
+
+`EVAL_TARGET_MODEL` is future target metadata in Phase 7E1. It is not a live provider call and does not hardcode operational agent execution.
+
 ## Teacher Status Surface
 
 Teacher-only API:
@@ -249,6 +262,7 @@ npm run agent:item-verification-smoke
 npm run content:verification-publish-smoke
 npm run item:verification-ui-smoke
 npm run agent:item-verification-rename-smoke
+npm run eval:harness-smoke
 npm run agent:profiling-smoke
 npm run agent:planning-smoke
 npm run agent:followup-smoke
@@ -264,6 +278,6 @@ npm run workflow:automation-smoke
 npm run workflow:worker-smoke
 ```
 
-These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, Formative Planning Agent integration, Follow-up Agent integration, iterative follow-up update cycles, final stop updates, student-led concept progression, final assessment completion, non-intervention classroom controls, student-safe updating states, idempotency, and usage-blocked behavior. They do not call OpenAI.
+These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, Formative Planning Agent integration, Follow-up Agent integration, iterative follow-up update cycles, final stop updates, student-led concept progression, final assessment completion, non-intervention classroom controls, student-safe updating states, idempotency, usage-blocked behavior, and isolated mock evaluation harness behavior. They do not call OpenAI.
 
 See `docs/CLASSROOM_LLM_ACCESS.md` and `docs/LLM_USAGE_LIMITS.md` for the Phase 6A.5 operational contract.

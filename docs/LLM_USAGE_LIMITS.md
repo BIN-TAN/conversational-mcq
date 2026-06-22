@@ -76,6 +76,17 @@ The status surface shows provider readiness, model readiness, current usage coun
 
 Phase 7D adds `item_verification_agent` to the same readiness and usage surfaces. It uses `OPENAI_MODEL_ITEM_VERIFICATION` only when live calls are explicitly enabled server-side. Normal local verification and smoke tests run in mock mode and do not require an OpenAI key.
 
+Phase 7E1 evaluation uses separate evaluation metadata:
+
+```text
+EVAL_TARGET_MODEL=gpt-5.4-mini
+EVAL_DEFAULT_REPETITIONS=2
+EVAL_LIVE_CALLS_ENABLED=false
+EVAL_COST_HARD_LIMIT_USD=50
+```
+
+These settings do not enable classroom live calls. Phase 7E1 mock runs do not consume OpenAI billing, do not call OpenAI, and do not create `agent_calls`. Future live evaluation must enforce budget and usage controls before provider calls are allowed.
+
 ## Smoke Tests
 
 ```bash
@@ -83,6 +94,7 @@ npm run llm:usage-smoke
 npm run llm:status-smoke
 npm run workflow:automation-smoke
 npm run agent:item-verification-smoke
+npm run eval:harness-smoke
 ```
 
 These tests run without OpenAI network calls. The workflow smoke verifies automatic jobs use the same usage-guarded agent services in mock mode.

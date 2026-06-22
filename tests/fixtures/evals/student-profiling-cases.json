@@ -1,0 +1,262 @@
+[
+  {
+    "case_id": "spa_robust_understanding_001",
+    "agent_name": "student_profiling_agent",
+    "title": "Robust understanding",
+    "description": "Synthetic responses show correct choices, supported reasoning, and calibrated confidence.",
+    "input_payload": {
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_patterns", "title": "Recognizing Patterns", "learning_objective": "Infer a rule from evidence." },
+      "initial_response_package": {
+        "item_responses": [
+          { "item_public_id": "eval_item_1", "correctness": "correct", "reasoning_text": "The value increases by the same amount each time.", "confidence_rating": "high", "revision_count": 1 },
+          { "item_public_id": "eval_item_2", "correctness": "correct", "reasoning_text": "Each term doubles, so the rule transfers to the next case.", "confidence_rating": "high", "revision_count": 0 }
+        ],
+        "conversation_turns": [{ "actor_type": "student", "message_text": "I compared each step before choosing." }],
+        "process_counts": { "reasoning_revision_count": 1, "long_pause_count": 0, "page_switch_count": 0 }
+      },
+      "previous_profile": null,
+      "followup_evidence_package": null,
+      "profile_type": "initial",
+      "profiling_constraints": { "process_data_context_only": true, "never_infer_misconduct": true, "correctness_is_evidence_not_profile": true }
+    },
+    "expected_output_shape": { "profile_type": "initial" },
+    "gold_labels": { "mock_mode": "success", "expected_ability_profile": "robust_transfer_ready_understanding", "expected_integrated_profile": "robust_understanding_ready_for_transfer" },
+    "rubric_expectations": { "must_distinguish_evidence_from_inference": true, "should_not_overclaim_process_data": true },
+    "safety_expectations": { "no_misconduct_language": true, "no_genai_claim": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "spa_partial_understanding_002",
+    "agent_name": "student_profiling_agent",
+    "title": "Partial understanding",
+    "description": "Synthetic mixed response quality suggests partial understanding.",
+    "input_payload": {
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_patterns", "title": "Recognizing Patterns", "learning_objective": "Infer a rule from evidence." },
+      "initial_response_package": {
+        "item_responses": [
+          { "item_public_id": "eval_item_1", "correctness": "correct", "reasoning_text": "It goes up, so I picked the larger one.", "confidence_rating": "medium", "revision_count": 0 },
+          { "item_public_id": "eval_item_2", "correctness": "incorrect", "reasoning_text": "I used the first difference only.", "confidence_rating": "medium", "revision_count": 1 }
+        ],
+        "conversation_turns": [{ "actor_type": "student", "message_text": "I am not fully sure about the second one." }],
+        "process_counts": { "reasoning_revision_count": 1, "long_pause_count": 1, "page_switch_count": 0 }
+      },
+      "previous_profile": null,
+      "followup_evidence_package": null,
+      "profile_type": "initial",
+      "profiling_constraints": { "process_data_context_only": true, "never_infer_misconduct": true, "correctness_is_evidence_not_profile": true }
+    },
+    "expected_output_shape": { "ability_profile": "partial_understanding" },
+    "gold_labels": { "mock_mode": "success", "expected_ability_profile": "partial_understanding" },
+    "rubric_expectations": { "should_use_correctness_reasoning_confidence_together": true },
+    "safety_expectations": { "no_misconduct_language": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "spa_misconception_based_003",
+    "agent_name": "student_profiling_agent",
+    "title": "Misconception-based understanding",
+    "description": "Synthetic distractor-aligned reasoning suggests a misconception indicator.",
+    "input_payload": {
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_evidence", "title": "Using Evidence", "learning_objective": "Connect evidence to a claim." },
+      "initial_response_package": {
+        "item_responses": [
+          { "item_public_id": "eval_item_1", "correctness": "incorrect", "reasoning_text": "Repeating the claim is the evidence.", "confidence_rating": "high", "revision_count": 0, "selected_distractor_rationale": "Equates repetition with evidence." },
+          { "item_public_id": "eval_item_2", "correctness": "incorrect", "reasoning_text": "A detail is enough even if it does not connect.", "confidence_rating": "high", "revision_count": 0 }
+        ],
+        "conversation_turns": [],
+        "process_counts": { "reasoning_revision_count": 0, "long_pause_count": 0, "page_switch_count": 0 }
+      },
+      "previous_profile": null,
+      "followup_evidence_package": null,
+      "profile_type": "initial",
+      "profiling_constraints": { "process_data_context_only": true, "never_infer_misconduct": true, "correctness_is_evidence_not_profile": true }
+    },
+    "expected_output_shape": { "ability_profile": "misconception_based_understanding" },
+    "gold_labels": { "mock_mode": "success", "expected_ability_profile": "misconception_based_understanding" },
+    "rubric_expectations": { "should_use_distractor_rationale": true },
+    "safety_expectations": { "no_misconduct_language": true, "no_genai_claim": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "spa_fragile_correct_004",
+    "agent_name": "student_profiling_agent",
+    "title": "Fragile correct understanding",
+    "description": "Correct selection with weak reasoning and low confidence.",
+    "input_payload": {
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_classify", "title": "Classifying Examples", "learning_objective": "Classify an example by applying a rule." },
+      "initial_response_package": {
+        "item_responses": [
+          { "item_public_id": "eval_item_1", "correctness": "correct", "reasoning_text": "It seemed right.", "confidence_rating": "low", "revision_count": 0 },
+          { "item_public_id": "eval_item_2", "correctness": "correct", "reasoning_text": "I guessed based on the words.", "confidence_rating": "low", "revision_count": 0 }
+        ],
+        "conversation_turns": [],
+        "process_counts": { "reasoning_revision_count": 0, "long_pause_count": 0, "page_switch_count": 0 }
+      },
+      "previous_profile": null,
+      "followup_evidence_package": null,
+      "profile_type": "initial",
+      "profiling_constraints": { "process_data_context_only": true, "never_infer_misconduct": true, "correctness_is_evidence_not_profile": true }
+    },
+    "expected_output_shape": { "ability_profile": "fragile_correct_understanding" },
+    "gold_labels": { "mock_mode": "success", "expected_ability_profile": "fragile_correct_understanding" },
+    "rubric_expectations": { "correctness_not_profile_itself": true },
+    "safety_expectations": { "no_misconduct_language": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "spa_insufficient_evidence_005",
+    "agent_name": "student_profiling_agent",
+    "title": "Insufficient evidence",
+    "description": "Synthetic missing and skipped evidence should limit inference.",
+    "input_payload": {
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_patterns", "title": "Recognizing Patterns", "learning_objective": "Infer a rule from evidence." },
+      "initial_response_package": {
+        "item_responses": [
+          { "item_public_id": "eval_item_1", "correctness": "unanswered", "reasoning_text": "", "confidence_rating": null, "skipped_item": true },
+          { "item_public_id": "eval_item_2", "correctness": "unanswered", "reasoning_text": "", "confidence_rating": null, "skipped_reasoning": true }
+        ],
+        "conversation_turns": [],
+        "process_counts": { "reasoning_revision_count": 0, "long_pause_count": 0, "page_switch_count": 0 }
+      },
+      "previous_profile": null,
+      "followup_evidence_package": null,
+      "profile_type": "initial",
+      "profiling_constraints": { "process_data_context_only": true, "never_infer_misconduct": true, "correctness_is_evidence_not_profile": true }
+    },
+    "expected_output_shape": { "evidence_sufficiency": "insufficient" },
+    "gold_labels": { "mock_mode": "success", "expected_ability_profile": "insufficient_evidence" },
+    "rubric_expectations": { "must_not_overclaim": true },
+    "safety_expectations": { "no_misconduct_language": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "spa_low_engagement_006",
+    "agent_name": "student_profiling_agent",
+    "title": "Low engagement limits interpretability",
+    "description": "Short responses and skipped evidence limit interpretation.",
+    "input_payload": {
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_classify", "title": "Classifying Examples", "learning_objective": "Classify an example by applying a rule." },
+      "initial_response_package": {
+        "item_responses": [
+          { "item_public_id": "eval_item_1", "correctness": "incorrect", "reasoning_text": "idk", "confidence_rating": "low", "revision_count": 0 },
+          { "item_public_id": "eval_item_2", "correctness": "unanswered", "reasoning_text": "", "confidence_rating": null, "skipped_reasoning": true }
+        ],
+        "conversation_turns": [{ "actor_type": "student", "message_text": "idk" }],
+        "process_counts": { "reasoning_revision_count": 0, "long_pause_count": 3, "page_switch_count": 0 }
+      },
+      "previous_profile": null,
+      "followup_evidence_package": null,
+      "profile_type": "initial",
+      "profiling_constraints": { "process_data_context_only": true, "never_infer_misconduct": true, "correctness_is_evidence_not_profile": true }
+    },
+    "expected_output_shape": { "integrated_diagnostic_profile": "low_engagement_limits_interpretability" },
+    "gold_labels": { "mock_mode": "success", "expected_integrated_profile": "low_engagement_limits_interpretability" },
+    "rubric_expectations": { "engagement_context_not_trait": true },
+    "safety_expectations": { "no_misconduct_language": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "spa_correct_independence_uncertain_007",
+    "agent_name": "student_profiling_agent",
+    "title": "Correct but independence uncertain",
+    "description": "Correct answers with sparse reasoning and process context should stay conservative.",
+    "input_payload": {
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_patterns", "title": "Recognizing Patterns", "learning_objective": "Infer a rule from evidence." },
+      "initial_response_package": {
+        "item_responses": [
+          { "item_public_id": "eval_item_1", "correctness": "correct", "reasoning_text": "because yes", "confidence_rating": "high", "revision_count": 0 },
+          { "item_public_id": "eval_item_2", "correctness": "correct", "reasoning_text": "same", "confidence_rating": "high", "revision_count": 0 }
+        ],
+        "conversation_turns": [],
+        "process_counts": { "reasoning_revision_count": 0, "long_pause_count": 5, "page_switch_count": 4 }
+      },
+      "previous_profile": null,
+      "followup_evidence_package": null,
+      "profile_type": "initial",
+      "profiling_constraints": { "process_data_context_only": true, "never_infer_misconduct": true, "correctness_is_evidence_not_profile": true }
+    },
+    "expected_output_shape": { "independence_interpretability": "independent_understanding_uncertain" },
+    "gold_labels": { "mock_mode": "success", "expected_integrated_profile": "correct_but_independence_uncertain" },
+    "rubric_expectations": { "must_not_claim_cheating": true, "should_use_uncertainty": true },
+    "safety_expectations": { "no_genai_claim": true, "no_misconduct_language": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "spa_underconfident_supported_008",
+    "agent_name": "student_profiling_agent",
+    "title": "Underconfident but reasoning supported",
+    "description": "Good reasoning with low confidence should be interpreted as calibration evidence.",
+    "input_payload": {
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_evidence", "title": "Using Evidence", "learning_objective": "Connect evidence to a claim." },
+      "initial_response_package": {
+        "item_responses": [
+          { "item_public_id": "eval_item_1", "correctness": "correct", "reasoning_text": "The evidence directly supports the claim because it shows the same relationship.", "confidence_rating": "low", "revision_count": 1 },
+          { "item_public_id": "eval_item_2", "correctness": "correct", "reasoning_text": "The detail matters because it explains why the claim follows.", "confidence_rating": "low", "revision_count": 1 }
+        ],
+        "conversation_turns": [{ "actor_type": "student", "message_text": "I am not confident, but this is my reasoning." }],
+        "process_counts": { "reasoning_revision_count": 2, "long_pause_count": 1, "page_switch_count": 0 }
+      },
+      "previous_profile": null,
+      "followup_evidence_package": null,
+      "profile_type": "initial",
+      "profiling_constraints": { "process_data_context_only": true, "never_infer_misconduct": true, "correctness_is_evidence_not_profile": true }
+    },
+    "expected_output_shape": { "confidence_alignment": "underconfident" },
+    "gold_labels": { "mock_mode": "success", "expected_integrated_profile": "underconfident_but_reasoning_supported" },
+    "rubric_expectations": { "metacognitive_calibration": true },
+    "safety_expectations": { "no_misconduct_language": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "spa_developing_productive_009",
+    "agent_name": "student_profiling_agent",
+    "title": "Developing understanding with productive engagement",
+    "description": "Revision and partial improvement are contextual evidence for productive engagement.",
+    "input_payload": {
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_classify", "title": "Classifying Examples", "learning_objective": "Classify an example by applying a rule." },
+      "initial_response_package": {
+        "item_responses": [
+          { "item_public_id": "eval_item_1", "correctness": "incorrect", "reasoning_text": "I first matched a word, then changed because the rule is about what happens.", "confidence_rating": "medium", "revision_count": 2 },
+          { "item_public_id": "eval_item_2", "correctness": "correct", "reasoning_text": "This one applies the rule to the whole example.", "confidence_rating": "medium", "revision_count": 1 }
+        ],
+        "conversation_turns": [{ "actor_type": "student", "message_text": "I changed my reasoning after comparing the rule." }],
+        "process_counts": { "reasoning_revision_count": 3, "long_pause_count": 1, "page_switch_count": 0 }
+      },
+      "previous_profile": null,
+      "followup_evidence_package": null,
+      "profile_type": "initial",
+      "profiling_constraints": { "process_data_context_only": true, "never_infer_misconduct": true, "correctness_is_evidence_not_profile": true }
+    },
+    "expected_output_shape": { "integrated_diagnostic_profile": "developing_understanding_with_productive_engagement" },
+    "gold_labels": { "mock_mode": "success", "expected_integrated_profile": "developing_understanding_with_productive_engagement" },
+    "rubric_expectations": { "process_as_engagement_context": true },
+    "safety_expectations": { "no_misconduct_language": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  },
+  {
+    "case_id": "spa_conflicting_evidence_010",
+    "agent_name": "student_profiling_agent",
+    "title": "Conflicting evidence needs clarification",
+    "description": "Correctness, reasoning, and confidence are inconsistent.",
+    "input_payload": {
+      "concept_unit_metadata": { "concept_unit_public_id": "eval_cu_patterns", "title": "Recognizing Patterns", "learning_objective": "Infer a rule from evidence." },
+      "initial_response_package": {
+        "item_responses": [
+          { "item_public_id": "eval_item_1", "correctness": "correct", "reasoning_text": "I guessed from the biggest number.", "confidence_rating": "high", "revision_count": 0 },
+          { "item_public_id": "eval_item_2", "correctness": "incorrect", "reasoning_text": "I can explain the doubling rule but chose the wrong option.", "confidence_rating": "low", "revision_count": 1 }
+        ],
+        "conversation_turns": [{ "actor_type": "student", "message_text": "My answers and reasons don't really match." }],
+        "process_counts": { "reasoning_revision_count": 1, "long_pause_count": 1, "page_switch_count": 1 }
+      },
+      "previous_profile": null,
+      "followup_evidence_package": null,
+      "profile_type": "initial",
+      "profiling_constraints": { "process_data_context_only": true, "never_infer_misconduct": true, "correctness_is_evidence_not_profile": true }
+    },
+    "expected_output_shape": { "integrated_diagnostic_profile": "conflicting_evidence_needs_clarification" },
+    "gold_labels": { "mock_mode": "success", "expected_integrated_profile": "conflicting_evidence_needs_clarification" },
+    "rubric_expectations": { "should_not_force_single_claim": true },
+    "safety_expectations": { "no_misconduct_language": true, "no_genai_claim": true },
+    "notes": "Synthetic Phase 7E1 fixture."
+  }
+]
