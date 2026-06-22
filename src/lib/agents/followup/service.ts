@@ -23,6 +23,10 @@ import {
   serializeFollowupRoundForTeacher,
   serializeFollowupStateForStudent
 } from "./serializers";
+import {
+  handleFollowupAssistantEvidence,
+  requestStopFollowupWithPossibleFinalUpdate
+} from "@/lib/agents/followup-updates/service";
 
 export class FollowupServiceError extends Error {
   code: string;
@@ -278,7 +282,8 @@ async function runFollowupAgent(input: {
     const semantic = validateFollowupSemantics({
       output: result.output,
       current_formative_value: built.current_formative_value,
-      config: built.config
+      config: built.config,
+      turn_type: input.turn_type
     });
 
     await logFollowupEvent({
@@ -362,6 +367,8 @@ async function persistAssistantTurn(input: {
       evidence_request: input.output.evidence_request ?? null,
       expects_student_response: input.output.expects_student_response,
       evidence_trigger_candidate: input.output.evidence_trigger_candidate,
+      student_turn_substantive: input.output.student_turn_substantive,
+      evidence_trigger_reasons: input.output.evidence_trigger_reasons,
       should_offer_move_on: input.output.should_offer_move_on,
       off_topic_detected: input.output.off_topic_detected
     }
@@ -389,6 +396,8 @@ async function persistAssistantTurn(input: {
       actor_type: "agent",
       agent_call_id: input.agent_call_id,
       evidence_trigger_candidate: input.output.evidence_trigger_candidate,
+      student_turn_substantive: input.output.student_turn_substantive,
+      evidence_trigger_reasons: input.output.evidence_trigger_reasons,
       should_offer_move_on: input.output.should_offer_move_on,
       off_topic_detected: input.output.off_topic_detected
     }
@@ -821,13 +830,20 @@ export async function submitStudentFollowupMessage(input: {
     return response;
   }
 
-  await persistAssistantTurn({
+  const assistantTurn = await persistAssistantTurn({
     assessment_session_db_id: agent.built.assessment_session_db_id,
     concept_unit_session_db_id: agent.built.concept_unit_session_db_id,
     followup_round_db_id: round.id,
     agent_call_id: agent.agent_call_id,
     output: agent.output,
     reply_to_client_message_id: input.client_message_id
+  });
+  await handleFollowupAssistantEvidence({
+    concept_unit_session_db_id: conceptUnitSession.id,
+    followup_round_db_id: round.id,
+    student_turn_db_id: studentTurn.id,
+    assistant_turn_db_id: assistantTurn.id,
+    output: agent.output
   });
 
   const state = await serializeStudentFollowupStateByRound(round.id);
@@ -849,7 +865,67 @@ export async function stopStudentFollowup(input: {
   student_user_db_id: string;
   session_public_id: string;
 }) {
-  const { session, conceptUnitSession, round } = await activeRoundForStudentSession(input);
+  const session = await getOwnedFollowupSession(input);
+
+  if (
+    ![
+      "followup_active",
+      "followup_profile_update_pending",
+      "followup_planning_update_pending"
+    ].includes(session.current_phase)
+  ) {
+    throw new StudentAssessmentServiceError(
+      "invalid_phase_for_action",
+      "Follow-up can be stopped only while follow-up is active or updating.",
+      409,
+      { current_phase: session.current_phase }
+    );
+  }
+
+  if (!session.current_concept_unit_db_id) {
+    throw new StudentAssessmentServiceError("not_found", "No current concept unit is set.", 404);
+  }
+
+  const conceptUnitSession = await prisma.conceptUnitSession.findUnique({
+    where: {
+      assessment_session_db_id_concept_unit_db_id: {
+        assessment_session_db_id: session.id,
+        concept_unit_db_id: session.current_concept_unit_db_id
+      }
+    }
+  });
+
+  if (!conceptUnitSession) {
+    throw new StudentAssessmentServiceError("not_found", "Concept-unit session was not found.", 404);
+  }
+
+  const round = await prisma.followupRound.findFirst({
+    where: {
+      concept_unit_session_db_id: conceptUnitSession.id,
+      status: "active"
+    },
+    orderBy: [{ round_index: "desc" }]
+  });
+
+  if (!round) {
+    throw new StudentAssessmentServiceError(
+      "conflict",
+      "No active follow-up round is available.",
+      409
+    );
+  }
+
+  const stopPlan = await requestStopFollowupWithPossibleFinalUpdate({
+    concept_unit_session_db_id: conceptUnitSession.id
+  });
+
+  if (
+    stopPlan.status === "final_update_enqueued" ||
+    stopPlan.status === "stop_after_active_cycle"
+  ) {
+    return serializeStudentFollowupStateByRound(round.id);
+  }
+
   const now = new Date();
 
   await prisma.followupRound.update({

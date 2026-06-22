@@ -143,6 +143,8 @@ export function mockOutputForAgent(agentName: AgentName) {
         evidence_request: "Mock evidence request.",
         expects_student_response: true,
         evidence_trigger_candidate: false,
+        student_turn_substantive: false,
+        evidence_trigger_reasons: [],
         should_offer_move_on: false,
         off_topic_detected: false,
         events_to_log: []

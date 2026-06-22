@@ -1,6 +1,6 @@
 # LLM Infrastructure
 
-Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration. Phase 6C connects only the Formative Value and Planning Agent after a saved student profile. Phase 6D1 connects only the Follow-up Agent for the first open-ended follow-up conversation round.
+Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration. Phase 6C connects only the Formative Value and Planning Agent after a saved student profile. Phase 6D1 connects only the Follow-up Agent for the first open-ended follow-up conversation round. Phase 6D2B adds staged iterative follow-up evidence updates within the current concept unit.
 
 ## Phase Boundary
 
@@ -62,11 +62,22 @@ Implemented in Phase 6D1:
 - Teacher review display of saved follow-up rounds.
 - Follow-up smoke tests that run in mock mode and do not call OpenAI.
 
-Not implemented in Phase 6D1:
+Implemented in Phase 6D2B:
 
-- No iterative profile update from follow-up evidence.
-- No replanning after follow-up.
-- No follow-up evidence update packages.
+- Follow-up Agent output fields for substantive-turn and evidence-trigger classification.
+- `followup_evidence_update_package` creation from allowlisted current-concept follow-up evidence.
+- `followup_update_cycles` audit/staging records.
+- Async workflow jobs for updated profiling, updated planning, and final activation.
+- Updated Student Profiling Agent execution through `executeAgent` with `profile_type=updated`.
+- Updated Formative Value and Planning Agent execution through `executeAgent`.
+- Atomic activation of updated profile, updated decision, and next follow-up round only after all required stages succeed.
+- Final profile/planning update on student stop when unprocessed substantive evidence exists.
+- Teacher review display of update-cycle state, trigger type, staged-output presence, and failure details.
+- Student-safe neutral updating state with no profile/planning labels.
+- Smoke tests that run in mock mode and do not call OpenAI.
+
+Not implemented in Phase 6D2B:
+
 - No automatic next-concept-unit movement.
 - No Response Collection Agent LLM behavior.
 - No live Item Preparation Agent behavior.
@@ -121,6 +132,7 @@ Phase 6A LLM variables are optional unless intentionally enabling live connectiv
 - `FOLLOWUP_CONTEXT_MAX_TURNS`
 - `FOLLOWUP_MESSAGE_MAX_CHARS`
 - `FOLLOWUP_CONTEXT_MAX_CHARS`
+- `FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE`
 
 No model name is hardcoded. No documentation should describe a specific model as currently latest.
 
@@ -147,6 +159,8 @@ Phase 6C Formative Value and Planning Agent calls also attach to the relevant as
 Phase 6D1 Follow-up Agent calls attach to the relevant assessment session, concept-unit session, and follow-up round. Mock follow-up outputs are infrastructure-testing fixtures, not validated formative guidance.
 
 Phase 6D2A automatic workflow jobs call the same profiling, planning, and follow-up services asynchronously when a session snapshot is `automatic`. They do not bypass provider readiness, usage guards, schema validation, semantic validation, prompt/version audit logging, or mock-mode defaults.
+
+Phase 6D2B follow-up update cycles create new agent-call audit rows for updated profiling, updated planning, and next-round opening generation when applicable. Candidate outputs are stored as staged JSON on `followup_update_cycles`; they are not active profiles or active decisions until final transaction success.
 
 ## Teacher Status Surface
 
@@ -188,11 +202,14 @@ npm run llm:status-smoke
 npm run agent:profiling-smoke
 npm run agent:planning-smoke
 npm run agent:followup-smoke
+npm run agent:followup-update-smoke
+npm run agent:followup-final-update-smoke
 npm run student:followup-ui-smoke
+npm run student:followup-update-ui-smoke
 npm run workflow:automation-smoke
 npm run workflow:worker-smoke
 ```
 
-These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, Formative Planning Agent integration, Follow-up Agent integration, idempotency, usage-blocked behavior, and the absence of Phase 6D2 profile-update or replanning side effects. They do not call OpenAI.
+These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, Formative Planning Agent integration, Follow-up Agent integration, iterative follow-up update cycles, final stop updates, student-safe updating states, idempotency, usage-blocked behavior, and the absence of next-concept progression. They do not call OpenAI.
 
 See `docs/CLASSROOM_LLM_ACCESS.md` and `docs/LLM_USAGE_LIMITS.md` for the Phase 6A.5 operational contract.

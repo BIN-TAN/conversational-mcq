@@ -312,11 +312,16 @@ export async function buildFollowupInput(input: {
         "Process data are contextual evidence for engagement and evidence sufficiency, not misconduct evidence."
     },
     followup_constraints: {
-      no_profile_update_in_phase6d1: true,
-      no_replanning_in_phase6d1: true,
+      backend_update_cycle_may_follow_substantive_evidence: true,
+      agent_must_not_update_profile_or_plan_directly: true,
       no_initial_response_overwrite: true,
       no_student_profile_labels: true,
       no_formative_value_label_to_student: true,
+      evidence_trigger_classification: {
+        substantive_turns_before_backend_update:
+          config.substantive_turns_before_update,
+        opening_turns_must_not_trigger_updates: true
+      },
       context_window: {
         sent_recent_turn_count: transcript.length,
         max_turns: config.max_turns,

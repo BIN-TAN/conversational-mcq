@@ -80,6 +80,16 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
           allowed_actions: ["send_followup_message", "save_exit", "stop_followup"],
           can_review_responses: true
         }
+      : state.next_step === "followup_updating"
+        ? {
+            ...base,
+            assistant_message:
+              "I’m reviewing your latest response so the next step can be better matched to your current understanding. Your progress has been saved.",
+            interaction_type: "followup_updating",
+            allowed_actions: ["review_responses", "save_exit", "stop_followup"],
+            can_review_responses: true,
+            can_continue: false
+          }
       : state.next_step === "followup_stopped"
         ? {
             ...base,

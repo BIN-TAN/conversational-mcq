@@ -70,10 +70,10 @@ function assertNoProhibitedInputFields(value: unknown, path = "input") {
   }
 }
 
-function stableInvocationKey(parts: Array<string | null | undefined>) {
+function stableInvocationKey(prefix: string, parts: Array<string | null | undefined>) {
   const hash = createHash("sha256").update(parts.map((part) => part ?? "").join("|")).digest("hex");
 
-  return `formative_planning_initial_${hash}`;
+  return `${prefix}_${hash}`;
 }
 
 export async function buildInitialFormativePlanningInput(
@@ -311,12 +311,98 @@ export async function buildInitialFormativePlanningInput(
     },
     assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
     concept_unit_session_db_id: conceptUnitSession.id,
-    agent_invocation_key: stableInvocationKey([
+    agent_invocation_key: stableInvocationKey("formative_planning_initial", [
       conceptUnitSession.id,
       latestProfile.id,
       latestProfile.created_at.toISOString(),
       responsePackage.id,
       "formative_value_and_planning_agent",
+      prompt.prompt_version,
+      prompt.schema_version,
+      prompt.prompt_hash
+    ]),
+    default_formative_value: defaultFormativeValue
+  };
+}
+
+export async function buildUpdatedFormativePlanningInput(input: {
+  concept_unit_session_db_id: string;
+  followup_evidence_package_db_id: string;
+  staged_student_profile_output: Record<string, unknown>;
+  previous_student_profile_db_id: string;
+  cycle_public_id: string;
+}): Promise<BuiltFormativePlanningInput> {
+  const built = await buildInitialFormativePlanningInput(input.concept_unit_session_db_id);
+  const followupPackage = await prisma.responsePackage.findFirstOrThrow({
+    where: {
+      id: input.followup_evidence_package_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      package_type: "followup_evidence_update_package"
+    },
+    select: {
+      id: true,
+      package_type: true,
+      payload: true,
+      created_at: true
+    }
+  });
+  const previousProfile = await prisma.studentProfile.findFirstOrThrow({
+    where: {
+      id: input.previous_student_profile_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id
+    },
+    select: {
+      id: true,
+      created_at: true
+    }
+  });
+  const integratedProfile = input.staged_student_profile_output.integrated_diagnostic_profile;
+
+  if (typeof integratedProfile !== "string") {
+    throw new Error("Staged student profile output is missing integrated_diagnostic_profile.");
+  }
+
+  const defaultFormativeValue = defaultFormativeValueForIntegratedProfile(integratedProfile);
+  const prompt = getPromptForAgent("formative_value_and_planning_agent");
+  const updatedInput: FormativePlanningInput = {
+    ...built.input,
+    latest_student_profile: safeJson(input.staged_student_profile_output) as Record<
+      string,
+      unknown
+    >,
+    response_package: {
+      package_type: followupPackage.package_type,
+      created_at: followupPackage.created_at.toISOString(),
+      payload: safeJson(followupPackage.payload)
+    },
+    planning_constraints: {
+      ...built.input.planning_constraints,
+      default_formative_value: defaultFormativeValue,
+      scope:
+        "Create only the next Follow-up Agent plan for an iterative update cycle. Do not communicate with the student, create follow-up rounds, or mutate active records.",
+      update_cycle_public_id: input.cycle_public_id,
+      active_profile_pointer_must_not_be_assumed_updated: true
+    }
+  };
+
+  assertNoProhibitedInputFields(updatedInput);
+
+  return {
+    input: updatedInput,
+    response_package: followupPackage,
+    student_profile: {
+      id: `staged:${input.cycle_public_id}`,
+      created_at: previousProfile.created_at,
+      integrated_diagnostic_profile: integratedProfile
+    },
+    assessment_session_db_id: built.assessment_session_db_id,
+    concept_unit_session_db_id: built.concept_unit_session_db_id,
+    agent_invocation_key: stableInvocationKey("formative_planning_updated", [
+      input.concept_unit_session_db_id,
+      followupPackage.id,
+      previousProfile.id,
+      input.cycle_public_id,
+      integratedProfile,
       prompt.prompt_version,
       prompt.schema_version,
       prompt.prompt_hash

@@ -26,7 +26,11 @@ export async function POST(
       session_public_id: params.sessionPublicId
     });
 
-    return NextResponse.json({ stop_status: "followup_stopped", state });
+    return NextResponse.json({
+      stop_status:
+        state.current_phase === "followup_stopped" ? "followup_stopped" : "followup_update_pending",
+      state
+    });
   } catch (error) {
     if (error instanceof FollowupServiceError) {
       return jsonApiError(error.code, error.message, error.status, error.details);

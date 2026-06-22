@@ -125,7 +125,9 @@ export type SessionDetailResponse = {
     can_run_planning: boolean;
     latest_formative_decision: TeacherFormativeDecision | null;
     can_start_followup: boolean;
+    can_run_followup_update: boolean;
     followup_rounds: TeacherFollowupRound[];
+    followup_update_cycles: TeacherFollowupUpdateCycle[];
   }>;
   summary: {
     concept_unit_count: number;
@@ -273,6 +275,32 @@ export type TeacherFollowupRound = {
   mock_output_notice: string | null;
 };
 
+export type TeacherFollowupUpdateCycle = {
+  cycle_public_id: string;
+  trigger_type: string;
+  trigger_details: unknown;
+  status: string;
+  final_update: boolean;
+  create_next_round: boolean;
+  stop_after_cycle: boolean;
+  evidence_cutoff_at: string | null;
+  stage: string;
+  profile_agent_call_present: boolean;
+  planning_agent_call_present: boolean;
+  opening_agent_call_present: boolean;
+  staged_profile_present: boolean;
+  staged_planning_present: boolean;
+  staged_opening_present: boolean;
+  active_pointers_changed: boolean;
+  failure_stage: string | null;
+  failure_category: string | null;
+  failure_message: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  completed_at: string | null;
+  interpretation_boundary: string;
+};
+
 export type StartFollowupResponse = {
   session_public_id: string;
   concept_unit_public_id: string;
@@ -280,6 +308,15 @@ export type StartFollowupResponse = {
     status: string;
     round: TeacherFollowupRound | null;
     student_state?: unknown;
+  };
+};
+
+export type RunFollowupUpdateResponse = {
+  session_public_id: string;
+  concept_unit_public_id: string;
+  result: {
+    status: string;
+    cycle_public_id: string;
   };
 };
 

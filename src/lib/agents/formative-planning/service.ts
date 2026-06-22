@@ -5,7 +5,11 @@ import { prisma } from "@/lib/db";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
 import { toPrismaJson } from "@/lib/services/json";
-import { buildInitialFormativePlanningInput } from "./input-builder";
+import {
+  buildInitialFormativePlanningInput,
+  buildUpdatedFormativePlanningInput,
+  type BuiltFormativePlanningInput
+} from "./input-builder";
 import { persistInitialFormativeDecision } from "./persistence";
 import {
   FormativePlanningSemanticValidationError,
@@ -38,6 +42,17 @@ export class FormativePlanningServiceError extends Error {
 type RunInitialFormativePlanningInput = {
   concept_unit_session_db_id: string;
   requested_by_user_db_id?: string;
+  invocation_reason: string;
+  force_new_invocation?: boolean;
+  mock_provider_mode?: MockProviderMode;
+};
+
+type FormativePlanningCandidateInput = {
+  concept_unit_session_db_id: string;
+  followup_evidence_package_db_id: string;
+  staged_student_profile_output: Record<string, unknown>;
+  previous_student_profile_db_id: string;
+  cycle_public_id: string;
   invocation_reason: string;
   force_new_invocation?: boolean;
   mock_provider_mode?: MockProviderMode;
@@ -104,6 +119,196 @@ async function logPlanningEvent(input: {
 
 function decisionSummary(decision: FormativeDecisionWithAgentCall) {
   return serializeFormativeDecisionForTeacher(decision);
+}
+
+async function executePlanningBuiltInput(input: {
+  built: BuiltFormativePlanningInput;
+  invocation_reason: string;
+  force_new_invocation?: boolean;
+  mock_provider_mode?: MockProviderMode;
+  requested_by_user_db_id?: string;
+}) {
+  await logPlanningEvent({
+    assessment_session_db_id: input.built.assessment_session_db_id,
+    concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+    event_type: "formative_planning_started",
+    payload: {
+      agent_name: "formative_value_and_planning_agent",
+      invocation_reason: input.invocation_reason,
+      default_formative_value: input.built.default_formative_value
+    }
+  });
+  await logPlanningEvent({
+    assessment_session_db_id: input.built.assessment_session_db_id,
+    concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+    event_type: "agent_call_started",
+    payload: {
+      agent_name: "formative_value_and_planning_agent",
+      agent_invocation_key: input.built.agent_invocation_key
+    }
+  });
+
+  const result = await executeAgent({
+    agent_name: "formative_value_and_planning_agent",
+    input: input.built.input,
+    assessment_session_db_id: input.built.assessment_session_db_id,
+    concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+    agent_invocation_key: input.built.agent_invocation_key,
+    force_new_invocation: input.force_new_invocation,
+    metadata: {
+      invocation_reason: input.invocation_reason,
+      response_package_type: input.built.response_package.package_type,
+      response_package_created_at: input.built.response_package.created_at.toISOString(),
+      default_formative_value: input.built.default_formative_value,
+      requested_by_role: input.requested_by_user_db_id ? "teacher_researcher" : "backend",
+      ...(input.mock_provider_mode ? { mock_mode: input.mock_provider_mode } : {})
+    }
+  });
+
+  if (result.status !== "succeeded") {
+    await logPlanningEvent({
+      assessment_session_db_id: input.built.assessment_session_db_id,
+      concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+      event_type:
+        result.status === "invalid_output" ? "schema_validation_failed" : "agent_call_failed",
+      payload: {
+        agent_name: "formative_value_and_planning_agent",
+        result_status: result.status,
+        agent_call_id: "agent_call_id" in result ? result.agent_call_id : null
+      }
+    });
+    await logPlanningEvent({
+      assessment_session_db_id: input.built.assessment_session_db_id,
+      concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+      event_type: "formative_planning_failed",
+      payload: {
+        result_status: result.status,
+        agent_call_id: "agent_call_id" in result ? result.agent_call_id : null
+      }
+    });
+
+    return {
+      status: result.status,
+      output: null,
+      agent_call_id: "agent_call_id" in result ? result.agent_call_id : null,
+      default_formative_value: input.built.default_formative_value,
+      agent_invocation_key: input.built.agent_invocation_key,
+      retry_count: result.retry_count
+    };
+  }
+
+  try {
+    validateFormativePlanningSemantics({
+      output: result.output,
+      integrated_diagnostic_profile:
+        input.built.student_profile.integrated_diagnostic_profile
+    });
+  } catch (error) {
+    const issues =
+      error instanceof FormativePlanningSemanticValidationError
+        ? error.issues
+        : ["semantic validation failed"];
+
+    await prisma.agentCall.update({
+      where: { id: result.agent_call_id },
+      data: {
+        output_validated: false,
+        call_status: "invalid_output",
+        error_category: "semantic_validation",
+        validation_error: issues.join("; "),
+        output_payload: Prisma.JsonNull,
+        raw_output: toPrismaJson(result.output) ?? Prisma.JsonNull
+      }
+    });
+    await logPlanningEvent({
+      assessment_session_db_id: input.built.assessment_session_db_id,
+      concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+      event_type: "schema_validation_failed",
+      payload: {
+        agent_name: "formative_value_and_planning_agent",
+        agent_call_id: result.agent_call_id,
+        issues
+      }
+    });
+    await logPlanningEvent({
+      assessment_session_db_id: input.built.assessment_session_db_id,
+      concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+      event_type: "formative_planning_failed",
+      payload: {
+        result_status: "semantic_validation_failed",
+        agent_call_id: result.agent_call_id
+      }
+    });
+
+    return {
+      status: "semantic_validation_failed" as const,
+      output: null,
+      agent_call_id: result.agent_call_id,
+      default_formative_value: input.built.default_formative_value,
+      semantic_validation_issues: issues,
+      agent_invocation_key: input.built.agent_invocation_key,
+      retry_count: result.retry_count
+    };
+  }
+
+  await logPlanningEvent({
+    assessment_session_db_id: input.built.assessment_session_db_id,
+    concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+    event_type: "schema_validation_succeeded",
+    payload: {
+      agent_name: "formative_value_and_planning_agent",
+      agent_call_id: result.agent_call_id
+    }
+  });
+  await logPlanningEvent({
+    assessment_session_db_id: input.built.assessment_session_db_id,
+    concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+    event_type: "agent_call_succeeded",
+    payload: {
+      agent_name: "formative_value_and_planning_agent",
+      agent_call_id: result.agent_call_id,
+      retry_count: result.retry_count
+    }
+  });
+  await logPlanningEvent({
+    assessment_session_db_id: input.built.assessment_session_db_id,
+    concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+    event_type: "formative_planning_succeeded",
+    payload: {
+      agent_name: "formative_value_and_planning_agent",
+      agent_call_id: result.agent_call_id,
+      formative_value: result.output.formative_value,
+      staged_only: true
+    }
+  });
+
+  return {
+    status: "succeeded" as const,
+    output: result.output,
+    agent_call_id: result.agent_call_id,
+    default_formative_value: input.built.default_formative_value,
+    agent_invocation_key: input.built.agent_invocation_key,
+    retry_count: result.retry_count
+  };
+}
+
+export async function executeFormativePlanningCandidate(
+  input: FormativePlanningCandidateInput
+) {
+  const built = await buildUpdatedFormativePlanningInput({
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    followup_evidence_package_db_id: input.followup_evidence_package_db_id,
+    staged_student_profile_output: input.staged_student_profile_output,
+    previous_student_profile_db_id: input.previous_student_profile_db_id,
+    cycle_public_id: input.cycle_public_id
+  });
+
+  return executePlanningBuiltInput({
+    built,
+    invocation_reason: input.invocation_reason,
+    force_new_invocation: input.force_new_invocation,
+    mock_provider_mode: input.mock_provider_mode
+  });
 }
 
 async function transitionToPlanningCompleted(input: {

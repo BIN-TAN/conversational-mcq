@@ -42,6 +42,7 @@ export function validateFollowupSemantics(input: {
   output: FollowupOutput;
   current_formative_value: string;
   config: FollowupContextConfig;
+  turn_type?: "opening" | "student_reply";
 }) {
   const issues: string[] = [];
   const warnings: string[] = [];
@@ -61,6 +62,24 @@ export function validateFollowupSemantics(input: {
 
   if (!FollowupActionType.safeParse(output.followup_action_type).success) {
     issues.push("followup_action_type is not approved");
+  }
+
+  if (input.turn_type === "opening") {
+    if (output.student_turn_substantive) {
+      issues.push("opening turns must use student_turn_substantive=false");
+    }
+
+    if (output.evidence_trigger_candidate) {
+      issues.push("opening turns must not set evidence_trigger_candidate=true");
+    }
+
+    if (output.evidence_trigger_reasons.length > 0) {
+      issues.push("opening turns must use evidence_trigger_reasons=[]");
+    }
+  }
+
+  if (!output.student_turn_substantive && output.evidence_trigger_reasons.length > 0) {
+    warnings.push("evidence_trigger_reasons were present even though the turn was nonsubstantive");
   }
 
   for (const event of output.events_to_log) {

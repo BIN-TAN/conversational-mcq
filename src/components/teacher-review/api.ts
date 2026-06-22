@@ -8,6 +8,7 @@ import type {
   ItemResponsesResponse,
   ProcessEventsResponse,
   ResponsePackagesResponse,
+  RunFollowupUpdateResponse,
   RunPlanningResponse,
   RunProfilingResponse,
   SessionDetailResponse,
@@ -93,6 +94,13 @@ export function runFormativePlanning(sessionPublicId: string, conceptUnitPublicI
 export function startFollowup(sessionPublicId: string, conceptUnitPublicId: string) {
   return apiRequest<StartFollowupResponse>(
     `/api/teacher/sessions/${sessionPublicId}/concept-units/${conceptUnitPublicId}/start-followup`,
+    { method: "POST" }
+  );
+}
+
+export function runFollowupUpdate(sessionPublicId: string, conceptUnitPublicId: string) {
+  return apiRequest<RunFollowupUpdateResponse>(
+    `/api/teacher/sessions/${sessionPublicId}/concept-units/${conceptUnitPublicId}/run-followup-update`,
     { method: "POST" }
   );
 }

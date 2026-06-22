@@ -21,6 +21,7 @@ All routes require `teacher_researcher` authentication. Student users are redire
 - `POST /api/teacher/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]/run-profiling`
 - `POST /api/teacher/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]/run-planning`
 - `POST /api/teacher/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]/start-followup`
+- `POST /api/teacher/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]/run-followup-update`
 - `POST /api/teacher/sessions/[sessionPublicId]/automation/pause`
 - `POST /api/teacher/sessions/[sessionPublicId]/automation/resume`
 - `POST /api/teacher/sessions/[sessionPublicId]/automation/retry`
@@ -58,6 +59,8 @@ The detail view has tabs for:
 The overview shows public session ID, student `user_id`, assessment title, attempt number, status, phase, timestamps, current concept unit, concept-unit progress, item-response count, content lock state, response-package count, and needs-review state.
 
 Phase 6D2A overview also shows automatic workflow state, workflow-job summaries, append-only override history, and teacher exception controls. Manual-review sessions keep the existing manual profiling/planning/follow-up buttons. Automatic sessions normally hide those manual buttons and instead offer pause, resume, retry current step, or stop follow-up when the session state allows it.
+
+Phase 6D2B detail also shows follow-up update-cycle history. A cycle row shows public cycle ID, trigger type, status, final-update flags, evidence cutoff time, whether profile/planning/opening outputs are staged, whether active pointers changed, and failure stage/category/message when present. Staged outputs are audit data and must not be treated as current profile or planning records unless the cycle status is `completed`.
 
 ## Item Responses
 
@@ -188,7 +191,16 @@ After follow-up starts, the teacher review page displays saved follow-up round d
 - follow-up agent-call audit metadata
 - mock-output notice when the provider was mock
 
-The UI must not show follow-up process flags as misconduct and must not infer independence from process context in Phase 6D1.
+The UI must not show follow-up process flags as misconduct and must not infer independence from process context.
+
+In Phase 6D2B, meaningful follow-up evidence can start an update cycle:
+
+- automatic sessions enqueue backend jobs without the teacher dashboard staying open
+- manual-review sessions are flagged as evidence ready and expose `Run follow-up update`
+- updated profiling and planning outputs are staged first
+- a new active follow-up round opens only after profiling, planning, and opening generation all succeed
+- final stop updates do not create a next round
+- failed cycles preserve audit records, keep previous active profile/decision pointers, and show teacher exception details
 
 The Future agent data section shows empty states when planning or follow-up records do not exist. It must not show enum defaults as actual planning or follow-up outputs.
 

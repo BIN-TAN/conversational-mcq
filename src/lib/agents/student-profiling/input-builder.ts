@@ -61,10 +61,10 @@ function hasRevisionPayload(payload: Prisma.JsonValue | null) {
   return record.revision === true || Number(record.revision_count ?? 0) > 0;
 }
 
-function stableInvocationKey(parts: Array<string | null | undefined>) {
+function stableInvocationKey(prefix: string, parts: Array<string | null | undefined>) {
   const hash = createHash("sha256").update(parts.map((part) => part ?? "").join("|")).digest("hex");
 
-  return `student_profile_initial_${hash}`;
+  return `${prefix}_${hash}`;
 }
 
 function assertNoProhibitedInputFields(value: unknown, path = "input") {
@@ -337,10 +337,108 @@ export async function buildInitialStudentProfilingInput(
     response_package: responsePackage,
     assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
     concept_unit_session_db_id: conceptUnitSession.id,
-    agent_invocation_key: stableInvocationKey([
+    agent_invocation_key: stableInvocationKey("student_profile_initial", [
       conceptUnitSession.id,
       responsePackage.id,
       "initial",
+      prompt.prompt_version,
+      prompt.schema_version,
+      prompt.prompt_hash
+    ])
+  };
+}
+
+export async function buildUpdatedStudentProfilingInput(input: {
+  concept_unit_session_db_id: string;
+  followup_evidence_package_db_id: string;
+  previous_student_profile_db_id: string;
+  cycle_public_id: string;
+}): Promise<BuiltStudentProfilingInput> {
+  const initialPackage = await prisma.responsePackage.findFirstOrThrow({
+    where: {
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      package_type: "initial_concept_unit_response_package"
+    },
+    orderBy: [{ created_at: "desc" }],
+    select: { id: true }
+  });
+  const built = await buildInitialStudentProfilingInput(
+    input.concept_unit_session_db_id,
+    initialPackage.id
+  );
+  const followupPackage = await prisma.responsePackage.findFirstOrThrow({
+    where: {
+      id: input.followup_evidence_package_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      package_type: "followup_evidence_update_package"
+    },
+    select: {
+      id: true,
+      package_type: true,
+      payload: true,
+      created_at: true
+    }
+  });
+  const previousProfile = await prisma.studentProfile.findFirstOrThrow({
+    where: {
+      id: input.previous_student_profile_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id
+    }
+  });
+  const prompt = getPromptForAgent("student_profiling_agent");
+  const updatedInput: StudentProfilingInput = {
+    ...built.input,
+    previous_profile: {
+      profile_type: previousProfile.profile_type,
+      ability_profile: previousProfile.ability_profile,
+      ability_pattern_flags: safeJson(previousProfile.ability_pattern_flags),
+      engagement_profile: previousProfile.engagement_profile,
+      engagement_pattern_flags: safeJson(previousProfile.engagement_pattern_flags),
+      integrated_diagnostic_profile: previousProfile.integrated_diagnostic_profile,
+      integrated_profile_confidence: previousProfile.integrated_profile_confidence,
+      integrated_profile_rationale: previousProfile.integrated_profile_rationale,
+      evidence_sufficiency: previousProfile.evidence_sufficiency,
+      confidence_alignment: previousProfile.confidence_alignment,
+      independence_interpretability: previousProfile.independence_interpretability,
+      misconception_indicators: safeJson(previousProfile.misconception_indicators),
+      item_level_evidence: safeJson(previousProfile.item_level_evidence),
+      reasoning_quality_summary: previousProfile.reasoning_quality_summary,
+      engagement_summary: previousProfile.engagement_summary,
+      process_interpretation_cautions: safeJson(
+        previousProfile.process_interpretation_cautions
+      ),
+      profile_confidence: previousProfile.profile_confidence,
+      rationale: previousProfile.rationale,
+      recommended_next_evidence: safeJson(previousProfile.recommended_next_evidence),
+      created_at: previousProfile.created_at.toISOString()
+    },
+    followup_evidence_package: {
+      package_type: followupPackage.package_type,
+      created_at: followupPackage.created_at.toISOString(),
+      payload: safeJson(followupPackage.payload)
+    },
+    profile_type: "updated",
+    profiling_constraints: {
+      ...built.input.profiling_constraints,
+      update_cycle_public_id: input.cycle_public_id,
+      previous_active_profile_supplied: true,
+      updated_profile_must_reflect_followup_evidence: true
+    }
+  };
+
+  assertNoProhibitedInputFields(updatedInput);
+
+  return {
+    input: updatedInput,
+    response_package: followupPackage,
+    assessment_session_db_id: built.assessment_session_db_id,
+    concept_unit_session_db_id: built.concept_unit_session_db_id,
+    agent_invocation_key: stableInvocationKey("student_profile_updated", [
+      input.concept_unit_session_db_id,
+      followupPackage.id,
+      previousProfile.id,
+      input.cycle_public_id,
+      "updated",
       prompt.prompt_version,
       prompt.schema_version,
       prompt.prompt_hash

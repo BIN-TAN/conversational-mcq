@@ -135,6 +135,12 @@ Process data may inform engagement and evidence sufficiency. It must never be tr
 - Safeguards support reliability, cost awareness, and teacher_researcher visibility. They should not automatically block the student unless there is a technical failure or policy-breaking behavior.
 - Phase 6D1 implements only the first open-ended follow-up conversation round after a saved profile and saved formative decision exist.
 - Phase 6D1 follow-up messages may provide post-initial support according to the saved formative decision, but must not overwrite initial item responses, reveal correctness, reveal profile labels, reveal formative-value labels, or expose teacher-only metadata to students.
+- Phase 6D2B implements iterative evidence updating only within the current concept unit. It does not move students to the next concept unit.
+- Follow-up update cycles are staged and atomic. The active latest profile, active latest formative decision, and current active follow-up round remain authoritative until follow-up evidence packaging, updated profiling, updated planning, and next-round opening generation all succeed. A final stop update omits next-round opening.
+- Failed update cycles preserve audit records but must not activate staged profiles, staged formative decisions, or staged openings.
+- Meaningful follow-up evidence may trigger an update through agent evidence candidates, reasoning revisions, task completion, transfer/application evidence, understanding claims, move-on requests, or a technical fallback count of substantive turns. `FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE` defaults to 3 and is not a pedagogical turn cap.
+- In manual-review mode, meaningful follow-up evidence flags teacher review and does not automatically run the update cycle. In automatic mode, the backend enqueues database-backed update jobs without requiring the student or teacher browser to remain open.
+- Students see only neutral updating states during follow-up update processing. They must not see profile labels, formative values, correctness, job names, provider names, model names, cycle IDs, or internal error details.
 
 `followup_action_type` values:
 

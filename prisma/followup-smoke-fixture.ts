@@ -21,7 +21,8 @@ export const followupSmokeEnvKeys = [
   "LLM_USAGE_TIMEZONE",
   "FOLLOWUP_CONTEXT_MAX_TURNS",
   "FOLLOWUP_MESSAGE_MAX_CHARS",
-  "FOLLOWUP_CONTEXT_MAX_CHARS"
+  "FOLLOWUP_CONTEXT_MAX_CHARS",
+  "FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE"
 ] as const;
 
 export type FollowupSmokeEnvKey = (typeof followupSmokeEnvKeys)[number];
@@ -134,6 +135,9 @@ export async function cleanupFollowupSmoke(prisma: PrismaClient, prefix: string)
     });
     await prisma.agentCall.deleteMany({
       where: { assessment_session_db_id: { in: sessionIds } }
+    });
+    await prisma.followupUpdateCycle.deleteMany({
+      where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
     });
     await prisma.followupRound.deleteMany({
       where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }

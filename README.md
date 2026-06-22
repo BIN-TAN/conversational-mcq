@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, and Phase 6D2A assessment availability plus asynchronous automatic workflow startup. Iterative profile updates, replanning after follow-up, Response Collection Agent LLM behavior, live Item Preparation behavior, follow-up evidence packages, next-concept progression, and master CSV agent-field changes remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, and Phase 6D2B iterative follow-up evidence updating inside the current concept unit. Response Collection Agent LLM behavior, live Item Preparation behavior, next-concept progression, countdown timers, and master CSV profile/follow-up column filling remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -95,6 +95,9 @@ npm run student:followup-ui-smoke
 npm run assessment:availability-smoke
 npm run workflow:automation-smoke
 npm run workflow:worker-smoke
+npm run agent:followup-update-smoke
+npm run agent:followup-final-update-smoke
+npm run student:followup-update-ui-smoke
 npm run typecheck
 npm run lint
 npm run build
@@ -235,6 +238,22 @@ The smoke tests create temporary planned concept-unit sessions, start a teacher-
 Live OpenAI follow-up is disabled unless server-side environment variables explicitly set `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, `OPENAI_API_KEY`, and `OPENAI_MODEL_FOLLOWUP`, and the usage guard allows the call.
 
 See `docs/FOLLOWUP_AGENT.md` and `docs/FOLLOWUP_CONVERSATION.md` for the Phase 6D1 contracts.
+
+## Phase 6D2B Follow-Up Evidence Updates
+
+Phase 6D2B adds iterative evidence updating inside the current concept unit only. Meaningful student follow-up evidence can create a `followup_evidence_update_package`, stage an updated Student Profiling Agent output, stage an updated Formative Value and Planning Agent output, and atomically activate both only after the full update cycle succeeds.
+
+```bash
+npm run agent:followup-update-smoke
+npm run agent:followup-final-update-smoke
+npm run student:followup-update-ui-smoke
+```
+
+The update cycle uses the existing mock-provider LLM path by default and does not call OpenAI. The student sees only a neutral update-pending state while backend updating is in progress. Teachers can review update cycles and, in manual-review mode, trigger an eligible follow-up update from the session detail page.
+
+`FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE` defaults to `3`. It is a technical fallback for evidence updating, not a pedagogical maximum number of turns.
+
+See `docs/FOLLOWUP_EVIDENCE_UPDATES.md`, `docs/ITERATIVE_FOLLOWUP_UPDATES.md`, and `docs/FOLLOWUP_UPDATE_ATOMICITY.md` for the Phase 6D2B contract.
 
 ## Phase 3A Content Management Verification
 
@@ -649,4 +668,4 @@ The connectivity script requires `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=
 
 Usage safeguard variables are documented in `.env.example` and `docs/LLM_USAGE_LIMITS.md`.
 
-See `docs/LLM_INFRASTRUCTURE.md`, `docs/AGENT_CONTRACTS.md`, `docs/PROMPT_VERSIONING.md`, `docs/CLASSROOM_LLM_ACCESS.md`, `docs/LLM_USAGE_LIMITS.md`, `docs/STUDENT_PROFILING_AGENT.md`, `docs/FORMATIVE_PLANNING_AGENT.md`, `docs/FOLLOWUP_AGENT.md`, and `docs/FOLLOWUP_CONVERSATION.md`.
+See `docs/LLM_INFRASTRUCTURE.md`, `docs/AGENT_CONTRACTS.md`, `docs/PROMPT_VERSIONING.md`, `docs/CLASSROOM_LLM_ACCESS.md`, `docs/LLM_USAGE_LIMITS.md`, `docs/STUDENT_PROFILING_AGENT.md`, `docs/FORMATIVE_PLANNING_AGENT.md`, `docs/FOLLOWUP_AGENT.md`, `docs/FOLLOWUP_CONVERSATION.md`, `docs/FOLLOWUP_EVIDENCE_UPDATES.md`, `docs/ITERATIVE_FOLLOWUP_UPDATES.md`, and `docs/FOLLOWUP_UPDATE_ATOMICITY.md`.

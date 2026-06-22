@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { serializeFormativeDecisionForTeacher } from "@/lib/agents/formative-planning/serializers";
 import { serializeFollowupRoundForTeacher } from "@/lib/agents/followup/serializers";
+import { serializeFollowupUpdateCycleForTeacher } from "@/lib/agents/followup-updates/service";
 import { serializeStudentProfileForTeacher } from "@/lib/agents/student-profiling/serializers";
 import { serializeAssessmentContentState } from "@/lib/services/content/governance";
 import { deriveAutomationState } from "@/lib/workflow/automation";
@@ -155,6 +156,31 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
                   completed_at: true
                 }
               }
+            }
+          },
+          followup_update_cycles: {
+            orderBy: [{ created_at: "asc" }],
+            select: {
+              cycle_public_id: true,
+              trigger_type: true,
+              trigger_details: true,
+              status: true,
+              final_update: true,
+              create_next_round: true,
+              stop_after_cycle: true,
+              evidence_cutoff_at: true,
+              profile_agent_call_db_id: true,
+              planning_agent_call_db_id: true,
+              opening_agent_call_db_id: true,
+              staged_profile_output: true,
+              staged_planning_output: true,
+              staged_opening_output: true,
+              failure_stage: true,
+              failure_category: true,
+              failure_message: true,
+              created_at: true,
+              updated_at: true,
+              completed_at: true
             }
           },
           concept_unit: {
@@ -330,13 +356,31 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
         Boolean(conceptUnitSession.latest_student_profile) &&
         Boolean(conceptUnitSession.latest_formative_decision) &&
         !conceptUnitSession.followup_rounds.some((round) => round.status === "active"),
+      can_run_followup_update:
+        manualReview &&
+        session.current_phase === "followup_active" &&
+        conceptUnitSession.followup_rounds.some((round) => round.status === "active") &&
+        !conceptUnitSession.followup_update_cycles.some((cycle) =>
+          [
+            "pending",
+            "profiling",
+            "profiling_completed",
+            "planning",
+            "planning_completed",
+            "opening",
+            "committing"
+          ].includes(cycle.status)
+        ),
       latest_student_profile: conceptUnitSession.latest_student_profile
         ? serializeStudentProfileForTeacher(conceptUnitSession.latest_student_profile)
         : null,
       latest_formative_decision: conceptUnitSession.latest_formative_decision
         ? serializeFormativeDecisionForTeacher(conceptUnitSession.latest_formative_decision)
         : null,
-      followup_rounds: conceptUnitSession.followup_rounds.map(serializeFollowupRoundForTeacher)
+      followup_rounds: conceptUnitSession.followup_rounds.map(serializeFollowupRoundForTeacher),
+      followup_update_cycles: conceptUnitSession.followup_update_cycles.map(
+        serializeFollowupUpdateCycleForTeacher
+      )
     })),
     summary: {
       concept_unit_count: conceptUnitCount,
@@ -351,7 +395,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       followup_round_count: followupRoundCount,
       agent_call_count: session._count.agent_calls,
       message:
-        "Student Profiling, Formative Planning, and first-round Follow-up Agent records may exist after Phase 6D1. Iterative profile updating and replanning remain unimplemented."
+        "Student Profiling, Formative Planning, Follow-up Agent, and staged follow-up update-cycle records may exist. Staged outputs become current only after a completed update cycle."
     }
   };
 }

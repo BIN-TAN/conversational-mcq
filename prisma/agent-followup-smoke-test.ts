@@ -225,7 +225,17 @@ async function runApiSmoke(prefix: string) {
     });
     const stopJson = await stopResponse.json();
     assert(stopResponse.status === 200, "Student stop follow-up should succeed.");
-    assert(stopJson.stop_status === "followup_stopped", "Stop route should return stopped status.");
+    assert(
+      stopJson.stop_status === "followup_stopped" ||
+        stopJson.stop_status === "followup_update_pending",
+      "Stop route should return stopped or update-pending status."
+    );
+    assert(
+      stopJson.state?.current_phase === "followup_stopped" ||
+        stopJson.state?.current_phase === "followup_profile_update_pending" ||
+        stopJson.state?.current_phase === "followup_planning_update_pending",
+      "Stop route should return the current student-safe follow-up state."
+    );
     assertNoStudentProfileOrPlanningLabels(stopJson, "Student stop API response");
   } catch (error) {
     console.error(output);
@@ -305,10 +315,20 @@ async function main() {
       followup_round_db_id: activeRound.id,
       turn_type: "opening"
     });
+    const evidenceTriggerClassification = openingBuilt.input.followup_constraints
+      .evidence_trigger_classification as { substantive_turns_before_backend_update?: unknown };
     assertNoForbiddenSerializedFields(openingBuilt.input, "FollowupInput opening");
     assert(
-      openingBuilt.input.followup_constraints.no_profile_update_in_phase6d1,
-      "Follow-up input must forbid profile updates in Phase 6D1."
+      openingBuilt.input.followup_constraints.backend_update_cycle_may_follow_substantive_evidence,
+      "Follow-up input should expose the Phase 6D2B backend update-cycle policy."
+    );
+    assert(
+      openingBuilt.input.followup_constraints.agent_must_not_update_profile_or_plan_directly,
+      "Follow-up Agent must not directly update profiles or plans."
+    );
+    assert(
+      evidenceTriggerClassification.substantive_turns_before_backend_update === 3,
+      "Follow-up input should include the configured substantive-turn fallback."
     );
     assert(
       openingBuilt.input.latest_formative_decision.formative_value,
@@ -575,26 +595,31 @@ async function main() {
       (await prisma.studentProfile.count({
         where: { concept_unit_session_db_id: fixture.conceptUnitSession.id }
       })) === profileCountBefore,
-      "Follow-up should not create or update student profiles in Phase 6D1."
+      "A non-triggering follow-up exchange should not create or update student profiles."
     );
     assert(
       (await prisma.formativeDecision.count({
         where: { concept_unit_session_db_id: fixture.conceptUnitSession.id }
       })) === decisionCountBefore,
-      "Follow-up should not create or update formative decisions in Phase 6D1."
+      "A non-triggering follow-up exchange should not create or update formative decisions."
     );
     assert(
       (await prisma.conceptUnitSession.count({
         where: { assessment_session_db_id: fixture.session.id }
       })) === 1,
-      "Follow-up should not start the next concept unit in Phase 6D1."
+      "Follow-up should not start the next concept unit."
     );
 
     const stopped = await stopStudentFollowup({
       student_user_db_id: fixture.student.id,
       session_public_id: fixture.session.session_public_id
     });
-    assert(stopped.current_phase === "followup_stopped", "Stop should move student state to followup_stopped.");
+    assert(
+      stopped.current_phase === "followup_stopped" ||
+        stopped.current_phase === "followup_profile_update_pending" ||
+        stopped.current_phase === "followup_planning_update_pending",
+      "Stop should either close immediately or enter a final update state."
+    );
     assert(stopped.followup?.can_send === false, "Stopped follow-up should not allow sending messages.");
     assertNoStudentProfileOrPlanningLabels(stopped, "Stopped student state");
     await expectStudentError(

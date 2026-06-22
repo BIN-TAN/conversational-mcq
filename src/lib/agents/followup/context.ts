@@ -4,6 +4,7 @@ export type FollowupContextConfig = {
   max_turns: number;
   message_max_chars: number;
   context_max_chars: number;
+  substantive_turns_before_update: number;
 };
 
 export function getFollowupContextConfig(): FollowupContextConfig {
@@ -12,7 +13,8 @@ export function getFollowupContextConfig(): FollowupContextConfig {
   return {
     max_turns: env.FOLLOWUP_CONTEXT_MAX_TURNS,
     message_max_chars: env.FOLLOWUP_MESSAGE_MAX_CHARS,
-    context_max_chars: env.FOLLOWUP_CONTEXT_MAX_CHARS
+    context_max_chars: env.FOLLOWUP_CONTEXT_MAX_CHARS,
+    substantive_turns_before_update: env.FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE
   };
 }
 

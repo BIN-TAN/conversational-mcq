@@ -86,9 +86,9 @@ async function main() {
     const messageResult = await submitStudentFollowupMessage({
       student_user_db_id: fixture.student.id,
       session_public_id: fixture.session.session_public_id,
-      message: "I can explain the concept connection in my own words.",
+      message: "ok",
       client_message_id: "ui_message_1",
-      mock_provider_mode: "followup_reasoning_refinement"
+      mock_provider_mode: "followup_diagnostic_clarification"
     });
     assert(messageResult.message_status === "assistant_replied", "Student message should receive assistant reply.");
     assertNoStudentProfileOrPlanningLabels(messageResult, "Student follow-up message response");

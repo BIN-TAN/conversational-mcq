@@ -1,16 +1,19 @@
 # Workflow Jobs
 
-Phase 6D2A adds a PostgreSQL-backed workflow queue for automatic sessions. It does not use Redis or browser-dependent execution.
+Phase 6D2A adds a PostgreSQL-backed workflow queue for automatic sessions. Phase 6D2B extends the same queue with staged follow-up evidence update jobs inside the current concept unit. The workflow queue does not use Redis or browser-dependent execution.
 
 ## Job Types
 
-Only these job types are implemented in Phase 6D2A:
+These job types are implemented through Phase 6D2B:
 
 - `run_initial_profiling`
 - `run_initial_planning`
 - `start_initial_followup`
+- `run_followup_profile_update`
+- `run_followup_planning_update`
+- `finalize_followup_update`
 
-No follow-up evidence profile updating, replanning, second follow-up round, or next-concept progression is implemented.
+Follow-up evidence updating is staged: profile update output and planning update output are saved on the update cycle first, then activated together only during finalization. Next-concept progression, countdown timers, Response Collection Agent LLM behavior, live Item Preparation behavior, and master CSV agent-field filling are not implemented.
 
 ## Statuses
 
@@ -30,6 +33,9 @@ Each logical automatic step has an idempotency key based on the concept-unit ses
 - profiling: concept-unit session + initial response package
 - planning: concept-unit session + latest student profile
 - follow-up startup: concept-unit session + latest formative decision
+- follow-up profile update: follow-up update cycle + evidence package
+- follow-up planning update: follow-up update cycle + staged updated profile
+- follow-up finalization: follow-up update cycle
 
 Retries must not duplicate successful profiles, decisions, follow-up rounds, or assistant openings.
 
@@ -45,9 +51,10 @@ WORKFLOW_JOB_BASE_RETRY_MS=5000
 WORKFLOW_JOB_MAX_RETRY_MS=300000
 WORKFLOW_JOB_LEASE_TIMEOUT_MS=300000
 WORKFLOW_JOB_POLL_INTERVAL_MS=2000
+FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE=3
 ```
 
-Retries use exponential backoff with jitter. Permanent validation/refusal failures should fail safely instead of looping indefinitely.
+Retries use exponential backoff with jitter. Permanent validation/refusal failures should fail safely instead of looping indefinitely. `FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE` is a technical fallback for evidence updating and is not a pedagogical maximum number of turns.
 
 ## Commands
 
@@ -68,6 +75,8 @@ Run:
 
 ```bash
 npm run workflow:worker-smoke
+npm run agent:followup-update-smoke
+npm run agent:followup-final-update-smoke
 ```
 
-The smoke test verifies claim behavior, concurrent worker safety, lease recovery, pause skipping, safe payloads, and absence of OpenAI calls.
+The workflow smoke test verifies claim behavior, concurrent worker safety, lease recovery, pause skipping, safe payloads, and absence of OpenAI calls. The follow-up update smoke tests verify staged update cycles, final stop updates, idempotency, safe evidence packages, teacher serialization, and absence of OpenAI calls.

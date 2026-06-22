@@ -1,12 +1,12 @@
 # Follow-Up Agent
 
-Phase 6D1 integrates only the Follow-up Agent for the first open-ended follow-up conversation round after a saved student profile and saved formative decision exist.
+Phase 6D1 integrates the Follow-up Agent for the first open-ended follow-up conversation round after a saved student profile and saved formative decision exist. Phase 6D2B extends the same agent output contract so the backend can detect meaningful follow-up evidence for staged current-concept update cycles.
 
 ## Scope
 
 The service converts the latest `formative_decisions` plan into student-facing follow-up turns inside one active `followup_rounds` record.
 
-It does not update the student profile, rerun formative planning, create follow-up evidence packages, start another concept unit, modify initial item responses, reveal correctness, alter the master CSV export, or call OpenAI during normal verification.
+The Follow-up Agent itself does not update the student profile, rerun formative planning, create follow-up evidence packages, start another concept unit, modify initial item responses, reveal correctness, alter the master CSV export, or call OpenAI during normal verification. In Phase 6D2B, the orchestration layer may use trusted follow-up output metadata to create a staged update cycle; agent output never directly controls workflow state.
 
 ## Preconditions
 
@@ -28,7 +28,7 @@ The route requires `teacher_researcher`, rejects students with 403, uses public 
 
 Phase 6D2A may start the first follow-up round from a backend workflow job when the session's workflow snapshot is `automatic`. This reuses the same Follow-up Agent service, usage guard, schema validation, semantic validation, and audit logging as the manual trigger. The startup job is idempotent and reuses a not-started round during retry rather than creating duplicate rounds.
 
-Phase 6D2A still does not implement follow-up evidence packages, updated profiles, replanning, a second follow-up round, or next-concept progression.
+Phase 6D2B may create follow-up evidence packages, updated profile candidates, updated planning candidates, and a next follow-up round only through the atomic update-cycle service. It still does not implement next-concept progression.
 
 ## Input Evidence
 
@@ -78,13 +78,23 @@ The Follow-up Agent must return strict `FollowupOutput`:
   evidence_request?: string;
   expects_student_response: boolean;
   evidence_trigger_candidate: boolean;
+  student_turn_substantive: boolean;
+  evidence_trigger_reasons: Array<
+    | "substantive_explanation"
+    | "reasoning_revision"
+    | "task_completion"
+    | "transfer_application"
+    | "understanding_claim"
+    | "move_on_request"
+    | "other_relevant_evidence"
+  >;
   should_offer_move_on: boolean;
   off_topic_detected: boolean;
   events_to_log: SafeProcessEvent[];
 }
 ```
 
-The service rejects unknown labels, schema-invalid output, and semantically invalid output. The returned `target_formative_value` must match the current saved formative decision. The agent may propose only trusted event types:
+The service rejects unknown labels, schema-invalid output, and semantically invalid output. The returned `target_formative_value` must match the current saved formative decision. Opening messages must use `student_turn_substantive = false` and `evidence_trigger_reasons = []`. The agent may propose only trusted event types:
 
 - `followup_task_assigned`
 - `followup_turn_completed`
@@ -118,6 +128,12 @@ FOLLOWUP_CONTEXT_MAX_CHARS=50000
 ```
 
 The full transcript remains stored in the database; only the bounded recent context is sent to the provider.
+
+## Phase 6D2B Update Metadata
+
+The agent classifies the latest student reply conservatively. Substantive evidence can include concept explanations, revised reasoning, task completion, transfer/application reasoning, a supported understanding claim, or a move-on request. Brief acknowledgements, blank messages, off-topic social turns, and process events alone do not trigger updating.
+
+Immediate trigger categories may create an update cycle. If no immediate category appears, the orchestration layer may use `FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE`, defaulting to `3`, as a technical fallback based on substantive student turns. This is not a pedagogical maximum number of turns.
 
 ## Student Boundary
 
@@ -171,16 +187,14 @@ The usage guard must also allow the call. Browser code never receives provider c
 
 ## Not Implemented
 
-Phase 6D1 does not implement:
+Phase 6D2B still does not implement:
 
-- Phase 6D2 iterative profile updates
-- re-running the Student Profiling Agent from follow-up evidence
-- re-running the Formative Value and Planning Agent after follow-up
-- follow-up evidence package creation
 - move-next orchestration
+- next-concept progression
 - Response Collection Agent LLM behavior
 - live Item Preparation Agent behavior
 - master CSV follow-up/profile field filling beyond already stored records
+- a pedagogical maximum number of follow-up turns
 
 ## Verification
 
@@ -188,6 +202,8 @@ Run:
 
 ```bash
 npm run agent:followup-smoke
+npm run agent:followup-update-smoke
+npm run agent:followup-final-update-smoke
 ```
 
-The smoke test verifies safe input building, prohibited field exclusion, teacher-only start authorization, student message handling, idempotency, bounded provider context, strict output validation, semantic validation, usage-blocked handling, agent-call audit, process-event logging, teacher review serialization, student-safe serialization, student stop behavior, no profile update, no replanning, no new concept unit, and no OpenAI network calls.
+The smoke tests verify safe input building, prohibited field exclusion, teacher-only start authorization, student message handling, idempotency, bounded provider context, strict output validation, semantic validation, usage-blocked handling, agent-call audit, process-event logging, teacher review serialization, student-safe serialization, student stop behavior, staged follow-up update cycles, final stop updates, no new concept unit, and no OpenAI network calls.

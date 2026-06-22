@@ -85,6 +85,7 @@ export const StudentSessionStateSchema = z.object({
     "automatic_followup_opening_pending",
     "automatic_workflow_failed",
     "followup_active",
+    "followup_updating",
     "followup_stopped"
   ]),
   current_item: StudentSafeItemSchema.nullable(),
@@ -142,6 +143,7 @@ export const StudentConversationFrameSchema = z.object({
     "automatic_processing",
     "automatic_failed",
     "followup_active",
+    "followup_updating",
     "followup_stopped",
     "session_paused",
     "error"

@@ -89,7 +89,10 @@ export const EventSourceSchema = z.enum(eventSources);
 export const workflowJobTypes = [
   "run_initial_profiling",
   "run_initial_planning",
-  "start_initial_followup"
+  "start_initial_followup",
+  "run_followup_profile_update",
+  "run_followup_planning_update",
+  "finalize_followup_update"
 ] as const;
 export const WorkflowJobTypeSchema = z.enum(workflowJobTypes);
 
@@ -167,6 +170,19 @@ export const processEventTypes = [
   "followup_turn_completed",
   "followup_task_assigned",
   "followup_evidence_triggered",
+  "followup_update_triggered",
+  "followup_evidence_package_created",
+  "followup_profile_update_started",
+  "followup_profile_update_succeeded",
+  "followup_profile_update_failed",
+  "followup_planning_update_started",
+  "followup_planning_update_succeeded",
+  "followup_planning_update_failed",
+  "followup_update_cycle_completed",
+  "followup_update_cycle_failed",
+  "followup_final_update_started",
+  "followup_final_update_completed",
+  "followup_final_update_failed",
   "followup_stopped",
   "workflow_job_enqueued",
   "workflow_job_claimed",
@@ -302,6 +318,33 @@ export const followupRoundStatuses = [
 ] as const;
 export const FollowupRoundStatusSchema = z.enum(followupRoundStatuses);
 
+export const followupUpdateCycleStatuses = [
+  "pending",
+  "profiling",
+  "profiling_completed",
+  "planning",
+  "planning_completed",
+  "opening",
+  "committing",
+  "completed",
+  "failed",
+  "cancelled"
+] as const;
+export const FollowupUpdateCycleStatusSchema = z.enum(followupUpdateCycleStatuses);
+
+export const followupUpdateTriggerTypes = [
+  "agent_evidence_candidate",
+  "reasoning_revision",
+  "task_completion",
+  "transfer_application",
+  "understanding_claim",
+  "move_on_request",
+  "substantive_turn_threshold",
+  "student_stop_final_update",
+  "teacher_manual"
+] as const;
+export const FollowupUpdateTriggerTypeSchema = z.enum(followupUpdateTriggerTypes);
+
 export const exportJobStatuses = ["pending", "processing", "completed", "failed", "expired"] as const;
 export const ExportJobStatusSchema = z.enum(exportJobStatuses);
 
@@ -317,3 +360,5 @@ export type ActorType = z.infer<typeof ActorTypeSchema>;
 export type EventSource = z.infer<typeof EventSourceSchema>;
 export type ProcessEventType = z.infer<typeof ProcessEventTypeSchema>;
 export type ResponsePackageType = z.infer<typeof ResponsePackageTypeSchema>;
+export type FollowupUpdateCycleStatus = z.infer<typeof FollowupUpdateCycleStatusSchema>;
+export type FollowupUpdateTriggerType = z.infer<typeof FollowupUpdateTriggerTypeSchema>;

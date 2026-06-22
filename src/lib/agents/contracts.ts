@@ -51,6 +51,18 @@ export const FollowupActionType = z.enum([
 export type InterventionType = z.infer<typeof InterventionType>;
 export type FollowupActionType = z.infer<typeof FollowupActionType>;
 
+export const FollowupEvidenceTriggerReason = z.enum([
+  "substantive_explanation",
+  "reasoning_revision",
+  "task_completion",
+  "transfer_application",
+  "understanding_claim",
+  "move_on_request",
+  "other_relevant_evidence"
+]);
+
+export type FollowupEvidenceTriggerReason = z.infer<typeof FollowupEvidenceTriggerReason>;
+
 const JsonRecord = z.record(z.unknown());
 const JsonArray = z.array(z.unknown());
 const SafeProcessEvent = z.object({
@@ -192,6 +204,8 @@ export const FollowupOutput = AgentOutputBase.extend({
   evidence_request: z.string().optional(),
   expects_student_response: z.boolean(),
   evidence_trigger_candidate: z.boolean(),
+  student_turn_substantive: z.boolean(),
+  evidence_trigger_reasons: z.array(FollowupEvidenceTriggerReason),
   should_offer_move_on: z.boolean(),
   off_topic_detected: z.boolean(),
   events_to_log: z.array(SafeProcessEvent)

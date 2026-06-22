@@ -235,11 +235,33 @@ export class MockLlmProvider implements LlmProvider {
       };
       const action = modeToAction[mode] ?? "clarification_prompt";
       const opening = input.turn_type === "opening";
+      const lowerStudentMessage = studentMessage.toLowerCase();
+      const nonsubstantive =
+        opening ||
+        mode === "followup_off_topic" ||
+        mode === "followup_prompt_injection" ||
+        /^(ok|okay|thanks|thank you|idk|i don't know|not sure)\.?$/.test(
+          lowerStudentMessage.trim()
+        );
+      const evidenceTriggerReasons = opening
+        ? []
+        : mode === "followup_move_on_offer" || /\b(move on|next|done|finished)\b/.test(lowerStudentMessage)
+          ? ["move_on_request"]
+          : mode === "followup_consolidation_transfer" || /\b(apply|another case|transfer)\b/.test(lowerStudentMessage)
+            ? ["transfer_application"]
+            : mode === "followup_reasoning_refinement" || /\b(revise|changed my reasoning|now i think)\b/.test(lowerStudentMessage)
+              ? ["reasoning_revision"]
+              : mode === "followup_evidence_trigger"
+                ? ["substantive_explanation"]
+                : nonsubstantive
+                  ? []
+                  : ["substantive_explanation"];
+      const studentTurnSubstantive = evidenceTriggerReasons.length > 0;
       const output = {
         agent_name: request.agent_name,
-        agent_version: "6d1-draft",
-        prompt_version: "mock-followup-v2",
-        schema_version: "mock-followup-output-v2",
+        agent_version: "6d2b-draft",
+        prompt_version: "mock-followup-v3",
+        schema_version: "mock-followup-output-v3",
         output_status: "ok",
         warnings: [
           "Mock provider output for infrastructure testing only; not validated formative guidance."
@@ -257,6 +279,8 @@ export class MockLlmProvider implements LlmProvider {
         evidence_request: "Explain the reasoning evidence that supports your current thinking.",
         expects_student_response: mode !== "followup_move_on_offer",
         evidence_trigger_candidate: mode === "followup_evidence_trigger",
+        student_turn_substantive: studentTurnSubstantive,
+        evidence_trigger_reasons: evidenceTriggerReasons,
         should_offer_move_on: mode === "followup_move_on_offer",
         off_topic_detected: mode === "followup_off_topic" || mode === "followup_prompt_injection",
         events_to_log:
@@ -308,7 +332,22 @@ export class MockLlmProvider implements LlmProvider {
       };
     }
 
-    const output = mockOutputForAgent(request.agent_name) as unknown as TOutput;
+    const output = mockOutputForAgent(request.agent_name) as Record<string, unknown>;
+
+    if (request.agent_name === "student_profiling_agent") {
+      const input = request.input as Record<string, unknown>;
+
+      if (input.profile_type === "updated") {
+        output.profile_type = "updated";
+        output.integrated_profile_rationale =
+          "Mock updated output only. Follow-up evidence was included to exercise iterative profile updating infrastructure.";
+        output.reasoning_quality_summary =
+          "Mock updated output only. Follow-up transcript evidence is treated as additional evidence, not a direct proof of ability.";
+        output.engagement_summary =
+          "Mock updated output only. Follow-up participation is contextual engagement evidence, not misconduct evidence.";
+        output.rationale = "Mock updated provider fixture for Phase 6D2B infrastructure testing.";
+      }
+    }
 
     return {
       provider: "mock",
@@ -316,7 +355,7 @@ export class MockLlmProvider implements LlmProvider {
       provider_request_id: `mock_req_${randomUUID()}`,
       provider_response_id: `mock_resp_${randomUUID()}`,
       status: "completed",
-      parsed_output: output,
+      parsed_output: output as unknown as TOutput,
       raw_output: output,
       usage: {
         input_tokens: 10,

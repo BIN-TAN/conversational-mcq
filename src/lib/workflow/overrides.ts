@@ -258,6 +258,9 @@ export async function retryCurrentWorkflowStep(input: {
       idempotency_key: `${failedJob.idempotency_key}:retry:${override.override_public_id}`,
       payload:
         toPrismaJson({
+          ...(failedJob.payload && typeof failedJob.payload === "object" && !Array.isArray(failedJob.payload)
+            ? (failedJob.payload as Record<string, unknown>)
+            : {}),
           retry_of_job_public_id: failedJob.job_public_id,
           requested_by_override_public_id: override.override_public_id
         }) ?? Prisma.JsonNull,

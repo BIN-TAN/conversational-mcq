@@ -117,6 +117,9 @@ enum WorkflowJobType {
   run_initial_profiling
   run_initial_planning
   start_initial_followup
+  run_followup_profile_update
+  run_followup_planning_update
+  finalize_followup_update
 }
 
 enum WorkflowJobStatus {
@@ -217,6 +220,31 @@ enum FollowupRoundStatus {
   completed
   stopped
   needs_review
+}
+
+enum FollowupUpdateCycleStatus {
+  pending
+  profiling
+  profiling_completed
+  planning
+  planning_completed
+  opening
+  committing
+  completed
+  failed
+  cancelled
+}
+
+enum FollowupUpdateTriggerType {
+  agent_evidence_candidate
+  reasoning_revision
+  task_completion
+  transfer_application
+  understanding_claim
+  move_on_request
+  substantive_turn_threshold
+  student_stop_final_update
+  teacher_manual
 }
 
 enum ExportJobStatus {
@@ -370,6 +398,7 @@ model AssessmentSession {
   student_action_idempotency_keys StudentActionIdempotencyKey[]
   workflow_jobs                   WorkflowJob[]
   workflow_overrides              WorkflowOverride[]
+  followup_update_cycles          FollowupUpdateCycle[]
 
   @@unique([user_db_id, assessment_db_id, attempt_number])
   @@index([user_db_id, status])
@@ -396,20 +425,21 @@ model ConceptUnitSession {
   created_at                      DateTime                 @default(now()) @db.Timestamptz(6)
   updated_at                      DateTime                 @updatedAt @db.Timestamptz(6)
 
-  assessment_session        AssessmentSession   @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
-  concept_unit              ConceptUnit         @relation(fields: [concept_unit_db_id], references: [id], onDelete: Restrict)
-  latest_student_profile    StudentProfile?     @relation("LatestStudentProfile", fields: [latest_student_profile_db_id], references: [id], onDelete: SetNull)
-  latest_formative_decision FormativeDecision?  @relation("LatestFormativeDecision", fields: [latest_formative_decision_db_id], references: [id], onDelete: SetNull)
+  assessment_session        AssessmentSession     @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit              ConceptUnit           @relation(fields: [concept_unit_db_id], references: [id], onDelete: Restrict)
+  latest_student_profile    StudentProfile?       @relation("LatestStudentProfile", fields: [latest_student_profile_db_id], references: [id], onDelete: SetNull)
+  latest_formative_decision FormativeDecision?    @relation("LatestFormativeDecision", fields: [latest_formative_decision_db_id], references: [id], onDelete: SetNull)
   item_responses            ItemResponse[]
   conversation_turns        ConversationTurn[]
   process_events            ProcessEvent[]
   agent_calls               AgentCall[]
   response_packages         ResponsePackage[]
-  student_profiles          StudentProfile[]    @relation("ConceptUnitSessionProfiles")
-  formative_decisions       FormativeDecision[] @relation("ConceptUnitSessionFormativeDecisions")
+  student_profiles          StudentProfile[]      @relation("ConceptUnitSessionProfiles")
+  formative_decisions       FormativeDecision[]   @relation("ConceptUnitSessionFormativeDecisions")
   followup_rounds           FollowupRound[]
   workflow_jobs             WorkflowJob[]
   workflow_overrides        WorkflowOverride[]
+  followup_update_cycles    FollowupUpdateCycle[]
 
   @@unique([assessment_session_db_id, concept_unit_db_id])
   @@index([assessment_session_db_id, status])
@@ -482,10 +512,11 @@ model ConversationTurn {
   structured_payload         Json?
   created_at                 DateTime        @default(now()) @db.Timestamptz(6)
 
-  assessment_session   AssessmentSession   @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
-  concept_unit_session ConceptUnitSession? @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
-  item                 Item?               @relation(fields: [item_db_id], references: [id], onDelete: Restrict)
-  followup_round       FollowupRound?      @relation(fields: [followup_round_db_id], references: [id], onDelete: Restrict)
+  assessment_session                         AssessmentSession     @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit_session                       ConceptUnitSession?   @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  item                                       Item?                 @relation(fields: [item_db_id], references: [id], onDelete: Restrict)
+  followup_round                             FollowupRound?        @relation(fields: [followup_round_db_id], references: [id], onDelete: Restrict)
+  evidence_cutoff_for_followup_update_cycles FollowupUpdateCycle[] @relation("FollowupUpdateEvidenceCutoff")
 
   @@index([assessment_session_db_id, created_at])
   @@index([concept_unit_session_db_id, created_at])
@@ -616,11 +647,14 @@ model AgentCall {
   created_at                 DateTime        @default(now()) @db.Timestamptz(6)
   updated_at                 DateTime        @updatedAt @db.Timestamptz(6)
 
-  assessment_session   AssessmentSession?  @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
-  concept_unit_session ConceptUnitSession? @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
-  followup_round       FollowupRound?      @relation(fields: [followup_round_db_id], references: [id], onDelete: Restrict)
-  student_profiles     StudentProfile[]    @relation("StudentProfileAgentCall")
-  formative_decisions  FormativeDecision[] @relation("FormativeDecisionAgentCall")
+  assessment_session              AssessmentSession?    @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit_session            ConceptUnitSession?   @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  followup_round                  FollowupRound?        @relation(fields: [followup_round_db_id], references: [id], onDelete: Restrict)
+  student_profiles                StudentProfile[]      @relation("StudentProfileAgentCall")
+  formative_decisions             FormativeDecision[]   @relation("FormativeDecisionAgentCall")
+  followup_profile_update_cycles  FollowupUpdateCycle[] @relation("FollowupProfileAgentCall")
+  followup_planning_update_cycles FollowupUpdateCycle[] @relation("FollowupPlanningAgentCall")
+  followup_opening_update_cycles  FollowupUpdateCycle[] @relation("FollowupOpeningAgentCall")
 
   @@index([assessment_session_db_id, created_at])
   @@index([concept_unit_session_db_id, created_at])
@@ -640,7 +674,8 @@ model ResponsePackage {
   payload                    Json
   created_at                 DateTime @default(now()) @db.Timestamptz(6)
 
-  concept_unit_session ConceptUnitSession @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit_session ConceptUnitSession    @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  followupUpdateCycles FollowupUpdateCycle[]
 
   @@index([concept_unit_session_db_id, created_at])
   @@index([package_type])
@@ -672,11 +707,12 @@ model StudentProfile {
   based_on_agent_call_db_id       String?                      @db.Uuid
   created_at                      DateTime                     @default(now()) @db.Timestamptz(6)
 
-  concept_unit_session             ConceptUnitSession   @relation("ConceptUnitSessionProfiles", fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
-  based_on_agent_call              AgentCall?           @relation("StudentProfileAgentCall", fields: [based_on_agent_call_db_id], references: [id], onDelete: SetNull)
-  latest_for_concept_unit_sessions ConceptUnitSession[] @relation("LatestStudentProfile")
-  formative_decisions              FormativeDecision[]  @relation("DecisionProfile")
-  updated_followup_rounds          FollowupRound[]      @relation("UpdatedStudentProfile")
+  concept_unit_session             ConceptUnitSession    @relation("ConceptUnitSessionProfiles", fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  based_on_agent_call              AgentCall?            @relation("StudentProfileAgentCall", fields: [based_on_agent_call_db_id], references: [id], onDelete: SetNull)
+  latest_for_concept_unit_sessions ConceptUnitSession[]  @relation("LatestStudentProfile")
+  formative_decisions              FormativeDecision[]   @relation("DecisionProfile")
+  updated_followup_rounds          FollowupRound[]       @relation("UpdatedStudentProfile")
+  source_followup_update_cycles    FollowupUpdateCycle[] @relation("SourceStudentProfile")
 
   @@index([concept_unit_session_db_id, created_at])
   @@index([ability_profile])
@@ -702,11 +738,12 @@ model FormativeDecision {
   based_on_agent_call_db_id   String?        @db.Uuid
   created_at                  DateTime       @default(now()) @db.Timestamptz(6)
 
-  concept_unit_session             ConceptUnitSession   @relation("ConceptUnitSessionFormativeDecisions", fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
-  student_profile                  StudentProfile       @relation("DecisionProfile", fields: [student_profile_db_id], references: [id], onDelete: Restrict)
-  based_on_agent_call              AgentCall?           @relation("FormativeDecisionAgentCall", fields: [based_on_agent_call_db_id], references: [id], onDelete: SetNull)
-  latest_for_concept_unit_sessions ConceptUnitSession[] @relation("LatestFormativeDecision")
+  concept_unit_session             ConceptUnitSession    @relation("ConceptUnitSessionFormativeDecisions", fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  student_profile                  StudentProfile        @relation("DecisionProfile", fields: [student_profile_db_id], references: [id], onDelete: Restrict)
+  based_on_agent_call              AgentCall?            @relation("FormativeDecisionAgentCall", fields: [based_on_agent_call_db_id], references: [id], onDelete: SetNull)
+  latest_for_concept_unit_sessions ConceptUnitSession[]  @relation("LatestFormativeDecision")
   followup_rounds                  FollowupRound[]
+  source_followup_update_cycles    FollowupUpdateCycle[] @relation("SourceFormativeDecision")
 
   @@index([concept_unit_session_db_id, created_at])
   @@index([student_profile_db_id])
@@ -728,17 +765,70 @@ model FollowupRound {
   created_at                    DateTime            @default(now()) @db.Timestamptz(6)
   updated_at                    DateTime            @updatedAt @db.Timestamptz(6)
 
-  concept_unit_session    ConceptUnitSession @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
-  formative_decision      FormativeDecision  @relation(fields: [formative_decision_db_id], references: [id], onDelete: Restrict)
-  updated_student_profile StudentProfile?    @relation("UpdatedStudentProfile", fields: [updated_student_profile_db_id], references: [id], onDelete: SetNull)
+  concept_unit_session    ConceptUnitSession    @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  formative_decision      FormativeDecision     @relation(fields: [formative_decision_db_id], references: [id], onDelete: Restrict)
+  updated_student_profile StudentProfile?       @relation("UpdatedStudentProfile", fields: [updated_student_profile_db_id], references: [id], onDelete: SetNull)
   conversation_turns      ConversationTurn[]
   agent_calls             AgentCall[]
+  source_update_cycles    FollowupUpdateCycle[] @relation("SourceFollowupRound")
 
   @@unique([concept_unit_session_db_id, round_index])
   @@index([concept_unit_session_db_id, status])
   @@index([formative_decision_db_id])
   @@index([updated_student_profile_db_id])
   @@map("followup_rounds")
+}
+
+model FollowupUpdateCycle {
+  id                              String                    @id @default(uuid()) @db.Uuid
+  cycle_public_id                 String                    @unique @default(cuid())
+  assessment_session_db_id        String                    @db.Uuid
+  concept_unit_session_db_id      String                    @db.Uuid
+  source_followup_round_db_id     String                    @db.Uuid
+  source_student_profile_db_id    String                    @db.Uuid
+  source_formative_decision_db_id String                    @db.Uuid
+  evidence_package_db_id          String?                   @db.Uuid
+  evidence_cutoff_turn_db_id      String?                   @db.Uuid
+  evidence_cutoff_at              DateTime?                 @db.Timestamptz(6)
+  trigger_type                    FollowupUpdateTriggerType
+  trigger_details                 Json
+  status                          FollowupUpdateCycleStatus @default(pending)
+  final_update                    Boolean                   @default(false)
+  create_next_round               Boolean                   @default(true)
+  stop_after_cycle                Boolean                   @default(false)
+  profile_agent_call_db_id        String?                   @db.Uuid
+  planning_agent_call_db_id       String?                   @db.Uuid
+  opening_agent_call_db_id        String?                   @db.Uuid
+  staged_profile_output           Json?
+  staged_planning_output          Json?
+  staged_opening_output           Json?
+  failure_stage                   String?
+  failure_category                String?
+  failure_message                 String?                   @db.Text
+  created_at                      DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at                      DateTime                  @updatedAt @db.Timestamptz(6)
+  completed_at                    DateTime?                 @db.Timestamptz(6)
+
+  assessment_session        AssessmentSession  @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit_session      ConceptUnitSession @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  source_followup_round     FollowupRound      @relation("SourceFollowupRound", fields: [source_followup_round_db_id], references: [id], onDelete: Restrict)
+  source_student_profile    StudentProfile     @relation("SourceStudentProfile", fields: [source_student_profile_db_id], references: [id], onDelete: Restrict)
+  source_formative_decision FormativeDecision  @relation("SourceFormativeDecision", fields: [source_formative_decision_db_id], references: [id], onDelete: Restrict)
+  evidence_package          ResponsePackage?   @relation(fields: [evidence_package_db_id], references: [id], onDelete: SetNull)
+  evidence_cutoff_turn      ConversationTurn?  @relation("FollowupUpdateEvidenceCutoff", fields: [evidence_cutoff_turn_db_id], references: [id], onDelete: SetNull)
+  profile_agent_call        AgentCall?         @relation("FollowupProfileAgentCall", fields: [profile_agent_call_db_id], references: [id], onDelete: SetNull)
+  planning_agent_call       AgentCall?         @relation("FollowupPlanningAgentCall", fields: [planning_agent_call_db_id], references: [id], onDelete: SetNull)
+  opening_agent_call        AgentCall?         @relation("FollowupOpeningAgentCall", fields: [opening_agent_call_db_id], references: [id], onDelete: SetNull)
+
+  @@index([assessment_session_db_id, created_at])
+  @@index([concept_unit_session_db_id, status])
+  @@index([source_followup_round_db_id])
+  @@index([evidence_package_db_id])
+  @@index([profile_agent_call_db_id])
+  @@index([planning_agent_call_db_id])
+  @@index([opening_agent_call_db_id])
+  @@index([trigger_type])
+  @@map("followup_update_cycles")
 }
 
 model SummativeOutcome {

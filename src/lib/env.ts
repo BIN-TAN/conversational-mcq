@@ -89,6 +89,7 @@ const serverEnvSchema = z.object({
   FOLLOWUP_CONTEXT_MAX_TURNS: positiveIntWithDefault(24),
   FOLLOWUP_MESSAGE_MAX_CHARS: positiveIntWithDefault(6000),
   FOLLOWUP_CONTEXT_MAX_CHARS: positiveIntWithDefault(50000),
+  FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE: positiveIntWithDefault(3),
   WORKFLOW_JOB_MAX_ATTEMPTS: positiveIntWithDefault(3),
   WORKFLOW_JOB_BASE_RETRY_MS: positiveIntWithDefault(5000),
   WORKFLOW_JOB_MAX_RETRY_MS: positiveIntWithDefault(300000),

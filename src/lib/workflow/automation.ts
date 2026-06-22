@@ -197,6 +197,13 @@ export function deriveAutomationState(input: {
     return "automatic_failed";
   }
 
+  if (
+    input.current_phase === "followup_profile_update_pending" ||
+    input.current_phase === "followup_planning_update_pending"
+  ) {
+    return "automatic_processing";
+  }
+
   if (input.current_phase === "followup_active") {
     return "automatic_active_followup";
   }

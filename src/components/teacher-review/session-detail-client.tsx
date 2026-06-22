@@ -15,6 +15,7 @@ import {
   resumeAutomation,
   retryAutomation,
   runFormativePlanning,
+  runFollowupUpdate,
   runStudentProfiling,
   startFollowup,
   stopAutomationFollowup
@@ -27,6 +28,7 @@ import type {
   StructuredApiError,
   TeacherFormativeDecision,
   TeacherFollowupRound,
+  TeacherFollowupUpdateCycle,
   TeacherStudentProfile,
   TranscriptResponse
 } from "./types";
@@ -87,6 +89,19 @@ const eventTypes = [
   "followup_started",
   "followup_turn_completed",
   "followup_task_assigned",
+  "followup_update_triggered",
+  "followup_evidence_package_created",
+  "followup_profile_update_started",
+  "followup_profile_update_succeeded",
+  "followup_profile_update_failed",
+  "followup_planning_update_started",
+  "followup_planning_update_succeeded",
+  "followup_planning_update_failed",
+  "followup_update_cycle_completed",
+  "followup_update_cycle_failed",
+  "followup_final_update_started",
+  "followup_final_update_completed",
+  "followup_final_update_failed",
   "off_topic_followup",
   "followup_stopped",
   "workflow_job_enqueued",
@@ -311,6 +326,31 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
     }
   }
 
+  async function handleRunFollowupUpdate(conceptUnitPublicId: string) {
+    setFollowupAction({
+      concept_unit_public_id: conceptUnitPublicId,
+      error: null,
+      status: "running"
+    });
+
+    try {
+      const result = await runFollowupUpdate(sessionPublicId, conceptUnitPublicId);
+      setFollowupAction({
+        concept_unit_public_id: conceptUnitPublicId,
+        error: null,
+        status: result.result.status
+      });
+      await loadCore();
+      await loadProcessEvents();
+    } catch (requestError) {
+      setFollowupAction({
+        concept_unit_public_id: conceptUnitPublicId,
+        error: errorFromUnknown(requestError),
+        status: null
+      });
+    }
+  }
+
   async function handleAutomationAction(action: "pause" | "resume" | "retry" | "stop_followup") {
     setAutomationAction({
       action,
@@ -438,6 +478,7 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
               followupAction={followupAction}
               onRunPlanning={(conceptUnitPublicId) => void handleRunPlanning(conceptUnitPublicId)}
               onRunProfiling={(conceptUnitPublicId) => void handleRunProfiling(conceptUnitPublicId)}
+              onRunFollowupUpdate={(conceptUnitPublicId) => void handleRunFollowupUpdate(conceptUnitPublicId)}
               onStartFollowup={(conceptUnitPublicId) => void handleStartFollowup(conceptUnitPublicId)}
               planningAction={planningAction}
               profilingAction={profilingAction}
@@ -1192,11 +1233,51 @@ function FollowupRoundDetails({ round }: { round: TeacherFollowupRound }) {
   );
 }
 
+function FollowupUpdateCycleDetails({ cycle }: { cycle: TeacherFollowupUpdateCycle }) {
+  return (
+    <section className="rounded-lg border border-line bg-slate-50 p-4">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-ink">{cycle.cycle_public_id}</p>
+          <p className="mt-1 text-xs text-muted">
+            Staged outputs are not active unless the cycle status is completed.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <StatusPill value={cycle.status} tone={cycle.status === "failed" ? "bad" : cycle.status === "completed" ? "good" : "warn"} />
+          <StatusPill value={cycle.trigger_type} />
+          {cycle.final_update || cycle.stop_after_cycle ? <StatusPill value="final_stop_update" tone="warn" /> : null}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <Fact labelText="Evidence cutoff" value={formatDate(cycle.evidence_cutoff_at)} />
+        <Fact labelText="Profile staged" value={cycle.staged_profile_present ? "yes" : "no"} />
+        <Fact labelText="Planning staged" value={cycle.staged_planning_present ? "yes" : "no"} />
+        <Fact labelText="Opening staged" value={cycle.staged_opening_present ? "yes" : "no"} />
+        <Fact labelText="Profile call" value={cycle.profile_agent_call_present ? "recorded" : "none"} />
+        <Fact labelText="Planning call" value={cycle.planning_agent_call_present ? "recorded" : "none"} />
+        <Fact labelText="Opening call" value={cycle.opening_agent_call_present ? "recorded" : "none"} />
+        <Fact labelText="Pointers changed" value={cycle.active_pointers_changed ? "yes" : "no"} />
+      </div>
+      {cycle.failure_category || cycle.failure_message ? (
+        <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-950">
+          <p className="font-semibold">Failure: {cycle.failure_category ?? "unknown"}</p>
+          <p className="mt-1">{cycle.failure_message ?? "No failure message recorded."}</p>
+          {cycle.failure_stage ? <p className="mt-1 text-xs">Stage: {cycle.failure_stage}</p> : null}
+        </div>
+      ) : null}
+      <JsonDetails value={cycle.trigger_details} labelText="Trigger details" />
+      <p className="mt-3 text-xs text-muted">{cycle.interpretation_boundary}</p>
+    </section>
+  );
+}
+
 function FutureAgentSection({
   detail,
   followupAction,
   onRunPlanning,
   onRunProfiling,
+  onRunFollowupUpdate,
   onStartFollowup,
   planningAction,
   profilingAction
@@ -1209,6 +1290,7 @@ function FutureAgentSection({
   } | null;
   onRunPlanning: (conceptUnitPublicId: string) => void;
   onRunProfiling: (conceptUnitPublicId: string) => void;
+  onRunFollowupUpdate: (conceptUnitPublicId: string) => void;
   onStartFollowup: (conceptUnitPublicId: string) => void;
   planningAction: {
     concept_unit_public_id: string;
@@ -1390,7 +1472,7 @@ function FutureAgentSection({
           <div>
             <h3 className="text-lg font-semibold text-ink">Follow-up conversation</h3>
             <p className="mt-1 text-sm leading-6 text-muted">
-              Phase 6D1 starts one first follow-up round and records open-ended conversation. It does not update profiles or replan.
+              Follow-up remains open-ended. Meaningful new evidence can queue a staged profile and planning update before the next round opens.
             </p>
           </div>
           <StatusPill value={counts.followup_round_count > 0 ? "rounds_available" : "followup_not_started"} />
@@ -1425,6 +1507,22 @@ function FutureAgentSection({
                       )}
                     </div>
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                  {conceptUnitSession.can_run_followup_update ? (
+                    <button
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={isRunning}
+                      onClick={() => onRunFollowupUpdate(conceptUnitSession.concept_unit_public_id)}
+                      type="button"
+                    >
+                      {isRunning ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <BrainCircuit className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      Run follow-up update
+                    </button>
+                  ) : null}
                   {conceptUnitSession.can_start_followup ? (
                     <button
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] disabled:cursor-not-allowed disabled:opacity-60"
@@ -1440,6 +1538,7 @@ function FutureAgentSection({
                       Start follow-up
                     </button>
                   ) : null}
+                  </div>
                 </div>
                 {actionMatches && followupAction?.error ? (
                   <div className="mt-4">
@@ -1464,6 +1563,16 @@ function FutureAgentSection({
                     No follow-up round has been generated for this concept unit.
                   </p>
                 )}
+                {conceptUnitSession.followup_update_cycles.length > 0 ? (
+                  <div className="mt-4 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                      Follow-up update cycles
+                    </p>
+                    {conceptUnitSession.followup_update_cycles.map((cycle) => (
+                      <FollowupUpdateCycleDetails cycle={cycle} key={cycle.cycle_public_id} />
+                    ))}
+                  </div>
+                ) : null}
               </article>
             );
           })}

@@ -2,6 +2,8 @@
 
 Phase 6D1 adds the first student-facing open-ended follow-up conversation round after planning completes.
 
+Phase 6D2B adds iterative follow-up evidence updating within the current concept unit. It does not move students to the next concept unit.
+
 ## Route And APIs
 
 Student route:
@@ -37,6 +39,8 @@ The UI does not show profile labels, formative labels, evidence-sufficiency labe
 
 In Phase 6D2A automatic sessions, the follow-up opening may be prepared asynchronously after planning completes. While the opening is being prepared, the student sees only neutral saved-progress copy and may leave or return later. The browser does not run workflow jobs.
 
+In Phase 6D2B automatic sessions, meaningful submitted follow-up evidence may enqueue backend update jobs. While the update is pending, the message box is disabled and the student sees neutral saved-progress copy. The student does not see profile labels, formative values, correctness, cycle IDs, job names, provider/model names, or internal error details.
+
 ## Initial Response Locking
 
 Initial item responses remain locked during follow-up. Follow-up messages are appended to `conversation_turns` with `followup_round_db_id`; they do not overwrite `item_responses`.
@@ -54,6 +58,8 @@ Students may stop the active follow-up round. Stopping:
 
 Phase 6D1 does not automatically start the next concept unit after stop.
 
+In Phase 6D2B, if the current active round contains unprocessed substantive evidence, Stop follow-up enqueues a final profile/planning update first. A successful final update activates the final updated profile and decision, closes the round, and does not create a new round. If the final update fails, the previous active profile and decision remain authoritative, the round closes, and teacher review is flagged.
+
 ## Save, Exit, Resume
 
 Students may save and exit during follow-up. Server-saved turns remain in the database. If the browser has unsent draft text, the UI asks for confirmation before leaving.
@@ -68,9 +74,12 @@ There is no pedagogical maximum number of follow-up turns. Technical context saf
 FOLLOWUP_CONTEXT_MAX_TURNS
 FOLLOWUP_MESSAGE_MAX_CHARS
 FOLLOWUP_CONTEXT_MAX_CHARS
+FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE
 ```
 
 The full transcript remains stored. Provider calls receive only bounded recent context.
+
+`FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE` defaults to 3. It is a technical fallback for backend updating when several substantive turns accumulate without an immediate trigger. It is not a pedagogical maximum number of turns.
 
 ## Process Interpretation
 
@@ -82,6 +91,9 @@ Run:
 
 ```bash
 npm run student:followup-ui-smoke
+npm run agent:followup-update-smoke
+npm run agent:followup-final-update-smoke
+npm run student:followup-update-ui-smoke
 ```
 
-The smoke test verifies active and stopped follow-up states, neutral presenter copy, assistant opening display, student message/reply display, review locking, transcript safety, stop behavior, absence of profile/planning labels in student payloads, and no OpenAI network calls.
+The smoke tests verify active, updating, and stopped follow-up states; neutral presenter copy; assistant opening display; student message/reply display; review locking; transcript safety; iterative update cycles; final stop updates; absence of profile/planning labels in student payloads; and no OpenAI network calls.

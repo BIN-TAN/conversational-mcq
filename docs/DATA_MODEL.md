@@ -1,6 +1,6 @@
 # Data Model
 
-Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, and Phase 6 additions. The data model supports audited profiling, planning, and first-round follow-up records, but it still does not imply iterative profile updates, replanning after follow-up, or Response Collection Agent behavior.
+Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, and Phase 6 additions. The data model supports audited profiling, planning, first-round follow-up records, and Phase 6D2B staged iterative follow-up evidence updates inside the current concept unit. It still does not imply next-concept progression, Response Collection Agent behavior, live Item Preparation behavior, or master CSV filling for iterative profile/planning fields.
 
 ## Identifier Convention
 
@@ -27,11 +27,12 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `student_action_idempotency_keys`: Student action idempotency records for repeated browser requests during initial administration.
 - `conversation_turns`: Student, agent, system, orchestrator, and teacher-researcher messages across initial and follow-up phases.
 - `process_events`: Process telemetry such as page visibility, pauses, invalid help requests, prompt injection attempts, and phase events.
-- `agent_calls`: Audit storage for LLM calls. Phase 6A adds provider/prompt/model audit fields and mock execution support; Phase 6B, Phase 6C, and Phase 6D1 connect profiling, planning, and follow-up through controlled backend services.
+- `agent_calls`: Audit storage for LLM calls. Phase 6A adds provider/prompt/model audit fields and mock execution support; Phase 6B, Phase 6C, Phase 6D1, and Phase 6D2B connect profiling, planning, follow-up, and updated follow-up evidence cycles through controlled backend services.
 - `response_packages`: Structured packages assembled for downstream profiling/planning. `package_type` remains a string in the database but is validated in TypeScript.
 - `student_profiles`: Storage for the three-layer profile: ability, engagement, and integrated diagnostic profile.
 - `formative_decisions`: Storage for formative value decisions and action plans.
 - `followup_rounds`: Iterative follow-up rounds. There is no pedagogical maximum number of rounds.
+- `followup_update_cycles`: Staged, auditable update cycles created from follow-up evidence packages. Staged profile/planning/opening outputs are not active records until the full cycle commits successfully.
 - `summative_outcomes`: Audited linkage to supervised summative assessment scores by `users.user_id`, with active/superseded revisions.
 - `summative_outcome_import_batches`: Audited preview/commit batches for teacher_researcher CSV imports.
 - `export_jobs`: Teacher_researcher master CSV export job tracking with public export IDs and local storage keys.
@@ -51,7 +52,8 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `item_responses.concept_unit_session_db_id -> concept_unit_sessions.id`
 - `item_responses.item_db_id -> items.id`
 - `conversation_turns`, `process_events`, and `agent_calls` attach to assessment sessions and optionally concept-unit sessions, items, or follow-up rounds.
-- `student_profiles`, `formative_decisions`, `followup_rounds`, and `response_packages` attach to concept-unit sessions.
+- `student_profiles`, `formative_decisions`, `followup_rounds`, `followup_update_cycles`, and `response_packages` attach to concept-unit sessions.
+- `followup_update_cycles` reference their source follow-up round, source active profile, source active decision, evidence package, and agent-call rows where available.
 - `summative_outcomes.user_db_id -> users.id` and also stores `user_id_snapshot`.
 - `summative_outcomes.import_batch_db_id -> summative_outcome_import_batches.id` when created from an import batch.
 - `summative_outcome_import_batches.uploaded_by_user_db_id -> users.id`.
@@ -73,6 +75,8 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `item_responses`: unique `concept_unit_session_db_id + client_submission_id` for idempotent client submission handling.
 - `student_action_idempotency_keys`: unique `assessment_session_db_id + client_action_id` for idempotent item actions.
 - `followup_rounds`: unique `concept_unit_session_db_id + round_index`.
+- `followup_update_cycles.cycle_public_id`: unique public update-cycle identifier.
+- `followup_update_cycles`: at most one active non-terminal cycle per concept-unit session.
 - `summative_outcomes.outcome_public_id`: unique public outcome identifier.
 - `summative_outcomes`: active records are logically unique by `user_db_id + outcome_name + assessment_date`; older versions are preserved as `superseded`.
 - `summative_outcome_import_batches.batch_public_id`: unique public import-batch identifier.

@@ -1,12 +1,14 @@
 # Formative Value And Planning Agent
 
-Phase 6C integrates only the Formative Value and Planning Agent after a valid saved Student Profiling Agent output exists. Phase 6D1 may consume the saved decision as input to the Follow-up Agent, but it must not modify the decision or rerun planning.
+Phase 6C integrates the Formative Value and Planning Agent after a valid saved Student Profiling Agent output exists. Phase 6D1 may consume the saved decision as input to the Follow-up Agent. Phase 6D2B may run an updated planning candidate from staged follow-up profile output, but that candidate is staged first and is not an active formative decision until the entire update cycle succeeds.
 
 ## Scope
 
-The service converts one saved `student_profiles` record plus the matching `initial_concept_unit_response_package` into one validated `formative_decisions` row.
+The initial service converts one saved `student_profiles` record plus the matching `initial_concept_unit_response_package` into one validated `formative_decisions` row.
 
 It does not create follow-up rounds, deliver follow-up activities, update the profile, modify item responses, change correctness, send feedback to students, alter the master CSV export, or call OpenAI during normal verification. Phase 6D1 creates follow-up rounds downstream from a saved decision without changing this planning record.
+
+Phase 6D2B updated planning consumes the staged updated profile output and follow-up evidence package. The updated planning output is staged on `followup_update_cycles`; it does not update `latest_formative_decision_db_id` unless finalization succeeds.
 
 ## Approved Formative Values
 
@@ -83,6 +85,8 @@ The route uses public IDs, requires `teacher_researcher`, rejects students with 
 Phase 6D2A may run the same planning service from a backend workflow job after automatic profiling succeeds. The job requires a saved latest student profile and an initial response package. It uses the same schema validation, semantic validation, usage guard, idempotency, persistence, and audit logging as the manual trigger.
 
 Automatic planning success enqueues first follow-up startup. Phase 6D2A does not replan after follow-up messages.
+
+Phase 6D2B follow-up update jobs use an execution-only planning candidate function. A failure leaves the previous active profile and previous active formative decision authoritative, preserves audit records, and marks the update cycle failed without activating a partial decision.
 
 ## Student UI
 

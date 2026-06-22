@@ -48,6 +48,7 @@ The UI uses `StudentConversationFrame`:
     | "concept_unit_completed"
     | "awaiting_profiling"
     | "followup_active"
+    | "followup_updating"
     | "followup_stopped"
     | "session_paused"
     | "error";
@@ -161,6 +162,14 @@ A support plan has been prepared. Interactive follow-up is not available yet in 
 
 After Phase 6D1 follow-up starts, the student-safe state shows an active open-ended conversation area. Students can send submitted free-text messages, review locked initial responses, save and exit, or stop the follow-up round. After stopping, the state shows neutral stopped copy and disables further sends for that round.
 
+In Phase 6D2B, when meaningful follow-up evidence triggers backend profile/planning updating, the student-safe state uses `followup_updating`. The composer is disabled and the UI shows neutral saved-progress copy:
+
+```text
+I’m reviewing your latest response so the next step can be better matched to your current understanding. Your progress has been saved.
+```
+
+Students may still save/exit, review locked responses, or request stop while the update is pending. The UI does not show cycle IDs, job stages, model/provider names, profile labels, formative values, correctness, or internal error details.
+
 The student UI still does not show profile labels, evidence sufficiency, independence interpretability, correctness, diagnostic rationale, formative value, action plans, target evidence, success criteria, answer keys, hidden prompts, or teacher-only diagnostic metadata.
 
 ## Demo Fixture
@@ -187,4 +196,4 @@ Run:
 npm run student:ui-smoke
 ```
 
-The smoke test verifies availability, deterministic conversation frames, option/reasoning/confidence action wiring, missing-evidence repair rendering, skip confirmation, awaiting-analysis rendering, review locking, safe transcript output, and absence of forbidden student-facing fields. Phase 6B adds `npm run agent:profiling-smoke` to verify that post-profiling student payloads remain profile-free. Phase 6C adds `npm run agent:planning-smoke` to verify that post-planning student payloads remain profile-free and planning-label-free. Phase 6D1 adds `npm run student:followup-ui-smoke` to verify active/stopped follow-up UI state, follow-up transcript safety, review locking, and absence of profile/planning labels.
+The smoke test verifies availability, deterministic conversation frames, option/reasoning/confidence action wiring, missing-evidence repair rendering, skip confirmation, awaiting-analysis rendering, review locking, safe transcript output, and absence of forbidden student-facing fields. Phase 6B adds `npm run agent:profiling-smoke` to verify that post-profiling student payloads remain profile-free. Phase 6C adds `npm run agent:planning-smoke` to verify that post-planning student payloads remain profile-free and planning-label-free. Phase 6D1 adds `npm run student:followup-ui-smoke` to verify active/stopped follow-up UI state, follow-up transcript safety, review locking, and absence of profile/planning labels. Phase 6D2B adds `npm run student:followup-update-ui-smoke` to verify the neutral update-pending state and disabled composer.

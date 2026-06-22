@@ -44,6 +44,7 @@ export const InitialAdministrationStep = z.enum([
   "automatic_followup_opening_pending",
   "automatic_workflow_failed",
   "followup_active",
+  "followup_updating",
   "followup_stopped"
 ]);
 
@@ -837,6 +838,11 @@ export async function getStudentSessionState(input: {
 
   if (effectivePhase === "followup_active") {
     nextStep = "followup_active";
+  } else if (
+    effectivePhase === "followup_profile_update_pending" ||
+    effectivePhase === "followup_planning_update_pending"
+  ) {
+    nextStep = "followup_updating";
   } else if (effectivePhase === "followup_stopped") {
     nextStep = "followup_stopped";
   } else if (automaticWorkflowFailed) {
@@ -885,11 +891,17 @@ export async function getStudentSessionState(input: {
     ? publishedConceptUnits.findIndex((unit) => unit.id === currentConceptUnit.id)
     : -1;
   const activeOrLatestFollowupRound =
-    conceptUnitSession && ["followup_active", "followup_stopped"].includes(effectivePhase)
+    conceptUnitSession &&
+    [
+      "followup_active",
+      "followup_profile_update_pending",
+      "followup_planning_update_pending",
+      "followup_stopped"
+    ].includes(effectivePhase)
       ? await prisma.followupRound.findFirst({
           where: {
             concept_unit_session_db_id: conceptUnitSession.id,
-            status: effectivePhase === "followup_active" ? "active" : "stopped"
+            status: effectivePhase === "followup_stopped" ? "stopped" : "active"
           },
           orderBy: [{ round_index: "desc" }],
           select: {
@@ -929,7 +941,12 @@ export async function getStudentSessionState(input: {
           started_at: activeOrLatestFollowupRound.started_at?.toISOString() ?? null,
           completed_at: activeOrLatestFollowupRound.completed_at?.toISOString() ?? null,
           can_send: effectivePhase === "followup_active" && activeOrLatestFollowupRound.status === "active",
-          can_stop: effectivePhase === "followup_active" && activeOrLatestFollowupRound.status === "active",
+          can_stop:
+            [
+              "followup_active",
+              "followup_profile_update_pending",
+              "followup_planning_update_pending"
+            ].includes(effectivePhase) && activeOrLatestFollowupRound.status === "active",
           can_save_exit: true,
           message_max_chars: followupConfig.message_max_chars
         }
@@ -1966,6 +1983,8 @@ export async function getStudentReviewResponses(input: {
     session.current_phase === "planning_pending" ||
     session.current_phase === "planning_completed" ||
     session.current_phase === "followup_active" ||
+    session.current_phase === "followup_profile_update_pending" ||
+    session.current_phase === "followup_planning_update_pending" ||
     session.current_phase === "followup_stopped" ||
     session.current_phase === "session_completed";
   const currentState = await getStudentSessionState(input);

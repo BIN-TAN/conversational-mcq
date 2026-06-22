@@ -1,6 +1,6 @@
 # Prompt Versioning
 
-Phase 6A introduces a draft prompt registry for agent execution. Phase 6B uses the registered Student Profiling Agent prompt through a controlled backend service after initial concept-unit administration. Phase 6C uses the registered Formative Value and Planning Agent prompt through a controlled backend service after a saved profile exists. Phase 6D1 uses the registered Follow-up Agent prompt through a controlled backend service after a saved plan exists. Response Collection and live Item Preparation prompts remain contract-only.
+Phase 6A introduces a draft prompt registry for agent execution. Phase 6B uses the registered Student Profiling Agent prompt through a controlled backend service after initial concept-unit administration. Phase 6C uses the registered Formative Value and Planning Agent prompt through a controlled backend service after a saved profile exists. Phase 6D1 uses the registered Follow-up Agent prompt through a controlled backend service after a saved plan exists. Phase 6D2B bumps the Follow-up Agent prompt/schema for substantive evidence-trigger classification. Response Collection and live Item Preparation prompts remain contract-only.
 
 ## Registry Fields
 
@@ -25,7 +25,7 @@ The prompt hash is a SHA-256 digest over the prompt version, schema version, and
 | `response_collection_agent` | `response-collection-v1` | `response-collection-output-v1` | `draft` |
 | `student_profiling_agent` | `student-profiling-v1` | `student-profile-output-v1` | `draft` |
 | `formative_value_and_planning_agent` | `formative-planning-v1` | `formative-planning-output-v1` | `draft` |
-| `followup_agent` | `followup-v2` | `followup-output-v2` | `draft` |
+| `followup_agent` | `followup-v3` | `followup-output-v3` | `draft` |
 
 ## Status Meanings
 
@@ -93,3 +93,14 @@ Phase 6D1 Follow-up Agent prompt constraints include:
 ## Phase 6D2A Automatic Workflow
 
 Phase 6D2A does not add new prompt contracts. Automatic workflow jobs reuse the existing Student Profiling Agent, Formative Value and Planning Agent, and Follow-up Agent prompt versions through the same `executeAgent` infrastructure. Workflow mode does not bypass prompt status, schema validation, usage guards, model environment configuration, or audit logging.
+
+## Phase 6D2B Follow-Up Update Prompt Constraints
+
+Phase 6D2B updates the Follow-up Agent prompt so student replies can be classified for backend update triggering without an additional LLM call. The prompt requires:
+
+- opening turns set `student_turn_substantive=false`, `evidence_trigger_candidate=false`, and `evidence_trigger_reasons=[]`
+- student replies set `student_turn_substantive=true` only when the turn contains interpretable concept-relevant evidence
+- evidence trigger reasons use only the locked enum values
+- trigger fields are advisory only; deterministic orchestration remains authoritative
+- no profile update, planning update, evidence package creation, phase transition, or next-concept movement is performed by the Follow-up Agent
+- no misconduct, cheating, or confirmed GenAI-use language is allowed

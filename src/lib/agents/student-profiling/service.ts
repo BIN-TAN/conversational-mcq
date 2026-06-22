@@ -4,7 +4,11 @@ import { prisma } from "@/lib/db";
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
-import { buildInitialStudentProfilingInput } from "./input-builder";
+import {
+  buildInitialStudentProfilingInput,
+  buildUpdatedStudentProfilingInput,
+  type BuiltStudentProfilingInput
+} from "./input-builder";
 import { persistInitialStudentProfile } from "./persistence";
 import {
   serializeStudentProfileForTeacher,
@@ -33,6 +37,16 @@ export class StudentProfilingServiceError extends Error {
 type RunInitialStudentProfilingInput = {
   concept_unit_session_db_id: string;
   requested_by_user_db_id?: string;
+  invocation_reason: string;
+  force_new_invocation?: boolean;
+  mock_provider_mode?: MockProviderMode;
+};
+
+type StudentProfilingCandidateInput = {
+  concept_unit_session_db_id: string;
+  followup_evidence_package_db_id: string;
+  previous_student_profile_db_id: string;
+  cycle_public_id: string;
   invocation_reason: string;
   force_new_invocation?: boolean;
   mock_provider_mode?: MockProviderMode;
@@ -105,6 +119,109 @@ async function logAgentEvent(input: {
 
 function profileSummary(profile: StudentProfileWithAgentCall) {
   return serializeStudentProfileForTeacher(profile);
+}
+
+async function executeProfilingBuiltInput(input: {
+  built: BuiltStudentProfilingInput;
+  invocation_reason: string;
+  force_new_invocation?: boolean;
+  mock_provider_mode?: MockProviderMode;
+  requested_by_user_db_id?: string;
+}) {
+  await logAgentEvent({
+    assessment_session_db_id: input.built.assessment_session_db_id,
+    concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+    event_type: "agent_call_started",
+    payload: {
+      agent_name: "student_profiling_agent",
+      invocation_reason: input.invocation_reason,
+      agent_invocation_key: input.built.agent_invocation_key
+    }
+  });
+
+  const result = await executeAgent({
+    agent_name: "student_profiling_agent",
+    input: input.built.input,
+    assessment_session_db_id: input.built.assessment_session_db_id,
+    concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+    agent_invocation_key: input.built.agent_invocation_key,
+    force_new_invocation: input.force_new_invocation,
+    metadata: {
+      invocation_reason: input.invocation_reason,
+      response_package_type: input.built.response_package.package_type,
+      response_package_created_at: input.built.response_package.created_at.toISOString(),
+      requested_by_role: input.requested_by_user_db_id ? "teacher_researcher" : "backend",
+      ...(input.mock_provider_mode ? { mock_mode: input.mock_provider_mode } : {})
+    }
+  });
+
+  if (result.status !== "succeeded") {
+    await logAgentEvent({
+      assessment_session_db_id: input.built.assessment_session_db_id,
+      concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+      event_type:
+        result.status === "invalid_output" ? "schema_validation_failed" : "agent_call_failed",
+      payload: {
+        agent_name: "student_profiling_agent",
+        result_status: result.status,
+        agent_call_id: "agent_call_id" in result ? result.agent_call_id : null
+      }
+    });
+
+    return {
+      status: result.status,
+      output: null,
+      agent_call_id: "agent_call_id" in result ? result.agent_call_id : null,
+      agent_invocation_key: input.built.agent_invocation_key,
+      retry_count: result.retry_count
+    };
+  }
+
+  await logAgentEvent({
+    assessment_session_db_id: input.built.assessment_session_db_id,
+    concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+    event_type: "schema_validation_succeeded",
+    payload: {
+      agent_name: "student_profiling_agent",
+      agent_call_id: result.agent_call_id
+    }
+  });
+  await logAgentEvent({
+    assessment_session_db_id: input.built.assessment_session_db_id,
+    concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+    event_type: "agent_call_succeeded",
+    payload: {
+      agent_name: "student_profiling_agent",
+      agent_call_id: result.agent_call_id,
+      retry_count: result.retry_count
+    }
+  });
+
+  return {
+    status: "succeeded" as const,
+    output: result.output,
+    agent_call_id: result.agent_call_id,
+    agent_invocation_key: input.built.agent_invocation_key,
+    retry_count: result.retry_count
+  };
+}
+
+export async function executeStudentProfilingCandidate(
+  input: StudentProfilingCandidateInput
+) {
+  const built = await buildUpdatedStudentProfilingInput({
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    followup_evidence_package_db_id: input.followup_evidence_package_db_id,
+    previous_student_profile_db_id: input.previous_student_profile_db_id,
+    cycle_public_id: input.cycle_public_id
+  });
+
+  return executeProfilingBuiltInput({
+    built,
+    invocation_reason: input.invocation_reason,
+    force_new_invocation: input.force_new_invocation,
+    mock_provider_mode: input.mock_provider_mode
+  });
 }
 
 export async function runInitialStudentProfiling(input: RunInitialStudentProfilingInput) {

@@ -1,10 +1,12 @@
 # Student Profiling Agent
 
-Phase 6B integrates only the Student Profiling Agent after initial concept-unit administration. Phase 6C may consume the saved profile as planning input, and Phase 6D1 may consume it as backend-only follow-up context, but neither phase may modify or regenerate the profile.
+Phase 6B integrates the Student Profiling Agent after initial concept-unit administration. Phase 6C may consume the saved profile as planning input, and Phase 6D1 may consume it as backend-only follow-up context. Phase 6D2B may run an updated profiling candidate from follow-up evidence, but that candidate is staged first and is not an active profile until the entire update cycle succeeds.
 
 ## Scope
 
-The service converts one `initial_concept_unit_response_package` into one validated `student_profiles` record. It does not create follow-up rounds, student feedback, explanations, tutoring, or CSV-inferred profile values. Phase 6D1 follow-up records remain downstream conversation records and do not update profiles.
+The initial service converts one `initial_concept_unit_response_package` into one validated `student_profiles` record. It does not create follow-up rounds, student feedback, explanations, tutoring, or CSV-inferred profile values.
+
+Phase 6D2B updated profiling consumes the initial response evidence plus a `followup_evidence_update_package` and the previous active profile. The updated output is staged on `followup_update_cycles`; it does not update `latest_student_profile_db_id` unless updated planning and finalization also succeed.
 
 Phase 6C creates a separate `formative_decisions` row only after a valid saved profile exists. That planning step is downstream of profiling and preserves the saved profile audit record unchanged.
 
@@ -86,6 +88,8 @@ The route uses public IDs, requires `teacher_researcher`, rejects students with 
 Phase 6D2A may run the same profiling service from a backend workflow job when the session's `workflow_mode_snapshot` is `automatic`. The job starts only after initial concept-unit administration and an `initial_concept_unit_response_package` exist. It uses the same schema validation, usage guard, idempotency, persistence, and audit logging as the manual trigger.
 
 Automatic profiling success enqueues formative planning. Failure does not fabricate a profile and may mark the automatic workflow for teacher review.
+
+Phase 6D2B follow-up update jobs use an execution-only profiling candidate function. A failure leaves the previous active profile authoritative, preserves audit records, and marks the update cycle failed without activating a partial profile.
 
 ## Student UI
 

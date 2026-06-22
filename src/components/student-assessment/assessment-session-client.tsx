@@ -648,7 +648,9 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
   const currentItem = state.current_item;
   const locked =
     review?.locked ??
-    ["awaiting_profiling", "followup_active", "followup_stopped"].includes(state.next_step);
+    ["awaiting_profiling", "followup_active", "followup_updating", "followup_stopped"].includes(
+      state.next_step
+    );
   const questionProgress =
     state.progress.total_item_count > 0
       ? `Question ${Math.min(
@@ -741,7 +743,9 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
                   onConfidence={(item, confidence) => void handleConfidence(item, confidence)}
                 />
               </div>
-              {state.next_step === "followup_active" || state.next_step === "followup_stopped" ? null : (
+              {state.next_step === "followup_active" ||
+              state.next_step === "followup_updating" ||
+              state.next_step === "followup_stopped" ? null : (
                 <div className="mt-4">
                   <HelpDisclosure />
                 </div>
@@ -855,7 +859,7 @@ function InteractionControls({
         <textarea
           className="min-h-28 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:opacity-60"
           data-testid="followup-message-input"
-          disabled={isBusy}
+          disabled={isBusy || !state.followup?.can_send}
           maxLength={maxChars}
           onChange={(event) => setFollowupDraft(event.target.value)}
           onKeyDown={(event) => {
@@ -903,6 +907,26 @@ function InteractionControls({
       <p className="rounded-md border border-line bg-white px-3 py-2 text-sm text-muted">
         This follow-up round is stopped. Your transcript is saved.
       </p>
+    );
+  }
+
+  if (frame.interaction_type === "followup_updating") {
+    return (
+      <div className="space-y-3">
+        <p className="rounded-md border border-line bg-white px-3 py-2 text-sm text-muted">
+          Your latest response is saved. The message box is paused while the next step is prepared.
+        </p>
+        <button
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="stop-followup"
+          disabled={isBusy || !state.followup?.can_stop}
+          onClick={onStopFollowup}
+          type="button"
+        >
+          <Square className="h-4 w-4" aria-hidden="true" />
+          Stop follow-up
+        </button>
+      </div>
     );
   }
 

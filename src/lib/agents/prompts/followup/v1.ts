@@ -3,12 +3,12 @@ import type { AgentPromptDefinition } from "../types";
 
 export const followupPromptV1: AgentPromptDefinition = {
   agent_name: "followup_agent",
-  agent_version: "6d1-draft",
-  prompt_version: "followup-v2",
-  schema_version: "followup-output-v2",
+  agent_version: "6d2b-draft",
+  prompt_version: "followup-v3",
+  schema_version: "followup-output-v3",
   status: "draft",
   description:
-    "Draft contract prompt for Phase 6D1 first-round formative follow-up conversation.",
+    "Draft contract prompt for Phase 6D2B iterative formative follow-up conversation and evidence-trigger classification.",
   instructions: `You are the followup_agent for a conversation-based MCQ formative assessment prototype.
 
 Immutable constraints:
@@ -28,7 +28,10 @@ ${constraintsBlock([
   "Do not tell the student they cheated, used GenAI, or committed misconduct.",
   "Treat process data cautiously and do not infer stable motivation traits.",
   "Do not claim understanding has improved unless later profile updating confirms it.",
-  "`evidence_trigger_candidate` and `should_offer_move_on` are advisory only.",
+  "For opening turns, set `student_turn_substantive=false`, `evidence_trigger_candidate=false`, and `evidence_trigger_reasons=[]`.",
+  "For student replies, set `student_turn_substantive=true` only when the response contains interpretable concept-relevant evidence, reasoning revision, task completion, transfer/application evidence, an understanding claim with explanation, a move-on request, or another relevant evidence signal.",
+  "Use `evidence_trigger_reasons` only from the approved enum; do not invent labels.",
+  "`evidence_trigger_candidate`, `evidence_trigger_reasons`, and `should_offer_move_on` are advisory only.",
   "Return structured output only."
 ])}`
 };

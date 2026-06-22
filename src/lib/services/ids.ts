@@ -9,7 +9,8 @@ export type PublicIdKind =
   | "summative_import_batch"
   | "export"
   | "workflow_job"
-  | "workflow_override";
+  | "workflow_override"
+  | "followup_update_cycle";
 
 const prefixes: Record<PublicIdKind, string> = {
   assessment: "asmt",
@@ -20,7 +21,8 @@ const prefixes: Record<PublicIdKind, string> = {
   summative_import_batch: "sib",
   export: "export",
   workflow_job: "wfjob",
-  workflow_override: "wfo"
+  workflow_override: "wfo",
+  followup_update_cycle: "fuc"
 };
 
 function utcDateStamp(date = new Date()): string {

@@ -16,6 +16,12 @@ import {
   enqueueInitialFollowupStartupJob,
   enqueueInitialPlanningJob
 } from "./automation";
+import {
+  finalizeFollowupUpdate,
+  FollowupUpdateCycleError,
+  runFollowupPlanningUpdate,
+  runFollowupProfileUpdate
+} from "@/lib/agents/followup-updates/service";
 
 type HandlerResult = {
   outcome: "completed" | "retryable" | "failed";
@@ -33,6 +39,20 @@ function failureFromStatus(status: string): HandlerResult {
     error_category: status,
     error_message: `Agent workflow step returned ${status}.`
   };
+}
+
+function cyclePublicIdFromJob(job: WorkflowJob) {
+  const payload =
+    job.payload && typeof job.payload === "object" && !Array.isArray(job.payload)
+      ? (job.payload as Record<string, unknown>)
+      : {};
+  const cyclePublicId = payload.cycle_public_id;
+
+  if (typeof cyclePublicId !== "string" || !cyclePublicId) {
+    throw new Error("Follow-up update workflow job requires cycle_public_id.");
+  }
+
+  return cyclePublicId;
 }
 
 async function jobContext(job: WorkflowJob) {
@@ -154,6 +174,83 @@ async function handleInitialFollowup(job: WorkflowJob): Promise<HandlerResult> {
   }
 }
 
+async function handleFollowupProfileUpdate(job: WorkflowJob): Promise<HandlerResult> {
+  try {
+    const result = await runFollowupProfileUpdate(cyclePublicIdFromJob(job));
+
+    if (
+      result.status === "profile_update_staged" ||
+      result.status === "profile_update_already_staged" ||
+      result.status === "already_completed"
+    ) {
+      return { outcome: "completed" };
+    }
+
+    return failureFromStatus(result.status);
+  } catch (error) {
+    if (error instanceof FollowupUpdateCycleError) {
+      return {
+        outcome: "failed",
+        error_category: error.code,
+        error_message: error.message
+      };
+    }
+
+    throw error;
+  }
+}
+
+async function handleFollowupPlanningUpdate(job: WorkflowJob): Promise<HandlerResult> {
+  try {
+    const result = await runFollowupPlanningUpdate(cyclePublicIdFromJob(job));
+
+    if (
+      result.status === "planning_update_staged" ||
+      result.status === "planning_update_already_staged" ||
+      result.status === "already_completed"
+    ) {
+      return { outcome: "completed" };
+    }
+
+    return failureFromStatus(result.status);
+  } catch (error) {
+    if (error instanceof FollowupUpdateCycleError) {
+      return {
+        outcome: "failed",
+        error_category: error.code,
+        error_message: error.message
+      };
+    }
+
+    throw error;
+  }
+}
+
+async function handleFollowupFinalize(job: WorkflowJob): Promise<HandlerResult> {
+  try {
+    const result = await finalizeFollowupUpdate(cyclePublicIdFromJob(job));
+
+    if (
+      result.status === "followup_update_completed" ||
+      result.status === "already_completed"
+    ) {
+      return { outcome: "completed" };
+    }
+
+    return failureFromStatus(result.status);
+  } catch (error) {
+    if (error instanceof FollowupUpdateCycleError) {
+      return {
+        outcome: "failed",
+        error_category: error.code,
+        error_message: error.message
+      };
+    }
+
+    throw error;
+  }
+}
+
 export async function handleWorkflowJob(job: WorkflowJob): Promise<HandlerResult> {
   if (job.job_type === "run_initial_profiling") {
     return handleInitialProfiling(job);
@@ -165,6 +262,18 @@ export async function handleWorkflowJob(job: WorkflowJob): Promise<HandlerResult
 
   if (job.job_type === "start_initial_followup") {
     return handleInitialFollowup(job);
+  }
+
+  if (job.job_type === "run_followup_profile_update") {
+    return handleFollowupProfileUpdate(job);
+  }
+
+  if (job.job_type === "run_followup_planning_update") {
+    return handleFollowupPlanningUpdate(job);
+  }
+
+  if (job.job_type === "finalize_followup_update") {
+    return handleFollowupFinalize(job);
   }
 
   return {
