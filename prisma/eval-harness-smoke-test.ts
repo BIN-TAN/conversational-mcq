@@ -254,7 +254,10 @@ async function main() {
       teacherLogin.cookie
     );
     assert(unblindedItem.item.provider === "mock", "Provider should be visible when requested.");
-    assert(unblindedItem.item.model_name === "gpt-5.4-mini", "Future target model metadata mismatch.");
+    assert(
+      unblindedItem.item.model_name === "gpt-5.4-mini-2026-03-17",
+      "Future target model metadata mismatch."
+    );
 
     const annotationCreate = await jsonRequest(
       `/api/teacher/evals/run-items/${firstRunItem.run_item_public_id}/annotations`,

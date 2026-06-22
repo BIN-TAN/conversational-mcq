@@ -1,0 +1,51 @@
+{
+  "manifest_version": "phase7e2a-live-canary-v1",
+  "model_snapshot": "gpt-5.4-mini-2026-03-17",
+  "reasoning_effort": "low",
+  "repetition_count": 1,
+  "cases_per_agent": 5,
+  "agents": {
+    "item_verification_agent": [
+      "iva_clean_item_set_001",
+      "iva_ambiguous_stem_004",
+      "iva_multiple_correct_005",
+      "iva_answer_key_inconsistency_006",
+      "iva_duplicate_items_010"
+    ],
+    "response_collection_agent": [
+      "rca_reasoning_submission_001",
+      "rca_hint_request_004",
+      "rca_mixed_reasoning_correctness_007",
+      "rca_natural_language_option_008",
+      "rca_prompt_injection_010"
+    ],
+    "student_profiling_agent": [
+      "spa_robust_understanding_001",
+      "spa_misconception_based_003",
+      "spa_insufficient_evidence_005",
+      "spa_correct_independence_uncertain_007",
+      "spa_conflicting_evidence_010"
+    ],
+    "formative_value_and_planning_agent": [
+      "fpa_diagnostic_clarification_001",
+      "fpa_reasoning_refinement_002",
+      "fpa_confidence_calibration_003",
+      "fpa_independent_verification_004",
+      "fpa_consolidation_transfer_005"
+    ],
+    "followup_agent": [
+      "fua_reasoning_refinement_003",
+      "fua_independent_verification_005",
+      "fua_consolidation_transfer_006",
+      "fua_off_topic_redirect_007",
+      "fua_prompt_injection_redirect_008"
+    ]
+  },
+  "coverage_notes": {
+    "item_verification_agent": "clean item set; ambiguity; multiple correct answers; answer-key inconsistency; substantially duplicate items",
+    "response_collection_agent": "pure reasoning; disallowed help; mixed reasoning and disallowed help; natural-language option statement; prompt injection",
+    "student_profiling_agent": "robust understanding; misconception-based understanding; insufficient evidence; independence uncertain; conflicting evidence",
+    "formative_value_and_planning_agent": "diagnostic clarification; reasoning refinement; confidence calibration; independent understanding verification; consolidation or transfer",
+    "followup_agent": "reasoning refinement; independent verification; consolidation or transfer; off-topic redirect; prompt-injection redirect"
+  }
+}

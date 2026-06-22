@@ -73,6 +73,18 @@ export function serializeEvalRun(run: {
   run_mode: string;
   repetition_count: number;
   status: string;
+  planned_run_item_count?: number | null;
+  provider_request_count?: number | null;
+  model_snapshot?: string | null;
+  reasoning_effort?: string | null;
+  case_manifest_hash?: string | null;
+  run_config_hash?: string | null;
+  reproducibility_manifest?: unknown;
+  pricing_registry_version?: string | null;
+  budget_limit_usd?: unknown;
+  estimated_cost_usd?: unknown;
+  error_message?: string | null;
+  canary_gate_status?: string | null;
   started_at: Date | null;
   completed_at: Date | null;
   created_at: Date;
@@ -97,6 +109,24 @@ export function serializeEvalRun(run: {
     run_mode: run.run_mode,
     repetition_count: run.repetition_count,
     status: run.status,
+    planned_run_item_count: run.planned_run_item_count ?? null,
+    provider_request_count: run.provider_request_count ?? null,
+    model_snapshot: run.model_snapshot ?? null,
+    reasoning_effort: run.reasoning_effort ?? null,
+    case_manifest_hash: run.case_manifest_hash ?? null,
+    run_config_hash: run.run_config_hash ?? null,
+    reproducibility_manifest: stripInternalKeys(run.reproducibility_manifest),
+    pricing_registry_version: run.pricing_registry_version ?? null,
+    budget_limit_usd:
+      run.budget_limit_usd === undefined || run.budget_limit_usd === null
+        ? null
+        : Number(run.budget_limit_usd),
+    estimated_cost_usd:
+      run.estimated_cost_usd === undefined || run.estimated_cost_usd === null
+        ? null
+        : Number(run.estimated_cost_usd),
+    error_message: run.error_message ?? null,
+    canary_gate_status: run.canary_gate_status ?? null,
     run_item_count: run._count?.run_items ?? null,
     started_at: serializeEvalDate(run.started_at),
     completed_at: serializeEvalDate(run.completed_at),
@@ -135,6 +165,7 @@ export function serializeEvalAnnotation(annotation: {
 export function serializeEvalRunItem(runItem: {
   run_item_public_id: string;
   repetition_index: number;
+  run_order?: number | null;
   input_payload: unknown;
   raw_output: unknown;
   parsed_output: unknown;
@@ -143,8 +174,27 @@ export function serializeEvalRunItem(runItem: {
   semantic_validation_result: unknown;
   safety_validation_result: unknown;
   execution_status: string;
+  model_snapshot?: string | null;
+  reasoning_effort?: string | null;
+  max_output_tokens?: number | null;
+  provider_response_id?: string | null;
+  provider_request_id?: string | null;
+  client_request_id?: string | null;
+  prompt_version?: string | null;
+  schema_version?: string | null;
+  prompt_hash?: string | null;
+  error_category?: string | null;
+  retry_count?: number | null;
   latency_ms: number | null;
   token_usage: unknown;
+  input_tokens?: number | null;
+  cached_input_tokens?: number | null;
+  output_tokens?: number | null;
+  reasoning_tokens?: number | null;
+  total_tokens?: number | null;
+  estimated_cost_usd?: unknown;
+  started_at?: Date | null;
+  completed_at?: Date | null;
   created_at: Date;
   updated_at: Date;
   eval_case?: {
@@ -187,10 +237,14 @@ export function serializeEvalRunItem(runItem: {
     run_mode: runItem.run?.run_mode ?? null,
     provider: blind ? null : (runItem.run?.provider ?? null),
     model_name: blind ? null : (runItem.run?.model_name ?? null),
-    prompt_version: runItem.run?.prompt_version ?? null,
-    schema_version: runItem.run?.schema_version ?? null,
-    prompt_hash: runItem.run?.prompt_hash ?? null,
+    model_snapshot: blind ? null : (runItem.model_snapshot ?? runItem.run?.model_name ?? null),
+    reasoning_effort: blind ? null : (runItem.reasoning_effort ?? null),
+    max_output_tokens: runItem.max_output_tokens ?? null,
+    prompt_version: runItem.prompt_version ?? runItem.run?.prompt_version ?? null,
+    schema_version: runItem.schema_version ?? runItem.run?.schema_version ?? null,
+    prompt_hash: runItem.prompt_hash ?? runItem.run?.prompt_hash ?? null,
     repetition_index: runItem.repetition_index,
+    run_order: runItem.run_order ?? null,
     input_payload: stripInternalKeys(runItem.input_payload),
     raw_output: stripInternalKeys(runItem.raw_output),
     parsed_output: stripInternalKeys(runItem.parsed_output),
@@ -199,14 +253,30 @@ export function serializeEvalRunItem(runItem: {
     semantic_validation_result: stripInternalKeys(runItem.semantic_validation_result),
     safety_validation_result: stripInternalKeys(runItem.safety_validation_result),
     execution_status: runItem.execution_status,
+    provider_response_id: blind ? null : (runItem.provider_response_id ?? null),
+    provider_request_id: blind ? null : (runItem.provider_request_id ?? null),
+    client_request_id: runItem.client_request_id ?? null,
+    error_category: runItem.error_category ?? null,
+    retry_count: runItem.retry_count ?? 0,
     latency_ms: runItem.latency_ms,
     token_usage: stripInternalKeys(runItem.token_usage),
+    input_tokens: runItem.input_tokens ?? null,
+    cached_input_tokens: runItem.cached_input_tokens ?? null,
+    output_tokens: runItem.output_tokens ?? null,
+    reasoning_tokens: runItem.reasoning_tokens ?? null,
+    total_tokens: runItem.total_tokens ?? null,
+    estimated_cost_usd:
+      runItem.estimated_cost_usd === undefined || runItem.estimated_cost_usd === null
+        ? null
+        : Number(runItem.estimated_cost_usd),
     expected_output: stripInternalKeys(runItem.eval_case?.expected_output),
     gold_labels: stripInternalKeys(runItem.eval_case?.gold_labels),
     rubric_expectations: stripInternalKeys(runItem.eval_case?.rubric_expectations),
     safety_expectations: stripInternalKeys(runItem.eval_case?.safety_expectations),
     case_source: runItem.eval_case?.case_source ?? null,
     annotations: runItem.annotations?.map(serializeEvalAnnotation) ?? [],
+    started_at: serializeEvalDate(runItem.started_at ?? null),
+    completed_at: serializeEvalDate(runItem.completed_at ?? null),
     created_at: serializeEvalDate(runItem.created_at),
     updated_at: serializeEvalDate(runItem.updated_at)
   };

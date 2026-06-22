@@ -56,3 +56,16 @@ Any critical failure should be treated as failing unless the evaluator documents
 ## Interpretation Boundary
 
 Evaluation summaries are development evaluation, not classroom validation. They do not prove that a model is ready for unsupervised classroom use. Later validation must include live-model pilots, expert review, and classroom-context review before production use.
+
+## Phase 7E2A Canary Annotation
+
+Live canary run items use the same blind review UI:
+
+- provider and model are hidden by default
+- case input and model output are visible
+- expected labels remain hidden until the reviewer toggles reference
+- prompt text and API secrets are not shown
+- automated critical flags and human critical flags are stored separately
+- human annotations are never auto-filled from automated flags
+
+All 25 canary run items should be annotated before the readiness report can recommend `ready_for_full_pilot`.

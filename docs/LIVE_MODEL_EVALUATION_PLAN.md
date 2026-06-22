@@ -1,17 +1,19 @@
 # Live Model Evaluation Plan
 
-Phase 7E1 does not run live model evaluation. This document records the future Phase 7E2 plan so current code can store safe metadata without enabling provider calls.
+Phase 7E2A implements a guarded 25-call live canary runner but does not execute it automatically. The deployment owner must configure the API key locally and run the CLI command explicitly.
 
-## Planned Target
+## Phase 7E2A Canary Target
 
 ```text
-target model: gpt-5.4-mini
-cases: 10 per active agent
-repetitions: 2
+target model snapshot: gpt-5.4-mini-2026-03-17
+reasoning effort: low
+cases: 5 synthetic cases per active agent
+repetitions: 1
+total run items: 25
 budget hard limit: USD 50
 ```
 
-No GPT-5.5 comparison is included in the current plan. No nano comparison is included in the current plan.
+No GPT-5.5 comparison is included. No nano comparison is included. The 100-call full pilot belongs to a later phase.
 
 ## Required Future Gates
 
@@ -19,21 +21,25 @@ Live evaluation should remain disabled until all of these are true:
 
 - server-side `OPENAI_API_KEY` is configured
 - live-call environment gates are enabled intentionally
+- `EVAL_PROVIDER=openai`
 - `EVAL_LIVE_CALLS_ENABLED=true`
+- `EVAL_TARGET_MODEL=gpt-5.4-mini-2026-03-17`
+- `EVAL_REASONING_EFFORT=low`
 - budget and usage guards are active
-- evaluation cases are synthetic, teacher-authored, or intentionally deidentified
+- evaluation cases are synthetic only for Phase 7E2A
 - no classroom workflow records are mutated by eval runs
 - no API key is entered or displayed in the browser
 
 ## Future Procedure
 
-1. Seed or review evaluation cases.
-2. Confirm active agent contracts and prompt versions.
-3. Run mock evaluation first.
-4. Enable live evaluation on the server only.
-5. Run the target model on the same cases.
-6. Perform blind expert annotation.
-7. Review critical failures before any classroom activation.
+1. Confirm classroom settings remain `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`.
+2. Edit `.env.local` manually with eval-only live settings and `OPENAI_API_KEY`.
+3. Run `npm run eval:live-canary:preflight`.
+4. Run `npm run eval:live-canary:dry-run`.
+5. Run `npm run eval:live-canary -- --confirm-paid-api`.
+6. Perform blind expert annotation on all 25 run items.
+7. Run `npm run eval:live-canary:report -- --run <run_public_id>`.
+8. Review readiness gates before considering any future full pilot.
 
 ## Current Limitation
 

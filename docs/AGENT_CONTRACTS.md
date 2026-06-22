@@ -181,3 +181,9 @@ Phase 6C preserves that rule for planning. Refusal, incomplete, schema-invalid o
 Phase 6D1 preserves that rule for follow-up. Refusal, incomplete, schema-invalid output, semantically invalid output, failed execution, or usage-blocked execution does not create an assistant reply. Student follow-up messages already saved before provider execution remain stored as conversation evidence.
 
 Phase 6D2B preserves atomic activation for iterative updates. Updated profiling and updated planning candidate outputs are staged on `followup_update_cycles` and do not become active records until the entire cycle succeeds. If profiling, planning, or next-round opening generation fails, no latest pointer changes and no new active follow-up round is created. Final stop updates activate a final profile/decision only if profiling and planning both succeed; they do not create a new round.
+
+## Phase 7E2A Eval Contract
+
+The live canary runner uses the same five agent output schemas and rejects unknown enum labels or schema-invalid outputs. Eval execution remains isolated from operational persistence: live canary outputs must not create operational `agent_calls`, `student_profiles`, `formative_decisions`, `followup_rounds`, `item_verification_runs`, workflow jobs, sessions, responses, or content changes.
+
+All five active agents use the same exact canary snapshot, `gpt-5.4-mini-2026-03-17`, with `reasoning_effort=low`. This is an eval-run configuration only and does not alter classroom model configuration.

@@ -281,3 +281,20 @@ npm run workflow:worker-smoke
 These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, Formative Planning Agent integration, Follow-up Agent integration, iterative follow-up update cycles, final stop updates, student-led concept progression, final assessment completion, non-intervention classroom controls, student-safe updating states, idempotency, usage-blocked behavior, and isolated mock evaluation harness behavior. They do not call OpenAI.
 
 See `docs/CLASSROOM_LLM_ACCESS.md` and `docs/LLM_USAGE_LIMITS.md` for the Phase 6A.5 operational contract.
+
+## Phase 7E2A Evaluation-Only Live Calls
+
+Phase 7E2A adds a separate eval live-call path. It reuses the server-only OpenAI Responses provider with Structured Outputs, `store: false`, no tools, no web search, no file search, no code interpreter, no remote MCP, and no function calls.
+
+This path does not use the operational `executeAgent` persistence path. It writes only eval runs and eval run items. Operational classroom live-call gates remain controlled by `LLM_PROVIDER` and `LLM_LIVE_CALLS_ENABLED`.
+
+Offline checks:
+
+```bash
+npm run eval:live-canary-runner-smoke
+npm run eval:budget-smoke
+npm run eval:live-isolation-smoke
+npm run eval:canary-report-smoke
+```
+
+These checks use mock/fake provider execution and do not call OpenAI.

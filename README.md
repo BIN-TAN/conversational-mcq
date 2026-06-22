@@ -736,3 +736,37 @@ The connectivity script requires `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=
 Usage safeguard variables are documented in `.env.example` and `docs/LLM_USAGE_LIMITS.md`.
 
 See `docs/LLM_INFRASTRUCTURE.md`, `docs/AGENT_CONTRACTS.md`, `docs/PROMPT_VERSIONING.md`, `docs/CLASSROOM_LLM_ACCESS.md`, `docs/LLM_USAGE_LIMITS.md`, `docs/STUDENT_PROFILING_AGENT.md`, `docs/FORMATIVE_PLANNING_AGENT.md`, `docs/FOLLOWUP_AGENT.md`, `docs/FOLLOWUP_CONVERSATION.md`, `docs/FOLLOWUP_EVIDENCE_UPDATES.md`, `docs/ITERATIVE_FOLLOWUP_UPDATES.md`, `docs/FOLLOWUP_UPDATE_ATOMICITY.md`, `docs/ITEM_VERIFICATION_AGENT.md`, and `docs/ITEM_VERIFICATION_WORKFLOW.md`.
+
+## Phase 7E2A Live Evaluation Canary
+
+Phase 7E2A adds a CLI-only live evaluation canary path for the internal evaluation harness. It does not enable classroom live calls.
+
+Canary design:
+
+- exact snapshot: `gpt-5.4-mini-2026-03-17`
+- reasoning effort: `low`
+- 5 active agents x 5 synthetic cases x 1 repetition = 25 run items
+- hard budget: USD 50
+- no GPT-5.5 comparison and no nano comparison
+
+Manual paid canary procedure after editing `.env.local` locally:
+
+```bash
+npm run eval:live-canary:preflight
+npm run eval:live-canary:dry-run
+npm run eval:live-canary -- --confirm-paid-api
+npm run eval:live-canary:report -- --run <run_public_id>
+```
+
+Do not paste the API key into chat or a browser form. Keep classroom settings as `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`.
+
+Offline verification commands:
+
+```bash
+npm run eval:live-canary-runner-smoke
+npm run eval:budget-smoke
+npm run eval:live-isolation-smoke
+npm run eval:canary-report-smoke
+```
+
+See `docs/LIVE_EVAL_CANARY.md`, `docs/EVAL_BUDGET_GUARD.md`, and `docs/EVAL_REPRODUCIBILITY.md`.

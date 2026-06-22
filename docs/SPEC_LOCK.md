@@ -753,3 +753,19 @@ Phase 6A.5 must not implement:
 - JSON import is manual content upload only; it is not the Item Verification Agent and must not call an LLM.
 - The Phase 3B UI must use the Phase 3A APIs for content writes and publishing. It must not bypass backend validation.
 - Teacher_researcher UI may show correct options and distractor rationales. Student routes must not expose them.
+
+## Phase 7E2A Live Evaluation Canary Lock
+
+- The controlled live evaluation canary uses exactly `gpt-5.4-mini-2026-03-17`.
+- The canary uses `reasoning_effort=low` for all five active agents.
+- The canary is 5 agents x 5 synthetic cases x 1 repetition = 25 run items.
+- The canary hard budget is USD 50.
+- Evaluation live-call configuration is separate from classroom live-call configuration.
+- `EVAL_LIVE_CALLS_ENABLED=true` must not enable classroom live calls.
+- Classroom workflows must remain governed by `LLM_PROVIDER` and `LLM_LIVE_CALLS_ENABLED`.
+- Phase 7E2A canary input must come only from synthetic Phase 7E1 eval cases.
+- The canary rejects the `gpt-5.4-mini` alias, GPT-5.5, nano models, nonsynthetic cases, multiple model candidates, more than 25 run items, and more than one repetition.
+- Paid live execution is CLI-only and requires `--confirm-paid-api`.
+- No browser page may accept an API key or start the paid canary.
+- Eval outputs remain in eval tables and must not create operational agent calls, profiles, formative decisions, follow-up rounds, item verification runs, workflow jobs, sessions, responses, or content changes.
+- The 100-call full pilot belongs to a later phase.

@@ -119,10 +119,26 @@ const serverEnvSchema = z.object({
   WORKFLOW_JOB_MAX_RETRY_MS: positiveIntWithDefault(300000),
   WORKFLOW_JOB_LEASE_TIMEOUT_MS: positiveIntWithDefault(300000),
   WORKFLOW_JOB_POLL_INTERVAL_MS: positiveIntWithDefault(2000),
-  EVAL_TARGET_MODEL: z.string().min(1).default("gpt-5.4-mini"),
+  EVAL_PROVIDER: z.enum(["mock", "openai"]).default("mock"),
+  EVAL_TARGET_MODEL: z.string().min(1).default("gpt-5.4-mini-2026-03-17"),
+  EVAL_REASONING_EFFORT: z.enum(["low"]).default("low"),
   EVAL_DEFAULT_REPETITIONS: positiveIntWithDefault(2),
+  EVAL_CANARY_REPETITIONS: positiveIntWithDefault(1),
+  EVAL_CANARY_CASES_PER_AGENT: positiveIntWithDefault(5),
   EVAL_LIVE_CALLS_ENABLED: booleanWithDefault(false),
-  EVAL_COST_HARD_LIMIT_USD: nonnegativeNumberWithDefault(50)
+  EVAL_COST_HARD_LIMIT_USD: nonnegativeNumberWithDefault(50),
+  EVAL_MAX_CONCURRENCY: positiveIntWithDefault(1),
+  EVAL_MAX_RETRIES: z.preprocess(
+    (value) => (value === "" || value === undefined ? 1 : value),
+    z.coerce.number().int().min(0).max(3)
+  ),
+  EVAL_REQUEST_TIMEOUT_MS: positiveIntWithDefault(60000),
+  EVAL_MAX_PROVIDER_REQUESTS: positiveIntWithDefault(50),
+  EVAL_MAX_OUTPUT_TOKENS_ITEM_VERIFICATION: positiveIntWithDefault(3000),
+  EVAL_MAX_OUTPUT_TOKENS_RESPONSE_COLLECTION: positiveIntWithDefault(1500),
+  EVAL_MAX_OUTPUT_TOKENS_PROFILING: positiveIntWithDefault(4000),
+  EVAL_MAX_OUTPUT_TOKENS_PLANNING: positiveIntWithDefault(3000),
+  EVAL_MAX_OUTPUT_TOKENS_FOLLOWUP: positiveIntWithDefault(2500)
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

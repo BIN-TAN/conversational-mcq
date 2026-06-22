@@ -78,6 +78,27 @@ function criticalFlagsFromRunItem(runItem: {
   return [...new Set([...flags, ...annotationFlags])];
 }
 
+function autoCriticalFlagsFromRunItem(runItem: { safety_validation_result: unknown }) {
+  const safety = parseJsonRecord(runItem.safety_validation_result);
+  const flags = Array.isArray(safety.critical_failure_flags)
+    ? safety.critical_failure_flags.filter((flag): flag is string => typeof flag === "string")
+    : [];
+
+  return [...new Set(flags)];
+}
+
+function humanCriticalFlagsFromAnnotations(annotations: Array<{ safety_flags: unknown }>) {
+  return [
+    ...new Set(
+      annotations.flatMap((annotation) =>
+        Array.isArray(annotation.safety_flags)
+          ? annotation.safety_flags.filter((flag): flag is string => typeof flag === "string")
+          : []
+      )
+    )
+  ];
+}
+
 function semanticPass(runItem: { semantic_validation_result: unknown }) {
   return parseJsonRecord(runItem.semantic_validation_result).ok === true;
 }
@@ -513,14 +534,6 @@ export async function createMockEvaluationRuns(input: unknown, user: PublicUser)
   const teacher = await assertTeacherDbUser(user);
   const parsed = createMockEvalRunSchema.parse(input ?? {});
 
-  if (getServerEnv().EVAL_LIVE_CALLS_ENABLED) {
-    throw new EvalServiceError(
-      "live_eval_not_enabled",
-      "Phase 7E1 supports mock evaluation only; live evaluation is reserved for a later phase.",
-      400
-    );
-  }
-
   const suites = await suitesForMockRun(parsed);
   const repetitionCount = parsed.repetition_count ?? getServerEnv().EVAL_DEFAULT_REPETITIONS;
   const runs = [];
@@ -616,7 +629,7 @@ export async function listEvalRunItems(runPublicId: string, input: unknown = {})
       run_db_id: run.id,
       ...(parsed.execution_status ? { execution_status: parsed.execution_status } : {})
     },
-    orderBy: [{ created_at: "asc" }, { repetition_index: "asc" }],
+    orderBy: [{ run_order: "asc" }, { created_at: "asc" }, { repetition_index: "asc" }],
     include: {
       eval_case: true,
       run: {
@@ -846,7 +859,7 @@ export async function exportEvalRunCsv(runPublicId: string) {
 
   const items = await prisma.evalRunItem.findMany({
     where: { run_db_id: run.id },
-    orderBy: [{ created_at: "asc" }, { repetition_index: "asc" }],
+    orderBy: [{ run_order: "asc" }, { created_at: "asc" }, { repetition_index: "asc" }],
     include: {
       eval_case: true,
       annotations: true
@@ -865,6 +878,18 @@ export async function exportEvalRunCsv(runPublicId: string) {
       run_mode: run.run_mode,
       provider: run.provider,
       model_name: run.model_name,
+      model_snapshot: item.model_snapshot ?? run.model_snapshot ?? run.model_name,
+      reasoning_effort: item.reasoning_effort ?? run.reasoning_effort ?? "",
+      max_output_tokens: item.max_output_tokens ?? "",
+      provider_response_id: item.provider_response_id ?? "",
+      provider_request_id: item.provider_request_id ?? "",
+      retry_count: item.retry_count ?? 0,
+      input_tokens: item.input_tokens ?? "",
+      cached_input_tokens: item.cached_input_tokens ?? "",
+      output_tokens: item.output_tokens ?? "",
+      reasoning_tokens: item.reasoning_tokens ?? "",
+      total_tokens: item.total_tokens ?? "",
+      estimated_cost_usd: item.estimated_cost_usd === null ? "" : String(item.estimated_cost_usd),
       prompt_version: run.prompt_version,
       schema_version: run.schema_version,
       prompt_hash: run.prompt_hash,
@@ -872,6 +897,17 @@ export async function exportEvalRunCsv(runPublicId: string) {
       semantic_pass: semantic.ok === true,
       safety_pass: safety.ok === true,
       critical_failure_flags: criticalFlagsFromRunItem(item).join("|"),
+      auto_critical_failure_flags: autoCriticalFlagsFromRunItem(item).join("|"),
+      human_critical_failure_flags: humanCriticalFlagsFromAnnotations(item.annotations).join("|"),
+      canary_gate_status: run.canary_gate_status ?? "",
+      case_manifest_hash: run.case_manifest_hash ?? "",
+      run_config_hash: run.run_config_hash ?? "",
+      git_commit:
+        run.reproducibility_manifest &&
+        typeof run.reproducibility_manifest === "object" &&
+        !Array.isArray(run.reproducibility_manifest)
+          ? String((run.reproducibility_manifest as { application_git_commit?: unknown }).application_git_commit ?? "")
+          : "",
       annotation_pass_fail: firstAnnotation?.pass_fail ?? "",
       overall_rating: firstAnnotation?.overall_rating ?? "",
       rubric_scores_json: firstAnnotation?.rubric_scores ? stableJson(firstAnnotation.rubric_scores) : "{}",
@@ -889,6 +925,18 @@ export async function exportEvalRunCsv(runPublicId: string) {
       "run_mode",
       "provider",
       "model_name",
+      "model_snapshot",
+      "reasoning_effort",
+      "max_output_tokens",
+      "provider_response_id",
+      "provider_request_id",
+      "retry_count",
+      "input_tokens",
+      "cached_input_tokens",
+      "output_tokens",
+      "reasoning_tokens",
+      "total_tokens",
+      "estimated_cost_usd",
       "prompt_version",
       "schema_version",
       "prompt_hash",
@@ -896,6 +944,12 @@ export async function exportEvalRunCsv(runPublicId: string) {
       "semantic_pass",
       "safety_pass",
       "critical_failure_flags",
+      "auto_critical_failure_flags",
+      "human_critical_failure_flags",
+      "canary_gate_status",
+      "case_manifest_hash",
+      "run_config_hash",
+      "git_commit",
       "annotation_pass_fail",
       "overall_rating",
       "rubric_scores_json",

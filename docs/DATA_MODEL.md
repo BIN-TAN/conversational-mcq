@@ -564,13 +564,15 @@ Phase 7E1 adds normalized evaluation tables that are separate from classroom wor
 
 - `run_public_id` is the teacher-facing run identifier.
 - `run_mode` is `mock`, `imported_output`, or `live_provider`.
-- Phase 7E1 implements only `mock`; live provider execution is not available.
+- Phase 7E2A implements a guarded `live_provider` canary for synthetic cases only.
 - `provider=mock` rows may store `EVAL_TARGET_MODEL` as future target metadata, not as a live provider call.
+- live canary rows store exact model snapshot, reasoning effort, planned item count, provider request count, pricing registry version, budget limit, estimated cost, case manifest hash, run config hash, canary gate status, and a reproducibility manifest.
 
 `eval_run_items` stores one output per case repetition:
 
 - `run_item_public_id` is the teacher-facing item identifier.
 - schema validation, semantic validation, safety validation, latency, token metadata, raw output, and parsed output are captured for review.
+- live canary items additionally store idempotency key, run order, max output tokens, prompt/schema versions, provider response/request IDs, client request ID, retry count, error category, token fields, estimated cost, and started/completed timestamps.
 - Eval outputs do not create `agent_calls`, `student_profiles`, `formative_decisions`, `followup_rounds`, `item_verification_runs`, sessions, item responses, or workflow jobs.
 
 `eval_annotations` stores teacher_researcher expert review:

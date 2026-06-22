@@ -79,13 +79,22 @@ Phase 7D adds `item_verification_agent` to the same readiness and usage surfaces
 Phase 7E1 evaluation uses separate evaluation metadata:
 
 ```text
-EVAL_TARGET_MODEL=gpt-5.4-mini
-EVAL_DEFAULT_REPETITIONS=2
+EVAL_PROVIDER=mock
 EVAL_LIVE_CALLS_ENABLED=false
+EVAL_TARGET_MODEL=gpt-5.4-mini-2026-03-17
+EVAL_REASONING_EFFORT=low
+EVAL_DEFAULT_REPETITIONS=2
+EVAL_CANARY_REPETITIONS=1
+EVAL_CANARY_CASES_PER_AGENT=5
 EVAL_COST_HARD_LIMIT_USD=50
+EVAL_MAX_CONCURRENCY=1
+EVAL_MAX_RETRIES=1
+EVAL_MAX_PROVIDER_REQUESTS=50
 ```
 
-These settings do not enable classroom live calls. Phase 7E1 mock runs do not consume OpenAI billing, do not call OpenAI, and do not create `agent_calls`. Future live evaluation must enforce budget and usage controls before provider calls are allowed.
+These settings do not enable classroom live calls. Phase 7E1 mock runs do not consume OpenAI billing, do not call OpenAI, and do not create `agent_calls`. Phase 7E2A live canary execution enforces a separate eval budget guard before each provider request.
+
+The Phase 7E2A pricing registry is versioned as `openai-pricing-2026-06-22-v1` and estimates cost for `gpt-5.4-mini-2026-03-17`. Estimated cost is not an exact invoice.
 
 ## Smoke Tests
 
@@ -95,6 +104,7 @@ npm run llm:status-smoke
 npm run workflow:automation-smoke
 npm run agent:item-verification-smoke
 npm run eval:harness-smoke
+npm run eval:budget-smoke
 ```
 
 These tests run without OpenAI network calls. The workflow smoke verifies automatic jobs use the same usage-guarded agent services in mock mode.

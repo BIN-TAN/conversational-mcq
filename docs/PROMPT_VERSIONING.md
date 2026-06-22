@@ -123,6 +123,12 @@ Evaluation runs record each active agent's prompt version, schema version, and p
 
 Phase 7E1 does not promote prompt status, does not run live OpenAI evaluation, and does not make classroom workflow decisions from eval outputs. Eval results are development artifacts for expert review.
 
+## Phase 7E2A Canary Prompt Freezing
+
+When a live canary run is created, it freezes prompt versions, schema versions, prompt hashes, case payload hashes, the exact model snapshot, reasoning effort, output-token limits, budget settings, retry settings, timeout, concurrency, and application Git commit in the run reproducibility manifest.
+
+Do not tune prompts during an active canary run. If a prompt change is needed, complete or stop the current run, create a new prompt version, and create a new eval run.
+
 ## Phase 6D2A Automatic Workflow
 
 Phase 6D2A does not add new prompt contracts. Automatic workflow jobs reuse the existing Student Profiling Agent, Formative Value and Planning Agent, and Follow-up Agent prompt versions through the same `executeAgent` infrastructure. Workflow mode does not bypass prompt status, schema validation, usage guards, model environment configuration, or audit logging.

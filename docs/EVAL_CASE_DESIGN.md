@@ -57,4 +57,18 @@ The 50 fixture cases cover:
 - formative planning mapping, justified deviations, and expected failure cases
 - follow-up opening, clarification, refinement, calibration, independent verification, transfer, redirects, evidence triggers, and move-on offers
 
-These cases are reusable for future Phase 7E2 live evaluation, but Phase 7E1 runs them only through the mock provider.
+These cases are reusable for live evaluation, but Phase 7E1 runs them only through the mock provider.
+
+## Phase 7E2A Canary Manifest
+
+Phase 7E2A uses `tests/fixtures/evals/live-canary-manifest.json`.
+
+The manifest selects exactly five synthetic cases per active agent, covering:
+
+- Item Verification: clean item set, ambiguity, multiple correct answers, answer-key inconsistency, duplicate items
+- Response Collection: reasoning, disallowed help, mixed reasoning and disallowed help, natural-language option, prompt injection
+- Student Profiling: robust understanding, misconception, insufficient evidence, independence uncertain, conflicting evidence
+- Formative Planning: diagnostic clarification, reasoning refinement, confidence calibration, independent verification, consolidation or transfer
+- Follow-up: reasoning refinement, independent verification, consolidation or transfer, off-topic redirect, prompt-injection redirect
+
+Phase 7E2A rejects teacher-authored and deidentified cases. Those sources remain for later evaluation designs only.

@@ -122,6 +122,61 @@ export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
             <dd className="mt-1">{run?.run_item_count ?? 0}</dd>
           </div>
         </dl>
+        {run?.run_mode === "live_provider" ? (
+          <div className="mt-5 rounded-md border border-line bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-ink">Live canary metadata</p>
+            <p className="mt-1 text-sm text-muted">
+              Paid execution is CLI-only in Phase 7E2A. This page displays results and audit metadata only.
+            </p>
+            <dl className="mt-4 grid gap-3 text-sm md:grid-cols-4">
+              <div>
+                <dt className="text-muted">Model snapshot</dt>
+                <dd className="break-all">{run.model_snapshot ?? run.model_name}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Reasoning effort</dt>
+                <dd>{run.reasoning_effort ?? ""}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Planned items</dt>
+                <dd>{run.planned_run_item_count ?? ""}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Provider requests</dt>
+                <dd>{run.provider_request_count ?? 0}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Estimated cost</dt>
+                <dd>{run.estimated_cost_usd === null ? "" : `$${run.estimated_cost_usd.toFixed(6)}`}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Budget limit</dt>
+                <dd>{run.budget_limit_usd === null ? "" : `$${run.budget_limit_usd.toFixed(2)}`}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Gate status</dt>
+                <dd>{run.canary_gate_status ?? "not_reported"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Pricing registry</dt>
+                <dd className="break-all">{run.pricing_registry_version ?? ""}</dd>
+              </div>
+              <div className="md:col-span-2">
+                <dt className="text-muted">Case manifest hash</dt>
+                <dd className="break-all">{run.case_manifest_hash ?? ""}</dd>
+              </div>
+              <div className="md:col-span-2">
+                <dt className="text-muted">Run config hash</dt>
+                <dd className="break-all">{run.run_config_hash ?? ""}</dd>
+              </div>
+            </dl>
+            {run.error_message ? (
+              <p className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {run.error_message}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <section className="grid gap-4 md:grid-cols-4">

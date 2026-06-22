@@ -33,16 +33,22 @@ Not implemented:
 
 ## Model Candidate Policy
 
-Phase 7E1 stores the future target model as configuration metadata only:
+Phase 7E1 stored the future target model as configuration metadata only. Phase 7E2A adds a guarded live canary runner for one exact snapshot:
 
 ```text
-EVAL_TARGET_MODEL=gpt-5.4-mini
-EVAL_DEFAULT_REPETITIONS=2
+EVAL_PROVIDER=openai
 EVAL_LIVE_CALLS_ENABLED=false
+EVAL_TARGET_MODEL=gpt-5.4-mini-2026-03-17
+EVAL_REASONING_EFFORT=low
+EVAL_DEFAULT_REPETITIONS=2
+EVAL_CANARY_REPETITIONS=1
+EVAL_CANARY_CASES_PER_AGENT=5
 EVAL_COST_HARD_LIMIT_USD=50
 ```
 
-Mock runs record `provider=mock` and do not call OpenAI. Future Phase 7E2 may run `gpt-5.4-mini` after the deployment owner manually configures server-side API credentials and live evaluation gates.
+Normal mock runs record `provider=mock` and do not call OpenAI. The paid canary is CLI-only and refuses to run without `--confirm-paid-api`, live eval enablement, exact snapshot configuration, and a locally configured server-side API key.
+
+Phase 7E2A does not compare GPT-5.5 or nano models. It does not run the future 100-call pilot.
 
 ## Teacher UI
 
@@ -84,3 +90,14 @@ npm run eval:harness-smoke
 ```
 
 The smoke test verifies fixture loading, mock execution, eval isolation, teacher API access, student 403 responses, annotation create/update, blind-mode behavior, summary metrics, CSV export parsing, critical failure aggregation, and absence of OpenAI network calls.
+
+Phase 7E2A smoke commands:
+
+```bash
+npm run eval:live-canary-runner-smoke
+npm run eval:budget-smoke
+npm run eval:live-isolation-smoke
+npm run eval:canary-report-smoke
+```
+
+These smoke tests use mock/fake provider paths and make no OpenAI calls.
