@@ -80,3 +80,14 @@ npm run agent:followup-final-update-smoke
 ```
 
 The workflow smoke test verifies claim behavior, concurrent worker safety, lease recovery, pause skipping, safe payloads, and absence of OpenAI calls. The follow-up update smoke tests verify staged update cycles, final stop updates, idempotency, safe evidence packages, teacher serialization, and absence of OpenAI calls.
+
+## Phase 6D3 Progression Jobs
+
+Phase 6D3 adds `finalize_concept_progression`. This job resolves a student progression record after an optional final follow-up update. It may activate the next concept, complete the assessment, or leave the progression awaiting neutral unresolved-evidence confirmation.
+
+Additional verification:
+
+```bash
+npm run concept:progression-smoke
+npm run assessment:completion-smoke
+```

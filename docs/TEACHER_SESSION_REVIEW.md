@@ -250,3 +250,5 @@ The smoke test verifies listing, search, status and phase filters, pagination, p
 Phase 5B adds `/teacher/data`, `/teacher/data/summative-outcomes`, and `/teacher/data/export` for supervised outcome import and the merged master CSV export. The session-review pages remain read-only and do not edit student answers, process events, response packages, profiles, or formative decisions.
 
 Phase 6B may populate `agent_calls` and `student_profiles` for Student Profiling Agent execution. Phase 6C may populate `agent_calls` and `formative_decisions` for Formative Value and Planning Agent execution. Phase 6D1 may populate `followup_rounds`, follow-up conversation turns, process events, and `agent_calls.followup_round_db_id` through backend-only integration using environment-configured model names.
+
+Phase 6D3 may populate `concept_progression_records`. Teacher session review displays progression history read-only. It does not expose approve, deny, advance, complete, reopen, edit, or force-move controls for active student sessions. Active-session intervention controls are hidden and rejected unless `DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED=true`.

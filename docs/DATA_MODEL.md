@@ -1,6 +1,6 @@
 # Data Model
 
-Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, and Phase 6 additions. The data model supports audited profiling, planning, first-round follow-up records, and Phase 6D2B staged iterative follow-up evidence updates inside the current concept unit. It still does not imply next-concept progression, Response Collection Agent behavior, live Item Preparation behavior, or master CSV filling for iterative profile/planning fields.
+Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, and Phase 6 additions. The data model supports audited profiling, planning, first-round follow-up records, Phase 6D2B staged iterative follow-up evidence updates inside the current concept unit, and Phase 6D3 deterministic student-led concept progression/completion. It still does not imply adaptive concept routing, Response Collection Agent behavior, live Item Preparation behavior, or master CSV filling for iterative profile/planning fields.
 
 ## Identifier Convention
 
@@ -33,6 +33,7 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `formative_decisions`: Storage for formative value decisions and action plans.
 - `followup_rounds`: Iterative follow-up rounds. There is no pedagogical maximum number of rounds.
 - `followup_update_cycles`: Staged, auditable update cycles created from follow-up evidence packages. Staged profile/planning/opening outputs are not active records until the full cycle commits successfully.
+- `concept_progression_records`: Student-controlled progression/completion audit records. They link the source concept-unit session, optional destination concept unit, source active profile/decision, optional final update cycle, student choice, resolution status, and unresolved-evidence flags.
 - `summative_outcomes`: Audited linkage to supervised summative assessment scores by `users.user_id`, with active/superseded revisions.
 - `summative_outcome_import_batches`: Audited preview/commit batches for teacher_researcher CSV imports.
 - `export_jobs`: Teacher_researcher master CSV export job tracking with public export IDs and local storage keys.
@@ -54,6 +55,7 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `conversation_turns`, `process_events`, and `agent_calls` attach to assessment sessions and optionally concept-unit sessions, items, or follow-up rounds.
 - `student_profiles`, `formative_decisions`, `followup_rounds`, `followup_update_cycles`, and `response_packages` attach to concept-unit sessions.
 - `followup_update_cycles` reference their source follow-up round, source active profile, source active decision, evidence package, and agent-call rows where available.
+- `concept_progression_records` attach to assessment sessions and source concept-unit sessions, optionally reference the destination concept unit, source active profile, source active decision, and final update cycle.
 - `summative_outcomes.user_db_id -> users.id` and also stores `user_id_snapshot`.
 - `summative_outcomes.import_batch_db_id -> summative_outcome_import_batches.id` when created from an import batch.
 - `summative_outcome_import_batches.uploaded_by_user_db_id -> users.id`.
@@ -77,6 +79,9 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `followup_rounds`: unique `concept_unit_session_db_id + round_index`.
 - `followup_update_cycles.cycle_public_id`: unique public update-cycle identifier.
 - `followup_update_cycles`: at most one active non-terminal cycle per concept-unit session.
+- `concept_progression_records.progression_public_id`: unique public progression identifier.
+- `concept_progression_records.idempotency_key`: unique logical progression key.
+- `concept_progression_records`: one active progression record per source concept-unit session through a partial PostgreSQL unique index.
 - `summative_outcomes.outcome_public_id`: unique public outcome identifier.
 - `summative_outcomes`: active records are logically unique by `user_db_id + outcome_name + assessment_date`; older versions are preserved as `superseded`.
 - `summative_outcome_import_batches.batch_public_id`: unique public import-batch identifier.
@@ -106,6 +111,7 @@ The schema indexes:
 - Export jobs by requester, status, and expiration.
 - Workflow jobs by status/run-after time, session/status, concept-unit/status, and lock time.
 - Workflow overrides by session, concept-unit, action type, and creation time.
+- Concept progression records by assessment session/request time, source concept-unit session/status, destination concept, source profile/decision, progression type/status, and final update cycle.
 
 ## Phase 6D2A Assessment Availability And Workflow
 

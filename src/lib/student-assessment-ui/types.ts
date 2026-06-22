@@ -58,6 +58,17 @@ export const StudentConceptUnitSchema = z.object({
 });
 export type StudentConceptUnit = z.infer<typeof StudentConceptUnitSchema>;
 
+export const StudentProgressionSchema = z.object({
+  available: z.boolean(),
+  status: z.string().nullable(),
+  progression_public_id: z.string().nullable(),
+  is_final_concept: z.boolean(),
+  allowed_choices: z.array(z.string()),
+  neutral_message: z.string().nullable(),
+  processing: z.boolean()
+});
+export type StudentProgression = z.infer<typeof StudentProgressionSchema>;
+
 export const StudentSessionStateSchema = z.object({
   session_public_id: z.string(),
   session_status: z.string(),
@@ -86,7 +97,8 @@ export const StudentSessionStateSchema = z.object({
     "automatic_workflow_failed",
     "followup_active",
     "followup_updating",
-    "followup_stopped"
+    "followup_stopped",
+    "session_completed"
   ]),
   current_item: StudentSafeItemSchema.nullable(),
   missing_evidence: z.array(MissingEvidenceFieldSchema),
@@ -105,6 +117,7 @@ export const StudentSessionStateSchema = z.object({
     })
     .nullable()
     .optional(),
+  progression: StudentProgressionSchema.nullable().optional(),
   session: z
     .object({
       session_public_id: z.string(),
@@ -145,6 +158,9 @@ export const StudentConversationFrameSchema = z.object({
     "followup_active",
     "followup_updating",
     "followup_stopped",
+    "progression_decision",
+    "progression_processing",
+    "session_completed",
     "session_paused",
     "error"
   ]),

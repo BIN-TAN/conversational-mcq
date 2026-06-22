@@ -29,6 +29,7 @@ import type {
 } from "@/lib/student-assessment-ui/types";
 import {
   beginConceptUnit,
+  chooseProgression,
   completeInitialConceptUnit,
   exitSession,
   fetchSessionState,
@@ -39,6 +40,7 @@ import {
   saveOption,
   saveReasoning,
   sendFollowupMessage,
+  requestProgression,
   startAssessmentSession,
   stopFollowup,
   submitItem
@@ -624,6 +626,70 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
     }
   }
 
+  async function handleRequestProgression() {
+    setError(null);
+    setStatusMessage("");
+    setIsBusy(true);
+
+    try {
+      await requestProgression(sessionPublicId);
+      const nextState = await fetchSessionState(sessionPublicId);
+
+      setState(nextState);
+      setStatusMessage("Move-on options are available.");
+      await refreshSecondaryData();
+    } catch (caught) {
+      setError(caught as StructuredStudentApiError);
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function handleProgressionChoice(
+    choice:
+      | "continue_current_concept"
+      | "next_concept"
+      | "stay_in_final_concept"
+      | "complete_assessment"
+  ) {
+    const progressionPublicId = state?.progression?.progression_public_id;
+
+    if (!progressionPublicId) {
+      return;
+    }
+
+    setError(null);
+    setStatusMessage("");
+    setIsBusy(true);
+
+    try {
+      const result = await chooseProgression({
+        sessionPublicId,
+        progressionPublicId,
+        choice
+      });
+      const nextState = await fetchSessionState(sessionPublicId);
+
+      setState(nextState);
+      setStatusMessage(
+        result.choice_status === "final_update_pending"
+          ? "Reviewing your latest response before continuing."
+          : result.choice_status === "next_concept_ready"
+            ? "Next concept is ready."
+            : result.choice_status === "assessment_completed"
+              ? "Assessment completed."
+              : result.choice_status === "progression_cancelled"
+                ? "Continuing this concept."
+                : "Progression choice saved."
+      );
+      await refreshSecondaryData();
+    } catch (caught) {
+      setError(caught as StructuredStudentApiError);
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   if (isLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-surface px-4">
@@ -648,9 +714,13 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
   const currentItem = state.current_item;
   const locked =
     review?.locked ??
-    ["awaiting_profiling", "followup_active", "followup_updating", "followup_stopped"].includes(
-      state.next_step
-    );
+    [
+      "awaiting_profiling",
+      "followup_active",
+      "followup_updating",
+      "followup_stopped",
+      "session_completed"
+    ].includes(state.next_step);
   const questionProgress =
     state.progress.total_item_count > 0
       ? `Question ${Math.min(
@@ -740,6 +810,9 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
                   onSendFollowup={() => void handleSendFollowup()}
                   onShowSkipConfirmation={(fields) => setSkipConfirmation(fields)}
                   onStopFollowup={() => void handleStopFollowup()}
+                  onRequestProgression={() => void handleRequestProgression()}
+                  onProgressionChoice={(choice) => void handleProgressionChoice(choice)}
+                  onSaveExit={() => void handleExit()}
                   onConfidence={(item, confidence) => void handleConfidence(item, confidence)}
                 />
               </div>
@@ -817,6 +890,9 @@ function InteractionControls({
   onConfidence,
   onOption,
   onReasoning,
+  onRequestProgression,
+  onProgressionChoice,
+  onSaveExit,
   onShowSkipConfirmation,
   onSendFollowup,
   onSkipConfirmationCancel,
@@ -840,6 +916,15 @@ function InteractionControls({
   onConfidence: (item: StudentSafeItem, confidence: ConfidenceRating) => void;
   onOption: (item: StudentSafeItem, label: string) => void;
   onReasoning: (item: StudentSafeItem) => void;
+  onRequestProgression: () => void;
+  onProgressionChoice: (
+    choice:
+      | "continue_current_concept"
+      | "next_concept"
+      | "stay_in_final_concept"
+      | "complete_assessment"
+  ) => void;
+  onSaveExit: () => void;
   onSendFollowup: () => void;
   onShowSkipConfirmation: (fields: MissingEvidenceField[]) => void;
   onSkipConfirmationCancel: () => void;
@@ -850,6 +935,8 @@ function InteractionControls({
 }) {
   if (frame.interaction_type === "followup_active") {
     const maxChars = state.followup?.message_max_chars ?? 6000;
+    const progression = state.progression ?? null;
+    const hasProgressionChoices = Boolean(progression?.progression_public_id);
 
     return (
       <div className="space-y-3">
@@ -871,6 +958,83 @@ function InteractionControls({
           placeholder="Write your follow-up response..."
           value={followupDraft}
         />
+        {progression?.available ? (
+          <div className="rounded-lg border border-line bg-white p-3">
+            {progression.neutral_message ? (
+              <p className="mb-3 text-sm leading-6 text-ink">{progression.neutral_message}</p>
+            ) : null}
+            {hasProgressionChoices ? (
+              <div className="flex flex-wrap gap-2">
+                {progression.is_final_concept ? (
+                  <>
+                    <button
+                      className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                      data-testid="stay-in-final-concept"
+                      disabled={isBusy || progression.processing}
+                      onClick={() => onProgressionChoice("stay_in_final_concept")}
+                      type="button"
+                    >
+                      Stay and continue follow-up
+                    </button>
+                    <button
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                      data-testid="complete-assessment"
+                      disabled={isBusy || progression.processing}
+                      onClick={() => onProgressionChoice("complete_assessment")}
+                      type="button"
+                    >
+                      <Check className="h-4 w-4" aria-hidden="true" />
+                      Complete assessment
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                      data-testid="continue-current-concept"
+                      disabled={isBusy || progression.processing}
+                      onClick={() => onProgressionChoice("continue_current_concept")}
+                      type="button"
+                    >
+                      Continue this concept
+                    </button>
+                    <button
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                      data-testid="next-concept"
+                      disabled={isBusy || progression.processing}
+                      onClick={() => onProgressionChoice("next_concept")}
+                      type="button"
+                    >
+                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                      Next concept
+                    </button>
+                  </>
+                )}
+                <button
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                  data-testid="progression-save-exit"
+                  disabled={isBusy}
+                  onClick={onSaveExit}
+                  type="button"
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                  Save and exit
+                </button>
+              </div>
+            ) : (
+              <button
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                data-testid="request-progression"
+                disabled={isBusy || progression.processing}
+                onClick={onRequestProgression}
+                type="button"
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                I&apos;m ready to move on
+              </button>
+            )}
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-muted">
             {followupDraft.length} / {maxChars}
@@ -899,6 +1063,14 @@ function InteractionControls({
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (frame.interaction_type === "session_completed") {
+    return (
+      <p className="rounded-md border border-line bg-white px-3 py-2 text-sm text-muted">
+        Your assessment is complete. You can review your saved responses.
+      </p>
     );
   }
 

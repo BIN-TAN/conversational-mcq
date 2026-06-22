@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import {
   FollowupUpdateTriggerTypeSchema,
+  type FollowupUpdatePostCycleAction,
   type FollowupUpdateTriggerType
 } from "@/lib/domain/enums";
 import { executeAgent } from "@/lib/agents/execute-agent";
@@ -74,6 +75,7 @@ const triggerDetailsSchema = z.object({
   assistant_turn_db_id: z.string().uuid().optional(),
   evidence_trigger_reasons: z.array(z.string()).optional(),
   substantive_turn_count_since_last_update: z.number().int().nonnegative().optional(),
+  progression_public_id: z.string().optional(),
   requested_by_user_db_id: z.string().uuid().optional()
 }).passthrough();
 
@@ -523,6 +525,8 @@ async function createCycle(input: {
   final_update: boolean;
   create_next_round: boolean;
   stop_after_cycle: boolean;
+  post_cycle_action?: FollowupUpdatePostCycleAction;
+  progression_record_db_id?: string | null;
   evidence_cutoff_turn_db_id?: string | null;
 }) {
   const existing = await activeCycle(input.concept_unit_session_db_id);
@@ -535,6 +539,9 @@ async function createCycle(input: {
           final_update: true,
           create_next_round: false,
           stop_after_cycle: true,
+          post_cycle_action: input.post_cycle_action ?? existing.post_cycle_action,
+          progression_record_db_id:
+            input.progression_record_db_id ?? existing.progression_record_db_id,
           trigger_details: json({
             ...asRecord(existing.trigger_details),
             stop_requested_after_cycle_creation: true,
@@ -648,7 +655,9 @@ async function createCycle(input: {
           trigger_details: json(triggerDetails),
           final_update: input.final_update,
           create_next_round: input.create_next_round,
-          stop_after_cycle: input.stop_after_cycle
+          stop_after_cycle: input.stop_after_cycle,
+          post_cycle_action: input.post_cycle_action ?? "none",
+          progression_record_db_id: input.progression_record_db_id ?? null
         }
       });
     });
@@ -765,6 +774,39 @@ export async function enqueueFollowupFinalizeJob(cyclePublicId: string) {
     payload: {
       step: "finalize_followup_update",
       cycle_public_id: cycle.cycle_public_id
+    }
+  });
+}
+
+async function enqueuePostCycleProgressionFinalizeJob(input: {
+  progression_record_db_id: string | null;
+  cycle_public_id: string;
+  cycle_db_id: string;
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string;
+}) {
+  if (!input.progression_record_db_id) {
+    return null;
+  }
+
+  const progression = await prisma.conceptProgressionRecord.findUnique({
+    where: { id: input.progression_record_db_id },
+    select: { progression_public_id: true }
+  });
+
+  if (!progression) {
+    return null;
+  }
+
+  return enqueueWorkflowJob({
+    job_type: "finalize_concept_progression",
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    idempotency_key: `finalize_concept_progression:${input.progression_record_db_id}:${input.cycle_db_id}`,
+    payload: {
+      step: "finalize_concept_progression",
+      progression_public_id: progression.progression_public_id,
+      cycle_public_id: input.cycle_public_id
     }
   });
 }
@@ -1503,6 +1545,16 @@ export async function finalizeFollowupUpdate(cyclePublicId: string) {
     }
   });
 
+  if (refreshed.post_cycle_action !== "none") {
+    await enqueuePostCycleProgressionFinalizeJob({
+      progression_record_db_id: refreshed.progression_record_db_id,
+      cycle_public_id: refreshed.cycle_public_id,
+      cycle_db_id: refreshed.id,
+      assessment_session_db_id: refreshed.assessment_session_db_id,
+      concept_unit_session_db_id: refreshed.concept_unit_session_db_id
+    });
+  }
+
   return { status: "followup_update_completed" as const, cycle_public_id: cyclePublicId };
 }
 
@@ -1522,6 +1574,7 @@ export async function markFollowupUpdateCycleFailed(input: {
 
   const now = new Date();
   const stopAfterCycle = cycle.stop_after_cycle || cycle.final_update;
+  const progressionFinalUpdate = cycle.post_cycle_action !== "none";
 
   await prisma.$transaction(async (tx) => {
     await tx.followupUpdateCycle.update({
@@ -1535,7 +1588,18 @@ export async function markFollowupUpdateCycleFailed(input: {
       }
     });
 
-    if (stopAfterCycle) {
+    if (stopAfterCycle && progressionFinalUpdate) {
+      await tx.assessmentSession.update({
+        where: { id: cycle.assessment_session_db_id },
+        data: {
+          current_phase: "followup_active",
+          last_activity_at: now,
+          needs_review: false,
+          needs_review_reason: null,
+          automation_exception_reason: null
+        }
+      });
+    } else if (stopAfterCycle) {
       await tx.followupRound.update({
         where: { id: cycle.source_followup_round_db_id },
         data: {
@@ -1585,6 +1649,16 @@ export async function markFollowupUpdateCycleFailed(input: {
     }
   });
 
+  if (cycle.post_cycle_action !== "none") {
+    await enqueuePostCycleProgressionFinalizeJob({
+      progression_record_db_id: cycle.progression_record_db_id,
+      cycle_public_id: cycle.cycle_public_id,
+      cycle_db_id: cycle.id,
+      assessment_session_db_id: cycle.assessment_session_db_id,
+      concept_unit_session_db_id: cycle.concept_unit_session_db_id
+    });
+  }
+
   return { status: "cycle_failed" as const, cycle_public_id: cycle.cycle_public_id };
 }
 
@@ -1609,6 +1683,50 @@ export async function markFollowupUpdateCycleFailedFromJob(input: {
     failure_category: input.error_category,
     failure_message: input.error_message
   });
+}
+
+export async function requestProgressionFinalUpdate(input: {
+  concept_unit_session_db_id: string;
+  progression_record_db_id: string;
+  progression_public_id: string;
+  post_cycle_action: FollowupUpdatePostCycleAction;
+}) {
+  const activeRound = await prisma.followupRound.findFirst({
+    where: {
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      status: "active"
+    },
+    orderBy: [{ round_index: "desc" }]
+  });
+
+  if (!activeRound) {
+    return { status: "no_active_round" as const };
+  }
+
+  const cutoff = await latestStudentTurn(activeRound.id);
+  const { cycle, created } = await createCycle({
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    trigger_type: "student_progression_final_update",
+    trigger_details: {
+      source: "student_concept_progression",
+      progression_public_id: input.progression_public_id
+    },
+    final_update: true,
+    create_next_round: false,
+    stop_after_cycle: true,
+    post_cycle_action: input.post_cycle_action,
+    progression_record_db_id: input.progression_record_db_id,
+    evidence_cutoff_turn_db_id: cutoff?.id ?? null
+  });
+
+  if (created) {
+    await enqueueFollowupProfileUpdateJob(cycle.cycle_public_id);
+  }
+
+  return {
+    status: created ? "final_update_enqueued" : "final_update_already_active",
+    cycle_public_id: cycle.cycle_public_id
+  };
 }
 
 export async function requestStopFollowupWithPossibleFinalUpdate(input: {

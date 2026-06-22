@@ -109,6 +109,8 @@ async function expectStudentError(action: () => Promise<unknown>, code: string) 
 }
 
 async function main() {
+  process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "true";
+
   await ensureDemoStudentAssessment(prisma);
 
   const userId = `phase4b_ui_smoke_${Date.now()}_${randomUUID().slice(0, 8)}`;

@@ -4,6 +4,7 @@ import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
+import { getServerEnv } from "@/lib/env";
 import { getWorkflowJobConfig } from "./config";
 
 export class WorkflowOverrideError extends Error {
@@ -129,12 +130,25 @@ async function logOverrideEvent(input: {
   });
 }
 
+function assertDevelopmentControlsEnabled() {
+  if (getServerEnv().DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED) {
+    return;
+  }
+
+  throw new WorkflowOverrideError(
+    "active_session_controls_disabled",
+    "Active-session workflow controls are disabled for standard classroom use.",
+    403
+  );
+}
+
 export async function pauseWorkflowAutomation(input: {
   session_public_id: string;
   teacher_user_db_id: string;
   concept_unit_public_id?: string;
   reason?: string | null;
 }) {
+  assertDevelopmentControlsEnabled();
   const session = await findSession(input.session_public_id);
   const cusId = await conceptUnitSessionId({
     session_db_id: session.id,
@@ -172,6 +186,7 @@ export async function resumeWorkflowAutomation(input: {
   concept_unit_public_id?: string;
   reason?: string | null;
 }) {
+  assertDevelopmentControlsEnabled();
   const session = await findSession(input.session_public_id);
   const cusId = await conceptUnitSessionId({
     session_db_id: session.id,
@@ -222,6 +237,7 @@ export async function retryCurrentWorkflowStep(input: {
   teacher_user_db_id: string;
   reason?: string | null;
 }) {
+  assertDevelopmentControlsEnabled();
   const session = await findSession(input.session_public_id);
   const failedJob = await prisma.workflowJob.findFirst({
     where: {
@@ -297,6 +313,7 @@ export async function stopWorkflowFollowup(input: {
   concept_unit_public_id?: string;
   reason?: string | null;
 }) {
+  assertDevelopmentControlsEnabled();
   const session = await findSession(input.session_public_id);
   const cusId = await conceptUnitSessionId({
     session_db_id: session.id,

@@ -3,6 +3,7 @@ import { Prisma, type AssessmentPhase, type Item, type ItemResponse } from "@pri
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { ConfidenceLevelSchema, ProcessEventTypeSchema } from "@/lib/domain/enums";
+import { getServerEnv } from "@/lib/env";
 import {
   assessmentHasValidPublishedContent,
   computeAssessmentAvailability
@@ -16,6 +17,7 @@ import { updateAssessmentSessionPhase, markSessionExited } from "@/lib/services/
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { INCLUDED_ITEM_RANGE } from "@/lib/services/content/governance";
 import { enqueueInitialProfilingJobIfAutomatic } from "@/lib/workflow/automation";
+import { getStudentProgressionStateBySessionDbId } from "@/lib/services/concept-progression/progression";
 import {
   assertStudentPayloadIsSafe,
   serializeStudentAssessment,
@@ -45,7 +47,8 @@ export const InitialAdministrationStep = z.enum([
   "automatic_workflow_failed",
   "followup_active",
   "followup_updating",
-  "followup_stopped"
+  "followup_stopped",
+  "session_completed"
 ]);
 
 type InitialAdministrationStep = z.infer<typeof InitialAdministrationStep>;
@@ -355,6 +358,7 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       title: true,
       description: true,
       status: true,
+      workflow_mode: true,
       release_at: true,
       close_at: true
     }
@@ -390,6 +394,13 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       has_valid_content: hasValidContent,
       existing_session: existingSession
     });
+    const manualReviewNewStartBlocked =
+      assessment.workflow_mode === "manual_review" &&
+      !existingSession &&
+      !getServerEnv().ALLOW_MANUAL_REVIEW_STUDENT_STARTS;
+    const studentSafeAvailabilityMessage = manualReviewNewStartBlocked
+      ? "This assessment is not available for student starts yet."
+      : computed.student_safe_availability_message;
 
     availability.push({
       ...serializeStudentAssessment(assessment),
@@ -397,7 +408,7 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       release_at_course_time: computed.release_at_course_time,
       close_at_course_time: computed.close_at_course_time,
       course_timezone: computed.course_timezone,
-      student_safe_availability_message: computed.student_safe_availability_message,
+      student_safe_availability_message: studentSafeAvailabilityMessage,
       availability_status: completed
         ? "completed"
         : existingSession
@@ -405,7 +416,7 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
           : computed.availability_state,
       existing_session_public_id: existingSession?.session_public_id ?? null,
       existing_session_status: existingSession?.status ?? null,
-      can_start: computed.can_start_new_session,
+      can_start: computed.can_start_new_session && !manualReviewNewStartBlocked,
       can_resume: Boolean(existingSession && !completed && computed.can_resume_existing_session)
     });
   }
@@ -555,6 +566,18 @@ export async function startOrResumeStudentAssessmentSession(input: {
             throw new StudentAssessmentServiceError(
               "assessment_not_published",
               "Assessment is not published.",
+              409,
+              { assessment_public_id: assessment.assessment_public_id }
+            );
+          }
+
+          if (
+            assessment.workflow_mode === "manual_review" &&
+            !getServerEnv().ALLOW_MANUAL_REVIEW_STUDENT_STARTS
+          ) {
+            throw new StudentAssessmentServiceError(
+              "assessment_manual_review_not_available",
+              "This assessment is not available for ordinary student starts.",
               409,
               { assessment_public_id: assessment.assessment_public_id }
             );
@@ -836,7 +859,9 @@ export async function getStudentSessionState(input: {
     (Boolean(session.automation_exception_reason) ||
       automaticJobs.some((job) => job.status === "failed"));
 
-  if (effectivePhase === "followup_active") {
+  if (effectivePhase === "session_completed") {
+    nextStep = "session_completed";
+  } else if (effectivePhase === "followup_active") {
     nextStep = "followup_active";
   } else if (
     effectivePhase === "followup_profile_update_pending" ||
@@ -913,6 +938,13 @@ export async function getStudentSessionState(input: {
         })
       : null;
   const followupConfig = getFollowupContextConfig();
+  const progression = await getStudentProgressionStateBySessionDbId({
+    assessment_session_db_id: session.id,
+    concept_unit_session_db_id: conceptUnitSession?.id ?? null,
+    current_phase: effectivePhase,
+    assessment_db_id: session.assessment_db_id,
+    current_concept_unit_db_id: currentConceptUnit?.id ?? null
+  });
   const result = {
     session: serializeStudentSessionSummary(session),
     session_public_id: session.session_public_id,
@@ -950,7 +982,8 @@ export async function getStudentSessionState(input: {
           can_save_exit: true,
           message_max_chars: followupConfig.message_max_chars
         }
-      : null
+      : null,
+    progression
   };
 
   assertStudentPayloadIsSafe(result);
@@ -1122,6 +1155,35 @@ async function getActionContext(input: {
     );
   }
 
+  const item = await prisma.item.findUnique({
+    where: { item_public_id: input.item_public_id },
+    include: {
+      concept_unit: {
+        select: {
+          assessment_db_id: true
+        }
+      }
+    }
+  });
+
+  if (item && item.concept_unit_db_id !== session.current_concept_unit.id) {
+    if (item.concept_unit.assessment_db_id === session.assessment_db_id) {
+      throw new StudentAssessmentServiceError(
+        "concept_no_longer_current",
+        "This concept is no longer current for editing.",
+        409
+      );
+    }
+  }
+
+  if (!item || item.concept_unit_db_id !== session.current_concept_unit.id) {
+    throw new StudentAssessmentServiceError(
+      "item_not_in_current_concept_unit",
+      "Item is not in the current concept unit.",
+      409
+    );
+  }
+
   if (conceptUnitSession.initial_completed_at || conceptUnitSession.status === "initial_completed") {
     throw new StudentAssessmentServiceError(
       "initial_response_locked_after_concept_completion",
@@ -1139,18 +1201,6 @@ async function getActionContext(input: {
       "Item responses can be changed only during initial item administration.",
       409,
       { current_phase: session.current_phase }
-    );
-  }
-
-  const item = await prisma.item.findUnique({
-    where: { item_public_id: input.item_public_id }
-  });
-
-  if (!item || item.concept_unit_db_id !== session.current_concept_unit.id) {
-    throw new StudentAssessmentServiceError(
-      "item_not_in_current_concept_unit",
-      "Item is not in the current concept unit.",
-      409
     );
   }
 

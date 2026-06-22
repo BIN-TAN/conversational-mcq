@@ -5,6 +5,7 @@ import {
   runManualFollowupUpdate
 } from "@/lib/agents/followup-updates/service";
 import {
+  requireDevelopmentActiveSessionControls,
   requireTeacherReview,
   teacherReviewRouteError
 } from "@/lib/services/teacher-review/api";
@@ -22,6 +23,12 @@ export async function POST(
 
   if (!auth.ok) {
     return auth.response;
+  }
+
+  const developmentOnly = requireDevelopmentActiveSessionControls();
+
+  if (developmentOnly) {
+    return developmentOnly;
   }
 
   try {

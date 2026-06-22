@@ -97,3 +97,13 @@ npm run student:followup-update-ui-smoke
 ```
 
 The smoke tests verify active, updating, and stopped follow-up states; neutral presenter copy; assistant opening display; student message/reply display; review locking; transcript safety; iterative update cycles; final stop updates; absence of profile/planning labels in student payloads; and no OpenAI network calls.
+
+## Phase 6D3 Progression UI
+
+During active follow-up, the student can click `I'm ready to move on`. This preserves the free-text conversational interface and adds neutral choice controls. The UI does not reveal readiness labels, profile labels, formative values, correctness, model/provider names, or workflow job IDs. If recent evidence must be reviewed first, the student sees neutral processing copy.
+
+Additional verification:
+
+```bash
+npm run student:progression-ui-smoke
+```

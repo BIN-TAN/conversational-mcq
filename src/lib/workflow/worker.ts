@@ -9,6 +9,7 @@ import {
 } from "./jobs";
 import { getWorkflowJobConfig } from "./config";
 import { markFollowupUpdateCycleFailedFromJob } from "@/lib/agents/followup-updates/service";
+import { markConceptProgressionFailedFromJob } from "@/lib/services/concept-progression/progression";
 
 export type ProcessWorkflowJobResult = {
   job_public_id: string;
@@ -44,6 +45,11 @@ export async function processWorkflowJob(job: WorkflowJob): Promise<ProcessWorkf
         error_category: result.error_category ?? "unknown",
         error_message: result.error_message ?? "Workflow job did not complete."
       });
+      await markConceptProgressionFailedFromJob({
+        job_payload: job.payload,
+        error_category: result.error_category ?? "unknown",
+        error_message: result.error_message ?? "Workflow job did not complete."
+      });
       await markSessionAutomationException({
         assessment_session_db_id: job.assessment_session_db_id,
         reason: `automatic_workflow_failed:${job.job_type}:${result.error_category ?? "unknown"}`
@@ -67,6 +73,11 @@ export async function processWorkflowJob(job: WorkflowJob): Promise<ProcessWorkf
       await markFollowupUpdateCycleFailedFromJob({
         job_payload: job.payload,
         job_type: job.job_type,
+        error_category: "worker_exception",
+        error_message: error instanceof Error ? error.message : "Workflow worker exception."
+      });
+      await markConceptProgressionFailedFromJob({
+        job_payload: job.payload,
         error_category: "worker_exception",
         error_message: error instanceof Error ? error.message : "Workflow worker exception."
       });

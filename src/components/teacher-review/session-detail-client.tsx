@@ -26,6 +26,7 @@ import type {
   ResponsePackagesResponse,
   SessionDetailResponse,
   StructuredApiError,
+  TeacherConceptProgressionRecord,
   TeacherFormativeDecision,
   TeacherFollowupRound,
   TeacherFollowupUpdateCycle,
@@ -104,6 +105,19 @@ const eventTypes = [
   "followup_final_update_failed",
   "off_topic_followup",
   "followup_stopped",
+  "concept_progression_offered",
+  "concept_progression_requested",
+  "concept_progression_cancelled",
+  "concept_progression_final_update_started",
+  "concept_progression_final_update_completed",
+  "concept_progression_final_update_failed",
+  "concept_progression_unresolved_confirmation_requested",
+  "concept_progression_unresolved_confirmed",
+  "concept_progression_completed",
+  "concept_progression_moved_on_with_unresolved_evidence",
+  "assessment_completion_requested",
+  "assessment_completed",
+  "assessment_completed_with_unresolved_evidence",
   "workflow_job_enqueued",
   "workflow_job_claimed",
   "workflow_job_succeeded",
@@ -1272,6 +1286,69 @@ function FollowupUpdateCycleDetails({ cycle }: { cycle: TeacherFollowupUpdateCyc
   );
 }
 
+function ConceptProgressionDetails({
+  progression
+}: {
+  progression: TeacherConceptProgressionRecord;
+}) {
+  return (
+    <section className="rounded-lg border border-line bg-white p-4">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-ink">{progression.progression_public_id}</p>
+          <p className="mt-1 text-xs text-muted">
+            Student-controlled progression record; teacher review is read-only.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <StatusPill
+            value={progression.status}
+            tone={
+              progression.status === "completed"
+                ? "good"
+                : progression.status === "failed"
+                  ? "bad"
+                  : "warn"
+            }
+          />
+          <StatusPill value={progression.progression_type} />
+          <StatusPill value={progression.resolution_status} />
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <Fact labelText="Trigger" value={label(progression.trigger_type)} />
+        <Fact labelText="Student choice" value={progression.student_choice ? label(progression.student_choice) : "none"} />
+        <Fact labelText="Requested" value={formatDate(progression.requested_at)} />
+        <Fact labelText="Confirmed" value={formatDate(progression.confirmed_at)} />
+        <Fact labelText="Completed" value={formatDate(progression.completed_at)} />
+        <Fact
+          labelText="Destination"
+          value={
+            progression.destination_concept_unit
+              ? `${progression.destination_concept_unit.order_index}. ${progression.destination_concept_unit.title}`
+              : "assessment completion"
+          }
+        />
+        <Fact
+          labelText="Unresolved move-on"
+          value={progression.moved_on_with_unresolved_evidence ? "yes" : "no"}
+        />
+        <Fact
+          labelText="Unresolved completion"
+          value={progression.completed_with_unresolved_evidence ? "yes" : "no"}
+        />
+      </div>
+      {progression.final_update_cycle ? (
+        <div className="mt-4 rounded-md border border-line bg-slate-50 px-3 py-2 text-sm text-muted">
+          Final update cycle: {progression.final_update_cycle.cycle_public_id} /{" "}
+          {label(progression.final_update_cycle.status)}
+        </div>
+      ) : null}
+      <p className="mt-3 text-xs text-muted">{progression.interpretation_boundary}</p>
+    </section>
+  );
+}
+
 function FutureAgentSection({
   detail,
   followupAction,
@@ -1570,6 +1647,19 @@ function FutureAgentSection({
                     </p>
                     {conceptUnitSession.followup_update_cycles.map((cycle) => (
                       <FollowupUpdateCycleDetails cycle={cycle} key={cycle.cycle_public_id} />
+                    ))}
+                  </div>
+                ) : null}
+                {conceptUnitSession.concept_progression_records.length > 0 ? (
+                  <div className="mt-4 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                      Concept progression history
+                    </p>
+                    {conceptUnitSession.concept_progression_records.map((progression) => (
+                      <ConceptProgressionDetails
+                        progression={progression}
+                        key={progression.progression_public_id}
+                      />
                     ))}
                   </div>
                 ) : null}

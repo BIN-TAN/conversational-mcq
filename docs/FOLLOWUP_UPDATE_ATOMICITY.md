@@ -61,3 +61,7 @@ All agent-call audit records and failed cycle records are preserved.
 ## Concurrency
 
 Only one active update cycle may exist for a concept-unit session at a time. Worker retries must reuse the same evidence package and cutoff. Browser refreshes, repeated triggers, and stop requests during an active update must not duplicate packages, profiles, decisions, rounds, or opening messages.
+
+## Phase 6D3 Progression Final Updates
+
+Progression final updates set `post_cycle_action` to `advance_to_next_concept` or `complete_assessment`. A successful final update activates the updated profile and decision before progression resolution. A failed progression final update preserves the previous active profile and decision, leaves the workflow recoverable for the student, and does not require teacher approval.

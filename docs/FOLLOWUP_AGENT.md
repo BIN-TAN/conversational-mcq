@@ -28,7 +28,7 @@ The route requires `teacher_researcher`, rejects students with 403, uses public 
 
 Phase 6D2A may start the first follow-up round from a backend workflow job when the session's workflow snapshot is `automatic`. This reuses the same Follow-up Agent service, usage guard, schema validation, semantic validation, and audit logging as the manual trigger. The startup job is idempotent and reuses a not-started round during retry rather than creating duplicate rounds.
 
-Phase 6D2B may create follow-up evidence packages, updated profile candidates, updated planning candidates, and a next follow-up round only through the atomic update-cycle service. It still does not implement next-concept progression.
+Phase 6D2B may create follow-up evidence packages, updated profile candidates, updated planning candidates, and a next follow-up round only through the atomic update-cycle service. Phase 6D3 adds deterministic, student-led concept progression outside the Follow-up Agent itself.
 
 ## Input Evidence
 
@@ -187,12 +187,11 @@ The usage guard must also allow the call. Browser code never receives provider c
 
 ## Not Implemented
 
-Phase 6D2B still does not implement:
+Phase 6D3 still does not implement:
 
-- move-next orchestration
-- next-concept progression
 - Response Collection Agent LLM behavior
 - live Item Preparation Agent behavior
+- adaptive concept routing
 - master CSV follow-up/profile field filling beyond already stored records
 - a pedagogical maximum number of follow-up turns
 
@@ -206,4 +205,8 @@ npm run agent:followup-update-smoke
 npm run agent:followup-final-update-smoke
 ```
 
-The smoke tests verify safe input building, prohibited field exclusion, teacher-only start authorization, student message handling, idempotency, bounded provider context, strict output validation, semantic validation, usage-blocked handling, agent-call audit, process-event logging, teacher review serialization, student-safe serialization, student stop behavior, staged follow-up update cycles, final stop updates, no new concept unit, and no OpenAI network calls.
+The smoke tests verify safe input building, prohibited field exclusion, teacher-only start authorization, student message handling, idempotency, bounded provider context, strict output validation, semantic validation, usage-blocked handling, agent-call audit, process-event logging, teacher review serialization, student-safe serialization, student stop behavior, staged follow-up update cycles, final stop updates, and no OpenAI network calls.
+
+## Phase 6D3 Progression Boundary
+
+Follow-up Agent signals such as `should_offer_move_on` or `move_on_request` may make a progression offer available, but they never move the student automatically. The student must explicitly choose to move on or complete, and the backend determines the next concept by teacher-defined order.

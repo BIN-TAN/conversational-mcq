@@ -92,7 +92,8 @@ export const workflowJobTypes = [
   "start_initial_followup",
   "run_followup_profile_update",
   "run_followup_planning_update",
-  "finalize_followup_update"
+  "finalize_followup_update",
+  "finalize_concept_progression"
 ] as const;
 export const WorkflowJobTypeSchema = z.enum(workflowJobTypes);
 
@@ -184,6 +185,19 @@ export const processEventTypes = [
   "followup_final_update_completed",
   "followup_final_update_failed",
   "followup_stopped",
+  "concept_progression_offered",
+  "concept_progression_requested",
+  "concept_progression_cancelled",
+  "concept_progression_final_update_started",
+  "concept_progression_final_update_completed",
+  "concept_progression_final_update_failed",
+  "concept_progression_unresolved_confirmation_requested",
+  "concept_progression_unresolved_confirmed",
+  "concept_progression_completed",
+  "concept_progression_moved_on_with_unresolved_evidence",
+  "assessment_completion_requested",
+  "assessment_completed",
+  "assessment_completed_with_unresolved_evidence",
   "workflow_job_enqueued",
   "workflow_job_claimed",
   "workflow_job_succeeded",
@@ -341,9 +355,51 @@ export const followupUpdateTriggerTypes = [
   "move_on_request",
   "substantive_turn_threshold",
   "student_stop_final_update",
+  "student_progression_final_update",
   "teacher_manual"
 ] as const;
 export const FollowupUpdateTriggerTypeSchema = z.enum(followupUpdateTriggerTypes);
+
+export const followupUpdatePostCycleActions = [
+  "none",
+  "advance_to_next_concept",
+  "complete_assessment"
+] as const;
+export const FollowupUpdatePostCycleActionSchema = z.enum(followupUpdatePostCycleActions);
+
+export const conceptProgressionTypes = ["next_concept", "complete_assessment"] as const;
+export const ConceptProgressionTypeSchema = z.enum(conceptProgressionTypes);
+
+export const conceptProgressionTriggerTypes = [
+  "robust_profile",
+  "agent_move_on_offer",
+  "student_move_on_request",
+  "student_explicit_button"
+] as const;
+export const ConceptProgressionTriggerTypeSchema = z.enum(conceptProgressionTriggerTypes);
+
+export const conceptProgressionStudentChoices = [
+  "continue_current_concept",
+  "next_concept",
+  "stay_in_final_concept",
+  "complete_assessment"
+] as const;
+export const ConceptProgressionStudentChoiceSchema = z.enum(conceptProgressionStudentChoices);
+
+export const conceptProgressionStatuses = [
+  "offered",
+  "final_update_pending",
+  "evaluating_resolution",
+  "awaiting_unresolved_confirmation",
+  "progressing",
+  "completed",
+  "cancelled",
+  "failed"
+] as const;
+export const ConceptProgressionStatusSchema = z.enum(conceptProgressionStatuses);
+
+export const conceptProgressionResolutionStatuses = ["resolved", "unresolved", "unknown"] as const;
+export const ConceptProgressionResolutionStatusSchema = z.enum(conceptProgressionResolutionStatuses);
 
 export const exportJobStatuses = ["pending", "processing", "completed", "failed", "expired"] as const;
 export const ExportJobStatusSchema = z.enum(exportJobStatuses);
@@ -362,3 +418,11 @@ export type ProcessEventType = z.infer<typeof ProcessEventTypeSchema>;
 export type ResponsePackageType = z.infer<typeof ResponsePackageTypeSchema>;
 export type FollowupUpdateCycleStatus = z.infer<typeof FollowupUpdateCycleStatusSchema>;
 export type FollowupUpdateTriggerType = z.infer<typeof FollowupUpdateTriggerTypeSchema>;
+export type FollowupUpdatePostCycleAction = z.infer<typeof FollowupUpdatePostCycleActionSchema>;
+export type ConceptProgressionType = z.infer<typeof ConceptProgressionTypeSchema>;
+export type ConceptProgressionTriggerType = z.infer<typeof ConceptProgressionTriggerTypeSchema>;
+export type ConceptProgressionStudentChoice = z.infer<typeof ConceptProgressionStudentChoiceSchema>;
+export type ConceptProgressionStatus = z.infer<typeof ConceptProgressionStatusSchema>;
+export type ConceptProgressionResolutionStatus = z.infer<
+  typeof ConceptProgressionResolutionStatusSchema
+>;

@@ -22,6 +22,10 @@ import {
   runFollowupPlanningUpdate,
   runFollowupProfileUpdate
 } from "@/lib/agents/followup-updates/service";
+import {
+  finalizeConceptProgression,
+  ConceptProgressionServiceError
+} from "@/lib/services/concept-progression/progression";
 
 type HandlerResult = {
   outcome: "completed" | "retryable" | "failed";
@@ -53,6 +57,20 @@ function cyclePublicIdFromJob(job: WorkflowJob) {
   }
 
   return cyclePublicId;
+}
+
+function progressionPublicIdFromJob(job: WorkflowJob) {
+  const payload =
+    job.payload && typeof job.payload === "object" && !Array.isArray(job.payload)
+      ? (job.payload as Record<string, unknown>)
+      : {};
+  const progressionPublicId = payload.progression_public_id;
+
+  if (typeof progressionPublicId !== "string" || !progressionPublicId) {
+    throw new Error("Concept progression workflow job requires progression_public_id.");
+  }
+
+  return progressionPublicId;
 }
 
 async function jobContext(job: WorkflowJob) {
@@ -251,6 +269,42 @@ async function handleFollowupFinalize(job: WorkflowJob): Promise<HandlerResult> 
   }
 }
 
+async function handleConceptProgressionFinalize(job: WorkflowJob): Promise<HandlerResult> {
+  try {
+    const result = await finalizeConceptProgression(progressionPublicIdFromJob(job));
+
+    if (
+      result.status === "already_completed" ||
+      result.status === "next_concept_ready" ||
+      result.status === "assessment_completed" ||
+      result.status === "unresolved_confirmation_required" ||
+      result.status === "progression_offered"
+    ) {
+      return { outcome: "completed" };
+    }
+
+    if (result.status === "final_update_still_processing") {
+      return {
+        outcome: "retryable",
+        error_category: result.status,
+        error_message: "Concept progression final update is still processing."
+      };
+    }
+
+    return failureFromStatus(result.status);
+  } catch (error) {
+    if (error instanceof ConceptProgressionServiceError) {
+      return {
+        outcome: "failed",
+        error_category: error.code,
+        error_message: error.message
+      };
+    }
+
+    throw error;
+  }
+}
+
 export async function handleWorkflowJob(job: WorkflowJob): Promise<HandlerResult> {
   if (job.job_type === "run_initial_profiling") {
     return handleInitialProfiling(job);
@@ -274,6 +328,10 @@ export async function handleWorkflowJob(job: WorkflowJob): Promise<HandlerResult
 
   if (job.job_type === "finalize_followup_update") {
     return handleFollowupFinalize(job);
+  }
+
+  if (job.job_type === "finalize_concept_progression") {
+    return handleConceptProgressionFinalize(job);
   }
 
   return {

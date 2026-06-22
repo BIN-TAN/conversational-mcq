@@ -14,3 +14,7 @@ Implementation rules:
 - Store database timestamps as UTC instants.
 
 Future multi-course support should add explicit course ownership and enrollment tables rather than overloading assessment IDs or user IDs.
+
+## Phase 6D3 Progression
+
+Concept progression remains course-domain agnostic. The backend uses teacher-defined `concept_units.order_index` and does not hardcode a subject-specific concept sequence, infer a taxonomy, or let an LLM choose the next concept. One deployment still represents one course context in v1.

@@ -70,3 +70,13 @@ npm run assessment:availability-smoke
 ```
 
 The smoke test verifies open assessments, future release blocking, closed-to-new-starts blocking, invalid release/close windows, course timezone strings, and resume-after-close behavior.
+
+## Phase 6D3 Manual-Review Starts
+
+`ALLOW_MANUAL_REVIEW_STUDENT_STARTS=false` by default. When false, manual-review assessments do not accept ordinary student starts. This supports the classroom rule that normal deployment uses automatic workflow. Existing sessions remain resumable, and release/close changes still affect new starts only.
+
+Verification:
+
+```bash
+npm run classroom:nonintervention-smoke
+```

@@ -35,6 +35,12 @@ Phase 6D2B extends automatic mode after follow-up begins. Meaningful follow-up e
 
 These jobs stage updated profiling and planning outputs first. Active profile and decision pointers change only if finalization succeeds.
 
+Phase 6D3 adds one progression finalization job:
+
+1. `finalize_concept_progression`
+
+This job resolves a `concept_progression_records` row after a linked final update cycle completes or fails. If evidence is resolved and the student already chose to move on or complete, the service advances deterministically to the next `concept_units.order_index` concept or completes the final assessment. If evidence remains unresolved/unknown, the student receives a neutral confirmation choice; no teacher approval is required.
+
 ## Teacher Exceptions
 
 Append-only override actions:
@@ -46,6 +52,8 @@ Append-only override actions:
 
 Overrides do not edit item responses, correctness, reasoning, profile output, formative decisions, response packages, or transcript records.
 
+In standard classroom mode, active-session intervention controls are disabled by default. `DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED=false` hides teacher controls and rejects active-session mutation APIs. These controls are for explicit development/testing mode only.
+
 ## Student-Safe States
 
 Students see neutral progress messages only:
@@ -54,17 +62,18 @@ Students see neutral progress messages only:
 - Planning: `The system is preparing the next support step. Your progress has been saved.`
 - Follow-up opening: `Your follow-up conversation is being prepared. You may leave and return later.`
 - Follow-up update: `I'm reviewing your latest response so the next step can be better matched to your current understanding. Your progress has been saved.`
+- Progression processing: `Reviewing your latest response before continuing.`
 - Failure: `The system is having trouble preparing the next step. Your progress has been saved, and you can return later.`
 
 Students do not see job names, provider names, model names, token counts, budget details, profile labels, formative values, correctness, or internal errors.
 
 ## Boundaries
 
-Phase 6D2B still does not implement:
+Phase 6D3 still does not implement:
 
-- next-concept progression
 - Response Collection Agent LLM behavior
 - live Item Preparation Agent behavior
+- adaptive concept routing
 - CSV export changes
 - countdown timers
 - a pedagogical maximum number of follow-up turns
@@ -79,4 +88,4 @@ npm run agent:followup-update-smoke
 npm run agent:followup-final-update-smoke
 ```
 
-The workflow smoke test verifies manual sessions do not enqueue initial workflow jobs, automatic sessions complete the profiling/planning/follow-up startup chain, repeated triggers are idempotent, pause/resume works, retry preserves failed-job audit, only approved job types are used, and no OpenAI calls occur in mock mode. Phase 6D2B follow-up update smokes verify staged evidence packages, atomic activation, final stop updates, and no next-concept progression.
+The workflow smoke test verifies manual sessions do not enqueue initial workflow jobs, automatic sessions complete the profiling/planning/follow-up startup chain, repeated triggers are idempotent, pause/resume works in development-control mode, retry preserves failed-job audit, only approved job types are used, and no OpenAI calls occur in mock mode. Phase 6D2B follow-up update smokes verify staged evidence packages, atomic activation, and final stop updates. Phase 6D3 smokes verify concept progression, completion, non-intervention defaults, and student-safe progression UI.

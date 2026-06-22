@@ -128,6 +128,7 @@ export type SessionDetailResponse = {
     can_run_followup_update: boolean;
     followup_rounds: TeacherFollowupRound[];
     followup_update_cycles: TeacherFollowupUpdateCycle[];
+    concept_progression_records: TeacherConceptProgressionRecord[];
   }>;
   summary: {
     concept_unit_count: number;
@@ -298,6 +299,31 @@ export type TeacherFollowupUpdateCycle = {
   created_at: string | null;
   updated_at: string | null;
   completed_at: string | null;
+  interpretation_boundary: string;
+};
+
+export type TeacherConceptProgressionRecord = {
+  progression_public_id: string;
+  progression_type: string;
+  trigger_type: string;
+  student_choice: string | null;
+  status: string;
+  resolution_status: string;
+  moved_on_with_unresolved_evidence: boolean;
+  completed_with_unresolved_evidence: boolean;
+  requested_at: string | null;
+  confirmed_at: string | null;
+  completed_at: string | null;
+  destination_concept_unit: {
+    concept_unit_public_id: string;
+    title: string;
+    order_index: number;
+  } | null;
+  final_update_cycle: {
+    cycle_public_id: string;
+    status: string;
+    completed_at: string | null;
+  } | null;
   interpretation_boundary: string;
 };
 

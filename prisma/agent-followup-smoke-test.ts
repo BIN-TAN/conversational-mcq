@@ -128,6 +128,7 @@ async function runApiSmoke(prefix: string) {
     cwd: process.cwd(),
     env: {
       ...process.env,
+      DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED: "true",
       LLM_PROVIDER: "mock",
       LLM_LIVE_CALLS_ENABLED: "false",
       OPENAI_API_KEY: "",

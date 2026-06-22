@@ -71,13 +71,29 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
     can_continue: true
   };
   const frame: StudentConversationFrame =
-    state.next_step === "followup_active"
+    state.next_step === "session_completed"
+      ? {
+          ...base,
+          assistant_message: "Your assessment is complete. Your responses and conversation have been saved.",
+          interaction_type: "session_completed",
+          allowed_actions: ["review_responses"],
+          can_review_responses: true,
+          can_continue: false,
+          can_exit: false
+        }
+      : state.next_step === "followup_active"
       ? {
           ...base,
           assistant_message:
+            state.progression?.neutral_message ??
             "Continue the follow-up conversation in your own words. Your initial responses are locked and saved.",
           interaction_type: "followup_active",
-          allowed_actions: ["send_followup_message", "save_exit", "stop_followup"],
+          allowed_actions: [
+            "send_followup_message",
+            "request_progression",
+            "save_exit",
+            "stop_followup"
+          ],
           can_review_responses: true
         }
       : state.next_step === "followup_updating"

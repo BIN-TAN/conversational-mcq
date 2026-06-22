@@ -1,6 +1,6 @@
 # LLM Infrastructure
 
-Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration. Phase 6C connects only the Formative Value and Planning Agent after a saved student profile. Phase 6D1 connects only the Follow-up Agent for the first open-ended follow-up conversation round. Phase 6D2B adds staged iterative follow-up evidence updates within the current concept unit.
+Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration. Phase 6C connects only the Formative Value and Planning Agent after a saved student profile. Phase 6D1 connects only the Follow-up Agent for the first open-ended follow-up conversation round. Phase 6D2B adds staged iterative follow-up evidence updates within the current concept unit. Phase 6D3 adds deterministic student-led concept progression and final assessment completion.
 
 ## Phase Boundary
 
@@ -86,6 +86,17 @@ Not implemented in Phase 6D2B:
 - No response collection UI text is replaced by an LLM.
 - Normal development and verification use mock mode and send no student text, transcript, process data, item reasoning, summative outcome, or classroom record to OpenAI.
 - No student provides an OpenAI API key or needs an OpenAI account.
+
+Implemented in Phase 6D3:
+
+- Deterministic next-concept progression by teacher-defined `concept_units.order_index`.
+- Explicit student move-on and completion choices.
+- Final profile/planning update before progression when unprocessed substantive evidence exists.
+- Unresolved-evidence confirmation before progressing or completing.
+- Prior-concept read-only behavior after progression.
+- Standard classroom non-intervention rules for teacher controls.
+- Student progression UI and teacher read-only progression display.
+- Progression and completion smoke tests that run in mock mode and do not call OpenAI.
 
 ## Providers
 
@@ -206,10 +217,14 @@ npm run agent:followup-update-smoke
 npm run agent:followup-final-update-smoke
 npm run student:followup-ui-smoke
 npm run student:followup-update-ui-smoke
+npm run concept:progression-smoke
+npm run assessment:completion-smoke
+npm run classroom:nonintervention-smoke
+npm run student:progression-ui-smoke
 npm run workflow:automation-smoke
 npm run workflow:worker-smoke
 ```
 
-These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, Formative Planning Agent integration, Follow-up Agent integration, iterative follow-up update cycles, final stop updates, student-safe updating states, idempotency, usage-blocked behavior, and the absence of next-concept progression. They do not call OpenAI.
+These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, Formative Planning Agent integration, Follow-up Agent integration, iterative follow-up update cycles, final stop updates, student-led concept progression, final assessment completion, non-intervention classroom controls, student-safe updating states, idempotency, and usage-blocked behavior. They do not call OpenAI.
 
 See `docs/CLASSROOM_LLM_ACCESS.md` and `docs/LLM_USAGE_LIMITS.md` for the Phase 6A.5 operational contract.

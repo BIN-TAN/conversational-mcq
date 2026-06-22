@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, and Phase 6D2B iterative follow-up evidence updating inside the current concept unit. Response Collection Agent LLM behavior, live Item Preparation behavior, next-concept progression, countdown timers, and master CSV profile/follow-up column filling remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, and Phase 6D3 student-led concept progression plus final assessment completion. Response Collection Agent LLM behavior, live Item Preparation behavior, adaptive concept routing, countdown timers, and master CSV profile/follow-up column filling remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -38,6 +38,8 @@ If either command is missing, update your shell PATH according to your Node inst
 5. Leave OpenAI variables blank for normal local development. Mock mode is the default unless live calls are explicitly enabled server-side.
 
 6. `COURSE_TIMEZONE` defaults to `America/Edmonton`. Assessment release/close inputs use this IANA timezone while PostgreSQL stores UTC timestamps.
+
+7. Keep `DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED=false` and `ALLOW_MANUAL_REVIEW_STUDENT_STARTS=false` for normal classroom behavior. Development smoke tests opt into these only when needed.
 
 Do not commit `.env`, `.env.local`, real session secrets, or real API keys.
 
@@ -98,6 +100,10 @@ npm run workflow:worker-smoke
 npm run agent:followup-update-smoke
 npm run agent:followup-final-update-smoke
 npm run student:followup-update-ui-smoke
+npm run concept:progression-smoke
+npm run assessment:completion-smoke
+npm run classroom:nonintervention-smoke
+npm run student:progression-ui-smoke
 npm run typecheck
 npm run lint
 npm run build

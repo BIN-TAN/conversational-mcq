@@ -141,6 +141,14 @@ Process data may inform engagement and evidence sufficiency. It must never be tr
 - Meaningful follow-up evidence may trigger an update through agent evidence candidates, reasoning revisions, task completion, transfer/application evidence, understanding claims, move-on requests, or a technical fallback count of substantive turns. `FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE` defaults to 3 and is not a pedagogical turn cap.
 - In manual-review mode, meaningful follow-up evidence flags teacher review and does not automatically run the update cycle. In automatic mode, the backend enqueues database-backed update jobs without requiring the student or teacher browser to remain open.
 - Students see only neutral updating states during follow-up update processing. They must not see profile labels, formative values, correctness, job names, provider names, model names, cycle IDs, or internal error details.
+- Phase 6D3 adds deterministic, student-controlled concept progression and assessment completion. Teachers design and publish the assessment before classroom use. Once a student begins an assessment, the normal answering, follow-up, concept-progression, and completion workflow proceeds without teacher approval or real-time intervention.
+- The next concept is always the next published concept unit by `concept_units.order_index`. Students, teachers, and LLMs must not choose arbitrary next concepts, adaptively reorder concepts, or skip concept units for an individual active session.
+- The student may explicitly request movement with `I'm ready to move on`. This creates a trusted progression request, but movement still requires an explicit student choice and any required final update/resolution workflow.
+- If unprocessed substantive follow-up evidence exists when the student chooses to move on or complete the final concept, the backend runs a final follow-up profile/planning update first. Failed final updates count as no profile update and must leave a recoverable student workflow.
+- Unresolved or unknown evidence requires neutral student confirmation before moving on or completing. The UI must not expose profile labels, formative values, readiness labels, correctness, model/job details, or misconduct language.
+- Prior concept units become read-only after progression. Student mutation attempts against a non-current concept return `concept_no_longer_current`.
+- `DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED` defaults to `false`; when false, active-session teacher mutation APIs are rejected and teacher UI controls are hidden.
+- `ALLOW_MANUAL_REVIEW_STUDENT_STARTS` defaults to `false`; manual-review assessments are not ordinary classroom starts unless explicitly enabled server-side for development or controlled testing.
 
 `followup_action_type` values:
 

@@ -6,6 +6,7 @@ import {
   StudentProfilingServiceError
 } from "@/lib/agents/student-profiling/service";
 import {
+  requireDevelopmentActiveSessionControls,
   requireTeacherReview,
   teacherReviewRouteError
 } from "@/lib/services/teacher-review/api";
@@ -24,6 +25,12 @@ export async function POST(
 
   if (!auth.ok) {
     return auth.response;
+  }
+
+  const developmentOnly = requireDevelopmentActiveSessionControls();
+
+  if (developmentOnly) {
+    return developmentOnly;
   }
 
   try {

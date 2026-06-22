@@ -50,6 +50,7 @@ type StudentFollowupApiState = {
     can_save_exit: boolean;
     message_max_chars: number;
   } | null;
+  progression?: StudentSessionState["progression"];
 };
 
 export function newClientActionId(prefix: string) {
@@ -295,6 +296,39 @@ export function stopFollowup(sessionPublicId: string) {
     `/api/student/sessions/${sessionPublicId}/followup/stop`,
     {},
     (value) => value as { stop_status: string; state: StudentFollowupApiState }
+  );
+}
+
+export function requestProgression(sessionPublicId: string) {
+  return post(
+    `/api/student/sessions/${sessionPublicId}/progression/request`,
+    {
+      client_action_id: newClientActionId("progression-request")
+    },
+    (value) => value as { request_status: string; progression: StudentSessionState["progression"] }
+  );
+}
+
+export function chooseProgression(input: {
+  sessionPublicId: string;
+  progressionPublicId: string;
+  choice:
+    | "continue_current_concept"
+    | "next_concept"
+    | "stay_in_final_concept"
+    | "complete_assessment";
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/progression/${input.progressionPublicId}/choice`,
+    {
+      choice: input.choice,
+      client_action_id: newClientActionId(`progression-${input.choice}`)
+    },
+    (value) =>
+      value as {
+        choice_status: string;
+        progression: StudentSessionState["progression"];
+      }
   );
 }
 

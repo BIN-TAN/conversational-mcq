@@ -3,6 +3,8 @@ import { serializeFormativeDecisionForTeacher } from "@/lib/agents/formative-pla
 import { serializeFollowupRoundForTeacher } from "@/lib/agents/followup/serializers";
 import { serializeFollowupUpdateCycleForTeacher } from "@/lib/agents/followup-updates/service";
 import { serializeStudentProfileForTeacher } from "@/lib/agents/student-profiling/serializers";
+import { getServerEnv } from "@/lib/env";
+import { serializeProgressionForTeacher } from "@/lib/services/concept-progression/progression";
 import { serializeAssessmentContentState } from "@/lib/services/content/governance";
 import { deriveAutomationState } from "@/lib/workflow/automation";
 import { serializeWorkflowJob } from "@/lib/workflow/jobs";
@@ -183,6 +185,36 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
               completed_at: true
             }
           },
+          concept_progression_records: {
+            orderBy: [{ requested_at: "asc" }],
+            select: {
+              progression_public_id: true,
+              progression_type: true,
+              trigger_type: true,
+              student_choice: true,
+              status: true,
+              resolution_status: true,
+              moved_on_with_unresolved_evidence: true,
+              completed_with_unresolved_evidence: true,
+              requested_at: true,
+              confirmed_at: true,
+              completed_at: true,
+              destination_concept_unit: {
+                select: {
+                  concept_unit_public_id: true,
+                  title: true,
+                  order_index: true
+                }
+              },
+              final_update_cycle: {
+                select: {
+                  cycle_public_id: true,
+                  status: true,
+                  completed_at: true
+                }
+              }
+            }
+          },
           concept_unit: {
             select: {
               concept_unit_public_id: true,
@@ -265,6 +297,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
     workflow_jobs: serializedWorkflowJobs
   });
   const manualReview = session.workflow_mode_snapshot === "manual_review";
+  const developmentControlsEnabled = getServerEnv().DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED;
   const hasFailedWorkflowJob =
     Boolean(session.automation_exception_reason) || latestWorkflowJob?.status === "failed";
 
@@ -307,17 +340,21 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
         created_at: serializeDate(override.created_at)
       })),
       can_pause:
+        developmentControlsEnabled &&
         session.workflow_mode_snapshot === "automatic" &&
         !session.automation_paused_at &&
         ["pending", "running", "retryable"].some((status) =>
           serializedWorkflowJobs.some((job) => job.status === status)
         ),
       can_resume:
+        developmentControlsEnabled &&
         session.workflow_mode_snapshot === "automatic" &&
         Boolean(session.automation_paused_at),
       can_retry_current_step:
+        developmentControlsEnabled &&
         session.workflow_mode_snapshot === "automatic" && hasFailedWorkflowJob,
       can_stop_followup:
+        developmentControlsEnabled &&
         session.workflow_mode_snapshot === "automatic" &&
         session.current_phase === "followup_active"
     },
@@ -341,22 +378,26 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       item_response_count: conceptUnitSession._count.item_responses,
       response_package_count: conceptUnitSession._count.response_packages,
       can_run_profiling:
+        developmentControlsEnabled &&
         manualReview &&
         session.current_phase === "profiling_pending" &&
         Boolean(conceptUnitSession.initial_completed_at) &&
         !conceptUnitSession.latest_student_profile,
       can_run_planning:
+        developmentControlsEnabled &&
         manualReview &&
         ["profiling_completed", "planning_pending"].includes(session.current_phase) &&
         Boolean(conceptUnitSession.latest_student_profile) &&
         !conceptUnitSession.latest_formative_decision,
       can_start_followup:
+        developmentControlsEnabled &&
         manualReview &&
         session.current_phase === "planning_completed" &&
         Boolean(conceptUnitSession.latest_student_profile) &&
         Boolean(conceptUnitSession.latest_formative_decision) &&
         !conceptUnitSession.followup_rounds.some((round) => round.status === "active"),
       can_run_followup_update:
+        developmentControlsEnabled &&
         manualReview &&
         session.current_phase === "followup_active" &&
         conceptUnitSession.followup_rounds.some((round) => round.status === "active") &&
@@ -380,6 +421,9 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       followup_rounds: conceptUnitSession.followup_rounds.map(serializeFollowupRoundForTeacher),
       followup_update_cycles: conceptUnitSession.followup_update_cycles.map(
         serializeFollowupUpdateCycleForTeacher
+      ),
+      concept_progression_records: conceptUnitSession.concept_progression_records.map(
+        serializeProgressionForTeacher
       )
     })),
     summary: {

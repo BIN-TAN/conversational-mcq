@@ -20,12 +20,15 @@ Implemented:
 
 Not implemented:
 
-- next-concept progression
 - Response Collection Agent LLM behavior
 - live Item Preparation Agent behavior
 - formative follow-up beyond the current concept
 - master CSV changes
 - any student-facing diagnostic/profile/formative labels
+
+Implemented later in Phase 6D3:
+
+- deterministic student-led next-concept progression and final assessment completion
 
 ## Atomic Activation
 

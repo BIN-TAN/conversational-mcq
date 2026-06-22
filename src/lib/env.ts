@@ -19,6 +19,12 @@ const positiveIntWithDefault = (defaultValue: number) =>
     z.coerce.number().int().positive()
   );
 
+const booleanWithDefault = (defaultValue: boolean) =>
+  z
+    .enum(["true", "false"])
+    .default(defaultValue ? "true" : "false")
+    .transform((value) => value === "true");
+
 function isValidTimeZone(value: string) {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: value }).format(new Date());
@@ -73,6 +79,8 @@ const serverEnvSchema = z.object({
     .string()
     .default("America/Edmonton")
     .refine(isValidTimeZone, "COURSE_TIMEZONE must be a valid IANA timezone"),
+  DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED: booleanWithDefault(false),
+  ALLOW_MANUAL_REVIEW_STUDENT_STARTS: booleanWithDefault(false),
   LLM_DAILY_CLASS_CALL_LIMIT: positiveIntWithDefault(200),
   LLM_DAILY_CLASS_TOKEN_LIMIT: positiveIntWithDefault(500_000),
   LLM_DAILY_STUDENT_CALL_LIMIT: positiveIntWithDefault(25),

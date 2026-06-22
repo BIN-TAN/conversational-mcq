@@ -100,6 +100,8 @@ function validItemInput(itemOrder: number) {
 }
 
 async function main() {
+  process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "true";
+
   const prefix = `phase4a_smoke_${Date.now()}_${randomUUID().slice(0, 8)}`;
   const created = {
     userIds: [] as string[],

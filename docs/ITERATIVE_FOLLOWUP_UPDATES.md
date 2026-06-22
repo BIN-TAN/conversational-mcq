@@ -50,3 +50,7 @@ Manual-review sessions flag teacher review and expose a teacher-only Run follow-
 Phase 6D2B does not start another concept unit, select a next concept, mark the assessment completed, implement Response Collection Agent LLM behavior, implement live Item Preparation behavior, alter initial responses, modify the master CSV export, or expose diagnostic/profile/planning labels to students.
 
 See `docs/FOLLOWUP_EVIDENCE_UPDATES.md` and `docs/FOLLOWUP_UPDATE_ATOMICITY.md` for the detailed implementation rules.
+
+## Phase 6D3 Boundary Update
+
+Phase 6D3 now uses final follow-up updates before student-led progression or final completion when unprocessed substantive evidence exists. The update-cycle rules remain the same: failed updates count as no profile update, staged outputs are not active until commit, and students see only neutral progress states. Next-concept selection itself is deterministic by `concept_units.order_index`, not LLM-adaptive.

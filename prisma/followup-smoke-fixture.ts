@@ -22,7 +22,9 @@ export const followupSmokeEnvKeys = [
   "FOLLOWUP_CONTEXT_MAX_TURNS",
   "FOLLOWUP_MESSAGE_MAX_CHARS",
   "FOLLOWUP_CONTEXT_MAX_CHARS",
-  "FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE"
+  "FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE",
+  "DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED",
+  "ALLOW_MANUAL_REVIEW_STUDENT_STARTS"
 ] as const;
 
 export type FollowupSmokeEnvKey = (typeof followupSmokeEnvKeys)[number];
@@ -125,6 +127,9 @@ export async function cleanupFollowupSmoke(prisma: PrismaClient, prefix: string)
       where: { assessment_session_db_id: { in: sessionIds } }
     });
     await prisma.studentActionIdempotencyKey.deleteMany({
+      where: { assessment_session_db_id: { in: sessionIds } }
+    });
+    await prisma.conceptProgressionRecord.deleteMany({
       where: { assessment_session_db_id: { in: sessionIds } }
     });
     await prisma.conversationTurn.deleteMany({
