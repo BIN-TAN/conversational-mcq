@@ -13,7 +13,7 @@ These job types are implemented through Phase 6D2B:
 - `run_followup_planning_update`
 - `finalize_followup_update`
 
-Follow-up evidence updating is staged: profile update output and planning update output are saved on the update cycle first, then activated together only during finalization. Next-concept progression, countdown timers, Response Collection Agent LLM behavior, live Item Preparation behavior, and master CSV agent-field filling are not implemented.
+Follow-up evidence updating is staged: profile update output and planning update output are saved on the update cycle first, then activated together only during finalization. Countdown timers, Response Collection Agent LLM behavior, and live Item Preparation behavior are not implemented. Phase 7B exports already persisted workflow, profile, planning, follow-up, progression, and agent-audit records; workflow jobs themselves do not generate CSV files or mutate export rows directly.
 
 ## Statuses
 

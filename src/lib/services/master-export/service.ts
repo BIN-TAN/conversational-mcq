@@ -1,14 +1,17 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { getServerEnv } from "@/lib/env";
 import { sessionStatuses } from "@/lib/domain/enums";
 import { generatePublicId } from "@/lib/services/ids";
 import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
 import { MasterExportServiceError } from "./errors";
 import {
+  MASTER_EXPORT_COLUMNS,
   MASTER_EXPORT_SCHEMA_VERSION,
   serializeMasterCsv,
   stableJson,
+  type MasterExportColumn,
   type MasterExportRow
 } from "./csv";
 import {
@@ -80,7 +83,24 @@ function aggregateEvents(events: Array<{ event_type: string; payload: unknown }>
     ).length,
     validation_failure_count: countEvent(events, ["schema_validation_failed"]),
     agent_retry_count: countEvent(events, ["agent_retry_scheduled"]),
-    followup_turn_count: followupTurnCount
+    followup_turn_count: followupTurnCount,
+    followup_update_trigger_count: countEvent(events, [
+      "followup_update_triggered",
+      "followup_update_cycle_started",
+      "followup_evidence_trigger_candidate"
+    ]),
+    followup_update_failure_count: countEvent(events, [
+      "followup_update_failed",
+      "followup_update_cycle_failed"
+    ]),
+    concept_progression_request_count: countEvent(events, [
+      "concept_progression_requested",
+      "concept_progression_request_created"
+    ]),
+    unresolved_progression_confirmation_count: countEvent(events, [
+      "unresolved_progression_confirmation",
+      "concept_progression_unresolved_confirmed"
+    ])
   };
 }
 
@@ -104,14 +124,98 @@ function isFollowupPhase(phase: string) {
   ].includes(phase);
 }
 
-function profileFields(profiles: Array<Record<string, unknown>>) {
-  const sorted = [...profiles].sort(
-    (left, right) =>
-      new Date(String(left.created_at)).getTime() - new Date(String(right.created_at)).getTime()
+function dateMillis(value: unknown) {
+  const millis = new Date(String(value)).getTime();
+  return Number.isFinite(millis) ? millis : 0;
+}
+
+function isoValue(value: unknown) {
+  if (!value) {
+    return "";
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  const date = new Date(String(value));
+  return Number.isFinite(date.getTime()) ? date.toISOString() : "";
+}
+
+function sortByCreatedAt<T extends Record<string, unknown>>(values: T[]) {
+  return [...values].sort(
+    (left, right) => dateMillis(left.created_at) - dateMillis(right.created_at)
   );
-  const initial =
-    sorted.find((profile) => profile.profile_type === "initial") ?? sorted[0] ?? null;
-  const latest = sorted.at(-1) ?? null;
+}
+
+function safeAgentCall(call: Record<string, unknown> | null | undefined) {
+  if (!call) {
+    return null;
+  }
+
+  return stripInternalKeys({
+    call_public_id: call.call_public_id,
+    agent_name: call.agent_name,
+    provider: call.provider,
+    model_name: call.model_name,
+    agent_version: call.agent_version,
+    prompt_version: call.prompt_version,
+    schema_version: call.schema_version,
+    prompt_hash: call.prompt_hash,
+    call_status: call.call_status,
+    output_validated: call.output_validated,
+    validation_error: call.validation_error,
+    blocked_reason: call.blocked_reason,
+    error_category: call.error_category,
+    retry_count: call.retry_count,
+    live_call_allowed: call.live_call_allowed,
+    latency_ms: call.latency_ms,
+    input_tokens: call.input_tokens,
+    output_tokens: call.output_tokens,
+    total_tokens: call.total_tokens,
+    estimated_cost: call.estimated_cost,
+    started_at: call.started_at,
+    completed_at: call.completed_at,
+    created_at: call.created_at
+  });
+}
+
+function safeProfile(profile: Record<string, unknown>) {
+  return stripInternalKeys({
+    profile_public_id: profile.profile_public_id,
+    profile_type: profile.profile_type,
+    ability_profile: profile.ability_profile,
+    ability_pattern_flags: profile.ability_pattern_flags,
+    engagement_profile: profile.engagement_profile,
+    engagement_pattern_flags: profile.engagement_pattern_flags,
+    integrated_diagnostic_profile: profile.integrated_diagnostic_profile,
+    integrated_profile_confidence: profile.integrated_profile_confidence,
+    integrated_profile_rationale: profile.integrated_profile_rationale,
+    evidence_sufficiency: profile.evidence_sufficiency,
+    confidence_alignment: profile.confidence_alignment,
+    independence_interpretability: profile.independence_interpretability,
+    misconception_indicators: profile.misconception_indicators,
+    item_level_evidence: profile.item_level_evidence,
+    reasoning_quality_summary: profile.reasoning_quality_summary,
+    engagement_summary: profile.engagement_summary,
+    process_interpretation_cautions: profile.process_interpretation_cautions,
+    profile_confidence: profile.profile_confidence,
+    rationale: profile.rationale,
+    recommended_next_evidence: profile.recommended_next_evidence,
+    based_on_agent_call: safeAgentCall(asRecord(profile.based_on_agent_call)),
+    created_at: profile.created_at
+  });
+}
+
+function profileFields(input: {
+  profiles: Array<Record<string, unknown>>;
+  latestProfileDbId?: string | null;
+}) {
+  const sorted = sortByCreatedAt(input.profiles);
+  const initial = sorted.find((profile) => profile.profile_type === "initial") ?? sorted[0] ?? null;
+  const latest =
+    sorted.find((profile) => profile.id === input.latestProfileDbId) ?? sorted.at(-1) ?? null;
+  const history = sorted.map(safeProfile);
 
   return {
     initial_ability_profile: String(initial?.ability_profile ?? ""),
@@ -133,38 +237,348 @@ function profileFields(profiles: Array<Record<string, unknown>>) {
     process_interpretation_cautions_latest: latest
       ? stableJson(latest.process_interpretation_cautions ?? [])
       : "[]",
+    profile_confidence_latest: String(latest?.profile_confidence ?? ""),
+    profile_rationale_latest: String(latest?.rationale ?? ""),
+    recommended_next_evidence_latest: latest ? stableJson(latest.recommended_next_evidence ?? []) : "[]",
+    initial_profile_created_at: isoValue(initial?.created_at),
+    latest_profile_created_at: isoValue(latest?.created_at),
+    profile_count: sorted.length,
     profile_change_count: Math.max(0, sorted.length - 1),
-    profile_history_json: stableJson(sorted),
+    profile_history_json: stableJson(history),
     integrated_profile_history_json: stableJson(
       sorted.map((profile) => ({
+        profile_public_id: profile.profile_public_id,
+        profile_type: profile.profile_type,
         created_at: profile.created_at,
         integrated_diagnostic_profile: profile.integrated_diagnostic_profile,
         integrated_profile_confidence: profile.integrated_profile_confidence,
-        integrated_profile_rationale: profile.integrated_profile_rationale
+        integrated_profile_rationale: profile.integrated_profile_rationale,
+        based_on_agent_call: safeAgentCall(asRecord(profile.based_on_agent_call))
       }))
     )
   };
 }
 
-function formativeFields(decisions: Array<Record<string, unknown>>, followupRounds: unknown[]) {
-  const sorted = [...decisions].sort(
-    (left, right) =>
-      new Date(String(left.created_at)).getTime() - new Date(String(right.created_at)).getTime()
-  );
+function safeFormativeDecision(decision: Record<string, unknown>) {
+  return stripInternalKeys({
+    decision_public_id: decision.decision_public_id,
+    formative_value: decision.formative_value,
+    formative_action_plan: decision.formative_action_plan,
+    target_evidence: decision.target_evidence,
+    success_criteria: decision.success_criteria,
+    followup_prompt_constraints: decision.followup_prompt_constraints,
+    profile_update_triggers: decision.profile_update_triggers,
+    rationale: decision.rationale,
+    mapping_followed: decision.mapping_followed,
+    mapping_deviation_reason: decision.mapping_deviation_reason,
+    student_profile: stripInternalKeys({
+      profile_public_id: asRecord(decision.student_profile).profile_public_id,
+      profile_type: asRecord(decision.student_profile).profile_type,
+      created_at: asRecord(decision.student_profile).created_at
+    }),
+    based_on_agent_call: safeAgentCall(asRecord(decision.based_on_agent_call)),
+    created_at: decision.created_at
+  });
+}
+
+function formativeFields(input: {
+  decisions: Array<Record<string, unknown>>;
+  latestDecisionDbId?: string | null;
+}) {
+  const sorted = sortByCreatedAt(input.decisions);
   const initial = sorted[0] ?? null;
-  const latest = sorted.at(-1) ?? null;
+  const latest =
+    sorted.find((decision) => decision.id === input.latestDecisionDbId) ?? sorted.at(-1) ?? null;
+  const changes = sorted.reduce((count, decision, index) => {
+    if (index === 0) {
+      return 0;
+    }
+
+    return decision.formative_value !== sorted[index - 1]?.formative_value ? count + 1 : count;
+  }, 0);
+  const history = sorted.map(safeFormativeDecision);
 
   return {
     initial_formative_value: String(initial?.formative_value ?? ""),
     latest_formative_value: String(latest?.formative_value ?? ""),
+    latest_formative_decision_created_at: isoValue(latest?.created_at),
+    formative_decision_count: sorted.length,
     formative_action_plan_latest: String(latest?.formative_action_plan ?? ""),
-    formative_value_change_count: Math.max(0, sorted.length - 1),
-    formative_value_history_json: stableJson(sorted),
-    followup_rounds_json: stableJson(followupRounds)
+    target_evidence_latest: latest ? stableJson(latest.target_evidence ?? []) : "[]",
+    success_criteria_latest: latest ? stableJson(latest.success_criteria ?? []) : "[]",
+    followup_prompt_constraints_latest: latest
+      ? stableJson(latest.followup_prompt_constraints ?? {})
+      : "[]",
+    profile_update_triggers_latest: latest ? stableJson(latest.profile_update_triggers ?? []) : "[]",
+    formative_rationale_latest: String(latest?.rationale ?? ""),
+    mapping_followed_latest:
+      latest?.mapping_followed === undefined || latest?.mapping_followed === null
+        ? ""
+        : Boolean(latest.mapping_followed),
+    mapping_deviation_reason_latest: String(latest?.mapping_deviation_reason ?? ""),
+    formative_value_change_count: changes,
+    formative_value_history_json: stableJson(
+      sorted.map((decision) => ({
+        decision_public_id: decision.decision_public_id,
+        formative_value: decision.formative_value,
+        created_at: decision.created_at,
+        based_on_agent_call: safeAgentCall(asRecord(decision.based_on_agent_call))
+      }))
+    ),
+    formative_decision_history_json: stableJson(history)
   };
 }
 
-function agentFields(agentCalls: Array<Record<string, unknown>>) {
+function followupRoundFields(input: {
+  rounds: Array<Record<string, unknown>>;
+  turns: Array<{
+    actor_type: string;
+    message_text: string | null;
+    phase: string;
+    created_at: Date;
+    followup_round_db_id?: string | null;
+  }>;
+  events: Array<{ event_type: string }>;
+}) {
+  const sorted = [...input.rounds].sort(
+    (left, right) => Number(left.round_index ?? 0) - Number(right.round_index ?? 0)
+  );
+  const active = sorted.find((round) => round.status === "active") ?? null;
+  const latest = sorted.at(-1) ?? null;
+  const followupTurns = input.turns.filter((turn) => isFollowupPhase(turn.phase));
+  const studentTurns = followupTurns.filter((turn) => turn.actor_type === "student");
+  const agentTurns = followupTurns.filter((turn) => turn.actor_type === "agent");
+
+  return {
+    active_followup_round_index: active ? Number(active.round_index ?? "") : "",
+    latest_followup_round_status: String(latest?.status ?? ""),
+    latest_followup_round_started_at: isoValue(latest?.started_at),
+    latest_followup_round_completed_at: isoValue(latest?.completed_at),
+    followup_student_turn_count: studentTurns.length,
+    followup_agent_turn_count: agentTurns.length,
+    followup_substantive_student_turn_count: studentTurns.filter((turn) =>
+      Boolean(turn.message_text?.trim())
+    ).length,
+    followup_evidence_trigger_candidate_count: countEvent(
+      input.events.map((event) => ({ event_type: event.event_type, payload: null })),
+      ["followup_evidence_trigger_candidate", "followup_update_triggered"]
+    ),
+    followup_move_on_offer_count: countEvent(
+      input.events.map((event) => ({ event_type: event.event_type, payload: null })),
+      ["move_on_offer", "followup_move_on_offer"]
+    ),
+    followup_rounds_json: stableJson(
+      sorted.map((round) =>
+        stripInternalKeys({
+          followup_round_public_id: round.followup_round_public_id,
+          round_index: round.round_index,
+          status: round.status,
+          evidence_trigger_type: round.evidence_trigger_type,
+          started_at: round.started_at,
+          completed_at: round.completed_at,
+          updated_student_profile: stripInternalKeys({
+            profile_public_id: asRecord(round.updated_student_profile).profile_public_id,
+            profile_type: asRecord(round.updated_student_profile).profile_type,
+            created_at: asRecord(round.updated_student_profile).created_at
+          }),
+          formative_decision: stripInternalKeys({
+            decision_public_id: asRecord(round.formative_decision).decision_public_id,
+            formative_value: asRecord(round.formative_decision).formative_value,
+            created_at: asRecord(round.formative_decision).created_at
+          }),
+          created_at: round.created_at
+        })
+      )
+    )
+  };
+}
+
+function updateCycleFields(cycles: Array<Record<string, unknown>>) {
+  const sorted = sortByCreatedAt(cycles);
+  const latest = sorted.at(-1) ?? null;
+
+  return {
+    followup_update_cycle_count: sorted.length,
+    followup_update_completed_count: sorted.filter((cycle) => cycle.status === "completed").length,
+    followup_update_failed_count: sorted.filter((cycle) => cycle.status === "failed").length,
+    latest_followup_update_cycle_status: String(latest?.status ?? ""),
+    latest_followup_update_trigger_type: String(latest?.trigger_type ?? ""),
+    latest_followup_update_final_update:
+      latest?.final_update === undefined || latest?.final_update === null
+        ? ""
+        : Boolean(latest.final_update),
+    latest_followup_update_failure_stage: String(latest?.failure_stage ?? ""),
+    latest_followup_update_failure_category: String(latest?.failure_category ?? ""),
+    followup_update_cycles_json: stableJson(
+      sorted.map((cycle) =>
+        stripInternalKeys({
+          cycle_public_id: cycle.cycle_public_id,
+          source_followup_round_index: asRecord(cycle.source_followup_round).round_index,
+          trigger_type: cycle.trigger_type,
+          trigger_details: cycle.trigger_details,
+          status: cycle.status,
+          final_update: cycle.final_update,
+          create_next_round: cycle.create_next_round,
+          stop_after_cycle: cycle.stop_after_cycle,
+          post_cycle_action: cycle.post_cycle_action,
+          evidence_cutoff_at: cycle.evidence_cutoff_at,
+          staged_profile_output: cycle.staged_profile_output,
+          staged_planning_output: cycle.staged_planning_output,
+          failure_stage: cycle.failure_stage,
+          failure_category: cycle.failure_category,
+          failure_message: cycle.failure_message,
+          profile_agent_call: safeAgentCall(asRecord(cycle.profile_agent_call)),
+          planning_agent_call: safeAgentCall(asRecord(cycle.planning_agent_call)),
+          opening_agent_call: safeAgentCall(asRecord(cycle.opening_agent_call)),
+          completed_at: cycle.completed_at,
+          created_at: cycle.created_at
+        })
+      )
+    )
+  };
+}
+
+function progressionFields(records: Array<Record<string, unknown>>) {
+  const sorted = [...records].sort(
+    (left, right) => dateMillis(left.requested_at) - dateMillis(right.requested_at)
+  );
+  const latest = sorted.at(-1) ?? null;
+
+  return {
+    progression_record_count: sorted.length,
+    latest_progression_status: String(latest?.status ?? ""),
+    latest_progression_type: String(latest?.progression_type ?? ""),
+    latest_progression_trigger_type: String(latest?.trigger_type ?? ""),
+    latest_progression_student_choice: String(latest?.student_choice ?? ""),
+    latest_progression_resolution_status: String(latest?.resolution_status ?? ""),
+    moved_on_with_unresolved_evidence:
+      latest?.moved_on_with_unresolved_evidence === undefined ||
+      latest?.moved_on_with_unresolved_evidence === null
+        ? ""
+        : Boolean(latest.moved_on_with_unresolved_evidence),
+    completed_with_unresolved_evidence:
+      latest?.completed_with_unresolved_evidence === undefined ||
+      latest?.completed_with_unresolved_evidence === null
+        ? ""
+        : Boolean(latest.completed_with_unresolved_evidence),
+    progression_requested_at: isoValue(latest?.requested_at),
+    progression_confirmed_at: isoValue(latest?.confirmed_at),
+    progression_completed_at: isoValue(latest?.completed_at),
+    destination_concept_unit_id: String(
+      asRecord(latest?.destination_concept_unit).concept_unit_public_id ?? ""
+    ),
+    concept_progression_history_json: stableJson(
+      sorted.map((record) =>
+        stripInternalKeys({
+          progression_public_id: record.progression_public_id,
+          progression_type: record.progression_type,
+          trigger_type: record.trigger_type,
+          student_choice: record.student_choice,
+          status: record.status,
+          resolution_status: record.resolution_status,
+          moved_on_with_unresolved_evidence: record.moved_on_with_unresolved_evidence,
+          completed_with_unresolved_evidence: record.completed_with_unresolved_evidence,
+          destination_concept_unit_id: asRecord(record.destination_concept_unit).concept_unit_public_id,
+          requested_at: record.requested_at,
+          confirmed_at: record.confirmed_at,
+          completed_at: record.completed_at
+        })
+      )
+    )
+  };
+}
+
+function workflowFields(input: {
+  jobs: Array<Record<string, unknown>>;
+  overrides: Array<Record<string, unknown>>;
+  includeRawJson: boolean;
+}) {
+  const sortedJobs = sortByCreatedAt(input.jobs);
+  const latest = sortedJobs.at(-1) ?? null;
+  const overrideHistory = input.overrides.map((override) =>
+    stripInternalKeys({
+      override_public_id: override.override_public_id,
+      action_type: override.action_type,
+      reason: override.reason,
+      created_at: override.created_at
+    })
+  );
+
+  return {
+    workflow_job_count: sortedJobs.length,
+    workflow_job_completed_count: sortedJobs.filter((job) => job.status === "completed").length,
+    workflow_job_failed_count: sortedJobs.filter((job) => job.status === "failed").length,
+    workflow_job_retry_count: sortedJobs.reduce(
+      (total, job) => total + Math.max(0, Number(job.attempt_count ?? 0) - 1),
+      0
+    ),
+    latest_workflow_job_type: String(latest?.job_type ?? ""),
+    latest_workflow_job_status: String(latest?.status ?? ""),
+    latest_workflow_activity_at: isoValue(latest?.updated_at ?? latest?.created_at),
+    workflow_exception_count: sortedJobs.filter(
+      (job) => job.status === "failed" || Boolean(job.last_error_category)
+    ).length,
+    workflow_override_count: input.overrides.length,
+    workflow_jobs_json: input.includeRawJson
+      ? stableJson(
+          sortedJobs.map((job) =>
+            stripInternalKeys({
+              job_public_id: job.job_public_id,
+              job_type: job.job_type,
+              status: job.status,
+              payload: job.payload,
+              attempt_count: job.attempt_count,
+              max_attempts: job.max_attempts,
+              run_after: job.run_after,
+              last_error_category: job.last_error_category,
+              last_error_message: job.last_error_message,
+              created_at: job.created_at,
+              updated_at: job.updated_at,
+              completed_at: job.completed_at
+            })
+          )
+        )
+      : "",
+    workflow_overrides_json: input.includeRawJson ? stableJson(overrideHistory) : ""
+  };
+}
+
+function sessionCompletionFields(input: {
+  session: Record<string, unknown>;
+  conceptUnitSessions: Array<{ concept_unit: { concept_unit_public_id: string; order_index: number } }>;
+  progressionRecords: Array<Record<string, unknown>>;
+}) {
+  const sortedProgressions = [...input.progressionRecords].sort(
+    (left, right) => dateMillis(left.completed_at ?? left.requested_at) - dateMillis(right.completed_at ?? right.requested_at)
+  );
+  const completionProgression =
+    sortedProgressions.find((record) => record.progression_type === "complete_assessment") ??
+    sortedProgressions.at(-1) ??
+    null;
+  const finalConcept =
+    [...input.conceptUnitSessions].sort(
+      (left, right) => left.concept_unit.order_index - right.concept_unit.order_index
+    ).at(-1)?.concept_unit ?? null;
+
+  return {
+    assessment_completed:
+      input.session.status === "completed" || input.session.current_phase === "session_completed",
+    assessment_completed_at: isoValue(input.session.completed_at),
+    assessment_completed_with_unresolved_evidence:
+      completionProgression?.completed_with_unresolved_evidence === undefined ||
+      completionProgression?.completed_with_unresolved_evidence === null
+        ? ""
+        : Boolean(completionProgression.completed_with_unresolved_evidence),
+    final_concept_unit_id: finalConcept?.concept_unit_public_id ?? "",
+    final_concept_resolution_status: String(completionProgression?.resolution_status ?? "")
+  };
+}
+
+function agentFields(input: {
+  agentCalls: Array<Record<string, unknown>>;
+  includeRawJson: boolean;
+}) {
+  const { agentCalls } = input;
   const stringSet = (key: string) =>
     [...new Set(agentCalls.map((call) => call[key]).filter((value) => typeof value === "string"))].join("|");
 
@@ -173,13 +587,45 @@ function agentFields(agentCalls: Array<Record<string, unknown>>) {
     agent_versions: stringSet("agent_version"),
     prompt_versions: stringSet("prompt_version"),
     schema_versions: stringSet("schema_version"),
+    prompt_hashes: stringSet("prompt_hash"),
+    agent_providers: stringSet("provider"),
     agent_call_count: agentCalls.length,
+    agent_blocked_call_count: agentCalls.filter((call) => Boolean(call.blocked_reason)).length,
+    agent_failed_call_count: agentCalls.filter((call) =>
+      ["failed", "invalid_output", "needs_review"].includes(String(call.call_status))
+    ).length,
     agent_validation_failure_count: agentCalls.filter(
       (call) => call.output_validated === false && call.validation_error
     ).length,
-    agent_calls_json: stableJson(agentCalls)
+    agent_calls_json: input.includeRawJson ? stableJson(agentCalls.map(safeAgentCall)) : ""
   };
 }
+
+const jsonArrayDefaultColumns = new Set<MasterExportColumn>([
+  "conversation_turns_json",
+  "process_events_json",
+  "response_packages_json",
+  "ability_pattern_flags_latest",
+  "engagement_pattern_flags_latest",
+  "misconception_indicators_latest",
+  "process_interpretation_cautions_latest",
+  "recommended_next_evidence_latest",
+  "profile_history_json",
+  "integrated_profile_history_json",
+  "target_evidence_latest",
+  "success_criteria_latest",
+  "followup_prompt_constraints_latest",
+  "profile_update_triggers_latest",
+  "formative_value_history_json",
+  "formative_decision_history_json",
+  "followup_rounds_json",
+  "followup_update_cycles_json",
+  "concept_progression_history_json",
+  "workflow_jobs_json",
+  "workflow_overrides_json",
+  "agent_calls_json",
+  "summative_outcomes_json"
+]);
 
 function outcomeFields(input: {
   outcomes: Array<{
@@ -221,122 +667,18 @@ function outcomeFields(input: {
 }
 
 function baseEmptyRow(): MasterExportRow {
-  return Object.fromEntries(
-    [
-      "export_generated_at",
-      "export_schema_version",
-      "row_type",
-      "record_key",
-      "spreadsheet_formula_sanitization_applied",
-      "user_id",
-      "student_display_name",
-      "session_id",
-      "assessment_id",
-      "assessment_title",
-      "attempt_number",
-      "session_status",
-      "current_phase",
-      "needs_review",
-      "needs_review_reason",
-      "session_started_at",
-      "session_last_activity_at",
-      "session_completed_at",
-      "student_chose_exit",
-      "concept_unit_id",
-      "concept_unit_title",
-      "concept_unit_order",
-      "concept_unit_status",
-      "initial_started_at",
-      "initial_completed_at",
-      "followup_started_at",
-      "followup_completed_at",
-      "followup_status",
-      "followup_round_count",
-      "completed_initial_item_set",
-      "completed_followup",
-      "item_id",
-      "item_order",
-      "item_stem",
-      "item_version_snapshot",
-      "options_snapshot_json",
-      "selected_option",
-      "correct_option",
-      "correctness",
-      "reasoning_text",
-      "confidence_rating",
-      "item_response_time_ms",
-      "item_started_at",
-      "item_submitted_at",
-      "skipped_item",
-      "skipped_reasoning",
-      "skipped_confidence",
-      "revision_count",
-      "missing_evidence_repair_offered",
-      "response_finalized",
-      "page_switch_count",
-      "long_pause_count",
-      "inactivity_count",
-      "navigation_event_count",
-      "invalid_help_request_count",
-      "prompt_injection_attempt_count",
-      "procedural_clarification_count",
-      "emotional_response_count",
-      "reasoning_revision_count",
-      "option_revision_count",
-      "validation_failure_count",
-      "agent_retry_count",
-      "followup_turn_count",
-      "initial_conversation_transcript_text",
-      "followup_conversation_transcript_text",
-      "full_conversation_transcript_text",
-      "conversation_turns_json",
-      "process_events_json",
-      "response_packages_json",
-      "initial_ability_profile",
-      "latest_ability_profile",
-      "ability_pattern_flags_latest",
-      "initial_engagement_profile",
-      "latest_engagement_profile",
-      "engagement_pattern_flags_latest",
-      "initial_integrated_diagnostic_profile",
-      "latest_integrated_diagnostic_profile",
-      "integrated_profile_confidence_latest",
-      "integrated_profile_rationale_latest",
-      "evidence_sufficiency_latest",
-      "confidence_alignment_latest",
-      "independence_interpretability_latest",
-      "misconception_indicators_latest",
-      "reasoning_quality_summary_latest",
-      "engagement_summary_latest",
-      "process_interpretation_cautions_latest",
-      "profile_change_count",
-      "profile_history_json",
-      "integrated_profile_history_json",
-      "initial_formative_value",
-      "latest_formative_value",
-      "formative_action_plan_latest",
-      "formative_value_change_count",
-      "formative_value_history_json",
-      "followup_rounds_json",
-      "agent_model_names",
-      "agent_versions",
-      "prompt_versions",
-      "schema_versions",
-      "agent_call_count",
-      "agent_validation_failure_count",
-      "agent_calls_json",
-      "primary_summative_outcome_name",
-      "primary_summative_outcome_score",
-      "primary_summative_outcome_max_score",
-      "primary_summative_outcome_percent",
-      "primary_summative_assessment_date",
-      "summative_outcomes_json"
-    ].map((column) => [column, ""])
-  ) as MasterExportRow;
+  const row = Object.fromEntries(MASTER_EXPORT_COLUMNS.map((column) => [column, ""])) as MasterExportRow;
+
+  for (const column of jsonArrayDefaultColumns) {
+    row[column] = "[]";
+  }
+
+  return row;
 }
 
 async function buildMasterExportRows(options: MasterExportOptions) {
   const generatedAt = new Date().toISOString();
+  const courseTimezone = getServerEnv().COURSE_TIMEZONE;
   const sessionWhere: Prisma.AssessmentSessionWhereInput = {
     ...(options.assessment_public_id
       ? { assessment: { assessment_public_id: options.assessment_public_id } }
@@ -349,11 +691,24 @@ async function buildMasterExportRows(options: MasterExportOptions) {
   const sessions = await prisma.assessmentSession.findMany({
     where: sessionWhere,
     include: {
-      user: { select: { id: true, user_id: true, display_name: true } },
+      user: {
+        select: {
+          id: true,
+          user_id: true,
+          display_name: true,
+          account_status: true,
+          created_at: true,
+          last_login_at: true
+        }
+      },
       assessment: {
         select: {
           assessment_public_id: true,
-          title: true
+          title: true,
+          status: true,
+          workflow_mode: true,
+          release_at: true,
+          close_at: true
         }
       },
       concept_unit_sessions: {
@@ -373,13 +728,45 @@ async function buildMasterExportRows(options: MasterExportOptions) {
             orderBy: { created_at: "asc" }
           },
           student_profiles: {
+            include: {
+              based_on_agent_call: true
+            },
             orderBy: { created_at: "asc" }
           },
           formative_decisions: {
+            include: {
+              based_on_agent_call: true,
+              student_profile: true
+            },
             orderBy: { created_at: "asc" }
           },
           followup_rounds: {
+            include: {
+              formative_decision: true,
+              updated_student_profile: true
+            },
             orderBy: { round_index: "asc" }
+          },
+          followup_update_cycles: {
+            include: {
+              source_followup_round: true,
+              profile_agent_call: true,
+              planning_agent_call: true,
+              opening_agent_call: true
+            },
+            orderBy: { created_at: "asc" }
+          },
+          concept_progression_records: {
+            include: {
+              destination_concept_unit: true
+            },
+            orderBy: { requested_at: "asc" }
+          },
+          workflow_jobs: {
+            orderBy: { created_at: "asc" }
+          },
+          workflow_overrides: {
+            orderBy: { created_at: "asc" }
           },
           agent_calls: {
             orderBy: { created_at: "asc" }
@@ -394,6 +781,18 @@ async function buildMasterExportRows(options: MasterExportOptions) {
       },
       agent_calls: {
         orderBy: { created_at: "asc" }
+      },
+      workflow_jobs: {
+        orderBy: { created_at: "asc" }
+      },
+      workflow_overrides: {
+        orderBy: { created_at: "asc" }
+      },
+      concept_progression_records: {
+        include: {
+          destination_concept_unit: true
+        },
+        orderBy: { requested_at: "asc" }
       }
     }
   });
@@ -447,6 +846,16 @@ async function buildMasterExportRows(options: MasterExportOptions) {
         left.concept_unit.order_index - right.concept_unit.order_index ||
         left.created_at.getTime() - right.created_at.getTime()
     );
+    const sessionWorkflowFields = workflowFields({
+      jobs: session.workflow_jobs as unknown as Array<Record<string, unknown>>,
+      overrides: session.workflow_overrides as unknown as Array<Record<string, unknown>>,
+      includeRawJson: options.include_raw_json_columns
+    });
+    const sessionCompletion = sessionCompletionFields({
+      session: session as unknown as Record<string, unknown>,
+      conceptUnitSessions: sortedConceptUnitSessions,
+      progressionRecords: session.concept_progression_records as unknown as Array<Record<string, unknown>>
+    });
 
     const makeBaseRow = (
       rowType: MasterExportRow["row_type"],
@@ -462,28 +871,60 @@ async function buildMasterExportRows(options: MasterExportOptions) {
         processEvents.map((event) => ({ event_type: event.event_type, payload: event.payload })),
         conceptUnitSession ? followupTurns.length : sessionFollowupTurnCount
       );
-      const profiles = profileFields(
-        (conceptUnitSession?.student_profiles ?? []).map((profile) => stripInternalKeys(profile) as Record<string, unknown>)
+      const conceptUnitEvents = processEvents.map((event) => ({ event_type: event.event_type }));
+      const profiles = profileFields({
+        profiles: (conceptUnitSession?.student_profiles ?? []) as unknown as Array<Record<string, unknown>>,
+        latestProfileDbId: conceptUnitSession?.latest_student_profile_db_id
+      });
+      const formatives = formativeFields({
+        decisions: (conceptUnitSession?.formative_decisions ?? []) as unknown as Array<Record<string, unknown>>,
+        latestDecisionDbId: conceptUnitSession?.latest_formative_decision_db_id
+      });
+      const followupRounds = followupRoundFields({
+        rounds: (conceptUnitSession?.followup_rounds ?? []) as unknown as Array<Record<string, unknown>>,
+        turns,
+        events: conceptUnitEvents
+      });
+      const updateCycles = updateCycleFields(
+        (conceptUnitSession?.followup_update_cycles ?? []) as unknown as Array<Record<string, unknown>>
       );
-      const formatives = formativeFields(
-        (conceptUnitSession?.formative_decisions ?? []).map((decision) => stripInternalKeys(decision) as Record<string, unknown>),
-        (conceptUnitSession?.followup_rounds ?? []).map((round) => stripInternalKeys(round))
+      const progressions = progressionFields(
+        (conceptUnitSession?.concept_progression_records ?? []) as unknown as Array<Record<string, unknown>>
       );
-      const agents = agentFields(
-        (conceptUnitSession?.agent_calls ?? session.agent_calls).map((call) => stripInternalKeys(call) as Record<string, unknown>)
-      );
+      const agents = agentFields({
+        agentCalls: (conceptUnitSession?.agent_calls ?? session.agent_calls) as unknown as Array<Record<string, unknown>>,
+        includeRawJson: options.include_raw_json_columns
+      });
 
       row.export_generated_at = generatedAt;
       row.export_schema_version = MASTER_EXPORT_SCHEMA_VERSION;
       row.row_type = rowType;
       row.user_id = session.user.user_id;
       row.student_display_name = session.user.display_name ?? "";
+      row.student_account_status = session.user.account_status;
+      row.student_created_at = iso(session.user.created_at);
+      row.student_last_login_at = iso(session.user.last_login_at);
       row.session_id = session.session_public_id;
       row.assessment_id = session.assessment.assessment_public_id;
       row.assessment_title = session.assessment.title;
+      row.assessment_status = session.assessment.status;
+      row.assessment_workflow_mode = session.assessment.workflow_mode;
+      row.session_workflow_mode_snapshot = session.workflow_mode_snapshot;
+      row.assessment_release_at_utc = iso(session.assessment.release_at);
+      row.assessment_close_at_utc = iso(session.assessment.close_at);
+      row.course_timezone = courseTimezone;
       row.attempt_number = session.attempt_number;
       row.session_status = session.status;
       row.current_phase = session.current_phase;
+      row.automation_state = session.automation_exception_reason
+        ? "exception"
+        : session.workflow_mode_snapshot === "manual_review"
+          ? "manual_review"
+          : session.automation_paused_at
+            ? "paused"
+            : "active";
+      row.automation_paused = Boolean(session.automation_paused_at);
+      row.automation_exception_reason = session.automation_exception_reason ?? "";
       row.needs_review = session.needs_review;
       row.needs_review_reason = session.needs_review_reason ?? "";
       row.session_started_at = iso(session.started_at);
@@ -497,6 +938,7 @@ async function buildMasterExportRows(options: MasterExportOptions) {
         row.concept_unit_title = conceptUnitSession.concept_unit.title;
         row.concept_unit_order = conceptUnitSession.concept_unit.order_index;
         row.concept_unit_status = conceptUnitSession.status;
+        row.concept_unit_version = conceptUnitSession.concept_unit.version;
         row.initial_started_at = iso(conceptUnitSession.initial_started_at);
         row.initial_completed_at = iso(conceptUnitSession.initial_completed_at);
         row.followup_started_at = iso(conceptUnitSession.followup_started_at);
@@ -510,6 +952,7 @@ async function buildMasterExportRows(options: MasterExportOptions) {
       }
 
       Object.assign(row, aggregates);
+      Object.assign(row, sessionCompletion, sessionWorkflowFields);
       row.initial_conversation_transcript_text = transcriptText(initialTurns);
       row.followup_conversation_transcript_text = transcriptText(followupTurns);
       row.full_conversation_transcript_text = transcriptText(turns);
@@ -522,7 +965,16 @@ async function buildMasterExportRows(options: MasterExportOptions) {
       row.response_packages_json = options.include_raw_json_columns
         ? stableJson(responsePackages.map((responsePackage) => stripInternalKeys(responsePackage)))
         : "";
-      Object.assign(row, profiles, formatives, agents, sessionOutcomeFields);
+      Object.assign(
+        row,
+        profiles,
+        formatives,
+        followupRounds,
+        updateCycles,
+        progressions,
+        agents,
+        sessionOutcomeFields
+      );
 
       return row;
     };

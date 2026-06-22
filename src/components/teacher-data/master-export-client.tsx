@@ -98,7 +98,8 @@ export function MasterExportClient() {
         <h2 className="text-xl font-semibold text-ink">Generate master assessment CSV</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
           Generate one merged analysis file at item-response grain with placeholder rows for
-          incomplete sessions. The database remains normalized; this CSV is a derived export.
+          incomplete sessions. Persisted profiles, decisions, follow-up, progression, workflow,
+          and audit records are exported from the normalized database without modifying them.
         </p>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">

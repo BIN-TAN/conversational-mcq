@@ -46,6 +46,6 @@ It must not mention budget, cost, API keys, rate limits, or provider internals.
 
 Phase 6D2A can connect existing profiling, planning, and first follow-up startup services to an asynchronous backend workflow when an assessment session snapshot is `automatic`. Phase 6D2B extends that workflow with staged follow-up evidence updates inside the current concept unit. These services still use the Phase 6A.5 live-call gate and usage guard. In normal local development and smoke tests, `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`, so no OpenAI call occurs.
 
-Phase 6D3 still does not replace deterministic Response Collection presentation, implement live Item Preparation behavior, add adaptive concept routing, change master CSV profile/follow-up filling, or add student-entered provider credentials.
+Phase 6D3 still does not replace deterministic Response Collection presentation, implement live Item Preparation behavior, add adaptive concept routing, or add student-entered provider credentials. Phase 7B separately exports already persisted profile, planning, follow-up, progression, workflow, and agent-audit records without changing classroom behavior.
 
 See `docs/LLM_USAGE_LIMITS.md` for operational safeguards.

@@ -1,7 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 import { parse } from "csv-parse/sync";
 import { canAccessMasterExport } from "../src/lib/services/master-export/api";
-import { MASTER_EXPORT_COLUMNS } from "../src/lib/services/master-export/csv";
+import {
+  MASTER_EXPORT_COLUMNS,
+  MASTER_EXPORT_SCHEMA_VERSION
+} from "../src/lib/services/master-export/csv";
 import {
   createMasterCsvExport,
   getExportDownload
@@ -14,6 +17,8 @@ import {
 import {
   cleanupDataExportDemoFixture,
   dataExportAssessmentPublicId,
+  dataExportCompleteSessionPublicId,
+  dataExportConceptUnitPublicId,
   dataExportIncompleteSessionPublicId,
   dataExportOutcomeNames,
   dataExportSecondStudentUserId,
@@ -100,7 +105,10 @@ async function main() {
 
     assert(job.export_public_id, "Export job should receive a public export ID.");
     assert(job.status === "completed", "Export job should complete.");
-    assert(job.export_schema_version === "1.0.0", "Export schema version mismatch.");
+    assert(
+      job.export_schema_version === MASTER_EXPORT_SCHEMA_VERSION,
+      "Export schema version mismatch."
+    );
     assert((job.row_count ?? 0) > 0, "Export should include rows.");
 
     const persistedJob = await prisma.exportJob.findUniqueOrThrow({
@@ -155,7 +163,7 @@ async function main() {
 
     const studentExportRows = rows.filter((row) => row.user_id === dataExportSecondStudentUserId);
     assert(
-      studentExportRows.length === 4,
+      studentExportRows.length === 7,
       "Multiple summative outcomes should not multiply item-response rows."
     );
 
@@ -186,6 +194,16 @@ async function main() {
         "formative_value_history_json",
         "followup_rounds_json",
         "agent_calls_json",
+        "recommended_next_evidence_latest",
+        "target_evidence_latest",
+        "success_criteria_latest",
+        "followup_prompt_constraints_latest",
+        "profile_update_triggers_latest",
+        "formative_decision_history_json",
+        "followup_update_cycles_json",
+        "concept_progression_history_json",
+        "workflow_jobs_json",
+        "workflow_overrides_json",
         "summative_outcomes_json"
       ]) {
         if (row[column]) {
@@ -194,42 +212,55 @@ async function main() {
       }
     }
 
+    const activatedProfileRows = rows.filter(
+      (row) =>
+        row.session_id === dataExportCompleteSessionPublicId &&
+        row.concept_unit_id === dataExportConceptUnitPublicId
+    );
+    assert(activatedProfileRows.length === 3, "Expected three rows for the profiled concept.");
     assert(
-      rows.every(
+      activatedProfileRows.every(
+        (row) =>
+          row.initial_ability_profile === "fragile_correct_understanding" &&
+          row.latest_ability_profile === "mostly_correct_understanding" &&
+          row.latest_formative_value === "consolidation_or_transfer" &&
+          row.profile_count === "2" &&
+          row.formative_decision_count === "2" &&
+          row.followup_update_cycle_count === "2"
+      ),
+      "Activated profile and formative fields should export only for their concept unit."
+    );
+    const unprofiledRows = rows.filter(
+      (row) =>
+        !(
+          row.session_id === dataExportCompleteSessionPublicId &&
+          row.concept_unit_id === dataExportConceptUnitPublicId
+        )
+    );
+    assert(
+      unprofiledRows.every(
         (row) =>
           row.initial_ability_profile === "" &&
           row.latest_ability_profile === "" &&
           row.initial_integrated_diagnostic_profile === "" &&
           row.latest_integrated_diagnostic_profile === "" &&
-          row.profile_history_json === "[]"
-      ),
-      "Profile fields should remain blank before agents are implemented."
-    );
-    assert(
-      rows.every(
-        (row) =>
+          row.profile_history_json === "[]" &&
           row.initial_formative_value === "" &&
           row.latest_formative_value === "" &&
-          row.formative_value_history_json === "[]" &&
-          row.followup_rounds_json === "[]"
+          row.formative_value_history_json === "[]"
       ),
-      "Formative fields should remain blank before agents are implemented."
+      "Profile and formative fields should not be repeated outside their concept unit."
     );
     assert(
-      rows.every(
+      activatedProfileRows.every(
         (row) =>
-          row.agent_model_names === "" &&
-          row.agent_versions === "" &&
-          row.prompt_versions === "" &&
-          row.schema_versions === "" &&
-          row.agent_call_count === "0" &&
-          row.agent_validation_failure_count === "0" &&
-          row.agent_calls_json === "[]"
+          row.agent_model_names === "mock-phase7b-export-model" &&
+          Number(row.agent_call_count) >= 4
       ),
-      "Agent fields should remain empty or zero before OpenAI integration."
+      "Agent audit fields should reflect actual stored mock audit calls."
     );
     assert(
-      rows.every((row) => row.export_schema_version === "1.0.0"),
+      rows.every((row) => row.export_schema_version === MASTER_EXPORT_SCHEMA_VERSION),
       "Every row should include export schema version."
     );
 

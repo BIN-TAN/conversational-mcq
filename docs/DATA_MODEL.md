@@ -1,6 +1,6 @@
 # Data Model
 
-Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, Phase 6, and Phase 7A additions. The data model supports roster-managed student accounts, audited profiling, planning, first-round follow-up records, Phase 6D2B staged iterative follow-up evidence updates inside the current concept unit, and Phase 6D3 deterministic student-led concept progression/completion. It still does not imply adaptive concept routing, Response Collection Agent behavior, live Item Preparation behavior, or master CSV filling for iterative profile/planning fields.
+Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, Phase 6, Phase 7A, and Phase 7B additions. The data model supports roster-managed student accounts, audited profiling, planning, first-round follow-up records, Phase 6D2B staged iterative follow-up evidence updates inside the current concept unit, Phase 6D3 deterministic student-led concept progression/completion, and Phase 7B export of persisted platform records. It still does not imply adaptive concept routing, Response Collection Agent behavior, or live Item Preparation behavior.
 
 ## Identifier Convention
 
@@ -480,7 +480,7 @@ Failed, refused, incomplete, schema-invalid, semantically invalid, or usage-bloc
 
 Mock provider follow-up rows are infrastructure-testing records and should not be interpreted as validated formative guidance.
 
-## Phase 5B Outcome And Export Records
+## Phase 5B Outcome And Phase 7B Export Records
 
 Phase 5B adds audited summative outcome import and master CSV export records while keeping the internal database normalized.
 
@@ -516,6 +516,10 @@ The logical active duplicate key is `user_db_id + outcome_name + assessment_date
 Local Phase 5B export files are written under `.data/exports`, outside public static folders. Production deployment should replace this local storage with persistent object storage while preserving authorization and path-traversal protections.
 
 The master CSV is a derived analysis file. It is not a denormalized database source of truth. Normal exports use public IDs and `users.user_id`, not internal UUIDs.
+
+Phase 7B export services read the normalized records without mutating them. The export includes persisted account status, assessment availability, session workflow snapshots, activated profiles and formative decisions, follow-up rounds, follow-up update cycles, concept progression records, completion records, workflow jobs, workflow overrides, actual agent-call audit metadata, and active summative outcomes.
+
+Concept-specific export histories are scoped to each row's `concept_unit_session`. Failed/staged update-cycle JSON remains audit evidence and does not populate active/latest scalar profile or formative-decision fields. Session-only placeholder rows leave concept-specific scalar fields blank.
 
 ## Diagram
 

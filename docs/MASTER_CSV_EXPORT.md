@@ -1,12 +1,20 @@
 # Master CSV Export
 
-Phase 5B generates one merged analysis file:
+Phase 7B completes the one-file analysis export for all platform data implemented through Phase 7A:
 
 ```text
 master_assessment_export.csv
 ```
 
 The internal database remains normalized. The CSV is a derived research file, not the database source of truth.
+
+## Scope Boundaries
+
+Phase 7B is export-only. It does not call OpenAI, run agents, create profiles, create formative decisions, create follow-up rounds, create update cycles, create progression records, modify student answers, or change classroom workflow state.
+
+The export reads persisted records only. Active/latest profile and formative scalar columns are populated only from saved activated `student_profiles` and `formative_decisions` rows. Failed or staged update-cycle payloads remain audit/history data and must not populate latest scalar profile or planning columns.
+
+Correctness remains evidence, not a profile. Process data remain context for engagement and evidence sufficiency, not misconduct evidence.
 
 ## Row Grain
 
@@ -27,22 +35,33 @@ per item response
 
 Placeholder rows keep item fields blank so incomplete and interrupted sessions remain visible.
 
+## Concept-Specific Histories
+
+For an item-response row, profile, formative, follow-up, update-cycle, and progression fields describe the row's own `concept_unit_session`.
+
+The export does not repeat a final concept's latest profile across earlier concept rows. A session-only placeholder leaves concept-specific scalar fields blank and concept-specific histories as `[]`.
+
+Session-level fields, including account status, assessment availability, session completion, workflow aggregates, and summative outcomes, may repeat across rows for the same session/student.
+
 ## Column Groups
 
 Every row includes:
 
-- export metadata: `export_generated_at`, `export_schema_version`, `row_type`, `record_key`
-- identity and session fields using `users.user_id`, `session_public_id`, and `assessment_public_id`
-- concept-unit fields using `concept_unit_public_id`
-- item-response fields using `item_public_id`
+- export metadata and formula-sanitization flag
+- classroom identity and account status using canonical `users.user_id`
+- assessment availability and workflow-mode snapshots
+- session state, automation state, needs-review state, and completion state
+- concept-unit metadata and version
+- item response evidence and administered item snapshots
 - neutral process aggregate counts
 - transcript text and optional raw JSON columns
-- current/future profile fields
-- current/future formative fields
-- agent audit fields
-- summative outcome fields
+- saved active profile and profile-history columns
+- saved active formative decision and decision-history columns
+- follow-up round, update-cycle, progression, and workflow histories
+- agent audit metadata for actual recorded calls only
+- active summative outcome linkage
 
-Internal UUIDs are not normal export identifiers. Phase 7A normalized login matching does not change export identity: the master CSV continues to export canonical `users.user_id`.
+See `docs/MASTER_EXPORT_DATA_DICTIONARY.md` for the complete column list.
 
 ## Ordering
 
@@ -62,32 +81,17 @@ item item_order
 
 Multiple outcomes per student are supported without row multiplication.
 
-The export request may select `primary_outcome_name`. Primary outcome columns repeat across that student's rows when an active matching outcome exists:
+The export request may select `primary_outcome_name`. Primary outcome columns repeat across that student's rows when an active matching outcome exists. `summative_outcomes_json` contains all active outcomes for the student. Percent is calculated as `outcome_score / max_score * 100` and exported with four decimal places.
 
-- `primary_summative_outcome_name`
-- `primary_summative_outcome_score`
-- `primary_summative_outcome_max_score`
-- `primary_summative_outcome_percent`
-- `primary_summative_assessment_date`
+## Raw JSON Option
 
-`summative_outcomes_json` contains all active outcomes for the student. Percent is calculated as `outcome_score / max_score * 100` and exported with four decimal places.
+When `include_raw_json_columns = false`, raw evidence/audit JSON columns such as `conversation_turns_json`, `process_events_json`, `response_packages_json`, `agent_calls_json`, `workflow_jobs_json`, and `workflow_overrides_json` are blank.
 
-## Profile, Formative, And Agent Columns
-
-Profile-related columns are present for schema stability, including:
-
-- ability profile fields
-- engagement profile fields
-- integrated diagnostic profile fields
-- profile history JSON fields
-
-Formative columns and follow-up history fields are also present.
-
-Before agent implementation, scalar profile/formative fields remain blank, history fields are `[]`, and agent counts are zero. The export must not infer a profile, formative value, or independence interpretation from correctness.
+Analysis history columns such as `profile_history_json`, `formative_decision_history_json`, `followup_rounds_json`, `followup_update_cycles_json`, and `concept_progression_history_json` remain available because they are part of the flattened master analysis schema.
 
 ## Formula-Injection Protection
 
-When `spreadsheet_safe_text = true`, user-controlled text beginning with `=`, `+`, `-`, or `@` is prefixed with an apostrophe in the exported CSV only.
+When `spreadsheet_safe_text = true`, user-controlled or teacher-provided text beginning with `=`, `+`, `-`, or `@` is prefixed with an apostrophe in the exported CSV only.
 
 This strategy is reversible: researchers who need exact text can remove one leading apostrophe from sanitized text cells during analysis. Database values are not modified.
 
@@ -101,13 +105,13 @@ When `spreadsheet_safe_text = false`, text is exported exactly and the UI warns 
 
 ## Local Storage
 
-Phase 5B stores generated files under:
+Generated files are stored under:
 
 ```text
 .data/exports
 ```
 
-Files are outside public static folders. Download routes require teacher_researcher authorization and use server-generated storage keys. Clients cannot supply file paths.
+Files are outside public static folders. Download routes require `teacher_researcher` authorization and use server-generated storage keys. Clients cannot supply file paths.
 
 Production deployment should replace local filesystem storage with persistent object storage.
 
@@ -160,12 +164,12 @@ The page supports assessment filter, session status filter, primary outcome sele
 Current version:
 
 ```text
-MASTER_EXPORT_SCHEMA_VERSION=1.0.0
+MASTER_EXPORT_SCHEMA_VERSION=1.1.0
 ```
 
 Future breaking column changes require a schema-version increment.
 
-## Fixture And Smoke Test
+## Fixture And Smoke Tests
 
 Create the fixture:
 
@@ -173,10 +177,17 @@ Create the fixture:
 npm run demo:data-export
 ```
 
-Run the smoke test:
+Cleanup fixture-owned records:
+
+```bash
+npm run demo:data-export:cleanup
+```
+
+Run export checks:
 
 ```bash
 npm run export:master-smoke
+npm run export:master-complete-smoke
 ```
 
-The smoke test verifies job creation, public export ID, storage outside public folders, download, parseable CSV, stable headers, item rows, incomplete placeholder rows, skipped evidence distinction, public IDs, absence of internal UUID and secret data, multiple-outcome behavior, transcript quoting, JSON parsing, formula protection, blank future profile/formative fields, empty agent fields, schema version, row count, cleanup, and no OpenAI calls.
+The complete smoke verifies stable headers, placeholder rows, skipped evidence distinction, profile/decision/follow-up/update/progression/workflow columns, concept-specific history behavior, active versus staged profile behavior, multiple summative outcomes without row multiplication, raw JSON suppression, formula protection, public identifiers, secret exclusion, parseable JSON columns, cleanup behavior, and no OpenAI calls.

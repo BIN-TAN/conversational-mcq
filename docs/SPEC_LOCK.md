@@ -342,7 +342,18 @@ Incomplete and interrupted sessions must not disappear from export. Missing, ski
 
 Multiple summative outcomes must not multiply item-response rows. Export repeats the selected primary outcome columns across the relevant student's rows and stores all active outcomes in `summative_outcomes_json`.
 
-Current and future agent/profile/formative columns are present in the master CSV, but they remain blank or empty arrays/counts until the relevant agents actually create database records. Correctness must not be converted into a profile, formative value, or independence interpretation.
+Current and future agent/profile/formative columns are present in the master CSV. They may be populated only from actual persisted database records created by the relevant backend services. Correctness must not be converted into a profile, formative value, or independence interpretation.
+
+Phase 7B completes the master CSV for persisted platform records through Phase 7A. It remains export-only:
+
+- `MASTER_EXPORT_SCHEMA_VERSION` is `1.1.0`.
+- The system still exports one merged `master_assessment_export.csv`.
+- Account status, assessment availability, workflow snapshots, activated profile/decision fields, follow-up rounds, follow-up update cycles, concept progression, assessment completion, workflow jobs/overrides, agent audit metadata, and summative outcomes are exported when they already exist.
+- Item-row profile, formative, follow-up, update-cycle, and progression histories are scoped to that row's concept-unit session.
+- Session-only placeholder rows leave concept-specific scalar fields blank.
+- Failed or staged update-cycle outputs remain audit/history data and must not populate active/latest scalar profile or formative columns.
+- Internal UUIDs, credential hashes, access codes, cookies, auth headers, API keys, session secrets, database URLs, and environment values must not be exported.
+- Phase 7B must not call OpenAI, run agents, create profiles, create decisions, create follow-up rounds, modify records, fabricate values, add adaptive routing, or create separate analytical CSV files.
 
 Spreadsheet formula-injection protection is required for user-controlled text when `spreadsheet_safe_text = true`. The protection is applied only to exported values and must not alter database records. Local export files are stored under `.data/exports`, not public static folders, and downloads require teacher_researcher authorization.
 

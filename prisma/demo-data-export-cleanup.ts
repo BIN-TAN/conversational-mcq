@@ -10,7 +10,7 @@ async function main() {
       ? "Data/export demo fixture records removed."
       : "No data/export demo assessment found."
   );
-  console.log("Demo users were preserved.");
+  console.log("teacher_demo and student_demo were preserved; export-only fixture users were removed.");
 }
 
 main()

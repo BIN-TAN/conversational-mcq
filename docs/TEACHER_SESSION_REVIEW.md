@@ -247,7 +247,7 @@ The smoke test verifies listing, search, status and phase filters, pagination, p
 
 ## Related Data Management
 
-Phase 5B adds `/teacher/data`, `/teacher/data/summative-outcomes`, and `/teacher/data/export` for supervised outcome import and the merged master CSV export. The session-review pages remain read-only and do not edit student answers, process events, response packages, profiles, or formative decisions.
+Phase 5B adds `/teacher/data`, `/teacher/data/summative-outcomes`, and `/teacher/data/export` for supervised outcome import and the merged master CSV export. Phase 7B expands that export to include persisted profile, planning, follow-up, update-cycle, progression, completion, workflow, and agent-audit records. The session-review pages remain read-only and do not edit student answers, process events, response packages, profiles, or formative decisions.
 
 Phase 6B may populate `agent_calls` and `student_profiles` for Student Profiling Agent execution. Phase 6C may populate `agent_calls` and `formative_decisions` for Formative Value and Planning Agent execution. Phase 6D1 may populate `followup_rounds`, follow-up conversation turns, process events, and `agent_calls.followup_round_db_id` through backend-only integration using environment-configured model names.
 

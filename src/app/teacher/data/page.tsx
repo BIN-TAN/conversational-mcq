@@ -26,8 +26,8 @@ export default async function TeacherDataPage() {
           <h1 className="mt-2 text-3xl font-semibold text-ink">Data and outcomes</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
             Import supervised summative outcome records and generate one merged master assessment
-            CSV for research analysis. Profile, planning, follow-up, and agent-derived fields remain
-            blank until those later phases exist.
+            CSV for research analysis. Persisted profile, planning, follow-up, progression,
+            workflow, and agent-audit records are included without changing classroom records.
           </p>
         </header>
 
@@ -52,7 +52,8 @@ export default async function TeacherDataPage() {
             <h2 className="mt-4 text-lg font-semibold text-ink">Master CSV export</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
               Generate master_assessment_export.csv with public IDs, placeholder rows for incomplete
-              sessions, process counts, transcripts, response packages, and active summative outcomes.
+              sessions, process counts, transcripts, response packages, activated agent outputs,
+              workflow records, and active summative outcomes.
             </p>
           </Link>
         </section>

@@ -110,3 +110,12 @@ npm run summative:import-smoke
 ```
 
 The smoke test verifies valid preview/commit, preview nonmutation, invalid score/max/date validation, unknown user reporting, teacher account rejection, duplicate detection, idempotent duplicate reporting, conflict rejection, explicit replacement revision auditability, student authorization exclusion, cleanup behavior, and no OpenAI calls.
+
+Phase 7B master export coverage is verified separately with:
+
+```bash
+npm run export:master-smoke
+npm run export:master-complete-smoke
+```
+
+Multiple active outcomes remain in `summative_outcomes_json`; selecting a primary outcome does not multiply item-response rows.

@@ -2,6 +2,9 @@ import { PrismaClient } from "@prisma/client";
 import {
   dataExportAssessmentPublicId,
   dataExportCompleteSessionPublicId,
+  dataExportInactiveSessionPublicId,
+  dataExportInactiveStudentAccessCode,
+  dataExportInactiveStudentUserId,
   dataExportIncompleteSessionPublicId,
   dataExportSkippedSessionPublicId,
   dataExportSecondStudentAccessCode,
@@ -18,9 +21,13 @@ async function main() {
   console.log(`- complete session_public_id: ${dataExportCompleteSessionPublicId}`);
   console.log(`- incomplete session_public_id: ${dataExportIncompleteSessionPublicId}`);
   console.log(`- skipped session_public_id: ${dataExportSkippedSessionPublicId}`);
+  console.log(`- inactive placeholder session_public_id: ${dataExportInactiveSessionPublicId}`);
   console.log("- teacher login: teacher_demo / teacher_demo_password");
   console.log("- student login: student_demo / student_demo_access_code");
   console.log(`- second student login: ${dataExportSecondStudentUserId} / ${dataExportSecondStudentAccessCode}`);
+  console.log(
+    `- inactive fixture student: ${dataExportInactiveStudentUserId} / ${dataExportInactiveStudentAccessCode}`
+  );
 }
 
 main()

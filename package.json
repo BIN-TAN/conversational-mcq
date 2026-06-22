@@ -27,6 +27,7 @@
     "demo:data-export:cleanup": "tsx prisma/demo-data-export-cleanup.ts",
     "summative:import-smoke": "tsx prisma/summative-import-smoke-test.ts",
     "export:master-smoke": "tsx prisma/master-export-smoke-test.ts",
+    "export:master-complete-smoke": "tsx prisma/master-export-complete-smoke-test.ts",
     "export:cleanup": "tsx prisma/export-cleanup.ts",
     "llm:contracts-smoke": "tsx prisma/llm-contracts-smoke-test.ts",
     "llm:execution-smoke": "tsx prisma/llm-execution-smoke-test.ts",

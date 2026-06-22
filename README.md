@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, and Phase 7A roster/student-account management. Response Collection Agent LLM behavior, live Item Preparation behavior, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, student self-registration, and master CSV profile/follow-up column filling remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, and Phase 7B complete master CSV export coverage for persisted platform records. Response Collection Agent LLM behavior, live Item Preparation behavior, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, and student self-registration remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -85,6 +85,7 @@ npm run student:ui-smoke
 npm run teacher:review-smoke
 npm run summative:import-smoke
 npm run export:master-smoke
+npm run export:master-complete-smoke
 npm run llm:contracts-smoke
 npm run llm:execution-smoke
 npm run llm:redaction-smoke
@@ -583,9 +584,11 @@ Manual browser flow:
 
 See `docs/TEACHER_SESSION_REVIEW.md` for the Phase 5A review contract.
 
-## Phase 5B Data Management And Master Export
+## Phase 5B Data Management And Phase 7B Master Export
 
-Phase 5B adds teacher_researcher-only data management for supervised summative outcomes and one merged master assessment CSV export. It does not add OpenAI integration, LLM agents, student profiling, formative planning, follow-up conversation, or fabricated agent outputs.
+Phase 5B adds teacher_researcher-only data management for supervised summative outcomes and one merged master assessment CSV export. Phase 7B completes that master CSV for persisted platform records through Phase 7A, including account status, assessment availability, activated profiles/decisions, follow-up rounds, update cycles, progression, completion, workflow jobs, agent audit metadata, and summative outcomes.
+
+The export is read-only. It does not call OpenAI, run agents, create profiles, create decisions, create follow-up rounds, modify student records, or fabricate values. Failed/staged update outputs remain audit/history data and do not populate active/latest scalar columns.
 
 Teacher routes:
 
@@ -649,6 +652,7 @@ npm run student:ui-smoke
 npm run teacher:review-smoke
 npm run summative:import-smoke
 npm run export:master-smoke
+npm run export:master-complete-smoke
 npm run typecheck
 npm run lint
 npm run build
@@ -665,7 +669,7 @@ Manual browser flow:
 7. Open `/teacher/data/export`, select the demo assessment and primary outcome, generate the export, and download `master_assessment_export.csv`.
 8. Sign out, sign in as `student_demo` with `student_demo_access_code`, and confirm data/export pages and APIs are forbidden.
 
-See `docs/SUMMATIVE_OUTCOMES.md` and `docs/MASTER_CSV_EXPORT.md` for the detailed Phase 5B contracts.
+See `docs/SUMMATIVE_OUTCOMES.md`, `docs/MASTER_CSV_EXPORT.md`, and `docs/MASTER_EXPORT_DATA_DICTIONARY.md` for the detailed data/export contracts.
 
 ## Phase 6A And 6A.5 LLM Infrastructure
 

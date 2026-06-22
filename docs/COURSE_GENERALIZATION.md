@@ -21,3 +21,7 @@ Phase 7A remains one-course. Roster import does not add sections, courses, email
 ## Phase 6D3 Progression
 
 Concept progression remains course-domain agnostic. The backend uses teacher-defined `concept_units.order_index` and does not hardcode a subject-specific concept sequence, infer a taxonomy, or let an LLM choose the next concept. One deployment still represents one course context in v1.
+
+## Phase 7B Export
+
+The master CSV remains course-domain agnostic. It exports teacher-defined assessment, concept-unit, item, profile, decision, follow-up, progression, workflow, and summative outcome records without adding subject-specific columns or changing the canonical identity meaning of `users.user_id`.
