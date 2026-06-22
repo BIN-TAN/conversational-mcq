@@ -129,6 +129,7 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
       title: "Development Demo: Initial MCQ Conversation",
       description: "Development-only assessment for testing the Phase 4B student interface.",
       status: "published",
+      workflow_mode: "manual_review",
       created_by_user_db_id: teacher.id
     },
     create: {
@@ -136,6 +137,7 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
       title: "Development Demo: Initial MCQ Conversation",
       description: "Development-only assessment for testing the Phase 4B student interface.",
       status: "published",
+      workflow_mode: "manual_review",
       created_by_user_db_id: teacher.id
     }
   });
@@ -228,6 +230,12 @@ export async function cleanupDemoStudentAssessment(prisma: PrismaClient) {
   await prisma.studentActionIdempotencyKey.deleteMany({
     where: { assessment_session_db_id: { in: sessionIds } }
   });
+  await prisma.agentCall.deleteMany({
+    where: { assessment_session_db_id: { in: sessionIds } }
+  });
+  await prisma.conversationTurn.deleteMany({
+    where: { assessment_session_db_id: { in: sessionIds } }
+  });
   await prisma.followupRound.deleteMany({
     where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
   });
@@ -239,6 +247,12 @@ export async function cleanupDemoStudentAssessment(prisma: PrismaClient) {
   });
   await prisma.responsePackage.deleteMany({
     where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
+  });
+  await prisma.workflowOverride.deleteMany({
+    where: { assessment_session_db_id: { in: sessionIds } }
+  });
+  await prisma.workflowJob.deleteMany({
+    where: { assessment_session_db_id: { in: sessionIds } }
   });
   await prisma.agentCall.deleteMany({
     where: { assessment_session_db_id: { in: sessionIds } }

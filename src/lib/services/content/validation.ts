@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AssessmentWorkflowModeSchema } from "@/lib/domain/enums";
 import type { ContentValidationIssue } from "./errors";
 
 const nonEmptyText = z.string().trim().min(1);
@@ -15,14 +16,20 @@ export const ItemOptionSchema = z
 export const AssessmentDraftInputSchema = z
   .object({
     title: nonEmptyText,
-    description: optionalText
+    description: optionalText,
+    workflow_mode: AssessmentWorkflowModeSchema.default("automatic"),
+    release_at_course_time: optionalText,
+    close_at_course_time: optionalText
   })
   .strict();
 
 export const AssessmentUpdateInputSchema = z
   .object({
     title: nonEmptyText.optional(),
-    description: optionalText
+    description: optionalText,
+    workflow_mode: AssessmentWorkflowModeSchema.optional(),
+    release_at_course_time: optionalText,
+    close_at_course_time: optionalText
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, {

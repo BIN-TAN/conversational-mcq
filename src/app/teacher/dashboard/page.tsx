@@ -11,7 +11,7 @@ const sections = [
   },
   {
     title: "Agent Metadata",
-    description: "Future prompt versions, schema versions, model names, retries, and validation errors will appear only after agent calls exist.",
+    description: "Review prompt versions, schema versions, model names, retries, validation errors, and automatic workflow audit records when agent calls exist.",
     icon: History
   },
   {
@@ -48,8 +48,8 @@ export default async function TeacherDashboardPage() {
           <p className="mt-2 text-sm text-muted">Signed in as {user.user_id}</p>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
             Use this teacher_researcher area to manage content, review existing student sessions,
-            and prepare supervised outcome imports and master CSV exports. OpenAI integration and
-            LLM agent outputs remain planned for later phases.
+            prepare supervised outcome imports and master CSV exports, and monitor automatic
+            profiling, planning, and follow-up startup when server-side LLM execution is enabled.
           </p>
         </header>
 

@@ -1,11 +1,12 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { parseCourseDateTimeInput } from "@/lib/services/assessment-availability/timezone";
 import { generatePublicId } from "@/lib/services/ids";
 import {
   AssessmentDraftInputSchema,
   AssessmentUpdateInputSchema
 } from "./validation";
-import { ContentServiceError } from "./errors";
+import { ContentServiceError, validationIssue } from "./errors";
 import {
   archiveAssessmentSafely,
   assertAssessmentEditable,
@@ -15,6 +16,61 @@ import { serializeAssessment, serializeConceptUnit } from "./serializers";
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function hasOwn(value: object, key: string) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function parseCourseDateTimeField(path: string, value: string | null | undefined) {
+  try {
+    return parseCourseDateTimeInput(value ?? null);
+  } catch (error) {
+    throw new ContentServiceError(
+      "validation_failed",
+      "Assessment availability date/time validation failed.",
+      400,
+      {
+        issues: [
+          validationIssue(
+            path,
+            "invalid_course_datetime",
+            error instanceof Error ? error.message : "Invalid course date/time."
+          )
+        ]
+      }
+    );
+  }
+}
+
+function parseAvailabilityWindow(input: {
+  release_at_course_time?: string | null;
+  close_at_course_time?: string | null;
+}) {
+  const release_at = parseCourseDateTimeField(
+    "release_at_course_time",
+    input.release_at_course_time
+  );
+  const close_at = parseCourseDateTimeField("close_at_course_time", input.close_at_course_time);
+
+  if (release_at && close_at && close_at <= release_at) {
+    throw new ContentServiceError(
+      "validation_failed",
+      "Assessment close time must be after release time.",
+      400,
+      {
+        issues: [
+          validationIssue(
+            "close_at_course_time",
+            "invalid_assessment_availability_window",
+            "Closing date/time must be after release date/time."
+          )
+        ]
+      }
+    );
+  }
+
+  return { release_at, close_at };
 }
 
 export async function listAssessments(input: { teacher_user_db_id: string }) {
@@ -32,6 +88,7 @@ export async function createAssessment(input: {
   data: unknown;
 }) {
   const data = AssessmentDraftInputSchema.parse(input.data);
+  const availability = parseAvailabilityWindow(data);
 
   try {
     const assessment = await prisma.assessment.create({
@@ -39,6 +96,9 @@ export async function createAssessment(input: {
         assessment_public_id: generatePublicId("assessment"),
         title: data.title,
         description: data.description ?? null,
+        workflow_mode: data.workflow_mode,
+        release_at: availability.release_at,
+        close_at: availability.close_at,
         status: "draft",
         created_by_user_db_id: input.teacher_user_db_id
       },
@@ -104,13 +164,54 @@ export async function updateAssessment(input: {
   data: unknown;
 }) {
   const data = AssessmentUpdateInputSchema.parse(input.data);
-  const assessment = await assertAssessmentEditable(input);
+  const assessment = await prisma.assessment.findFirst({
+    where: {
+      assessment_public_id: input.assessment_public_id,
+      created_by_user_db_id: input.teacher_user_db_id
+    },
+    include: { _count: { select: { concept_units: true, assessment_sessions: true } } }
+  });
+
+  if (!assessment) {
+    throw new ContentServiceError("not_found", "Assessment was not found.", 404);
+  }
+
+  if (hasOwn(data, "title") || hasOwn(data, "description")) {
+    await assertAssessmentEditable(input);
+  }
+
+  const release_at = hasOwn(data, "release_at_course_time")
+    ? parseCourseDateTimeField("release_at_course_time", data.release_at_course_time ?? null)
+    : assessment.release_at;
+  const close_at = hasOwn(data, "close_at_course_time")
+    ? parseCourseDateTimeField("close_at_course_time", data.close_at_course_time ?? null)
+    : assessment.close_at;
+
+  if (release_at && close_at && close_at <= release_at) {
+    throw new ContentServiceError(
+      "validation_failed",
+      "Assessment close time must be after release time.",
+      400,
+      {
+        issues: [
+          validationIssue(
+            "close_at_course_time",
+            "invalid_assessment_availability_window",
+            "Closing date/time must be after release date/time."
+          )
+        ]
+      }
+    );
+  }
 
   const updated = await prisma.assessment.update({
     where: { id: assessment.id },
     data: {
       title: data.title,
-      description: data.description
+      description: data.description,
+      workflow_mode: data.workflow_mode,
+      release_at,
+      close_at
     },
     include: { _count: { select: { concept_units: true, assessment_sessions: true } } }
   });

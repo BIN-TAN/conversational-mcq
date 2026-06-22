@@ -89,3 +89,7 @@ Phase 6D1 Follow-up Agent prompt constraints include:
 - do not update profiles or rerun planning
 - do not move to the next concept unit
 - output only the required schema
+
+## Phase 6D2A Automatic Workflow
+
+Phase 6D2A does not add new prompt contracts. Automatic workflow jobs reuse the existing Student Profiling Agent, Formative Value and Planning Agent, and Follow-up Agent prompt versions through the same `executeAgent` infrastructure. Workflow mode does not bypass prompt status, schema validation, usage guards, model environment configuration, or audit logging.

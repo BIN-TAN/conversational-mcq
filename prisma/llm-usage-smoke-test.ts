@@ -69,6 +69,22 @@ async function cleanup(prefix: string, assessmentPublicId?: string) {
   });
 
   if (assessmentPublicId) {
+    const sessions = await prisma.assessmentSession.findMany({
+      where: {
+        assessment: {
+          assessment_public_id: assessmentPublicId
+        }
+      },
+      select: { id: true }
+    });
+    const sessionIds = sessions.map((session) => session.id);
+
+    await prisma.workflowOverride.deleteMany({
+      where: { assessment_session_db_id: { in: sessionIds } }
+    });
+    await prisma.workflowJob.deleteMany({
+      where: { assessment_session_db_id: { in: sessionIds } }
+    });
     await prisma.assessmentSession.deleteMany({
       where: {
         assessment: {

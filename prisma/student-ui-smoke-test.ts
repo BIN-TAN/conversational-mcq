@@ -61,6 +61,12 @@ async function cleanupTempStudent(userDbId: string, sessionPublicIds: string[]) 
   });
   const conceptUnitSessionIds = conceptUnitSessions.map((session) => session.id);
 
+  await prisma.workflowOverride.deleteMany({
+    where: { assessment_session_db_id: { in: sessionIds } }
+  });
+  await prisma.workflowJob.deleteMany({
+    where: { assessment_session_db_id: { in: sessionIds } }
+  });
   await prisma.studentActionIdempotencyKey.deleteMany({
     where: { assessment_session_db_id: { in: sessionIds } }
   });

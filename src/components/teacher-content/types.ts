@@ -28,6 +28,14 @@ export type AssessmentSummary = ContentGovernanceFields & {
   title: string;
   description: string | null;
   status: ContentStatus;
+  workflow_mode: "manual_review" | "automatic";
+  release_at: string | null;
+  close_at: string | null;
+  release_at_course_time: string | null;
+  close_at_course_time: string | null;
+  release_at_course_time_input: string;
+  close_at_course_time_input: string;
+  course_timezone: string;
   concept_unit_count?: number;
   created_at: string;
   updated_at: string;

@@ -467,6 +467,18 @@ async function main() {
     console.log("Phase 3C content governance smoke test passed. No OpenAI calls are made by this script.");
   } finally {
     if (created.assessmentSessionPublicIds.length > 0) {
+      const sessions = await prisma.assessmentSession.findMany({
+        where: { session_public_id: { in: created.assessmentSessionPublicIds } },
+        select: { id: true }
+      });
+      const sessionIds = sessions.map((session) => session.id);
+
+      await prisma.workflowOverride.deleteMany({
+        where: { assessment_session_db_id: { in: sessionIds } }
+      });
+      await prisma.workflowJob.deleteMany({
+        where: { assessment_session_db_id: { in: sessionIds } }
+      });
       await prisma.assessmentSession.deleteMany({
         where: { session_public_id: { in: created.assessmentSessionPublicIds } }
       });

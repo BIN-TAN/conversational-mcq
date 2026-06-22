@@ -96,3 +96,34 @@ export function startFollowup(sessionPublicId: string, conceptUnitPublicId: stri
     { method: "POST" }
   );
 }
+
+export function pauseAutomation(sessionPublicId: string) {
+  return apiRequest<{ result: { status: string; override_public_id: string } }>(
+    `/api/teacher/sessions/${sessionPublicId}/automation/pause`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+}
+
+export function resumeAutomation(sessionPublicId: string) {
+  return apiRequest<{ result: { status: string; override_public_id: string } }>(
+    `/api/teacher/sessions/${sessionPublicId}/automation/resume`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+}
+
+export function retryAutomation(sessionPublicId: string) {
+  return apiRequest<{ result: { status: string; override_public_id: string; job_public_id: string } }>(
+    `/api/teacher/sessions/${sessionPublicId}/automation/retry`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+}
+
+export function stopAutomationFollowup(sessionPublicId: string, conceptUnitPublicId?: string) {
+  return apiRequest<{ result: { status: string; override_public_id: string } }>(
+    `/api/teacher/sessions/${sessionPublicId}/automation/stop-followup`,
+    {
+      method: "POST",
+      body: JSON.stringify({ concept_unit_public_id: conceptUnitPublicId })
+    }
+  );
+}

@@ -4,6 +4,11 @@ import {
   serializeContentState,
   type SerializedContentState
 } from "./governance";
+import {
+  formatCourseDateTime,
+  getCourseTimezone,
+  toCourseDateTimeInputValue
+} from "@/lib/services/assessment-availability/timezone";
 
 function serializeDate(value: Date): string {
   return value.toISOString();
@@ -16,6 +21,9 @@ export function serializeAssessment(
     | "title"
     | "description"
     | "status"
+    | "workflow_mode"
+    | "release_at"
+    | "close_at"
     | "created_at"
     | "updated_at"
   > & {
@@ -29,6 +37,14 @@ export function serializeAssessment(
     title: assessment.title,
     description: assessment.description,
     status: assessment.status,
+    workflow_mode: assessment.workflow_mode,
+    release_at: assessment.release_at?.toISOString() ?? null,
+    close_at: assessment.close_at?.toISOString() ?? null,
+    release_at_course_time: formatCourseDateTime(assessment.release_at),
+    close_at_course_time: formatCourseDateTime(assessment.close_at),
+    release_at_course_time_input: toCourseDateTimeInputValue(assessment.release_at),
+    close_at_course_time_input: toCourseDateTimeInputValue(assessment.close_at),
+    course_timezone: getCourseTimezone(),
     ...contentState,
     concept_unit_count: assessment._count?.concept_units,
     created_at: serializeDate(assessment.created_at),

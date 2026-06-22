@@ -44,14 +44,8 @@ It must not mention budget, cost, API keys, rate limits, or provider internals.
 
 ## Current Boundary
 
-Phase 6A.5 does not:
+Phase 6D2A can connect existing profiling, planning, and first follow-up startup services to an asynchronous backend workflow when an assessment session snapshot is `automatic`. These services still use the Phase 6A.5 live-call gate and usage guard. In normal local development and smoke tests, `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`, so no OpenAI call occurs.
 
-- connect agents to real classroom workflows
-- send classroom data to OpenAI
-- run profiling on response packages
-- create profiles, formative decisions, or follow-up rounds
-- alter `profiling_pending` sessions
-- replace deterministic Response Collection presentation
-- implement live Item Preparation behavior
+Phase 6D2A still does not replace deterministic Response Collection presentation, implement live Item Preparation behavior, implement follow-up profile updating, or add student-entered provider credentials.
 
 See `docs/LLM_USAGE_LIMITS.md` for operational safeguards.

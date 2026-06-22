@@ -3,6 +3,8 @@ import { serializeFormativeDecisionForTeacher } from "@/lib/agents/formative-pla
 import { serializeFollowupRoundForTeacher } from "@/lib/agents/followup/serializers";
 import { serializeStudentProfileForTeacher } from "@/lib/agents/student-profiling/serializers";
 import { serializeAssessmentContentState } from "@/lib/services/content/governance";
+import { deriveAutomationState } from "@/lib/workflow/automation";
+import { serializeWorkflowJob } from "@/lib/workflow/jobs";
 import { TeacherReviewServiceError } from "./errors";
 import { serializeDate } from "./serializers";
 
@@ -15,6 +17,9 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       attempt_number: true,
       status: true,
       current_phase: true,
+      workflow_mode_snapshot: true,
+      automation_paused_at: true,
+      automation_exception_reason: true,
       needs_review: true,
       needs_review_reason: true,
       started_at: true,
@@ -171,6 +176,18 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
           }
         }
       },
+      workflow_jobs: {
+        orderBy: [{ created_at: "desc" }]
+      },
+      workflow_overrides: {
+        orderBy: [{ created_at: "desc" }],
+        select: {
+          override_public_id: true,
+          action_type: true,
+          reason: true,
+          created_at: true
+        }
+      },
       _count: {
         select: {
           agent_calls: true
@@ -212,6 +229,18 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
   const completedConceptUnitCount = session.concept_unit_sessions.filter((conceptUnitSession) =>
     ["initial_completed", "followup_completed", "completed"].includes(conceptUnitSession.status)
   ).length;
+  const serializedWorkflowJobs = session.workflow_jobs.map(serializeWorkflowJob);
+  const latestWorkflowJob = serializedWorkflowJobs[0] ?? null;
+  const automationState = deriveAutomationState({
+    workflow_mode_snapshot: session.workflow_mode_snapshot,
+    current_phase: session.current_phase,
+    automation_paused_at: session.automation_paused_at,
+    automation_exception_reason: session.automation_exception_reason,
+    workflow_jobs: serializedWorkflowJobs
+  });
+  const manualReview = session.workflow_mode_snapshot === "manual_review";
+  const hasFailedWorkflowJob =
+    Boolean(session.automation_exception_reason) || latestWorkflowJob?.status === "failed";
 
   return {
     session: {
@@ -219,6 +248,10 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       attempt_number: session.attempt_number,
       status: session.status,
       current_phase: session.current_phase,
+      workflow_mode_snapshot: session.workflow_mode_snapshot,
+      automation_state: automationState,
+      automation_paused_at: serializeDate(session.automation_paused_at),
+      automation_exception_reason: session.automation_exception_reason,
       needs_review: session.needs_review,
       needs_review_reason: session.needs_review_reason,
       started_at: serializeDate(session.started_at),
@@ -234,6 +267,33 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       title: session.assessment.title,
       description: session.assessment.description,
       content_state: serializeAssessmentContentState(session.assessment)
+    },
+    automation: {
+      workflow_mode_snapshot: session.workflow_mode_snapshot,
+      automation_state: automationState,
+      automation_paused_at: serializeDate(session.automation_paused_at),
+      automation_exception_reason: session.automation_exception_reason,
+      workflow_jobs: serializedWorkflowJobs,
+      workflow_overrides: session.workflow_overrides.map((override) => ({
+        override_public_id: override.override_public_id,
+        action_type: override.action_type,
+        reason: override.reason,
+        created_at: serializeDate(override.created_at)
+      })),
+      can_pause:
+        session.workflow_mode_snapshot === "automatic" &&
+        !session.automation_paused_at &&
+        ["pending", "running", "retryable"].some((status) =>
+          serializedWorkflowJobs.some((job) => job.status === status)
+        ),
+      can_resume:
+        session.workflow_mode_snapshot === "automatic" &&
+        Boolean(session.automation_paused_at),
+      can_retry_current_step:
+        session.workflow_mode_snapshot === "automatic" && hasFailedWorkflowJob,
+      can_stop_followup:
+        session.workflow_mode_snapshot === "automatic" &&
+        session.current_phase === "followup_active"
     },
     current_concept_unit: session.current_concept_unit
       ? {
@@ -255,14 +315,17 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       item_response_count: conceptUnitSession._count.item_responses,
       response_package_count: conceptUnitSession._count.response_packages,
       can_run_profiling:
+        manualReview &&
         session.current_phase === "profiling_pending" &&
         Boolean(conceptUnitSession.initial_completed_at) &&
         !conceptUnitSession.latest_student_profile,
       can_run_planning:
+        manualReview &&
         ["profiling_completed", "planning_pending"].includes(session.current_phase) &&
         Boolean(conceptUnitSession.latest_student_profile) &&
         !conceptUnitSession.latest_formative_decision,
       can_start_followup:
+        manualReview &&
         session.current_phase === "planning_completed" &&
         Boolean(conceptUnitSession.latest_student_profile) &&
         Boolean(conceptUnitSession.latest_formative_decision) &&

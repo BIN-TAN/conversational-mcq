@@ -34,6 +34,11 @@ export type StudentAssessmentSummary = z.infer<typeof StudentAssessmentSummarySc
 
 export const AvailableAssessmentSchema = StudentAssessmentSummarySchema.extend({
   availability_status: z.string(),
+  availability_state: z.string(),
+  release_at_course_time: z.string().nullable(),
+  close_at_course_time: z.string().nullable(),
+  course_timezone: z.string(),
+  student_safe_availability_message: z.string(),
   existing_session_public_id: z.string().nullable(),
   existing_session_status: z.string().nullable(),
   can_start: z.boolean(),
@@ -75,6 +80,10 @@ export const StudentSessionStateSchema = z.object({
     "item_complete",
     "initial_concept_unit_complete",
     "awaiting_profiling",
+    "automatic_profiling_pending",
+    "automatic_planning_pending",
+    "automatic_followup_opening_pending",
+    "automatic_workflow_failed",
     "followup_active",
     "followup_stopped"
   ]),
@@ -130,6 +139,8 @@ export const StudentConversationFrameSchema = z.object({
     "item_completed",
     "concept_unit_completed",
     "awaiting_profiling",
+    "automatic_processing",
+    "automatic_failed",
     "followup_active",
     "followup_stopped",
     "session_paused",

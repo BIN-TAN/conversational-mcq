@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getServerEnv } from "@/lib/env";
-import type { AppRole, PublicUser } from "@/types/auth";
+import type { AppRole, ClientUser, PublicUser } from "@/types/auth";
 
 export const SESSION_COOKIE_NAME = "cmcq_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
@@ -42,6 +42,13 @@ export function toPublicUser(user: {
 }): PublicUser {
   return {
     user_db_id: user.id,
+    user_id: user.user_id,
+    role: user.role
+  };
+}
+
+export function toClientUser(user: PublicUser): ClientUser {
+  return {
     user_id: user.user_id,
     role: user.role
   };

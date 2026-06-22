@@ -78,6 +78,12 @@ POST /api/teacher/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]
 
 The route uses public IDs, requires `teacher_researcher`, rejects students with 403, and returns only public-safe decision summaries. It does not expose hidden prompts, provider secrets, internal UUIDs, raw provider configuration, or raw environment values.
 
+## Automatic Workflow
+
+Phase 6D2A may run the same planning service from a backend workflow job after automatic profiling succeeds. The job requires a saved latest student profile and an initial response package. It uses the same schema validation, semantic validation, usage guard, idempotency, persistence, and audit logging as the manual trigger.
+
+Automatic planning success enqueues first follow-up startup. Phase 6D2A does not replan after follow-up messages.
+
 ## Student UI
 
 Students do not see formative values, action plans, target evidence, success criteria, profile labels, correctness, or rationales.

@@ -21,6 +21,22 @@ function awaitingAnalysisMessage(phase: string) {
   return "The initial questions are complete. The system is preparing the next step.";
 }
 
+function automaticWorkflowMessage(nextStep: StudentSessionState["next_step"]) {
+  if (nextStep === "automatic_profiling_pending") {
+    return "Your initial responses have been saved. The system is reviewing them to prepare the next step. You may leave and return later.";
+  }
+
+  if (nextStep === "automatic_planning_pending") {
+    return "The system is preparing the next support step. Your progress has been saved.";
+  }
+
+  if (nextStep === "automatic_followup_opening_pending") {
+    return "Your follow-up conversation is being prepared. You may leave and return later.";
+  }
+
+  return "The system is having trouble preparing the next step. Your progress has been saved, and you can return later.";
+}
+
 function fieldLabel(field: MissingEvidenceField) {
   if (field === "answer") {
     return "answer choice";
@@ -74,6 +90,22 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
             can_review_responses: true,
             can_continue: false
           }
+        : [
+              "automatic_profiling_pending",
+              "automatic_planning_pending",
+              "automatic_followup_opening_pending",
+              "automatic_workflow_failed"
+            ].includes(state.next_step)
+          ? {
+              ...base,
+              assistant_message: automaticWorkflowMessage(state.next_step),
+              interaction_type:
+                state.next_step === "automatic_workflow_failed"
+                  ? "automatic_failed"
+                  : "automatic_processing",
+              allowed_actions: ["review_responses", "save_exit"],
+              can_continue: false
+            }
         : state.next_step === "concept_unit_intro"
       ? {
           ...base,

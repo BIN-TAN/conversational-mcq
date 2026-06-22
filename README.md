@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, and Phase 6D1 first-round Follow-up Agent conversation. Iterative profile updates, replanning after follow-up, Response Collection Agent LLM behavior, live Item Preparation behavior, follow-up evidence packages, and master CSV agent-field changes remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, and Phase 6D2A assessment availability plus asynchronous automatic workflow startup. Iterative profile updates, replanning after follow-up, Response Collection Agent LLM behavior, live Item Preparation behavior, follow-up evidence packages, next-concept progression, and master CSV agent-field changes remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -35,7 +35,9 @@ If either command is missing, update your shell PATH according to your Node inst
 
 4. Replace `SESSION_SECRET` with a local random value of at least 32 characters.
 
-5. Leave OpenAI variables blank for normal local development. Phase 6A defaults to the mock provider and does not connect agents to classroom workflows.
+5. Leave OpenAI variables blank for normal local development. Mock mode is the default unless live calls are explicitly enabled server-side.
+
+6. `COURSE_TIMEZONE` defaults to `America/Edmonton`. Assessment release/close inputs use this IANA timezone while PostgreSQL stores UTC timestamps.
 
 Do not commit `.env`, `.env.local`, real session secrets, or real API keys.
 
@@ -90,11 +92,23 @@ npm run agent:profiling-smoke
 npm run agent:planning-smoke
 npm run agent:followup-smoke
 npm run student:followup-ui-smoke
+npm run assessment:availability-smoke
+npm run workflow:automation-smoke
+npm run workflow:worker-smoke
 npm run typecheck
 npm run lint
 npm run build
 npm run dev
 ```
+
+Async workflow commands:
+
+```bash
+npm run workflow:drain-once
+npm run workflow:worker
+```
+
+`workflow:drain-once` is useful for local tests. `workflow:worker` is the continuous local worker for automatic sessions.
 
 Auth sanity checks after `npm run dev`:
 

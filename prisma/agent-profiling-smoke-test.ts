@@ -112,6 +112,12 @@ async function cleanup(prefix: string, fixture?: Fixture) {
     await prisma.responsePackage.deleteMany({
       where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
     });
+    await prisma.workflowOverride.deleteMany({
+      where: { assessment_session_db_id: { in: sessionIds } }
+    });
+    await prisma.workflowJob.deleteMany({
+      where: { assessment_session_db_id: { in: sessionIds } }
+    });
     await prisma.agentCall.deleteMany({
       where: { assessment_session_db_id: { in: sessionIds } }
     });

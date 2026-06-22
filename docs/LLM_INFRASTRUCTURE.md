@@ -146,6 +146,8 @@ Phase 6C Formative Value and Planning Agent calls also attach to the relevant as
 
 Phase 6D1 Follow-up Agent calls attach to the relevant assessment session, concept-unit session, and follow-up round. Mock follow-up outputs are infrastructure-testing fixtures, not validated formative guidance.
 
+Phase 6D2A automatic workflow jobs call the same profiling, planning, and follow-up services asynchronously when a session snapshot is `automatic`. They do not bypass provider readiness, usage guards, schema validation, semantic validation, prompt/version audit logging, or mock-mode defaults.
+
 ## Teacher Status Surface
 
 Teacher-only API:
@@ -187,6 +189,8 @@ npm run agent:profiling-smoke
 npm run agent:planning-smoke
 npm run agent:followup-smoke
 npm run student:followup-ui-smoke
+npm run workflow:automation-smoke
+npm run workflow:worker-smoke
 ```
 
 These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, Formative Planning Agent integration, Follow-up Agent integration, idempotency, usage-blocked behavior, and the absence of Phase 6D2 profile-update or replanning side effects. They do not call OpenAI.

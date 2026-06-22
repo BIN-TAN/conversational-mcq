@@ -69,6 +69,10 @@ const serverEnvSchema = z.object({
   OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP: optionalPositiveInt,
   OPENAI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
   OPENAI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  COURSE_TIMEZONE: z
+    .string()
+    .default("America/Edmonton")
+    .refine(isValidTimeZone, "COURSE_TIMEZONE must be a valid IANA timezone"),
   LLM_DAILY_CLASS_CALL_LIMIT: positiveIntWithDefault(200),
   LLM_DAILY_CLASS_TOKEN_LIMIT: positiveIntWithDefault(500_000),
   LLM_DAILY_STUDENT_CALL_LIMIT: positiveIntWithDefault(25),
@@ -84,7 +88,12 @@ const serverEnvSchema = z.object({
     .refine(isValidTimeZone, "LLM_USAGE_TIMEZONE must be a valid IANA timezone"),
   FOLLOWUP_CONTEXT_MAX_TURNS: positiveIntWithDefault(24),
   FOLLOWUP_MESSAGE_MAX_CHARS: positiveIntWithDefault(6000),
-  FOLLOWUP_CONTEXT_MAX_CHARS: positiveIntWithDefault(50000)
+  FOLLOWUP_CONTEXT_MAX_CHARS: positiveIntWithDefault(50000),
+  WORKFLOW_JOB_MAX_ATTEMPTS: positiveIntWithDefault(3),
+  WORKFLOW_JOB_BASE_RETRY_MS: positiveIntWithDefault(5000),
+  WORKFLOW_JOB_MAX_RETRY_MS: positiveIntWithDefault(300000),
+  WORKFLOW_JOB_LEASE_TIMEOUT_MS: positiveIntWithDefault(300000),
+  WORKFLOW_JOB_POLL_INTERVAL_MS: positiveIntWithDefault(2000)
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

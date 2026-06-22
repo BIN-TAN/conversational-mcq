@@ -21,6 +21,10 @@ All routes require `teacher_researcher` authentication. Student users are redire
 - `POST /api/teacher/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]/run-profiling`
 - `POST /api/teacher/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]/run-planning`
 - `POST /api/teacher/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]/start-followup`
+- `POST /api/teacher/sessions/[sessionPublicId]/automation/pause`
+- `POST /api/teacher/sessions/[sessionPublicId]/automation/resume`
+- `POST /api/teacher/sessions/[sessionPublicId]/automation/retry`
+- `POST /api/teacher/sessions/[sessionPublicId]/automation/stop-followup`
 
 Normal API responses use public IDs such as `session_public_id`, `assessment_public_id`, `concept_unit_public_id`, `item_public_id`, and `users.user_id`. Internal UUIDs, password hashes, access-code hashes, cookies, auth tokens, and environment values are not returned.
 
@@ -38,6 +42,8 @@ The session list supports:
 
 Rows show student `user_id`, assessment title, attempt number, status, current phase, concept-unit progress, item-response count, activity timestamps, needs-review state, and a View session action. The list does not rank students or label ability.
 
+Phase 6D2A rows also show workflow mode snapshot, automation state, pending workflow-job count, and failed workflow-job count.
+
 ## Session Detail
 
 The detail view has tabs for:
@@ -50,6 +56,8 @@ The detail view has tabs for:
 - Future agent data
 
 The overview shows public session ID, student `user_id`, assessment title, attempt number, status, phase, timestamps, current concept unit, concept-unit progress, item-response count, content lock state, response-package count, and needs-review state.
+
+Phase 6D2A overview also shows automatic workflow state, workflow-job summaries, append-only override history, and teacher exception controls. Manual-review sessions keep the existing manual profiling/planning/follow-up buttons. Automatic sessions normally hide those manual buttons and instead offer pause, resume, retry current step, or stop follow-up when the session state allows it.
 
 ## Item Responses
 

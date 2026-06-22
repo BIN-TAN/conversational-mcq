@@ -81,6 +81,12 @@ POST /api/teacher/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]
 
 The route uses public IDs, requires `teacher_researcher`, rejects students with 403, and returns only public-safe profile summaries. It does not expose hidden prompts, provider secrets, internal UUIDs, or raw environment values.
 
+## Automatic Workflow
+
+Phase 6D2A may run the same profiling service from a backend workflow job when the session's `workflow_mode_snapshot` is `automatic`. The job starts only after initial concept-unit administration and an `initial_concept_unit_response_package` exist. It uses the same schema validation, usage guard, idempotency, persistence, and audit logging as the manual trigger.
+
+Automatic profiling success enqueues formative planning. Failure does not fabricate a profile and may mark the automatic workflow for teacher review.
+
 ## Student UI
 
 Students do not see profile labels or correctness. After profiling completes and before planning completes, the student UI shows only neutral progress copy. After Phase 6C planning completes, students still do not see profile or planning labels. Before Phase 6D1 follow-up starts, the student UI may show:

@@ -223,3 +223,13 @@ npm run content:governance-smoke
 ```
 
 The governance smoke test verifies teacher-defined concept names, more than 4 draft candidate items, teacher-selected included item membership, assessment publication requiring an actually published concept unit, return-to-draft before sessions, lock-after-session behavior, archive restrictions, whole-assessment archive after locking, and cleanup of temporary records. It makes no OpenAI calls.
+
+## Phase 6D2A Assessment Controls
+
+Assessment content remains governed by the existing lock rules after student sessions begin. Phase 6D2A adds separate assessment-level controls that may be edited without changing administered content:
+
+- workflow mode: `automatic` or `manual_review`
+- release date/time in the configured course timezone
+- closing date/time in the configured course timezone
+
+Changing workflow mode affects future sessions only because each session stores `workflow_mode_snapshot` at creation. Changing release/close dates affects new starts only; existing sessions may resume.

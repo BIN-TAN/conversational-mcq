@@ -1,5 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { deriveAutomationState } from "@/lib/workflow/automation";
+import { serializeWorkflowJob } from "@/lib/workflow/jobs";
 import type { SessionListQuery } from "./filters";
 import { serializeDate } from "./serializers";
 
@@ -38,6 +40,9 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
       attempt_number: true,
       status: true,
       current_phase: true,
+      workflow_mode_snapshot: true,
+      automation_paused_at: true,
+      automation_exception_reason: true,
       needs_review: true,
       needs_review_reason: true,
       started_at: true,
@@ -63,6 +68,10 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
         select: {
           title: true
         }
+      },
+      workflow_jobs: {
+        orderBy: [{ created_at: "desc" }],
+        take: 5
       }
     }
   });
@@ -128,6 +137,18 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
         attempt_number: session.attempt_number,
         session_status: session.status,
         current_phase: session.current_phase,
+        workflow_mode_snapshot: session.workflow_mode_snapshot,
+        automation_state: deriveAutomationState({
+          workflow_mode_snapshot: session.workflow_mode_snapshot,
+          current_phase: session.current_phase,
+          automation_paused_at: session.automation_paused_at,
+          automation_exception_reason: session.automation_exception_reason,
+          workflow_jobs: session.workflow_jobs.map(serializeWorkflowJob)
+        }),
+        failed_workflow_job_count: session.workflow_jobs.filter((job) => job.status === "failed").length,
+        pending_workflow_job_count: session.workflow_jobs.filter((job) =>
+          ["pending", "running", "retryable"].includes(job.status)
+        ).length,
         needs_review: session.needs_review,
         needs_review_reason: session.needs_review_reason,
         started_at: serializeDate(session.started_at),

@@ -132,6 +132,15 @@ These are technical defaults, not psychological thresholds. The UI does not log 
 
 After initial concept-unit completion, the UI shows a neutral awaiting-analysis state. It does not fabricate ability, engagement, integrated diagnostic, evidence-sufficiency, confidence-alignment, formative-value, or follow-up content.
 
+In Phase 6D2A automatic sessions, the same student page may show neutral asynchronous workflow states:
+
+- profiling preparation: progress saved and reviewing initial responses
+- planning preparation: progress saved and preparing the next support step
+- follow-up opening preparation: progress saved and preparing the follow-up conversation
+- workflow failure: progress saved and the system is having trouble preparing the next step
+
+These states do not show workflow job names, provider names, model names, token or cost details, profile labels, formative values, correctness, or internal error details.
+
 After Phase 6B profiling completes, the same student-safe interaction state shows:
 
 ```text

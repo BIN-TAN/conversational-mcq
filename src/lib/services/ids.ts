@@ -7,7 +7,9 @@ export type PublicIdKind =
   | "session"
   | "summative_outcome"
   | "summative_import_batch"
-  | "export";
+  | "export"
+  | "workflow_job"
+  | "workflow_override";
 
 const prefixes: Record<PublicIdKind, string> = {
   assessment: "asmt",
@@ -16,7 +18,9 @@ const prefixes: Record<PublicIdKind, string> = {
   session: "sess",
   summative_outcome: "outcome",
   summative_import_batch: "sib",
-  export: "export"
+  export: "export",
+  workflow_job: "wfjob",
+  workflow_override: "wfo"
 };
 
 function utcDateStamp(date = new Date()): string {

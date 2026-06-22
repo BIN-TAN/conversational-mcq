@@ -13,6 +13,10 @@ export type SessionListRow = {
   attempt_number: number;
   session_status: string;
   current_phase: string;
+  workflow_mode_snapshot: string;
+  automation_state: string;
+  failed_workflow_job_count: number;
+  pending_workflow_job_count: number;
   needs_review: boolean;
   needs_review_reason: string | null;
   started_at: string | null;
@@ -46,6 +50,10 @@ export type SessionDetailResponse = {
     attempt_number: number;
     status: string;
     current_phase: string;
+    workflow_mode_snapshot: string;
+    automation_state: string;
+    automation_paused_at: string | null;
+    automation_exception_reason: string | null;
     needs_review: boolean;
     needs_review_reason: string | null;
     started_at: string | null;
@@ -66,6 +74,34 @@ export type SessionDetailResponse = {
       content_lock_reason: string | null;
       has_student_sessions: boolean;
     };
+  };
+  automation: {
+    workflow_mode_snapshot: string;
+    automation_state: string;
+    automation_paused_at: string | null;
+    automation_exception_reason: string | null;
+    workflow_jobs: Array<{
+      job_public_id: string;
+      job_type: string;
+      status: string;
+      attempt_count: number;
+      max_attempts: number;
+      run_after: string;
+      last_error_category: string | null;
+      last_error_message: string | null;
+      created_at: string;
+      completed_at: string | null;
+    }>;
+    workflow_overrides: Array<{
+      override_public_id: string;
+      action_type: string;
+      reason: string | null;
+      created_at: string | null;
+    }>;
+    can_pause: boolean;
+    can_resume: boolean;
+    can_retry_current_step: boolean;
+    can_stop_followup: boolean;
   };
   current_concept_unit: {
     concept_unit_public_id: string;

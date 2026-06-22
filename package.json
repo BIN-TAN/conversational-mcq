@@ -36,6 +36,11 @@
     "agent:planning-smoke": "tsx prisma/agent-planning-smoke-test.ts",
     "agent:followup-smoke": "tsx prisma/agent-followup-smoke-test.ts",
     "student:followup-ui-smoke": "tsx prisma/student-followup-ui-smoke-test.ts",
+    "assessment:availability-smoke": "tsx prisma/assessment-availability-smoke-test.ts",
+    "workflow:automation-smoke": "tsx prisma/workflow-automation-smoke-test.ts",
+    "workflow:worker-smoke": "tsx prisma/workflow-worker-smoke-test.ts",
+    "workflow:worker": "tsx prisma/workflow-worker.ts",
+    "workflow:drain-once": "tsx prisma/workflow-drain-once.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts"

@@ -79,6 +79,7 @@ The status surface shows provider readiness, model readiness, current usage coun
 ```bash
 npm run llm:usage-smoke
 npm run llm:status-smoke
+npm run workflow:automation-smoke
 ```
 
-Both tests run without OpenAI network calls.
+These tests run without OpenAI network calls. The workflow smoke verifies automatic jobs use the same usage-guarded agent services in mock mode.

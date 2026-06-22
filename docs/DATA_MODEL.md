@@ -35,6 +35,8 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `summative_outcomes`: Audited linkage to supervised summative assessment scores by `users.user_id`, with active/superseded revisions.
 - `summative_outcome_import_batches`: Audited preview/commit batches for teacher_researcher CSV imports.
 - `export_jobs`: Teacher_researcher master CSV export job tracking with public export IDs and local storage keys.
+- `workflow_jobs`: Phase 6D2A Postgres-backed asynchronous jobs for automatic profiling, planning, and first follow-up startup.
+- `workflow_overrides`: Append-only teacher_researcher exception controls for automatic sessions.
 
 ## Key Relations
 
@@ -54,6 +56,11 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `summative_outcomes.import_batch_db_id -> summative_outcome_import_batches.id` when created from an import batch.
 - `summative_outcome_import_batches.uploaded_by_user_db_id -> users.id`.
 - `export_jobs.requested_by_user_db_id -> users.id`.
+- `workflow_jobs.assessment_session_db_id -> assessment_sessions.id`.
+- `workflow_jobs.concept_unit_session_db_id -> concept_unit_sessions.id` when the job is scoped to a concept unit.
+- `workflow_overrides.assessment_session_db_id -> assessment_sessions.id`.
+- `workflow_overrides.concept_unit_session_db_id -> concept_unit_sessions.id` when scoped to a concept unit.
+- `workflow_overrides.created_by_user_db_id -> users.id`.
 
 ## Uniqueness Constraints
 
@@ -70,6 +77,9 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `summative_outcomes`: active records are logically unique by `user_db_id + outcome_name + assessment_date`; older versions are preserved as `superseded`.
 - `summative_outcome_import_batches.batch_public_id`: unique public import-batch identifier.
 - `export_jobs.export_public_id`: unique public export-job identifier.
+- `workflow_jobs.job_public_id`: unique public workflow-job identifier.
+- `workflow_jobs.idempotency_key`: unique logical job key so the same automatic step does not execute successfully twice.
+- `workflow_overrides.override_public_id`: unique public override identifier.
 
 The schema intentionally avoids constraints that would prevent future legitimate reassessment attempts across different assessment sessions.
 
@@ -90,6 +100,34 @@ The schema indexes:
 - Summative outcomes by user and assessment date.
 - Summative outcome import batches by uploader and status.
 - Export jobs by requester, status, and expiration.
+- Workflow jobs by status/run-after time, session/status, concept-unit/status, and lock time.
+- Workflow overrides by session, concept-unit, action type, and creation time.
+
+## Phase 6D2A Assessment Availability And Workflow
+
+`assessments` adds:
+
+- `workflow_mode`: `manual_review` or `automatic`; existing assessments are backfilled to `manual_review`, while new assessments default to `automatic`.
+- `release_at`: nullable UTC timestamp. Null means available immediately after publishing.
+- `close_at`: nullable UTC timestamp. Null means no closing date.
+
+`assessment_sessions` adds:
+
+- `workflow_mode_snapshot`: copied from the assessment when the session starts, so later assessment changes affect only future sessions.
+- `automation_paused_at`: nullable pause marker for automatic sessions.
+- `automation_exception_reason`: sanitized reason for blocked automatic workflow state.
+
+Release/close windows control new starts only. Existing sessions may resume after release/close changes and after the closing date. Closing does not submit, expire, or invalidate a session.
+
+`workflow_jobs` stores asynchronous automatic steps:
+
+- `run_initial_profiling`
+- `run_initial_planning`
+- `start_initial_followup`
+
+Job statuses are `pending`, `running`, `retryable`, `completed`, `failed`, and `cancelled`. Jobs store attempt counts, max attempts, run-after time, lock metadata, sanitized error details, and public IDs. Job payloads must not store secrets.
+
+`workflow_overrides` is append-only. Approved Phase 6D2A action types are `pause_automation`, `resume_automation`, `retry_current_step`, and `stop_followup`.
 
 ## Deletion Behavior
 

@@ -3,6 +3,10 @@ import { Prisma, type AssessmentPhase, type Item, type ItemResponse } from "@pri
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { ConfidenceLevelSchema, ProcessEventTypeSchema } from "@/lib/domain/enums";
+import {
+  assessmentHasValidPublishedContent,
+  computeAssessmentAvailability
+} from "@/lib/services/assessment-availability/availability";
 import { toPrismaJson } from "@/lib/services/json";
 import { generatePublicId } from "@/lib/services/ids";
 import { logConversationTurn } from "@/lib/services/conversation-turns";
@@ -11,6 +15,7 @@ import { logProcessEvent } from "@/lib/services/process-events";
 import { updateAssessmentSessionPhase, markSessionExited } from "@/lib/services/session-state";
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { INCLUDED_ITEM_RANGE } from "@/lib/services/content/governance";
+import { enqueueInitialProfilingJobIfAutomatic } from "@/lib/workflow/automation";
 import {
   assertStudentPayloadIsSafe,
   serializeStudentAssessment,
@@ -34,6 +39,10 @@ export const InitialAdministrationStep = z.enum([
   "item_complete",
   "initial_concept_unit_complete",
   "awaiting_profiling",
+  "automatic_profiling_pending",
+  "automatic_planning_pending",
+  "automatic_followup_opening_pending",
+  "automatic_workflow_failed",
   "followup_active",
   "followup_stopped"
 ]);
@@ -337,25 +346,24 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
 
 export async function listAvailableAssessments(input: { student_user_db_id: string }) {
   const assessments = await prisma.assessment.findMany({
-    where: { status: "published" },
+    where: { status: { in: ["published", "archived"] } },
     orderBy: [{ created_at: "desc" }],
     select: {
       id: true,
       assessment_public_id: true,
       title: true,
-      description: true
+      description: true,
+      status: true,
+      release_at: true,
+      close_at: true
     }
   });
   const availability = [];
 
   for (const assessment of assessments) {
-    try {
-      await prisma.$transaction(async (tx) => {
-        await validPublishedConceptUnits(tx, assessment.id);
-      });
-    } catch {
-      continue;
-    }
+    const hasValidContent = await prisma.$transaction((tx) =>
+      assessmentHasValidPublishedContent(tx, assessment.id)
+    );
 
     const existingSession = await prisma.assessmentSession.findUnique({
       where: {
@@ -376,18 +384,28 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       existingSession?.status === "completed" ||
       existingSession?.current_phase === "session_completed" ||
       Boolean(existingSession?.completed_at);
+    const computed = computeAssessmentAvailability({
+      assessment,
+      has_valid_content: hasValidContent,
+      existing_session: existingSession
+    });
 
     availability.push({
       ...serializeStudentAssessment(assessment),
+      availability_state: computed.availability_state,
+      release_at_course_time: computed.release_at_course_time,
+      close_at_course_time: computed.close_at_course_time,
+      course_timezone: computed.course_timezone,
+      student_safe_availability_message: computed.student_safe_availability_message,
       availability_status: completed
         ? "completed"
         : existingSession
           ? "resume_available"
-          : "available",
+          : computed.availability_state,
       existing_session_public_id: existingSession?.session_public_id ?? null,
       existing_session_status: existingSession?.status ?? null,
-      can_start: !existingSession,
-      can_resume: Boolean(existingSession && !completed)
+      can_start: computed.can_start_new_session,
+      can_resume: Boolean(existingSession && !completed && computed.can_resume_existing_session)
     });
   }
 
@@ -414,7 +432,10 @@ export async function startOrResumeStudentAssessmentSession(input: {
               assessment_public_id: true,
               title: true,
               description: true,
-              status: true
+              status: true,
+              workflow_mode: true,
+              release_at: true,
+              close_at: true
             }
           });
 
@@ -422,26 +443,6 @@ export async function startOrResumeStudentAssessmentSession(input: {
             throw new StudentAssessmentServiceError("not_found", "Assessment was not found.", 404);
           }
 
-          if (assessment.status === "archived") {
-            throw new StudentAssessmentServiceError(
-              "assessment_archived",
-              "Archived assessments are not available.",
-              409,
-              { assessment_public_id: assessment.assessment_public_id }
-            );
-          }
-
-          if (assessment.status !== "published") {
-            throw new StudentAssessmentServiceError(
-              "assessment_not_published",
-              "Assessment is not published.",
-              409,
-              { assessment_public_id: assessment.assessment_public_id }
-            );
-          }
-
-          const conceptUnits = await validPublishedConceptUnits(tx, assessment.id);
-          const firstConceptUnit = conceptUnits[0];
           const now = new Date();
           const existing = await tx.assessmentSession.findUnique({
             where: {
@@ -476,6 +477,21 @@ export async function startOrResumeStudentAssessmentSession(input: {
               );
             }
 
+            const conceptUnits = existing.current_concept_unit_db_id
+              ? []
+              : await validPublishedConceptUnits(tx, assessment.id);
+            const fallbackConceptUnitId =
+              existing.current_concept_unit_db_id ?? conceptUnits[0]?.id;
+
+            if (!fallbackConceptUnitId) {
+              throw new StudentAssessmentServiceError(
+                "current_concept_unit_unavailable",
+                "The existing session cannot be resumed because its current concept unit is unavailable.",
+                409,
+                { session_public_id: existing.session_public_id }
+              );
+            }
+
             const resumePhase =
               existing.current_phase === "student_exited" && existing.resume_phase
                 ? existing.resume_phase
@@ -488,8 +504,7 @@ export async function startOrResumeStudentAssessmentSession(input: {
                 current_phase: resumePhase,
                 resume_phase: null,
                 resume_context: Prisma.JsonNull,
-                current_concept_unit_db_id:
-                  existing.current_concept_unit_db_id ?? firstConceptUnit.id,
+                current_concept_unit_db_id: fallbackConceptUnitId,
                 last_activity_at: now
               },
               select: { id: true, session_public_id: true }
@@ -499,13 +514,13 @@ export async function startOrResumeStudentAssessmentSession(input: {
               where: {
                 assessment_session_db_id_concept_unit_db_id: {
                   assessment_session_db_id: resumed.id,
-                  concept_unit_db_id: existing.current_concept_unit_db_id ?? firstConceptUnit.id
+                  concept_unit_db_id: fallbackConceptUnitId
                 }
               },
               update: {},
               create: {
                 assessment_session_db_id: resumed.id,
-                concept_unit_db_id: existing.current_concept_unit_db_id ?? firstConceptUnit.id,
+                concept_unit_db_id: fallbackConceptUnitId,
                 status: "initial_in_progress",
                 initial_started_at: now
               }
@@ -526,6 +541,85 @@ export async function startOrResumeStudentAssessmentSession(input: {
             return resumed;
           }
 
+          if (assessment.status === "archived") {
+            throw new StudentAssessmentServiceError(
+              "assessment_archived",
+              "Archived assessments are not available for new starts.",
+              409,
+              { assessment_public_id: assessment.assessment_public_id }
+            );
+          }
+
+          if (assessment.status !== "published") {
+            throw new StudentAssessmentServiceError(
+              "assessment_not_published",
+              "Assessment is not published.",
+              409,
+              { assessment_public_id: assessment.assessment_public_id }
+            );
+          }
+
+          if (
+            assessment.release_at &&
+            assessment.close_at &&
+            assessment.close_at <= assessment.release_at
+          ) {
+            throw new StudentAssessmentServiceError(
+              "invalid_assessment_availability_window",
+              "Assessment availability window is invalid.",
+              409,
+              { assessment_public_id: assessment.assessment_public_id }
+            );
+          }
+
+          const hasValidContent = await assessmentHasValidPublishedContent(tx, assessment.id);
+          const computedAvailability = computeAssessmentAvailability({
+            assessment,
+            has_valid_content: hasValidContent,
+            now
+          });
+
+          if (computedAvailability.availability_state === "not_released") {
+            throw new StudentAssessmentServiceError(
+              "assessment_not_released",
+              "Assessment is not released yet.",
+              409,
+              {
+                assessment_public_id: assessment.assessment_public_id,
+                release_at_course_time: computedAvailability.release_at_course_time,
+                course_timezone: computedAvailability.course_timezone
+              }
+            );
+          }
+
+          if (computedAvailability.availability_state === "closed_to_new_starts") {
+            throw new StudentAssessmentServiceError(
+              "assessment_closed_to_new_starts",
+              "Assessment is closed to new starts.",
+              409,
+              {
+                assessment_public_id: assessment.assessment_public_id,
+                close_at_course_time: computedAvailability.close_at_course_time,
+                course_timezone: computedAvailability.course_timezone
+              }
+            );
+          }
+
+          if (!computedAvailability.can_start_new_session) {
+            throw new StudentAssessmentServiceError(
+              "assessment_not_available",
+              "Assessment is not available for new starts.",
+              409,
+              {
+                assessment_public_id: assessment.assessment_public_id,
+                availability_state: computedAvailability.availability_state
+              }
+            );
+          }
+
+          const conceptUnits = await validPublishedConceptUnits(tx, assessment.id);
+          const firstConceptUnit = conceptUnits[0];
+
           const session = await tx.assessmentSession.create({
             data: {
               session_public_id: generatePublicId("session"),
@@ -534,6 +628,7 @@ export async function startOrResumeStudentAssessmentSession(input: {
               attempt_number: DEFAULT_ATTEMPT_NUMBER,
               status: "active",
               current_phase: "concept_unit_intro",
+              workflow_mode_snapshot: assessment.workflow_mode,
               current_concept_unit_db_id: firstConceptUnit.id,
               started_at: now,
               last_activity_at: now
@@ -725,11 +820,42 @@ export async function getStudentSessionState(input: {
   const currentResponse = currentItem ? responsesByItemId.get(currentItem.id) ?? null : null;
   const missingEvidence = responseMissingFields(currentResponse);
   let nextStep: InitialAdministrationStep = "concept_unit_intro";
+  const automaticJobs =
+    session.workflow_mode_snapshot === "automatic"
+      ? await prisma.workflowJob.findMany({
+          where: { assessment_session_db_id: session.id },
+          select: {
+            status: true,
+            job_type: true
+          }
+        })
+      : [];
+  const automaticWorkflowFailed =
+    session.workflow_mode_snapshot === "automatic" &&
+    (Boolean(session.automation_exception_reason) ||
+      automaticJobs.some((job) => job.status === "failed"));
 
   if (effectivePhase === "followup_active") {
     nextStep = "followup_active";
   } else if (effectivePhase === "followup_stopped") {
     nextStep = "followup_stopped";
+  } else if (automaticWorkflowFailed) {
+    nextStep = "automatic_workflow_failed";
+  } else if (
+    session.workflow_mode_snapshot === "automatic" &&
+    (effectivePhase === "profiling_pending" || effectivePhase === "initial_concept_unit_completed")
+  ) {
+    nextStep = "automatic_profiling_pending";
+  } else if (
+    session.workflow_mode_snapshot === "automatic" &&
+    (effectivePhase === "profiling_completed" || effectivePhase === "planning_pending")
+  ) {
+    nextStep = "automatic_planning_pending";
+  } else if (
+    session.workflow_mode_snapshot === "automatic" &&
+    effectivePhase === "planning_completed"
+  ) {
+    nextStep = "automatic_followup_opening_pending";
   } else if (
     effectivePhase === "profiling_pending" ||
     effectivePhase === "initial_concept_unit_completed" ||
@@ -1573,6 +1699,7 @@ export async function completeInitialConceptUnitAdministration(input: {
     if (!existingPackage) {
       await createResponsePackage({ concept_unit_session_db_id: conceptUnitSession.id });
     }
+    await enqueueInitialProfilingJobIfAutomatic(conceptUnitSession.id);
 
     return {
       completion_status: "already_completed",
@@ -1647,6 +1774,7 @@ export async function completeInitialConceptUnitAdministration(input: {
   if (!existingPackage) {
     await createResponsePackage({ concept_unit_session_db_id: conceptUnitSession.id });
   }
+  await enqueueInitialProfilingJobIfAutomatic(conceptUnitSession.id);
 
   return {
     completion_status: "completed",

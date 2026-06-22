@@ -128,6 +128,12 @@ export async function cleanupTeacherReviewDemoFixture(prisma: PrismaClient) {
   await prisma.studentActionIdempotencyKey.deleteMany({
     where: { assessment_session_db_id: { in: sessionIds } }
   });
+  await prisma.agentCall.deleteMany({
+    where: { assessment_session_db_id: { in: sessionIds } }
+  });
+  await prisma.conversationTurn.deleteMany({
+    where: { assessment_session_db_id: { in: sessionIds } }
+  });
   await prisma.followupRound.deleteMany({
     where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
   });
@@ -139,6 +145,12 @@ export async function cleanupTeacherReviewDemoFixture(prisma: PrismaClient) {
   });
   await prisma.responsePackage.deleteMany({
     where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
+  });
+  await prisma.workflowOverride.deleteMany({
+    where: { assessment_session_db_id: { in: sessionIds } }
+  });
+  await prisma.workflowJob.deleteMany({
+    where: { assessment_session_db_id: { in: sessionIds } }
   });
   await prisma.agentCall.deleteMany({
     where: { assessment_session_db_id: { in: sessionIds } }

@@ -35,10 +35,14 @@ export function AssessmentDetailClient({
   const [assessment, setAssessment] = useState<AssessmentDetail | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [workflowMode, setWorkflowMode] = useState<"automatic" | "manual_review">("automatic");
+  const [releaseAt, setReleaseAt] = useState("");
+  const [closeAt, setCloseAt] = useState("");
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAvailabilitySubmitting, setIsAvailabilitySubmitting] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const loadAssessment = useCallback(async () => {
@@ -52,6 +56,9 @@ export function AssessmentDetailClient({
       setAssessment(data.assessment);
       setTitle(data.assessment.title);
       setDescription(data.assessment.description ?? "");
+      setWorkflowMode(data.assessment.workflow_mode);
+      setReleaseAt(data.assessment.release_at_course_time_input);
+      setCloseAt(data.assessment.close_at_course_time_input);
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
@@ -94,6 +101,44 @@ export function AssessmentDetailClient({
       setError(errorFromUnknown(caught));
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function saveAvailability(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setIsAvailabilitySubmitting(true);
+
+    try {
+      const data = await apiRequest<AssessmentDetailResponse>(
+        `/api/teacher/assessments/${assessmentPublicId}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            workflow_mode: workflowMode,
+            release_at_course_time: releaseAt || null,
+            close_at_course_time: closeAt || null
+          })
+        }
+      );
+      setAssessment((previous) =>
+        previous
+          ? {
+              ...previous,
+              ...data.assessment,
+              concept_units: previous.concept_units
+            }
+          : previous
+      );
+      setWorkflowMode(data.assessment.workflow_mode);
+      setReleaseAt(data.assessment.release_at_course_time_input);
+      setCloseAt(data.assessment.close_at_course_time_input);
+      setSuccess("Assessment availability and workflow saved.");
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
+    } finally {
+      setIsAvailabilitySubmitting(false);
     }
   }
 
@@ -310,6 +355,61 @@ export function AssessmentDetailClient({
               </div>
             </form>
 
+            <form className="rounded-lg border border-line bg-white p-5 shadow-soft" onSubmit={saveAvailability}>
+              <div>
+                <h2 className="text-xl font-semibold text-ink">Availability and workflow</h2>
+                <p className="mt-1 text-sm leading-6 text-muted">
+                  Release and closing dates control when new students may start. Students who already started may continue after the closing date.
+                </p>
+              </div>
+              <div className="mt-5 grid gap-4">
+                <Field label="Workflow mode">
+                  <select
+                    className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                    onChange={(event) =>
+                      setWorkflowMode(event.target.value as "automatic" | "manual_review")
+                    }
+                    value={workflowMode}
+                  >
+                    <option value="automatic">Automatic</option>
+                    <option value="manual_review">Manual review</option>
+                  </select>
+                </Field>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label={`Release date/time (${assessment.course_timezone})`}>
+                    <input
+                      className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                      onChange={(event) => setReleaseAt(event.target.value)}
+                      type="datetime-local"
+                      value={releaseAt}
+                    />
+                  </Field>
+                  <Field label={`Closing date/time (${assessment.course_timezone})`}>
+                    <input
+                      className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                      onChange={(event) => setCloseAt(event.target.value)}
+                      type="datetime-local"
+                      value={closeAt}
+                    />
+                  </Field>
+                </div>
+                <div className="rounded-md border border-line bg-slate-50 p-3 text-sm leading-6 text-muted">
+                  <p>
+                    Automatic: The system will automatically run profiling, formative planning, and follow-up startup after the student completes the initial item set.
+                  </p>
+                  <p className="mt-2">
+                    Manual review: The system will wait for the teacher/researcher to review and trigger each AI-supported step.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5">
+                <Button disabled={isAvailabilitySubmitting} type="submit">
+                  <Save className="h-4 w-4" aria-hidden="true" />
+                  {isAvailabilitySubmitting ? "Saving" : "Save availability"}
+                </Button>
+              </div>
+            </form>
+
             <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
               <div className="flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-center md:justify-between">
                 <div>
@@ -396,6 +496,24 @@ export function AssessmentDetailClient({
                 <div>
                   <dt className="text-muted">Concept units</dt>
                   <dd className="font-medium text-ink">{assessment.concept_unit_count ?? assessment.concept_units.length}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Workflow mode</dt>
+                  <dd className="font-medium text-ink">
+                    {assessment.workflow_mode === "automatic" ? "Automatic" : "Manual review"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Release</dt>
+                  <dd className="font-medium text-ink">
+                    {assessment.release_at_course_time ?? "Immediately after publishing"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Closing</dt>
+                  <dd className="font-medium text-ink">
+                    {assessment.close_at_course_time ?? "No closing date"}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-muted">Student sessions</dt>

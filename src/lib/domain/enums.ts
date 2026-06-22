@@ -6,6 +6,9 @@ export const UserRoleSchema = z.enum(userRoles);
 export const assessmentStatuses = ["draft", "published", "archived"] as const;
 export const AssessmentStatusSchema = z.enum(assessmentStatuses);
 
+export const assessmentWorkflowModes = ["manual_review", "automatic"] as const;
+export const AssessmentWorkflowModeSchema = z.enum(assessmentWorkflowModes);
+
 export const conceptUnitStatuses = ["draft", "published", "archived"] as const;
 export const ConceptUnitStatusSchema = z.enum(conceptUnitStatuses);
 
@@ -83,6 +86,42 @@ export const ActorTypeSchema = z.enum(actorTypes);
 export const eventSources = ["frontend", "backend", "agent", "system"] as const;
 export const EventSourceSchema = z.enum(eventSources);
 
+export const workflowJobTypes = [
+  "run_initial_profiling",
+  "run_initial_planning",
+  "start_initial_followup"
+] as const;
+export const WorkflowJobTypeSchema = z.enum(workflowJobTypes);
+
+export const workflowJobStatuses = [
+  "pending",
+  "running",
+  "retryable",
+  "completed",
+  "failed",
+  "cancelled"
+] as const;
+export const WorkflowJobStatusSchema = z.enum(workflowJobStatuses);
+
+export const workflowOverrideActionTypes = [
+  "pause_automation",
+  "resume_automation",
+  "retry_current_step",
+  "stop_followup"
+] as const;
+export const WorkflowOverrideActionTypeSchema = z.enum(workflowOverrideActionTypes);
+
+export const sessionAutomationStates = [
+  "manual",
+  "automatic_idle",
+  "automatic_processing",
+  "automatic_paused",
+  "automatic_failed",
+  "automatic_active_followup",
+  "automatic_completed_step"
+] as const;
+export const SessionAutomationStateSchema = z.enum(sessionAutomationStates);
+
 export const processEventTypes = [
   "session_started",
   "session_resumed",
@@ -129,6 +168,15 @@ export const processEventTypes = [
   "followup_task_assigned",
   "followup_evidence_triggered",
   "followup_stopped",
+  "workflow_job_enqueued",
+  "workflow_job_claimed",
+  "workflow_job_succeeded",
+  "workflow_job_failed",
+  "workflow_job_retry_scheduled",
+  "workflow_automation_paused",
+  "workflow_automation_resumed",
+  "workflow_retry_requested",
+  "workflow_followup_stop_requested",
   "move_next_requested",
   "export_requested",
   "export_completed",

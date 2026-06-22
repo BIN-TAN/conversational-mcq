@@ -224,6 +224,7 @@ export function TeacherSessionListClient() {
                   <th className="px-4 py-3">Attempt</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Phase</th>
+                  <th className="px-4 py-3">Automation</th>
                   <th className="px-4 py-3">Concept progress</th>
                   <th className="px-4 py-3">
                     <button
@@ -268,6 +269,17 @@ export function TeacherSessionListClient() {
                     </td>
                     <td className="px-4 py-3">
                       <StatusPill value={session.current_phase} tone="warn" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusPill value={session.automation_state} tone={session.automation_state === "automatic_failed" ? "bad" : "neutral"} />
+                      <p className="mt-1 text-xs text-muted">
+                        {session.workflow_mode_snapshot === "automatic" ? "Automatic" : "Manual review"}
+                      </p>
+                      {session.failed_workflow_job_count > 0 || session.pending_workflow_job_count > 0 ? (
+                        <p className="mt-1 text-xs text-muted">
+                          {session.pending_workflow_job_count} pending, {session.failed_workflow_job_count} failed
+                        </p>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-ink">

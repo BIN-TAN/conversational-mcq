@@ -5,3 +5,8 @@ export type PublicUser = {
   user_id: string;
   role: AppRole;
 };
+
+export type ClientUser = {
+  user_id: string;
+  role: AppRole;
+};

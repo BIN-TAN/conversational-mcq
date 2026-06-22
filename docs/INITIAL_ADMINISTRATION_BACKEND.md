@@ -135,7 +135,9 @@ Initial concept-unit completion uses:
 POST /api/student/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]/complete-initial
 ```
 
-Completion requires every published included item to have a finalized response or explicit skip. On success, the backend sets `initial_completed_at`, transitions through `initial_concept_unit_completed` to `profiling_pending`, creates exactly one `initial_concept_unit_response_package`, and returns `awaiting_profiling`.
+Completion requires every published included item to have a finalized response or explicit skip. On success, the backend sets `initial_completed_at`, transitions through `initial_concept_unit_completed` to `profiling_pending`, creates exactly one `initial_concept_unit_response_package`, and returns a student-safe awaiting state.
+
+In Phase 6D2A, if `assessment_sessions.workflow_mode_snapshot = automatic`, completion also enqueues the asynchronous `run_initial_profiling` workflow job. Manual-review sessions do not enqueue jobs and continue to wait for teacher-triggered profiling.
 
 The response package is backend/research data. It includes public assessment metadata, concept-unit metadata, included item metadata, item snapshots, selected options, backend correctness, reasoning, confidence, skipped flags, revision counts, timing, conversation turns, process events, and process-event aggregations. It is not returned to the student.
 
@@ -213,3 +215,9 @@ The review endpoint returns safe item stems, options, latest selected option, la
 The transcript endpoint returns student-authored transcript entries only, with safe message text, public item IDs where relevant, created time, and interaction type. It does not expose raw structured payloads, process-event payloads, agent/debug metadata, or teacher-only metadata.
 
 Phase 4B also refines explicit skip handling so skipping reasoning before confidence can save the skipped reasoning flag and continue to the confidence step rather than prematurely finalizing the full item. Whole-item skip and final missing-evidence confirmation still finalize through the submit endpoint.
+
+## Phase 6D2A Availability And Automatic Workflow
+
+New starts now check assessment release and closing dates in addition to publication and content validity. Existing sessions may resume after release/close changes and after the closing date. The backend does not implement countdowns, time limits, auto-submit, or session expiration.
+
+Automatic workflow jobs run after initial completion only when the session snapshot is `automatic`. The student browser does not execute profiling, planning, or follow-up startup.

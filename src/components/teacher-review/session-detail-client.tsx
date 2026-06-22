@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { BrainCircuit, ChevronLeft, Loader2, RefreshCw } from "lucide-react";
+import { BrainCircuit, ChevronLeft, Loader2, Octagon, Pause, Play, RefreshCw, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import {
   errorFromUnknown,
@@ -11,9 +11,13 @@ import {
   fetchResponsePackages,
   fetchSessionDetail,
   fetchTranscript,
+  pauseAutomation,
+  resumeAutomation,
+  retryAutomation,
   runFormativePlanning,
   runStudentProfiling,
-  startFollowup
+  startFollowup,
+  stopAutomationFollowup
 } from "./api";
 import type {
   ItemResponsesResponse,
@@ -84,7 +88,16 @@ const eventTypes = [
   "followup_turn_completed",
   "followup_task_assigned",
   "off_topic_followup",
-  "followup_stopped"
+  "followup_stopped",
+  "workflow_job_enqueued",
+  "workflow_job_claimed",
+  "workflow_job_succeeded",
+  "workflow_job_failed",
+  "workflow_job_retry_scheduled",
+  "workflow_automation_paused",
+  "workflow_automation_resumed",
+  "workflow_retry_requested",
+  "workflow_followup_stop_requested"
 ];
 
 type Tab = (typeof tabs)[number];
@@ -153,6 +166,11 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
   } | null>(null);
   const [followupAction, setFollowupAction] = useState<{
     concept_unit_public_id: string;
+    error: StructuredApiError | null;
+    status: string | null;
+  } | null>(null);
+  const [automationAction, setAutomationAction] = useState<{
+    action: string;
     error: StructuredApiError | null;
     status: string | null;
   } | null>(null);
@@ -293,6 +311,40 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
     }
   }
 
+  async function handleAutomationAction(action: "pause" | "resume" | "retry" | "stop_followup") {
+    setAutomationAction({
+      action,
+      error: null,
+      status: "running"
+    });
+
+    try {
+      const conceptUnitPublicId = detail?.current_concept_unit?.concept_unit_public_id;
+      const result =
+        action === "pause"
+          ? await pauseAutomation(sessionPublicId)
+          : action === "resume"
+            ? await resumeAutomation(sessionPublicId)
+            : action === "retry"
+              ? await retryAutomation(sessionPublicId)
+              : await stopAutomationFollowup(sessionPublicId, conceptUnitPublicId);
+
+      setAutomationAction({
+        action,
+        error: null,
+        status: result.result.status
+      });
+      await loadCore();
+      await loadProcessEvents();
+    } catch (requestError) {
+      setAutomationAction({
+        action,
+        error: errorFromUnknown(requestError),
+        status: null
+      });
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
@@ -355,7 +407,13 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
             ))}
           </div>
 
-          {activeTab === "overview" ? <Overview detail={detail} /> : null}
+          {activeTab === "overview" ? (
+            <Overview
+              automationAction={automationAction}
+              detail={detail}
+              onAutomationAction={handleAutomationAction}
+            />
+          ) : null}
           {activeTab === "item_responses" && itemResponses ? (
             <ItemResponsesSection data={itemResponses} />
           ) : null}
@@ -391,7 +449,15 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
   );
 }
 
-function Overview({ detail }: { detail: SessionDetailResponse }) {
+function Overview({
+  automationAction,
+  detail,
+  onAutomationAction
+}: {
+  automationAction: { action: string; error: StructuredApiError | null; status: string | null } | null;
+  detail: SessionDetailResponse;
+  onAutomationAction: (action: "pause" | "resume" | "retry" | "stop_followup") => void;
+}) {
   return (
     <section className="space-y-5">
       <div className="grid gap-3 md:grid-cols-3">
@@ -440,6 +506,130 @@ function Overview({ detail }: { detail: SessionDetailResponse }) {
         />
         <Fact labelText="Response packages" value={detail.summary.response_package_count} />
       </div>
+
+      <section className="rounded-lg border border-line bg-white p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="font-semibold text-ink">Automation</h3>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Automatic jobs prepare profiling, planning, and follow-up startup after the initial item set. Manual sessions keep teacher-triggered controls.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <StatusPill value={detail.automation.workflow_mode_snapshot} />
+            <StatusPill
+              value={detail.automation.automation_state}
+              tone={detail.automation.automation_state === "automatic_failed" ? "bad" : "neutral"}
+            />
+          </div>
+        </div>
+        {detail.automation.automation_exception_reason ? (
+          <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {detail.automation.automation_exception_reason}
+          </p>
+        ) : null}
+        <div className="mt-4 flex flex-wrap gap-2">
+          {detail.automation.can_pause ? (
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={automationAction?.action === "pause" && automationAction.status === "running"}
+              onClick={() => onAutomationAction("pause")}
+              type="button"
+            >
+              <Pause className="h-4 w-4" aria-hidden="true" />
+              Pause automation
+            </button>
+          ) : null}
+          {detail.automation.can_resume ? (
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={automationAction?.action === "resume" && automationAction.status === "running"}
+              onClick={() => onAutomationAction("resume")}
+              type="button"
+            >
+              <Play className="h-4 w-4" aria-hidden="true" />
+              Resume automation
+            </button>
+          ) : null}
+          {detail.automation.can_retry_current_step ? (
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={automationAction?.action === "retry" && automationAction.status === "running"}
+              onClick={() => onAutomationAction("retry")}
+              type="button"
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              Retry current step
+            </button>
+          ) : null}
+          {detail.automation.can_stop_followup ? (
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-900 transition hover:border-red-300 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={automationAction?.action === "stop_followup" && automationAction.status === "running"}
+              onClick={() => onAutomationAction("stop_followup")}
+              type="button"
+            >
+              <Octagon className="h-4 w-4" aria-hidden="true" />
+              Stop follow-up
+            </button>
+          ) : null}
+        </div>
+        {automationAction?.error ? (
+          <div className="mt-4">
+            <ErrorState error={automationAction.error} />
+          </div>
+        ) : null}
+        {automationAction?.status && automationAction.status !== "running" ? (
+          <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            Automation action: {label(automationAction.status)}
+          </p>
+        ) : null}
+        <div className="mt-5 grid gap-3 lg:grid-cols-2">
+          <div>
+            <h4 className="text-sm font-semibold text-ink">Workflow jobs</h4>
+            {detail.automation.workflow_jobs.length === 0 ? (
+              <p className="mt-2 text-sm text-muted">No workflow jobs recorded.</p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {detail.automation.workflow_jobs.map((job) => (
+                  <div className="rounded-md border border-line p-3 text-sm" key={job.job_public_id}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusPill value={job.status} tone={job.status === "failed" ? "bad" : "neutral"} />
+                      <span className="font-medium text-ink">{label(job.job_type)}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted">
+                      Attempts {job.attempt_count} / {job.max_attempts} · Run after {formatDate(job.run_after)}
+                    </p>
+                    {job.last_error_category ? (
+                      <p className="mt-1 text-xs text-muted">
+                        {job.last_error_category}: {job.last_error_message}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-ink">Overrides</h4>
+            {detail.automation.workflow_overrides.length === 0 ? (
+              <p className="mt-2 text-sm text-muted">No teacher overrides recorded.</p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {detail.automation.workflow_overrides.map((override) => (
+                  <div className="rounded-md border border-line p-3 text-sm" key={override.override_public_id}>
+                    <p className="font-medium text-ink">{label(override.action_type)}</p>
+                    <p className="mt-1 text-xs text-muted">{formatDate(override.created_at)}</p>
+                    {override.reason ? (
+                      <p className="mt-1 text-xs text-muted">{override.reason}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
       <section className="overflow-hidden rounded-lg border border-line bg-white">
         <div className="border-b border-line p-4">

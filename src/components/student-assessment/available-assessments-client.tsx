@@ -25,6 +25,14 @@ function availabilityLabel(assessment: AvailableAssessment) {
     return "Available";
   }
 
+  if (assessment.availability_state === "not_released") {
+    return "Not released";
+  }
+
+  if (assessment.availability_state === "closed_to_new_starts") {
+    return "Closed";
+  }
+
   return "Unavailable";
 }
 
@@ -189,6 +197,9 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                           Session status: {assessment.existing_session_status}
                         </p>
                       ) : null}
+                      <p className="mt-3 text-sm leading-6 text-muted">
+                        {assessment.student_safe_availability_message}
+                      </p>
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-2">
                       {assessment.can_start ? (

@@ -6,6 +6,12 @@ This document records the approved Phase 0 decisions that future implementation 
 
 The final Phase 0 patch is authoritative. If older planning notes conflict with this document, follow this document.
 
+## One-Course Deployment Rule
+
+The platform is deployed for one course at a time, but its assessment structures, orchestration, data model, and agent contracts are course-domain agnostic. Teachers define the concepts, learning objectives, items, reasoning expectations, and misconception indicators used in each deployment.
+
+There is no `courses` table in v1. A deployment instance represents one course context. Code and prompts must avoid hardcoded domain assumptions.
+
 ## Identity And Foreign Keys
 
 - `users.id` is the internal UUID primary key.
@@ -30,6 +36,7 @@ The final Phase 0 patch is authoritative. If older planning notes conflict with 
 - Phase 6A defaults to `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`.
 - Live OpenAI calls require an explicit server-side environment gate, a configured API key, and environment-configured model names.
 - The OpenAI API key must never be exposed to the browser or committed to source control.
+- Phase 6D2A automatic workflow jobs must respect the same server-side live-call gates and usage guards as manual agent triggers.
 
 ## Agent Schema Rules
 
@@ -190,6 +197,28 @@ After the first student session exists, assessment metadata, concept-unit member
 Process data and session existence are used for content-lock state and engagement/evidence context. They are not misconduct labels.
 
 Future Phase 4 session start must atomically verify that the assessment is published, not archived, has at least one valid published concept unit, and has structurally valid published concept units; then it must create the student session and establish the content lock without allowing a teacher edit race.
+
+## Phase 6D2A Availability And Automatic Workflow
+
+- `COURSE_TIMEZONE` defaults to `America/Edmonton` and must be a valid IANA timezone.
+- Database timestamps remain UTC `TIMESTAMPTZ`.
+- Teacher release/close inputs are interpreted in the course timezone.
+- Student availability messages display course-local date/time.
+- Release and close fields control new starts only. Existing sessions may resume after release/close changes and after the closing date.
+- `release_at = null` means available immediately after publishing.
+- `close_at = null` means no closing date.
+- `close_at` must be after `release_at` when both are present.
+- v1 availability policy is `block_new_starts_allow_resume`; there is no countdown, time limit, forced submit, or auto-expiration.
+- `assessment.workflow_mode` controls future sessions only.
+- Existing sessions store `assessment_sessions.workflow_mode_snapshot`.
+- Existing records before Phase 6D2A are backfilled to `manual_review`; newly created assessments default to `automatic`.
+- Manual-review sessions keep teacher-triggered profiling, planning, and follow-up startup controls.
+- Automatic sessions enqueue DB-backed workflow jobs after initial concept-unit completion: `run_initial_profiling`, `run_initial_planning`, then `start_initial_followup`.
+- Workflow jobs are asynchronous and must not depend on the teacher dashboard or student browser staying open.
+- Workflow overrides are append-only and may pause automation, resume automation, retry the current failed step, or stop follow-up.
+- Automatic workflow must not implement follow-up profile updating, replanning after follow-up messages, second follow-up rounds, or next-concept progression in Phase 6D2A.
+- Student-facing automation states must remain neutral and must not show job names, provider names, model names, profile labels, formative values, correctness, or internal errors.
+- Workflow failures preserve saved initial responses, response packages, profiles, decisions, and follow-up records; they do not fabricate replacement agent output.
 
 ## Phase 4A Initial Administration Backend
 

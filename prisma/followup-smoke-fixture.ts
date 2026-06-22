@@ -117,6 +117,12 @@ export async function cleanupFollowupSmoke(prisma: PrismaClient, prefix: string)
         latest_formative_decision_db_id: null
       }
     });
+    await prisma.workflowOverride.deleteMany({
+      where: { assessment_session_db_id: { in: sessionIds } }
+    });
+    await prisma.workflowJob.deleteMany({
+      where: { assessment_session_db_id: { in: sessionIds } }
+    });
     await prisma.studentActionIdempotencyKey.deleteMany({
       where: { assessment_session_db_id: { in: sessionIds } }
     });

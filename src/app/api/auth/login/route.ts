@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createSessionToken, setSessionCookie, toPublicUser } from "@/lib/auth";
+import { createSessionToken, setSessionCookie, toClientUser, toPublicUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError } from "@/lib/http";
 import { verifySecret } from "@/lib/password";
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     }
 
     const publicUser = toPublicUser(user);
-    const response = NextResponse.json({ user: publicUser });
+    const response = NextResponse.json({ user: toClientUser(publicUser) });
     setSessionCookie(response, createSessionToken(publicUser));
 
     return response;

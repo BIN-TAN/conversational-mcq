@@ -35,6 +35,8 @@ The UI does not send keystrokes. It sends only an intentional submitted message 
 
 The UI does not show profile labels, formative labels, evidence-sufficiency labels, independence labels, correctness, correct answers, model names, prompt details, or teacher-only diagnostic metadata.
 
+In Phase 6D2A automatic sessions, the follow-up opening may be prepared asynchronously after planning completes. While the opening is being prepared, the student sees only neutral saved-progress copy and may leave or return later. The browser does not run workflow jobs.
+
 ## Initial Response Locking
 
 Initial item responses remain locked during follow-up. Follow-up messages are appended to `conversation_turns` with `followup_round_db_id`; they do not overwrite `item_responses`.

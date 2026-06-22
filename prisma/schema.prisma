@@ -18,6 +18,11 @@ enum AssessmentStatus {
   archived
 }
 
+enum AssessmentWorkflowMode {
+  manual_review
+  automatic
+}
+
 enum ConceptUnitStatus {
   draft
   published
@@ -106,6 +111,28 @@ enum EventSource {
   backend
   agent
   system
+}
+
+enum WorkflowJobType {
+  run_initial_profiling
+  run_initial_planning
+  start_initial_followup
+}
+
+enum WorkflowJobStatus {
+  pending
+  running
+  retryable
+  completed
+  failed
+  cancelled
+}
+
+enum WorkflowOverrideActionType {
+  pause_automation
+  resume_automation
+  retry_current_step
+  stop_followup
 }
 
 enum AgentCallStatus {
@@ -227,19 +254,23 @@ model User {
   uploaded_summative_outcomes               SummativeOutcome[]            @relation("SummativeOutcomeUploader")
   uploaded_summative_outcome_import_batches SummativeOutcomeImportBatch[] @relation("SummativeOutcomeImportUploader")
   export_jobs                               ExportJob[]                   @relation("ExportJobRequester")
+  workflow_overrides_created                WorkflowOverride[]            @relation("WorkflowOverrideCreator")
 
   @@map("users")
 }
 
 model Assessment {
-  id                    String           @id @default(uuid()) @db.Uuid
-  assessment_public_id  String           @unique @default(cuid())
+  id                    String                 @id @default(uuid()) @db.Uuid
+  assessment_public_id  String                 @unique @default(cuid())
   title                 String
-  description           String?          @db.Text
-  status                AssessmentStatus @default(draft)
-  created_by_user_db_id String           @db.Uuid
-  created_at            DateTime         @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime         @updatedAt @db.Timestamptz(6)
+  description           String?                @db.Text
+  status                AssessmentStatus       @default(draft)
+  workflow_mode         AssessmentWorkflowMode @default(automatic)
+  release_at            DateTime?              @db.Timestamptz(6)
+  close_at              DateTime?              @db.Timestamptz(6)
+  created_by_user_db_id String                 @db.Uuid
+  created_at            DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime               @updatedAt @db.Timestamptz(6)
 
   created_by          User                @relation("AssessmentCreator", fields: [created_by_user_db_id], references: [id], onDelete: Restrict)
   concept_units       ConceptUnit[]
@@ -247,6 +278,9 @@ model Assessment {
 
   @@index([created_by_user_db_id])
   @@index([status])
+  @@index([workflow_mode])
+  @@index([release_at])
+  @@index([close_at])
   @@map("assessments")
 }
 
@@ -305,23 +339,26 @@ model Item {
 }
 
 model AssessmentSession {
-  id                         String           @id @default(uuid()) @db.Uuid
-  session_public_id          String           @unique @default(cuid())
-  user_db_id                 String           @db.Uuid
-  assessment_db_id           String           @db.Uuid
-  attempt_number             Int              @default(1)
-  status                     SessionStatus    @default(not_started)
-  current_phase              AssessmentPhase  @default(not_started)
-  current_concept_unit_db_id String?          @db.Uuid
-  resume_phase               AssessmentPhase?
-  resume_context             Json?
-  needs_review               Boolean          @default(false)
-  needs_review_reason        String?          @db.Text
-  started_at                 DateTime?        @db.Timestamptz(6)
-  last_activity_at           DateTime?        @db.Timestamptz(6)
-  completed_at               DateTime?        @db.Timestamptz(6)
-  created_at                 DateTime         @default(now()) @db.Timestamptz(6)
-  updated_at                 DateTime         @updatedAt @db.Timestamptz(6)
+  id                          String                 @id @default(uuid()) @db.Uuid
+  session_public_id           String                 @unique @default(cuid())
+  user_db_id                  String                 @db.Uuid
+  assessment_db_id            String                 @db.Uuid
+  attempt_number              Int                    @default(1)
+  status                      SessionStatus          @default(not_started)
+  current_phase               AssessmentPhase        @default(not_started)
+  workflow_mode_snapshot      AssessmentWorkflowMode @default(manual_review)
+  current_concept_unit_db_id  String?                @db.Uuid
+  resume_phase                AssessmentPhase?
+  resume_context              Json?
+  needs_review                Boolean                @default(false)
+  needs_review_reason         String?                @db.Text
+  automation_paused_at        DateTime?              @db.Timestamptz(6)
+  automation_exception_reason String?                @db.Text
+  started_at                  DateTime?              @db.Timestamptz(6)
+  last_activity_at            DateTime?              @db.Timestamptz(6)
+  completed_at                DateTime?              @db.Timestamptz(6)
+  created_at                  DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime               @updatedAt @db.Timestamptz(6)
 
   user                            User                          @relation(fields: [user_db_id], references: [id], onDelete: Restrict)
   assessment                      Assessment                    @relation(fields: [assessment_db_id], references: [id], onDelete: Restrict)
@@ -331,11 +368,14 @@ model AssessmentSession {
   process_events                  ProcessEvent[]
   agent_calls                     AgentCall[]
   student_action_idempotency_keys StudentActionIdempotencyKey[]
+  workflow_jobs                   WorkflowJob[]
+  workflow_overrides              WorkflowOverride[]
 
   @@unique([user_db_id, assessment_db_id, attempt_number])
   @@index([user_db_id, status])
   @@index([assessment_db_id, status])
   @@index([status, current_phase])
+  @@index([workflow_mode_snapshot, current_phase])
   @@index([current_concept_unit_db_id])
   @@map("assessment_sessions")
 }
@@ -368,6 +408,8 @@ model ConceptUnitSession {
   student_profiles          StudentProfile[]    @relation("ConceptUnitSessionProfiles")
   formative_decisions       FormativeDecision[] @relation("ConceptUnitSessionFormativeDecisions")
   followup_rounds           FollowupRound[]
+  workflow_jobs             WorkflowJob[]
+  workflow_overrides        WorkflowOverride[]
 
   @@unique([assessment_session_db_id, concept_unit_db_id])
   @@index([assessment_session_db_id, status])
@@ -476,6 +518,56 @@ model ProcessEvent {
   @@index([event_type])
   @@index([item_db_id])
   @@map("process_events")
+}
+
+model WorkflowJob {
+  id                         String            @id @default(uuid()) @db.Uuid
+  job_public_id              String            @unique @default(cuid())
+  job_type                   WorkflowJobType
+  status                     WorkflowJobStatus @default(pending)
+  assessment_session_db_id   String            @db.Uuid
+  concept_unit_session_db_id String?           @db.Uuid
+  idempotency_key            String            @unique
+  payload                    Json
+  attempt_count              Int               @default(0)
+  max_attempts               Int               @default(3)
+  run_after                  DateTime          @default(now()) @db.Timestamptz(6)
+  locked_at                  DateTime?         @db.Timestamptz(6)
+  locked_by                  String?
+  last_error_category        String?
+  last_error_message         String?           @db.Text
+  created_at                 DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime          @updatedAt @db.Timestamptz(6)
+  completed_at               DateTime?         @db.Timestamptz(6)
+
+  assessment_session   AssessmentSession   @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit_session ConceptUnitSession? @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+
+  @@index([status, run_after, created_at])
+  @@index([assessment_session_db_id, status])
+  @@index([concept_unit_session_db_id, status])
+  @@index([locked_at])
+  @@map("workflow_jobs")
+}
+
+model WorkflowOverride {
+  id                         String                     @id @default(uuid()) @db.Uuid
+  override_public_id         String                     @unique @default(cuid())
+  assessment_session_db_id   String                     @db.Uuid
+  concept_unit_session_db_id String?                    @db.Uuid
+  action_type                WorkflowOverrideActionType
+  reason                     String?                    @db.Text
+  created_by_user_db_id      String                     @db.Uuid
+  created_at                 DateTime                   @default(now()) @db.Timestamptz(6)
+
+  assessment_session   AssessmentSession   @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit_session ConceptUnitSession? @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  created_by           User                @relation("WorkflowOverrideCreator", fields: [created_by_user_db_id], references: [id], onDelete: Restrict)
+
+  @@index([assessment_session_db_id, created_at])
+  @@index([concept_unit_session_db_id, created_at])
+  @@index([action_type, created_at])
+  @@map("workflow_overrides")
 }
 
 model AgentCall {

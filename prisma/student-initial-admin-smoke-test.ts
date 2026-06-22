@@ -148,7 +148,8 @@ async function main() {
       teacher_user_db_id: teacher.id,
       data: {
         title: `Phase 4A smoke assessment ${prefix}`,
-        description: "Temporary Phase 4A backend smoke assessment."
+        description: "Temporary Phase 4A backend smoke assessment.",
+        workflow_mode: "manual_review"
       }
     });
     created.assessmentPublicIds.push(assessment.assessment_public_id);
@@ -492,6 +493,12 @@ async function main() {
       });
       const conceptUnitSessionIds = conceptUnitSessions.map((session) => session.id);
 
+      await prisma.workflowOverride.deleteMany({
+        where: { assessment_session_db_id: { in: sessionIds } }
+      });
+      await prisma.workflowJob.deleteMany({
+        where: { assessment_session_db_id: { in: sessionIds } }
+      });
       await prisma.studentActionIdempotencyKey.deleteMany({
         where: { assessment_session_db_id: { in: sessionIds } }
       });

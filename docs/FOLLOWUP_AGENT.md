@@ -26,6 +26,10 @@ POST /api/teacher/sessions/[sessionPublicId]/concept-units/[conceptUnitPublicId]
 
 The route requires `teacher_researcher`, rejects students with 403, uses public IDs at route boundaries, and does not expose hidden prompts, provider secrets, internal UUIDs, or raw environment values.
 
+Phase 6D2A may start the first follow-up round from a backend workflow job when the session's workflow snapshot is `automatic`. This reuses the same Follow-up Agent service, usage guard, schema validation, semantic validation, and audit logging as the manual trigger. The startup job is idempotent and reuses a not-started round during retry rather than creating duplicate rounds.
+
+Phase 6D2A still does not implement follow-up evidence packages, updated profiles, replanning, a second follow-up round, or next-concept progression.
+
 ## Input Evidence
 
 `FollowupInput` is built from allowlisted backend records:

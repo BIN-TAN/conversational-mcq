@@ -470,6 +470,14 @@ export async function startFollowupRoundForTeacher(input: {
     };
   }
 
+  const existingNotStarted = await prisma.followupRound.findFirst({
+    where: {
+      concept_unit_session_db_id: conceptUnitSession.id,
+      status: "not_started"
+    },
+    orderBy: [{ round_index: "desc" }]
+  });
+
   if (conceptUnitSession.assessment_session.current_phase !== "planning_completed") {
     throw new FollowupServiceError(
       "followup_not_ready",
@@ -479,24 +487,26 @@ export async function startFollowupRoundForTeacher(input: {
     );
   }
 
-  const round = await prisma.$transaction(async (tx) => {
-    const latest = await tx.followupRound.findFirst({
-      where: { concept_unit_session_db_id: conceptUnitSession.id },
-      orderBy: [{ round_index: "desc" }],
-      select: { round_index: true }
-    });
+  const round =
+    existingNotStarted ??
+    (await prisma.$transaction(async (tx) => {
+      const latest = await tx.followupRound.findFirst({
+        where: { concept_unit_session_db_id: conceptUnitSession.id },
+        orderBy: [{ round_index: "desc" }],
+        select: { round_index: true }
+      });
 
-    return tx.followupRound.create({
-      data: {
-        concept_unit_session_db_id: conceptUnitSession.id,
-        round_index: (latest?.round_index ?? 0) + 1,
-        formative_decision_db_id: conceptUnitSession.latest_formative_decision?.id ?? "",
-        status: "not_started",
-        started_at: null,
-        updated_student_profile_db_id: null
-      }
-    });
-  });
+      return tx.followupRound.create({
+        data: {
+          concept_unit_session_db_id: conceptUnitSession.id,
+          round_index: (latest?.round_index ?? 0) + 1,
+          formative_decision_db_id: conceptUnitSession.latest_formative_decision?.id ?? "",
+          status: "not_started",
+          started_at: null,
+          updated_student_profile_db_id: null
+        }
+      });
+    }));
   const agent = await runFollowupAgent({
     followup_round_db_id: round.id,
     turn_type: "opening",
