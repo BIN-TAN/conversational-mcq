@@ -795,9 +795,23 @@ npm run eval:blind-review-export -- --run <run_public_id>
 
 The command writes ignored files under `.data/eval-review/<run_public_id>/`:
 `blind_review_packet.jsonl`, `review_reference.jsonl`, and
-`annotation_template.csv`. The blind packet omits model/provider metadata, case
-IDs, automated results, gold labels, token usage, costs, and existing
+`annotation_template.csv`. It also writes `redaction_summary.json` with field
+paths, detection categories, value lengths, and irreversible hashes for
+export-only safety findings. The blind packet omits model/provider metadata,
+case IDs, automated results, gold labels, token usage, costs, and existing
 annotations; the separate reference file is for adjudication after blind review.
+
+Inspect blind-review export safety without writing review files:
+
+```bash
+npm run eval:blind-review-export:inspect -- --run <run_public_id>
+```
+
+The inspect command does not print detected values. Standalone
+credential-shaped tokens are redacted only in the exported review copy as
+`[REDACTED_SECRET_LIKE_TOKEN]`; benign phrases such as `API key`, `system
+prompt`, `hidden instructions`, and broad legacy false positives inside ordinary
+words remain reviewable.
 
 Import completed offline annotations as AI-assisted preliminary drafts:
 
@@ -828,6 +842,7 @@ Offline verification commands:
 
 ```bash
 npm run eval:blind-review-export-smoke
+npm run eval:blind-review-secret-scan-smoke
 npm run eval:annotation-import-smoke
 npm run eval:annotation-adjudication-smoke
 npm run eval:structured-output-compat-smoke

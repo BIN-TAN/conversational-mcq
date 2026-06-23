@@ -108,11 +108,19 @@ which is Git-ignored:
 - `blind_review_packet.jsonl`: 25 records in deterministic shuffled order with opaque `review_item_id` values, synthetic input payloads, model outputs, agent-specific rubrics, safety expectations, and relevant critical-failure definitions.
 - `review_reference.jsonl`: the mapping from opaque IDs to original case IDs, gold labels, expected behavior, automated semantic/safety results, automated critical flags, and model/provider/prompt metadata.
 - `annotation_template.csv`: one blank annotation row per opaque review item.
+- `redaction_summary.json`: export-only safety findings with field paths, categories, lengths, and irreversible hashes, but no detected values.
 
 The blind packet excludes original case IDs, model/provider metadata,
 response/request IDs, prompt versions and hashes, automated results, gold labels,
 token usage, costs, and existing annotations. Use the reference file only after
 blind review when adjudication context is needed.
+
+Use `npm run eval:blind-review-export:inspect -- --run <run_public_id>` to
+diagnose export safety without writing review files. The inspect report
+distinguishes exact configured-secret matches, standalone credential-shaped
+tokens, synthetic placeholders, and benign references such as `API key`, `system
+prompt`, or `hidden instructions`. Actual or credential-shaped tokens are
+redacted in exported review copies; benign words alone do not block export.
 
 Completed offline annotations are imported as draft, AI-assisted preliminary
 records:
@@ -224,6 +232,7 @@ fabricate token counts or continue through remaining cases.
 
 ```bash
 npm run eval:blind-review-export-smoke
+npm run eval:blind-review-secret-scan-smoke
 npm run eval:annotation-import-smoke
 npm run eval:annotation-adjudication-smoke
 npm run eval:structured-output-compat-smoke

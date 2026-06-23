@@ -79,6 +79,12 @@ Completed 25-item live canary runs can also be exported as local blind-review
 packets with `npm run eval:blind-review-export -- --run <run_public_id>`. The
 blind packet, reference mapping, and blank annotation template are written under
 ignored `.data/eval-review/` storage and do not modify eval or classroom records.
+Use `npm run eval:blind-review-export:inspect -- --run <run_public_id>` for a
+read-only safety report before export. The exporter redacts actual configured
+secrets and standalone credential-shaped strings only in the generated review
+files, records hashes and field paths in `redaction_summary.json`, and treats
+ordinary references such as `API key`, `system prompt`, and `hidden
+instructions` as reviewable text.
 Completed annotation CSVs can be imported as `ai_assisted_preliminary` draft
 annotations and must be teacher-confirmed before readiness gates count them as
 human review.

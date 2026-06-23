@@ -829,3 +829,4 @@ Phase 6A.5 must not implement:
 - The readiness report recommendation is deterministic and uses `ready_for_controlled_operational_integration`, `not_ready_for_controlled_operational_integration`, or `incomplete_review`.
 - The report label is `full pilot readiness` with `classroom_validity=false`.
 - Full-pilot blind review export supports 100 rows and hides stratum, repetition, paired case key, model/provider metadata, automated results, gold labels, costs, tokens, and prior canary results from the blind packet.
+- Full-pilot blind review export must keep review files safe without mutating eval outputs: exact configured secrets and standalone credential-shaped tokens are redacted only in exported copies, benign references such as `API key`, `system prompt`, and `hidden instructions` remain reviewable, and diagnostic reports expose only field paths, categories, lengths, and irreversible hashes.

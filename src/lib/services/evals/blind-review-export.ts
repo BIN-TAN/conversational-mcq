@@ -8,6 +8,8 @@ import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
 import { rubricDefinitionForAgent } from "./rubrics";
 import { EvalServiceError } from "./errors";
 
+const redactionMarker = "[REDACTED_SECRET_LIKE_TOKEN]";
+
 const annotationColumns = [
   "review_item_id",
   "pass_fail",
@@ -169,6 +171,341 @@ function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+type RedactionAction = "allowed" | "redacted";
+
+export type BlindReviewExportSafetyFinding = {
+  file_name: string;
+  review_item_id: string | null;
+  run_item_public_id: string | null;
+  field_path: string;
+  detection_category:
+    | "exact_configured_secret"
+    | "credential_shaped_token"
+    | "synthetic_placeholder_token"
+    | "synthetic_placeholder_text"
+    | "benign_reference";
+  detector_rule: string;
+  value_length: number;
+  value_sha256: string;
+  matches_configured_secret: boolean;
+  export_only_redaction_possible: boolean;
+  action: RedactionAction;
+};
+
+type ExportSafetyResult<T> = {
+  value: T;
+  findings: BlindReviewExportSafetyFinding[];
+  redacted_count: number;
+};
+
+function configuredSecretEntries() {
+  return [
+    ["OPENAI_API_KEY", process.env.OPENAI_API_KEY],
+    ["SESSION_SECRET", process.env.SESSION_SECRET],
+    ["DATABASE_URL", process.env.DATABASE_URL]
+  ]
+    .filter((entry): entry is [string, string] => {
+      const value = entry[1];
+
+      return typeof value === "string" && value.length >= 8;
+    })
+    .filter(([, value]) => !/^(placeholder|example|dummy|changeme|dev-only)/i.test(value));
+}
+
+function isSyntheticPlaceholder(value: string) {
+  return /\b(fake|placeholder|example|sample|dummy|not[-_ ]?a[-_ ]?real|redacted|synthetic)\b/i.test(value);
+}
+
+function finding(input: {
+  fileName: string;
+  reviewItemId: string | null;
+  runItemPublicId: string | null;
+  fieldPath: string;
+  detectionCategory: BlindReviewExportSafetyFinding["detection_category"];
+  detectorRule: string;
+  value: string;
+  matchesConfiguredSecret: boolean;
+  action: RedactionAction;
+}): BlindReviewExportSafetyFinding {
+  return {
+    file_name: input.fileName,
+    review_item_id: input.reviewItemId,
+    run_item_public_id: input.runItemPublicId,
+    field_path: input.fieldPath,
+    detection_category: input.detectionCategory,
+    detector_rule: input.detectorRule,
+    value_length: input.value.length,
+    value_sha256: sha256(input.value),
+    matches_configured_secret: input.matchesConfiguredSecret,
+    export_only_redaction_possible: true,
+    action: input.action
+  };
+}
+
+function replaceAllLiteral(value: string, target: string) {
+  return value.split(target).join(redactionMarker);
+}
+
+function scanString(input: {
+  value: string;
+  fileName: string;
+  reviewItemId: string | null;
+  runItemPublicId: string | null;
+  fieldPath: string;
+}) {
+  const findings: BlindReviewExportSafetyFinding[] = [];
+  let output = input.value;
+
+  for (const [name, secret] of configuredSecretEntries()) {
+    if (output.includes(secret)) {
+      findings.push(
+        finding({
+          fileName: input.fileName,
+          reviewItemId: input.reviewItemId,
+          runItemPublicId: input.runItemPublicId,
+          fieldPath: input.fieldPath,
+          detectionCategory: "exact_configured_secret",
+          detectorRule: `configured_secret:${name}`,
+          value: secret,
+          matchesConfiguredSecret: true,
+          action: "redacted"
+        })
+      );
+      output = replaceAllLiteral(output, secret);
+    }
+  }
+
+  const credentialPatterns: Array<{
+    rule: string;
+    pattern: RegExp;
+  }> = [
+    { rule: "openai_api_key_shape", pattern: /(?<![A-Za-z0-9_])sk-[A-Za-z0-9][A-Za-z0-9_-]{3,}(?![A-Za-z0-9_])/g },
+    { rule: "bearer_token_shape", pattern: /\bBearer\s+[A-Za-z0-9._~+/-]{12,}=*/gi },
+    { rule: "jwt_shape", pattern: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g },
+    { rule: "database_url_shape", pattern: /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis):\/\/[^\s"'<>]+/gi },
+    { rule: "cookie_or_token_assignment_shape", pattern: /\b(?:cmcq_session|session|auth_token|access_token|refresh_token)=([A-Za-z0-9._~+/-]{12,})\b/gi }
+  ];
+
+  for (const { rule, pattern } of credentialPatterns) {
+    output = output.replace(pattern, (match) => {
+      findings.push(
+        finding({
+          fileName: input.fileName,
+          reviewItemId: input.reviewItemId,
+          runItemPublicId: input.runItemPublicId,
+          fieldPath: input.fieldPath,
+          detectionCategory: isSyntheticPlaceholder(match)
+            ? "synthetic_placeholder_token"
+            : "credential_shaped_token",
+          detectorRule: rule,
+          value: match,
+          matchesConfiguredSecret: configuredSecretEntries().some(([, secret]) => secret === match),
+          action: "redacted"
+        })
+      );
+
+      return redactionMarker;
+    });
+  }
+
+  const placeholderRules: Array<{ rule: string; pattern: RegExp }> = [
+    { rule: "secret_env_identifier_reference", pattern: /\b(?:OPENAI_API_KEY|SESSION_SECRET|DATABASE_URL|password_hash|access_code_hash)\b/gi },
+    { rule: "legacy_broad_openai_api_key_identifier", pattern: /OPENAI_API_KEY/gi },
+    { rule: "legacy_broad_session_secret_identifier", pattern: /SESSION_SECRET/gi },
+    { rule: "legacy_broad_database_url_identifier", pattern: /DATABASE_URL/gi },
+    { rule: "legacy_broad_password_hash_identifier", pattern: /password_hash/gi },
+    { rule: "legacy_broad_access_code_hash_identifier", pattern: /access_code_hash/gi }
+  ];
+  const benignRules: Array<{ rule: string; pattern: RegExp }> = [
+    { rule: "api_key_phrase", pattern: /\bapi key\b/gi },
+    { rule: "authorization_keyword", pattern: /\bauthorization\b/gi },
+    { rule: "legacy_broad_authorization_keyword", pattern: /authorization/gi },
+    { rule: "legacy_broad_openai_key_shape_inside_word", pattern: /(?<=[A-Za-z0-9_])sk-[A-Za-z0-9_-]+/gi },
+    { rule: "system_prompt_phrase", pattern: /\bsystem prompt\b/gi },
+    { rule: "hidden_instructions_phrase", pattern: /\bhidden instructions?\b/gi }
+  ];
+
+  for (const { rule, pattern } of placeholderRules) {
+    for (const match of output.matchAll(pattern)) {
+      findings.push(
+        finding({
+          fileName: input.fileName,
+          reviewItemId: input.reviewItemId,
+          runItemPublicId: input.runItemPublicId,
+          fieldPath: input.fieldPath,
+          detectionCategory: "synthetic_placeholder_text",
+          detectorRule: rule,
+          value: match[0],
+          matchesConfiguredSecret: false,
+          action: "allowed"
+        })
+      );
+    }
+  }
+
+  for (const { rule, pattern } of benignRules) {
+    for (const match of output.matchAll(pattern)) {
+      findings.push(
+        finding({
+          fileName: input.fileName,
+          reviewItemId: input.reviewItemId,
+          runItemPublicId: input.runItemPublicId,
+          fieldPath: input.fieldPath,
+          detectionCategory: "benign_reference",
+          detectorRule: rule,
+          value: match[0],
+          matchesConfiguredSecret: false,
+          action: "allowed"
+        })
+      );
+    }
+  }
+
+  return { value: output, findings };
+}
+
+function processExportSafety<T>(value: T, fileName: string): ExportSafetyResult<T> {
+  const findings: BlindReviewExportSafetyFinding[] = [];
+
+  function walk(entry: unknown, pathParts: string[], context: { reviewItemId: string | null; runItemPublicId: string | null }): unknown {
+    if (typeof entry === "string") {
+      const scanned = scanString({
+        value: entry,
+        fileName,
+        reviewItemId: context.reviewItemId,
+        runItemPublicId: context.runItemPublicId,
+        fieldPath: pathParts.join(".") || "$"
+      });
+      findings.push(...scanned.findings);
+
+      return scanned.value;
+    }
+
+    if (Array.isArray(entry)) {
+      return entry.map((item, index) => {
+        const itemContext =
+          item && typeof item === "object" && !Array.isArray(item)
+            ? {
+                reviewItemId:
+                  typeof (item as { review_item_id?: unknown }).review_item_id === "string"
+                    ? (item as { review_item_id: string }).review_item_id
+                    : context.reviewItemId,
+                runItemPublicId:
+                  typeof (item as { run_item_public_id?: unknown }).run_item_public_id === "string"
+                    ? (item as { run_item_public_id: string }).run_item_public_id
+                    : context.runItemPublicId
+              }
+            : context;
+
+        return walk(item, [...pathParts, String(index)], itemContext);
+      });
+    }
+
+    if (!entry || typeof entry !== "object") {
+      return entry;
+    }
+
+    const record = entry as Record<string, unknown>;
+    const nextContext = {
+      reviewItemId:
+        typeof record.review_item_id === "string"
+          ? record.review_item_id
+          : context.reviewItemId,
+      runItemPublicId:
+        typeof record.run_item_public_id === "string"
+          ? record.run_item_public_id
+          : context.runItemPublicId
+    };
+    const output: Record<string, unknown> = {};
+
+    for (const [key, item] of Object.entries(record)) {
+      output[key] = walk(item, [...pathParts, key], nextContext);
+    }
+
+    return output;
+  }
+
+  const processed = walk(value, [], { reviewItemId: null, runItemPublicId: null }) as T;
+  const redactedCount = findings.filter((entry) => entry.action === "redacted").length;
+  const remainingBlockingFindings = processExportSafetyNoRedaction(processed, fileName).findings.filter(
+    (entry) => entry.action === "redacted"
+  );
+
+  if (remainingBlockingFindings.length) {
+    throw new EvalServiceError("redaction_check_failed", `${fileName} would contain secret-like content after redaction.`, 500, {
+      findings: remainingBlockingFindings
+    });
+  }
+
+  return { value: processed, findings, redacted_count: redactedCount };
+}
+
+function processExportSafetyNoRedaction<T>(value: T, fileName: string): ExportSafetyResult<T> {
+  const findings: BlindReviewExportSafetyFinding[] = [];
+
+  function walk(entry: unknown, pathParts: string[], context: { reviewItemId: string | null; runItemPublicId: string | null }) {
+    if (typeof entry === "string") {
+      const scanned = scanString({
+        value: entry,
+        fileName,
+        reviewItemId: context.reviewItemId,
+        runItemPublicId: context.runItemPublicId,
+        fieldPath: pathParts.join(".") || "$"
+      });
+      findings.push(...scanned.findings);
+      return;
+    }
+
+    if (Array.isArray(entry)) {
+      entry.forEach((item, index) => {
+        const itemContext =
+          item && typeof item === "object" && !Array.isArray(item)
+            ? {
+                reviewItemId:
+                  typeof (item as { review_item_id?: unknown }).review_item_id === "string"
+                    ? (item as { review_item_id: string }).review_item_id
+                    : context.reviewItemId,
+                runItemPublicId:
+                  typeof (item as { run_item_public_id?: unknown }).run_item_public_id === "string"
+                    ? (item as { run_item_public_id: string }).run_item_public_id
+                    : context.runItemPublicId
+              }
+            : context;
+        walk(item, [...pathParts, String(index)], itemContext);
+      });
+      return;
+    }
+
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+
+    const record = entry as Record<string, unknown>;
+    const nextContext = {
+      reviewItemId:
+        typeof record.review_item_id === "string"
+          ? record.review_item_id
+          : context.reviewItemId,
+      runItemPublicId:
+        typeof record.run_item_public_id === "string"
+          ? record.run_item_public_id
+          : context.runItemPublicId
+    };
+
+    for (const [key, item] of Object.entries(record)) {
+      walk(item, [...pathParts, key], nextContext);
+    }
+  }
+
+  walk(value, [], { reviewItemId: null, runItemPublicId: null });
+
+  return {
+    value,
+    findings,
+    redacted_count: findings.filter((entry) => entry.action === "redacted").length
+  };
+}
+
 function safeValue(value: unknown): unknown {
   const stripped = stripInternalKeys(value);
 
@@ -202,30 +539,6 @@ function stripBlindMetadata(value: unknown): unknown {
   }
 
   return output;
-}
-
-function assertNoSecretLikeContent(value: unknown, fileName: string) {
-  const text = stableJson(value);
-  const patterns = [
-    /sk-[A-Za-z0-9_-]+/,
-    /OPENAI_API_KEY/i,
-    /SESSION_SECRET/i,
-    /DATABASE_URL/i,
-    /authorization/i,
-    /password_hash/i,
-    /access_code_hash/i,
-    /authorization:\s*bearer/i
-  ];
-
-  for (const pattern of patterns) {
-    if (pattern.test(text)) {
-      throw new EvalServiceError(
-        "redaction_check_failed",
-        `${fileName} would contain secret-like content.`,
-        500
-      );
-    }
-  }
 }
 
 function criticalFailureDefinitionsForAgent(agentName: AgentNameType) {
@@ -264,7 +577,7 @@ export function blindReviewDirectory(runPublicId: string) {
   return path.join(process.cwd(), ".data", "eval-review", runPublicId);
 }
 
-export async function exportBlindReviewPacket(runPublicId: string) {
+async function buildBlindReviewExportPayload(runPublicId: string) {
   const run = await prisma.evalRun.findUnique({
     where: { run_public_id: runPublicId },
     select: {
@@ -482,37 +795,108 @@ export async function exportBlindReviewPacket(runPublicId: string) {
     notes: ""
   }));
 
-  assertNoSecretLikeContent(blindRecords, "blind_review_packet.jsonl");
-  assertNoSecretLikeContent(referenceRecords, "review_reference.jsonl");
-  assertNoSecretLikeContent(annotationRows, "annotation_template.csv");
+  return {
+    run,
+    blindRecords,
+    referenceRecords,
+    annotationRows
+  };
+}
 
-  const outputDir = blindReviewDirectory(run.run_public_id);
+function exportRedactionSummary(input: {
+  runPublicId: string;
+  blind: ExportSafetyResult<unknown[]>;
+  reference: ExportSafetyResult<unknown[]>;
+  annotation: ExportSafetyResult<unknown[]>;
+}) {
+  const findings = [
+    ...input.blind.findings,
+    ...input.reference.findings,
+    ...input.annotation.findings
+  ];
+
+  return {
+    run_public_id: input.runPublicId,
+    generated_at: new Date().toISOString(),
+    redaction_marker: redactionMarker,
+    redacted_count: findings.filter((entry) => entry.action === "redacted").length,
+    allowed_reference_count: findings.filter((entry) => entry.action === "allowed").length,
+    file_counts: {
+      blind_review_packet_jsonl: input.blind.findings.length,
+      review_reference_jsonl: input.reference.findings.length,
+      annotation_template_csv: input.annotation.findings.length
+    },
+    findings
+  };
+}
+
+export async function inspectBlindReviewExportSafety(runPublicId: string) {
+  const payload = await buildBlindReviewExportPayload(runPublicId);
+  const blind = processExportSafety(payload.blindRecords, "blind_review_packet.jsonl");
+  const reference = processExportSafety(payload.referenceRecords, "review_reference.jsonl");
+  const annotation = processExportSafety(payload.annotationRows, "annotation_template.csv");
+  const summary = exportRedactionSummary({
+    runPublicId: payload.run.run_public_id,
+    blind,
+    reference,
+    annotation
+  });
+
+  return {
+    run_public_id: payload.run.run_public_id,
+    planned_run_item_count: payload.run.planned_run_item_count,
+    blind_record_count: payload.blindRecords.length,
+    reference_record_count: payload.referenceRecords.length,
+    annotation_row_count: payload.annotationRows.length,
+    redaction_summary: summary,
+    openai_call_made: false,
+    operational_records_referenced: false
+  };
+}
+
+export async function exportBlindReviewPacket(runPublicId: string) {
+  const payload = await buildBlindReviewExportPayload(runPublicId);
+  const blind = processExportSafety(payload.blindRecords, "blind_review_packet.jsonl");
+  const reference = processExportSafety(payload.referenceRecords, "review_reference.jsonl");
+  const annotation = processExportSafety(payload.annotationRows, "annotation_template.csv");
+  const redactionSummary = exportRedactionSummary({
+    runPublicId: payload.run.run_public_id,
+    blind,
+    reference,
+    annotation
+  });
+
+  const outputDir = blindReviewDirectory(payload.run.run_public_id);
   await mkdir(outputDir, { recursive: true });
 
   const blindPacketPath = path.join(outputDir, "blind_review_packet.jsonl");
   const referencePath = path.join(outputDir, "review_reference.jsonl");
   const annotationTemplatePath = path.join(outputDir, "annotation_template.csv");
+  const redactionSummaryPath = path.join(outputDir, "redaction_summary.json");
 
-  await writeFile(blindPacketPath, jsonl(blindRecords), "utf8");
-  await writeFile(referencePath, jsonl(referenceRecords), "utf8");
+  await writeFile(blindPacketPath, jsonl(blind.value), "utf8");
+  await writeFile(referencePath, jsonl(reference.value), "utf8");
   await writeFile(
     annotationTemplatePath,
-    stringify(annotationRows, {
+    stringify(annotation.value, {
       header: true,
       columns: annotationColumns
     }),
     "utf8"
   );
+  await writeFile(redactionSummaryPath, `${stableJson(redactionSummary)}\n`, "utf8");
 
   return {
-    run_public_id: run.run_public_id,
+    run_public_id: payload.run.run_public_id,
     output_dir: outputDir,
     blind_review_packet_path: blindPacketPath,
     review_reference_path: referencePath,
     annotation_template_path: annotationTemplatePath,
-    record_count: blindRecords.length,
-    reference_count: referenceRecords.length,
-    annotation_template_row_count: annotationRows.length,
+    redaction_summary_path: redactionSummaryPath,
+    record_count: blind.value.length,
+    reference_count: reference.value.length,
+    annotation_template_row_count: annotation.value.length,
+    redaction_summary: redactionSummary,
     openai_call_made: false,
     operational_records_referenced: false
   };

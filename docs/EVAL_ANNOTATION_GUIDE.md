@@ -90,7 +90,8 @@ fail a human-adjudicated canary after all annotations are confirmed.
 
 ## Local Blind Review Packet
 
-For offline expert review of a completed 25-item live canary:
+For offline expert review of a completed 25-item live canary or 100-item full
+pilot:
 
 ```bash
 npm run eval:blind-review-export -- --run <run_public_id>
@@ -102,6 +103,19 @@ review. Do not open `review_reference.jsonl` until after blind scoring, because
 it contains original case IDs, gold labels, expected behavior, automated
 semantic/safety results, automated critical flags, and model/provider/prompt
 metadata for adjudication.
+
+To inspect export safety without writing review files:
+
+```bash
+npm run eval:blind-review-export:inspect -- --run <run_public_id>
+```
+
+The inspect report includes field paths, detection categories, value lengths,
+irreversible hashes, and whether a finding matches a configured secret. It never
+prints detected values. Standalone credential-shaped strings are redacted only
+in exported review copies with `[REDACTED_SECRET_LIKE_TOKEN]`; ordinary
+references such as `API key`, `system prompt`, and `hidden instructions`, plus
+legacy false positives embedded inside normal words, remain reviewable.
 
 The opaque `review_item_id` is the only join key across the three files. The
 blind packet order is deterministically shuffled from the run ID, so repeated
