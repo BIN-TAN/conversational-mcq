@@ -16,6 +16,9 @@ const prohibitedSuggestionPatterns = [
   /\brecommended replacement\b/i
 ];
 
+const optionSpecificLocations = new Set(["option", "distractor_rationale"]);
+const validSetLevelLocations = new Set(["concept_unit", "item_set"]);
+
 function allFindings(output: AgentOutputByName["item_verification_agent"]) {
   return [
     ...output.set_level_findings,
@@ -52,8 +55,36 @@ export function validateItemVerificationOutputSemantics(input: {
   }
 
   for (const finding of findings) {
+    if (finding.item_public_id === "") {
+      errors.push("Finding item_public_id must use null, not an empty string.");
+    }
+
+    if (finding.option_label === "") {
+      errors.push("Finding option_label must use null, not an empty string.");
+    }
+
     if (finding.item_public_id !== null && !itemIds.has(finding.item_public_id)) {
       errors.push(`Unknown finding item_public_id ${finding.item_public_id}.`);
+    }
+
+    if (!optionSpecificLocations.has(finding.location) && finding.option_label !== null) {
+      errors.push("Non-option-specific findings must use option_label=null.");
+    }
+
+    if (optionSpecificLocations.has(finding.location) && finding.option_label === null) {
+      errors.push("Option findings require option_label.");
+    }
+
+    if (finding.item_public_id === null && !validSetLevelLocations.has(finding.location)) {
+      errors.push("Set-level findings with item_public_id=null must use a valid set-level location.");
+    }
+
+    if (
+      finding.issue_code === "substantially_duplicate_item" &&
+      finding.item_public_id === null &&
+      !validSetLevelLocations.has(finding.location)
+    ) {
+      errors.push("Duplicate-item set-level findings must use a valid set-level location.");
     }
 
     if (finding.option_label !== null) {

@@ -1525,6 +1525,12 @@ function sameStringSet(left: string[], right: string[]) {
   return leftSet.size === rightSet.size && [...leftSet].every((entry) => rightSet.has(entry));
 }
 
+const knownFailureRegressionCaseIds = [
+  "iva_duplicate_items_010",
+  "spa_conflicting_evidence_010",
+  "fua_off_topic_redirect_007"
+] as const;
+
 export async function createCanaryReadinessReport(runPublicId: string) {
   const run = await prisma.evalRun.findUnique({
     where: { run_public_id: runPublicId },
@@ -1607,6 +1613,35 @@ export async function createCanaryReadinessReport(runPublicId: string) {
       return [agentName, { passing, total: agentItems.length, pass_rate: agentItems.length ? passing / agentItems.length : 0 }];
     })
   );
+  const targetedRegressionGate = {
+    label: "known-failure regression gate",
+    classroom_validity: false,
+    required_case_ids: [...knownFailureRegressionCaseIds],
+    case_results: knownFailureRegressionCaseIds.map((caseId) => {
+      const item = items.find((entry) => entry.eval_case.case_id === caseId);
+      const annotations = item ? confirmedAnnotationsByItem.get(item.id) ?? [] : [];
+      const passFailValues = annotations
+        .map((annotation) => annotation.pass_fail)
+        .filter((value): value is string => typeof value === "string");
+      const passed = passFailValues.includes("pass");
+
+      return {
+        case_id: caseId,
+        present: Boolean(item),
+        confirmed_annotation_count: annotations.length,
+        pass_fail: passFailValues[0] ?? null,
+        passed
+      };
+    }),
+    no_confirmed_human_critical_failures: humanConfirmedFlags.length === 0
+  };
+  const targetedRegressionGateComplete = targetedRegressionGate.case_results.every(
+    (result) => result.present && result.confirmed_annotation_count > 0
+  );
+  const targetedRegressionGatePassed =
+    targetedRegressionGateComplete &&
+    targetedRegressionGate.no_confirmed_human_critical_failures &&
+    targetedRegressionGate.case_results.every((result) => result.passed);
   const automatedFlaggedCaseIds = items
     .filter((item) => criticalFlagsFromSafety(item.safety_validation_result).length > 0)
     .map((item) => item.eval_case.case_id);
@@ -1666,7 +1701,8 @@ export async function createCanaryReadinessReport(runPublicId: string) {
     cost_within_limit: decimalToNumber(run.estimated_cost_usd) <= decimalToNumber(run.budget_limit_usd),
     annotation_pass_rate_per_agent_at_least_80: Object.values(passByAgent).every(
       (value) => value.total === EVAL_CANARY_CASES_PER_AGENT && value.passing >= 4
-    )
+    ),
+    known_failure_regression_gate_passed: targetedRegressionGatePassed
   };
   const incomplete = !gates.terminal_items_25 || !gates.human_annotations_25;
   const modelQualityEvaluable = modelEvaluatedItems.length > 0;
@@ -1701,6 +1737,13 @@ export async function createCanaryReadinessReport(runPublicId: string) {
     semantic_pass_rate: modelEvaluatedItems.length ? semanticPassCount / modelEvaluatedItems.length : null,
     safety_pass_rate: modelEvaluatedItems.length ? safetyPassCount / modelEvaluatedItems.length : null,
     annotation_pass_rate_by_agent: passByAgent,
+    targeted_regression_gate: {
+      ...targetedRegressionGate,
+      complete: targetedRegressionGateComplete,
+      passed: targetedRegressionGatePassed,
+      note:
+        "Additional engineering gate for known Phase 7E2A canary failures; not a claim of classroom validity."
+    },
     critical_failure_counts: Object.fromEntries(
       [...new Set(autoFlags)].map((flag) => [flag, autoFlags.filter((entry) => entry === flag).length])
     ),

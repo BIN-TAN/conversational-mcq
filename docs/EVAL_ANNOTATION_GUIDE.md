@@ -132,3 +132,10 @@ The readiness report should be run after confirmation:
 ```bash
 npm run eval:live-canary:report -- --run <run_public_id>
 ```
+
+For canaries created after the Phase 7E2A quality patch, the report includes a
+`targeted_regression_gate` labelled `known-failure regression gate`. Confirmed
+human annotations must mark `iva_duplicate_items_010`,
+`spa_conflicting_evidence_010`, and `fua_off_topic_redirect_007` as Pass, with
+zero confirmed human critical failures. This gate is separate from the per-agent
+80% quality gate and is not a classroom-validity claim.

@@ -18,11 +18,106 @@ function arraysOverlap(left: string[], right: string[]) {
   return left.some((value) => right.includes(value));
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+}
+
+function truthyState(value: unknown) {
+  return value === true || (typeof value === "string" && value.trim().length > 0);
+}
+
+function normalizeMissingField(field: string) {
+  const normalized = field.trim().toLowerCase();
+
+  if (["answer", "option", "selected_option", "selected option"].includes(normalized)) {
+    return "answer";
+  }
+
+  if (["confidence", "confidence_rating", "confidence rating"].includes(normalized)) {
+    return "confidence";
+  }
+
+  if (["reasoning", "reasoning_text", "reasoning text"].includes(normalized)) {
+    return "reasoning";
+  }
+
+  return normalized;
+}
+
+function missingEvidenceFields(input: {
+  collected_response_state?: unknown;
+  missing_evidence_state?: unknown;
+}) {
+  const collected = asRecord(input.collected_response_state);
+  const missing = asRecord(input.missing_evidence_state);
+  const fields = new Set<string>();
+
+  let sawExplicitMissingList = false;
+
+  for (const key of ["missing_fields", "required_missing_fields", "evidence_missing", "missing"]) {
+    for (const field of stringArray(missing[key])) {
+      sawExplicitMissingList = true;
+      fields.add(normalizeMissingField(field));
+    }
+  }
+
+  const fieldAliases: Array<[string, string[]]> = [
+    ["answer", ["missing_answer", "answer_missing", "selected_option_missing"]],
+    ["reasoning", ["missing_reasoning", "reasoning_missing"]],
+    ["confidence", ["missing_confidence", "confidence_missing"]]
+  ];
+
+  for (const [field, keys] of fieldAliases) {
+    if (keys.some((key) => missing[key] === true)) {
+      fields.add(field);
+    }
+  }
+
+  const selectedOptionPresent =
+    truthyState(collected.selected_option) ||
+    collected.selected_option_present === true ||
+    collected.answer_present === true;
+  const reasoningSatisfied =
+    truthyState(collected.reasoning_text) ||
+    collected.reasoning_present === true ||
+    collected.reasoning_skip_confirmed === true ||
+    collected.skipped_reasoning === true;
+  const confidenceSatisfied =
+    truthyState(collected.confidence_rating) ||
+    collected.confidence_present === true ||
+    collected.confidence_skip_confirmed === true ||
+    collected.skipped_confidence === true;
+
+  if (!sawExplicitMissingList) {
+    if (!selectedOptionPresent) {
+      fields.add("answer");
+    }
+
+    if (!reasoningSatisfied) {
+      fields.add("reasoning");
+    }
+
+    if (!confidenceSatisfied) {
+      fields.add("confidence");
+    }
+  }
+
+  return fields;
+}
+
 export function validateResponseCollectionOutputSemantics(input: {
   output: AgentOutputByName["response_collection_agent"];
   student_message: string;
   assistant_message_max_chars: number;
   has_existing_reasoning: boolean;
+  collected_response_state?: unknown;
+  missing_evidence_state?: unknown;
 }): ResponseCollectionSemanticValidation {
   const issues: string[] = [];
   const { output } = input;
@@ -72,12 +167,60 @@ export function validateResponseCollectionOutputSemantics(input: {
     issues.push("blocked_content_help must be true for help, correctness, explanation, or prompt-injection intents.");
   }
 
+  if (arraysOverlap(output.recognized_intents, helpIntents)) {
+    const eventTypes = output.events_to_log.map((event) => event.event_type);
+
+    if (
+      output.recognized_intents.includes("prompt_injection_attempt") &&
+      !eventTypes.includes("prompt_injection_attempt")
+    ) {
+      issues.push("prompt_injection_attempt intent requires a prompt_injection_attempt event.");
+    }
+
+    if (
+      !output.recognized_intents.includes("procedural_clarification") &&
+      !eventTypes.includes("invalid_help_request")
+    ) {
+      issues.push("Disallowed help intents require an invalid_help_request event.");
+    }
+  }
+
   if (analysis.requires_option_button && !output.requires_option_button) {
     issues.push("requires_option_button must be true when natural-language option selection is detected.");
   }
 
   if (analysis.requires_confidence_control && !output.requires_confidence_control) {
     issues.push("requires_confidence_control must be true when natural-language confidence is detected.");
+  }
+
+  const missingFields = missingEvidenceFields({
+    collected_response_state: input.collected_response_state,
+    missing_evidence_state: input.missing_evidence_state
+  });
+
+  if (output.missing_evidence_status === "complete" && missingFields.size > 0) {
+    issues.push(
+      `missing_evidence_status=complete conflicts with backend missing evidence: ${[...missingFields].sort().join(", ")}.`
+    );
+  }
+
+  if (output.missing_evidence_status === "missing_answer" && !missingFields.has("answer")) {
+    issues.push("missing_evidence_status=missing_answer conflicts with backend response state.");
+  }
+
+  if (output.missing_evidence_status === "missing_reasoning" && !missingFields.has("reasoning")) {
+    issues.push("missing_evidence_status=missing_reasoning conflicts with backend response state.");
+  }
+
+  if (output.missing_evidence_status === "missing_confidence" && !missingFields.has("confidence")) {
+    issues.push("missing_evidence_status=missing_confidence conflicts with backend response state.");
+  }
+
+  if (
+    output.missing_evidence_status !== "multiple_missing_fields" &&
+    missingFields.size > 1
+  ) {
+    issues.push("missing_evidence_status must be multiple_missing_fields when more than one required evidence field is missing.");
   }
 
   if (

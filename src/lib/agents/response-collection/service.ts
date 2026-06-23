@@ -417,7 +417,9 @@ async function runAgentOrFallback(input: {
       output: result.output,
       student_message: input.student_message,
       assistant_message_max_chars: getServerEnv().INITIAL_CHAT_MESSAGE_MAX_CHARS,
-      has_existing_reasoning: input.has_existing_reasoning
+      has_existing_reasoning: input.has_existing_reasoning,
+      collected_response_state: input.agentInput.collected_response_state,
+      missing_evidence_state: input.agentInput.missing_evidence_state
     });
 
     if (semantic.ok) {

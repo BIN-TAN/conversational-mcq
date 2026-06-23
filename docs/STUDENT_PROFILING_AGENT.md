@@ -120,3 +120,18 @@ npm run agent:profiling-smoke
 ```
 
 The smoke test verifies safe input building, prohibited field exclusion, mock execution through `executeAgent`, agent-call audit, validated output persistence, latest profile pointer update, phase transition to `profiling_completed`, teacher serializer behavior, student payload safety, idempotency, invalid-output handling, usage-blocked handling, teacher API authorization, and absence of formative decisions, follow-up rounds, and OpenAI network calls.
+
+## Phase 7E2A Quality Patch
+
+Prompt version `student-profiling-v3` and semantic validation strengthen the
+three-layer profile logic:
+
+- `no_clear_pattern` is mutually exclusive with specific ability or engagement pattern flags
+- materially conflicting correctness, reasoning, confidence, and process evidence should use `conflicting_evidence_needs_clarification`
+- `correct_but_independence_uncertain` is reserved for otherwise coherent product evidence where process evidence limits independent-understanding interpretability
+- `guessing_possible` requires evidence for possible guessing
+- `transfer_ready` requires explicit transfer evidence or a robust transfer-ready profile
+
+The validator also rejects unsupported certainty when evidence is insufficient or
+limited. Process traces remain engagement/evidence context, not misconduct
+evidence.

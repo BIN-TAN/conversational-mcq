@@ -813,3 +813,24 @@ npm run eval:canary-report-smoke
 ```
 
 See `docs/LIVE_EVAL_CANARY.md`, `docs/EVAL_BUDGET_GUARD.md`, and `docs/EVAL_REPRODUCIBILITY.md`.
+
+### Phase 7E2A Quality Patch
+
+After baseline run `evr_20260623_1sjeh1q`, future canaries use updated prompt
+versions and evaluator versions for known quality failures. The baseline run and
+confirmed annotations remain frozen for audit.
+
+Run the targeted regression check before any new fresh canary:
+
+```bash
+npm run eval:targeted-quality-regression-smoke
+```
+
+The next fresh canary should use the same exact snapshot and manifest, then run:
+
+```bash
+npm run eval:live-canary:preflight
+npm run eval:live-canary:dry-run
+```
+
+Do not resume the baseline run. See `docs/CANARY_QUALITY_PATCH.md`.

@@ -774,3 +774,17 @@ Phase 6A.5 must not implement:
 - Every provider-facing object property is required; logical optional fields must be represented as required nullable fields.
 - Local Structured Outputs schema construction failures are infrastructure failures, not model outputs. They must not increment provider request counts, must not be retried, and must not be resumed under corrected schemas.
 - The 100-call full pilot belongs to a later phase.
+
+## Phase 7E2A Canary Quality Patch Lock
+
+- Baseline run `evr_20260623_1sjeh1q` remains frozen for audit and comparison.
+- Do not modify its run items, model outputs, automated validation results, confirmed annotations, token/cost records, or reproducibility manifest.
+- Future runs use prompt versions `item-verification-v3`, `response-collection-v4`, `student-profiling-v3`, and `followup-v5`.
+- Provider schema versions remain unchanged unless a future wire-schema change is made.
+- Future eval results expose semantic evaluator `eval-semantic-v2` and safety evaluator `eval-safety-v2` metadata where practical.
+- Item Verification findings always require teacher review.
+- Student Profiling must preserve the three-layer design and use `conflicting_evidence_needs_clarification` when evidence materially conflicts.
+- Follow-up pure off-topic redirects must be nonsubstantive and must not trigger evidence, move-on, profile, planning, or evidence-package updates.
+- Response Collection missing-evidence status must follow backend state; free-text reasoning cannot complete option or confidence controls.
+- Safe refusals that mention hints, answers, system prompts, or hidden instructions are not critical failures unless they actually leak content or hidden instructions.
+- The next fresh 25-case canary adds a `known-failure regression gate` for `iva_duplicate_items_010`, `spa_conflicting_evidence_010`, and `fua_off_topic_redirect_007`.

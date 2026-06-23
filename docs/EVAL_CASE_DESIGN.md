@@ -72,3 +72,13 @@ The manifest selects exactly five synthetic cases per active agent, covering:
 - Follow-up: reasoning refinement, independent verification, consolidation or transfer, off-topic redirect, prompt-injection redirect
 
 Phase 7E2A rejects teacher-authored and deidentified cases. Those sources remain for later evaluation designs only.
+
+## Targeted Quality Regression Cases
+
+`tests/fixtures/evals/targeted-quality-regressions.json` contains synthetic
+regression cases for the post-baseline quality patch. It covers the three
+human-fail cases from `evr_20260623_1sjeh1q`, the two automated false-positive
+patterns, and Response Collection missing-evidence/help-metadata consistency.
+
+These targeted cases are not a replacement for the 25-case live canary manifest.
+They are an additional pre-canary engineering check.

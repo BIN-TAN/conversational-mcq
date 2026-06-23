@@ -18,15 +18,21 @@ const prohibitedPatterns = [
   /overwrite (the )?initial/i,
   /update (the )?student profile/i,
   /create (a )?(new )?formative decision/i,
-  /system prompt/i,
-  /hidden instructions?/i,
-  /backend rules?/i,
+  /\b(system prompt|hidden instructions?|backend rules?)\s+(is|are|says?|state|:)/i,
   /\bcheat(?:ed|ing)?\b/i,
   /\bdishonest(?:y)?\b/i,
   /\bmisconduct\b/i,
   /\bused\s+genai\b/i,
   /\bgenai\s+use\s+(?:confirmed|proven)\b/i
 ];
+
+function containsMoveOnRequest(message: string | null | undefined) {
+  if (!message) {
+    return false;
+  }
+
+  return /\b(move on|continue|next|done|finished|go ahead|ready to proceed)\b/i.test(message);
+}
 
 export class FollowupSemanticValidationError extends Error {
   issues: string[];
@@ -43,6 +49,7 @@ export function validateFollowupSemantics(input: {
   current_formative_value: string;
   config: FollowupContextConfig;
   turn_type?: "opening" | "student_reply";
+  student_message?: string | null;
 }) {
   const issues: string[] = [];
   const warnings: string[] = [];
@@ -83,7 +90,48 @@ export function validateFollowupSemantics(input: {
   }
 
   if (!output.student_turn_substantive && output.evidence_trigger_reasons.length > 0) {
-    warnings.push("evidence_trigger_reasons were present even though the turn was nonsubstantive");
+    issues.push("nonsubstantive turns must use evidence_trigger_reasons=[]");
+  }
+
+  if (output.evidence_trigger_candidate && !output.student_turn_substantive) {
+    issues.push("evidence_trigger_candidate requires an interpretable substantive student turn.");
+  }
+
+  if (output.evidence_trigger_candidate && output.evidence_trigger_reasons.length === 0) {
+    issues.push("evidence_trigger_candidate requires at least one approved evidence trigger reason.");
+  }
+
+  if (output.followup_action_type === "off_topic_redirect") {
+    if (!output.off_topic_detected) {
+      issues.push("off_topic_redirect requires off_topic_detected=true");
+    }
+
+    if (output.student_turn_substantive) {
+      issues.push("pure off_topic_redirect must use student_turn_substantive=false");
+    }
+
+    if (output.evidence_trigger_candidate) {
+      issues.push("pure off_topic_redirect must use evidence_trigger_candidate=false");
+    }
+
+    if (output.evidence_trigger_reasons.length > 0) {
+      issues.push("pure off_topic_redirect must use evidence_trigger_reasons=[]");
+    }
+
+    if (output.should_offer_move_on) {
+      issues.push("pure off_topic_redirect must use should_offer_move_on=false");
+    }
+  }
+
+  if (
+    output.evidence_trigger_reasons.includes("move_on_request") &&
+    !containsMoveOnRequest(input.student_message)
+  ) {
+    issues.push("move_on_request evidence trigger requires an explicit move-on request in the student message.");
+  }
+
+  if (output.should_offer_move_on && !containsMoveOnRequest(input.student_message)) {
+    issues.push("should_offer_move_on cannot be inferred from unrelated conversation.");
   }
 
   for (const event of output.events_to_log) {

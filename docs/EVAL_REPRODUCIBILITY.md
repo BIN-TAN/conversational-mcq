@@ -67,3 +67,8 @@ remain marked as `ai_assisted_preliminary`; confirmation changes status from
 readiness report preserves automated screening flags, confirmed human critical
 flags, human failed case IDs, and auto-human disagreement counts as distinct
 fields.
+
+The Phase 7E2A quality patch preserves baseline run `evr_20260623_1sjeh1q`
+unchanged. Fresh canaries after the patch must record the new prompt versions,
+prompt hashes, semantic evaluator version `eval-semantic-v2`, safety evaluator
+version `eval-safety-v2`, and the `known-failure regression gate` result.

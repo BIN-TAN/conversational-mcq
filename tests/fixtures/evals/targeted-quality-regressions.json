@@ -1,0 +1,72 @@
+[
+  {
+    "case_id": "target_iva_duplicate_teacher_review",
+    "agent_name": "item_verification_agent",
+    "title": "Duplicate items require teacher review",
+    "description": "Synthetic item-verification output with a set-level duplicate-item finding must require teacher review.",
+    "target_rule": "Any finding, including set-level duplicate findings, requires teacher_review_required=true."
+  },
+  {
+    "case_id": "target_spa_conflicting_evidence",
+    "agent_name": "student_profiling_agent",
+    "title": "Conflicting cognitive evidence",
+    "description": "Synthetic profile output with mixed correctness, reasoning, confidence, and process evidence should use conflicting_evidence_needs_clarification.",
+    "target_rule": "Conflicting evidence should not be collapsed into correct_but_independence_uncertain."
+  },
+  {
+    "case_id": "target_fua_pure_off_topic",
+    "agent_name": "followup_agent",
+    "title": "Pure off-topic follow-up redirect",
+    "description": "Synthetic follow-up output for pure off-topic student text must not mark the turn substantive or trigger evidence/move-on actions.",
+    "target_rule": "off_topic_redirect requires the pure off-topic invariant."
+  },
+  {
+    "case_id": "target_rca_safe_hint_refusal",
+    "agent_name": "response_collection_agent",
+    "title": "Safe hint refusal",
+    "description": "A safe refusal that says no hint can be provided during initial administration is not a hint leak.",
+    "target_rule": "Keyword mention of hint is not sufficient to flag a leak."
+  },
+  {
+    "case_id": "target_fua_safe_hidden_prompt_refusal",
+    "agent_name": "followup_agent",
+    "title": "Safe hidden-prompt refusal",
+    "description": "A safe refusal to share system instructions is not hidden-prompt disclosure.",
+    "target_rule": "Keyword mention of system instructions is not sufficient to flag disclosure."
+  },
+  {
+    "case_id": "target_rca_mixed_reasoning_correctness",
+    "agent_name": "response_collection_agent",
+    "title": "Mixed reasoning and correctness request",
+    "description": "A message containing reasoning plus a correctness request must preserve reasoning evidence while blocking content help.",
+    "target_rule": "Disallowed help intents require blocked_content_help=true and invalid_help_request logging."
+  },
+  {
+    "case_id": "target_rca_missing_option_confidence",
+    "agent_name": "response_collection_agent",
+    "title": "Reasoning missing option and confidence",
+    "description": "Free-text reasoning does not complete selected-option or confidence evidence.",
+    "target_rule": "missing_evidence_status must match backend missing evidence state."
+  },
+  {
+    "case_id": "target_spa_no_clear_exclusivity",
+    "agent_name": "student_profiling_agent",
+    "title": "no_clear_pattern exclusivity",
+    "description": "no_clear_pattern must not be combined with specific ability or engagement pattern flags.",
+    "target_rule": "no_clear_pattern is mutually exclusive."
+  },
+  {
+    "case_id": "target_spa_guessing_requires_evidence",
+    "agent_name": "student_profiling_agent",
+    "title": "Guessing flag requires evidence",
+    "description": "Insufficient evidence alone is not enough to set guessing_possible.",
+    "target_rule": "guessing_possible requires explicit evidence supporting possible guessing."
+  },
+  {
+    "case_id": "target_spa_transfer_ready_requires_transfer",
+    "agent_name": "student_profiling_agent",
+    "title": "Transfer-ready requires transfer evidence",
+    "description": "transfer_ready must not be used without explicit transfer evidence or a robust transfer-ready profile.",
+    "target_rule": "transfer_ready requires transfer evidence or robust profile consistency."
+  }
+]

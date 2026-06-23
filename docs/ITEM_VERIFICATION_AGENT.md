@@ -64,3 +64,15 @@ Synthetic mock cases live in `tests/fixtures/item-verification-cases.json`. They
 Each successful or failed verification call is audited through `agent_calls` with `agent_name=item_verification_agent`. Verification runs are stored in `item_verification_runs` with content fingerprint, deterministic validation result, optional agent-call link, output payload, warning counts, acknowledgement fields, and timestamps.
 
 Historical `agent_calls.agent_name=item_preparation_agent` rows are preserved if they exist. They are retired audit data and are not rewritten.
+
+## Phase 7E2A Quality Patch
+
+Prompt version `item-verification-v3` explicitly requires
+`teacher_review_required=true` whenever any finding exists, including set-level
+duplicate-item findings. Item-specific findings also require the containing
+`item_result.teacher_review_required=true`.
+
+Semantic validation rejects empty-string substitutes for null, option labels on
+non-option findings, unknown item/option references, duplicate findings without a
+valid affected item or set-level location, and any rewrite or generation
+suggestion.

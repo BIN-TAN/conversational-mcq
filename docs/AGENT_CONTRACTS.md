@@ -202,3 +202,13 @@ Current nullable output semantics:
 - option-specific findings must identify a known option label for a known item.
 - `mapping_deviation_reason=null` means the default formative-value mapping was followed.
 - `evidence_request=null` means the Follow-up Agent is not making a separate explicit evidence request.
+
+## Phase 7E2A Quality-Patch Contract Notes
+
+The quality patch after baseline run `evr_20260623_1sjeh1q` changes prompt and
+semantic-evaluator behavior only. No provider schema wire contracts changed.
+
+- Item Verification: any finding requires output-level teacher review; affected item findings require item-level teacher review; null must not be represented as an empty string.
+- Response Collection: disallowed help intents require `blocked_content_help=true`; missing-evidence status must follow backend response state.
+- Student Profiling: `no_clear_pattern` is mutually exclusive; conflicting evidence must use the locked conflicting-evidence integrated profile unless another supported explanation is explicit.
+- Follow-up: pure `off_topic_redirect` outputs are nonsubstantive and cannot trigger evidence, move-on, profile updates, planning updates, or evidence packages.

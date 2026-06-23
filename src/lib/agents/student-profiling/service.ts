@@ -14,6 +14,7 @@ import {
   serializeStudentProfileForTeacher,
   type StudentProfileWithAgentCall
 } from "./serializers";
+import { validateStudentProfileOutputSemantics } from "./semantic-validation";
 
 export class StudentProfilingServiceError extends Error {
   code: string;
@@ -172,6 +173,43 @@ async function executeProfilingBuiltInput(input: {
       status: result.status,
       output: null,
       agent_call_id: "agent_call_id" in result ? result.agent_call_id : null,
+      agent_invocation_key: input.built.agent_invocation_key,
+      retry_count: result.retry_count
+    };
+  }
+
+  const semantic = validateStudentProfileOutputSemantics({
+    providerInput: input.built.input,
+    output: result.output
+  });
+
+  if (!semantic.ok) {
+    await prisma.agentCall.update({
+      where: { id: result.agent_call_id },
+      data: {
+        output_validated: false,
+        validation_error: semantic.issues.join("; "),
+        call_status: "invalid_output",
+        error_category: "semantic_validation"
+      }
+    });
+
+    await logAgentEvent({
+      assessment_session_db_id: input.built.assessment_session_db_id,
+      concept_unit_session_db_id: input.built.concept_unit_session_db_id,
+      event_type: "schema_validation_failed",
+      payload: {
+        agent_name: "student_profiling_agent",
+        result_status: "semantic_validation_failed",
+        agent_call_id: result.agent_call_id,
+        semantic_issues: semantic.issues
+      }
+    });
+
+    return {
+      status: "semantic_validation_failed" as const,
+      output: null,
+      agent_call_id: result.agent_call_id,
       agent_invocation_key: input.built.agent_invocation_key,
       retry_count: result.retry_count
     };
@@ -359,6 +397,42 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
       status: result.status,
       profile: null,
       agent_call_id: "agent_call_id" in result ? result.agent_call_id : null,
+      agent_invocation_key: built.agent_invocation_key
+    };
+  }
+
+  const semantic = validateStudentProfileOutputSemantics({
+    providerInput: built.input,
+    output: result.output
+  });
+
+  if (!semantic.ok) {
+    await prisma.agentCall.update({
+      where: { id: result.agent_call_id },
+      data: {
+        output_validated: false,
+        validation_error: semantic.issues.join("; "),
+        call_status: "invalid_output",
+        error_category: "semantic_validation"
+      }
+    });
+
+    await logAgentEvent({
+      assessment_session_db_id: built.assessment_session_db_id,
+      concept_unit_session_db_id: built.concept_unit_session_db_id,
+      event_type: "schema_validation_failed",
+      payload: {
+        agent_name: "student_profiling_agent",
+        result_status: "semantic_validation_failed",
+        agent_call_id: result.agent_call_id,
+        semantic_issues: semantic.issues
+      }
+    });
+
+    return {
+      status: "semantic_validation_failed" as const,
+      profile: null,
+      agent_call_id: result.agent_call_id,
       agent_invocation_key: built.agent_invocation_key
     };
   }

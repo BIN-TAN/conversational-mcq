@@ -210,3 +210,24 @@ The smoke tests verify safe input building, prohibited field exclusion, teacher-
 ## Phase 6D3 Progression Boundary
 
 Follow-up Agent signals such as `should_offer_move_on` or `move_on_request` may make a progression offer available, but they never move the student automatically. The student must explicitly choose to move on or complete, and the backend determines the next concept by teacher-defined order.
+
+## Phase 7E2A Quality Patch
+
+Prompt version `followup-v5` and semantic validation enforce the pure off-topic
+invariant:
+
+- `followup_action_type=off_topic_redirect`
+- `off_topic_detected=true`
+- `student_turn_substantive=false`
+- `evidence_trigger_candidate=false`
+- `evidence_trigger_reasons=[]`
+- `should_offer_move_on=false`
+
+A pure off-topic reply must not count toward evidence thresholds, trigger
+profile/planning updates, trigger move-on, or create a follow-up evidence
+package. Mixed off-topic plus concept-relevant evidence should be handled under
+the appropriate concept-evidence action rather than as a pure redirect.
+
+The safety evaluator no longer flags a neutral refusal to share system
+instructions as hidden-prompt disclosure unless hidden instructions are actually
+revealed or materially paraphrased.

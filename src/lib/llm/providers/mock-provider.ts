@@ -284,6 +284,7 @@ export class MockLlmProvider implements LlmProvider {
                 issue_code: "possible_ambiguity",
                 item_public_id: firstItemPublicId,
                 location: "item_stem",
+                option_label: null,
                 brief_explanation: "Rewrite as: this is a prohibited replacement wording."
               }
             ],
@@ -316,9 +317,9 @@ export class MockLlmProvider implements LlmProvider {
         const warning = warningByMode[mode]!;
         const finding = {
           issue_code: warning.issue_code,
-          item_public_id: warning.set_level ? undefined : firstItemPublicId,
+          item_public_id: warning.set_level ? null : firstItemPublicId,
           location: warning.location,
-          option_label: warning.option_label,
+          option_label: warning.option_label ?? null,
           brief_explanation: warning.brief_explanation
         };
 
@@ -493,28 +494,46 @@ export class MockLlmProvider implements LlmProvider {
           mode === "followup_off_topic"
             ? [
                 {
-                  event_type: "off_topic_followup",
-                  event_category: "followup",
-                  event_source: "agent",
-                  payload: { mock: true }
+	                  event_type: "off_topic_followup",
+	                  event_category: "followup",
+	                  event_source: "agent",
+	                  payload: {
+	                    detail: "Mock off-topic follow-up redirect.",
+	                    reason: null,
+	                    item_public_id: null,
+	                    followup_round_index: null,
+	                    event_count: null
+	                  }
                 }
               ]
             : mode === "followup_prompt_injection"
               ? [
                   {
-                    event_type: "prompt_injection_attempt",
-                    event_category: "followup",
-                    event_source: "agent",
-                    payload: { mock: true }
+	                    event_type: "prompt_injection_attempt",
+	                    event_category: "followup",
+	                    event_source: "agent",
+	                    payload: {
+	                      detail: "Mock prompt-injection redirect.",
+	                      reason: null,
+	                      item_public_id: null,
+	                      followup_round_index: null,
+	                      event_count: null
+	                    }
                   }
                 ]
               : mode === "followup_evidence_trigger"
                 ? [
                     {
-                      event_type: "followup_task_assigned",
-                      event_category: "followup",
-                      event_source: "agent",
-                      payload: { mock: true }
+	                      event_type: "followup_task_assigned",
+	                      event_category: "followup",
+	                      event_source: "agent",
+	                      payload: {
+	                        detail: "Mock follow-up evidence task.",
+	                        reason: null,
+	                        item_public_id: null,
+	                        followup_round_index: null,
+	                        event_count: null
+	                      }
                     }
                   ]
                 : []
@@ -566,7 +585,7 @@ export class MockLlmProvider implements LlmProvider {
       output.blocked_content_help = helpRequested || promptInjection;
       output.recognized_intents = [
         ...(reasoningSegment ? ["reasoning_submission"] : []),
-        ...(helpRequested ? ["invalid_help_request"] : []),
+        ...(helpRequested || promptInjection ? ["invalid_help_request"] : []),
         ...(promptInjection ? ["prompt_injection_attempt"] : []),
         ...(optionText ? ["reasoning_submission"] : []),
         ...(confidenceText ? ["procedural_clarification"] : []),
@@ -574,6 +593,46 @@ export class MockLlmProvider implements LlmProvider {
       ];
       output.reasoning_capture_status = reasoningSegment ? "new_reasoning" : "none";
       output.reasoning_evidence_segments = reasoningSegment ? [reasoningSegment] : [];
+      {
+        const missingState = input.missing_evidence_state as Record<string, unknown> | undefined;
+        const rawMissingFields = Array.isArray(missingState?.missing_fields)
+          ? missingState.missing_fields
+          : Array.isArray(missingState?.missing)
+            ? missingState.missing
+            : [];
+        const missingFields = rawMissingFields
+          .filter((field): field is string => typeof field === "string")
+          .map((field) => {
+            const normalized = field.trim().toLowerCase();
+
+            if (["option", "selected_option", "selected option"].includes(normalized)) {
+              return "answer";
+            }
+
+            if (["confidence_rating", "confidence rating"].includes(normalized)) {
+              return "confidence";
+            }
+
+            if (["reasoning_text", "reasoning text"].includes(normalized)) {
+              return "reasoning";
+            }
+
+            return normalized;
+          });
+
+        output.missing_evidence_status =
+          missingFields.length === 0
+            ? "complete"
+            : missingFields.length > 1
+              ? "multiple_missing_fields"
+              : missingFields[0] === "answer"
+                ? "missing_answer"
+                : missingFields[0] === "reasoning"
+                  ? "missing_reasoning"
+                  : missingFields[0] === "confidence"
+                    ? "missing_confidence"
+                    : "multiple_missing_fields";
+      }
       output.requires_option_button = optionText;
       output.requires_confidence_control = confidenceText;
       output.requested_control_action = /\b(save|exit)\b/i.test(message)
@@ -591,21 +650,45 @@ export class MockLlmProvider implements LlmProvider {
         ...(helpRequested
           ? [
               {
-                event_type: "invalid_help_request",
-                event_category: "initial_administration",
-                event_source: "agent",
-                payload: { mock: true }
+	                event_type: "invalid_help_request",
+	                event_category: "initial_administration",
+	                event_source: "agent",
+	                payload: {
+	                  detail: "Mock invalid help request.",
+	                  reason: null,
+	                  item_public_id: null,
+	                  followup_round_index: null,
+	                  event_count: null
+	                }
               }
             ]
           : []),
         ...(promptInjection
           ? [
               {
-                event_type: "prompt_injection_attempt",
-                event_category: "initial_administration",
-                event_source: "agent",
-                payload: { mock: true }
-              }
+	                event_type: "invalid_help_request",
+	                event_category: "initial_administration",
+	                event_source: "agent",
+	                payload: {
+	                  detail: "Mock prompt injection invalid help request.",
+	                  reason: null,
+	                  item_public_id: null,
+	                  followup_round_index: null,
+	                  event_count: null
+	                }
+	              },
+	              {
+	                event_type: "prompt_injection_attempt",
+	                event_category: "initial_administration",
+	                event_source: "agent",
+	                payload: {
+	                  detail: "Mock prompt injection attempt.",
+	                  reason: null,
+	                  item_public_id: null,
+	                  followup_round_index: null,
+	                  event_count: null
+	                }
+	              }
             ]
           : [])
       ];

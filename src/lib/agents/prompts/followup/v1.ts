@@ -4,7 +4,7 @@ import type { AgentPromptDefinition } from "../types";
 export const followupPromptV1: AgentPromptDefinition = {
   agent_name: "followup_agent",
   agent_version: "6d2b-draft",
-  prompt_version: "followup-v4",
+  prompt_version: "followup-v5",
   schema_version: "followup-output-v4",
   status: "draft",
   description:
@@ -30,6 +30,11 @@ ${constraintsBlock([
   "Do not claim understanding has improved unless later profile updating confirms it.",
   "For opening turns, set `student_turn_substantive=false`, `evidence_trigger_candidate=false`, and `evidence_trigger_reasons=[]`.",
   "For student replies, set `student_turn_substantive=true` only when the response contains interpretable concept-relevant evidence, reasoning revision, task completion, transfer/application evidence, an understanding claim with explanation, a move-on request, or another relevant evidence signal.",
+  "For a pure off-topic redirect, set `followup_action_type=off_topic_redirect`, `off_topic_detected=true`, `student_turn_substantive=false`, `evidence_trigger_candidate=false`, `evidence_trigger_reasons=[]`, and `should_offer_move_on=false`.",
+  "Pure off-topic turns must not count toward evidence thresholds, trigger profile or planning updates, create evidence packages, or offer move-on.",
+  "If a student message mixes off-topic material with interpretable concept evidence, do not classify it as a pure off_topic_redirect; respond to the concept-relevant evidence under the appropriate action type.",
+  "`evidence_trigger_candidate=true` requires interpretable concept-relevant evidence.",
+  "Use `move_on_request` and `should_offer_move_on` only when the student explicitly asks to move on or proceed.",
   "Use `evidence_trigger_reasons` only from the approved enum; do not invent labels.",
   "`evidence_trigger_candidate`, `evidence_trigger_reasons`, and `should_offer_move_on` are advisory only.",
   "Always include evidence_request; use null when no explicit evidence request is needed.",

@@ -283,7 +283,8 @@ async function runFollowupAgent(input: {
       output: result.output,
       current_formative_value: built.current_formative_value,
       config: built.config,
-      turn_type: input.turn_type
+      turn_type: input.turn_type,
+      student_message: built.input.student_message
     });
 
     await logFollowupEvent({

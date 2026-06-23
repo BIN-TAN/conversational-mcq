@@ -200,3 +200,19 @@ npm run eval:canary-report-smoke
 ```
 
 These tests use mock/fake provider paths and make no OpenAI calls.
+
+## Post-Baseline Quality Patch
+
+Do not resume or modify baseline run `evr_20260623_1sjeh1q`. After applying the
+quality patch, create a fresh 25-case canary with the same exact snapshot,
+reasoning effort, and manifest case IDs unless a case itself is invalid.
+
+Before the next preflight and dry run, run:
+
+```bash
+npm run eval:targeted-quality-regression-smoke
+```
+
+The readiness report now includes `targeted_regression_gate`, an engineering
+gate for the three known human-fail cases. The 100-call pilot remains out of
+scope for Phase 7E2A.

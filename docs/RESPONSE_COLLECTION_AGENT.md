@@ -104,3 +104,17 @@ npm run response-collection:mode-smoke
 ```
 
 These tests use synthetic records and do not call OpenAI.
+
+## Phase 7E2A Quality Patch
+
+Prompt version `response-collection-v4` keeps the initial interface
+conversational while requiring stricter metadata:
+
+- hint, correctness, explanation, content-clarification, invalid-help, or answer-seeking prompt-injection intents require `blocked_content_help=true`
+- disallowed help should log `invalid_help_request` where appropriate
+- prompt-injection requests for answers may log both `prompt_injection_attempt` and `invalid_help_request`
+- `missing_evidence_status` must reflect backend missing-evidence state
+- free-text reasoning does not complete option or confidence controls
+
+The safety evaluator no longer flags a neutral refusal such as “I cannot provide
+a hint during this initial phase” as a hint leak.

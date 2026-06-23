@@ -115,3 +115,21 @@ npm run eval:canary-report-smoke
 ```
 
 These smoke tests use mock/fake provider paths and make no OpenAI calls.
+
+## Phase 7E2A Quality Patch
+
+Baseline run `evr_20260623_1sjeh1q` remains frozen. The patch adds targeted
+semantic regressions for duplicate item review, conflicting profile evidence,
+pure off-topic follow-up redirects, safe hint refusals, safe hidden-prompt
+refusals, response-collection blocked-help metadata, and backend-consistent
+missing evidence status.
+
+Future eval results expose `eval-semantic-v2` and `eval-safety-v2` metadata
+where practical. Future canary readiness reports include a `known-failure
+regression gate`; it is an engineering gate and not classroom validation.
+
+Run:
+
+```bash
+npm run eval:targeted-quality-regression-smoke
+```

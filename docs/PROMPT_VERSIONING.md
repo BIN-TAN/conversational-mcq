@@ -148,3 +148,17 @@ Phase 6D2B updates the Follow-up Agent prompt so student replies can be classifi
 - trigger fields are advisory only; deterministic orchestration remains authoritative
 - no profile update, planning update, evidence package creation, phase transition, or next-concept movement is performed by the Follow-up Agent
 - no misconduct, cheating, or confirmed GenAI-use language is allowed
+
+## Phase 7E2A Quality Patch Prompt Versions
+
+The post-baseline quality patch increments prompt versions but keeps provider
+schema versions unchanged:
+
+- `item_verification_agent`: `item-verification-v3`
+- `response_collection_agent`: `response-collection-v4`
+- `student_profiling_agent`: `student-profiling-v3`
+- `followup_agent`: `followup-v5`
+
+These prompt changes apply only to future runs. Do not modify or resume baseline
+run `evr_20260623_1sjeh1q`; create a fresh canary so prompt hashes and evaluator
+versions remain auditable.
