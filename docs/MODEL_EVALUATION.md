@@ -162,3 +162,26 @@ Run:
 npm run eval:targeted-quality-regression-smoke
 npm run eval:live-canary:compare-config -- --run evr_20260623_1sjeh1q
 ```
+
+## Phase 7E2B Full Pilot
+
+Phase 7E2B adds a guarded 100-output full pilot on synthetic eval cases only.
+It is isolated from classroom workflows and uses the same exact model snapshot
+as the approved canary: `gpt-5.4-mini-2026-03-17` with low reasoning effort.
+
+The pilot requires an approved canary run ID at preflight, dry-run, and
+execution time. The full pilot manifest is
+`tests/fixtures/evals/live-pilot-manifest.json` and contains `internal_holdout`
+and `replication` strata. The replication stratum uses the exact canary cases;
+the internal holdout uses the remaining Phase 7E1 synthetic cases.
+
+Run:
+
+```bash
+npm run eval:live-pilot:preflight -- --approved-canary <run_public_id>
+npm run eval:live-pilot:dry-run -- --approved-canary <run_public_id>
+npm run eval:live-pilot -- --approved-canary <run_public_id> --confirm-paid-api --new-run
+npm run eval:live-pilot:report -- --run <pilot_run_public_id>
+```
+
+See `docs/FULL_LIVE_EVAL_PILOT.md`.

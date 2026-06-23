@@ -162,3 +162,10 @@ schema versions unchanged:
 These prompt changes apply only to future runs. Do not modify or resume baseline
 run `evr_20260623_1sjeh1q`; create a fresh canary so prompt hashes and evaluator
 versions remain auditable.
+
+## Phase 7E2B Prompt Freeze
+
+The full pilot freezes prompt versions, prompt hashes, schema versions, agent
+versions, case payload hashes, and evaluator versions at run creation. Prompt
+tuning during an active pilot run is not allowed; create a new run after any
+prompt or evaluator change.

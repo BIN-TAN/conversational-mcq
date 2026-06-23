@@ -129,6 +129,11 @@ This same importer can handle a 25-item canary or a future larger pilot, as long
 as the CSV, reference file, and target run map one-to-one. AI-assisted imported
 annotations remain drafts until teacher confirmation.
 
+For the 100-output Phase 7E2B pilot, `review_reference.jsonl` also includes the
+public run-item ID plus stratum, repetition, and paired-case metadata. These
+fields stay out of `blind_review_packet.jsonl` but let the importer map repeated
+case IDs to the correct run item.
+
 Teacher confirmation is done in `/teacher/evals/runs/<run_public_id>`. The
 batch confirmation action requires this exact attestation:
 

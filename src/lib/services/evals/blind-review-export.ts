@@ -8,8 +8,6 @@ import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
 import { rubricDefinitionForAgent } from "./rubrics";
 import { EvalServiceError } from "./errors";
 
-const REVIEW_ITEM_COUNT = 25;
-
 const annotationColumns = [
   "review_item_id",
   "pass_fail",
@@ -284,12 +282,22 @@ export async function exportBlindReviewPacket(runPublicId: string) {
       run_config_hash: true,
       canary_gate_status: true,
       planned_run_item_count: true,
+      evaluation_phase: true,
+      approved_canary_run_public_id: true,
+      pilot_manifest_version: true,
+      pilot_manifest_hash: true,
+      agent_configuration_hash: true,
+      ordering_algorithm_version: true,
       run_items: {
         orderBy: [{ run_order: "asc" }, { repetition_index: "asc" }, { created_at: "asc" }],
         select: {
           run_item_public_id: true,
           repetition_index: true,
           run_order: true,
+          evaluation_phase: true,
+          evaluation_stratum: true,
+          paired_case_key: true,
+          case_hash: true,
           input_payload: true,
           raw_output: true,
           parsed_output: true,
@@ -327,11 +335,12 @@ export async function exportBlindReviewPacket(runPublicId: string) {
   }
 
   const items = run.run_items;
+  const expectedReviewItemCount = run.planned_run_item_count ?? items.length;
 
-  if (items.length !== REVIEW_ITEM_COUNT || run.planned_run_item_count !== REVIEW_ITEM_COUNT) {
+  if (items.length === 0 || items.length !== expectedReviewItemCount) {
     throw new EvalServiceError(
       "invalid_run_item_count",
-      `Blind review export requires exactly ${REVIEW_ITEM_COUNT} planned run items.`,
+      "Blind review export requires every planned run item to be present.",
       400
     );
   }
@@ -339,7 +348,7 @@ export async function exportBlindReviewPacket(runPublicId: string) {
   if (items.some((item) => item.execution_status !== "completed")) {
     throw new EvalServiceError(
       "run_items_not_completed",
-      "Blind review export requires all 25 run items to be completed.",
+      "Blind review export requires all run items to be completed.",
       400
     );
   }
@@ -347,14 +356,14 @@ export async function exportBlindReviewPacket(runPublicId: string) {
   if (items.some((item) => item.eval_case.case_source !== "synthetic")) {
     throw new EvalServiceError(
       "nonsynthetic_case_rejected",
-      "Blind review export is limited to synthetic eval cases in Phase 7E2A.",
+      "Blind review export is limited to synthetic eval cases.",
       400
     );
   }
 
   const reviewIds = new Set(items.map((item) => reviewItemId(run.run_public_id, item.run_item_public_id)));
 
-  if (reviewIds.size !== REVIEW_ITEM_COUNT) {
+  if (reviewIds.size !== expectedReviewItemCount) {
     throw new EvalServiceError("duplicate_review_item_id", "Review item IDs were not unique.", 500);
   }
 
@@ -363,6 +372,26 @@ export async function exportBlindReviewPacket(runPublicId: string) {
       shuffleKey(run.run_public_id, right.run_item_public_id)
     )
   );
+  for (let index = 1; index < orderedItems.length; index += 1) {
+    const previous = orderedItems[index - 1];
+    const current = orderedItems[index];
+
+    if (
+      current.paired_case_key &&
+      previous.paired_case_key === current.paired_case_key
+    ) {
+      const swapIndex = orderedItems.findIndex(
+        (candidate, candidateIndex) =>
+          candidateIndex > index &&
+          candidate.paired_case_key !== current.paired_case_key &&
+          orderedItems[index - 1]?.paired_case_key !== candidate.paired_case_key
+      );
+
+      if (swapIndex >= 0) {
+        [orderedItems[index], orderedItems[swapIndex]] = [orderedItems[swapIndex], orderedItems[index]];
+      }
+    }
+  }
 
   const blindRecords = orderedItems.map((item) => {
     const agentName = item.eval_case.agent_name as AgentNameType;
@@ -393,6 +422,7 @@ export async function exportBlindReviewPacket(runPublicId: string) {
 
   const referenceRecords = orderedItems.map((item) => ({
     review_item_id: reviewItemId(run.run_public_id, item.run_item_public_id),
+    run_item_public_id: item.run_item_public_id,
     original_case_id: item.eval_case.case_id,
     gold_labels: safeValue(item.eval_case.gold_labels),
     expected_behavior: {
@@ -422,7 +452,17 @@ export async function exportBlindReviewPacket(runPublicId: string) {
       prompt_hash: item.prompt_hash ?? run.prompt_hash,
       case_manifest_hash: run.case_manifest_hash,
       run_config_hash: run.run_config_hash,
-      canary_gate_status: run.canary_gate_status
+      canary_gate_status: run.canary_gate_status,
+      evaluation_phase: item.evaluation_phase ?? run.evaluation_phase,
+      evaluation_stratum: item.evaluation_stratum,
+      repetition_index: item.repetition_index,
+      paired_case_key: item.paired_case_key,
+      case_hash: item.case_hash,
+      approved_canary_run_public_id: run.approved_canary_run_public_id,
+      pilot_manifest_version: run.pilot_manifest_version,
+      pilot_manifest_hash: run.pilot_manifest_hash,
+      agent_configuration_hash: run.agent_configuration_hash,
+      ordering_algorithm_version: run.ordering_algorithm_version
     }
   }));
 

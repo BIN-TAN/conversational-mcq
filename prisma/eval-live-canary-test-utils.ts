@@ -38,7 +38,7 @@ export async function cleanupLiveCanaryRecords(prisma: PrismaClient) {
   await prisma.evalRun.deleteMany({ where: { id: { in: runIds } } });
   await prisma.evalSuite.deleteMany({
     where: {
-      title: "Phase 7E2A live canary",
+      title: { in: ["Phase 7E2A live canary", "Phase 7E2B full live pilot"] },
       runs: { none: {} }
     }
   });
@@ -116,4 +116,20 @@ export const liveCanarySmokeEnv = {
   LLM_PROVIDER: "mock",
   LLM_LIVE_CALLS_ENABLED: "false",
   OPENAI_API_KEY: "fake-smoke-key-never-sent"
+};
+
+export const livePilotSmokeEnv = {
+  ...liveCanarySmokeEnv,
+  EVAL_PILOT_PROVIDER: "openai",
+  EVAL_PILOT_LIVE_CALLS_ENABLED: "true",
+  EVAL_PILOT_TARGET_MODEL: "gpt-5.4-mini-2026-03-17",
+  EVAL_PILOT_REASONING_EFFORT: "low",
+  EVAL_PILOT_REPETITIONS: "2",
+  EVAL_PILOT_INTERNAL_HOLDOUT_CASES_PER_AGENT: "5",
+  EVAL_PILOT_REPLICATION_CASES_PER_AGENT: "5",
+  EVAL_PILOT_COST_HARD_LIMIT_USD: "50",
+  EVAL_PILOT_MAX_PROVIDER_REQUESTS: "150",
+  EVAL_PILOT_MAX_CONCURRENCY: "1",
+  EVAL_PILOT_MAX_RETRIES: "1",
+  EVAL_PILOT_REQUEST_TIMEOUT_MS: "60000"
 };

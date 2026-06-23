@@ -146,11 +146,18 @@ export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
         </dl>
         {run?.run_mode === "live_provider" ? (
           <div className="mt-5 rounded-md border border-line bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-ink">Live canary metadata</p>
+            <p className="text-sm font-semibold text-ink">
+              {run.evaluation_phase === "full_pilot" ? "Full live pilot metadata" : "Live canary metadata"}
+            </p>
             <p className="mt-1 text-sm text-muted">
-              Paid execution is CLI-only in Phase 7E2A. This page displays results and audit metadata only.
+              Paid execution is CLI-only. This page displays results and audit metadata only; it does
+              not start paid provider calls.
             </p>
             <dl className="mt-4 grid gap-3 text-sm md:grid-cols-4">
+              <div>
+                <dt className="text-muted">Evaluation phase</dt>
+                <dd>{run.evaluation_phase ?? "phase7e2a"}</dd>
+              </div>
               <div>
                 <dt className="text-muted">Model snapshot</dt>
                 <dd className="break-all">{run.model_snapshot ?? run.model_name}</dd>
@@ -180,8 +187,28 @@ export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
                 <dd>{run.canary_gate_status ?? "not_reported"}</dd>
               </div>
               <div>
+                <dt className="text-muted">Approved canary</dt>
+                <dd className="break-all">{run.approved_canary_run_public_id ?? ""}</dd>
+              </div>
+              <div>
                 <dt className="text-muted">Pricing registry</dt>
                 <dd className="break-all">{run.pricing_registry_version ?? ""}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Pilot manifest</dt>
+                <dd className="break-all">{run.pilot_manifest_version ?? ""}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Ordering algorithm</dt>
+                <dd className="break-all">{run.ordering_algorithm_version ?? ""}</dd>
+              </div>
+              <div className="md:col-span-2">
+                <dt className="text-muted">Agent configuration hash</dt>
+                <dd className="break-all">{run.agent_configuration_hash ?? ""}</dd>
+              </div>
+              <div className="md:col-span-2">
+                <dt className="text-muted">Pilot manifest hash</dt>
+                <dd className="break-all">{run.pilot_manifest_hash ?? ""}</dd>
               </div>
               <div className="md:col-span-2">
                 <dt className="text-muted">Case manifest hash</dt>
@@ -280,6 +307,7 @@ export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
               <tr>
                 <th className="px-3 py-2">Case</th>
                 <th className="px-3 py-2">Repetition</th>
+                <th className="px-3 py-2">Stratum</th>
                 <th className="px-3 py-2">Schema</th>
                 <th className="px-3 py-2">Semantic</th>
                 <th className="px-3 py-2">Safety</th>
@@ -301,6 +329,10 @@ export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
                       <p className="text-xs text-muted">{item.case_title}</p>
                     </td>
                     <td className="px-3 py-2">{item.repetition_index}</td>
+                    <td className="px-3 py-2">
+                      <p>{item.evaluation_stratum ?? ""}</p>
+                      <p className="text-xs text-muted">{item.paired_case_key ?? ""}</p>
+                    </td>
                     <td className="px-3 py-2"><StatusBadge value={item.output_validated} /></td>
                     <td className="px-3 py-2"><StatusBadge value={semantic?.ok === true} /></td>
                     <td className="px-3 py-2">
@@ -331,7 +363,7 @@ export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
               })}
               {items.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-6 text-muted" colSpan={8}>
+                  <td className="px-3 py-6 text-muted" colSpan={9}>
                     No run items match the current filter.
                   </td>
                 </tr>

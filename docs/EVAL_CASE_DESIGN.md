@@ -82,3 +82,15 @@ patterns, and Response Collection missing-evidence/help-metadata consistency.
 
 These targeted cases are not a replacement for the 25-case live canary manifest.
 They are an additional pre-canary engineering check.
+
+## Phase 7E2B Pilot Manifest
+
+Phase 7E2B uses `tests/fixtures/evals/live-pilot-manifest.json`.
+
+The manifest contains 50 synthetic base cases:
+
+- five `internal_holdout` cases per active agent not used in the canary
+- five `replication` cases per active agent exactly matching the canary manifest
+
+Each base case is run twice in the pilot. The runner rejects teacher-authored
+and deidentified cases for this phase.

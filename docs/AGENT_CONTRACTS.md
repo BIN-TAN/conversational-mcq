@@ -212,3 +212,9 @@ semantic-evaluator behavior only. No provider schema wire contracts changed.
 - Response Collection: disallowed help intents require `blocked_content_help=true`; missing-evidence status must follow backend response state.
 - Student Profiling: `no_clear_pattern` is mutually exclusive; conflicting evidence must use the locked conflicting-evidence integrated profile unless another supported explanation is explicit.
 - Follow-up: pure `off_topic_redirect` outputs are nonsubstantive and cannot trigger evidence, move-on, profile updates, planning updates, or evidence packages.
+
+## Phase 7E2B Contract Boundary
+
+The full pilot reuses the same five active agent schemas and validators. It does
+not change prompts, schemas, semantic validators, or safety validators. The
+pilot only records repeated synthetic eval outputs and stability metadata.

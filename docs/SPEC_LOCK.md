@@ -813,3 +813,19 @@ Phase 6A.5 must not implement:
 - Response Collection missing-evidence status must follow backend state; free-text reasoning cannot complete option or confidence controls.
 - Safe refusals that mention hints, answers, system prompts, or hidden instructions are not critical failures unless they actually leak content or hidden instructions.
 - The next fresh 25-case canary adds a `known-failure regression gate` for `iva_duplicate_items_010`, `spa_conflicting_evidence_010`, and `fua_off_topic_redirect_007`.
+
+## Phase 7E2B Full Pilot Lock
+
+- The full pilot uses exactly `gpt-5.4-mini-2026-03-17` with `reasoning_effort=low`.
+- It is 5 agents x 10 synthetic base cases per agent x 2 repetitions = 100 eval run items.
+- The pilot requires an explicitly approved canary supplied by `--approved-canary` or `EVAL_PILOT_APPROVED_CANARY_RUN_ID`; application logic must not hardcode a run ID.
+- The approved canary must be completed, fully annotated, all human Pass, zero human critical failures, known-failure gate passed, and `ready_for_full_pilot`.
+- The full pilot has two strata: `internal_holdout` and `replication`.
+- `internal_holdout` is an internal synthetic holdout, not independent external classroom validation.
+- Paid full-pilot execution is CLI-only and requires `--confirm-paid-api` plus `--new-run` or `--resume <pilot_run_public_id>`.
+- Browser UI may display pilot results but must not start paid provider calls or accept API keys.
+- Evaluation live-call settings remain separate from classroom live-call settings. Enabling `EVAL_PILOT_LIVE_CALLS_ENABLED` must not enable classroom OpenAI calls.
+- Eval outputs remain in eval tables only and must not mutate operational agent calls, profiles, decisions, follow-up rounds, item verification runs, workflow jobs, sessions, responses, content, roster, accounts, or exports.
+- The readiness report recommendation is deterministic and uses `ready_for_controlled_operational_integration`, `not_ready_for_controlled_operational_integration`, or `incomplete_review`.
+- The report label is `full pilot readiness` with `classroom_validity=false`.
+- Full-pilot blind review export supports 100 rows and hides stratum, repetition, paired case key, model/provider metadata, automated results, gold labels, costs, tokens, and prior canary results from the blind packet.

@@ -879,36 +879,42 @@ model EvalCase {
 }
 
 model EvalRun {
-  id                       String        @id @default(uuid()) @db.Uuid
-  run_public_id            String        @unique @default(cuid())
-  suite_db_id              String        @db.Uuid
-  agent_name               String
-  provider                 String
-  model_name               String
-  model_config             Json?
-  prompt_version           String
-  schema_version           String
-  prompt_hash              String
-  run_mode                 EvalRunMode
-  repetition_count         Int           @default(1)
-  status                   EvalRunStatus @default(pending)
-  planned_run_item_count   Int?
-  provider_request_count   Int           @default(0)
-  model_snapshot           String?
-  reasoning_effort         String?
-  case_manifest_hash       String?
-  run_config_hash          String?
-  reproducibility_manifest Json?
-  pricing_registry_version String?
-  budget_limit_usd         Decimal?      @db.Decimal(12, 6)
-  estimated_cost_usd       Decimal?      @db.Decimal(12, 6)
-  error_message            String?       @db.Text
-  canary_gate_status       String?
-  created_by_user_db_id    String        @db.Uuid
-  started_at               DateTime?     @db.Timestamptz(6)
-  completed_at             DateTime?     @db.Timestamptz(6)
-  created_at               DateTime      @default(now()) @db.Timestamptz(6)
-  updated_at               DateTime      @updatedAt @db.Timestamptz(6)
+  id                            String        @id @default(uuid()) @db.Uuid
+  run_public_id                 String        @unique @default(cuid())
+  suite_db_id                   String        @db.Uuid
+  agent_name                    String
+  provider                      String
+  model_name                    String
+  model_config                  Json?
+  prompt_version                String
+  schema_version                String
+  prompt_hash                   String
+  run_mode                      EvalRunMode
+  repetition_count              Int           @default(1)
+  status                        EvalRunStatus @default(pending)
+  planned_run_item_count        Int?
+  provider_request_count        Int           @default(0)
+  model_snapshot                String?
+  reasoning_effort              String?
+  case_manifest_hash            String?
+  run_config_hash               String?
+  evaluation_phase              String?
+  approved_canary_run_public_id String?
+  pilot_manifest_version        String?
+  pilot_manifest_hash           String?
+  agent_configuration_hash      String?
+  ordering_algorithm_version    String?
+  reproducibility_manifest      Json?
+  pricing_registry_version      String?
+  budget_limit_usd              Decimal?      @db.Decimal(12, 6)
+  estimated_cost_usd            Decimal?      @db.Decimal(12, 6)
+  error_message                 String?       @db.Text
+  canary_gate_status            String?
+  created_by_user_db_id         String        @db.Uuid
+  started_at                    DateTime?     @db.Timestamptz(6)
+  completed_at                  DateTime?     @db.Timestamptz(6)
+  created_at                    DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime      @updatedAt @db.Timestamptz(6)
 
   suite      EvalSuite     @relation(fields: [suite_db_id], references: [id], onDelete: Restrict)
   created_by User          @relation("EvalRunCreator", fields: [created_by_user_db_id], references: [id], onDelete: Restrict)
@@ -919,6 +925,10 @@ model EvalRun {
   @@index([run_mode, status])
   @@index([model_snapshot])
   @@index([case_manifest_hash])
+  @@index([evaluation_phase, status])
+  @@index([approved_canary_run_public_id])
+  @@index([pilot_manifest_hash])
+  @@index([agent_configuration_hash])
   @@index([created_by_user_db_id])
   @@map("eval_runs")
 }
@@ -931,6 +941,10 @@ model EvalRunItem {
   repetition_index           Int
   run_order                  Int?
   idempotency_key            String?   @unique
+  evaluation_phase           String?
+  evaluation_stratum         String?
+  paired_case_key            String?
+  case_hash                  String?
   input_payload              Json
   raw_output                 Json?
   parsed_output              Json?
@@ -970,6 +984,9 @@ model EvalRunItem {
   @@unique([run_db_id, case_db_id, repetition_index])
   @@index([run_db_id, created_at])
   @@index([run_db_id, run_order])
+  @@index([run_db_id, evaluation_stratum])
+  @@index([run_db_id, paired_case_key])
+  @@index([evaluation_phase])
   @@index([case_db_id])
   @@index([execution_status])
   @@index([output_validated])

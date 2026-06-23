@@ -25,8 +25,8 @@ export default async function TeacherEvalsPage() {
           <h1 className="mt-2 text-3xl font-semibold text-ink">Agent evaluation harness</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
             Review synthetic evaluation suites, run mock evaluations, inspect validation outcomes,
-            annotate outputs, and export development-evaluation results. No live OpenAI calls are
-            made in Phase 7E1.
+            annotate outputs, and export development-evaluation results. Paid live evaluation remains
+            CLI-only and is not started from the browser.
           </p>
         </header>
         <EvalDashboardClient />

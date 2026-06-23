@@ -64,3 +64,10 @@ npm run eval:budget-smoke
 ```
 
 This test uses no OpenAI calls.
+
+## Phase 7E2B Pilot Budget Guard
+
+The pilot uses the same conservative reservation model but with pilot-specific
+environment variables: USD 50 hard limit, max provider requests 150, concurrency
+1, and max retries 1. Missing provider usage pauses the run as
+`budget_unverifiable`; the runner does not fabricate token counts.

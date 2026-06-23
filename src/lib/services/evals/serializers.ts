@@ -79,6 +79,12 @@ export function serializeEvalRun(run: {
   reasoning_effort?: string | null;
   case_manifest_hash?: string | null;
   run_config_hash?: string | null;
+  evaluation_phase?: string | null;
+  approved_canary_run_public_id?: string | null;
+  pilot_manifest_version?: string | null;
+  pilot_manifest_hash?: string | null;
+  agent_configuration_hash?: string | null;
+  ordering_algorithm_version?: string | null;
   reproducibility_manifest?: unknown;
   pricing_registry_version?: string | null;
   budget_limit_usd?: unknown;
@@ -115,6 +121,12 @@ export function serializeEvalRun(run: {
     reasoning_effort: run.reasoning_effort ?? null,
     case_manifest_hash: run.case_manifest_hash ?? null,
     run_config_hash: run.run_config_hash ?? null,
+    evaluation_phase: run.evaluation_phase ?? null,
+    approved_canary_run_public_id: run.approved_canary_run_public_id ?? null,
+    pilot_manifest_version: run.pilot_manifest_version ?? null,
+    pilot_manifest_hash: run.pilot_manifest_hash ?? null,
+    agent_configuration_hash: run.agent_configuration_hash ?? null,
+    ordering_algorithm_version: run.ordering_algorithm_version ?? null,
     reproducibility_manifest: stripInternalKeys(run.reproducibility_manifest),
     pricing_registry_version: run.pricing_registry_version ?? null,
     budget_limit_usd:
@@ -175,6 +187,10 @@ export function serializeEvalRunItem(runItem: {
   run_item_public_id: string;
   repetition_index: number;
   run_order?: number | null;
+  evaluation_phase?: string | null;
+  evaluation_stratum?: string | null;
+  paired_case_key?: string | null;
+  case_hash?: string | null;
   input_payload: unknown;
   raw_output: unknown;
   parsed_output: unknown;
@@ -254,6 +270,10 @@ export function serializeEvalRunItem(runItem: {
     prompt_hash: runItem.prompt_hash ?? runItem.run?.prompt_hash ?? null,
     repetition_index: runItem.repetition_index,
     run_order: runItem.run_order ?? null,
+    evaluation_phase: runItem.evaluation_phase ?? null,
+    evaluation_stratum: runItem.evaluation_stratum ?? null,
+    paired_case_key: runItem.paired_case_key ?? null,
+    case_hash: runItem.case_hash ?? null,
     input_payload: stripInternalKeys(runItem.input_payload),
     raw_output: stripInternalKeys(runItem.raw_output),
     parsed_output: stripInternalKeys(runItem.parsed_output),

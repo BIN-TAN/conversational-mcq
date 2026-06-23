@@ -29,6 +29,7 @@ type ParsedAnnotationRow = {
 
 type ReferenceRecord = {
   review_item_id: string;
+  run_item_public_id?: string;
   original_case_id: string;
   gold_labels?: unknown;
   expected_behavior?: unknown;
@@ -148,7 +149,6 @@ function parseAnnotationCsv(text: string) {
 
 function validateReferenceRecords(records: ReferenceRecord[]) {
   const byReviewId = new Map<string, ReferenceRecord>();
-  const byCaseId = new Map<string, ReferenceRecord>();
 
   for (const record of records) {
     if (byReviewId.has(record.review_item_id)) {
@@ -158,23 +158,15 @@ function validateReferenceRecords(records: ReferenceRecord[]) {
     }
 
     byReviewId.set(record.review_item_id, record);
-
-    if (byCaseId.has(record.original_case_id)) {
-      throw new EvalServiceError("duplicate_reference_case_id", "Reference JSONL has duplicate original_case_id.", 400, {
-        case_id: record.original_case_id
-      });
-    }
-
-    byCaseId.set(record.original_case_id, record);
   }
 
-  return { byReviewId, byCaseId };
+  return { byReviewId };
 }
 
 function calculateImportSummary(input: {
   rows: ParsedAnnotationRow[];
   referenceByReviewId: Map<string, ReferenceRecord>;
-  caseAgentById: Map<string, string>;
+  agentByReviewId: Map<string, string>;
 }) {
   const passCount = input.rows.filter((row) => row.pass_fail === "pass").length;
   const failCount = input.rows.filter((row) => row.pass_fail === "fail").length;
@@ -189,8 +181,7 @@ function calculateImportSummary(input: {
   const perAgent: Record<string, { pass: number; fail: number; total: number; pass_rate: number }> = {};
 
   for (const row of input.rows) {
-    const caseId = input.referenceByReviewId.get(row.review_item_id)?.original_case_id;
-    const agentName = caseId ? input.caseAgentById.get(caseId) : undefined;
+    const agentName = input.agentByReviewId.get(row.review_item_id);
 
     if (!agentName) {
       continue;
@@ -339,7 +330,6 @@ export async function importDraftAnnotationsForRun(input: {
     loadRunForImport(input.runPublicId)
   ]);
   const referenceByReviewId = referenceRecords.byReviewId;
-  const referenceByCaseId = referenceRecords.byCaseId;
   const expectedReviewItemCount = run.run_items.length;
 
   if (rows.length !== expectedReviewItemCount) {
@@ -374,26 +364,46 @@ export async function importDraftAnnotationsForRun(input: {
     }
   }
 
-  const itemByCaseId = new Map(run.run_items.map((item) => [item.eval_case.case_id, item]));
-  const caseAgentById = new Map(run.run_items.map((item) => [item.eval_case.case_id, item.eval_case.agent_name]));
-
-  for (const reference of referenceByReviewId.values()) {
-    if (!itemByCaseId.has(reference.original_case_id)) {
-      throw new EvalServiceError("reference_case_not_in_run", "Reference file maps to a case that is not in this run.", 400, {
-        case_id: reference.original_case_id
-      });
-    }
-  }
+  const itemByPublicId = new Map(run.run_items.map((item) => [item.run_item_public_id, item]));
+  const itemsByCaseId = new Map<string, typeof run.run_items>();
 
   for (const item of run.run_items) {
-    if (!referenceByCaseId.has(item.eval_case.case_id)) {
-      throw new EvalServiceError("reference_case_missing_from_run", "Reference file is missing a case from this run.", 400, {
-        case_id: item.eval_case.case_id
+    itemsByCaseId.set(item.eval_case.case_id, [...(itemsByCaseId.get(item.eval_case.case_id) ?? []), item]);
+  }
+
+  const itemByReviewId = new Map<string, typeof run.run_items[number]>();
+  const agentByReviewId = new Map<string, string>();
+
+  for (const reference of referenceByReviewId.values()) {
+    const item = reference.run_item_public_id
+      ? itemByPublicId.get(reference.run_item_public_id)
+      : itemsByCaseId.get(reference.original_case_id)?.length === 1
+        ? itemsByCaseId.get(reference.original_case_id)?.[0]
+        : undefined;
+
+    if (!item) {
+      throw new EvalServiceError("reference_case_not_in_run", "Reference file maps to a case that is not in this run.", 400, {
+        case_id: reference.original_case_id,
+        run_item_public_id: reference.run_item_public_id ?? null
+      });
+    }
+
+    itemByReviewId.set(reference.review_item_id, item);
+    agentByReviewId.set(reference.review_item_id, item.eval_case.agent_name);
+  }
+
+  const referencedRunItemIds = new Set([...itemByReviewId.values()].map((item) => item.run_item_public_id));
+
+  for (const item of run.run_items) {
+    if (!referencedRunItemIds.has(item.run_item_public_id)) {
+      throw new EvalServiceError("reference_run_item_missing_from_run", "Reference file is missing a run item from this run.", 400, {
+        case_id: item.eval_case.case_id,
+        run_item_public_id: item.run_item_public_id
       });
     }
   }
 
-  const summary = calculateImportSummary({ rows, referenceByReviewId, caseAgentById });
+  const summary = calculateImportSummary({ rows, referenceByReviewId, agentByReviewId });
   const teacherDbId = input.requestedByUserDbId ?? run.created_by_user_db_id;
   const teacher = await prisma.user.findUnique({
     where: { id: teacherDbId },
@@ -411,7 +421,7 @@ export async function importDraftAnnotationsForRun(input: {
   await prisma.$transaction(async (tx) => {
     for (const row of rows) {
       const reference = referenceByReviewId.get(row.review_item_id);
-      const item = reference ? itemByCaseId.get(reference.original_case_id) : undefined;
+      const item = reference ? itemByReviewId.get(reference.review_item_id) : undefined;
 
       if (!item) {
         throw new EvalServiceError("reference_case_not_in_run", "Reference case was not found in the run.", 400);

@@ -10,6 +10,7 @@ import {
   operationalCounts,
   withCanaryEnv
 } from "./eval-live-canary-test-utils";
+import { createMockPilotRun } from "./eval-live-pilot-test-utils";
 
 const prisma = new PrismaClient();
 
@@ -53,6 +54,22 @@ async function main() {
     assert(afterContent.assessments === beforeContent.assessments, "Eval execution changed assessments.");
     assert(afterContent.conceptUnits === beforeContent.conceptUnits, "Eval execution changed concept units.");
     assert(afterContent.items === beforeContent.items, "Eval execution changed items.");
+
+    const pilot = await createMockPilotRun(prisma);
+    assert(pilot.summary.run_item_count === 100, "Pilot isolation smoke should create 100 eval run items.");
+    const afterPilotOperational = await operationalCounts(prisma);
+    const afterPilotContent = await contentCounts();
+
+    assert(afterPilotOperational.agentCalls === beforeOperational.agentCalls, "Pilot eval execution created operational agent_calls.");
+    assert(afterPilotOperational.workflowJobs === beforeOperational.workflowJobs, "Pilot eval execution created workflow jobs.");
+    assert(afterPilotOperational.assessmentSessions === beforeOperational.assessmentSessions, "Pilot eval execution changed assessment sessions.");
+    assert(afterPilotOperational.studentProfiles === beforeOperational.studentProfiles, "Pilot eval execution created student profiles.");
+    assert(afterPilotOperational.formativeDecisions === beforeOperational.formativeDecisions, "Pilot eval execution created formative decisions.");
+    assert(afterPilotOperational.followupRounds === beforeOperational.followupRounds, "Pilot eval execution created follow-up rounds.");
+    assert(afterPilotOperational.itemVerificationRuns === beforeOperational.itemVerificationRuns, "Pilot eval execution created item verification runs.");
+    assert(afterPilotContent.assessments === beforeContent.assessments, "Pilot eval execution changed assessments.");
+    assert(afterPilotContent.conceptUnits === beforeContent.conceptUnits, "Pilot eval execution changed concept units.");
+    assert(afterPilotContent.items === beforeContent.items, "Pilot eval execution changed items.");
   });
 
   await cleanupLiveCanaryRecords(prisma);

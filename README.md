@@ -868,3 +868,42 @@ npm run eval:live-canary -- --confirm-paid-api --new-run
 
 Do not resume the baseline run. Fresh runs require fresh human annotation. See
 `docs/CANARY_QUALITY_PATCH.md`.
+
+### Phase 7E2B Full Pilot
+
+The full pilot is a guarded, CLI-only live-evaluation path for eval tables only.
+It uses `gpt-5.4-mini-2026-03-17`, `reasoning_effort=low`, 50 synthetic base
+cases, two repetitions, and 100 total outputs. It requires an approved canary
+run via `--approved-canary <run_public_id>` or
+`EVAL_PILOT_APPROVED_CANARY_RUN_ID`.
+
+Preflight and dry run make no provider request:
+
+```bash
+npm run eval:live-pilot:preflight -- --approved-canary <run_public_id>
+npm run eval:live-pilot:dry-run -- --approved-canary <run_public_id>
+```
+
+Paid execution is not automatic and requires local `.env.local` configuration
+plus explicit confirmation:
+
+```bash
+npm run eval:live-pilot -- --approved-canary <run_public_id> --confirm-paid-api --new-run
+npm run eval:live-pilot -- --confirm-paid-api --resume <pilot_run_public_id>
+npm run eval:live-pilot:report -- --run <pilot_run_public_id>
+```
+
+Pilot smoke tests use mock providers and make no OpenAI call:
+
+```bash
+npm run eval:pilot-manifest-smoke
+npm run eval:live-pilot-runner-smoke
+npm run eval:pilot-stability-smoke
+npm run eval:pilot-blind-export-smoke
+npm run eval:pilot-annotation-smoke
+npm run eval:pilot-report-smoke
+```
+
+See `docs/FULL_LIVE_EVAL_PILOT.md`,
+`docs/EVAL_STABILITY_ANALYSIS.md`, and
+`docs/INTERNAL_HOLDOUT_LIMITATIONS.md`.

@@ -306,3 +306,10 @@ npm run eval:canary-report-smoke
 ```
 
 These checks use mock/fake provider execution and do not call OpenAI.
+
+## Phase 7E2B Full Pilot
+
+The full pilot extends the evaluation-only live path to 100 synthetic outputs.
+It uses separate `EVAL_PILOT_*` settings and does not use the operational
+`executeAgent` persistence path. Enabling the pilot does not enable classroom
+live calls, and pilot outputs stay in eval tables only.

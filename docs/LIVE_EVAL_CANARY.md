@@ -275,3 +275,19 @@ npm run eval:live-canary:compare-config -- --run evr_20260623_1sjeh1q
 The readiness report now includes `targeted_regression_gate`, an engineering
 gate for the three known human-fail cases. The 100-call pilot remains out of
 scope for Phase 7E2A.
+
+## Phase 7E2B Transition
+
+After a fresh canary is approved as `ready_for_full_pilot`, the next step is the
+guarded full pilot, not classroom activation. The full pilot uses
+`tests/fixtures/evals/live-pilot-manifest.json`, 100 synthetic outputs, and an
+approved canary ID supplied at the command line or through
+`EVAL_PILOT_APPROVED_CANARY_RUN_ID`.
+
+```bash
+npm run eval:live-pilot:preflight -- --approved-canary <run_public_id>
+npm run eval:live-pilot:dry-run -- --approved-canary <run_public_id>
+npm run eval:live-pilot -- --approved-canary <run_public_id> --confirm-paid-api --new-run
+```
+
+The canary run remains unchanged; the pilot creates a separate eval run.

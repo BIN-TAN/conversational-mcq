@@ -138,7 +138,23 @@ const serverEnvSchema = z.object({
   EVAL_MAX_OUTPUT_TOKENS_RESPONSE_COLLECTION: positiveIntWithDefault(1500),
   EVAL_MAX_OUTPUT_TOKENS_PROFILING: positiveIntWithDefault(4000),
   EVAL_MAX_OUTPUT_TOKENS_PLANNING: positiveIntWithDefault(3000),
-  EVAL_MAX_OUTPUT_TOKENS_FOLLOWUP: positiveIntWithDefault(2500)
+  EVAL_MAX_OUTPUT_TOKENS_FOLLOWUP: positiveIntWithDefault(2500),
+  EVAL_PILOT_PROVIDER: z.enum(["mock", "openai"]).default("openai"),
+  EVAL_PILOT_LIVE_CALLS_ENABLED: booleanWithDefault(false),
+  EVAL_PILOT_APPROVED_CANARY_RUN_ID: z.string().optional(),
+  EVAL_PILOT_TARGET_MODEL: z.string().min(1).default("gpt-5.4-mini-2026-03-17"),
+  EVAL_PILOT_REASONING_EFFORT: z.enum(["low"]).default("low"),
+  EVAL_PILOT_REPETITIONS: positiveIntWithDefault(2),
+  EVAL_PILOT_INTERNAL_HOLDOUT_CASES_PER_AGENT: positiveIntWithDefault(5),
+  EVAL_PILOT_REPLICATION_CASES_PER_AGENT: positiveIntWithDefault(5),
+  EVAL_PILOT_COST_HARD_LIMIT_USD: nonnegativeNumberWithDefault(50),
+  EVAL_PILOT_MAX_PROVIDER_REQUESTS: positiveIntWithDefault(150),
+  EVAL_PILOT_MAX_CONCURRENCY: positiveIntWithDefault(1),
+  EVAL_PILOT_MAX_RETRIES: z.preprocess(
+    (value) => (value === "" || value === undefined ? 1 : value),
+    z.coerce.number().int().min(0).max(3)
+  ),
+  EVAL_PILOT_REQUEST_TIMEOUT_MS: positiveIntWithDefault(60000)
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

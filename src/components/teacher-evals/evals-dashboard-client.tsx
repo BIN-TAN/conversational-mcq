@@ -106,8 +106,8 @@ export function EvalDashboardClient() {
             </p>
             <h2 className="mt-2 text-xl font-semibold text-ink">Internal agent evaluation</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-              Mock evaluation runs use synthetic cases only. Live OpenAI evaluation is not enabled
-              in this phase. Planned target model: gpt-5.4-mini.
+              Mock evaluation runs use synthetic cases only. Paid live canary and pilot runs are
+              terminal-only guarded workflows; this page displays their results and audit metadata.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

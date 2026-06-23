@@ -54,4 +54,9 @@ Phase 7E1 adds an internal evaluation harness for synthetic cases only. It uses 
 
 Phase 7E2A adds a CLI-only live evaluation canary with separate eval settings: `EVAL_PROVIDER`, `EVAL_LIVE_CALLS_ENABLED`, `EVAL_TARGET_MODEL`, and `EVAL_REASONING_EFFORT`. Enabling eval live calls must not enable classroom live calls. The canary uses only synthetic eval cases and writes only eval tables.
 
+Phase 7E2B adds a separate CLI-only full pilot with `EVAL_PILOT_*` settings.
+It remains synthetic-only and eval-table-only. It must not activate live
+profiling, planning, follow-up, response collection, or item verification for
+students or teacher content workflows.
+
 See `docs/LLM_USAGE_LIMITS.md` for operational safeguards.

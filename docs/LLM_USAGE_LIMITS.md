@@ -94,6 +94,11 @@ EVAL_MAX_PROVIDER_REQUESTS=50
 
 These settings do not enable classroom live calls. Phase 7E1 mock runs do not consume OpenAI billing, do not call OpenAI, and do not create `agent_calls`. Phase 7E2A live canary execution enforces a separate eval budget guard before each provider request.
 
+Phase 7E2B full pilot execution uses `EVAL_PILOT_COST_HARD_LIMIT_USD=50`,
+`EVAL_PILOT_MAX_PROVIDER_REQUESTS=150`, `EVAL_PILOT_MAX_CONCURRENCY=1`, and
+`EVAL_PILOT_MAX_RETRIES=1`. These limits are separate from classroom usage
+guards.
+
 The Phase 7E2A pricing registry is versioned as `openai-pricing-2026-06-22-v1` and estimates cost for `gpt-5.4-mini-2026-03-17`. Estimated cost is not an exact invoice.
 
 ## Smoke Tests

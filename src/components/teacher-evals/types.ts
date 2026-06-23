@@ -29,6 +29,12 @@ export type EvalRunRow = {
   reasoning_effort: string | null;
   case_manifest_hash: string | null;
   run_config_hash: string | null;
+  evaluation_phase: string | null;
+  approved_canary_run_public_id: string | null;
+  pilot_manifest_version: string | null;
+  pilot_manifest_hash: string | null;
+  agent_configuration_hash: string | null;
+  ordering_algorithm_version: string | null;
   reproducibility_manifest: unknown;
   pricing_registry_version: string | null;
   budget_limit_usd: number | null;
@@ -60,6 +66,10 @@ export type EvalRunItemRow = {
   prompt_hash: string | null;
   repetition_index: number;
   run_order: number | null;
+  evaluation_phase: string | null;
+  evaluation_stratum: string | null;
+  paired_case_key: string | null;
+  case_hash: string | null;
   input_payload: unknown;
   raw_output: unknown;
   parsed_output: unknown;

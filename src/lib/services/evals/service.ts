@@ -114,6 +114,12 @@ function humanCriticalFlagsFromAnnotations(
   ];
 }
 
+function safeManifestValue(value: unknown, key: string) {
+  const record = parseJsonRecord(value);
+
+  return typeof record[key] === "string" ? record[key] : "";
+}
+
 function semanticPass(runItem: { semantic_validation_result: unknown }) {
   return parseJsonRecord(runItem.semantic_validation_result).ok === true;
 }
@@ -923,6 +929,15 @@ export async function exportEvalRunCsv(runPublicId: string) {
       reasoning_tokens: item.reasoning_tokens ?? "",
       total_tokens: item.total_tokens ?? "",
       estimated_cost_usd: item.estimated_cost_usd === null ? "" : String(item.estimated_cost_usd),
+      evaluation_phase: item.evaluation_phase ?? run.evaluation_phase ?? "",
+      evaluation_stratum: item.evaluation_stratum ?? "",
+      paired_case_key: item.paired_case_key ?? "",
+      case_hash: item.case_hash ?? "",
+      pilot_manifest_version: run.pilot_manifest_version ?? "",
+      pilot_manifest_hash: run.pilot_manifest_hash ?? "",
+      approved_canary_run_public_id: run.approved_canary_run_public_id ?? "",
+      agent_configuration_hash: run.agent_configuration_hash ?? "",
+      ordering_algorithm_version: run.ordering_algorithm_version ?? "",
       prompt_version: run.prompt_version,
       schema_version: run.schema_version,
       prompt_hash: run.prompt_hash,
@@ -935,11 +950,18 @@ export async function exportEvalRunCsv(runPublicId: string) {
       canary_gate_status: run.canary_gate_status ?? "",
       case_manifest_hash: run.case_manifest_hash ?? "",
       run_config_hash: run.run_config_hash ?? "",
+      automated_human_critical_flag_disagreement:
+        stableJson(autoCriticalFlagsFromRunItem(item).sort()) !==
+        stableJson(humanCriticalFlagsFromAnnotations(confirmedAnnotations).sort()),
       git_commit:
         run.reproducibility_manifest &&
         typeof run.reproducibility_manifest === "object" &&
         !Array.isArray(run.reproducibility_manifest)
-          ? String((run.reproducibility_manifest as { application_git_commit?: unknown }).application_git_commit ?? "")
+          ? String(
+              (run.reproducibility_manifest as { application_git_commit?: unknown })
+                .application_git_commit ??
+                safeManifestValue(run.reproducibility_manifest, "current_pilot_application_git_commit")
+            )
           : "",
       annotation_pass_fail: firstAnnotation?.pass_fail ?? "",
       annotation_source: firstAnnotation?.annotation_source ?? "",
@@ -972,6 +994,15 @@ export async function exportEvalRunCsv(runPublicId: string) {
       "reasoning_tokens",
       "total_tokens",
       "estimated_cost_usd",
+      "evaluation_phase",
+      "evaluation_stratum",
+      "paired_case_key",
+      "case_hash",
+      "pilot_manifest_version",
+      "pilot_manifest_hash",
+      "approved_canary_run_public_id",
+      "agent_configuration_hash",
+      "ordering_algorithm_version",
       "prompt_version",
       "schema_version",
       "prompt_hash",
@@ -984,6 +1015,7 @@ export async function exportEvalRunCsv(runPublicId: string) {
       "canary_gate_status",
       "case_manifest_hash",
       "run_config_hash",
+      "automated_human_critical_flag_disagreement",
       "git_commit",
       "annotation_pass_fail",
       "annotation_source",

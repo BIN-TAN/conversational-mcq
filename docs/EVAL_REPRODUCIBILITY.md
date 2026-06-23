@@ -126,3 +126,20 @@ npm run eval:live-canary:compare-config -- --run evr_20260623_1sjeh1q
 
 The comparison command reports current-versus-stored differences without making
 a provider request and without modifying the compared run or annotations.
+
+## Phase 7E2B Pilot Reproducibility
+
+Full pilot runs freeze:
+
+- approved canary run public ID
+- pilot manifest version and hash
+- internal-holdout and replication case IDs
+- paired case keys and case payload hashes
+- exact model snapshot and low reasoning effort
+- current agent configuration hash
+- prompt versions, schema versions, prompt hashes, and agent versions
+- pricing version, budget, retry, timeout, concurrency, and request limits
+- application Git commit
+
+Resume is allowed only for a nonterminal pilot run with matching frozen
+configuration. Completed pilot items are skipped on resume.

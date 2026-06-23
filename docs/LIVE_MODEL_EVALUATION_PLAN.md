@@ -43,6 +43,21 @@ Live evaluation should remain disabled until all of these are true:
 8. Run `npm run eval:live-canary:report -- --run <run_public_id>`.
 9. Review readiness gates before considering any future full pilot.
 
+## Phase 7E2B Full Pilot Procedure
+
+After an approved canary is available, run the full pilot with:
+
+```bash
+npm run eval:live-pilot:preflight -- --approved-canary <run_public_id>
+npm run eval:live-pilot:dry-run -- --approved-canary <run_public_id>
+npm run eval:live-pilot -- --approved-canary <run_public_id> --confirm-paid-api --new-run
+npm run eval:live-pilot:report -- --run <pilot_run_public_id>
+```
+
+The full pilot uses 100 outputs, a USD 50 hard limit, max provider requests 150,
+concurrency 1, and max retries 1. Passing the pilot is a controlled integration
+gate, not classroom validation.
+
 ## Current Limitation
 
 Synthetic development evaluation can expose schema, safety, and prompt-following risks, but it is not classroom validation. A later classroom validation plan is still required before relying on live agent behavior for research interpretation.
