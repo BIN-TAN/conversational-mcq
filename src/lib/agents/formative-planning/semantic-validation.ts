@@ -88,7 +88,7 @@ export function validateFormativePlanningSemantics(input: {
     }
 
     if (deviationReason.length > 0) {
-      issues.push("mapping_deviation_reason must be absent or empty when default mapping is followed");
+      issues.push("mapping_deviation_reason must be null or empty when default mapping is followed");
     }
   } else {
     if (output.mapping_followed) {

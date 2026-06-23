@@ -85,6 +85,34 @@ Live-provider canary execution:
 
 The teacher UI can display live-run metadata and results, but it does not contain a paid-run start button, API-key field, or budget-bypass control.
 
+## Structured Outputs Compatibility
+
+Before preflight, dry run, or paid execution can proceed, the canary compiles all
+five provider-facing output schemas with the same OpenAI `zodTextFormat` helper
+used by the live provider path. This local compatibility check makes no provider
+request.
+
+Provider-facing output schemas must compile to a strict root object. Every object
+property must be required; logical optionality must be represented as a required
+nullable field. Open maps, `z.any`, `z.unknown`, non-strict objects, and root
+unions are rejected at the provider boundary.
+
+Nullable semantics used by the current canary schemas include:
+
+- `ItemVerificationFinding.item_public_id=null` only for set-level findings.
+- item-level item verification findings must use a known `item_public_id`.
+- `ItemVerificationFinding.option_label=null` when the finding is not option-specific.
+- option-specific item verification findings must use a known option label for a known item.
+- `mapping_deviation_reason=null` when formative planning follows the default mapping.
+- `evidence_request=null` when the follow-up output has no explicit evidence request.
+
+If schema construction fails locally, the run item is marked
+`structured_output_schema_incompatible`, no provider request is dispatched, and
+`provider_request_count` is not incremented. Historical failed runs that counted
+a request before this guard remain preserved for audit; inspection treats their
+legacy schema-construction messages as non-resumable infrastructure failures and
+recommends a fresh run after schema correction.
+
 ## Resume
 
 Live canary runs are resumable by run ID. Completed run items are skipped. Pending or retryable items may continue according to the retry policy. Permanent failures remain preserved and are not silently replaced.
@@ -94,6 +122,11 @@ provider request was counted but usage was not persisted, the budget guard canno
 verify cost for that request. Use the inspect command and start a fresh canary
 run unless a teacher/researcher intentionally performs a documented manual
 recovery action outside the automated runner.
+
+Runs with a provider-facing Structured Outputs schema failure are not resumed
+under corrected schemas. Preserve the failed run and create a fresh canary run so
+prompt versions, schema versions, prompt hashes, and case payload hashes remain
+auditable.
 
 ## Usage Parsing
 
@@ -111,3 +144,16 @@ It also accepts the normalized internal provider shape and optional missing
 cached/reasoning-token details. If usage is missing or token fields are
 malformed, the run pauses as `budget_unverifiable`; the runner does not
 fabricate token counts or continue through remaining cases.
+
+## Offline Smoke Tests
+
+```bash
+npm run eval:structured-output-compat-smoke
+npm run eval:live-canary-runner-smoke
+npm run eval:usage-parser-smoke
+npm run eval:budget-smoke
+npm run eval:live-isolation-smoke
+npm run eval:canary-report-smoke
+```
+
+These tests use mock/fake provider paths and make no OpenAI calls.

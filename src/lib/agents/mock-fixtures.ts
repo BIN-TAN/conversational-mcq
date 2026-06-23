@@ -16,7 +16,7 @@ export function mockOutputForAgent(agentName: AgentName) {
         agent_name: agentName,
         agent_version: "7d-draft",
         prompt_version: "mock-item-verification-v1",
-        schema_version: "mock-item-verification-output-v1",
+        schema_version: "mock-item-verification-output-v2",
         warnings: [
           "Mock provider output for infrastructure testing only; not a validated item-quality judgment."
         ],
@@ -30,6 +30,7 @@ export function mockOutputForAgent(agentName: AgentName) {
                 issue_code: "possible_ambiguity",
                 item_public_id: "mock-item-1",
                 location: "item_stem",
+                option_label: null,
                 brief_explanation:
                   "Mock warning only. The stem may allow more than one interpretation."
               }
@@ -45,7 +46,7 @@ export function mockOutputForAgent(agentName: AgentName) {
         agent_name: agentName,
         agent_version: "7c-draft",
         prompt_version: "mock-response-collection-v2",
-        schema_version: "mock-response-collection-output-v2",
+        schema_version: "mock-response-collection-output-v3",
         assistant_message:
           "I saved the reasoning you provided. Use the option buttons to choose an answer and the confidence buttons to report confidence.",
         intervention_type: "procedural_clarification",
@@ -87,18 +88,21 @@ export function mockOutputForAgent(agentName: AgentName) {
           {
             indicator: "mock_distractor_aligned_reasoning",
             evidence_reference: "mock-item-2",
-            confidence: "low"
+            confidence: "low",
+            rationale: "Mock misconception indicator for infrastructure testing."
           }
         ],
         item_level_evidence: [
           {
             item_public_id: "mock-item-1",
+            evidence_summary: "Mock supported evidence on item 1.",
             correctness: "correct",
             reasoning_quality: "supported",
             confidence_rating: "high"
           },
           {
             item_public_id: "mock-item-2",
+            evidence_summary: "Mock partial evidence on item 2.",
             correctness: "incorrect",
             reasoning_quality: "partial",
             confidence_rating: "medium"
@@ -117,7 +121,8 @@ export function mockOutputForAgent(agentName: AgentName) {
         recommended_next_evidence: [
           {
             evidence_type: "clarify_reasoning",
-            reason: "Mock next-evidence request for later planning phases."
+            reason: "Mock next-evidence request for later planning phases.",
+            item_public_id: null
           }
         ]
       };

@@ -153,6 +153,35 @@ async function main() {
     const schemaFail = await createCanaryReadinessReport(summary.run_public_id);
     assert(schemaFail.recommendation === "not_ready_for_full_pilot", "Schema pass rate below 100% should fail readiness.");
     assert(schemaFail.exact_model_snapshot === "gpt-5.4-mini-2026-03-17", "Report should use exact snapshot metadata.");
+
+    const noOutput = await runLiveCanary({
+      confirmPaidApi: true,
+      provider: new MockLlmProvider(),
+      allowMockProvider: true,
+      compatibilityCheck: (agentName) => ({
+        agent_name: agentName,
+        prompt_version: "test-incompatible",
+        schema_version: "test-incompatible",
+        prompt_hash: "test-incompatible",
+        compatible: false,
+        schema_compiled: false,
+        issues: [
+          {
+            code: "structured_output_schema_incompatible",
+            path: "#",
+            message: "Synthetic provider-facing schema construction failure."
+          }
+        ]
+      })
+    });
+    const noOutputReport = await createCanaryReadinessReport(noOutput.run_public_id);
+    assert(noOutputReport.model_quality_evaluable === false, "No-output run should not be model-quality evaluable.");
+    assert(noOutputReport.schema_pass_rate === null, "No-output run should report null schema pass rate.");
+    assert(noOutputReport.semantic_pass_rate === null, "No-output run should report null semantic pass rate.");
+    assert(noOutputReport.safety_pass_rate === null, "No-output run should report null safety pass rate.");
+    assert(noOutputReport.failed_case_ids.length === 0, "Pending cases should not be reported as failed cases.");
+    assert(noOutputReport.pending_case_ids.length === 24, "Uncalled canary cases should remain pending.");
+    assert(noOutputReport.infrastructure_failed_case_ids.length === 1, "Infrastructure failure should be reported separately.");
   });
 
   await cleanupLiveCanaryRecords(prisma);

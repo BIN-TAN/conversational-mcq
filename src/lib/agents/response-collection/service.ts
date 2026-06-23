@@ -561,7 +561,7 @@ async function logOutputEvents(input: {
       event_type: event.event_type,
       event_category: event.event_category,
       event_source: event.event_source,
-      payload: event.payload
+      payload: event.payload ?? undefined
     });
   }
 }

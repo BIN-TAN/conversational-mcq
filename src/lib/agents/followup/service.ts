@@ -195,7 +195,7 @@ async function logAgentProposedEvents(input: {
     event_type: string;
     event_category: string;
     event_source: string;
-    payload?: Record<string, unknown>;
+    payload?: Record<string, unknown> | null;
   }>;
 }) {
   const allowlist = new Set(trustedFollowupEventTypes());
@@ -213,7 +213,7 @@ async function logAgentProposedEvents(input: {
       event_type: eventType,
       event_category: event.event_category || "followup",
       event_source: "agent",
-      payload: event.payload,
+      payload: event.payload ?? undefined,
       occurred_at: new Date()
     });
   }

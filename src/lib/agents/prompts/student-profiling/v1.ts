@@ -4,8 +4,8 @@ import type { AgentPromptDefinition } from "../types";
 export const studentProfilingPromptV1: AgentPromptDefinition = {
   agent_name: "student_profiling_agent",
   agent_version: "6a-draft",
-  prompt_version: "student-profiling-v1",
-  schema_version: "student-profile-output-v1",
+  prompt_version: "student-profiling-v2",
+  schema_version: "student-profile-output-v2",
   status: "draft",
   description:
     "Draft contract prompt for the future three-layer Student Profiling Agent. Not active in classroom workflows.",
@@ -23,6 +23,7 @@ ${constraintsBlock([
   "Do not overclaim ability when evidence is missing.",
   "Do not infer motivation as a stable trait.",
   "Clearly separate observed evidence, inference, and recommendation.",
+  "Return misconception_indicators, item_level_evidence, and recommended_next_evidence as arrays of strict structured objects with null for unavailable references.",
   "Use the exact locked enum labels.",
   "Return structured output only."
 ])}`

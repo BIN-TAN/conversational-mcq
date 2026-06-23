@@ -19,6 +19,11 @@ Pricing is based on official OpenAI pricing checked at implementation time. Pric
 
 ## Guard Behavior
 
+Before budget reservation, the runner verifies that the provider-facing output
+schema compiles for OpenAI Structured Outputs. A local schema compatibility
+failure is marked `structured_output_schema_incompatible`; it is not a dispatched
+provider request and does not increment `provider_request_count`.
+
 Before each provider request, the runner:
 
 - estimates input tokens conservatively from the frozen prompt and payload

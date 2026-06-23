@@ -263,10 +263,18 @@ export async function cleanupEvalFixtures() {
     where: { id: { in: runIds } }
   });
   const removedCases = await prisma.evalCase.deleteMany({
-    where: { suite_db_id: { in: suiteIds }, case_source: "synthetic" }
+    where: {
+      suite_db_id: { in: suiteIds },
+      case_source: "synthetic",
+      run_items: { none: {} }
+    }
   });
   const removedSuites = await prisma.evalSuite.deleteMany({
-    where: { id: { in: suiteIds } }
+    where: {
+      id: { in: suiteIds },
+      cases: { none: {} },
+      runs: { none: {} }
+    }
   });
 
   await prisma.evalRubric.deleteMany({

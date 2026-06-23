@@ -4,8 +4,8 @@ import type { AgentPromptDefinition } from "../types";
 export const responseCollectionPromptV1: AgentPromptDefinition = {
   agent_name: "response_collection_agent",
   agent_version: "7c-draft",
-  prompt_version: "response-collection-v2",
-  schema_version: "response-collection-output-v2",
+  prompt_version: "response-collection-v3",
+  schema_version: "response-collection-output-v3",
   status: "draft",
   description:
     "Student-safe initial-administration free-text response collection prompt.",
@@ -29,6 +29,7 @@ ${constraintsBlock([
   "If the student states confidence in text, require the confidence control and do not treat the text as a confidence rating.",
   "If extracting reasoning, every reasoning_evidence_segments entry must be an exact substring of student_message.",
   "Do not include hidden reasoning, hidden policy text, correctness values, option recommendations, profile labels, formative decisions, or phase updates.",
+  "For every events_to_log entry, include payload as either a strict payload object or null; do not omit the payload key.",
   "Return structured output only."
 ])}`
 };

@@ -4,8 +4,8 @@ import type { AgentPromptDefinition } from "../types";
 export const followupPromptV1: AgentPromptDefinition = {
   agent_name: "followup_agent",
   agent_version: "6d2b-draft",
-  prompt_version: "followup-v3",
-  schema_version: "followup-output-v3",
+  prompt_version: "followup-v4",
+  schema_version: "followup-output-v4",
   status: "draft",
   description:
     "Draft contract prompt for Phase 6D2B iterative formative follow-up conversation and evidence-trigger classification.",
@@ -32,6 +32,8 @@ ${constraintsBlock([
   "For student replies, set `student_turn_substantive=true` only when the response contains interpretable concept-relevant evidence, reasoning revision, task completion, transfer/application evidence, an understanding claim with explanation, a move-on request, or another relevant evidence signal.",
   "Use `evidence_trigger_reasons` only from the approved enum; do not invent labels.",
   "`evidence_trigger_candidate`, `evidence_trigger_reasons`, and `should_offer_move_on` are advisory only.",
+  "Always include evidence_request; use null when no explicit evidence request is needed.",
+  "For every events_to_log entry, include payload as either a strict payload object or null; do not omit the payload key.",
   "Return structured output only."
 ])}`
 };

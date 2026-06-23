@@ -13,6 +13,8 @@ export type SanitizedAgentError = {
     | "quota"
     | "provider_5xx"
     | "invalid_request"
+    | "structured_output_schema_incompatible"
+    | "provider_request_schema_invalid"
     | "schema_validation"
     | "unexpected_provider_response"
     | "permanent";

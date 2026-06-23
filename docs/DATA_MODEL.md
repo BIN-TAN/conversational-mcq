@@ -573,6 +573,7 @@ Phase 7E1 adds normalized evaluation tables that are separate from classroom wor
 - `run_item_public_id` is the teacher-facing item identifier.
 - schema validation, semantic validation, safety validation, latency, token metadata, raw output, and parsed output are captured for review.
 - live canary items additionally store idempotency key, run order, max output tokens, prompt/schema versions, provider response/request IDs, client request ID, retry count, error category, token fields, estimated cost, and started/completed timestamps.
+- `error_category=structured_output_schema_incompatible` records a local provider-facing schema construction failure. Such rows have no provider response ID, raw output, or token usage because no provider request was dispatched.
 - Eval outputs do not create `agent_calls`, `student_profiles`, `formative_decisions`, `followup_rounds`, `item_verification_runs`, sessions, item responses, or workflow jobs.
 
 `eval_annotations` stores teacher_researcher expert review:

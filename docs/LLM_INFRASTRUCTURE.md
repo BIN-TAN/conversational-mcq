@@ -288,9 +288,17 @@ Phase 7E2A adds a separate eval live-call path. It reuses the server-only OpenAI
 
 This path does not use the operational `executeAgent` persistence path. It writes only eval runs and eval run items. Operational classroom live-call gates remain controlled by `LLM_PROVIDER` and `LLM_LIVE_CALLS_ENABLED`.
 
+The eval live-call path compiles every provider-facing agent output schema with
+the same OpenAI `zodTextFormat` helper before preflight, dry run, or paid
+execution can proceed. This local compatibility check is not a provider request.
+If schema construction fails, the run item records
+`structured_output_schema_incompatible`, provider dispatch is skipped, and the
+provider request counter is not incremented.
+
 Offline checks:
 
 ```bash
+npm run eval:structured-output-compat-smoke
 npm run eval:live-canary-runner-smoke
 npm run eval:budget-smoke
 npm run eval:live-isolation-smoke

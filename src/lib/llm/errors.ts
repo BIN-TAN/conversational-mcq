@@ -63,6 +63,17 @@ export function sanitizeUnknownError(error: unknown): SanitizedAgentError {
     };
   }
 
+  if (
+    error instanceof Error &&
+    /structured outputs?|zodTextFormat|optional\(\)|json schema/i.test(error.message)
+  ) {
+    return {
+      category: "provider_request_schema_invalid",
+      message: "Provider-facing Structured Outputs schema is invalid.",
+      retryable: false
+    };
+  }
+
   return {
     category: "unexpected_provider_response",
     message: error instanceof Error ? error.message : "Unexpected provider error.",

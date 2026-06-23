@@ -187,3 +187,18 @@ Phase 6D2B preserves atomic activation for iterative updates. Updated profiling 
 The live canary runner uses the same five agent output schemas and rejects unknown enum labels or schema-invalid outputs. Eval execution remains isolated from operational persistence: live canary outputs must not create operational `agent_calls`, `student_profiles`, `formative_decisions`, `followup_rounds`, `item_verification_runs`, workflow jobs, sessions, responses, or content changes.
 
 All five active agents use the same exact canary snapshot, `gpt-5.4-mini-2026-03-17`, with `reasoning_effort=low`. This is an eval-run configuration only and does not alter classroom model configuration.
+
+Provider-facing output contracts must also be compatible with OpenAI Structured
+Outputs. All object properties are required at the schema boundary; logical
+optional fields must be represented as required nullable fields. The compatibility
+smoke rejects root unions, open dictionaries, `z.any`, `z.unknown`, and objects
+without `additionalProperties=false`.
+
+Current nullable output semantics:
+
+- `ItemVerificationFinding.item_public_id=null` is allowed only for set-level findings.
+- item-level item verification findings must identify the relevant public item ID.
+- `ItemVerificationFinding.option_label=null` is used when a finding is not option-specific.
+- option-specific findings must identify a known option label for a known item.
+- `mapping_deviation_reason=null` means the default formative-value mapping was followed.
+- `evidence_request=null` means the Follow-up Agent is not making a separate explicit evidence request.

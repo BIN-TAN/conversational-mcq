@@ -43,21 +43,26 @@ export function validateItemVerificationOutputSemantics(input: {
     }
 
     for (const finding of result.findings) {
-      if (finding.item_public_id && finding.item_public_id !== result.item_public_id) {
+      if (finding.item_public_id === null) {
+        errors.push("Item-level findings require item_public_id.");
+      } else if (finding.item_public_id !== result.item_public_id) {
         errors.push("Finding item_public_id must match the containing item_result.");
       }
     }
   }
 
   for (const finding of findings) {
-    if (finding.item_public_id && !itemIds.has(finding.item_public_id)) {
+    if (finding.item_public_id !== null && !itemIds.has(finding.item_public_id)) {
       errors.push(`Unknown finding item_public_id ${finding.item_public_id}.`);
     }
 
-    if (finding.option_label) {
-      const labels = finding.item_public_id
-        ? optionLabelsByItem.get(finding.item_public_id)
-        : undefined;
+    if (finding.option_label !== null) {
+      if (finding.item_public_id === null) {
+        errors.push("Option-specific findings require item_public_id.");
+        continue;
+      }
+
+      const labels = optionLabelsByItem.get(finding.item_public_id);
 
       if (!labels?.has(finding.option_label)) {
         errors.push(`Unknown option label ${finding.option_label}.`);

@@ -1,7 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import { MockLlmProvider } from "../src/lib/llm/providers/mock-provider";
+import { structuredOutputCompatibilitySummary } from "../src/lib/agents/provider-schema-compat";
 import {
   createLiveCanaryDryRunReport,
+  inspectLiveCanaryRun,
   __liveCanaryTestInternals,
   runLiveCanary
 } from "../src/lib/services/evals/live-execution";
@@ -69,6 +71,13 @@ async function main() {
     assert(dryRun.ready, "Dry run should validate provider payloads.");
     assert(dryRun.openai_call_made === false, "Dry run must not make provider calls.");
     assert(dryRun.provider_payload_count === 25, "Dry run should build 25 provider payloads.");
+    assert(dryRun.structured_output_compatibility.ok, "Dry run should include Structured Outputs compatibility.");
+
+    const compatibility = structuredOutputCompatibilitySummary();
+    assert(compatibility.ok, "All five provider-facing schemas should compile for Structured Outputs.");
+    const compatibilityByAgent = new Map(
+      compatibility.results.map((result) => [result.agent_name, result])
+    );
 
     await expectReject("missing confirmation", () =>
       runLiveCanary({
@@ -118,6 +127,69 @@ async function main() {
     });
 
     const before = await operationalCounts(prisma);
+    const incompatible = await runLiveCanary({
+      confirmPaidApi: true,
+      provider: new MockLlmProvider(),
+      allowMockProvider: true,
+      compatibilityCheck: (agentName) => {
+        if (agentName === "item_verification_agent") {
+          return {
+            agent_name: agentName,
+            prompt_version: "test-incompatible",
+            schema_version: "test-incompatible",
+            prompt_hash: "test-incompatible",
+            compatible: false,
+            schema_compiled: false,
+            issues: [
+              {
+                code: "structured_output_schema_incompatible",
+                path: "#/properties/item_public_id",
+                message: "Synthetic optional-field compatibility failure."
+              }
+            ]
+          };
+        }
+
+        const result = compatibilityByAgent.get(agentName);
+        assert(result, `Compatibility result missing for ${agentName}.`);
+
+        return result;
+      }
+    });
+    assert(incompatible.status === "failed", "Incompatible Structured Outputs schema should fail the run.");
+    assert(
+      incompatible.provider_request_count === 0,
+      "Structured Outputs compatibility failure should not increment provider requests."
+    );
+    const incompatibleRun = await prisma.evalRun.findUniqueOrThrow({
+      where: { run_public_id: incompatible.run_public_id },
+      include: { run_items: true }
+    });
+    assert(
+      incompatibleRun.run_items.some(
+        (item) => item.error_category === "structured_output_schema_incompatible"
+      ),
+      "Incompatible schema item should store structured_output_schema_incompatible."
+    );
+    const incompatibleInspection = await inspectLiveCanaryRun(incompatible.run_public_id);
+    assert(!incompatibleInspection.safe_to_resume, "Incompatible schema run should not be resumable.");
+    assert(
+      incompatibleInspection.fresh_run_recommended,
+      "Incompatible schema run should recommend a fresh run."
+    );
+    assert(
+      incompatibleInspection.recommendation === "fix_schema_then_create_fresh_run",
+      "Incompatible schema inspection should recommend fixing schema and creating a fresh run."
+    );
+    await expectReject("resume incompatible schema run", () =>
+      runLiveCanary({
+        runPublicId: incompatible.run_public_id,
+        confirmPaidApi: true,
+        provider: new MockLlmProvider(),
+        allowMockProvider: true
+      })
+    );
+
     const summary = await runLiveCanary({
       confirmPaidApi: true,
       provider: new MockLlmProvider(),

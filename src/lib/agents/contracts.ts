@@ -137,20 +137,26 @@ export type ItemVerificationFindingLocation = z.infer<typeof ItemVerificationFin
 
 export const ItemVerificationFinding = z.object({
   issue_code: ItemVerificationIssueCode,
-  item_public_id: z.string().optional(),
+  item_public_id: z.string().nullable(),
   location: ItemVerificationFindingLocation,
-  option_label: z.string().optional(),
+  option_label: z.string().nullable(),
   brief_explanation: z.string().min(1).max(600)
 }).strict();
 export type ItemVerificationFinding = z.infer<typeof ItemVerificationFinding>;
 
 const JsonRecord = z.record(z.unknown());
-const JsonArray = z.array(z.unknown());
+const ProcessEventPayload = z.object({
+  detail: z.string().nullable(),
+  reason: z.string().nullable(),
+  item_public_id: z.string().nullable(),
+  followup_round_index: z.number().int().nonnegative().nullable(),
+  event_count: z.number().int().nonnegative().nullable()
+}).strict();
 const SafeProcessEvent = z.object({
   event_type: ProcessEventTypeSchema,
   event_category: z.string(),
   event_source: EventSourceSchema,
-  payload: JsonRecord.optional()
+  payload: ProcessEventPayload.nullable()
 }).strict();
 const SafeResponseCollectionEvent = SafeProcessEvent.extend({
   event_type: z.enum([
@@ -288,14 +294,29 @@ export const StudentProfileOutput = AgentOutputBase.extend({
   evidence_sufficiency: EvidenceSufficiencySchema,
   confidence_alignment: ConfidenceAlignmentSchema,
   independence_interpretability: IndependenceInterpretabilitySchema,
-  misconception_indicators: JsonArray,
-  item_level_evidence: JsonArray,
+  misconception_indicators: z.array(z.object({
+    indicator: z.string(),
+    evidence_reference: z.string().nullable(),
+    confidence: ConfidenceLevelSchema,
+    rationale: z.string().nullable()
+  }).strict()),
+  item_level_evidence: z.array(z.object({
+    item_public_id: z.string().nullable(),
+    evidence_summary: z.string(),
+    correctness: z.string().nullable(),
+    reasoning_quality: z.string().nullable(),
+    confidence_rating: ConfidenceLevelSchema.nullable()
+  }).strict()),
   reasoning_quality_summary: z.string(),
   engagement_summary: z.string(),
   process_interpretation_cautions: z.array(z.string()),
   profile_confidence: ConfidenceLevelSchema,
   rationale: z.string(),
-  recommended_next_evidence: JsonArray
+  recommended_next_evidence: z.array(z.object({
+    evidence_type: z.string(),
+    reason: z.string(),
+    item_public_id: z.string().nullable()
+  }).strict())
 }).strict();
 
 export const FormativePlanningInput = z.object({
@@ -332,7 +353,7 @@ export const FollowupInput = z.object({
   recent_followup_transcript: z.array(JsonRecord),
   student_message: z.string().nullable(),
   concept_unit_metadata: JsonRecord,
-  relevant_item_evidence: JsonArray,
+  relevant_item_evidence: z.array(JsonRecord),
   process_context: JsonRecord,
   followup_constraints: JsonRecord
 }).strict();
@@ -342,7 +363,7 @@ export const FollowupOutput = AgentOutputBase.extend({
   assistant_message: z.string(),
   followup_action_type: FollowupActionType,
   target_formative_value: FormativeValueSchema,
-  evidence_request: z.string().optional(),
+  evidence_request: z.string().nullable(),
   expects_student_response: z.boolean(),
   evidence_trigger_candidate: z.boolean(),
   student_turn_substantive: z.boolean(),

@@ -129,6 +129,11 @@ When a live canary run is created, it freezes prompt versions, schema versions, 
 
 Do not tune prompts during an active canary run. If a prompt change is needed, complete or stop the current run, create a new prompt version, and create a new eval run.
 
+Provider-facing schema fixes also require new schema versions for affected
+agent outputs. Do not resume a failed canary run under corrected schemas; preserve
+the failed run and create a fresh run so the frozen schema versions and prompt
+hashes remain auditable.
+
 ## Phase 6D2A Automatic Workflow
 
 Phase 6D2A does not add new prompt contracts. Automatic workflow jobs reuse the existing Student Profiling Agent, Formative Value and Planning Agent, and Follow-up Agent prompt versions through the same `executeAgent` infrastructure. Workflow mode does not bypass prompt status, schema validation, usage guards, model environment configuration, or audit logging.

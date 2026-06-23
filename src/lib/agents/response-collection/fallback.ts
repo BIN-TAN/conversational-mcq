@@ -54,7 +54,7 @@ export function buildResponseCollectionFallback(input: {
     agent_name: "response_collection_agent",
     agent_version: "deterministic-fallback",
     prompt_version: "response-collection-fallback-v1",
-    schema_version: "response-collection-output-v2",
+    schema_version: "response-collection-output-v3",
     output_status: "ok",
     warnings: [`Deterministic fallback used: ${input.fallback_reason}.`],
     assistant_message: assistantMessage({
@@ -86,7 +86,13 @@ export function buildResponseCollectionFallback(input: {
               event_type: "invalid_help_request" as const,
               event_category: "initial_administration",
               event_source: "system" as const,
-              payload: { fallback_reason: input.fallback_reason }
+              payload: {
+                detail: "Deterministic fallback blocked initial-administration help.",
+                reason: input.fallback_reason,
+                item_public_id: null,
+                followup_round_index: null,
+                event_count: null
+              }
             }
           ]
         : []),
@@ -96,7 +102,13 @@ export function buildResponseCollectionFallback(input: {
               event_type: "prompt_injection_attempt" as const,
               event_category: "initial_administration",
               event_source: "system" as const,
-              payload: { fallback_reason: input.fallback_reason }
+              payload: {
+                detail: "Deterministic fallback detected a prompt-injection attempt.",
+                reason: input.fallback_reason,
+                item_public_id: null,
+                followup_round_index: null,
+                event_count: null
+              }
             }
           ]
         : []),
@@ -106,7 +118,13 @@ export function buildResponseCollectionFallback(input: {
               event_type: "procedural_clarification_request" as const,
               event_category: "initial_administration",
               event_source: "system" as const,
-              payload: { fallback_reason: input.fallback_reason }
+              payload: {
+                detail: "Deterministic fallback recorded a procedural clarification request.",
+                reason: input.fallback_reason,
+                item_public_id: null,
+                followup_round_index: null,
+                event_count: null
+              }
             }
           ]
         : []),
@@ -116,11 +134,16 @@ export function buildResponseCollectionFallback(input: {
               event_type: "emotional_or_frustration_response" as const,
               event_category: "initial_administration",
               event_source: "system" as const,
-              payload: { fallback_reason: input.fallback_reason }
+              payload: {
+                detail: "Deterministic fallback recorded emotional or uncertainty language.",
+                reason: input.fallback_reason,
+                item_public_id: null,
+                followup_round_index: null,
+                event_count: null
+              }
             }
           ]
         : [])
     ]
   };
 }
-

@@ -25,6 +25,7 @@ Live evaluation should remain disabled until all of these are true:
 - `EVAL_LIVE_CALLS_ENABLED=true`
 - `EVAL_TARGET_MODEL=gpt-5.4-mini-2026-03-17`
 - `EVAL_REASONING_EFFORT=low`
+- provider-facing output schemas compile for OpenAI Structured Outputs
 - budget and usage guards are active
 - evaluation cases are synthetic only for Phase 7E2A
 - no classroom workflow records are mutated by eval runs
@@ -34,12 +35,13 @@ Live evaluation should remain disabled until all of these are true:
 
 1. Confirm classroom settings remain `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`.
 2. Edit `.env.local` manually with eval-only live settings and `OPENAI_API_KEY`.
-3. Run `npm run eval:live-canary:preflight`.
-4. Run `npm run eval:live-canary:dry-run`.
-5. Run `npm run eval:live-canary -- --confirm-paid-api`.
-6. Perform blind expert annotation on all 25 run items.
-7. Run `npm run eval:live-canary:report -- --run <run_public_id>`.
-8. Review readiness gates before considering any future full pilot.
+3. Run `npm run eval:structured-output-compat-smoke`.
+4. Run `npm run eval:live-canary:preflight`.
+5. Run `npm run eval:live-canary:dry-run`.
+6. Run `npm run eval:live-canary -- --confirm-paid-api`.
+7. Perform blind expert annotation on all 25 run items.
+8. Run `npm run eval:live-canary:report -- --run <run_public_id>`.
+9. Review readiness gates before considering any future full pilot.
 
 ## Current Limitation
 

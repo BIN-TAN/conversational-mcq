@@ -768,4 +768,7 @@ Phase 6A.5 must not implement:
 - Paid live execution is CLI-only and requires `--confirm-paid-api`.
 - No browser page may accept an API key or start the paid canary.
 - Eval outputs remain in eval tables and must not create operational agent calls, profiles, formative decisions, follow-up rounds, item verification runs, workflow jobs, sessions, responses, or content changes.
+- Provider-facing output schemas must compile as OpenAI Structured Outputs before preflight, dry run, or paid execution can proceed.
+- Every provider-facing object property is required; logical optional fields must be represented as required nullable fields.
+- Local Structured Outputs schema construction failures are infrastructure failures, not model outputs. They must not increment provider request counts, must not be retried, and must not be resumed under corrected schemas.
 - The 100-call full pilot belongs to a later phase.

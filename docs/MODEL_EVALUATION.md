@@ -94,6 +94,7 @@ The smoke test verifies fixture loading, mock execution, eval isolation, teacher
 Phase 7E2A smoke commands:
 
 ```bash
+npm run eval:structured-output-compat-smoke
 npm run eval:live-canary-runner-smoke
 npm run eval:budget-smoke
 npm run eval:live-isolation-smoke

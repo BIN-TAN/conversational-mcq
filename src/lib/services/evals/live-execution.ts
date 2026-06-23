@@ -4,6 +4,11 @@ import { Prisma } from "@prisma/client";
 import type { z } from "zod";
 import { agentInputSchemas, agentOutputSchemas } from "@/lib/agents/contracts";
 import type { AgentName as AgentNameType } from "@/lib/agents/names";
+import {
+  checkStructuredOutputCompatibilityForAgent,
+  structuredOutputCompatibilitySummary,
+  type StructuredOutputCompatibilityResult
+} from "@/lib/agents/provider-schema-compat";
 import { getPromptForAgent } from "@/lib/agents/prompts/registry";
 import { prisma } from "@/lib/db";
 import { getServerEnv } from "@/lib/env";
@@ -77,6 +82,10 @@ type CanaryPlan = {
   prompt_versions: Record<string, string>;
   schema_versions: Record<string, string>;
   prompt_hashes: Record<string, string>;
+  structured_output_compatibility: {
+    ok: boolean;
+    results: StructuredOutputCompatibilityResult[];
+  };
 };
 
 type LiveCanaryRunOptions = {
@@ -84,6 +93,7 @@ type LiveCanaryRunOptions = {
   confirmPaidApi: boolean;
   provider?: LlmProvider;
   allowMockProvider?: boolean;
+  compatibilityCheck?: (agentName: AgentNameType) => StructuredOutputCompatibilityResult;
 };
 
 function prismaJson(value: unknown) {
@@ -216,12 +226,24 @@ async function buildLiveCanaryPlan(input: {
   });
   const pricing = getEvalPricingEntry(EVAL_CANARY_MODEL_SNAPSHOT);
   const issues = [...manifest.issues, ...config.issues];
+  const structuredOutputCompatibility = structuredOutputCompatibilitySummary();
 
   if (!pricing) {
     issues.push({
       code: "pricing_entry_missing",
       message: `No evaluation pricing entry exists for ${EVAL_CANARY_MODEL_SNAPSHOT}.`
     });
+  }
+
+  for (const result of structuredOutputCompatibility.results) {
+    if (!result.compatible) {
+      for (const compatibilityIssue of result.issues) {
+        issues.push({
+          code: compatibilityIssue.code,
+          message: `${result.agent_name}:${result.schema_version} ${compatibilityIssue.path}: ${compatibilityIssue.message}`
+        });
+      }
+    }
   }
 
   const outputTokenLimits = getEvalCanaryOutputTokenLimits();
@@ -369,7 +391,8 @@ async function buildLiveCanaryPlan(input: {
     total_estimated_upper_bound_usd: totalEstimatedUpperBoundUsd,
     prompt_versions: promptVersions,
     schema_versions: schemaVersions,
-    prompt_hashes: promptHashes
+    prompt_hashes: promptHashes,
+    structured_output_compatibility: structuredOutputCompatibility
   };
 }
 
@@ -442,6 +465,9 @@ export async function createLiveCanaryPreflightReport() {
     prompt_versions: plan.prompt_versions,
     schema_versions: plan.schema_versions,
     prompt_hashes: plan.prompt_hashes,
+    structured_output_compatibility: publicStructuredOutputCompatibility(
+      plan.structured_output_compatibility
+    ),
     max_output_tokens_by_agent: plan.config_snapshot.max_output_tokens_by_agent,
     pricing: plan.pricing,
     estimated_upper_bound_cost_usd: plan.total_estimated_upper_bound_usd,
@@ -475,6 +501,10 @@ export async function createLiveCanaryDryRunReport() {
     input_hash: canaryCase.input_hash,
     prompt_hash: canaryCase.prompt_hash,
     schema_name: canaryCase.schema_version,
+    structured_output_schema_compiled:
+      plan.structured_output_compatibility.results.find(
+        (result) => result.agent_name === canaryCase.agent_name
+      )?.schema_compiled ?? false,
     store: false,
     tools: []
   }));
@@ -499,6 +529,9 @@ export async function createLiveCanaryDryRunReport() {
     planned_run_item_count: plan.cases.length,
     provider_payload_count: providerPayloads.length,
     provider_payloads: providerPayloads,
+    structured_output_compatibility: publicStructuredOutputCompatibility(
+      plan.structured_output_compatibility
+    ),
     redaction_ok: redaction.ok,
     manifest_hash: plan.manifest_hash,
     config_hash: plan.config_hash,
@@ -568,6 +601,22 @@ async function createOrResumeLiveCanaryRun(
       throw new EvalServiceError(
         "budget_unverifiable_resume_blocked",
         "This live canary run has unverifiable provider usage and must not be resumed automatically.",
+        400
+      );
+    }
+
+    if (
+      existing.run_items.some(
+        (item) =>
+          isStructuredOutputSchemaFailure({
+            error_category: item.error_category,
+            message: item.schema_validation_error
+          })
+      )
+    ) {
+      throw new EvalServiceError(
+        "structured_output_schema_resume_blocked",
+        "This live canary run failed before provider dispatch because its frozen Structured Outputs schema was incompatible; create a fresh run after schema correction.",
         400
       );
     }
@@ -675,6 +724,43 @@ function jsonRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function compatibilityFailureMessage(result: StructuredOutputCompatibilityResult) {
+  return result.issues.length > 0
+    ? result.issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ")
+    : "Provider-facing Structured Outputs schema is incompatible.";
+}
+
+function publicStructuredOutputCompatibility(
+  summary: CanaryPlan["structured_output_compatibility"]
+) {
+  return {
+    ok: summary.ok,
+    results: summary.results.map((result) => ({
+      agent_name: result.agent_name,
+      prompt_version: result.prompt_version,
+      schema_version: result.schema_version,
+      prompt_hash: result.prompt_hash,
+      compatible: result.compatible,
+      schema_compiled: result.schema_compiled,
+      issues: result.issues
+    }))
+  };
+}
+
+function isStructuredOutputSchemaFailure(input: {
+  error_category?: string | null;
+  message?: string | null;
+}) {
+  if (
+    input.error_category === "structured_output_schema_incompatible" ||
+    input.error_category === "provider_request_schema_invalid"
+  ) {
+    return true;
+  }
+
+  return /zod field|structured outputs?|optional\(\).*nullable|json schema/i.test(input.message ?? "");
+}
+
 async function updateRunUsageAggregation(runDbId: string) {
   const [run, items] = await Promise.all([
     prisma.evalRun.findUniqueOrThrow({
@@ -733,8 +819,60 @@ async function processRunItem(input: {
   canaryCase: CanaryCasePlan;
   provider: LlmProvider;
   budgetState: EvalBudgetState;
+  compatibilityCheck?: (agentName: AgentNameType) => StructuredOutputCompatibilityResult;
 }) {
   const env = getServerEnv();
+  const compatibility =
+    input.compatibilityCheck?.(input.canaryCase.agent_name) ??
+    checkStructuredOutputCompatibilityForAgent(input.canaryCase.agent_name);
+
+  if (!compatibility.compatible) {
+    const message = compatibilityFailureMessage(compatibility);
+
+    await prisma.evalRunItem.update({
+      where: { id: input.runItemDbId },
+      data: {
+        started_at: new Date(),
+        execution_status: "failed_permanent",
+        raw_output: Prisma.JsonNull,
+        parsed_output: Prisma.JsonNull,
+        output_validated: false,
+        schema_validation_error: message,
+        semantic_validation_result: prismaJson({
+          ok: false,
+          issues: [message],
+          warnings: ["No provider request was dispatched; this is a local schema compatibility failure."]
+        }),
+        safety_validation_result: prismaJson({
+          ok: false,
+          issues: ["Model output was not evaluable because provider-facing schema construction failed."],
+          warnings: [],
+          critical_failure_flags: []
+        }),
+        error_category: "structured_output_schema_incompatible",
+        token_usage: prismaJson({
+          provider_request_dispatched: false,
+          provider_requests_for_item: 0,
+          structured_output_compatibility: {
+            schema_compiled: compatibility.schema_compiled,
+            issues: compatibility.issues
+          }
+        }),
+        completed_at: new Date()
+      }
+    });
+    await prisma.evalRun.update({
+      where: { id: input.runDbId },
+      data: {
+        status: "failed",
+        error_message:
+          "Provider-facing Structured Outputs schema is incompatible; fix schemas and create a fresh run."
+      }
+    });
+
+    return { stop: true, status: "failed_permanent" };
+  }
+
   const reservation = reserveEvalBudget({
     state: input.budgetState,
     model_snapshot: EVAL_CANARY_MODEL_SNAPSHOT,
@@ -1147,7 +1285,8 @@ export async function runLiveCanary(options: LiveCanaryRunOptions) {
       runItemPublicId: item.run_item_public_id,
       canaryCase,
       provider,
-      budgetState
+      budgetState,
+      compatibilityCheck: options.compatibilityCheck
     });
 
     if (result.stop) {
@@ -1271,21 +1410,48 @@ export async function inspectLiveCanaryRun(runPublicId: string) {
           ? "parsed"
           : parsed?.reason ?? "usage_missing",
       sanitized_error_category: item.error_category,
-      sanitized_error_message: item.schema_validation_error
+      sanitized_error_message: item.schema_validation_error,
+      structured_output_schema_failure: isStructuredOutputSchemaFailure({
+        error_category: item.error_category,
+        message: item.schema_validation_error
+      })
     };
   });
   const unverifiableItems = itemStatuses.filter(
     (item) => item.execution_status === "budget_unverifiable"
   );
   const unverifiableWithoutUsage = unverifiableItems.some((item) => !item.usage_exists);
+  const structuredOutputSchemaItems = itemStatuses.filter(
+    (item) => item.structured_output_schema_failure
+  );
+  const countedRequestWithoutUsableResult =
+    run.provider_request_count > 0 &&
+    itemStatuses.some(
+      (item) =>
+        item.execution_status === "failed_permanent" &&
+        !item.provider_response_id &&
+        !item.provider_request_id &&
+        !item.raw_output_exists &&
+        !item.usage_exists
+    );
   const safeToResume =
     run.run_mode === "live_provider" &&
     run.status !== "budget_unverifiable" &&
+    structuredOutputSchemaItems.length === 0 &&
     unverifiableItems.length === 0 &&
     run.run_items.some((item) => item.execution_status === "pending" || item.execution_status === "failed_retryable");
   const freshRunRecommended =
+    structuredOutputSchemaItems.length > 0 ||
     run.status === "budget_unverifiable" ||
+    countedRequestWithoutUsableResult ||
     (run.provider_request_count > 0 && unverifiableWithoutUsage);
+  const recommendation = structuredOutputSchemaItems.length > 0
+    ? "fix_schema_then_create_fresh_run"
+    : freshRunRecommended
+      ? "create_fresh_canary_run"
+      : safeToResume
+        ? "resume_existing_run"
+        : "manual_review_required";
 
   return {
     run: {
@@ -1309,16 +1475,18 @@ export async function inspectLiveCanaryRun(runPublicId: string) {
     },
     safe_to_resume: safeToResume,
     fresh_run_recommended: freshRunRecommended,
-    recommendation: freshRunRecommended
-      ? "create_fresh_canary_run"
-      : safeToResume
-        ? "resume_existing_run"
-        : "manual_review_required",
+    recommendation,
     notes: [
       "This inspect command is read-only and makes no provider requests.",
+      structuredOutputSchemaItems.length > 0
+        ? "At least one run item failed before provider dispatch because the frozen Structured Outputs schema was incompatible; do not resume this run under a corrected schema."
+        : "No Structured Outputs schema compatibility failure was found in the persisted eval records.",
+      countedRequestWithoutUsableResult
+        ? "At least one counted provider request has no provider response ID, raw output, or usage; preserve the run for audit and create a fresh run after correction."
+        : "No failed permanent item has a counted request without provider result metadata.",
       unverifiableWithoutUsage
         ? "At least one provider request is counted without usable persisted usage; do not resume automatically."
-        : "No counted provider request lacks usage in the persisted eval records."
+        : "No budget_unverifiable item lacks usage in the persisted eval records."
     ]
   };
 }
@@ -1351,12 +1519,32 @@ export async function createCanaryReadinessReport(runPublicId: string) {
   }
 
   const items = [...run.run_items].sort((left, right) => (left.run_order ?? 0) - (right.run_order ?? 0));
-  const schemaValidCount = items.filter((item) => item.output_validated).length;
-  const semanticPassCount = items.filter((item) => {
+  const infrastructureFailedItems = items.filter((item) =>
+    isStructuredOutputSchemaFailure({
+      error_category: item.error_category,
+      message: item.schema_validation_error
+    })
+  );
+  const modelEvaluatedItems = items.filter((item) => {
+    if (infrastructureFailedItems.some((failedItem) => failedItem.id === item.id)) {
+      return false;
+    }
+
+    return (
+      item.raw_output !== null ||
+      item.provider_response_id !== null ||
+      item.provider_request_id !== null ||
+      item.execution_status === "completed" ||
+      item.execution_status === "refused" ||
+      item.execution_status === "incomplete"
+    );
+  });
+  const schemaValidCount = modelEvaluatedItems.filter((item) => item.output_validated).length;
+  const semanticPassCount = modelEvaluatedItems.filter((item) => {
     const value = item.semantic_validation_result;
     return Boolean(value && typeof value === "object" && !Array.isArray(value) && (value as { ok?: unknown }).ok === true);
   }).length;
-  const safetyPassCount = items.filter((item) => {
+  const safetyPassCount = modelEvaluatedItems.filter((item) => {
     const value = item.safety_validation_result;
     return Boolean(value && typeof value === "object" && !Array.isArray(value) && (value as { ok?: unknown }).ok === true);
   }).length;
@@ -1381,13 +1569,23 @@ export async function createCanaryReadinessReport(runPublicId: string) {
       return [agentName, { passing, total: agentItems.length, pass_rate: agentItems.length ? passing / agentItems.length : 0 }];
     })
   );
-  const failedCaseIds = items
+  const failedCaseIds = modelEvaluatedItems
     .filter((item) =>
       !item.output_validated ||
       criticalFlagsFromSafety(item.safety_validation_result).length > 0 ||
       item.annotations.some((annotation) => annotation.pass_fail === "fail")
     )
     .map((item) => item.eval_case.case_id);
+  const pendingCaseIds = items
+    .filter((item) => ["pending", "running", "failed_retryable"].includes(item.execution_status))
+    .map((item) => item.eval_case.case_id);
+  const refusedCaseIds = items
+    .filter((item) => item.execution_status === "refused")
+    .map((item) => item.eval_case.case_id);
+  const incompleteCaseIds = items
+    .filter((item) => item.execution_status === "incomplete")
+    .map((item) => item.eval_case.case_id);
+  const infrastructureFailedCaseIds = infrastructureFailedItems.map((item) => item.eval_case.case_id);
   const unresolvedAnnotations = items
     .filter((item) => item.annotations.length === 0)
     .map((item) => item.eval_case.case_id);
@@ -1408,6 +1606,7 @@ export async function createCanaryReadinessReport(runPublicId: string) {
     )
   };
   const incomplete = !gates.terminal_items_25 || !gates.human_annotations_25;
+  const modelQualityEvaluable = modelEvaluatedItems.length > 0;
   const allGatesPass = Object.values(gates).every(Boolean);
   const recommendation = incomplete
     ? "incomplete_review"
@@ -1431,9 +1630,13 @@ export async function createCanaryReadinessReport(runPublicId: string) {
     planned_run_item_count: run.planned_run_item_count,
     completed_or_terminal_count: items.filter((item) => terminalForCanary(item.execution_status)).length,
     annotation_completion_count: annotationCount,
-    schema_pass_rate: items.length ? schemaValidCount / items.length : null,
-    semantic_pass_rate: items.length ? semanticPassCount / items.length : null,
-    safety_pass_rate: items.length ? safetyPassCount / items.length : null,
+    model_quality_evaluable: modelQualityEvaluable,
+    model_quality_message: modelQualityEvaluable
+      ? "Model output was available for evaluation."
+      : "This run cannot be used to evaluate model quality because provider execution did not produce an output.",
+    schema_pass_rate: modelEvaluatedItems.length ? schemaValidCount / modelEvaluatedItems.length : null,
+    semantic_pass_rate: modelEvaluatedItems.length ? semanticPassCount / modelEvaluatedItems.length : null,
+    safety_pass_rate: modelEvaluatedItems.length ? safetyPassCount / modelEvaluatedItems.length : null,
     annotation_pass_rate_by_agent: passByAgent,
     critical_failure_counts: Object.fromEntries(
       [...new Set(autoFlags)].map((flag) => [flag, autoFlags.filter((entry) => entry === flag).length])
@@ -1451,6 +1654,10 @@ export async function createCanaryReadinessReport(runPublicId: string) {
     retries: items.reduce((total, item) => total + item.retry_count, 0),
     gates,
     failed_case_ids: failedCaseIds,
+    pending_case_ids: pendingCaseIds,
+    refused_case_ids: refusedCaseIds,
+    incomplete_case_ids: incompleteCaseIds,
+    infrastructure_failed_case_ids: infrastructureFailedCaseIds,
     unresolved_annotations: unresolvedAnnotations,
     case_manifest_hash: run.case_manifest_hash,
     run_config_hash: run.run_config_hash,

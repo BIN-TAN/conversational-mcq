@@ -773,6 +773,7 @@ Do not paste the API key into chat or a browser form. Keep classroom settings as
 Offline verification commands:
 
 ```bash
+npm run eval:structured-output-compat-smoke
 npm run eval:live-canary-runner-smoke
 npm run eval:usage-parser-smoke
 npm run eval:budget-smoke

@@ -64,6 +64,10 @@ export function validateFollowupSemantics(input: {
     issues.push("followup_action_type is not approved");
   }
 
+  if (output.evidence_request !== null && !output.evidence_request.trim()) {
+    issues.push("evidence_request must be null or nonempty");
+  }
+
   if (input.turn_type === "opening") {
     if (output.student_turn_substantive) {
       issues.push("opening turns must use student_turn_substantive=false");
