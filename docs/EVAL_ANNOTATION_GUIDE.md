@@ -116,9 +116,18 @@ npm run eval:annotations:import-draft -- \
   --reference .data/eval-review/<run_public_id>/review_reference.jsonl
 ```
 
-For the Phase 7E2A canary run, the importer validates exactly 25 rows, 22 pass
-decisions, 3 fail decisions, zero human critical flags, the expected failed case
-IDs, and the expected per-agent pass rates: 80%, 100%, 80%, 100%, and 80%.
+The importer validates annotation structure and run mapping, not a predetermined
+evaluation result. It derives the expected row count from the target run's
+reviewable run items, requires exactly one annotation per `review_item_id`, and
+requires the reference file to map one-to-one to the target run. It validates
+`pass_fail`, rubric scores, and approved critical-failure flags, then reports
+pass/fail totals, failed case IDs, critical-failure counts, and per-agent pass
+rates as calculated results. It must not reject a legitimate file merely because
+its judgments differ from a previous canary.
+
+This same importer can handle a 25-item canary or a future larger pilot, as long
+as the CSV, reference file, and target run map one-to-one. AI-assisted imported
+annotations remain drafts until teacher confirmation.
 
 Teacher confirmation is done in `/teacher/evals/runs/<run_public_id>`. The
 batch confirmation action requires this exact attestation:

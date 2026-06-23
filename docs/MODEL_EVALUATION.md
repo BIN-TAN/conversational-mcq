@@ -83,6 +83,13 @@ Completed annotation CSVs can be imported as `ai_assisted_preliminary` draft
 annotations and must be teacher-confirmed before readiness gates count them as
 human review.
 
+Annotation import validates structure, review-ID mapping, run compatibility,
+rubric-score ranges, pass/fail labels, and approved critical-failure flags. It
+does not enforce any predetermined pass/fail split or previous failed-case set.
+Pass counts, fail counts, failed case IDs, critical-failure counts, and
+per-agent pass rates are calculated import results. The same import service is
+intended to support the 25-item canary and future larger pilot runs.
+
 ## APIs
 
 Teacher-only APIs:

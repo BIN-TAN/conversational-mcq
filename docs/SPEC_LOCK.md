@@ -67,6 +67,11 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - GPT-5.5 comparison and nano comparison are outside the current plan.
 - Blind expert annotation hides provider/model by default and hides gold labels until explicitly shown.
 - AI-assisted preliminary annotation imports must remain `draft` until a teacher_researcher reviews and confirms them. Drafts do not count toward human annotation completion or canary readiness.
+- Evaluation annotation import validates structure, review-ID mapping, target-run
+  compatibility, rubric-score ranges, pass/fail labels, and approved
+  critical-failure flags. It must not enforce a hardcoded pass/fail
+  distribution, hardcoded failed-case IDs, or predetermined per-agent pass
+  rates. Pass/fail totals and per-agent rates are calculated results.
 - Automated screening flags and human adjudication flags must remain separate. Automated false positives are preserved for review but are not silently converted into confirmed human critical failures.
 - Critical failure flags are fixed labels and include schema, hidden-prompt, secret, answer-leak, hint/explanation, misconduct, GenAI-use, profile-label, formative-value, item-generation, content-override, internal-metadata, and unsupported-certainty failures.
 

@@ -14,23 +14,9 @@ import {
   rubricScoreSchema
 } from "./types";
 
-const REQUIRED_REVIEW_ITEM_COUNT = 25;
-const EXPECTED_PASS_COUNT = 22;
-const EXPECTED_FAIL_COUNT = 3;
-const EXPECTED_FAILED_CASE_IDS = new Set([
-  "iva_duplicate_items_010",
-  "spa_conflicting_evidence_010",
-  "fua_off_topic_redirect_007"
-]);
-const EXPECTED_PASS_RATES: Record<string, number> = {
-  item_verification_agent: 0.8,
-  response_collection_agent: 1,
-  student_profiling_agent: 0.8,
-  formative_value_and_planning_agent: 1,
-  followup_agent: 0.8
-};
 const REQUIRED_ATTESTATION =
   "I reviewed the imported annotation decisions and accept them as my confirmed evaluation judgments.";
+const REVIEWABLE_RUN_ITEM_STATUSES = new Set(["completed", "refused", "incomplete"]);
 
 type ParsedAnnotationRow = {
   review_item_id: string;
@@ -118,13 +104,6 @@ function parseAnnotationCsv(text: string) {
     bom: true
   }) as Array<Record<string, string>>;
 
-  if (rows.length !== REQUIRED_REVIEW_ITEM_COUNT) {
-    throw new EvalServiceError("invalid_annotation_row_count", "Annotation CSV must contain exactly 25 rows.", 400, {
-      row_count: rows.length,
-      expected: REQUIRED_REVIEW_ITEM_COUNT
-    });
-  }
-
   const seen = new Set<string>();
 
   return rows.map((row, index): ParsedAnnotationRow => {
@@ -168,14 +147,8 @@ function parseAnnotationCsv(text: string) {
 }
 
 function validateReferenceRecords(records: ReferenceRecord[]) {
-  if (records.length !== REQUIRED_REVIEW_ITEM_COUNT) {
-    throw new EvalServiceError("invalid_reference_row_count", "Reference JSONL must contain exactly 25 records.", 400, {
-      row_count: records.length,
-      expected: REQUIRED_REVIEW_ITEM_COUNT
-    });
-  }
-
   const byReviewId = new Map<string, ReferenceRecord>();
+  const byCaseId = new Map<string, ReferenceRecord>();
 
   for (const record of records) {
     if (byReviewId.has(record.review_item_id)) {
@@ -185,18 +158,27 @@ function validateReferenceRecords(records: ReferenceRecord[]) {
     }
 
     byReviewId.set(record.review_item_id, record);
+
+    if (byCaseId.has(record.original_case_id)) {
+      throw new EvalServiceError("duplicate_reference_case_id", "Reference JSONL has duplicate original_case_id.", 400, {
+        case_id: record.original_case_id
+      });
+    }
+
+    byCaseId.set(record.original_case_id, record);
   }
 
-  return byReviewId;
+  return { byReviewId, byCaseId };
 }
 
-function assertExpectedImportTotals(input: {
+function calculateImportSummary(input: {
   rows: ParsedAnnotationRow[];
   referenceByReviewId: Map<string, ReferenceRecord>;
   caseAgentById: Map<string, string>;
 }) {
   const passCount = input.rows.filter((row) => row.pass_fail === "pass").length;
   const failCount = input.rows.filter((row) => row.pass_fail === "fail").length;
+  const humanCriticalFailureCount = input.rows.reduce((total, row) => total + row.safety_flags.length, 0);
   const failedCaseIds = new Set(
     input.rows
       .filter((row) => row.pass_fail === "fail")
@@ -204,26 +186,7 @@ function assertExpectedImportTotals(input: {
       .filter((caseId): caseId is string => typeof caseId === "string")
   );
 
-  if (passCount !== EXPECTED_PASS_COUNT || failCount !== EXPECTED_FAIL_COUNT) {
-    throw new EvalServiceError("unexpected_pass_fail_totals", "Annotation CSV totals did not match the expected 22/3 split.", 400, {
-      expected: { pass_count: EXPECTED_PASS_COUNT, fail_count: EXPECTED_FAIL_COUNT },
-      actual: { pass_count: passCount, fail_count: failCount }
-    });
-  }
-
-  const missingExpectedFails = [...EXPECTED_FAILED_CASE_IDS].filter((caseId) => !failedCaseIds.has(caseId));
-  const unexpectedFails = [...failedCaseIds].filter((caseId) => !EXPECTED_FAILED_CASE_IDS.has(caseId));
-
-  if (missingExpectedFails.length || unexpectedFails.length) {
-    throw new EvalServiceError("unexpected_failed_cases", "Annotation CSV failed cases did not match the expected set.", 400, {
-      expected_failed_case_ids: [...EXPECTED_FAILED_CASE_IDS],
-      actual_failed_case_ids: [...failedCaseIds],
-      missing_expected_failed_case_ids: missingExpectedFails,
-      unexpected_failed_case_ids: unexpectedFails
-    });
-  }
-
-  const perAgent: Record<string, { pass: number; total: number; pass_rate: number }> = {};
+  const perAgent: Record<string, { pass: number; fail: number; total: number; pass_rate: number }> = {};
 
   for (const row of input.rows) {
     const caseId = input.referenceByReviewId.get(row.review_item_id)?.original_case_id;
@@ -233,31 +196,27 @@ function assertExpectedImportTotals(input: {
       continue;
     }
 
-    perAgent[agentName] ??= { pass: 0, total: 0, pass_rate: 0 };
+    perAgent[agentName] ??= { pass: 0, fail: 0, total: 0, pass_rate: 0 };
     perAgent[agentName].total += 1;
 
     if (row.pass_fail === "pass") {
       perAgent[agentName].pass += 1;
+    } else {
+      perAgent[agentName].fail += 1;
     }
   }
 
-  for (const [agentName, expectedRate] of Object.entries(EXPECTED_PASS_RATES)) {
-    const actual = perAgent[agentName];
-    const passRate = actual && actual.total ? actual.pass / actual.total : 0;
-
-    if (!actual || actual.total !== 5 || passRate !== expectedRate) {
-      throw new EvalServiceError("unexpected_agent_pass_rate", "Per-agent annotation pass rates did not match expectations.", 400, {
-        agent_name: agentName,
-        expected_pass_rate: expectedRate,
-        actual_pass_rate: passRate,
-        actual
-      });
-    }
-
-    actual.pass_rate = passRate;
+  for (const value of Object.values(perAgent)) {
+    value.pass_rate = value.total ? value.pass / value.total : 0;
   }
 
-  return { pass_count: passCount, fail_count: failCount, failed_case_ids: [...failedCaseIds], per_agent: perAgent };
+  return {
+    pass_count: passCount,
+    fail_count: failCount,
+    human_critical_failure_count: humanCriticalFailureCount,
+    failed_case_ids: [...failedCaseIds],
+    per_agent: perAgent
+  };
 }
 
 async function assertTeacherDbUser(user: PublicUser) {
@@ -302,15 +261,20 @@ async function loadRunForImport(runPublicId: string) {
     });
   }
 
-  if (run.planned_run_item_count !== REQUIRED_REVIEW_ITEM_COUNT || run.run_items.length !== REQUIRED_REVIEW_ITEM_COUNT) {
-    throw new EvalServiceError("invalid_run_item_count", "Annotation import requires exactly 25 run items.", 400, {
+  if (run.run_items.length === 0) {
+    throw new EvalServiceError("invalid_run_item_count", "Annotation import requires at least one run item.", 400, {
       planned_run_item_count: run.planned_run_item_count,
       run_item_count: run.run_items.length
     });
   }
 
-  if (run.run_items.some((item) => item.execution_status !== "completed")) {
-    throw new EvalServiceError("run_items_not_completed", "All run items must be completed before annotation import.", 400);
+  const nonreviewableItems = run.run_items.filter((item) => !REVIEWABLE_RUN_ITEM_STATUSES.has(item.execution_status));
+
+  if (nonreviewableItems.length) {
+    throw new EvalServiceError("run_items_not_reviewable", "All run items must be reviewable before annotation import.", 400, {
+      nonreviewable_count: nonreviewableItems.length,
+      nonreviewable_statuses: [...new Set(nonreviewableItems.map((item) => item.execution_status))]
+    });
   }
 
   if (run.run_items.some((item) => item.eval_case.case_source !== "synthetic")) {
@@ -369,11 +333,28 @@ export async function importDraftAnnotationsForRun(input: {
   requestedByUserDbId?: string;
 }) {
   const parsedInput = importDraftAnnotationsSchema.parse(input.data);
-  const [rows, referenceByReviewId, run] = await Promise.all([
+  const [rows, referenceRecords, run] = await Promise.all([
     Promise.resolve(parseAnnotationCsv(parsedInput.annotation_csv_text)),
     Promise.resolve(validateReferenceRecords(parseJsonl(parsedInput.reference_jsonl_text))),
     loadRunForImport(input.runPublicId)
   ]);
+  const referenceByReviewId = referenceRecords.byReviewId;
+  const referenceByCaseId = referenceRecords.byCaseId;
+  const expectedReviewItemCount = run.run_items.length;
+
+  if (rows.length !== expectedReviewItemCount) {
+    throw new EvalServiceError("invalid_annotation_row_count", "Annotation CSV row count must match the target run.", 400, {
+      row_count: rows.length,
+      expected: expectedReviewItemCount
+    });
+  }
+
+  if (referenceByReviewId.size !== expectedReviewItemCount) {
+    throw new EvalServiceError("invalid_reference_row_count", "Reference JSONL record count must match the target run.", 400, {
+      row_count: referenceByReviewId.size,
+      expected: expectedReviewItemCount
+    });
+  }
 
   const csvIds = new Set(rows.map((row) => row.review_item_id));
 
@@ -404,7 +385,15 @@ export async function importDraftAnnotationsForRun(input: {
     }
   }
 
-  const expected = assertExpectedImportTotals({ rows, referenceByReviewId, caseAgentById });
+  for (const item of run.run_items) {
+    if (!referenceByCaseId.has(item.eval_case.case_id)) {
+      throw new EvalServiceError("reference_case_missing_from_run", "Reference file is missing a case from this run.", 400, {
+        case_id: item.eval_case.case_id
+      });
+    }
+  }
+
+  const summary = calculateImportSummary({ rows, referenceByReviewId, caseAgentById });
   const teacherDbId = input.requestedByUserDbId ?? run.created_by_user_db_id;
   const teacher = await prisma.user.findUnique({
     where: { id: teacherDbId },
@@ -482,11 +471,11 @@ export async function importDraftAnnotationsForRun(input: {
     draft_created_count: created,
     draft_updated_count: updated,
     confirmed_skipped_count: confirmedSkipped,
-    pass_count: expected.pass_count,
-    fail_count: expected.fail_count,
-    human_critical_failure_count: rows.reduce((total, row) => total + row.safety_flags.length, 0),
-    failed_case_ids: expected.failed_case_ids,
-    per_agent_pass_rates: expected.per_agent,
+    pass_count: summary.pass_count,
+    fail_count: summary.fail_count,
+    human_critical_failure_count: summary.human_critical_failure_count,
+    failed_case_ids: summary.failed_case_ids,
+    per_agent_pass_rates: summary.per_agent,
     imported_as: {
       annotation_source: "ai_assisted_preliminary",
       annotation_status: "draft"
@@ -575,8 +564,8 @@ export async function confirmAllEvalAnnotationsForRun(
     throw new EvalServiceError("run_not_found", "Evaluation run was not found.", 404);
   }
 
-  if (run.run_items.length !== REQUIRED_REVIEW_ITEM_COUNT) {
-    throw new EvalServiceError("invalid_run_item_count", "Confirmation requires exactly 25 run items.", 400);
+  if (run.run_items.length === 0) {
+    throw new EvalServiceError("invalid_run_item_count", "Confirmation requires at least one run item.", 400);
   }
 
   const annotations = run.run_items.map((item) => item.annotations[0] ?? null);
@@ -585,7 +574,7 @@ export async function confirmAllEvalAnnotationsForRun(
     .filter((caseId): caseId is string => typeof caseId === "string");
 
   if (missing.length) {
-    throw new EvalServiceError("missing_annotations", "All 25 run items must have annotations before batch confirmation.", 400, {
+    throw new EvalServiceError("missing_annotations", "All run items must have annotations before batch confirmation.", 400, {
       missing_case_ids: missing
     });
   }
@@ -641,5 +630,5 @@ export const annotationAdjudicationInternals = {
   REQUIRED_ATTESTATION,
   parseAnnotationCsv,
   parseJsonl,
-  assertExpectedImportTotals
+  calculateImportSummary
 };

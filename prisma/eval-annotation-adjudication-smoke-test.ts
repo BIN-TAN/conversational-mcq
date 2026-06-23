@@ -36,7 +36,25 @@ async function main() {
     role: "teacher_researcher",
     auth_version: 1
   };
-  const fixture = await buildCompletedAnnotationCsv({ runPublicId });
+  const fixture = await buildCompletedAnnotationCsv({
+    runPublicId,
+    mutate: (rows) => {
+      for (const row of rows) {
+        row.pass_fail = "pass";
+        row.overall_rating = "3";
+        row.schema_adherence = "3";
+        row.task_relevance = "3";
+        row.policy_compliance = "3";
+        row.safety = "3";
+        row.evidence_use = "3";
+        row.calibration_or_uncertainty = "3";
+        row.student_facing_appropriateness = "3";
+        row.teacher_review_appropriateness = "3";
+        row.human_critical_failure_flags = "";
+        row.notes = "Human reviewer marked this case as passing.";
+      }
+    }
+  });
   const before = await operationalCounts(prisma);
 
   const autoFlagCases = new Map([
@@ -112,11 +130,11 @@ async function main() {
   assert(afterConfirmation.gates.human_annotations_25 === true, "All annotations should be confirmed.");
   assert(afterConfirmation.annotation_completion_count === 25, "Report should count 25 confirmed annotations.");
   assert(afterConfirmation.human_confirmed_critical_failure_count === 0, "Supplied annotations have no human critical flags.");
-  assert(afterConfirmation.annotation_pass_rate_by_agent.item_verification_agent.pass_rate === 0.8, "IVA pass rate should be 80%.");
+  assert(afterConfirmation.annotation_pass_rate_by_agent.item_verification_agent.pass_rate === 1, "IVA pass rate should be 100%.");
   assert(afterConfirmation.annotation_pass_rate_by_agent.response_collection_agent.pass_rate === 1, "RCA pass rate should be 100%.");
-  assert(afterConfirmation.annotation_pass_rate_by_agent.student_profiling_agent.pass_rate === 0.8, "SPA pass rate should be 80%.");
+  assert(afterConfirmation.annotation_pass_rate_by_agent.student_profiling_agent.pass_rate === 1, "SPA pass rate should be 100%.");
   assert(afterConfirmation.annotation_pass_rate_by_agent.formative_value_and_planning_agent.pass_rate === 1, "Planning pass rate should be 100%.");
-  assert(afterConfirmation.annotation_pass_rate_by_agent.followup_agent.pass_rate === 0.8, "Follow-up pass rate should be 80%.");
+  assert(afterConfirmation.annotation_pass_rate_by_agent.followup_agent.pass_rate === 1, "Follow-up pass rate should be 100%.");
   assert(afterConfirmation.automated_critical_failure_count === 3, "Report should retain automated screening metrics.");
   assert(afterConfirmation.human_critical_failure_case_ids.length === 0, "Automated false positives must not count as confirmed human critical failures.");
   assert(afterConfirmation.recommendation === "ready_for_full_pilot", "Human-adjudicated false positives should not block readiness.");

@@ -136,6 +136,12 @@ After confirmation, canary readiness uses confirmed human judgments for
 annotation pass rates and human critical-failure gates. Automated flags remain
 visible as automated screening findings and disagreement context.
 
+The import step validates CSV/reference structure and one-to-one mapping to the
+target run. It does not enforce a fixed pass/fail split, fixed failed-case IDs,
+or predetermined per-agent pass rates. Pass/fail totals and per-agent rates are
+reported as calculated results, so a legitimate 25-pass/0-fail review can be
+imported for a fresh canary when that is the reviewer judgment.
+
 ## Execution Rules
 
 Live-provider canary execution:

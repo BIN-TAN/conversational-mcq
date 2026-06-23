@@ -815,6 +815,13 @@ Readiness gates then use confirmed human pass/fail and human critical-failure
 flags. Automated screening flags remain visible as separate adjudication
 context and are not silently copied into human judgments.
 
+The annotation importer validates structure and mapping, not expected outcomes.
+It derives the expected row count from the target run, requires exactly one CSV
+row and one reference record for each review item, validates rubric scores and
+critical-failure flags, and then reports pass/fail totals as calculated results.
+No pass/fail distribution is hardcoded; the same importer supports the 25-item
+canary and future larger pilot runs.
+
 Do not paste the API key into chat or a browser form. Keep classroom settings as `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`.
 
 Offline verification commands:
