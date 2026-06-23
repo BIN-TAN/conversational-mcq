@@ -69,3 +69,22 @@ Live canary run items use the same blind review UI:
 - human annotations are never auto-filled from automated flags
 
 All 25 canary run items should be annotated before the readiness report can recommend `ready_for_full_pilot`.
+
+## Local Blind Review Packet
+
+For offline expert review of a completed 25-item live canary:
+
+```bash
+npm run eval:blind-review-export -- --run <run_public_id>
+```
+
+The command writes ignored files under `.data/eval-review/<run_public_id>/`.
+Use `blind_review_packet.jsonl` and `annotation_template.csv` for the first-pass
+review. Do not open `review_reference.jsonl` until after blind scoring, because
+it contains original case IDs, gold labels, expected behavior, automated
+semantic/safety results, automated critical flags, and model/provider/prompt
+metadata for adjudication.
+
+The opaque `review_item_id` is the only join key across the three files. The
+blind packet order is deterministically shuffled from the run ID, so repeated
+exports of the same run keep the same blind order without exposing case IDs.

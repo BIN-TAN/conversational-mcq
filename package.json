@@ -53,6 +53,8 @@
     "eval:live-canary": "tsx prisma/eval-live-canary.ts",
     "eval:live-canary:report": "tsx prisma/eval-live-canary-report.ts",
     "eval:live-canary:inspect": "tsx prisma/eval-live-canary-inspect.ts",
+    "eval:blind-review-export": "tsx prisma/eval-blind-review-export.ts",
+    "eval:blind-review-export-smoke": "tsx prisma/eval-blind-review-export-smoke-test.ts",
     "eval:live-canary-runner-smoke": "tsx prisma/eval-live-canary-runner-smoke-test.ts",
     "eval:structured-output-compat-smoke": "tsx prisma/eval-structured-output-compat-smoke-test.ts",
     "eval:usage-parser-smoke": "tsx prisma/eval-usage-parser-smoke-test.ts",

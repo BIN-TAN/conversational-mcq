@@ -768,11 +768,24 @@ The inspect command makes no provider request. It reports run status, item statu
 provider IDs when present, usage availability, sanitized errors, and whether a
 fresh run is safer than resuming.
 
+Generate a local blind expert-review packet for a completed 25-item live canary:
+
+```bash
+npm run eval:blind-review-export -- --run <run_public_id>
+```
+
+The command writes ignored files under `.data/eval-review/<run_public_id>/`:
+`blind_review_packet.jsonl`, `review_reference.jsonl`, and
+`annotation_template.csv`. The blind packet omits model/provider metadata, case
+IDs, automated results, gold labels, token usage, costs, and existing
+annotations; the separate reference file is for adjudication after blind review.
+
 Do not paste the API key into chat or a browser form. Keep classroom settings as `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`.
 
 Offline verification commands:
 
 ```bash
+npm run eval:blind-review-export-smoke
 npm run eval:structured-output-compat-smoke
 npm run eval:live-canary-runner-smoke
 npm run eval:usage-parser-smoke

@@ -62,6 +62,11 @@ Routes:
 
 The UI supports fixture loading, mock run creation, run review, failure filtering, critical-flag filtering, blind annotation, reference toggling, and CSV export.
 
+Completed 25-item live canary runs can also be exported as local blind-review
+packets with `npm run eval:blind-review-export -- --run <run_public_id>`. The
+blind packet, reference mapping, and blank annotation template are written under
+ignored `.data/eval-review/` storage and do not modify eval or classroom records.
+
 ## APIs
 
 Teacher-only APIs:

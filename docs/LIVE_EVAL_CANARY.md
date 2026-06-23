@@ -71,6 +71,24 @@ the run is safe to resume, and whether a fresh run is recommended. It never
 prints API keys, authorization headers, database URLs, session secrets, cookies,
 or raw environment values.
 
+To generate a local blind-review packet for a completed 25-item live canary:
+
+```bash
+npm run eval:blind-review-export -- --run <run_public_id>
+```
+
+The export is read-only. It writes files under `.data/eval-review/<run_public_id>/`,
+which is Git-ignored:
+
+- `blind_review_packet.jsonl`: 25 records in deterministic shuffled order with opaque `review_item_id` values, synthetic input payloads, model outputs, agent-specific rubrics, safety expectations, and relevant critical-failure definitions.
+- `review_reference.jsonl`: the mapping from opaque IDs to original case IDs, gold labels, expected behavior, automated semantic/safety results, automated critical flags, and model/provider/prompt metadata.
+- `annotation_template.csv`: one blank annotation row per opaque review item.
+
+The blind packet excludes original case IDs, model/provider metadata,
+response/request IDs, prompt versions and hashes, automated results, gold labels,
+token usage, costs, and existing annotations. Use the reference file only after
+blind review when adjudication context is needed.
+
 ## Execution Rules
 
 Live-provider canary execution:
@@ -148,6 +166,7 @@ fabricate token counts or continue through remaining cases.
 ## Offline Smoke Tests
 
 ```bash
+npm run eval:blind-review-export-smoke
 npm run eval:structured-output-compat-smoke
 npm run eval:live-canary-runner-smoke
 npm run eval:usage-parser-smoke
