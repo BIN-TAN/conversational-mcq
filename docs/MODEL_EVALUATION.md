@@ -60,12 +60,15 @@ Routes:
 - `/teacher/evals/runs/[runPublicId]`
 - `/teacher/evals/run-items/[runItemPublicId]`
 
-The UI supports fixture loading, mock run creation, run review, failure filtering, critical-flag filtering, blind annotation, reference toggling, and CSV export.
+The UI supports fixture loading, mock run creation, run review, failure filtering, critical-flag filtering, blind annotation, reference toggling, annotation confirmation, and CSV export.
 
 Completed 25-item live canary runs can also be exported as local blind-review
 packets with `npm run eval:blind-review-export -- --run <run_public_id>`. The
 blind packet, reference mapping, and blank annotation template are written under
 ignored `.data/eval-review/` storage and do not modify eval or classroom records.
+Completed annotation CSVs can be imported as `ai_assisted_preliminary` draft
+annotations and must be teacher-confirmed before readiness gates count them as
+human review.
 
 ## APIs
 
@@ -80,8 +83,11 @@ Teacher-only APIs:
 - `GET /api/teacher/evals/runs/[runPublicId]`
 - `GET /api/teacher/evals/runs/[runPublicId]/items`
 - `GET /api/teacher/evals/runs/[runPublicId]/export`
+- `POST /api/teacher/evals/runs/[runPublicId]/annotations/import-draft`
+- `POST /api/teacher/evals/runs/[runPublicId]/annotations/confirm-all`
 - `GET /api/teacher/evals/run-items/[runItemPublicId]`
 - `POST /api/teacher/evals/run-items/[runItemPublicId]/annotations`
+- `POST /api/teacher/evals/run-items/[runItemPublicId]/annotations/confirm`
 - `GET /api/teacher/evals/summary`
 
 Students receive 403. Unauthenticated requests receive 401.
@@ -100,6 +106,8 @@ Phase 7E2A smoke commands:
 
 ```bash
 npm run eval:structured-output-compat-smoke
+npm run eval:annotation-import-smoke
+npm run eval:annotation-adjudication-smoke
 npm run eval:live-canary-runner-smoke
 npm run eval:budget-smoke
 npm run eval:live-isolation-smoke

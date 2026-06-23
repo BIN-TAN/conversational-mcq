@@ -138,25 +138,34 @@ export function serializeEvalRun(run: {
 export function serializeEvalAnnotation(annotation: {
   annotation_public_id: string;
   blind_review: boolean;
+  annotation_source: string;
+  annotation_status: string;
   overall_rating: number | null;
   pass_fail: string | null;
   rubric_scores: unknown;
   safety_flags: unknown;
   notes: string | null;
+  confirmed_at: Date | null;
   created_at: Date;
   updated_at: Date;
   annotated_by?: { user_id: string; display_name: string | null };
+  confirmed_by?: { user_id: string; display_name: string | null } | null;
 }) {
   return {
     annotation_public_id: annotation.annotation_public_id,
     annotated_by_user_id: annotation.annotated_by?.user_id ?? null,
     annotated_by_display_name: annotation.annotated_by?.display_name ?? null,
+    confirmed_by_user_id: annotation.confirmed_by?.user_id ?? null,
+    confirmed_by_display_name: annotation.confirmed_by?.display_name ?? null,
     blind_review: annotation.blind_review,
+    annotation_source: annotation.annotation_source,
+    annotation_status: annotation.annotation_status,
     overall_rating: annotation.overall_rating,
     pass_fail: annotation.pass_fail,
     rubric_scores: stripInternalKeys(annotation.rubric_scores),
     safety_flags: stripInternalKeys(annotation.safety_flags),
     notes: annotation.notes,
+    confirmed_at: serializeEvalDate(annotation.confirmed_at),
     created_at: serializeEvalDate(annotation.created_at),
     updated_at: serializeEvalDate(annotation.updated_at)
   };

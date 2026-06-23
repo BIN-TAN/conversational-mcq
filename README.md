@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, Phase 7B complete master CSV export coverage for persisted platform records, Phase 7C Response Collection Agent integration for student free-text messages during initial administration, Phase 7D Item Verification Agent governance for teacher-authored item sets, and Phase 7E1 internal mock evaluation harness for the five active agents. Item generation, item rewriting, live model evaluation, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, and student self-registration remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, Phase 7B complete master CSV export coverage for persisted platform records, Phase 7C Response Collection Agent integration for student free-text messages during initial administration, Phase 7D Item Verification Agent governance for teacher-authored item sets, Phase 7E1 internal mock evaluation harness for the five active agents, and the Phase 7E2A guarded live-evaluation canary support with annotation adjudication. Item generation, item rewriting, classroom live model activation, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, and student self-registration remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -780,12 +780,30 @@ The command writes ignored files under `.data/eval-review/<run_public_id>/`:
 IDs, automated results, gold labels, token usage, costs, and existing
 annotations; the separate reference file is for adjudication after blind review.
 
+Import completed offline annotations as AI-assisted preliminary drafts:
+
+```bash
+npm run eval:annotations:import-draft -- \
+  --run <run_public_id> \
+  --annotations <completed_annotation_csv_path> \
+  --reference .data/eval-review/<run_public_id>/review_reference.jsonl
+```
+
+Draft imports do not count as completed human review. In the teacher eval UI,
+open `/teacher/evals/runs/<run_public_id>`, inspect/edit the proposed
+annotations, type the required attestation, and confirm all reviewed drafts.
+Readiness gates then use confirmed human pass/fail and human critical-failure
+flags. Automated screening flags remain visible as separate adjudication
+context and are not silently copied into human judgments.
+
 Do not paste the API key into chat or a browser form. Keep classroom settings as `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`.
 
 Offline verification commands:
 
 ```bash
 npm run eval:blind-review-export-smoke
+npm run eval:annotation-import-smoke
+npm run eval:annotation-adjudication-smoke
 npm run eval:structured-output-compat-smoke
 npm run eval:live-canary-runner-smoke
 npm run eval:usage-parser-smoke

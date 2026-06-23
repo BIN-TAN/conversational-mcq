@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { getEvalRun, listEvalRunItems } from "./api";
+import { confirmAllEvalAnnotations, getEvalRun, listEvalRunItems } from "./api";
 import type { EvalRunItemRow, EvalRunRow, EvalSummary } from "./types";
 import { formatDate, formatPercent, JsonBlock, StatusBadge } from "./ui";
 
@@ -24,6 +24,8 @@ const criticalFailureOptions = [
   "unsafe_internal_metadata_exposure",
   "unsupported_claim_of_certainty"
 ];
+const confirmationAttestation =
+  "I reviewed the imported annotation decisions and accept them as my confirmed evaluation judgments.";
 
 export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
   const [run, setRun] = useState<EvalRunRow | null>(null);
@@ -32,6 +34,8 @@ export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
   const [failuresOnly, setFailuresOnly] = useState(false);
   const [criticalFailure, setCriticalFailure] = useState("");
   const [status, setStatus] = useState<string | null>(null);
+  const [confirmStatus, setConfirmStatus] = useState<string | null>(null);
+  const [attestation, setAttestation] = useState("");
 
   const params = useMemo(() => {
     const next = new URLSearchParams({ page: "1", page_size: "100" });
@@ -77,6 +81,24 @@ export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
       ignore = true;
     };
   }, [runPublicId, params]);
+
+  async function confirmAll() {
+    setConfirmStatus(null);
+
+    try {
+      await confirmAllEvalAnnotations(runPublicId, attestation);
+      setConfirmStatus("All reviewed draft annotations were confirmed.");
+      const [runData, itemData] = await Promise.all([
+        getEvalRun(runPublicId),
+        listEvalRunItems(runPublicId, params)
+      ]);
+      setRun(runData.run);
+      setSummary(runData.summary);
+      setItems(itemData.items);
+    } catch (error) {
+      setConfirmStatus(error instanceof Error ? error.message : "Batch confirmation failed.");
+    }
+  }
 
   if (status) {
     return <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{status}</p>;
@@ -179,6 +201,36 @@ export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
         ) : null}
       </section>
 
+      {run?.run_mode === "live_provider" ? (
+        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+          <h2 className="text-lg font-semibold text-ink">Annotation adjudication</h2>
+          <p className="mt-2 text-sm text-muted">
+            Imported AI-assisted annotations remain drafts until a teacher_researcher confirms them after review.
+            Automated screening flags remain separate from human adjudication.
+          </p>
+          <label className="mt-4 block text-sm">
+            Confirmation attestation
+            <textarea
+              className="mt-1 min-h-20 w-full rounded-md border border-line px-3 py-2"
+              onChange={(event) => setAttestation(event.target.value)}
+              placeholder={confirmationAttestation}
+              value={attestation}
+            />
+          </label>
+          <button
+            className="mt-3 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={attestation !== confirmationAttestation}
+            onClick={confirmAll}
+            type="button"
+          >
+            Confirm all reviewed draft annotations
+          </button>
+          {confirmStatus ? (
+            <p className="mt-3 rounded-md border border-line bg-slate-50 p-3 text-sm text-muted">{confirmStatus}</p>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="grid gap-4 md:grid-cols-4">
         <article className="rounded-lg border border-line bg-white p-4 shadow-soft">
           <p className="text-xs uppercase tracking-wide text-muted">Schema pass</p>
@@ -231,6 +283,7 @@ export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
                 <th className="px-3 py-2">Schema</th>
                 <th className="px-3 py-2">Semantic</th>
                 <th className="px-3 py-2">Safety</th>
+                <th className="px-3 py-2">Annotation</th>
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Annotate</th>
               </tr>
@@ -239,6 +292,7 @@ export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
               {items.map((item) => {
                 const semantic = item.semantic_validation_result as { ok?: boolean } | null;
                 const safety = item.safety_validation_result as { ok?: boolean; critical_failure_flags?: string[] } | null;
+                const annotation = item.annotations[0];
 
                 return (
                   <tr className="border-b border-line/60 align-top" key={item.run_item_public_id}>
@@ -255,6 +309,17 @@ export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
                         <p className="mt-1 text-xs text-muted">{safety.critical_failure_flags.join(", ")}</p>
                       ) : null}
                     </td>
+                    <td className="px-3 py-2">
+                      {annotation ? (
+                        <div className="space-y-1">
+                          <StatusBadge value={annotation.annotation_status} />
+                          <p className="text-xs text-muted">{annotation.annotation_source}</p>
+                          <p className="text-xs text-muted">{annotation.pass_fail ?? "unset"}</p>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted">none</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">{item.execution_status}</td>
                     <td className="px-3 py-2">
                       <Link className="text-accent" href={`/teacher/evals/run-items/${item.run_item_public_id}`}>
@@ -266,7 +331,7 @@ export function EvalRunDetailClient({ runPublicId }: { runPublicId: string }) {
               })}
               {items.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-6 text-muted" colSpan={7}>
+                  <td className="px-3 py-6 text-muted" colSpan={8}>
                     No run items match the current filter.
                   </td>
                 </tr>

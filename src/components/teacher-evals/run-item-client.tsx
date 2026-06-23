@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getEvalRunItem, saveEvalAnnotation } from "./api";
+import { confirmEvalAnnotation, getEvalRunItem, saveEvalAnnotation } from "./api";
 import type { EvalAnnotationRow, EvalRunItemRow } from "./types";
 import { JsonBlock, StatusBadge } from "./ui";
 
@@ -102,6 +102,21 @@ export function EvalRunItemClient({ runItemPublicId }: { runItemPublicId: string
 
     return Array.isArray(flags) ? flags.filter((flag): flag is string => typeof flag === "string") : [];
   }, [item]);
+  const humanFlags = annotation.safety_flags;
+  const autoHumanDisagreement = useMemo(() => {
+    const auto = new Set(safetyFlags);
+    const human = new Set(humanFlags);
+
+    if (!auto.size && !human.size) {
+      return false;
+    }
+
+    if (auto.size !== human.size) {
+      return true;
+    }
+
+    return [...auto].some((flag) => !human.has(flag));
+  }, [safetyFlags, humanFlags]);
 
   async function save() {
     setStatus(null);
@@ -112,6 +127,21 @@ export function EvalRunItemClient({ runItemPublicId }: { runItemPublicId: string
       setSaved(true);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Annotation failed to save.");
+    }
+  }
+
+  async function confirmOne() {
+    setStatus(null);
+    setSaved(false);
+
+    try {
+      await confirmEvalAnnotation(runItemPublicId);
+      const result = await getEvalRunItem(runItemPublicId, showProvider);
+      setItem(result.item);
+      setAnnotation(initialAnnotation(result.item.annotations[0]));
+      setSaved(true);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Annotation confirmation failed.");
     }
   }
 
@@ -168,6 +198,22 @@ export function EvalRunItemClient({ runItemPublicId }: { runItemPublicId: string
             <dt className="text-muted">Model</dt>
             <dd>{item?.model_name ?? "hidden"}</dd>
           </div>
+          <div>
+            <dt className="text-muted">Annotation source</dt>
+            <dd>{item?.annotations[0]?.annotation_source ?? "none"}</dd>
+          </div>
+          <div>
+            <dt className="text-muted">Annotation status</dt>
+            <dd>{item?.annotations[0]?.annotation_status ?? "none"}</dd>
+          </div>
+          <div>
+            <dt className="text-muted">Confirmed by</dt>
+            <dd>{item?.annotations[0]?.confirmed_by_user_id ?? ""}</dd>
+          </div>
+          <div>
+            <dt className="text-muted">Confirmed at</dt>
+            <dd>{item?.annotations[0]?.confirmed_at ?? ""}</dd>
+          </div>
         </dl>
       </section>
 
@@ -203,8 +249,11 @@ export function EvalRunItemClient({ runItemPublicId }: { runItemPublicId: string
           <StatusBadge value={asRecord(item?.safety_validation_result).ok === true} />
         </div>
         {safetyFlags.length ? (
-          <p className="mt-3 text-sm text-muted">Critical flags: {safetyFlags.join(", ")}</p>
+          <p className="mt-3 text-sm text-muted">Automated critical flags: {safetyFlags.join(", ")}</p>
         ) : null}
+        <p className="mt-3 text-sm text-muted">
+          Auto-human disagreement: {autoHumanDisagreement ? "yes" : "no"}
+        </p>
       </section>
 
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
@@ -324,6 +373,15 @@ export function EvalRunItemClient({ runItemPublicId }: { runItemPublicId: string
         >
           Save annotation
         </button>
+        {item?.annotations[0]?.annotation_status === "draft" ? (
+          <button
+            className="ml-3 mt-4 rounded-md border border-line px-3 py-2 text-sm font-semibold text-ink hover:border-accent"
+            onClick={confirmOne}
+            type="button"
+          >
+            Confirm this annotation
+          </button>
+        ) : null}
       </section>
     </div>
   );

@@ -4,6 +4,8 @@ import { AgentName } from "@/lib/agents/names";
 export const EvalCaseSourceSchema = z.enum(["synthetic", "teacher_authored", "deidentified"]);
 export const EvalRunModeSchema = z.enum(["mock", "imported_output", "live_provider"]);
 export const EvalRecordStatusSchema = z.enum(["active", "archived"]);
+export const EvalAnnotationSourceSchema = z.enum(["human_manual", "ai_assisted_preliminary"]);
+export const EvalAnnotationStatusSchema = z.enum(["draft", "confirmed"]);
 export const EvalRunStatusSchema = z.enum([
   "pending",
   "running",
@@ -15,6 +17,8 @@ export const EvalRunStatusSchema = z.enum([
 
 export type EvalCaseSource = z.infer<typeof EvalCaseSourceSchema>;
 export type EvalRunMode = z.infer<typeof EvalRunModeSchema>;
+export type EvalAnnotationSource = z.infer<typeof EvalAnnotationSourceSchema>;
+export type EvalAnnotationStatus = z.infer<typeof EvalAnnotationStatusSchema>;
 
 export const EvaluationCriticalFailureFlag = z.enum([
   "schema_invalid",
@@ -113,6 +117,22 @@ export const upsertEvalAnnotationSchema = z.object({
 }).strict();
 
 export type UpsertEvalAnnotationInput = z.infer<typeof upsertEvalAnnotationSchema>;
+
+export const importDraftAnnotationsSchema = z.object({
+  annotation_csv_text: z.string().min(1),
+  reference_jsonl_text: z.string().min(1),
+  source_file_name: z.string().max(500).optional()
+}).strict();
+
+export type ImportDraftAnnotationsInput = z.infer<typeof importDraftAnnotationsSchema>;
+
+export const confirmAnnotationsSchema = z.object({
+  attestation: z.literal(
+    "I reviewed the imported annotation decisions and accept them as my confirmed evaluation judgments."
+  )
+}).strict();
+
+export type ConfirmAnnotationsInput = z.infer<typeof confirmAnnotationsSchema>;
 
 export const evaluationCriticalFailureFlags = EvaluationCriticalFailureFlag.options;
 

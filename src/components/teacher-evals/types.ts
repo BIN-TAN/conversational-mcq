@@ -98,12 +98,17 @@ export type EvalAnnotationRow = {
   annotation_public_id: string;
   annotated_by_user_id: string | null;
   annotated_by_display_name: string | null;
+  confirmed_by_user_id: string | null;
+  confirmed_by_display_name: string | null;
   blind_review: boolean;
+  annotation_source: "human_manual" | "ai_assisted_preliminary";
+  annotation_status: "draft" | "confirmed";
   overall_rating: number | null;
   pass_fail: string | null;
   rubric_scores: unknown;
   safety_flags: unknown;
   notes: string | null;
+  confirmed_at: string | null;
   created_at: string | null;
   updated_at: string | null;
 };

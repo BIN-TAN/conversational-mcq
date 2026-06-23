@@ -62,18 +62,25 @@ function parseJsonRecord(value: unknown) {
 
 function criticalFlagsFromRunItem(runItem: {
   safety_validation_result: unknown;
-  annotations?: Array<{ safety_flags: unknown; pass_fail: string | null; overall_rating: number | null }>;
+  annotations?: Array<{
+    safety_flags: unknown;
+    pass_fail: string | null;
+    overall_rating: number | null;
+    annotation_status?: string | null;
+  }>;
 }) {
   const safety = parseJsonRecord(runItem.safety_validation_result);
   const flags = Array.isArray(safety.critical_failure_flags)
     ? safety.critical_failure_flags.filter((flag): flag is string => typeof flag === "string")
     : [];
   const annotationFlags =
-    runItem.annotations?.flatMap((annotation) =>
-      Array.isArray(annotation.safety_flags)
-        ? annotation.safety_flags.filter((flag): flag is string => typeof flag === "string")
-        : []
-    ) ?? [];
+    runItem.annotations
+      ?.filter(isConfirmedAnnotation)
+      .flatMap((annotation) =>
+        Array.isArray(annotation.safety_flags)
+          ? annotation.safety_flags.filter((flag): flag is string => typeof flag === "string")
+          : []
+      ) ?? [];
 
   return [...new Set([...flags, ...annotationFlags])];
 }
@@ -87,14 +94,22 @@ function autoCriticalFlagsFromRunItem(runItem: { safety_validation_result: unkno
   return [...new Set(flags)];
 }
 
-function humanCriticalFlagsFromAnnotations(annotations: Array<{ safety_flags: unknown }>) {
+function isConfirmedAnnotation(annotation: { annotation_status?: string | null }) {
+  return annotation.annotation_status === undefined || annotation.annotation_status === "confirmed";
+}
+
+function humanCriticalFlagsFromAnnotations(
+  annotations: Array<{ safety_flags: unknown; annotation_status?: string | null }>
+) {
   return [
     ...new Set(
-      annotations.flatMap((annotation) =>
-        Array.isArray(annotation.safety_flags)
-          ? annotation.safety_flags.filter((flag): flag is string => typeof flag === "string")
-          : []
-      )
+      annotations
+        .filter(isConfirmedAnnotation)
+        .flatMap((annotation) =>
+          Array.isArray(annotation.safety_flags)
+            ? annotation.safety_flags.filter((flag): flag is string => typeof flag === "string")
+            : []
+        )
     )
   ];
 }
@@ -647,7 +662,8 @@ export async function listEvalRunItems(runPublicId: string, input: unknown = {})
       },
       annotations: {
         include: {
-          annotated_by: { select: { user_id: true, display_name: true } }
+          annotated_by: { select: { user_id: true, display_name: true } },
+          confirmed_by: { select: { user_id: true, display_name: true } }
         }
       }
     }
@@ -697,7 +713,8 @@ export async function getEvalRunItem(runItemPublicId: string, options: { blind?:
       },
       annotations: {
         include: {
-          annotated_by: { select: { user_id: true, display_name: true } }
+          annotated_by: { select: { user_id: true, display_name: true } },
+          confirmed_by: { select: { user_id: true, display_name: true } }
         }
       }
     }
@@ -739,12 +756,16 @@ export async function upsertEvalAnnotation(
       annotation_public_id: generatePublicId("eval_annotation"),
       run_item_db_id: runItem.id,
       annotated_by_user_db_id: teacher.id,
+      confirmed_by_user_db_id: teacher.id,
       blind_review: parsed.blind_review,
+      annotation_source: "human_manual",
+      annotation_status: "confirmed",
       overall_rating: parsed.overall_rating ?? null,
       pass_fail: parsed.pass_fail ?? null,
       rubric_scores: prismaJson(parsed.rubric_scores ?? {}),
       safety_flags: prismaJson(parsed.safety_flags ?? []),
-      notes: parsed.notes ?? null
+      notes: parsed.notes ?? null,
+      confirmed_at: new Date()
     },
     update: {
       blind_review: parsed.blind_review,
@@ -755,7 +776,8 @@ export async function upsertEvalAnnotation(
       notes: parsed.notes ?? null
     },
     include: {
-      annotated_by: { select: { user_id: true, display_name: true } }
+      annotated_by: { select: { user_id: true, display_name: true } },
+      confirmed_by: { select: { user_id: true, display_name: true } }
     }
   });
 
@@ -783,7 +805,7 @@ export async function summarizeEvalRun(runPublicId?: string) {
   const schemaPassCount = items.filter((item) => item.output_validated).length;
   const semanticPassCount = items.filter(semanticPass).length;
   const safetyPassCount = items.filter(safetyPass).length;
-  const annotations = items.flatMap((item) => item.annotations);
+  const annotations = items.flatMap((item) => item.annotations).filter(isConfirmedAnnotation);
   const annotationPassCount = annotations.filter((annotation) => annotation.pass_fail === "pass").length;
   const criticalFlags = items.flatMap(criticalFlagsFromRunItem);
   const ratings = annotations
@@ -799,7 +821,9 @@ export async function summarizeEvalRun(runPublicId?: string) {
       !semanticPass(item) ||
       !safetyPass(item) ||
       criticalFlagsFromRunItem(item).length > 0 ||
-      item.annotations.some((annotation) => annotation.pass_fail === "fail");
+      item.annotations.some(
+        (annotation) => isConfirmedAnnotation(annotation) && annotation.pass_fail === "fail"
+      );
 
     if (failed) {
       const agentName = item.eval_case.agent_name;
@@ -876,7 +900,8 @@ export async function exportEvalRunCsv(runPublicId: string) {
   const rows = items.map((item) => {
     const semantic = parseJsonRecord(item.semantic_validation_result);
     const safety = parseJsonRecord(item.safety_validation_result);
-    const firstAnnotation = item.annotations[0];
+    const confirmedAnnotations = item.annotations.filter(isConfirmedAnnotation);
+    const firstAnnotation = confirmedAnnotations[0];
 
     return {
       run_public_id: run.run_public_id,
@@ -906,7 +931,7 @@ export async function exportEvalRunCsv(runPublicId: string) {
       safety_pass: safety.ok === true,
       critical_failure_flags: criticalFlagsFromRunItem(item).join("|"),
       auto_critical_failure_flags: autoCriticalFlagsFromRunItem(item).join("|"),
-      human_critical_failure_flags: humanCriticalFlagsFromAnnotations(item.annotations).join("|"),
+      human_critical_failure_flags: humanCriticalFlagsFromAnnotations(confirmedAnnotations).join("|"),
       canary_gate_status: run.canary_gate_status ?? "",
       case_manifest_hash: run.case_manifest_hash ?? "",
       run_config_hash: run.run_config_hash ?? "",
@@ -917,6 +942,8 @@ export async function exportEvalRunCsv(runPublicId: string) {
           ? String((run.reproducibility_manifest as { application_git_commit?: unknown }).application_git_commit ?? "")
           : "",
       annotation_pass_fail: firstAnnotation?.pass_fail ?? "",
+      annotation_source: firstAnnotation?.annotation_source ?? "",
+      annotation_status: firstAnnotation?.annotation_status ?? "",
       overall_rating: firstAnnotation?.overall_rating ?? "",
       rubric_scores_json: firstAnnotation?.rubric_scores ? stableJson(firstAnnotation.rubric_scores) : "{}",
       notes: firstAnnotation?.notes ?? ""
@@ -959,6 +986,8 @@ export async function exportEvalRunCsv(runPublicId: string) {
       "run_config_hash",
       "git_commit",
       "annotation_pass_fail",
+      "annotation_source",
+      "annotation_status",
       "overall_rating",
       "rubric_scores_json",
       "notes"

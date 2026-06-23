@@ -89,6 +89,28 @@ response/request IDs, prompt versions and hashes, automated results, gold labels
 token usage, costs, and existing annotations. Use the reference file only after
 blind review when adjudication context is needed.
 
+Completed offline annotations are imported as draft, AI-assisted preliminary
+records:
+
+```bash
+npm run eval:annotations:import-draft -- \
+  --run <run_public_id> \
+  --annotations <completed_annotation_csv_path> \
+  --reference .data/eval-review/<run_public_id>/review_reference.jsonl
+```
+
+Draft imports make no provider request and do not modify live run outputs. They
+must be reviewed in the teacher UI before they count toward human annotation
+completion. Batch confirmation requires the teacher_researcher to type:
+
+```text
+I reviewed the imported annotation decisions and accept them as my confirmed evaluation judgments.
+```
+
+After confirmation, canary readiness uses confirmed human judgments for
+annotation pass rates and human critical-failure gates. Automated flags remain
+visible as automated screening findings and disagreement context.
+
 ## Execution Rules
 
 Live-provider canary execution:
@@ -167,6 +189,8 @@ fabricate token counts or continue through remaining cases.
 
 ```bash
 npm run eval:blind-review-export-smoke
+npm run eval:annotation-import-smoke
+npm run eval:annotation-adjudication-smoke
 npm run eval:structured-output-compat-smoke
 npm run eval:live-canary-runner-smoke
 npm run eval:usage-parser-smoke

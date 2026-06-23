@@ -85,6 +85,19 @@ export function saveEvalAnnotation(
   });
 }
 
+export function confirmEvalAnnotation(runItemPublicId: string) {
+  return requestJson(`/api/teacher/evals/run-items/${runItemPublicId}/annotations/confirm`, {
+    method: "POST"
+  });
+}
+
+export function confirmAllEvalAnnotations(runPublicId: string, attestation: string) {
+  return requestJson(`/api/teacher/evals/runs/${runPublicId}/annotations/confirm-all`, {
+    method: "POST",
+    body: JSON.stringify({ attestation })
+  });
+}
+
 export function getEvalSummary() {
   return requestJson<{ summary: EvalSummary }>("/api/teacher/evals/summary");
 }

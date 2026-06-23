@@ -581,6 +581,11 @@ Phase 7E1 adds normalized evaluation tables that are separate from classroom wor
 
 - one annotation per run item per teacher is upserted.
 - blind review, overall rating, pass/fail, rubric scores, critical failure flags, and notes are retained.
+- `annotation_source` is either `human_manual` or `ai_assisted_preliminary`.
+- `annotation_status` is either `draft` or `confirmed`.
+- imported offline annotations are `ai_assisted_preliminary` drafts and do not count as completed human review.
+- confirmation records `confirmed_by_user_db_id` and `confirmed_at` while preserving the original source.
+- readiness gates use confirmed human pass/fail and confirmed human critical-failure flags. Automated semantic/safety results and automated critical flags remain on `eval_run_items` as separate screening evidence.
 
 `eval_rubrics` stores agent-specific rubric definitions and fixed critical failure flags.
 

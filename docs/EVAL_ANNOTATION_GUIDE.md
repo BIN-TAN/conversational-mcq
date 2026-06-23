@@ -70,6 +70,24 @@ Live canary run items use the same blind review UI:
 
 All 25 canary run items should be annotated before the readiness report can recommend `ready_for_full_pilot`.
 
+AI-assisted preliminary annotations must not be represented as independent human
+annotations. Imported offline CSV rows are stored with
+`annotation_source=ai_assisted_preliminary` and `annotation_status=draft`.
+Draft annotations are visible for review but do not count toward
+`human_annotations_25` or the canary readiness gate.
+
+Manual annotations created in the UI are stored as
+`annotation_source=human_manual` and `annotation_status=confirmed`. Imported
+drafts become confirmed only after a teacher_researcher reviews, optionally
+edits, and confirms them. Confirmation preserves the original source value so
+the audit trail still shows that the initial proposal was AI-assisted.
+
+Automated semantic/safety results and automated critical flags remain separate
+from human pass/fail decisions, human rubric scores, human critical flags, and
+human notes. Automated false positives are preserved as screening findings, but
+they are not copied into human critical-failure flags and do not permanently
+fail a human-adjudicated canary after all annotations are confirmed.
+
 ## Local Blind Review Packet
 
 For offline expert review of a completed 25-item live canary:
@@ -88,3 +106,29 @@ metadata for adjudication.
 The opaque `review_item_id` is the only join key across the three files. The
 blind packet order is deterministically shuffled from the run ID, so repeated
 exports of the same run keep the same blind order without exposing case IDs.
+
+After blind scoring is complete, import the completed CSV as draft annotations:
+
+```bash
+npm run eval:annotations:import-draft -- \
+  --run <run_public_id> \
+  --annotations <completed_annotation_csv_path> \
+  --reference .data/eval-review/<run_public_id>/review_reference.jsonl
+```
+
+For the Phase 7E2A canary run, the importer validates exactly 25 rows, 22 pass
+decisions, 3 fail decisions, zero human critical flags, the expected failed case
+IDs, and the expected per-agent pass rates: 80%, 100%, 80%, 100%, and 80%.
+
+Teacher confirmation is done in `/teacher/evals/runs/<run_public_id>`. The
+batch confirmation action requires this exact attestation:
+
+```text
+I reviewed the imported annotation decisions and accept them as my confirmed evaluation judgments.
+```
+
+The readiness report should be run after confirmation:
+
+```bash
+npm run eval:live-canary:report -- --run <run_public_id>
+```

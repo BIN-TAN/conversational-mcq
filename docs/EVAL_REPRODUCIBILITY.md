@@ -53,9 +53,17 @@ Eval CSV export includes:
 - token fields
 - estimated cost
 - automated and human critical failure flags
+- annotation source and annotation status
 - canary gate status
 - case manifest hash
 - run config hash
 - Git commit
 
 Secrets and internal database UUIDs are not exported.
+
+Annotation adjudication preserves provenance. AI-assisted preliminary imports
+remain marked as `ai_assisted_preliminary`; confirmation changes status from
+`draft` to `confirmed` and records the confirming teacher and timestamp. The
+readiness report preserves automated screening flags, confirmed human critical
+flags, human failed case IDs, and auto-human disagreement counts as distinct
+fields.

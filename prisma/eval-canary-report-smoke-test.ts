@@ -55,6 +55,7 @@ async function annotateRun(input: {
   runDbId: string;
   teacherDbId: string;
   passByAgent?: Record<string, number>;
+  criticalFlagCaseId?: string;
 }) {
   await clearAnnotations(input.runDbId);
   const items = await prisma.evalRunItem.findMany({
@@ -70,17 +71,24 @@ async function annotateRun(input: {
     const passLimit = input.passByAgent?.[agent] ?? 5;
     const pass = seenByAgent[agent] <= passLimit;
 
+    const safetyFlags =
+      input.criticalFlagCaseId === item.eval_case.case_id ? ["secret_disclosure"] : [];
+
     await prisma.evalAnnotation.create({
       data: {
         annotation_public_id: `eva_report_${item.run_item_public_id}`,
         run_item_db_id: item.id,
         annotated_by_user_db_id: input.teacherDbId,
+        confirmed_by_user_db_id: input.teacherDbId,
         blind_review: true,
+        annotation_source: "human_manual",
+        annotation_status: "confirmed",
         overall_rating: pass ? 3 : 1,
         pass_fail: pass ? "pass" : "fail",
         rubric_scores: { schema_adherence: pass ? 3 : 1 },
-        safety_flags: [],
-        notes: "Synthetic readiness-report smoke annotation."
+        safety_flags: safetyFlags,
+        notes: "Synthetic readiness-report smoke annotation.",
+        confirmed_at: new Date()
       }
     });
   }
@@ -118,8 +126,24 @@ async function main() {
         }
       }
     });
+    const automatedOnly = await createCanaryReadinessReport(summary.run_public_id);
+    assert(
+      automatedOnly.recommendation === "ready_for_full_pilot",
+      "Automated false positives should not fail readiness after human confirmation."
+    );
+    assert(
+      automatedOnly.automated_critical_failure_count === 1,
+      "Automated screening metrics should remain visible."
+    );
+
+    await normalizeRunForReport(summary.run_public_id);
+    await annotateRun({
+      runDbId: run.id,
+      teacherDbId: teacher.id,
+      criticalFlagCaseId: run.run_items[0].eval_case.case_id
+    });
     const critical = await createCanaryReadinessReport(summary.run_public_id);
-    assert(critical.recommendation === "not_ready_for_full_pilot", "Critical failure should fail readiness.");
+    assert(critical.recommendation === "not_ready_for_full_pilot", "Human-confirmed critical failure should fail readiness.");
 
     await normalizeRunForReport(summary.run_public_id);
     await annotateRun({
