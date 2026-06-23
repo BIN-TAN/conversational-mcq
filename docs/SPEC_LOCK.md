@@ -767,7 +767,23 @@ Phase 6A.5 must not implement:
 - Classroom workflows must remain governed by `LLM_PROVIDER` and `LLM_LIVE_CALLS_ENABLED`.
 - Phase 7E2A canary input must come only from synthetic Phase 7E1 eval cases.
 - The canary rejects the `gpt-5.4-mini` alias, GPT-5.5, nano models, nonsynthetic cases, multiple model candidates, more than 25 run items, and more than one repetition.
-- Paid live execution is CLI-only and requires `--confirm-paid-api`.
+- Paid live execution is CLI-only and requires `--confirm-paid-api` plus an
+  explicit run-instance mode: `--new-run` or `--resume <run_public_id>`.
+- `--new-run` must always create a fresh `run_public_id` and fresh run items. It
+  must never return or silently reuse an already completed run.
+- `--resume` may resume only the specified nonterminal run. Completed runs,
+  budget-unverifiable runs, Structured Outputs infrastructure failures, and runs
+  with mismatched frozen prompt/schema/evaluator/manifest/model/config metadata
+  must not be resumed.
+- Run instance identity and run configuration identity are separate. A
+  `run_public_id` identifies one run instance; `run_config_hash` identifies the
+  frozen reproducibility configuration.
+- The run configuration fingerprint must include the exact model snapshot,
+  reasoning effort, case manifest hash, exact ordered case IDs, repetition count,
+  agent names, agent versions, prompt versions, prompt hashes, schema versions,
+  max-output-token values, semantic-validator version, safety-validator version,
+  pricing-registry version, retry settings, timeout setting, concurrency setting,
+  budget setting, environment configuration hash, and Git commit.
 - No browser page may accept an API key or start the paid canary.
 - Eval outputs remain in eval tables and must not create operational agent calls, profiles, formative decisions, follow-up rounds, item verification runs, workflow jobs, sessions, responses, or content changes.
 - Provider-facing output schemas must compile as OpenAI Structured Outputs before preflight, dry run, or paid execution can proceed.
@@ -782,6 +798,10 @@ Phase 6A.5 must not implement:
 - Future runs use prompt versions `item-verification-v3`, `response-collection-v4`, `student-profiling-v3`, and `followup-v5`.
 - Provider schema versions remain unchanged unless a future wire-schema change is made.
 - Future eval results expose semantic evaluator `eval-semantic-v2` and safety evaluator `eval-safety-v2` metadata where practical.
+- The quality-patch canary configuration must produce a different
+  `run_config_hash` from baseline run `evr_20260623_1sjeh1q`; the baseline used
+  earlier prompt/evaluator metadata and remains preserved unchanged.
+- Fresh runs after a prompt or evaluator patch require fresh human annotation.
 - Item Verification findings always require teacher review.
 - Student Profiling must preserve the three-layer design and use `conflicting_evidence_needs_clarification` when evidence materially conflicts.
 - Follow-up pure off-topic redirects must be nonsubstantive and must not trigger evidence, move-on, profile, planning, or evidence-package updates.

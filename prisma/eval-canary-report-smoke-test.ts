@@ -106,6 +106,7 @@ async function main() {
     });
     const summary = await runLiveCanary({
       confirmPaidApi: true,
+      runInstanceMode: "new_run",
       provider: new MockLlmProvider(),
       allowMockProvider: true
     });
@@ -180,6 +181,7 @@ async function main() {
 
     const noOutput = await runLiveCanary({
       confirmPaidApi: true,
+      runInstanceMode: "new_run",
       provider: new MockLlmProvider(),
       allowMockProvider: true,
       compatibilityCheck: (agentName) => ({

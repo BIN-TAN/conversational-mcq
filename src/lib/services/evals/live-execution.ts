@@ -22,6 +22,7 @@ import {
   EVAL_CANARY_AGENT_ORDER,
   EVAL_CANARY_CASES_PER_AGENT,
   EVAL_CANARY_MODEL_SNAPSHOT,
+  EVAL_CANARY_REASONING_EFFORT,
   EVAL_CANARY_REPETITIONS,
   EVAL_CANARY_TOTAL_ITEMS,
   evalCanaryConfigSnapshot,
@@ -36,6 +37,8 @@ import { seedEvalFixtures } from "./service";
 import { getEvalPricingEntry, estimateEvalRequestUpperBoundUsd } from "./pricing";
 import { parseEvalProviderUsage, usageTokenCounts } from "./usage-parser";
 import {
+  EVAL_SAFETY_VALIDATOR_VERSION,
+  EVAL_SEMANTIC_VALIDATOR_VERSION,
   safetyValidateOutput,
   schemaValidateAgentOutput,
   semanticValidateAgentOutput
@@ -75,6 +78,8 @@ type CanaryPlan = {
   manifest_version: string;
   git_commit: string;
   config_snapshot: ReturnType<typeof evalCanaryConfigSnapshot>;
+  environment_config_hash: string;
+  run_config_snapshot: Record<string, unknown>;
   config_hash: string;
   pricing: NonNullable<ReturnType<typeof getEvalPricingEntry>>;
   cases: CanaryCasePlan[];
@@ -90,6 +95,7 @@ type CanaryPlan = {
 
 type LiveCanaryRunOptions = {
   runPublicId?: string;
+  runInstanceMode?: "new_run" | "resume";
   confirmPaidApi: boolean;
   provider?: LlmProvider;
   allowMockProvider?: boolean;
@@ -204,6 +210,82 @@ function promptMetadataForAgent(agentName: AgentNameType) {
     prompt_hash: prompt.prompt_hash,
     agent_version: prompt.agent_version ?? "unknown",
     instructions: prompt.instructions
+  };
+}
+
+function agentConfigForFingerprint(cases: CanaryCasePlan[]) {
+  return EVAL_CANARY_AGENT_ORDER.map((agentName) => {
+    const agentCase = cases.find((canaryCase) => canaryCase.agent_name === agentName);
+
+    return {
+      agent_name: agentName,
+      agent_version: agentCase?.agent_version ?? "missing",
+      prompt_version: agentCase?.prompt_version ?? "missing",
+      prompt_hash: agentCase?.prompt_hash ?? "missing",
+      schema_version: agentCase?.schema_version ?? "missing",
+      max_output_tokens: agentCase?.max_output_tokens ?? null
+    };
+  });
+}
+
+function runConfigFingerprintSnapshot(input: {
+  config_snapshot: ReturnType<typeof evalCanaryConfigSnapshot>;
+  environment_config_hash: string;
+  manifest_hash: string;
+  manifest_version: string;
+  git_commit: string;
+  pricing_registry_version: string;
+  cases: CanaryCasePlan[];
+  semantic_validator_version?: string;
+  safety_validator_version?: string;
+}) {
+  return {
+    phase: input.config_snapshot.phase,
+    exact_model_snapshot: EVAL_CANARY_MODEL_SNAPSHOT,
+    configured_model_snapshot: input.config_snapshot.model_snapshot,
+    reasoning_effort: input.config_snapshot.reasoning_effort,
+    case_manifest_hash: input.manifest_hash,
+    manifest_version: input.manifest_version,
+    ordered_cases: input.cases
+      .slice()
+      .sort((left, right) => left.run_order - right.run_order)
+      .map((canaryCase) => ({
+        run_order: canaryCase.run_order,
+        agent_name: canaryCase.agent_name,
+        case_id: canaryCase.case_id,
+        input_hash: canaryCase.input_hash
+      })),
+    repetition_count: EVAL_CANARY_REPETITIONS,
+    agents: agentConfigForFingerprint(input.cases),
+    semantic_validator_version:
+      input.semantic_validator_version ?? EVAL_SEMANTIC_VALIDATOR_VERSION,
+    safety_validator_version:
+      input.safety_validator_version ?? EVAL_SAFETY_VALIDATOR_VERSION,
+    pricing_registry_version: input.pricing_registry_version,
+    retry_settings: {
+      max_retries: input.config_snapshot.max_retries,
+      max_provider_requests: input.config_snapshot.max_provider_requests
+    },
+    timeout_settings: {
+      request_timeout_ms: input.config_snapshot.request_timeout_ms
+    },
+    concurrency_settings: {
+      max_concurrency: input.config_snapshot.max_concurrency
+    },
+    budget_settings: {
+      cost_hard_limit_usd: input.config_snapshot.cost_hard_limit_usd
+    },
+    environment_config_hash: input.environment_config_hash,
+    application_git_commit: input.git_commit
+  };
+}
+
+function runConfigFingerprint(input: Parameters<typeof runConfigFingerprintSnapshot>[0]) {
+  const snapshot = runConfigFingerprintSnapshot(input);
+
+  return {
+    snapshot,
+    hash: sha256Json(snapshot)
   };
 }
 
@@ -368,15 +450,30 @@ async function buildLiveCanaryPlan(input: {
     });
   }
 
+  const gitCommit = safeGitCommit();
+  const fingerprint = runConfigFingerprint({
+    config_snapshot: config.snapshot,
+    environment_config_hash: config.config_hash,
+    manifest_hash: manifest.manifest_hash,
+    manifest_version: manifest.manifest.manifest_version,
+    git_commit: gitCommit,
+    pricing_registry_version: (pricing ?? {
+      pricing_registry_version: "missing"
+    }).pricing_registry_version,
+    cases
+  });
+
   return {
     valid: issues.length === 0,
     issues,
     teacher,
     manifest_hash: manifest.manifest_hash,
     manifest_version: manifest.manifest.manifest_version,
-    git_commit: safeGitCommit(),
+    git_commit: gitCommit,
     config_snapshot: config.snapshot,
-    config_hash: config.config_hash,
+    environment_config_hash: config.config_hash,
+    run_config_snapshot: fingerprint.snapshot,
+    config_hash: fingerprint.hash,
     pricing: pricing ?? {
       pricing_registry_version: "missing",
       model_snapshot: EVAL_CANARY_MODEL_SNAPSHOT,
@@ -421,6 +518,148 @@ function redactionCheck(value: unknown) {
   };
 }
 
+function manifestRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function runGitCommit(value: unknown) {
+  const manifest = manifestRecord(value);
+
+  return typeof manifest.application_git_commit === "string"
+    ? manifest.application_git_commit
+    : null;
+}
+
+function runPromptVersions(value: unknown) {
+  const manifest = manifestRecord(value);
+  const promptVersions = manifest.prompt_versions;
+
+  return promptVersions && typeof promptVersions === "object" && !Array.isArray(promptVersions)
+    ? promptVersions as Record<string, unknown>
+    : {};
+}
+
+function runEvaluatorVersions(value: unknown) {
+  const manifest = manifestRecord(value);
+
+  return {
+    semantic_validator_version:
+      typeof manifest.semantic_validator_version === "string"
+        ? manifest.semantic_validator_version
+        : null,
+    safety_validator_version:
+      typeof manifest.safety_validator_version === "string"
+        ? manifest.safety_validator_version
+        : null
+  };
+}
+
+function nonterminalRunStatus(status: string) {
+  return ["pending", "running", "paused"].includes(status);
+}
+
+function runItemsResumable(
+  run: {
+    status: string;
+    run_config_hash: string | null;
+    run_mode: string;
+    run_items: Array<{
+      execution_status: string;
+      error_category: string | null;
+      schema_validation_error: string | null;
+    }>;
+  },
+  currentConfigHash: string
+) {
+  if (
+    run.run_mode !== "live_provider" ||
+    !nonterminalRunStatus(run.status) ||
+    run.run_config_hash !== currentConfigHash
+  ) {
+    return false;
+  }
+
+  if (
+    run.run_items.some((item) =>
+      isStructuredOutputSchemaFailure({
+        error_category: item.error_category,
+        message: item.schema_validation_error
+      })
+    )
+  ) {
+    return false;
+  }
+
+  return run.run_items.some((item) =>
+    ["pending", "running", "failed_retryable"].includes(item.execution_status)
+  );
+}
+
+async function priorLiveCanaryRuns(plan: CanaryPlan) {
+  const runs = await prisma.evalRun.findMany({
+    where: {
+      run_mode: "live_provider",
+      model_snapshot: EVAL_CANARY_MODEL_SNAPSHOT,
+      case_manifest_hash: plan.manifest_hash
+    },
+    orderBy: { created_at: "desc" },
+    take: 20,
+    include: {
+      run_items: {
+        select: {
+          execution_status: true,
+          error_category: true,
+          schema_validation_error: true
+        }
+      }
+    }
+  });
+
+  return runs.map((run) => ({
+    run_public_id: run.run_public_id,
+    status: run.status,
+    run_mode: run.run_mode,
+    completed: run.status === "completed",
+    resumable: runItemsResumable(run, plan.config_hash),
+    case_manifest_hash: run.case_manifest_hash,
+    run_config_hash: run.run_config_hash,
+    config_matches_current: run.run_config_hash === plan.config_hash,
+    provider_request_count: run.provider_request_count,
+    estimated_cost_usd: decimalToNumber(run.estimated_cost_usd),
+    git_commit: runGitCommit(run.reproducibility_manifest),
+    prompt_versions: runPromptVersions(run.reproducibility_manifest),
+    evaluator_versions: runEvaluatorVersions(run.reproducibility_manifest),
+    created_at: run.created_at.toISOString(),
+    completed_at: run.completed_at?.toISOString() ?? null
+  }));
+}
+
+function qualityPatchPromptVersionStatus(plan: CanaryPlan) {
+  const expected = {
+    item_verification_agent: "item-verification-v3",
+    response_collection_agent: "response-collection-v4",
+    student_profiling_agent: "student-profiling-v3",
+    formative_value_and_planning_agent: "formative-planning-v1",
+    followup_agent: "followup-v5"
+  };
+  const mismatches = Object.entries(expected)
+    .filter(([agentName, expectedVersion]) => plan.prompt_versions[agentName] !== expectedVersion)
+    .map(([agentName, expectedVersion]) => ({
+      agent_name: agentName,
+      expected: expectedVersion,
+      actual: plan.prompt_versions[agentName] ?? null
+    }));
+
+  return {
+    ok: mismatches.length === 0,
+    expected,
+    actual: plan.prompt_versions,
+    mismatches
+  };
+}
+
 export async function createLiveCanaryPreflightReport() {
   const plan = await buildLiveCanaryPlan({
     ensureFixtures: true,
@@ -446,6 +685,7 @@ export async function createLiveCanaryPreflightReport() {
       message: "Preflight report would contain secret-like content."
     });
   }
+  const priorRuns = await priorLiveCanaryRuns(plan);
 
   return {
     ready: issues.length === 0,
@@ -481,6 +721,16 @@ export async function createLiveCanaryPreflightReport() {
     synthetic_only: plan.cases.every((canaryCase) => canaryCase.case_source === "synthetic"),
     manifest_hash: plan.manifest_hash,
     config_hash: plan.config_hash,
+    environment_config_hash: plan.environment_config_hash,
+    run_config_fingerprint: plan.run_config_snapshot,
+    semantic_validator_version: EVAL_SEMANTIC_VALIDATOR_VERSION,
+    safety_validator_version: EVAL_SAFETY_VALIDATOR_VERSION,
+    matching_prior_runs: priorRuns.filter((run) => run.config_matches_current),
+    prior_runs_same_manifest: priorRuns,
+    fresh_run_requires: "--new-run",
+    resume_requires: "--resume <run_public_id>",
+    explicit_run_selection_required:
+      "Paid execution refuses to run unless --new-run or --resume <run_public_id> is supplied.",
     git_commit: plan.git_commit,
     redaction_ok: redaction.ok,
     database_ready: plan.cases.length === EVAL_CANARY_TOTAL_ITEMS
@@ -520,6 +770,33 @@ export async function createLiveCanaryDryRunReport() {
       message: "Dry-run payloads contain secret-like content."
     });
   }
+  const promptVersionStatus = qualityPatchPromptVersionStatus(plan);
+
+  if (!promptVersionStatus.ok) {
+    issues.push({
+      code: "quality_patch_prompt_versions_missing",
+      message: "Current prompt versions do not match the Phase 7E2A quality-patch versions."
+    });
+  }
+
+  const baseline = await prisma.evalRun.findUnique({
+    where: { run_public_id: "evr_20260623_1sjeh1q" },
+    select: {
+      run_public_id: true,
+      status: true,
+      run_config_hash: true,
+      case_manifest_hash: true,
+      reproducibility_manifest: true
+    }
+  });
+
+  if (baseline && baseline.run_config_hash === plan.config_hash) {
+    issues.push({
+      code: "baseline_config_hash_not_distinguished",
+      message:
+        "Current run configuration hash matches baseline run evr_20260623_1sjeh1q; prompt/evaluator changes are not distinguished."
+    });
+  }
 
   return {
     ready: issues.length === 0,
@@ -535,6 +812,25 @@ export async function createLiveCanaryDryRunReport() {
     redaction_ok: redaction.ok,
     manifest_hash: plan.manifest_hash,
     config_hash: plan.config_hash,
+    environment_config_hash: plan.environment_config_hash,
+    run_config_fingerprint: plan.run_config_snapshot,
+    semantic_validator_version: EVAL_SEMANTIC_VALIDATOR_VERSION,
+    safety_validator_version: EVAL_SAFETY_VALIDATOR_VERSION,
+    quality_patch_prompt_versions: promptVersionStatus,
+    baseline_comparison: baseline
+      ? {
+          run_public_id: baseline.run_public_id,
+          status: baseline.status,
+          baseline_run_config_hash: baseline.run_config_hash,
+          current_run_config_hash: plan.config_hash,
+          config_hash_differs_from_baseline: baseline.run_config_hash !== plan.config_hash,
+          baseline_git_commit: runGitCommit(baseline.reproducibility_manifest),
+          baseline_prompt_versions: runPromptVersions(baseline.reproducibility_manifest),
+          baseline_evaluator_versions: runEvaluatorVersions(baseline.reproducibility_manifest)
+        }
+      : null,
+    new_run_public_id_preview: generatePublicId("eval_run"),
+    new_run_would_create_new_run_instance: true,
     estimated_upper_bound_cost_usd: plan.total_estimated_upper_bound_usd,
     cost_hard_limit_usd: plan.config_snapshot.cost_hard_limit_usd,
     operational_records_referenced: false,
@@ -560,12 +856,16 @@ function reproducibilityManifest(plan: CanaryPlan, runPublicId: string) {
     prompt_versions: plan.prompt_versions,
     schema_versions: plan.schema_versions,
     prompt_hashes: plan.prompt_hashes,
+    semantic_validator_version: EVAL_SEMANTIC_VALIDATOR_VERSION,
+    safety_validator_version: EVAL_SAFETY_VALIDATOR_VERSION,
     agent_versions: Object.fromEntries(
       plan.cases.map((canaryCase) => [canaryCase.agent_name, canaryCase.agent_version])
     ),
     openai_sdk_version: sdkVersion(),
     application_git_commit: plan.git_commit,
     evaluation_config_hash: plan.config_hash,
+    environment_config_hash: plan.environment_config_hash,
+    run_config_fingerprint: plan.run_config_snapshot,
     max_output_token_settings: plan.config_snapshot.max_output_tokens_by_agent,
     retry_settings: { max_retries: plan.config_snapshot.max_retries },
     timeout_setting: plan.config_snapshot.request_timeout_ms,
@@ -576,57 +876,11 @@ function reproducibilityManifest(plan: CanaryPlan, runPublicId: string) {
   };
 }
 
-async function createOrResumeLiveCanaryRun(
+async function createNewLiveCanaryRun(
   plan: CanaryPlan,
-  runPublicId?: string,
   mockProviderSmoke = false
 ) {
   const suite = await ensureCanarySuite(plan.teacher.id);
-
-  if (runPublicId) {
-    const existing = await prisma.evalRun.findUnique({
-      where: { run_public_id: runPublicId },
-      include: { run_items: true }
-    });
-
-    if (!existing) {
-      throw new EvalServiceError("run_not_found", "Live canary eval run was not found.", 404);
-    }
-
-    if (existing.run_mode !== "live_provider") {
-      throw new EvalServiceError("not_live_canary_run", "Only live_provider runs can be resumed.", 400);
-    }
-
-    if (existing.status === "budget_unverifiable") {
-      throw new EvalServiceError(
-        "budget_unverifiable_resume_blocked",
-        "This live canary run has unverifiable provider usage and must not be resumed automatically.",
-        400
-      );
-    }
-
-    if (
-      existing.run_items.some(
-        (item) =>
-          isStructuredOutputSchemaFailure({
-            error_category: item.error_category,
-            message: item.schema_validation_error
-          })
-      )
-    ) {
-      throw new EvalServiceError(
-        "structured_output_schema_resume_blocked",
-        "This live canary run failed before provider dispatch because its frozen Structured Outputs schema was incompatible; create a fresh run after schema correction.",
-        400
-      );
-    }
-
-    if (existing.model_snapshot !== EVAL_CANARY_MODEL_SNAPSHOT) {
-      throw new EvalServiceError("model_snapshot_mismatch", "Run model snapshot does not match Phase 7E2A.", 400);
-    }
-
-    return existing;
-  }
 
   const runPublicIdNew = generatePublicId("eval_run");
   const manifest = reproducibilityManifest(plan, runPublicIdNew);
@@ -644,6 +898,9 @@ async function createOrResumeLiveCanaryRun(
         reasoning_effort: "low",
         case_manifest_hash: plan.manifest_hash,
         run_config_hash: plan.config_hash,
+        environment_config_hash: plan.environment_config_hash,
+        semantic_validator_version: EVAL_SEMANTIC_VALIDATOR_VERSION,
+        safety_validator_version: EVAL_SAFETY_VALIDATOR_VERSION,
         max_output_tokens_by_agent: plan.config_snapshot.max_output_tokens_by_agent,
         estimated_upper_bound_cost_usd: plan.total_estimated_upper_bound_usd,
         pricing: plan.pricing,
@@ -668,6 +925,95 @@ async function createOrResumeLiveCanaryRun(
     },
     include: { run_items: true }
   });
+}
+
+async function loadLiveCanaryRunForResume(plan: CanaryPlan, runPublicId: string) {
+  const existing = await prisma.evalRun.findUnique({
+    where: { run_public_id: runPublicId },
+    include: { run_items: true }
+  });
+
+  if (!existing) {
+    throw new EvalServiceError("run_not_found", "Live canary eval run was not found.", 404);
+  }
+
+  if (existing.run_mode !== "live_provider") {
+    throw new EvalServiceError("not_live_canary_run", "Only live_provider runs can be resumed.", 400);
+  }
+
+  if (existing.status === "completed") {
+    throw new EvalServiceError(
+      "completed_run_not_resumable",
+      "Completed live canary runs are never resumed; use --new-run for a fresh run.",
+      400
+    );
+  }
+
+  if (existing.status === "budget_unverifiable") {
+    throw new EvalServiceError(
+      "budget_unverifiable_resume_blocked",
+      "This live canary run has unverifiable provider usage and must not be resumed automatically.",
+      400
+    );
+  }
+
+  if (!nonterminalRunStatus(existing.status)) {
+    throw new EvalServiceError(
+      "run_not_resumable",
+      `Only nonterminal live canary runs can be resumed; this run is ${existing.status}.`,
+      400
+    );
+  }
+
+  if (existing.model_snapshot !== EVAL_CANARY_MODEL_SNAPSHOT) {
+    throw new EvalServiceError("model_snapshot_mismatch", "Run model snapshot does not match Phase 7E2A.", 400);
+  }
+
+  if (existing.case_manifest_hash !== plan.manifest_hash) {
+    throw new EvalServiceError(
+      "case_manifest_mismatch",
+      "Resume blocked because the current canary manifest does not match the frozen run manifest.",
+      400
+    );
+  }
+
+  if (existing.run_config_hash !== plan.config_hash) {
+    throw new EvalServiceError(
+      "run_config_mismatch",
+      "Resume blocked because current prompt, schema, evaluator, or canary configuration does not match the frozen run configuration.",
+      400
+    );
+  }
+
+  if (
+    existing.run_items.some(
+      (item) =>
+        isStructuredOutputSchemaFailure({
+          error_category: item.error_category,
+          message: item.schema_validation_error
+        })
+    )
+  ) {
+    throw new EvalServiceError(
+      "structured_output_schema_resume_blocked",
+      "This live canary run failed before provider dispatch because its frozen Structured Outputs schema was incompatible; create a fresh run after schema correction.",
+      400
+    );
+  }
+
+  if (
+    !existing.run_items.some((item) =>
+      ["pending", "running", "failed_retryable"].includes(item.execution_status)
+    )
+  ) {
+    throw new EvalServiceError(
+      "no_resumable_items",
+      "The specified live canary run has no pending or retryable items to resume.",
+      400
+    );
+  }
+
+  return existing;
 }
 
 async function ensureRunItems(input: {
@@ -1176,6 +1522,30 @@ export async function runLiveCanary(options: LiveCanaryRunOptions) {
     );
   }
 
+  if (!options.runInstanceMode) {
+    throw new EvalServiceError(
+      "explicit_run_selection_required",
+      "Paid live canary execution requires either --new-run or --resume <run_public_id>.",
+      400
+    );
+  }
+
+  if (options.runInstanceMode === "new_run" && options.runPublicId) {
+    throw new EvalServiceError(
+      "new_run_cannot_accept_resume_id",
+      "--new-run always creates a fresh run and must not be combined with a run ID.",
+      400
+    );
+  }
+
+  if (options.runInstanceMode === "resume" && !options.runPublicId) {
+    throw new EvalServiceError(
+      "resume_run_required",
+      "--resume requires a run_public_id.",
+      400
+    );
+  }
+
   if (!options.allowMockProvider) {
     const config = validateEvalCanaryConfig({
       requireLiveEnabled: true,
@@ -1217,11 +1587,9 @@ export async function runLiveCanary(options: LiveCanaryRunOptions) {
     );
   }
 
-  const run = await createOrResumeLiveCanaryRun(
-    plan,
-    options.runPublicId,
-    options.allowMockProvider === true
-  );
+  const run = options.runInstanceMode === "resume"
+    ? await loadLiveCanaryRunForResume(plan, options.runPublicId!)
+    : await createNewLiveCanaryRun(plan, options.allowMockProvider === true);
   await ensureRunItems({
     runDbId: run.id,
     runPublicId: run.run_public_id,
@@ -1783,8 +2151,149 @@ export async function createCanaryReadinessReport(runPublicId: string) {
   };
 }
 
+function diffRecordValues(
+  current: Record<string, unknown>,
+  stored: Record<string, unknown>,
+  prefix = ""
+): Array<{
+  field: string;
+  current: unknown;
+  stored: unknown;
+}> {
+  const keys = [...new Set([...Object.keys(current), ...Object.keys(stored)])].sort();
+  const diffs = [];
+
+  for (const key of keys) {
+    const currentValue = current[key];
+    const storedValue = stored[key];
+    const field = prefix ? `${prefix}.${key}` : key;
+
+    if (
+      currentValue &&
+      storedValue &&
+      typeof currentValue === "object" &&
+      typeof storedValue === "object" &&
+      !Array.isArray(currentValue) &&
+      !Array.isArray(storedValue)
+    ) {
+      diffs.push(
+        ...diffRecordValues(
+          currentValue as Record<string, unknown>,
+          storedValue as Record<string, unknown>,
+          field
+        )
+      );
+      continue;
+    }
+
+    if (stableJson(currentValue) !== stableJson(storedValue)) {
+      diffs.push({ field, current: currentValue ?? null, stored: storedValue ?? null });
+    }
+  }
+
+  return diffs;
+}
+
+export async function compareLiveCanaryConfigToRun(runPublicId: string) {
+  const plan = await buildLiveCanaryPlan({
+    ensureFixtures: false,
+    requireLiveEnabled: false,
+    requireApiKey: false
+  });
+  const run = await prisma.evalRun.findUnique({
+    where: { run_public_id: runPublicId },
+    select: {
+      run_public_id: true,
+      status: true,
+      run_mode: true,
+      model_snapshot: true,
+      reasoning_effort: true,
+      case_manifest_hash: true,
+      run_config_hash: true,
+      pricing_registry_version: true,
+      reproducibility_manifest: true,
+      created_at: true,
+      completed_at: true
+    }
+  });
+
+  if (!run) {
+    throw new EvalServiceError("run_not_found", "Evaluation run was not found.", 404);
+  }
+
+  const storedManifest = manifestRecord(run.reproducibility_manifest);
+  const storedFingerprint = manifestRecord(storedManifest.run_config_fingerprint);
+  const currentComparable = {
+    model_snapshot: EVAL_CANARY_MODEL_SNAPSHOT,
+    reasoning_effort: EVAL_CANARY_REASONING_EFFORT,
+    case_manifest_hash: plan.manifest_hash,
+    run_config_hash: plan.config_hash,
+    git_commit: plan.git_commit,
+    prompt_versions: plan.prompt_versions,
+    prompt_hashes: plan.prompt_hashes,
+    schema_versions: plan.schema_versions,
+    semantic_validator_version: EVAL_SEMANTIC_VALIDATOR_VERSION,
+    safety_validator_version: EVAL_SAFETY_VALIDATOR_VERSION,
+    pricing_registry_version: plan.pricing.pricing_registry_version,
+    run_config_fingerprint: plan.run_config_snapshot
+  };
+  const storedComparable = {
+    model_snapshot: run.model_snapshot,
+    reasoning_effort: run.reasoning_effort,
+    case_manifest_hash: run.case_manifest_hash,
+    run_config_hash: run.run_config_hash,
+    git_commit: runGitCommit(run.reproducibility_manifest),
+    prompt_versions: runPromptVersions(run.reproducibility_manifest),
+    prompt_hashes: manifestRecord(storedManifest.prompt_hashes),
+    schema_versions: manifestRecord(storedManifest.schema_versions),
+    ...runEvaluatorVersions(run.reproducibility_manifest),
+    pricing_registry_version: run.pricing_registry_version,
+    run_config_fingerprint: storedFingerprint
+  };
+  const differences = diffRecordValues(currentComparable, storedComparable);
+
+  return {
+    openai_call_made: false,
+    compared_run: {
+      run_public_id: run.run_public_id,
+      status: run.status,
+      run_mode: run.run_mode,
+      created_at: run.created_at.toISOString(),
+      completed_at: run.completed_at?.toISOString() ?? null
+    },
+    current_config_hash: plan.config_hash,
+    stored_run_config_hash: run.run_config_hash,
+    config_hash_differs: plan.config_hash !== run.run_config_hash,
+    current: currentComparable,
+    stored: storedComparable,
+    differences,
+    difference_count: differences.length,
+    plan_valid: plan.valid,
+    plan_issues: plan.issues,
+    notes: [
+      "This compare command is read-only and makes no provider requests.",
+      "Differences apply only to future runs; the compared run is not modified."
+    ]
+  };
+}
+
 export const __liveCanaryTestInternals = {
   buildLiveCanaryPlan,
+  runConfigFingerprintForPlan: (
+    plan: CanaryPlan,
+    overrides: Partial<Parameters<typeof runConfigFingerprint>[0]> = {}
+  ) =>
+    runConfigFingerprint({
+      config_snapshot: plan.config_snapshot,
+      environment_config_hash: plan.environment_config_hash,
+      manifest_hash: plan.manifest_hash,
+      manifest_version: plan.manifest_version,
+      git_commit: plan.git_commit,
+      pricing_registry_version: plan.pricing.pricing_registry_version,
+      cases: plan.cases,
+      ...overrides
+    }),
+  runConfigFingerprintSnapshot,
   redactionCheck,
   terminalForCanary
 };

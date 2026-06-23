@@ -47,7 +47,7 @@ After editing `.env.local` locally:
 ```bash
 npm run eval:live-canary:preflight
 npm run eval:live-canary:dry-run
-npm run eval:live-canary -- --confirm-paid-api
+npm run eval:live-canary -- --confirm-paid-api --new-run
 ```
 
 After completion:
@@ -56,7 +56,20 @@ After completion:
 npm run eval:live-canary:report -- --run <run_public_id>
 ```
 
-Without `--confirm-paid-api`, the paid command refuses to run.
+Without `--confirm-paid-api`, the paid command refuses to run. The paid command
+also refuses to run unless the caller explicitly chooses one run-instance mode:
+
+```bash
+npm run eval:live-canary -- --confirm-paid-api --new-run
+npm run eval:live-canary -- --confirm-paid-api --resume <run_public_id>
+```
+
+`--new-run` always creates a new `run_public_id` and new run items. It never
+returns an already completed run, even when the completed run has the same case
+manifest or the same configuration fingerprint. `--resume` resumes only the
+specified nonterminal run, skips completed items, and blocks resume if the
+current prompt, schema, evaluator, manifest, model, or canary controls no longer
+match the frozen run configuration.
 
 To inspect an existing live canary run without making any provider request:
 
@@ -70,6 +83,18 @@ persisted, where usage was found, sanitized error categories/messages, whether
 the run is safe to resume, and whether a fresh run is recommended. It never
 prints API keys, authorization headers, database URLs, session secrets, cookies,
 or raw environment values.
+
+To compare the current canary configuration with a historical run without making
+any provider request:
+
+```bash
+npm run eval:live-canary:compare-config -- --run <run_public_id>
+```
+
+This reports differences in model snapshot, reasoning effort, manifest hash,
+prompt versions, prompt hashes, schema versions, semantic/safety evaluator
+versions, pricing registry version, Git commit, and the full run configuration
+fingerprint. It does not modify the compared run or its annotations.
 
 To generate a local blind-review packet for a completed 25-item live canary:
 
@@ -155,7 +180,11 @@ recommends a fresh run after schema correction.
 
 ## Resume
 
-Live canary runs are resumable by run ID. Completed run items are skipped. Pending or retryable items may continue according to the retry policy. Permanent failures remain preserved and are not silently replaced.
+Live canary runs are resumable only by explicit run ID. Completed run items are
+skipped. Pending or retryable items may continue according to the retry policy.
+Permanent failures remain preserved and are not silently replaced. Completed
+runs are never silently reused and cannot be resumed; create a fresh run with
+`--new-run`.
 
 Runs with status `budget_unverifiable` are not automatically resumable. If a
 provider request was counted but usage was not persisted, the budget guard cannot
@@ -207,10 +236,34 @@ Do not resume or modify baseline run `evr_20260623_1sjeh1q`. After applying the
 quality patch, create a fresh 25-case canary with the same exact snapshot,
 reasoning effort, and manifest case IDs unless a case itself is invalid.
 
+The live canary stores two separate identities:
+
+- `run_public_id`: the run instance identity. Every `--new-run` receives a fresh
+  run public ID and fresh run items.
+- `run_config_hash`: the reproducibility fingerprint. It includes the exact
+  model snapshot, reasoning effort, case manifest hash, ordered case IDs, one
+  repetition, agent names, agent versions, prompt versions, prompt hashes, schema
+  versions, max-output-token values, semantic and safety evaluator versions,
+  pricing registry version, retry settings, timeout setting, concurrency
+  setting, budget setting, environment config hash, and Git commit.
+
+Multiple fresh runs may share the same `run_config_hash`; that means they used
+the same frozen configuration, not that they are the same run. A prompt or
+evaluator patch must change the hash relative to earlier runs such as
+`evr_20260623_1sjeh1q`.
+
 Before the next preflight and dry run, run:
 
 ```bash
 npm run eval:targeted-quality-regression-smoke
+```
+
+Then use the read-only checks:
+
+```bash
+npm run eval:live-canary:preflight
+npm run eval:live-canary:dry-run
+npm run eval:live-canary:compare-config -- --run evr_20260623_1sjeh1q
 ```
 
 The readiness report now includes `targeted_regression_gate`, an engineering

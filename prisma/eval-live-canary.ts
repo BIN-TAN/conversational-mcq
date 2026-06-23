@@ -8,15 +8,25 @@ function argValue(name: string) {
 
 async function main() {
   const confirmPaidApi = process.argv.includes("--confirm-paid-api");
-  const runPublicId = argValue("--run");
+  const newRun = process.argv.includes("--new-run");
+  const resumeRunPublicId = argValue("--resume");
 
   if (!confirmPaidApi) {
     throw new Error("Refusing to run paid evaluation without --confirm-paid-api.");
   }
 
+  if (newRun && resumeRunPublicId) {
+    throw new Error("Use either --new-run or --resume <run_public_id>, not both.");
+  }
+
+  if (!newRun && !resumeRunPublicId) {
+    throw new Error("Paid evaluation requires explicit run selection: use --new-run or --resume <run_public_id>.");
+  }
+
   const summary = await runLiveCanary({
     confirmPaidApi,
-    runPublicId
+    runInstanceMode: newRun ? "new_run" : "resume",
+    runPublicId: resumeRunPublicId
   });
 
   console.log(JSON.stringify(summary, null, 2));

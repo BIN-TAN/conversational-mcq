@@ -57,6 +57,7 @@ export async function createMockCanaryRunForAnnotationSmoke(prisma: PrismaClient
   return withCanaryEnv(liveCanarySmokeEnv, async () => {
     const summary = await runLiveCanary({
       confirmPaidApi: true,
+      runInstanceMode: "new_run",
       provider: new MockLlmProvider(),
       allowMockProvider: true
     });

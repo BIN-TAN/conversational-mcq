@@ -754,14 +754,33 @@ Manual paid canary procedure after editing `.env.local` locally:
 ```bash
 npm run eval:live-canary:preflight
 npm run eval:live-canary:dry-run
-npm run eval:live-canary -- --confirm-paid-api
+npm run eval:live-canary -- --confirm-paid-api --new-run
 npm run eval:live-canary:report -- --run <run_public_id>
 ```
+
+Paid execution requires explicit run selection. Use `--new-run` for a fresh
+25-item canary or `--resume <run_public_id>` for a specific nonterminal run:
+
+```bash
+npm run eval:live-canary -- --confirm-paid-api --new-run
+npm run eval:live-canary -- --confirm-paid-api --resume <run_public_id>
+```
+
+The runner never silently reuses a completed run. A fresh run receives a new
+`run_public_id`; the separate `run_config_hash` records the frozen model,
+manifest, prompt, schema, evaluator, budget, retry, timeout, concurrency, and Git
+configuration for reproducibility.
 
 Read-only inspection of an existing live canary run:
 
 ```bash
 npm run eval:live-canary:inspect -- --run <run_public_id>
+```
+
+Read-only comparison of current canary configuration with a historical run:
+
+```bash
+npm run eval:live-canary:compare-config -- --run <run_public_id>
 ```
 
 The inspect command makes no provider request. It reports run status, item statuses,
@@ -831,6 +850,14 @@ The next fresh canary should use the same exact snapshot and manifest, then run:
 ```bash
 npm run eval:live-canary:preflight
 npm run eval:live-canary:dry-run
+npm run eval:live-canary:compare-config -- --run evr_20260623_1sjeh1q
 ```
 
-Do not resume the baseline run. See `docs/CANARY_QUALITY_PATCH.md`.
+Then start a fresh paid canary only after local API-key configuration:
+
+```bash
+npm run eval:live-canary -- --confirm-paid-api --new-run
+```
+
+Do not resume the baseline run. Fresh runs require fresh human annotation. See
+`docs/CANARY_QUALITY_PATCH.md`.

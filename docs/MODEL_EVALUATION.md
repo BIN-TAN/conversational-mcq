@@ -46,7 +46,20 @@ EVAL_CANARY_CASES_PER_AGENT=5
 EVAL_COST_HARD_LIMIT_USD=50
 ```
 
-Normal mock runs record `provider=mock` and do not call OpenAI. The paid canary is CLI-only and refuses to run without `--confirm-paid-api`, live eval enablement, exact snapshot configuration, and a locally configured server-side API key.
+Normal mock runs record `provider=mock` and do not call OpenAI. The paid canary
+is CLI-only and refuses to run without `--confirm-paid-api`, live eval
+enablement, exact snapshot configuration, a locally configured server-side API
+key, and an explicit run-instance mode:
+
+```bash
+npm run eval:live-canary -- --confirm-paid-api --new-run
+npm run eval:live-canary -- --confirm-paid-api --resume <run_public_id>
+```
+
+`--new-run` always creates a new run instance. `--resume` can continue only the
+specified nonterminal run and cannot resume completed runs or runs whose frozen
+prompt, schema, evaluator, manifest, model, or canary controls differ from the
+current configuration.
 
 Phase 7E2A does not compare GPT-5.5 or nano models. It does not run the future 100-call pilot.
 
@@ -109,6 +122,7 @@ npm run eval:structured-output-compat-smoke
 npm run eval:annotation-import-smoke
 npm run eval:annotation-adjudication-smoke
 npm run eval:live-canary-runner-smoke
+npm run eval:targeted-quality-regression-smoke
 npm run eval:budget-smoke
 npm run eval:live-isolation-smoke
 npm run eval:canary-report-smoke
@@ -128,8 +142,16 @@ Future eval results expose `eval-semantic-v2` and `eval-safety-v2` metadata
 where practical. Future canary readiness reports include a `known-failure
 regression gate`; it is an engineering gate and not classroom validation.
 
+The quality-patch canary fingerprint includes prompt versions, prompt hashes,
+schema versions, agent versions, semantic/safety evaluator versions,
+max-output-token controls, retry/timeout/concurrency settings, pricing version,
+ordered cases, model snapshot, reasoning effort, and Git commit. This
+fingerprint is separate from the run public ID; multiple fresh runs may share the
+same fingerprint but must have distinct run IDs and fresh annotations.
+
 Run:
 
 ```bash
 npm run eval:targeted-quality-regression-smoke
+npm run eval:live-canary:compare-config -- --run evr_20260623_1sjeh1q
 ```

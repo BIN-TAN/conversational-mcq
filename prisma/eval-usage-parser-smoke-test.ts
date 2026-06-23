@@ -97,6 +97,7 @@ async function runWithProvider(mode: UsageMode) {
 
   return runLiveCanary({
     confirmPaidApi: true,
+    runInstanceMode: "new_run",
     provider: new UsageShapeProvider(mode),
     allowMockProvider: true
   });

@@ -34,6 +34,7 @@ async function main() {
 
     const summary = await runLiveCanary({
       confirmPaidApi: true,
+      runInstanceMode: "new_run",
       provider: new MockLlmProvider(),
       allowMockProvider: true
     });
