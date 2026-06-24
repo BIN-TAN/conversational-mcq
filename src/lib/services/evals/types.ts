@@ -4,8 +4,8 @@ import { AgentName } from "@/lib/agents/names";
 export const EvalCaseSourceSchema = z.enum(["synthetic", "teacher_authored", "deidentified"]);
 export const EvalRunModeSchema = z.enum(["mock", "imported_output", "live_provider"]);
 export const EvalRecordStatusSchema = z.enum(["active", "archived"]);
-export const EvalAnnotationSourceSchema = z.enum(["human_manual", "ai_assisted_preliminary"]);
-export const EvalAnnotationStatusSchema = z.enum(["draft", "confirmed"]);
+export const EvalAnnotationSourceSchema = z.enum(["human_manual", "ai_assisted_preliminary", "ai_agent_review"]);
+export const EvalAnnotationStatusSchema = z.enum(["draft", "confirmed", "ai_confirmed"]);
 export const EvalRunStatusSchema = z.enum([
   "pending",
   "running",

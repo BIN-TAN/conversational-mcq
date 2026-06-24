@@ -171,3 +171,23 @@ Targeted remediation runs freeze:
 The run requires explicit `--new-run` or `--resume <run_public_id>`. Completed
 runs are not silently reused. Completed run items are skipped on resume, and the
 runner must not read or mutate operational classroom records.
+
+## Phase 7E2C AI Review Provenance
+
+AI-agent blind review confirmation is stored separately from human confirmation.
+For each AI-confirmed annotation, the system stores reviewer model, review
+method, reviewed timestamp, annotation CSV hash, reference JSONL hash, source
+run public ID, and import command version.
+
+AI-confirmed annotations use:
+
+- `annotation_source=ai_agent_review`
+- `annotation_status=ai_confirmed`
+- `confirmed_by_user_db_id=null`
+- `confirmed_at=null`
+
+The confirmation command writes `eval_annotation_revisions` records for created
+or promoted annotations. Re-running the same command with the same files is
+idempotent and does not create duplicate revisions. Later human review can
+supersede AI-confirmed annotations; that human supersession creates another
+revision and preserves the original AI-review snapshot.

@@ -850,3 +850,7 @@ Phase 6A.5 must not implement:
 - Targeted configuration is exact snapshot `gpt-5.4-mini-2026-03-17`, `reasoning_effort=low`, max concurrency 1, max retries 1, USD 10 cost hard limit, and max 35 provider requests.
 - Classroom live-call settings remain independent and disabled by default: `LLM_PROVIDER=mock`, `LLM_LIVE_CALLS_ENABLED=false`.
 - Targeted readiness recommendation values are `ready_for_guarded_integration_patch`, `not_ready_for_guarded_integration_patch`, and `incomplete_review`, always with `classroom_validity=false`.
+- AI-agent targeted review may be stored only with `annotation_source=ai_agent_review` and `annotation_status=ai_confirmed`. It must not populate `confirmed_by_user_db_id`, `confirmed_at`, or any human confirmer field.
+- AI-confirmed review can drive only a separately labelled `provisional engineering readiness` gate with `review_source=ai_agent_review` and `classroom_validity=false`; human review remains pending until a human researcher confirms or supersedes the annotations.
+- AI review provenance must include reviewer model, review method, reviewed timestamp, annotation file hash, reference file hash, source run ID, and import command version.
+- Later human review must be able to accept, edit, or replace AI-confirmed judgments and must write an audit revision without erasing the original AI-review provenance.

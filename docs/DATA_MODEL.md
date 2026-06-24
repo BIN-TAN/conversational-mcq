@@ -579,15 +579,18 @@ Phase 7E1 adds normalized evaluation tables that are separate from classroom wor
 - Eval outputs do not create `agent_calls`, `student_profiles`, `formative_decisions`, `followup_rounds`, `item_verification_runs`, sessions, item responses, or workflow jobs.
 - Blind review packet export is a derived local file export from eval tables only. It writes ignored files under `.data/eval-review/<run_public_id>/` and does not add database rows, annotations, operational records, or provider calls.
 
-`eval_annotations` stores teacher_researcher expert review:
+`eval_annotations` stores expert and provisional review:
 
 - one annotation per run item per teacher is upserted.
 - blind review, overall rating, pass/fail, rubric scores, critical failure flags, and notes are retained.
-- `annotation_source` is either `human_manual` or `ai_assisted_preliminary`.
-- `annotation_status` is either `draft` or `confirmed`.
+- `annotation_source` is `human_manual`, `ai_assisted_preliminary`, or `ai_agent_review`.
+- `annotation_status` is `draft`, `confirmed`, or `ai_confirmed`.
 - imported offline annotations are `ai_assisted_preliminary` drafts and do not count as completed human review.
-- confirmation records `confirmed_by_user_db_id` and `confirmed_at` while preserving the original source.
-- readiness gates use confirmed human pass/fail and confirmed human critical-failure flags. Automated semantic/safety results and automated critical flags remain on `eval_run_items` as separate screening evidence.
+- AI-agent review confirmation stores `reviewer_model`, `review_method`, `reviewed_at`, annotation/reference file hashes, source run public ID, and import command version with `annotation_source=ai_agent_review` and `annotation_status=ai_confirmed`.
+- AI-agent review does not populate `confirmed_by_user_db_id` or `confirmed_at`.
+- human confirmation records `confirmed_by_user_db_id` and `confirmed_at`.
+- targeted remediation reports display AI-confirmed and human-confirmed counts separately. AI-confirmed review can support provisional engineering readiness only; it is not classroom validity and not human confirmation.
+- readiness gates use the selected review source while preserving separate automated semantic/safety results and automated critical flags on `eval_run_items`.
 
 `eval_rubrics` stores agent-specific rubric definitions and fixed critical failure flags.
 

@@ -39,6 +39,54 @@ function prismaJson(value: unknown) {
   return toPrismaJson(value) ?? Prisma.JsonNull;
 }
 
+function annotationSnapshot(annotation: {
+  annotation_public_id: string;
+  annotated_by_user_db_id: string;
+  confirmed_by_user_db_id: string | null;
+  blind_review: boolean;
+  annotation_source: string;
+  annotation_status: string;
+  reviewer_model?: string | null;
+  review_method?: string | null;
+  reviewed_at?: Date | null;
+  annotation_file_hash?: string | null;
+  reference_file_hash?: string | null;
+  source_run_public_id?: string | null;
+  import_command_version?: string | null;
+  overall_rating: number | null;
+  pass_fail: string | null;
+  rubric_scores: unknown;
+  safety_flags: unknown;
+  notes: string | null;
+  confirmed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}) {
+  return {
+    annotation_public_id: annotation.annotation_public_id,
+    annotated_by_user_db_id: annotation.annotated_by_user_db_id,
+    confirmed_by_user_db_id: annotation.confirmed_by_user_db_id,
+    blind_review: annotation.blind_review,
+    annotation_source: annotation.annotation_source,
+    annotation_status: annotation.annotation_status,
+    reviewer_model: annotation.reviewer_model ?? null,
+    review_method: annotation.review_method ?? null,
+    reviewed_at: annotation.reviewed_at?.toISOString() ?? null,
+    annotation_file_hash: annotation.annotation_file_hash ?? null,
+    reference_file_hash: annotation.reference_file_hash ?? null,
+    source_run_public_id: annotation.source_run_public_id ?? null,
+    import_command_version: annotation.import_command_version ?? null,
+    overall_rating: annotation.overall_rating,
+    pass_fail: annotation.pass_fail,
+    rubric_scores: annotation.rubric_scores,
+    safety_flags: annotation.safety_flags,
+    notes: annotation.notes,
+    confirmed_at: annotation.confirmed_at?.toISOString() ?? null,
+    created_at: annotation.created_at.toISOString(),
+    updated_at: annotation.updated_at.toISOString()
+  };
+}
+
 function stableJson(value: unknown): string {
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value);
@@ -751,40 +799,77 @@ export async function upsertEvalAnnotation(
     throw new EvalServiceError("run_item_not_found", "Evaluation run item was not found.", 404);
   }
 
-  const annotation = await prisma.evalAnnotation.upsert({
-    where: {
-      run_item_db_id_annotated_by_user_db_id: {
-        run_item_db_id: runItem.id,
-        annotated_by_user_db_id: teacher.id
+  const annotation = await prisma.$transaction(async (tx) => {
+    const existing = await tx.evalAnnotation.findUnique({
+      where: {
+        run_item_db_id_annotated_by_user_db_id: {
+          run_item_db_id: runItem.id,
+          annotated_by_user_db_id: teacher.id
+        }
       }
-    },
-    create: {
-      annotation_public_id: generatePublicId("eval_annotation"),
-      run_item_db_id: runItem.id,
-      annotated_by_user_db_id: teacher.id,
+    });
+    const now = new Date();
+    const humanData = {
       confirmed_by_user_db_id: teacher.id,
       blind_review: parsed.blind_review,
       annotation_source: "human_manual",
       annotation_status: "confirmed",
+      reviewer_model: null,
+      review_method: null,
+      reviewed_at: null,
+      annotation_file_hash: null,
+      reference_file_hash: null,
+      source_run_public_id: null,
+      import_command_version: null,
       overall_rating: parsed.overall_rating ?? null,
       pass_fail: parsed.pass_fail ?? null,
       rubric_scores: prismaJson(parsed.rubric_scores ?? {}),
       safety_flags: prismaJson(parsed.safety_flags ?? []),
       notes: parsed.notes ?? null,
-      confirmed_at: new Date()
-    },
-    update: {
-      blind_review: parsed.blind_review,
-      overall_rating: parsed.overall_rating ?? null,
-      pass_fail: parsed.pass_fail ?? null,
-      rubric_scores: prismaJson(parsed.rubric_scores ?? {}),
-      safety_flags: prismaJson(parsed.safety_flags ?? []),
-      notes: parsed.notes ?? null
-    },
-    include: {
-      annotated_by: { select: { user_id: true, display_name: true } },
-      confirmed_by: { select: { user_id: true, display_name: true } }
+      confirmed_at: now
+    };
+
+    if (!existing) {
+      return tx.evalAnnotation.create({
+        data: {
+          annotation_public_id: generatePublicId("eval_annotation"),
+          run_item_db_id: runItem.id,
+          annotated_by_user_db_id: teacher.id,
+          ...humanData
+        },
+        include: {
+          annotated_by: { select: { user_id: true, display_name: true } },
+          confirmed_by: { select: { user_id: true, display_name: true } }
+        }
+      });
     }
+
+    const previousSnapshot = annotationSnapshot(existing);
+    const updated = await tx.evalAnnotation.update({
+      where: { id: existing.id },
+      data: humanData,
+      include: {
+        annotated_by: { select: { user_id: true, display_name: true } },
+        confirmed_by: { select: { user_id: true, display_name: true } }
+      }
+    });
+
+    if (existing.annotation_source === "ai_agent_review" || existing.annotation_status === "ai_confirmed") {
+      await tx.evalAnnotationRevision.create({
+        data: {
+          revision_public_id: generatePublicId("eval_annotation_revision"),
+          annotation_db_id: existing.id,
+          run_item_db_id: runItem.id,
+          amended_by_user_db_id: teacher.id,
+          amendment_source: "human_review_after_ai_review",
+          amendment_reason: "Human review superseded an AI-agent review annotation.",
+          previous_annotation_snapshot: prismaJson(previousSnapshot),
+          new_annotation_snapshot: prismaJson(annotationSnapshot(updated))
+        }
+      });
+    }
+
+    return updated;
   });
 
   return { annotation: serializeEvalAnnotation(annotation) };

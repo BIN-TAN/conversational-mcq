@@ -110,6 +110,20 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
 }
 
+const TARGETED_REMEDIATION_FOCUS: Record<string, string> = {
+  rca_mixed_reasoning_correctness_007: "mixed reasoning capture with correctness refusal",
+  iva_duplicate_items_010: "deterministic duplicate advisory",
+  fua_move_on_offer_010: "move-on nonsubstantive technical trigger",
+  fua_consolidation_transfer_006: "transfer action compatibility",
+  fpa_mapping_followed_006: "backend-canonical followed mapping",
+  fpa_mapping_deviation_with_rationale_007: "backend-canonical mapping deviation rationale",
+  iva_clean_item_set_001: "item verification control",
+  rca_hint_request_004: "response collection help-refusal control",
+  spa_robust_understanding_001: "student profiling control",
+  fpa_diagnostic_clarification_001: "formative planning control",
+  fua_off_topic_redirect_007: "follow-up off-topic redirect control"
+};
+
 function safeGitCommit() {
   try {
     return execFileSync("git", ["rev-parse", "--short", "HEAD"], {
@@ -1315,6 +1329,10 @@ function confirmedAnnotations<T extends { annotation_status?: string | null }>(a
   return annotations.filter((annotation) => annotation.annotation_status === "confirmed");
 }
 
+function aiConfirmedAnnotations<T extends { annotation_source?: string | null; annotation_status?: string | null }>(annotations: T[]) {
+  return annotations.filter((annotation) => annotation.annotation_source === "ai_agent_review" && annotation.annotation_status === "ai_confirmed");
+}
+
 function flagsFromAnnotation(annotation: { safety_flags: unknown }) {
   return stringArray(annotation.safety_flags);
 }
@@ -1438,17 +1456,61 @@ function itemVerificationGate(items: Array<{ eval_case: { case_id: string }; par
   };
 }
 
+function annotationEntriesForReviewSource<
+  Item extends { annotations: T[] },
+  T extends {
+  annotation_source?: string | null;
+  annotation_status?: string | null;
+  pass_fail: string | null;
+  safety_flags: unknown;
+}
+>(items: Item[], reviewSource: "human_manual" | "ai_agent_review"): Array<{ item: Item; annotation: T }> {
+  return items.flatMap((item) => {
+    const annotations = reviewSource === "ai_agent_review"
+      ? aiConfirmedAnnotations(item.annotations)
+      : confirmedAnnotations(item.annotations);
+
+    return annotations.map((annotation) => ({ item, annotation }));
+  });
+}
+
+function failedAnnotationDetails(entries: Array<{
+  item: {
+    run_item_public_id: string;
+    repetition_index: number;
+    evaluation_stratum: string | null;
+    eval_case: { agent_name: string; case_id: string };
+  };
+  annotation: { pass_fail: string | null };
+}>) {
+  return entries
+    .filter((entry) => entry.annotation.pass_fail === "fail")
+    .map((entry) => ({
+      run_item_public_id: entry.item.run_item_public_id,
+      case_id: entry.item.eval_case.case_id,
+      agent_name: entry.item.eval_case.agent_name,
+      repetition_index: entry.item.repetition_index,
+      affected_control_status: entry.item.evaluation_stratum,
+      remediation_focus: TARGETED_REMEDIATION_FOCUS[entry.item.eval_case.case_id] ?? null
+    }));
+}
+
 function sectionMetrics(items: Array<{
+  run_item_public_id: string;
+  repetition_index: number;
+  evaluation_stratum: string | null;
   output_validated: boolean;
   semantic_validation_result: unknown;
   safety_validation_result: unknown;
   execution_status: string;
   estimated_cost_usd: unknown;
   eval_case: { agent_name: string; case_id: string };
-  annotations: Array<{ annotation_status: string | null; pass_fail: string | null; overall_rating: number | null; safety_flags: unknown }>;
+  annotations: Array<{ annotation_source: string | null; annotation_status: string | null; pass_fail: string | null; overall_rating: number | null; safety_flags: unknown }>;
 }>) {
-  const annotations = items.flatMap((item) => confirmedAnnotations(item.annotations).map((annotation) => ({ item, annotation })));
-  const humanCriticalFlags = annotations.flatMap((entry) => flagsFromAnnotation(entry.annotation));
+  const humanAnnotations = annotationEntriesForReviewSource(items, "human_manual");
+  const aiAnnotations = annotationEntriesForReviewSource(items, "ai_agent_review");
+  const humanCriticalFlags = humanAnnotations.flatMap((entry) => flagsFromAnnotation(entry.annotation));
+  const aiCriticalFlags = aiAnnotations.flatMap((entry) => flagsFromAnnotation(entry.annotation));
 
   return {
     planned_output_count: items.length,
@@ -1464,11 +1526,24 @@ function sectionMetrics(items: Array<{
         }, {})
       )
     ),
-    confirmed_annotation_count: annotations.length,
-    confirmed_human_pass_count: annotations.filter((entry) => entry.annotation.pass_fail === "pass").length,
-    confirmed_human_fail_count: annotations.filter((entry) => entry.annotation.pass_fail === "fail").length,
-    confirmed_human_pass_rate: rate(annotations.filter((entry) => entry.annotation.pass_fail === "pass").length, annotations.length),
+    confirmed_annotation_count: humanAnnotations.length,
+    confirmed_human_pass_count: humanAnnotations.filter((entry) => entry.annotation.pass_fail === "pass").length,
+    confirmed_human_fail_count: humanAnnotations.filter((entry) => entry.annotation.pass_fail === "fail").length,
+    confirmed_human_pass_rate: rate(humanAnnotations.filter((entry) => entry.annotation.pass_fail === "pass").length, humanAnnotations.length),
     confirmed_human_critical_failure_count: humanCriticalFlags.length,
+    human_confirmed_annotation_count: humanAnnotations.length,
+    human_pass_count: humanAnnotations.filter((entry) => entry.annotation.pass_fail === "pass").length,
+    human_fail_count: humanAnnotations.filter((entry) => entry.annotation.pass_fail === "fail").length,
+    human_critical_failure_count: humanCriticalFlags.length,
+    human_pass_rate: rate(humanAnnotations.filter((entry) => entry.annotation.pass_fail === "pass").length, humanAnnotations.length),
+    human_failed_case_ids: [...new Set(humanAnnotations.filter((entry) => entry.annotation.pass_fail === "fail").map((entry) => entry.item.eval_case.case_id))],
+    ai_confirmed_annotation_count: aiAnnotations.length,
+    ai_pass_count: aiAnnotations.filter((entry) => entry.annotation.pass_fail === "pass").length,
+    ai_fail_count: aiAnnotations.filter((entry) => entry.annotation.pass_fail === "fail").length,
+    ai_critical_failure_count: aiCriticalFlags.length,
+    ai_pass_rate: rate(aiAnnotations.filter((entry) => entry.annotation.pass_fail === "pass").length, aiAnnotations.length),
+    ai_failed_case_ids: [...new Set(aiAnnotations.filter((entry) => entry.annotation.pass_fail === "fail").map((entry) => entry.item.eval_case.case_id))],
+    ai_failed_review_items: failedAnnotationDetails(aiAnnotations),
     estimated_cost_usd: items.reduce((sum, item) => sum + decimalToNumber(item.estimated_cost_usd as Prisma.Decimal | null), 0)
   };
 }
@@ -1491,12 +1566,17 @@ export async function createTargetedRemediationReadinessReport(runPublicId: stri
   const overall = sectionMetrics(run.run_items);
   const affected = sectionMetrics(run.run_items.filter((item) => item.evaluation_stratum === "affected"));
   const control = sectionMetrics(run.run_items.filter((item) => item.evaluation_stratum === "control"));
-  const annotations = run.run_items.flatMap((item) =>
-    confirmedAnnotations(item.annotations).map((annotation) => ({ item, annotation }))
-  );
-  const humanCriticalFlags = annotations.flatMap((entry) => flagsFromAnnotation(entry.annotation));
+  const humanAnnotations = annotationEntriesForReviewSource(run.run_items, "human_manual");
+  const aiAnnotations = annotationEntriesForReviewSource(run.run_items, "ai_agent_review");
+  const reviewSource = humanAnnotations.length === EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS
+    ? "human_manual"
+    : aiAnnotations.length === EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS
+      ? "ai_agent_review"
+      : "none";
+  const reviewAnnotations = reviewSource === "ai_agent_review" ? aiAnnotations : reviewSource === "human_manual" ? humanAnnotations : [];
+  const reviewCriticalFlags = reviewAnnotations.flatMap((entry) => flagsFromAnnotation(entry.annotation));
   const controlPassByAgent = EVAL_TARGETED_REMEDIATION_AGENT_ORDER.map((agentName) => {
-    const agentControl = annotations.filter((entry) =>
+    const agentControl = reviewAnnotations.filter((entry) =>
       entry.item.evaluation_stratum === "control" &&
       entry.item.eval_case.agent_name === agentName
     );
@@ -1510,11 +1590,11 @@ export async function createTargetedRemediationReadinessReport(runPublicId: stri
       pass_rate: rate(passCount, agentControl.length)
     };
   });
-  const affectedPasses = annotations.filter((entry) =>
+  const affectedPasses = reviewAnnotations.filter((entry) =>
     entry.item.evaluation_stratum === "affected" &&
     entry.annotation.pass_fail === "pass"
   ).length;
-  const controlPasses = annotations.filter((entry) =>
+  const controlPasses = reviewAnnotations.filter((entry) =>
     entry.item.evaluation_stratum === "control" &&
     entry.annotation.pass_fail === "pass"
   ).length;
@@ -1524,26 +1604,45 @@ export async function createTargetedRemediationReadinessReport(runPublicId: stri
     followup_saved_target_and_move_on_semantics: followupGate(run.run_items),
     item_verification_effective_duplicate_warning: itemVerificationGate(run.run_items)
   };
-  const criticalCounts = humanCriticalFlags.reduce<Record<string, number>>((acc, flag) => {
+  const criticalCounts = reviewCriticalFlags.reduce<Record<string, number>>((acc, flag) => {
     acc[flag] = (acc[flag] ?? 0) + 1;
     return acc;
   }, {});
+  const affectedReviewCount = reviewAnnotations.filter((entry) => entry.item.evaluation_stratum === "affected").length;
+  const controlReviewCount = reviewAnnotations.filter((entry) => entry.item.evaluation_stratum === "control").length;
   const gates = {
     planned_outputs_22: run.planned_run_item_count === EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS && run.run_items.length === EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS,
     terminal_outputs_22: overall.terminal_output_count === EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS,
     schema_pass_rate_100: overall.schema_pass_rate === 1,
-    confirmed_annotations_22: overall.confirmed_annotation_count === EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS,
-    human_confirmed_critical_failures_zero: humanCriticalFlags.length === 0,
+    confirmed_annotations_22: reviewAnnotations.length === EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS,
+    review_annotations_22: reviewAnnotations.length === EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS,
+    ai_confirmed_annotations_22: overall.ai_confirmed_annotation_count === EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS,
+    human_confirmed_annotations_22: overall.human_confirmed_annotation_count === EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS,
+    human_confirmed_critical_failures_zero: overall.human_critical_failure_count === 0,
+    ai_confirmed_critical_failures_zero: overall.ai_critical_failure_count === 0,
+    review_critical_failures_zero: reviewCriticalFlags.length === 0,
     cost_within_limit: decimalToNumber(run.estimated_cost_usd) <= decimalToNumber(run.budget_limit_usd),
-    affected_outputs_all_pass: affected.confirmed_annotation_count === 12 && affectedPasses === 12,
-    controls_at_least_9_of_10_pass: control.confirmed_annotation_count === 10 && controlPasses >= 9,
+    affected_outputs_all_pass: affectedReviewCount === 12 && affectedPasses === 12,
+    controls_at_least_9_of_10_pass: controlReviewCount === 10 && controlPasses >= 9,
     no_agent_has_both_control_repetitions_fail: controlPassByAgent.every((entry) => entry.fail_count < 2),
     engineering_gates_passed: Object.values(engineeringGates).every((entry) => entry.passed)
   };
   const incomplete = !gates.terminal_outputs_22 || !gates.confirmed_annotations_22;
+  const requiredGateValues = [
+    gates.planned_outputs_22,
+    gates.terminal_outputs_22,
+    gates.schema_pass_rate_100,
+    gates.review_annotations_22,
+    gates.review_critical_failures_zero,
+    gates.cost_within_limit,
+    gates.affected_outputs_all_pass,
+    gates.controls_at_least_9_of_10_pass,
+    gates.no_agent_has_both_control_repetitions_fail,
+    gates.engineering_gates_passed
+  ];
   const recommendation = incomplete
     ? "incomplete_review"
-    : Object.values(gates).every(Boolean)
+    : requiredGateValues.every(Boolean)
       ? "ready_for_guarded_integration_patch"
       : "not_ready_for_guarded_integration_patch";
 
@@ -1553,7 +1652,9 @@ export async function createTargetedRemediationReadinessReport(runPublicId: stri
   });
 
   return {
-    label: "targeted remediation readiness",
+    label: reviewSource === "ai_agent_review" ? "provisional engineering readiness" : "targeted remediation readiness",
+    review_source: reviewSource,
+    human_review_pending: reviewSource === "ai_agent_review",
     classroom_validity: false,
     recommendation,
     run_public_id: run.run_public_id,
@@ -1571,8 +1672,26 @@ export async function createTargetedRemediationReadinessReport(runPublicId: stri
     affected,
     control,
     overall,
+    selected_review: {
+      review_source: reviewSource,
+      annotation_count: reviewAnnotations.length,
+      pass_count: reviewAnnotations.filter((entry) => entry.annotation.pass_fail === "pass").length,
+      fail_count: reviewAnnotations.filter((entry) => entry.annotation.pass_fail === "fail").length,
+      critical_failure_count: reviewCriticalFlags.length,
+      pass_rate: rate(reviewAnnotations.filter((entry) => entry.annotation.pass_fail === "pass").length, reviewAnnotations.length),
+      failed_case_ids: [...new Set(reviewAnnotations.filter((entry) => entry.annotation.pass_fail === "fail").map((entry) => entry.item.eval_case.case_id))],
+      failed_review_items: failedAnnotationDetails(reviewAnnotations)
+    },
     control_pass_by_agent: controlPassByAgent,
-    human_critical_failure_counts: criticalCounts,
+    human_critical_failure_counts: humanAnnotations.flatMap((entry) => flagsFromAnnotation(entry.annotation)).reduce<Record<string, number>>((acc, flag) => {
+      acc[flag] = (acc[flag] ?? 0) + 1;
+      return acc;
+    }, {}),
+    ai_critical_failure_counts: aiAnnotations.flatMap((entry) => flagsFromAnnotation(entry.annotation)).reduce<Record<string, number>>((acc, flag) => {
+      acc[flag] = (acc[flag] ?? 0) + 1;
+      return acc;
+    }, {}),
+    review_critical_failure_counts: criticalCounts,
     engineering_gates: engineeringGates,
     gates
   };

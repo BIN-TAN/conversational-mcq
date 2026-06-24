@@ -152,6 +152,13 @@ export function serializeEvalAnnotation(annotation: {
   blind_review: boolean;
   annotation_source: string;
   annotation_status: string;
+  reviewer_model?: string | null;
+  review_method?: string | null;
+  reviewed_at?: Date | null;
+  annotation_file_hash?: string | null;
+  reference_file_hash?: string | null;
+  source_run_public_id?: string | null;
+  import_command_version?: string | null;
   overall_rating: number | null;
   pass_fail: string | null;
   rubric_scores: unknown;
@@ -172,6 +179,13 @@ export function serializeEvalAnnotation(annotation: {
     blind_review: annotation.blind_review,
     annotation_source: annotation.annotation_source,
     annotation_status: annotation.annotation_status,
+    reviewer_model: annotation.reviewer_model ?? null,
+    review_method: annotation.review_method ?? null,
+    reviewed_at: serializeEvalDate(annotation.reviewed_at ?? null),
+    annotation_file_hash: annotation.annotation_file_hash ?? null,
+    reference_file_hash: annotation.reference_file_hash ?? null,
+    source_run_public_id: annotation.source_run_public_id ?? null,
+    import_command_version: annotation.import_command_version ?? null,
     overall_rating: annotation.overall_rating,
     pass_fail: annotation.pass_fail,
     rubric_scores: stripInternalKeys(annotation.rubric_scores),

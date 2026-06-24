@@ -212,3 +212,45 @@ separate. The annotation template contains one row per review item.
 Targeted readiness requires confirmed annotations for all 22 outputs. The
 readiness report calculates pass/fail outcomes from those annotations; it does
 not claim classroom validity and it does not modify the frozen full-pilot run.
+
+## AI-Agent Review Confirmation
+
+Phase 7E2C supports an explicit AI-agent review confirmation path for targeted
+remediation runs. This is not human review. It is provisional engineering
+evidence that can support internal patch decisions while human researcher review
+remains pending.
+
+Confirm an AI-agent blind review from local files with:
+
+```bash
+npm run eval:annotations:confirm-ai-review -- \
+  --run <targeted_run_public_id> \
+  --annotations <completed_annotation_csv_path> \
+  --reference .data/eval-review/<targeted_run_public_id>/review_reference.jsonl \
+  --reviewer-model gpt-5.5-pro \
+  --confirm-ai-review
+```
+
+The command requires the explicit `--confirm-ai-review` flag and stores:
+
+- `annotation_source=ai_agent_review`
+- `annotation_status=ai_confirmed`
+- `reviewer_model=gpt-5.5-pro`
+- `review_method=blind_review`
+- `reviewed_at`
+- annotation CSV hash
+- reference JSONL hash
+- source run ID
+- import command version
+
+It does not populate `confirmed_by_user_db_id`, `confirmed_at`, or any human
+confirmer field. The targeted remediation report displays AI-confirmed counts,
+AI pass/fail totals, AI critical-failure totals, and human-confirmed counts
+separately. When only AI review is complete, the report label is `provisional
+engineering readiness`, `review_source=ai_agent_review`, and
+`classroom_validity=false`.
+
+Human researchers can later accept, edit, or replace AI-confirmed judgments
+through the normal annotation workflow. A later human review sets human
+confirmation provenance and writes an audit revision; it must not erase the
+original AI-review provenance stored in the annotation history.

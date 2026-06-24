@@ -111,8 +111,8 @@ export type EvalAnnotationRow = {
   confirmed_by_user_id: string | null;
   confirmed_by_display_name: string | null;
   blind_review: boolean;
-  annotation_source: "human_manual" | "ai_assisted_preliminary";
-  annotation_status: "draft" | "confirmed";
+  annotation_source: "human_manual" | "ai_assisted_preliminary" | "ai_agent_review";
+  annotation_status: "draft" | "confirmed" | "ai_confirmed";
   overall_rating: number | null;
   pass_fail: string | null;
   rubric_scores: unknown;

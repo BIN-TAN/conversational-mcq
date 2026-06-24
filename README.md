@@ -983,5 +983,24 @@ provider requests, and a USD 10 hard limit. Classroom settings remain
 `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`. The readiness label is a
 guarded integration patch check, not classroom validity.
 
+AI-agent blind review can be confirmed as provisional engineering evidence
+without labeling it as human review:
+
+```bash
+npm run eval:annotations:confirm-ai-review -- \
+  --run <targeted_run_public_id> \
+  --annotations <completed_annotation_csv_path> \
+  --reference .data/eval-review/<targeted_run_public_id>/review_reference.jsonl \
+  --reviewer-model gpt-5.5-pro \
+  --confirm-ai-review
+```
+
+This stores `annotation_source=ai_agent_review` and
+`annotation_status=ai_confirmed`, reviewer model, review method, reviewed time,
+file hashes, source run ID, and import command version. It does not populate
+human confirmer fields. Human researchers may later accept, edit, or replace
+these judgments; that supersession writes an audit revision and preserves the
+original AI-review provenance.
+
 See `docs/FULL_PILOT_FAILURE_ADJUDICATION.md` and
 `docs/TARGETED_REMEDIATION_EVAL.md`.

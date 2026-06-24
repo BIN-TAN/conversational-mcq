@@ -1006,6 +1006,13 @@ model EvalAnnotation {
   blind_review            Boolean   @default(true)
   annotation_source       String    @default("human_manual")
   annotation_status       String    @default("confirmed")
+  reviewer_model          String?
+  review_method           String?
+  reviewed_at             DateTime? @db.Timestamptz(6)
+  annotation_file_hash    String?
+  reference_file_hash     String?
+  source_run_public_id    String?
+  import_command_version  String?
   overall_rating          Int?
   pass_fail               String?
   rubric_scores           Json?
@@ -1025,6 +1032,8 @@ model EvalAnnotation {
   @@index([confirmed_by_user_db_id, confirmed_at])
   @@index([annotation_source])
   @@index([annotation_status])
+  @@index([annotation_source, annotation_status])
+  @@index([source_run_public_id])
   @@index([pass_fail])
   @@map("eval_annotations")
 }

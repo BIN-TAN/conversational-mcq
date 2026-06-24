@@ -94,11 +94,11 @@ Required gates:
 - planned outputs = 22
 - terminal outputs = 22
 - schema pass rate = 100%
-- confirmed annotations = 22
-- confirmed human critical failures = 0
+- review annotations = 22
+- review critical failures = 0
 - estimated cost <= USD 10
-- all 12 affected outputs receive confirmed human Pass
-- at least 9 of 10 control outputs receive confirmed human Pass
+- all 12 affected outputs receive reviewed Pass
+- at least 9 of 10 control outputs receive reviewed Pass
 - no agent has both control repetitions fail
 
 Engineering gates also check exact reasoning substring capture, correctness
@@ -107,6 +107,27 @@ semantics, backend-owned process event metadata, and deterministic duplicate
 advisory behavior.
 
 The report always includes `classroom_validity=false`.
+
+When review annotations are AI-confirmed, the report is labelled `provisional
+engineering readiness` with `review_source=ai_agent_review`. It reports
+AI-confirmed and human-confirmed counts separately and states that human review
+remains pending. AI-confirmed review can drive the guarded engineering gate, but
+it is not classroom validity and must not be described as human confirmation.
+
+Confirm an AI-agent blind review with:
+
+```bash
+npm run eval:annotations:confirm-ai-review -- \
+  --run <targeted_run_public_id> \
+  --annotations <completed_annotation_csv_path> \
+  --reference .data/eval-review/<targeted_run_public_id>/review_reference.jsonl \
+  --reviewer-model gpt-5.5-pro \
+  --confirm-ai-review
+```
+
+The command validates the 22-row targeted review file, preserves rubric scores
+and notes, stores hashes and reviewer provenance, writes annotation revision
+audit records, leaves human confirmer fields empty, and makes no provider call.
 
 ## Smoke Tests
 
@@ -117,6 +138,7 @@ npm run eval:targeted-remediation-manifest-smoke
 npm run eval:targeted-remediation-runner-smoke
 npm run eval:targeted-remediation-report-smoke
 npm run eval:targeted-remediation-blind-export-smoke
+npm run eval:ai-review-confirmation-smoke
 ```
 
 They verify the 22-output manifest, deterministic ordering, two repetitions per
