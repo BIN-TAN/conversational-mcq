@@ -8,10 +8,15 @@ import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
 import { rubricDefinitionForAgent } from "./rubrics";
 import { EvalServiceError } from "./errors";
 import {
+  EFFECTIVE_SYSTEM_RESULT_VERSION,
+  EFFECTIVE_SYSTEM_RESULT_VERSION_V1,
+  EFFECTIVE_SYSTEM_RESULT_VERSION_V2,
   EFFECTIVE_SYSTEM_REVIEW_TARGET,
   RAW_MODEL_REVIEW_TARGET,
+  type EffectiveSystemResultVersion,
   type EvalReviewTarget,
   buildEffectiveSystemArtifact,
+  parseEffectiveSystemResultVersion,
   parseEvalReviewTarget
 } from "./effective-system-artifacts";
 
@@ -580,12 +585,20 @@ function jsonl(records: unknown[]) {
   return `${records.map((record) => stableJson(record)).join("\n")}\n`;
 }
 
-export function blindReviewDirectory(runPublicId: string, reviewTarget: EvalReviewTarget = RAW_MODEL_REVIEW_TARGET) {
+export function blindReviewDirectory(
+  runPublicId: string,
+  reviewTarget: EvalReviewTarget = RAW_MODEL_REVIEW_TARGET,
+  effectiveResultVersion: EffectiveSystemResultVersion = EFFECTIVE_SYSTEM_RESULT_VERSION
+) {
   const base = path.join(process.cwd(), ".data", "eval-review", runPublicId);
 
-  return reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET
+  if (reviewTarget !== EFFECTIVE_SYSTEM_REVIEW_TARGET) {
+    return base;
+  }
+
+  return effectiveResultVersion === EFFECTIVE_SYSTEM_RESULT_VERSION_V1
     ? path.join(base, "effective-system")
-    : base;
+    : path.join(base, "effective-system-v2");
 }
 
 function blindEffectiveStructuredResult(artifact: ReturnType<typeof buildEffectiveSystemArtifact>) {
@@ -629,7 +642,11 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
-async function buildBlindReviewExportPayload(runPublicId: string, reviewTarget: EvalReviewTarget = RAW_MODEL_REVIEW_TARGET) {
+async function buildBlindReviewExportPayload(
+  runPublicId: string,
+  reviewTarget: EvalReviewTarget = RAW_MODEL_REVIEW_TARGET,
+  effectiveResultVersion: EffectiveSystemResultVersion = EFFECTIVE_SYSTEM_RESULT_VERSION
+) {
   const run = await prisma.evalRun.findUnique({
     where: { run_public_id: runPublicId },
     select: {
@@ -760,7 +777,7 @@ async function buildBlindReviewExportPayload(runPublicId: string, reviewTarget: 
 
   const blindRecords = orderedItems.map((item) => {
     const agentName = item.eval_case.agent_name as AgentNameType;
-    const effectiveArtifact = buildEffectiveSystemArtifact(item);
+    const effectiveArtifact = buildEffectiveSystemArtifact(item, { effectiveResultVersion });
 
     if (reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET) {
       return {
@@ -812,62 +829,80 @@ async function buildBlindReviewExportPayload(runPublicId: string, reviewTarget: 
     };
   });
 
-  const referenceRecords = orderedItems.map((item) => ({
-    review_item_id: reviewItemId(run.run_public_id, item.run_item_public_id),
-    run_item_public_id: item.run_item_public_id,
-    original_case_id: item.eval_case.case_id,
-    review_target: reviewTarget,
-    gold_labels: safeValue(item.eval_case.gold_labels),
-    expected_behavior: {
-      expected_output: safeValue(item.eval_case.expected_output),
-      rubric_expectations: safeValue(item.eval_case.rubric_expectations),
-      safety_expectations: safeValue(item.eval_case.safety_expectations)
-    },
-    ...(reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET
-      ? {
-          raw_and_effective_comparison: safeValue({
-            raw_output: item.parsed_output ?? item.raw_output,
-            raw_semantic_result: item.semantic_validation_result,
-            raw_safety_result: item.safety_validation_result,
-            effective_system_artifact: buildEffectiveSystemArtifact(item)
-          })
-        }
-      : {}),
-    automated_semantic_result: safeValue(item.semantic_validation_result),
-    automated_safety_result: safeValue(item.safety_validation_result),
-    automated_critical_flags: safeValue(
-      item.safety_validation_result &&
-        typeof item.safety_validation_result === "object" &&
-        !Array.isArray(item.safety_validation_result) &&
-        Array.isArray((item.safety_validation_result as { critical_failure_flags?: unknown }).critical_failure_flags)
-        ? (item.safety_validation_result as { critical_failure_flags: unknown[] }).critical_failure_flags
-        : []
-    ),
-    model_provider_prompt_metadata: {
-      run_mode: run.run_mode,
-      provider: run.provider,
-      model_name: run.model_name,
-      model_snapshot: item.model_snapshot ?? run.model_snapshot,
-      reasoning_effort: item.reasoning_effort ?? run.reasoning_effort,
-      max_output_tokens: item.max_output_tokens,
-      prompt_version: item.prompt_version ?? run.prompt_version,
-      schema_version: item.schema_version ?? run.schema_version,
-      prompt_hash: item.prompt_hash ?? run.prompt_hash,
-      case_manifest_hash: run.case_manifest_hash,
-      run_config_hash: run.run_config_hash,
-      canary_gate_status: run.canary_gate_status,
-      evaluation_phase: item.evaluation_phase ?? run.evaluation_phase,
-      evaluation_stratum: item.evaluation_stratum,
-      repetition_index: item.repetition_index,
-      paired_case_key: item.paired_case_key,
-      case_hash: item.case_hash,
-      approved_canary_run_public_id: run.approved_canary_run_public_id,
-      pilot_manifest_version: run.pilot_manifest_version,
-      pilot_manifest_hash: run.pilot_manifest_hash,
-      agent_configuration_hash: run.agent_configuration_hash,
-      ordering_algorithm_version: run.ordering_algorithm_version
-    }
-  }));
+  const referenceRecords = orderedItems.map((item) => {
+    const effectiveArtifact = buildEffectiveSystemArtifact(item, { effectiveResultVersion });
+    const previousEffectiveArtifact = reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET && effectiveResultVersion === EFFECTIVE_SYSTEM_RESULT_VERSION_V2
+      ? buildEffectiveSystemArtifact(item, { effectiveResultVersion: EFFECTIVE_SYSTEM_RESULT_VERSION_V1 })
+      : null;
+
+    return {
+      review_item_id: reviewItemId(run.run_public_id, item.run_item_public_id),
+      run_item_public_id: item.run_item_public_id,
+      original_case_id: item.eval_case.case_id,
+      review_target: reviewTarget,
+      effective_result_version:
+        reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET ? effectiveResultVersion : null,
+      gold_labels: safeValue(item.eval_case.gold_labels),
+      expected_behavior: {
+        expected_output: safeValue(item.eval_case.expected_output),
+        rubric_expectations: safeValue(item.eval_case.rubric_expectations),
+        safety_expectations: safeValue(item.eval_case.safety_expectations)
+      },
+      ...(reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET
+        ? {
+            raw_and_effective_comparison: safeValue({
+              raw_output: item.parsed_output ?? item.raw_output,
+              raw_semantic_result: item.semantic_validation_result,
+              raw_safety_result: item.safety_validation_result,
+              effective_system_artifact: effectiveArtifact
+            }),
+            previous_effective_result_hash: previousEffectiveArtifact?.effective_result_hash ?? null,
+            new_effective_result_hash: effectiveArtifact.effective_result_hash,
+            artifact_changed: previousEffectiveArtifact
+              ? previousEffectiveArtifact.effective_result_hash !== effectiveArtifact.effective_result_hash
+              : null,
+            change_reason: previousEffectiveArtifact &&
+              previousEffectiveArtifact.effective_result_hash !== effectiveArtifact.effective_result_hash
+                ? "effective-system-eval-v2 move-on fallback preserves student move-on intent"
+                : null
+          }
+        : {}),
+      automated_semantic_result: safeValue(item.semantic_validation_result),
+      automated_safety_result: safeValue(item.safety_validation_result),
+      automated_critical_flags: safeValue(
+        item.safety_validation_result &&
+          typeof item.safety_validation_result === "object" &&
+          !Array.isArray(item.safety_validation_result) &&
+          Array.isArray((item.safety_validation_result as { critical_failure_flags?: unknown }).critical_failure_flags)
+          ? (item.safety_validation_result as { critical_failure_flags: unknown[] }).critical_failure_flags
+          : []
+      ),
+      model_provider_prompt_metadata: {
+        run_mode: run.run_mode,
+        provider: run.provider,
+        model_name: run.model_name,
+        model_snapshot: item.model_snapshot ?? run.model_snapshot,
+        reasoning_effort: item.reasoning_effort ?? run.reasoning_effort,
+        max_output_tokens: item.max_output_tokens,
+        prompt_version: item.prompt_version ?? run.prompt_version,
+        schema_version: item.schema_version ?? run.schema_version,
+        prompt_hash: item.prompt_hash ?? run.prompt_hash,
+        case_manifest_hash: run.case_manifest_hash,
+        run_config_hash: run.run_config_hash,
+        canary_gate_status: run.canary_gate_status,
+        evaluation_phase: item.evaluation_phase ?? run.evaluation_phase,
+        evaluation_stratum: item.evaluation_stratum,
+        repetition_index: item.repetition_index,
+        paired_case_key: item.paired_case_key,
+        case_hash: item.case_hash,
+        approved_canary_run_public_id: run.approved_canary_run_public_id,
+        pilot_manifest_version: run.pilot_manifest_version,
+        pilot_manifest_hash: run.pilot_manifest_hash,
+        agent_configuration_hash: run.agent_configuration_hash,
+        ordering_algorithm_version: run.ordering_algorithm_version
+      }
+    };
+  });
 
   const annotationRows = orderedItems.map((item) => ({
     review_item_id: reviewItemId(run.run_public_id, item.run_item_public_id),
@@ -888,6 +923,7 @@ async function buildBlindReviewExportPayload(runPublicId: string, reviewTarget: 
   return {
     run,
     reviewTarget,
+    effectiveResultVersion,
     blindRecords,
     referenceRecords,
     annotationRows
@@ -952,9 +988,13 @@ export async function exportBlindReviewPacket(runPublicId: string) {
 export async function exportBlindReviewPacketForTarget(input: {
   runPublicId: string;
   reviewTarget?: string | null;
+  effectiveResultVersion?: string | null;
 }) {
   const reviewTarget = parseEvalReviewTarget(input.reviewTarget);
-  const payload = await buildBlindReviewExportPayload(input.runPublicId, reviewTarget);
+  const effectiveResultVersion = reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET
+    ? parseEffectiveSystemResultVersion(input.effectiveResultVersion)
+    : EFFECTIVE_SYSTEM_RESULT_VERSION;
+  const payload = await buildBlindReviewExportPayload(input.runPublicId, reviewTarget, effectiveResultVersion);
   const blind = processExportSafety(payload.blindRecords, "blind_review_packet.jsonl");
   const reference = processExportSafety(payload.referenceRecords, "review_reference.jsonl");
   const annotation = processExportSafety(payload.annotationRows, "annotation_template.csv");
@@ -965,7 +1005,7 @@ export async function exportBlindReviewPacketForTarget(input: {
     annotation
   });
 
-  const outputDir = blindReviewDirectory(payload.run.run_public_id, reviewTarget);
+  const outputDir = blindReviewDirectory(payload.run.run_public_id, reviewTarget, payload.effectiveResultVersion);
   await mkdir(outputDir, { recursive: true });
 
   const blindPacketPath = path.join(outputDir, "blind_review_packet.jsonl");
@@ -988,6 +1028,8 @@ export async function exportBlindReviewPacketForTarget(input: {
   return {
     run_public_id: payload.run.run_public_id,
     review_target: reviewTarget,
+    effective_result_version:
+      reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET ? payload.effectiveResultVersion : null,
     output_dir: outputDir,
     blind_review_packet_path: blindPacketPath,
     review_reference_path: referencePath,

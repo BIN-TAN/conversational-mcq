@@ -34,10 +34,11 @@ export async function addConfirmedPassAnnotations(prisma: PrismaClient, runPubli
   for (const item of run.run_items) {
     await prisma.evalAnnotation.upsert({
       where: {
-        run_item_db_id_annotated_by_user_db_id_review_target: {
+        run_item_db_id_annotated_by_user_db_id_review_target_review_artifact_version: {
           run_item_db_id: item.id,
           annotated_by_user_db_id: run.created_by.id,
-          review_target: "raw_model_output"
+          review_target: "raw_model_output",
+          review_artifact_version: "raw-model-output"
         }
       },
       create: {
@@ -49,6 +50,7 @@ export async function addConfirmedPassAnnotations(prisma: PrismaClient, runPubli
         annotation_source: "human_manual",
         annotation_status: "confirmed",
         review_target: "raw_model_output",
+        review_artifact_version: "raw-model-output",
         overall_rating: 3,
         pass_fail: "pass",
         rubric_scores: {

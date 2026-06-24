@@ -114,6 +114,7 @@ export type EvalAnnotationRow = {
   annotation_source: "human_manual" | "ai_assisted_preliminary" | "ai_agent_review";
   annotation_status: "draft" | "confirmed" | "ai_confirmed";
   review_target?: "raw_model_output" | "effective_system_output";
+  review_artifact_version?: string;
   overall_rating: number | null;
   pass_fail: string | null;
   rubric_scores: unknown;

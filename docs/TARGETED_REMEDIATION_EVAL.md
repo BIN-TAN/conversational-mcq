@@ -110,12 +110,29 @@ npm run eval:blind-review-export -- \
   --review-target effective_system_output
 ```
 
-This writes under `.data/eval-review/<run_public_id>/effective-system/`. The
-blind packet shows synthetic input, effective student-facing behavior, effective
-structured result, effective workflow actions, rubric, and safety expectations.
-It hides case ID, affected/control status, repetition index, raw failure status,
-fallback status, model/provider metadata, automated flags, and gold labels. The
-separate reference file keeps raw/effective comparison data for adjudication.
+This writes `effective-system-eval-v2` artifacts under
+`.data/eval-review/<run_public_id>/effective-system-v2/`. The blind packet
+shows synthetic input, effective student-facing behavior, effective structured
+result, effective workflow actions, rubric, and safety expectations. It hides
+case ID, affected/control status, repetition index, raw failure status, fallback
+status, previous review result, model/provider metadata, automated flags, and
+gold labels. The separate reference file keeps raw/effective comparison data for
+adjudication.
+
+The original `effective-system-eval-v1` artifacts for
+`evr_20260624_bltzgtq` remain preserved. Their AI-confirmed effective-system
+review is 20 Pass / 2 Fail, and both Fail judgments are the two
+`fua_move_on_offer_010` repetitions. The v1 failure was not a paid-model rerun
+issue; it was a deterministic fallback issue where an explicit student move-on
+request received another transfer task and `should_offer_move_on=false`.
+
+`effective-system-eval-v2` corrects only that fallback. A clear student
+move-on request is nonsubstantive conceptual evidence, sets
+`should_offer_move_on=true`, may request the technical final-follow-up update,
+prepares concept progression through backend-owned workflow actions, preserves
+unresolved-evidence confirmation, and does not directly mark the concept
+complete or choose the next concept. V2 annotations are pending until a new
+blind review is imported; v1 judgments must not be copied onto v2 hashes.
 
 ## Readiness Gates
 
@@ -131,6 +148,7 @@ Required effective-system gates:
 - terminal outputs = 22
 - schema pass rate = 100%
 - effective-system review annotations = 22
+- effective-system artifact version = `effective-system-eval-v2`
 - effective-system review critical failures = 0
 - estimated cost <= USD 10
 - all 22 effective results are safe and usable
@@ -158,7 +176,7 @@ Confirm an AI-agent blind review with:
 npm run eval:annotations:confirm-ai-review -- \
   --run <targeted_run_public_id> \
   --annotations <completed_annotation_csv_path> \
-  --reference .data/eval-review/<targeted_run_public_id>/effective-system/review_reference.jsonl \
+  --reference .data/eval-review/<targeted_run_public_id>/effective-system-v2/review_reference.jsonl \
   --reviewer-model gpt-5.5-pro \
   --review-target effective_system_output \
   --confirm-ai-review
@@ -180,6 +198,7 @@ npm run eval:targeted-remediation-blind-export-smoke
 npm run eval:ai-review-confirmation-smoke
 npm run eval:targeted-remediation-diagnostic-smoke
 npm run eval:effective-system-artifact-smoke
+npm run eval:effective-move-on-fallback-smoke
 npm run eval:effective-system-report-smoke
 npm run eval:effective-system-blind-export-smoke
 npm run eval:effective-system-annotation-smoke

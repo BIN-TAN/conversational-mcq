@@ -217,7 +217,11 @@ npm run eval:blind-review-export -- \
   --review-target effective_system_output
 ```
 
-This writes to `.data/eval-review/<targeted_run_public_id>/effective-system/`.
+This writes corrected `effective-system-eval-v2` artifacts to
+`.data/eval-review/<targeted_run_public_id>/effective-system-v2/`. The original
+`effective-system-eval-v1` artifacts remain reproducible under
+`.data/eval-review/<targeted_run_public_id>/effective-system/` by passing
+`--effective-result-version effective-system-eval-v1`.
 The effective blind packet shows effective student-facing behavior, effective
 structured result, and effective workflow actions. It hides raw model failure
 status and fallback status from the blind reviewer. The reference file keeps raw
@@ -225,9 +229,16 @@ output, deterministic guard, canonicalization, fallback, and raw/effective
 comparison data for adjudication.
 
 Targeted readiness requires confirmed effective-system annotations for all 22
-outputs. The readiness report keeps raw model quality and effective-system
-readiness separate; it does not claim classroom validity and it does not modify
-the frozen full-pilot run.
+v2 outputs. The readiness report keeps raw model quality, the preserved v1
+effective review, and v2 effective-system readiness separate; it does not claim
+classroom validity and it does not modify the frozen full-pilot run.
+
+For `evr_20260624_bltzgtq`, the stored `effective-system-eval-v1` AI review is
+20 Pass / 2 Fail with both Fail judgments on `fua_move_on_offer_010`. The v2
+fallback preserves explicit move-on intent, keeps the student-led asynchronous
+progression path, runs final update/progression preparation through backend
+workflow ownership, and keeps unresolved-evidence confirmation available. V2
+annotations remain pending until a new blind review is imported.
 
 ## AI-Agent Review Confirmation
 
@@ -250,6 +261,7 @@ npm run eval:annotations:confirm-ai-review -- \
 For effective-system review, use the effective reference file and add:
 
 ```bash
+  --reference .data/eval-review/<targeted_run_public_id>/effective-system-v2/review_reference.jsonl \
   --review-target effective_system_output
 ```
 
@@ -265,6 +277,7 @@ The command requires the explicit `--confirm-ai-review` flag and stores:
 - source run ID
 - import command version
 - review target
+- review artifact version
 
 It does not populate `confirmed_by_user_db_id`, `confirmed_at`, or any human
 confirmer field. The targeted remediation report displays AI-confirmed counts,
@@ -278,4 +291,6 @@ through the normal annotation workflow. A later human review sets human
 confirmation provenance and writes an audit revision; it must not erase the
 original AI-review provenance stored in the annotation history. Raw-output and
 effective-system AI reviews are separate annotation layers and must not
-overwrite each other.
+overwrite each other. `effective-system-eval-v1` and `effective-system-eval-v2`
+reviews are also separate annotation layers; v1 pass/fail judgments must not be
+carried onto changed v2 artifact hashes.

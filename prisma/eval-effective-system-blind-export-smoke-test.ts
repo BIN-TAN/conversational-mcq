@@ -32,7 +32,7 @@ async function main() {
     skip_empty_lines: true
   }) as Array<Record<string, string>>;
 
-  assert(exported.output_dir.endsWith("/effective-system"), "Effective export should use a separate ignored subdirectory.");
+  assert(exported.output_dir.endsWith("/effective-system-v2"), "Effective export should use a versioned ignored subdirectory.");
   assert(blind.length === 22, "Effective blind packet should contain 22 records.");
   assert(reference.length === 22, "Effective reference packet should contain 22 records.");
   assert(rows.length === 22, "Effective annotation template should contain 22 rows.");
@@ -67,8 +67,12 @@ async function main() {
   }
 
   assert(
-    reference.every((record) => record.review_target === "effective_system_output" && record.raw_and_effective_comparison),
-    "Effective reference file should retain raw/effective comparison data."
+    reference.every((record) =>
+      record.review_target === "effective_system_output" &&
+      record.effective_result_version === "effective-system-eval-v2" &&
+      record.raw_and_effective_comparison
+    ),
+    "Effective reference file should retain v2 raw/effective comparison data."
   );
 
   const after = await operationalCounts(prisma);

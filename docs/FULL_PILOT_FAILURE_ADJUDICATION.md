@@ -51,6 +51,16 @@ Follow-up: saved formative value and process events are backend-owned. Move-on
 requests are nonsubstantive technical final-update triggers, not new conceptual
 evidence.
 
+The first effective-system artifact version for the targeted run,
+`effective-system-eval-v1`, still failed the two `fua_move_on_offer_010`
+repetitions because its deterministic fallback assigned another transfer task
+and set `should_offer_move_on=false` after the student explicitly asked to move
+on. That v1 AI review is preserved as 20 Pass / 2 Fail. The corrected
+`effective-system-eval-v2` fallback keeps move-on student-led and asynchronous:
+it saves/prepares the final update and progression path, keeps unresolved
+evidence confirmation available, and does not directly advance the student.
+V2 requires a new blind review and does not inherit v1 judgments.
+
 Item Verification: duplicate findings remain advisory. A deterministic
 supplementary duplicate check can add an effective warning while preserving raw
 LLM verification separately.

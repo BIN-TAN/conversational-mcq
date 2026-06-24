@@ -15,11 +15,18 @@ import { validateItemVerificationOutputSemantics } from "@/lib/agents/item-verif
 
 export const RAW_MODEL_REVIEW_TARGET = "raw_model_output";
 export const EFFECTIVE_SYSTEM_REVIEW_TARGET = "effective_system_output";
-export const EFFECTIVE_SYSTEM_RESULT_VERSION = "effective-system-eval-v1";
+export const RAW_MODEL_REVIEW_ARTIFACT_VERSION = "raw-model-output";
+export const EFFECTIVE_SYSTEM_RESULT_VERSION_V1 = "effective-system-eval-v1";
+export const EFFECTIVE_SYSTEM_RESULT_VERSION_V2 = "effective-system-eval-v2";
+export const EFFECTIVE_SYSTEM_RESULT_VERSION = EFFECTIVE_SYSTEM_RESULT_VERSION_V2;
 
 export type EvalReviewTarget =
   | typeof RAW_MODEL_REVIEW_TARGET
   | typeof EFFECTIVE_SYSTEM_REVIEW_TARGET;
+
+export type EffectiveSystemResultVersion =
+  | typeof EFFECTIVE_SYSTEM_RESULT_VERSION_V1
+  | typeof EFFECTIVE_SYSTEM_RESULT_VERSION_V2;
 
 type EffectiveStatus =
   | "raw_semantic_valid"
@@ -42,6 +49,10 @@ type EvalRunItemForEffectiveArtifact = {
   };
 };
 
+type EffectiveSystemArtifactOptions = {
+  effectiveResultVersion?: EffectiveSystemResultVersion;
+};
+
 export function parseEvalReviewTarget(value?: string | null): EvalReviewTarget {
   if (!value || value === RAW_MODEL_REVIEW_TARGET) {
     return RAW_MODEL_REVIEW_TARGET;
@@ -52,6 +63,31 @@ export function parseEvalReviewTarget(value?: string | null): EvalReviewTarget {
   }
 
   throw new Error(`Unsupported review target: ${value}`);
+}
+
+export function parseEffectiveSystemResultVersion(value?: string | null): EffectiveSystemResultVersion {
+  if (!value || value === EFFECTIVE_SYSTEM_RESULT_VERSION) {
+    return EFFECTIVE_SYSTEM_RESULT_VERSION;
+  }
+
+  if (value === EFFECTIVE_SYSTEM_RESULT_VERSION_V1) {
+    return EFFECTIVE_SYSTEM_RESULT_VERSION_V1;
+  }
+
+  if (value === EFFECTIVE_SYSTEM_RESULT_VERSION_V2) {
+    return EFFECTIVE_SYSTEM_RESULT_VERSION_V2;
+  }
+
+  throw new Error(`Unsupported effective result version: ${value}`);
+}
+
+export function reviewArtifactVersionForTarget(input: {
+  reviewTarget: EvalReviewTarget;
+  effectiveResultVersion?: string | null;
+}) {
+  return input.reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET
+    ? parseEffectiveSystemResultVersion(input.effectiveResultVersion)
+    : RAW_MODEL_REVIEW_ARTIFACT_VERSION;
 }
 
 function stableJson(value: unknown): string {
@@ -465,10 +501,20 @@ function followupFallbackOutput(input: {
   currentFormativeValue: string;
   studentMessage: string | null;
   reason: string;
+  effectiveResultVersion: EffectiveSystemResultVersion;
 }) {
   const isOffTopic =
     input.rawOutput.off_topic_detected === true ||
     /talk about something else|off[-\s]?topic|unrelated/i.test(input.studentMessage ?? "");
+  const explicitMoveOnRequest = /\b(done|finished|move on|continue|next|ready to proceed|go ahead)\b/i.test(input.studentMessage ?? "");
+  const isMoveOnRequest =
+    input.effectiveResultVersion === EFFECTIVE_SYSTEM_RESULT_VERSION_V2 &&
+    explicitMoveOnRequest &&
+    (
+      input.rawOutput.followup_action_type === "move_on_offer" ||
+      input.rawOutput.should_offer_move_on === true ||
+      stringArray(input.rawOutput.evidence_trigger_reasons).includes("move_on_request")
+    );
   const byValue: Record<string, { action: string; message: string; evidenceRequest: string | null }> = {
     diagnostic_clarification: {
       action: "clarification_prompt",
@@ -496,7 +542,13 @@ function followupFallbackOutput(input: {
       evidenceRequest: "Apply the reasoning pattern to a similar case."
     }
   };
-  const fallback = isOffTopic
+  const fallback = isMoveOnRequest
+    ? {
+        action: "move_on_offer",
+        message: "You can move on when you are ready. I'll first save the current evidence and prepare the next step.",
+        evidenceRequest: null
+      }
+    : isOffTopic
     ? {
         action: "off_topic_redirect",
         message: "Let's return to the current assessment task. You can continue with the current question or explain your reasoning.",
@@ -515,26 +567,29 @@ function followupFallbackOutput(input: {
     followup_action_type: fallback.action,
     target_formative_value: input.currentFormativeValue,
     evidence_request: fallback.evidenceRequest,
-    expects_student_response: true,
-    evidence_trigger_candidate: false,
+    expects_student_response: !isMoveOnRequest,
+    evidence_trigger_candidate: isMoveOnRequest,
     student_turn_substantive: false,
-    evidence_trigger_reasons: [],
-    should_offer_move_on: false,
-    off_topic_detected: isOffTopic,
-    events_to_log: [
-      {
-        event_type: isOffTopic ? "off_topic_followup" : "followup_task_assigned",
-        event_category: "followup",
-        event_source: "backend",
-        payload: {
-          detail: "Deterministic effective-system fallback used for evaluation.",
-          reason: input.reason,
-          item_public_id: null,
-          followup_round_index: null,
-          event_count: null
-        }
-      }
-    ]
+    evidence_trigger_reasons: isMoveOnRequest ? ["move_on_request"] : [],
+    should_offer_move_on: isMoveOnRequest,
+    off_topic_detected: isMoveOnRequest ? false : isOffTopic,
+    events_to_log: isMoveOnRequest
+      ? []
+      : [
+          {
+            event_type: isOffTopic ? "off_topic_followup" : "followup_task_assigned",
+            event_category: "followup",
+            event_source: "backend",
+            payload: {
+              detail: "Deterministic effective-system fallback used for evaluation.",
+              reason: input.reason,
+              effective_result_version: input.effectiveResultVersion,
+              item_public_id: null,
+              followup_round_index: null,
+              event_count: null
+            }
+          }
+        ]
   };
 }
 
@@ -554,7 +609,7 @@ function safeFollowupEvents(output: Record<string, unknown>) {
     : [];
 }
 
-function followupArtifact(item: EvalRunItemForEffectiveArtifact) {
+function followupArtifact(item: EvalRunItemForEffectiveArtifact, options: Required<EffectiveSystemArtifactOptions>) {
   const input = record(item.input_payload);
   const output = record(item.parsed_output);
   const decision = record(input.latest_formative_decision);
@@ -577,7 +632,8 @@ function followupArtifact(item: EvalRunItemForEffectiveArtifact) {
       rawOutput: output,
       currentFormativeValue,
       studentMessage,
-      reason: fallbackReason
+      reason: fallbackReason,
+      effectiveResultVersion: options.effectiveResultVersion
     }) as AgentOutputByName["followup_agent"];
   } else {
     try {
@@ -595,7 +651,8 @@ function followupArtifact(item: EvalRunItemForEffectiveArtifact) {
         rawOutput: output,
         currentFormativeValue,
         studentMessage,
-        reason: fallbackReason
+        reason: fallbackReason,
+        effectiveResultVersion: options.effectiveResultVersion
       }) as AgentOutputByName["followup_agent"];
     }
   }
@@ -609,6 +666,12 @@ function followupArtifact(item: EvalRunItemForEffectiveArtifact) {
     evidence_trigger_reasons: effectiveOutput.evidence_trigger_reasons,
     should_offer_move_on: effectiveOutput.should_offer_move_on,
     student_turn_substantive: effectiveOutput.student_turn_substantive,
+    request_final_followup_update: effectiveOutput.should_offer_move_on === true,
+    prepare_concept_progression: effectiveOutput.should_offer_move_on === true,
+    offer_unresolved_evidence_confirmation_if_needed: effectiveOutput.should_offer_move_on === true,
+    assign_new_transfer_task: effectiveOutput.followup_action_type === "transfer_task",
+    direct_concept_completion: false,
+    direct_next_concept_selection: false,
     progression_event: false,
     profile_update_trigger: false,
     planning_update_trigger: false,
@@ -627,9 +690,19 @@ function followupArtifact(item: EvalRunItemForEffectiveArtifact) {
     deterministic_guard_applied: false,
     deterministic_guard_version: null,
     canonicalization_applied: fallbackApplied,
-    canonicalization_version: fallbackApplied ? "followup-safe-fallback-canonicalization-v1" : null,
+    canonicalization_version: fallbackApplied
+      ? options.effectiveResultVersion === EFFECTIVE_SYSTEM_RESULT_VERSION_V2
+        ? "followup-safe-fallback-canonicalization-v2"
+        : "followup-safe-fallback-canonicalization-v1"
+      : null,
     fallback_applied: fallbackApplied,
-    fallback_version: fallbackApplied ? "followup-safe-fallback-v1" : null,
+    fallback_version: fallbackApplied
+      ? effectiveOutput.should_offer_move_on === true
+        ? "followup-move-on-fallback-v2"
+        : options.effectiveResultVersion === EFFECTIVE_SYSTEM_RESULT_VERSION_V2
+          ? "followup-safe-fallback-v2"
+          : "followup-safe-fallback-v1"
+      : null,
     effective_student_message: effectiveOutput.assistant_message,
     effective_workflow_actions: workflowActions,
     effective_process_events: effectiveEvents,
@@ -814,21 +887,26 @@ function defaultArtifact(item: EvalRunItemForEffectiveArtifact) {
 
 export type EffectiveSystemArtifact = ReturnType<typeof buildEffectiveSystemArtifact>;
 
-export function buildEffectiveSystemArtifact(item: EvalRunItemForEffectiveArtifact) {
+export function buildEffectiveSystemArtifact(
+  item: EvalRunItemForEffectiveArtifact,
+  options: EffectiveSystemArtifactOptions = {}
+) {
   const agentName = item.eval_case.agent_name as AgentNameType;
   const rawSemanticStatus = semanticOk(item.semantic_validation_result);
+  const effectiveResultVersion = parseEffectiveSystemResultVersion(options.effectiveResultVersion);
+  const resolvedOptions = { effectiveResultVersion };
   const base =
     agentName === "response_collection_agent"
       ? responseCollectionArtifact(item)
       : agentName === "formative_value_and_planning_agent"
         ? planningArtifact(item)
         : agentName === "followup_agent"
-          ? followupArtifact(item)
+          ? followupArtifact(item, resolvedOptions)
           : agentName === "item_verification_agent"
             ? itemVerificationArtifact(item)
             : defaultArtifact(item);
   const artifactWithoutHash = {
-    effective_result_version: EFFECTIVE_SYSTEM_RESULT_VERSION,
+    effective_result_version: effectiveResultVersion,
     agent_name: agentName,
     case_id: item.eval_case.case_id,
     run_item_public_id: item.run_item_public_id,

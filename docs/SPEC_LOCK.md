@@ -859,11 +859,23 @@ Phase 6A.5 must not implement:
 - Raw-output reviews use `review_target=raw_model_output`; effective-system
   reviews use `review_target=effective_system_output`. These review layers must
   coexist and must not overwrite each other.
+- Annotation review layers are also artifact-versioned. Raw reviews use
+  `review_artifact_version=raw-model-output`. The preserved
+  `effective-system-eval-v1` review for `evr_20260624_bltzgtq` is 20 Pass / 2
+  Fail and remains the review of v1 artifact hashes only. Corrected
+  `effective-system-eval-v2` artifacts require a new blind review; v1 judgments
+  must not be copied onto v2.
 - Effective-system artifacts are eval-only derived evidence. They may include
   deterministic duplicate safeguards, backend-owned response-control
   canonicalization, planning canonicalization/fallback, and follow-up safe
   fallback. They must not modify raw provider outputs or operational classroom
   records.
+- The v2 Follow-up move-on fallback must preserve explicit student move-on
+  intent. A clear move-on request is nonsubstantive conceptual evidence, may
+  trigger the technical final-update/progression-preparation path, must keep
+  unresolved-evidence confirmation available, and must not assign another
+  transfer task, directly complete the concept, choose the next concept, reveal
+  profile/formative labels, or require live teacher approval.
 - A safeguarded raw model failure may support provisional engineering readiness
   only when the effective artifact shows zero student-facing failures, zero
   workflow failures, zero effective critical failures, all effective results

@@ -38,7 +38,11 @@ import {
   loadTargetedRemediationManifest
 } from "./targeted-remediation-manifest";
 import {
+  EFFECTIVE_SYSTEM_RESULT_VERSION,
+  EFFECTIVE_SYSTEM_RESULT_VERSION_V1,
+  EFFECTIVE_SYSTEM_RESULT_VERSION_V2,
   EFFECTIVE_SYSTEM_REVIEW_TARGET,
+  RAW_MODEL_REVIEW_ARTIFACT_VERSION,
   RAW_MODEL_REVIEW_TARGET,
   buildEffectiveSystemArtifact,
   effectiveArtifactHasCriticalFailure,
@@ -1338,22 +1342,52 @@ function annotationTarget<T extends { review_target?: string | null }>(annotatio
   return annotation.review_target ?? RAW_MODEL_REVIEW_TARGET;
 }
 
-function confirmedAnnotations<T extends { annotation_status?: string | null; review_target?: string | null }>(
-  annotations: T[],
-  reviewTarget = RAW_MODEL_REVIEW_TARGET
-) {
-  return annotations.filter((annotation) => annotation.annotation_status === "confirmed" && annotationTarget(annotation) === reviewTarget);
+function annotationArtifactVersion<T extends { review_artifact_version?: string | null; review_target?: string | null }>(annotation: T) {
+  if (annotation.review_artifact_version) {
+    return annotation.review_artifact_version;
+  }
+
+  return annotationTarget(annotation) === EFFECTIVE_SYSTEM_REVIEW_TARGET
+    ? EFFECTIVE_SYSTEM_RESULT_VERSION_V1
+    : RAW_MODEL_REVIEW_ARTIFACT_VERSION;
 }
 
-function aiConfirmedAnnotations<T extends { annotation_source?: string | null; annotation_status?: string | null; review_target?: string | null }>(
+function confirmedAnnotations<T extends {
+  annotation_status?: string | null;
+  review_target?: string | null;
+  review_artifact_version?: string | null;
+}>(
   annotations: T[],
-  reviewTarget = RAW_MODEL_REVIEW_TARGET
+  reviewTarget = RAW_MODEL_REVIEW_TARGET,
+  reviewArtifactVersion = reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET
+    ? EFFECTIVE_SYSTEM_RESULT_VERSION
+    : RAW_MODEL_REVIEW_ARTIFACT_VERSION
+) {
+  return annotations.filter((annotation) =>
+    annotation.annotation_status === "confirmed" &&
+    annotationTarget(annotation) === reviewTarget &&
+    annotationArtifactVersion(annotation) === reviewArtifactVersion
+  );
+}
+
+function aiConfirmedAnnotations<T extends {
+  annotation_source?: string | null;
+  annotation_status?: string | null;
+  review_target?: string | null;
+  review_artifact_version?: string | null;
+}>(
+  annotations: T[],
+  reviewTarget = RAW_MODEL_REVIEW_TARGET,
+  reviewArtifactVersion = reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET
+    ? EFFECTIVE_SYSTEM_RESULT_VERSION
+    : RAW_MODEL_REVIEW_ARTIFACT_VERSION
 ) {
   return annotations.filter(
     (annotation) =>
       annotation.annotation_source === "ai_agent_review" &&
       annotation.annotation_status === "ai_confirmed" &&
-      annotationTarget(annotation) === reviewTarget
+      annotationTarget(annotation) === reviewTarget &&
+      annotationArtifactVersion(annotation) === reviewArtifactVersion
   );
 }
 
@@ -1386,6 +1420,7 @@ type TargetedReportRunItem = {
     annotation_source: string | null;
     annotation_status: string | null;
     review_target?: string | null;
+    review_artifact_version?: string | null;
     pass_fail: string | null;
     overall_rating: number | null;
     safety_flags: unknown;
@@ -1514,12 +1549,20 @@ function annotationEntriesForReviewSource<
   pass_fail: string | null;
   safety_flags: unknown;
   review_target?: string | null;
+  review_artifact_version?: string | null;
 }
->(items: Item[], reviewSource: "human_manual" | "ai_agent_review", reviewTarget = RAW_MODEL_REVIEW_TARGET): Array<{ item: Item; annotation: T }> {
+>(
+  items: Item[],
+  reviewSource: "human_manual" | "ai_agent_review",
+  reviewTarget = RAW_MODEL_REVIEW_TARGET,
+  reviewArtifactVersion = reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET
+    ? EFFECTIVE_SYSTEM_RESULT_VERSION
+    : RAW_MODEL_REVIEW_ARTIFACT_VERSION
+): Array<{ item: Item; annotation: T }> {
   return items.flatMap((item) => {
     const annotations = reviewSource === "ai_agent_review"
-      ? aiConfirmedAnnotations(item.annotations, reviewTarget)
-      : confirmedAnnotations(item.annotations, reviewTarget);
+      ? aiConfirmedAnnotations(item.annotations, reviewTarget, reviewArtifactVersion)
+      : confirmedAnnotations(item.annotations, reviewTarget, reviewArtifactVersion);
 
     return annotations.map((annotation) => ({ item, annotation }));
   });
@@ -1546,9 +1589,15 @@ function failedAnnotationDetails(entries: Array<{
     }));
 }
 
-function sectionMetrics(items: TargetedReportRunItem[], reviewTarget = RAW_MODEL_REVIEW_TARGET) {
-  const humanAnnotations = annotationEntriesForReviewSource(items, "human_manual", reviewTarget);
-  const aiAnnotations = annotationEntriesForReviewSource(items, "ai_agent_review", reviewTarget);
+function sectionMetrics(
+  items: TargetedReportRunItem[],
+  reviewTarget = RAW_MODEL_REVIEW_TARGET,
+  reviewArtifactVersion = reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET
+    ? EFFECTIVE_SYSTEM_RESULT_VERSION
+    : RAW_MODEL_REVIEW_ARTIFACT_VERSION
+) {
+  const humanAnnotations = annotationEntriesForReviewSource(items, "human_manual", reviewTarget, reviewArtifactVersion);
+  const aiAnnotations = annotationEntriesForReviewSource(items, "ai_agent_review", reviewTarget, reviewArtifactVersion);
   const humanCriticalFlags = humanAnnotations.flatMap((entry) => flagsFromAnnotation(entry.annotation));
   const aiCriticalFlags = aiAnnotations.flatMap((entry) => flagsFromAnnotation(entry.annotation));
 
@@ -1606,9 +1655,30 @@ export async function createTargetedRemediationReadinessReport(runPublicId: stri
   const overall = sectionMetrics(run.run_items, RAW_MODEL_REVIEW_TARGET);
   const affected = sectionMetrics(run.run_items.filter((item) => item.evaluation_stratum === "affected"), RAW_MODEL_REVIEW_TARGET);
   const control = sectionMetrics(run.run_items.filter((item) => item.evaluation_stratum === "control"), RAW_MODEL_REVIEW_TARGET);
-  const rawAiAnnotations = annotationEntriesForReviewSource(run.run_items, "ai_agent_review", RAW_MODEL_REVIEW_TARGET);
-  const rawHumanAnnotations = annotationEntriesForReviewSource(run.run_items, "human_manual", RAW_MODEL_REVIEW_TARGET);
-  const effectiveAiAnnotations = annotationEntriesForReviewSource(run.run_items, "ai_agent_review", EFFECTIVE_SYSTEM_REVIEW_TARGET);
+  const rawAiAnnotations = annotationEntriesForReviewSource(
+    run.run_items,
+    "ai_agent_review",
+    RAW_MODEL_REVIEW_TARGET,
+    RAW_MODEL_REVIEW_ARTIFACT_VERSION
+  );
+  const rawHumanAnnotations = annotationEntriesForReviewSource(
+    run.run_items,
+    "human_manual",
+    RAW_MODEL_REVIEW_TARGET,
+    RAW_MODEL_REVIEW_ARTIFACT_VERSION
+  );
+  const effectiveV1AiAnnotations = annotationEntriesForReviewSource(
+    run.run_items,
+    "ai_agent_review",
+    EFFECTIVE_SYSTEM_REVIEW_TARGET,
+    EFFECTIVE_SYSTEM_RESULT_VERSION_V1
+  );
+  const effectiveAiAnnotations = annotationEntriesForReviewSource(
+    run.run_items,
+    "ai_agent_review",
+    EFFECTIVE_SYSTEM_REVIEW_TARGET,
+    EFFECTIVE_SYSTEM_RESULT_VERSION_V2
+  );
   const reviewSource = effectiveAiAnnotations.length === EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS
     ? "ai_agent_review"
     : "none";
@@ -1660,6 +1730,26 @@ export async function createTargetedRemediationReadinessReport(runPublicId: stri
     ai_critical_failure_count: reviewCriticalFlags.length,
     failed_case_ids: [...new Set(effectiveAiAnnotations.filter((entry) => entry.annotation.pass_fail === "fail").map((entry) => entry.item.eval_case.case_id))],
     artifact_version: effectiveArtifacts[0]?.artifact.effective_result_version ?? null
+  };
+  const effectiveSystemV1Review = {
+    review_target: EFFECTIVE_SYSTEM_REVIEW_TARGET,
+    artifact_version: EFFECTIVE_SYSTEM_RESULT_VERSION_V1,
+    ai_confirmed_annotations: effectiveV1AiAnnotations.length,
+    pass_count: effectiveV1AiAnnotations.filter((entry) => entry.annotation.pass_fail === "pass").length,
+    fail_count: effectiveV1AiAnnotations.filter((entry) => entry.annotation.pass_fail === "fail").length,
+    critical_failure_count: effectiveV1AiAnnotations.flatMap((entry) => flagsFromAnnotation(entry.annotation)).length,
+    failed_case_ids: [...new Set(effectiveV1AiAnnotations.filter((entry) => entry.annotation.pass_fail === "fail").map((entry) => entry.item.eval_case.case_id))],
+    failed_review_items: failedAnnotationDetails(effectiveV1AiAnnotations),
+    preserved_for_artifact_version: EFFECTIVE_SYSTEM_RESULT_VERSION_V1
+  };
+  const effectiveSystemV2Review = {
+    review_target: EFFECTIVE_SYSTEM_REVIEW_TARGET,
+    artifact_version: EFFECTIVE_SYSTEM_RESULT_VERSION_V2,
+    ai_confirmed_annotations: effectiveAiAnnotations.length,
+    pass_count: effectiveAiAnnotations.filter((entry) => entry.annotation.pass_fail === "pass").length,
+    fail_count: effectiveAiAnnotations.filter((entry) => entry.annotation.pass_fail === "fail").length,
+    critical_failure_count: reviewCriticalFlags.length,
+    annotations_pending: effectiveAiAnnotations.length !== EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS
   };
   const controlPassByAgent = EVAL_TARGETED_REMEDIATION_AGENT_ORDER.map((agentName) => {
     const agentControl = reviewAnnotations.filter((entry) =>
@@ -1755,10 +1845,13 @@ export async function createTargetedRemediationReadinessReport(runPublicId: stri
     control,
     overall,
     raw_model_quality: rawModelQuality,
+    effective_system_v1_review: effectiveSystemV1Review,
+    effective_system_v2_review: effectiveSystemV2Review,
     effective_system_readiness: effectiveSystemReadiness,
     selected_review: {
       review_source: reviewSource,
       review_target: EFFECTIVE_SYSTEM_REVIEW_TARGET,
+      review_artifact_version: EFFECTIVE_SYSTEM_RESULT_VERSION_V2,
       annotation_count: reviewAnnotations.length,
       pass_count: reviewAnnotations.filter((entry) => entry.annotation.pass_fail === "pass").length,
       fail_count: reviewAnnotations.filter((entry) => entry.annotation.pass_fail === "fail").length,

@@ -99,6 +99,7 @@ async function main() {
   assert(rawResult.ai_fail_count === 2, "Raw-output AI review should preserve raw failures.");
   assert(effectiveResult.ai_fail_count === 0, "Effective-system AI review should accept independent pass/fail distribution.");
   assert(effectiveResult.imported_as.review_target === "effective_system_output", "Effective review target should be stored.");
+  assert(effectiveResult.imported_as.review_artifact_version === "effective-system-eval-v2", "Effective review artifact version should be stored.");
 
   const annotations = await prisma.evalAnnotation.findMany({
     where: { run_item: { run: { run_public_id: summary.run_public_id } } },
@@ -114,6 +115,10 @@ async function main() {
   assert(
     annotations.filter((annotation) => annotation.review_target === "effective_system_output" && annotation.pass_fail === "pass").length === 22,
     "Effective annotations should be independent from raw annotations."
+  );
+  assert(
+    annotations.filter((annotation) => annotation.review_target === "effective_system_output" && annotation.review_artifact_version === "effective-system-eval-v2").length === 22,
+    "Effective annotations should be versioned as v2."
   );
 
   const repeated = await confirmAiReviewAnnotationsForRun({

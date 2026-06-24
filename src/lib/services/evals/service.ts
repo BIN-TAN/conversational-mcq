@@ -12,7 +12,7 @@ import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
 import type { PublicUser } from "@/types/auth";
 import { EvalServiceError } from "./errors";
-import { RAW_MODEL_REVIEW_TARGET } from "./effective-system-artifacts";
+import { RAW_MODEL_REVIEW_ARTIFACT_VERSION, RAW_MODEL_REVIEW_TARGET } from "./effective-system-artifacts";
 import { loadEvalFixtureCases } from "./fixtures";
 import { allRubricDefinitions, rubricDefinitionForAgent } from "./rubrics";
 import {
@@ -47,6 +47,8 @@ function annotationSnapshot(annotation: {
   blind_review: boolean;
   annotation_source: string;
   annotation_status: string;
+  review_target?: string | null;
+  review_artifact_version?: string | null;
   reviewer_model?: string | null;
   review_method?: string | null;
   reviewed_at?: Date | null;
@@ -70,6 +72,8 @@ function annotationSnapshot(annotation: {
     blind_review: annotation.blind_review,
     annotation_source: annotation.annotation_source,
     annotation_status: annotation.annotation_status,
+    review_target: annotation.review_target ?? RAW_MODEL_REVIEW_TARGET,
+    review_artifact_version: annotation.review_artifact_version ?? RAW_MODEL_REVIEW_ARTIFACT_VERSION,
     reviewer_model: annotation.reviewer_model ?? null,
     review_method: annotation.review_method ?? null,
     reviewed_at: annotation.reviewed_at?.toISOString() ?? null,
@@ -803,10 +807,11 @@ export async function upsertEvalAnnotation(
   const annotation = await prisma.$transaction(async (tx) => {
     const existing = await tx.evalAnnotation.findUnique({
       where: {
-        run_item_db_id_annotated_by_user_db_id_review_target: {
+        run_item_db_id_annotated_by_user_db_id_review_target_review_artifact_version: {
           run_item_db_id: runItem.id,
           annotated_by_user_db_id: teacher.id,
-          review_target: RAW_MODEL_REVIEW_TARGET
+          review_target: RAW_MODEL_REVIEW_TARGET,
+          review_artifact_version: RAW_MODEL_REVIEW_ARTIFACT_VERSION
         }
       }
     });
@@ -817,6 +822,7 @@ export async function upsertEvalAnnotation(
       annotation_source: "human_manual",
       annotation_status: "confirmed",
       review_target: RAW_MODEL_REVIEW_TARGET,
+      review_artifact_version: RAW_MODEL_REVIEW_ARTIFACT_VERSION,
       reviewer_model: null,
       review_method: null,
       reviewed_at: null,

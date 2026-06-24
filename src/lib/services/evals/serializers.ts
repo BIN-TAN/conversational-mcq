@@ -153,6 +153,7 @@ export function serializeEvalAnnotation(annotation: {
   annotation_source: string;
   annotation_status: string;
   review_target?: string | null;
+  review_artifact_version?: string | null;
   reviewer_model?: string | null;
   review_method?: string | null;
   reviewed_at?: Date | null;
@@ -181,6 +182,7 @@ export function serializeEvalAnnotation(annotation: {
     annotation_source: annotation.annotation_source,
     annotation_status: annotation.annotation_status,
     review_target: annotation.review_target ?? "raw_model_output",
+    review_artifact_version: annotation.review_artifact_version ?? "raw-model-output",
     reviewer_model: annotation.reviewer_model ?? null,
     review_method: annotation.review_method ?? null,
     reviewed_at: serializeEvalDate(annotation.reviewed_at ?? null),

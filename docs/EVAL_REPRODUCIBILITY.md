@@ -184,6 +184,8 @@ AI-confirmed annotations use:
 - `annotation_source=ai_agent_review`
 - `annotation_status=ai_confirmed`
 - `review_target=raw_model_output` or `effective_system_output`
+- `review_artifact_version=raw-model-output`, `effective-system-eval-v1`, or
+  `effective-system-eval-v2`
 - `confirmed_by_user_db_id=null`
 - `confirmed_at=null`
 
@@ -198,7 +200,8 @@ revision and preserves the original AI-review snapshot.
 Effective-system evaluation derives a versioned artifact from each eval run item
 without modifying raw provider output:
 
-- `effective_result_version=effective-system-eval-v1`
+- `effective_result_version=effective-system-eval-v2` for the current corrected
+  effective-system layer
 - raw output status and raw semantic status
 - deterministic guard flags and versions
 - canonicalization flags and versions
@@ -212,6 +215,16 @@ without modifying raw provider output:
 The artifact is eval-only evidence. It must not create operational agent calls,
 student profiles, formative decisions, follow-up rounds, process events, item
 verification runs, workflow jobs, sessions, responses, content changes, roster
-changes, account changes, or exports. Effective blind review packets are written
-under `.data/eval-review/<run_public_id>/effective-system/` and are not tracked
-by Git.
+changes, account changes, or exports.
+
+`effective-system-eval-v1` remains reproducible for audit. For
+`evr_20260624_bltzgtq`, v1 has a stored 20 Pass / 2 Fail AI review; both Fail
+judgments are `fua_move_on_offer_010`. `effective-system-eval-v2` corrects the
+deterministic move-on fallback only. Its artifact hash includes the artifact
+version and fallback version (`followup-move-on-fallback-v2`), so v1 review
+judgments must not be applied to v2 artifacts.
+
+Effective blind review packets for v2 are written under
+`.data/eval-review/<run_public_id>/effective-system-v2/` and are not tracked by
+Git. V1 can be reproduced under `.data/eval-review/<run_public_id>/effective-system/`
+with `--effective-result-version effective-system-eval-v1`.

@@ -991,6 +991,16 @@ derived artifacts that include deterministic safeguards, backend
 canonicalization, and safe fallbacks, and is stored separately with
 `review_target=effective_system_output`.
 
+For `evr_20260624_bltzgtq`, the raw-model AI review remains 20 Pass / 2 Fail.
+The original effective-system artifact version `effective-system-eval-v1` is
+also preserved with 20 Pass / 2 Fail; both Fail judgments were the two
+`fua_move_on_offer_010` repetitions, where the v1 fallback ignored the
+student's explicit move-on request and assigned another transfer task. The
+corrected artifact version is `effective-system-eval-v2`; it keeps move-on
+student-led and asynchronous by preparing the final update/progression path
+without directly advancing the student or bypassing unresolved-evidence
+confirmation. V2 requires a new blind review and must not reuse v1 judgments.
+
 Generate the effective-system blind packet with:
 
 ```bash
@@ -999,13 +1009,21 @@ npm run eval:blind-review-export -- \
   --review-target effective_system_output
 ```
 
+By default this writes `effective-system-eval-v2` artifacts under
+`.data/eval-review/<targeted_run_public_id>/effective-system-v2/`. To reproduce
+the preserved v1 packet, add:
+
+```bash
+  --effective-result-version effective-system-eval-v1
+```
+
 Confirm an externally reviewed effective-system packet with:
 
 ```bash
 npm run eval:annotations:confirm-ai-review -- \
   --run <targeted_run_public_id> \
   --annotations <completed_effective_annotation_csv_path> \
-  --reference .data/eval-review/<targeted_run_public_id>/effective-system/review_reference.jsonl \
+  --reference .data/eval-review/<targeted_run_public_id>/effective-system-v2/review_reference.jsonl \
   --reviewer-model gpt-5.5-pro \
   --review-target effective_system_output \
   --confirm-ai-review
@@ -1015,6 +1033,7 @@ Additional no-provider smoke checks:
 
 ```bash
 npm run eval:effective-system-artifact-smoke
+npm run eval:effective-move-on-fallback-smoke
 npm run eval:effective-system-report-smoke
 npm run eval:effective-system-blind-export-smoke
 npm run eval:effective-system-annotation-smoke
