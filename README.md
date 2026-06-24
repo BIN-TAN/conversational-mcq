@@ -836,6 +836,22 @@ critical-failure flags, and then reports pass/fail totals as calculated results.
 No pass/fail distribution is hardcoded; the same importer supports the 25-item
 canary and future larger pilot runs.
 
+Confirmed annotations may be amended only after explicit unblinded researcher
+adjudication. The guarded CLI preserves pass/fail, overall rating, rubric
+scores, annotation source, confirmer, confirmation timestamp, model outputs, and
+automated findings; it writes `eval_annotation_revisions` before changing the
+current confirmed annotation fields:
+
+```bash
+npm run eval:annotations:amend-confirmed -- \
+  --run <run_public_id> \
+  --case <case_id> \
+  --remove-critical-flag <critical_failure_flag> \
+  --confirm-researcher-instruction
+```
+
+Removing a human critical-failure flag does not convert a Fail into a Pass.
+
 Do not paste the API key into chat or a browser form. Keep classroom settings as `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`.
 
 Offline verification commands:
@@ -845,6 +861,7 @@ npm run eval:blind-review-export-smoke
 npm run eval:blind-review-secret-scan-smoke
 npm run eval:annotation-import-smoke
 npm run eval:annotation-adjudication-smoke
+npm run eval:confirmed-annotation-amendment-smoke
 npm run eval:structured-output-compat-smoke
 npm run eval:live-canary-runner-smoke
 npm run eval:usage-parser-smoke

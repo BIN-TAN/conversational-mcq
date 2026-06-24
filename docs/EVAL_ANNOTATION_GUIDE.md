@@ -155,6 +155,31 @@ batch confirmation action requires this exact attestation:
 I reviewed the imported annotation decisions and accept them as my confirmed evaluation judgments.
 ```
 
+## Confirmed Annotation Amendments
+
+Confirmed annotations are research records. They may be amended only after an
+explicit unblinded researcher adjudication instruction. The amendment command is
+guarded and requires `--confirm-researcher-instruction`:
+
+```bash
+npm run eval:annotations:amend-confirmed -- \
+  --run <run_public_id> \
+  --case <case_id> \
+  --remove-critical-flag <critical_failure_flag> \
+  --confirm-researcher-instruction
+```
+
+This administrative amendment path is not a new model judgment. It preserves
+the model output, automated semantic result, automated safety result, automated
+critical flags, pass/fail judgment, overall rating, rubric scores, annotation
+source, confirmer, and confirmation timestamp. Before each current annotation
+is changed, the previous and new snapshots are written to
+`eval_annotation_revisions` with `amendment_source=researcher_instruction`.
+
+Removing a human critical-failure flag does not turn a Fail into a Pass. The
+human pass/fail decision remains the researcher judgment that readiness reports
+use for pass-rate and stability gates.
+
 The readiness report should be run after confirmation:
 
 ```bash

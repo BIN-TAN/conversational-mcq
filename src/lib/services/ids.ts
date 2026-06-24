@@ -20,6 +20,7 @@ export type PublicIdKind =
   | "eval_run"
   | "eval_run_item"
   | "eval_annotation"
+  | "eval_annotation_revision"
   | "eval_rubric";
 
 const prefixes: Record<PublicIdKind, string> = {
@@ -42,6 +43,7 @@ const prefixes: Record<PublicIdKind, string> = {
   eval_run: "evr",
   eval_run_item: "evi",
   eval_annotation: "eva",
+  eval_annotation_revision: "evar",
   eval_rubric: "evrub"
 };
 

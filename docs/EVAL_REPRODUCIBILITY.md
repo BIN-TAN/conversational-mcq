@@ -113,6 +113,13 @@ readiness report preserves automated screening flags, confirmed human critical
 flags, human failed case IDs, and auto-human disagreement counts as distinct
 fields.
 
+Confirmed annotation amendments are separate administrative events. They require
+explicit researcher instruction and are recorded in `eval_annotation_revisions`
+with the previous and new annotation snapshots. Amendments preserve original
+confirmation provenance and do not rewrite model outputs, automated semantic
+results, automated safety results, or automated critical flags. Removing a human
+critical-failure flag does not change the human pass/fail judgment.
+
 The Phase 7E2A quality patch preserves baseline run `evr_20260623_1sjeh1q`
 unchanged. Fresh canaries after the patch must record the new prompt versions,
 prompt hashes, semantic evaluator version `eval-semantic-v2`, safety evaluator

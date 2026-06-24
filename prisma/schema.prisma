@@ -401,6 +401,7 @@ model User {
   created_eval_runs                         EvalRun[]                     @relation("EvalRunCreator")
   eval_annotations                          EvalAnnotation[]              @relation("EvalAnnotationAuthor")
   confirmed_eval_annotations                EvalAnnotation[]              @relation("EvalAnnotationConfirmer")
+  amended_eval_annotation_revisions         EvalAnnotationRevision[]      @relation("EvalAnnotationRevisionAmender")
 
   @@map("users")
 }
@@ -977,9 +978,10 @@ model EvalRunItem {
   created_at                 DateTime  @default(now()) @db.Timestamptz(6)
   updated_at                 DateTime  @updatedAt @db.Timestamptz(6)
 
-  run         EvalRun          @relation(fields: [run_db_id], references: [id], onDelete: Restrict)
-  eval_case   EvalCase         @relation(fields: [case_db_id], references: [id], onDelete: Restrict)
-  annotations EvalAnnotation[]
+  run                     EvalRun                  @relation(fields: [run_db_id], references: [id], onDelete: Restrict)
+  eval_case               EvalCase                 @relation(fields: [case_db_id], references: [id], onDelete: Restrict)
+  annotations             EvalAnnotation[]
+  evalAnnotationRevisions EvalAnnotationRevision[]
 
   @@unique([run_db_id, case_db_id, repetition_index])
   @@index([run_db_id, created_at])
@@ -1013,9 +1015,10 @@ model EvalAnnotation {
   created_at              DateTime  @default(now()) @db.Timestamptz(6)
   updated_at              DateTime  @updatedAt @db.Timestamptz(6)
 
-  run_item     EvalRunItem @relation(fields: [run_item_db_id], references: [id], onDelete: Restrict)
-  annotated_by User        @relation("EvalAnnotationAuthor", fields: [annotated_by_user_db_id], references: [id], onDelete: Restrict)
-  confirmed_by User?       @relation("EvalAnnotationConfirmer", fields: [confirmed_by_user_db_id], references: [id], onDelete: Restrict)
+  run_item     EvalRunItem              @relation(fields: [run_item_db_id], references: [id], onDelete: Restrict)
+  annotated_by User                     @relation("EvalAnnotationAuthor", fields: [annotated_by_user_db_id], references: [id], onDelete: Restrict)
+  confirmed_by User?                    @relation("EvalAnnotationConfirmer", fields: [confirmed_by_user_db_id], references: [id], onDelete: Restrict)
+  revisions    EvalAnnotationRevision[]
 
   @@unique([run_item_db_id, annotated_by_user_db_id])
   @@index([annotated_by_user_db_id, created_at])
@@ -1024,6 +1027,29 @@ model EvalAnnotation {
   @@index([annotation_status])
   @@index([pass_fail])
   @@map("eval_annotations")
+}
+
+model EvalAnnotationRevision {
+  id                           String   @id @default(uuid()) @db.Uuid
+  revision_public_id           String   @unique @default(cuid())
+  annotation_db_id             String   @db.Uuid
+  run_item_db_id               String   @db.Uuid
+  amended_by_user_db_id        String   @db.Uuid
+  amendment_source             String
+  amendment_reason             String   @db.Text
+  previous_annotation_snapshot Json
+  new_annotation_snapshot      Json
+  created_at                   DateTime @default(now()) @db.Timestamptz(6)
+
+  annotation EvalAnnotation @relation(fields: [annotation_db_id], references: [id], onDelete: Restrict)
+  run_item   EvalRunItem    @relation(fields: [run_item_db_id], references: [id], onDelete: Restrict)
+  amended_by User           @relation("EvalAnnotationRevisionAmender", fields: [amended_by_user_db_id], references: [id], onDelete: Restrict)
+
+  @@index([annotation_db_id, created_at])
+  @@index([run_item_db_id, created_at])
+  @@index([amended_by_user_db_id, created_at])
+  @@index([amendment_source])
+  @@map("eval_annotation_revisions")
 }
 
 model EvalRubric {

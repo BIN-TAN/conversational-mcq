@@ -93,11 +93,32 @@ The deterministic report recommendation is one of:
 The report is labelled `full pilot readiness` and `classroom_validity=false`.
 It is not classroom validation.
 
+## Confirmed Annotation Amendments
+
+After blind review and confirmation, a confirmed annotation can be amended only
+as an administrative application of explicit researcher adjudication. Use the
+guarded command:
+
+```bash
+npm run eval:annotations:amend-confirmed -- \
+  --run <pilot_run_public_id> \
+  --case <case_id> \
+  --remove-critical-flag <critical_failure_flag> \
+  --confirm-researcher-instruction
+```
+
+The command operates transactionally, requires exactly two pilot repetitions for
+the target case, preserves pass/fail, overall rating, rubric scores, annotation
+source, confirmer, and confirmation timestamp, and records revision snapshots in
+`eval_annotation_revisions`. Automated findings remain separate and unchanged.
+Removing a human critical-failure flag does not make a failed case pass.
+
 ## Smoke Tests
 
 All smoke tests use mock/fake providers and make no OpenAI calls:
 
 ```bash
+npm run eval:confirmed-annotation-amendment-smoke
 npm run eval:pilot-manifest-smoke
 npm run eval:live-pilot-runner-smoke
 npm run eval:pilot-stability-smoke

@@ -26,6 +26,14 @@ export async function cleanupLiveCanaryRecords(prisma: PrismaClient) {
     })
   ).map((item) => item.id);
 
+  await prisma.evalAnnotationRevision.deleteMany({
+    where: {
+      OR: [
+        { run_item_db_id: { in: runItemIds } },
+        { annotation: { run_item_db_id: { in: runItemIds } } }
+      ]
+    }
+  });
   await prisma.evalAnnotation.deleteMany({
     where: {
       OR: [
