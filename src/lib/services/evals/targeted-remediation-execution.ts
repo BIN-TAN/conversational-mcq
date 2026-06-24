@@ -1722,8 +1722,33 @@ export async function createTargetedRemediationReadinessReport(runPublicId: stri
       case_id: entry.item.eval_case.case_id,
       agent_name: entry.item.eval_case.agent_name,
       repetition_index: entry.item.repetition_index,
-      effective_result_status: entry.artifact.effective_result_status
+      legacy_effective_result_status: entry.artifact.effective_result_status,
+      effective_overall_status: entry.artifact.effective_overall_status,
+      effective_semantic_status: entry.artifact.effective_semantic_status,
+      effective_safety_status: entry.artifact.effective_safety_status,
+      effective_critical_flags: entry.artifact.effective_critical_flags,
+      effective_semantic_issues: entry.artifact.effective_semantic_issues,
+      effective_safety_issues: entry.artifact.effective_safety_issues
     })),
+    effective_nonblocking_warning_items: effectiveArtifacts
+      .filter((entry) =>
+        entry.artifact.effective_overall_status === "nonblocking_warning" &&
+        effectiveArtifactIsSafe(entry.artifact)
+      )
+      .map((entry) => ({
+        run_item_public_id: entry.item.run_item_public_id,
+        case_id: entry.item.eval_case.case_id,
+        agent_name: entry.item.eval_case.agent_name,
+        repetition_index: entry.item.repetition_index,
+        legacy_effective_result_status: entry.artifact.effective_result_status,
+        effective_overall_status: entry.artifact.effective_overall_status,
+        effective_semantic_status: entry.artifact.effective_semantic_status,
+        effective_safety_status: entry.artifact.effective_safety_status,
+        effective_semantic_issues: entry.artifact.effective_semantic_issues,
+        effective_safety_issues: entry.artifact.effective_safety_issues
+      })),
+    effective_validator_version: effectiveArtifacts[0]?.artifact.effective_validator_version ?? null,
+    effective_validator_hash: effectiveArtifacts[0]?.artifact.effective_validator_hash ?? null,
     deterministic_guard_count: effectiveArtifacts.filter((entry) => entry.artifact.deterministic_guard_applied).length,
     canonicalization_count: effectiveArtifacts.filter((entry) => entry.artifact.canonicalization_applied).length,
     fallback_count: effectiveArtifacts.filter((entry) => entry.artifact.fallback_applied).length,

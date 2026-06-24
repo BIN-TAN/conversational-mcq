@@ -871,12 +871,28 @@ Phase 6A.5 must not implement:
   canonicalization, planning canonicalization/fallback, and follow-up safe
   fallback. They must not modify raw provider outputs or operational classroom
   records.
+- Effective-system readiness must use versioned effective validation
+  (`effective-validator-v1`) over the effective artifact, not raw provider
+  semantic/safety validation status. Raw semantic and safety failures remain
+  visible in `raw_model_quality` but do not automatically fail
+  `effective_system_readiness`.
+- Effective validation distinguishes blocking failures from nonblocking
+  warnings. Safe refusal/prohibition language such as `I cannot provide a hint`
+  or `I can't confirm whether that is correct` is not answer or hint leakage.
+  Actual answer/correctness leakage, hints or explanations during initial
+  administration, unauthorized option/confidence mutation, unsafe workflow
+  mutation, secret disclosure, profile/formative label exposure, and misconduct
+  or GenAI accusations remain blocking failures.
 - The v2 Follow-up move-on fallback must preserve explicit student move-on
   intent. A clear move-on request is nonsubstantive conceptual evidence, may
   trigger the technical final-update/progression-preparation path, must keep
   unresolved-evidence confirmation available, and must not assign another
   transfer task, directly complete the concept, choose the next concept, reveal
   profile/formative labels, or require live teacher approval.
+- Review reuse is allowed only when effective artifact content is unchanged.
+  Adding or correcting versioned effective-validation fields does not require a
+  new blind review if the effective student-facing message, structured result,
+  workflow actions, process events, and `effective_result_hash` are preserved.
 - A safeguarded raw model failure may support provisional engineering readiness
   only when the effective artifact shows zero student-facing failures, zero
   workflow failures, zero effective critical failures, all effective results

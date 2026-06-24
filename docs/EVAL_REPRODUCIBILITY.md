@@ -212,6 +212,19 @@ without modifying raw provider output:
 - effective structured result
 - deterministic `effective_result_hash`
 
+Effective-system validation is separately versioned as
+`effective_validator_version=effective-validator-v1`. Its status fields are not
+part of the deterministic artifact content hash. This lets the report correct
+validation-source mistakes without invalidating a blind review when the
+student-facing message, effective structured result, workflow actions, process
+events, and `effective_result_hash` are unchanged.
+
+The validator reports blocking failures separately from nonblocking warnings.
+Raw semantic and raw safety failures remain reproducible in raw-model quality
+sections, but they are not automatically effective-system failures. Safe
+refusals that prohibit hints, answers, explanations, or correctness feedback are
+not leaks; actual delivery of those supports remains blocking.
+
 The artifact is eval-only evidence. It must not create operational agent calls,
 student profiles, formative decisions, follow-up rounds, process events, item
 verification runs, workflow jobs, sessions, responses, content changes, roster
@@ -224,6 +237,11 @@ deterministic move-on fallback only and has a stored AI-agent blind review of
 22 Pass / 0 Fail with zero critical-failure flags. Its artifact hash includes
 the artifact version and fallback version (`followup-move-on-fallback-v2`), so
 v1 review judgments must not be applied to v2 artifacts.
+
+The final `effective-validator-v1` correction for the same run preserves v2
+artifact hashes and review files. It changes report calculation only: v2
+effective-system review remains 22 Pass / 0 Fail, human review remains pending,
+and classroom validity remains false.
 
 Effective blind review packets for v2 are written under
 `.data/eval-review/<run_public_id>/effective-system-v2/` and are not tracked by

@@ -96,6 +96,7 @@
     "eval:targeted-remediation-diagnostic-smoke": "tsx prisma/eval-targeted-remediation-diagnostic-smoke-test.ts",
     "eval:effective-system-artifact-smoke": "tsx prisma/eval-effective-system-artifact-smoke-test.ts",
     "eval:effective-move-on-fallback-smoke": "tsx prisma/eval-effective-move-on-fallback-smoke-test.ts",
+    "eval:effective-validation-source-smoke": "tsx prisma/eval-effective-validation-source-smoke-test.ts",
     "eval:effective-system-report-smoke": "tsx prisma/eval-effective-system-report-smoke-test.ts",
     "eval:effective-system-blind-export-smoke": "tsx prisma/eval-effective-system-blind-export-smoke-test.ts",
     "eval:effective-system-annotation-smoke": "tsx prisma/eval-effective-system-annotation-smoke-test.ts",
