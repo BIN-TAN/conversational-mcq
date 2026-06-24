@@ -69,7 +69,14 @@ Read-only inspection and report:
 ```bash
 npm run eval:targeted-remediation:inspect -- --run <run_public_id>
 npm run eval:targeted-remediation:report -- --run <run_public_id>
+npm run eval:targeted-remediation:diagnose -- --run <run_public_id>
 ```
+
+The diagnostic command is read-only. It separates raw provider output, parsed
+provider output, semantic and safety validation, deterministic safeguards,
+backend-canonical/effective results, blind-review annotations, and report-gate
+inputs. It is intended for audit before any remediation patch; it does not make
+provider calls and does not mutate eval or operational classroom records.
 
 Blind review uses the existing review exporter:
 
@@ -139,6 +146,7 @@ npm run eval:targeted-remediation-runner-smoke
 npm run eval:targeted-remediation-report-smoke
 npm run eval:targeted-remediation-blind-export-smoke
 npm run eval:ai-review-confirmation-smoke
+npm run eval:targeted-remediation-diagnostic-smoke
 ```
 
 They verify the 22-output manifest, deterministic ordering, two repetitions per

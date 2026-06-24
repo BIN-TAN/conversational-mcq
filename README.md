@@ -975,6 +975,7 @@ npm run eval:targeted-remediation -- --confirm-paid-api --new-run
 npm run eval:targeted-remediation -- --confirm-paid-api --resume <run_public_id>
 npm run eval:targeted-remediation:inspect -- --run <run_public_id>
 npm run eval:targeted-remediation:report -- --run <run_public_id>
+npm run eval:targeted-remediation:diagnose -- --run <run_public_id>
 ```
 
 The targeted path uses synthetic eval cases only, `gpt-5.4-mini-2026-03-17`,
