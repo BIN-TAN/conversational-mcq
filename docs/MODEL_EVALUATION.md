@@ -191,3 +191,49 @@ npm run eval:live-pilot:report -- --run <pilot_run_public_id>
 ```
 
 See `docs/FULL_LIVE_EVAL_PILOT.md`.
+
+## Phase 7E2C Targeted Remediation Evaluation
+
+Full pilot run `evr_20260623_ga6kzai` remains the frozen baseline: 100
+synthetic outputs, 91 confirmed human Pass, 9 confirmed human Fail, zero
+confirmed human critical failures after adjudication, and recommendation
+`not_ready_for_controlled_operational_integration`. That result is not
+classroom validation.
+
+Phase 7E2C adds a separate targeted remediation path for the six failed base
+cases and five unaffected controls. Each case has two repetitions, for 22
+planned outputs. The manifest is
+`tests/fixtures/evals/targeted-remediation-manifest.json`.
+
+The targeted runner is CLI-only, uses synthetic eval cases only, and remains
+isolated from classroom records. Preflight and dry run make no provider request:
+
+```bash
+npm run eval:targeted-remediation:preflight
+npm run eval:targeted-remediation:dry-run
+```
+
+Paid execution is not automatic:
+
+```bash
+npm run eval:targeted-remediation -- --confirm-paid-api --new-run
+npm run eval:targeted-remediation -- --confirm-paid-api --resume <run_public_id>
+```
+
+Read-only inspection and readiness reporting:
+
+```bash
+npm run eval:targeted-remediation:inspect -- --run <run_public_id>
+npm run eval:targeted-remediation:report -- --run <run_public_id>
+```
+
+Targeted readiness requires 22 terminal outputs, 100% schema pass, 22 confirmed
+annotations, zero human critical failures, all 12 affected outputs human Pass,
+at least 9 of 10 control outputs human Pass, no agent with both control
+repetitions failing, and engineering gates for the remediated contracts. The
+recommendation is `ready_for_guarded_integration_patch`,
+`not_ready_for_guarded_integration_patch`, or `incomplete_review`, always with
+`classroom_validity=false`.
+
+See `docs/FULL_PILOT_FAILURE_ADJUDICATION.md` and
+`docs/TARGETED_REMEDIATION_EVAL.md`.

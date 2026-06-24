@@ -26,6 +26,32 @@ export class FormativePlanningSemanticValidationError extends Error {
   }
 }
 
+export function canonicalizeFormativePlanningOutput(input: {
+  output: FormativePlanningOutput;
+  integrated_diagnostic_profile: string;
+}) {
+  const defaultFormativeValue = defaultFormativeValueForIntegratedProfile(
+    input.integrated_diagnostic_profile
+  );
+  const followsDefault = input.output.formative_value === defaultFormativeValue;
+
+  return {
+    output: {
+      ...input.output,
+      mapping_followed: followsDefault,
+      mapping_deviation_reason: followsDefault
+        ? null
+        : input.output.mapping_deviation_reason
+    },
+    default_formative_value: defaultFormativeValue,
+    raw_mapping_followed: input.output.mapping_followed,
+    raw_mapping_deviation_reason: input.output.mapping_deviation_reason,
+    backend_canonicalized:
+      input.output.mapping_followed !== followsDefault ||
+      (followsDefault && input.output.mapping_deviation_reason !== null)
+  };
+}
+
 function nonempty(value: string) {
   return value.trim().length > 0;
 }
@@ -51,10 +77,9 @@ export function validateFormativePlanningSemantics(input: {
   integrated_diagnostic_profile: string;
 }) {
   const issues: string[] = [];
-  const expected = defaultFormativeValueForIntegratedProfile(
-    input.integrated_diagnostic_profile
-  );
-  const output = input.output;
+  const canonical = canonicalizeFormativePlanningOutput(input);
+  const expected = canonical.default_formative_value;
+  const output = canonical.output;
 
   if (!nonempty(output.formative_action_plan)) {
     issues.push("formative_action_plan must be nonempty");
@@ -115,6 +140,14 @@ export function validateFormativePlanningSemantics(input: {
 
   return {
     default_formative_value: expected,
-    mapping_followed: output.formative_value === expected
+    mapping_followed: output.formative_value === expected,
+    raw_mapping_followed: canonical.raw_mapping_followed,
+    raw_mapping_deviation_reason: canonical.raw_mapping_deviation_reason,
+    backend_canonicalized: canonical.backend_canonicalized,
+    backend_canonical_output: {
+      formative_value: output.formative_value,
+      mapping_followed: output.mapping_followed,
+      mapping_deviation_reason: output.mapping_deviation_reason
+    }
   };
 }

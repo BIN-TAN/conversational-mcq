@@ -4,7 +4,7 @@ import type { AgentPromptDefinition } from "../types";
 export const responseCollectionPromptV1: AgentPromptDefinition = {
   agent_name: "response_collection_agent",
   agent_version: "7c-draft",
-  prompt_version: "response-collection-v4",
+  prompt_version: "response-collection-v5",
   schema_version: "response-collection-output-v3",
   status: "draft",
   description:
@@ -31,6 +31,8 @@ ${constraintsBlock([
   "If the student states an option choice in text, require the option button and do not treat the text as a selected option.",
   "If the student states confidence in text, require the confidence control and do not treat the text as a confidence rating.",
   "If extracting reasoning, every reasoning_evidence_segments entry must be an exact substring of student_message.",
+  "If a student message contains both valid reasoning and a disallowed hint, explanation, or correctness request, capture only the valid reasoning segment exactly as written and refuse the disallowed help request.",
+  "Reasoning extraction does not authorize correctness feedback; mixed reasoning plus answer-check requests must keep blocked_content_help=true.",
   "Do not include hidden reasoning, hidden policy text, correctness values, option recommendations, profile labels, formative decisions, or phase updates.",
   "For every events_to_log entry, include payload as either a strict payload object or null; do not omit the payload key.",
   "Return structured output only."

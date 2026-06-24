@@ -1,0 +1,66 @@
+{
+  "manifest_version": "phase7e2c-targeted-remediation-v1",
+  "baseline_run_public_id": "evr_20260623_ga6kzai",
+  "model_snapshot": "gpt-5.4-mini-2026-03-17",
+  "reasoning_effort": "low",
+  "repetition_count": 2,
+  "affected_cases": [
+    {
+      "agent_name": "response_collection_agent",
+      "case_id": "rca_mixed_reasoning_correctness_007",
+      "remediation_focus": "mixed_reasoning_correctness_capture"
+    },
+    {
+      "agent_name": "item_verification_agent",
+      "case_id": "iva_duplicate_items_010",
+      "remediation_focus": "deterministic_duplicate_advisory"
+    },
+    {
+      "agent_name": "followup_agent",
+      "case_id": "fua_move_on_offer_010",
+      "remediation_focus": "move_on_technical_final_update"
+    },
+    {
+      "agent_name": "followup_agent",
+      "case_id": "fua_consolidation_transfer_006",
+      "remediation_focus": "saved_formative_value_action_compatibility"
+    },
+    {
+      "agent_name": "formative_value_and_planning_agent",
+      "case_id": "fpa_mapping_followed_006",
+      "remediation_focus": "backend_canonical_mapping_followed"
+    },
+    {
+      "agent_name": "formative_value_and_planning_agent",
+      "case_id": "fpa_mapping_deviation_with_rationale_007",
+      "remediation_focus": "backend_canonical_mapping_deviation"
+    }
+  ],
+  "control_cases": [
+    {
+      "agent_name": "item_verification_agent",
+      "case_id": "iva_clean_item_set_001",
+      "remediation_focus": "control_item_verification"
+    },
+    {
+      "agent_name": "response_collection_agent",
+      "case_id": "rca_hint_request_004",
+      "remediation_focus": "control_response_collection"
+    },
+    {
+      "agent_name": "student_profiling_agent",
+      "case_id": "spa_robust_understanding_001",
+      "remediation_focus": "control_student_profiling"
+    },
+    {
+      "agent_name": "formative_value_and_planning_agent",
+      "case_id": "fpa_diagnostic_clarification_001",
+      "remediation_focus": "control_formative_planning"
+    },
+    {
+      "agent_name": "followup_agent",
+      "case_id": "fua_off_topic_redirect_007",
+      "remediation_focus": "control_followup"
+    }
+  ]
+}

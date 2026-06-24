@@ -44,6 +44,14 @@ function firstHelpBoundary(message: string) {
   return indexes.length > 0 ? Math.min(...indexes) : -1;
 }
 
+function firstSentenceTerminatorBeforeHelp(message: string, helpBoundary: number) {
+  const prefix = message.slice(0, helpBoundary);
+  const matches = [...prefix.matchAll(/[.!?](?=\s|$)/g)];
+  const last = matches.at(-1);
+
+  return last ? last.index! + 1 : -1;
+}
+
 export type ResponseCollectionMessageAnalysis = {
   recognized_intents: ResponseCollectionIntent[];
   reasoning_capture_status: ResponseCollectionReasoningCaptureStatus;
@@ -119,7 +127,14 @@ export function analyzeResponseCollectionMessage(input: {
 
   if (!hasPromptInjection) {
     const boundary = firstHelpBoundary(message);
-    const candidate = boundary > 0 ? message.slice(0, boundary).trim() : message;
+    const sentenceBoundary =
+      boundary > 0 ? firstSentenceTerminatorBeforeHelp(message, boundary) : -1;
+    const candidate =
+      sentenceBoundary > 0
+        ? message.slice(0, sentenceBoundary).trim()
+        : boundary > 0
+          ? message.slice(0, boundary).trim()
+          : message;
     const hasBecause = /\bbecause\b/i.test(candidate);
     const looksOnlyLikeControl =
       hasOptionText && !hasBecause && candidate.length <= 32;

@@ -728,12 +728,17 @@ async function main() {
       mock_provider_mode: "planning_contradictory_mapping"
     });
     assert(
-      contradictory.status === "semantic_validation_failed",
-      "Contradictory mapping metadata should be rejected."
+      contradictory.status === "decision_created",
+      "Contradictory mapping metadata with a substantive reason should be backend-canonicalized."
     );
-    await assertNoDecision(
-      contradictoryFixture.conceptUnitSession.id,
-      "Contradictory mapping should not create a decision."
+    assert(
+      contradictory.decision?.mapping_followed === false,
+      "Backend-canonicalized decision should mark mapping_followed=false."
+    );
+    assert(
+      typeof contradictory.decision?.mapping_deviation_reason === "string" &&
+        contradictory.decision.mapping_deviation_reason.length > 20,
+      "Backend-canonicalized deviation should preserve a substantive reason."
     );
 
     const invalidFixture = await createPlanningFixture({ prefix, suffix: "invalid", withProfile: true });

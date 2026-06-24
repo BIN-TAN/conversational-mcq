@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, Phase 7B complete master CSV export coverage for persisted platform records, Phase 7C Response Collection Agent integration for student free-text messages during initial administration, Phase 7D Item Verification Agent governance for teacher-authored item sets, Phase 7E1 internal mock evaluation harness for the five active agents, and the Phase 7E2A guarded live-evaluation canary support with annotation adjudication. Item generation, item rewriting, classroom live model activation, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, and student self-registration remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, Phase 7B complete master CSV export coverage for persisted platform records, Phase 7C Response Collection Agent integration for student free-text messages during initial administration, Phase 7D Item Verification Agent governance for teacher-authored item sets, Phase 7E1 internal mock evaluation harness for the five active agents, Phase 7E2A guarded live-evaluation canary support with annotation adjudication, Phase 7E2B full-pilot evaluation infrastructure, and Phase 7E2C targeted remediation/regression tooling. Item generation, item rewriting, classroom live model activation, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, and student self-registration remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -939,3 +939,49 @@ npm run eval:pilot-report-smoke
 See `docs/FULL_LIVE_EVAL_PILOT.md`,
 `docs/EVAL_STABILITY_ANALYSIS.md`, and
 `docs/INTERNAL_HOLDOUT_LIMITATIONS.md`.
+
+### Phase 7E2C Targeted Remediation
+
+The completed full pilot run `evr_20260623_ga6kzai` remains frozen: 100 outputs,
+91 confirmed human Pass, 9 confirmed human Fail, and zero confirmed human
+critical failures after adjudication. Phase 7E2C does not rerun or alter that
+pilot. It adds targeted remediations and a separate 22-output regression path
+for the six failed base cases plus one unaffected control case per active
+agent, each with two repetitions.
+
+Targeted remediation updates:
+
+- Response Collection prompt `response-collection-v5` captures exact valid reasoning segments in mixed reasoning-plus-correctness-request messages while still refusing correctness feedback.
+- Formative Planning prompt `formative-planning-v2` treats the default formative-value mapping as backend-owned guidance; backend code canonicalizes `mapping_followed` and requires evidence-linked deviation reasons.
+- Follow-up prompt `followup-v6` validates saved formative value compatibility, transfer/verification action compatibility, move-on technical final-update semantics, nullable evidence requests, and backend-owned process-event metadata.
+- Item Verification prompt `item-verification-v4` keeps findings advisory and adds a deterministic supplementary duplicate warning that is stored separately from raw LLM verification.
+- Evaluation validators are versioned as `eval-semantic-v3` and `eval-safety-v3`.
+
+Offline smoke checks make no OpenAI call:
+
+```bash
+npm run eval:targeted-remediation-manifest-smoke
+npm run eval:targeted-remediation-runner-smoke
+npm run eval:targeted-remediation-report-smoke
+npm run eval:targeted-remediation-blind-export-smoke
+```
+
+Manual targeted paid evaluation, if later approved, is CLI-only:
+
+```bash
+npm run eval:targeted-remediation:preflight
+npm run eval:targeted-remediation:dry-run
+npm run eval:targeted-remediation -- --confirm-paid-api --new-run
+npm run eval:targeted-remediation -- --confirm-paid-api --resume <run_public_id>
+npm run eval:targeted-remediation:inspect -- --run <run_public_id>
+npm run eval:targeted-remediation:report -- --run <run_public_id>
+```
+
+The targeted path uses synthetic eval cases only, `gpt-5.4-mini-2026-03-17`,
+low reasoning effort, 22 planned outputs, concurrency 1, max retries 1, max 35
+provider requests, and a USD 10 hard limit. Classroom settings remain
+`LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`. The readiness label is a
+guarded integration patch check, not classroom validity.
+
+See `docs/FULL_PILOT_FAILURE_ADJUDICATION.md` and
+`docs/TARGETED_REMEDIATION_EVAL.md`.

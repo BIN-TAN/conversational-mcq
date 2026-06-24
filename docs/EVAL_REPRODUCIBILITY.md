@@ -150,3 +150,24 @@ Full pilot runs freeze:
 
 Resume is allowed only for a nonterminal pilot run with matching frozen
 configuration. Completed pilot items are skipped on resume.
+
+## Phase 7E2C Targeted Remediation Reproducibility
+
+Targeted remediation runs freeze:
+
+- baseline full-pilot public ID `evr_20260623_ga6kzai`
+- targeted manifest version and hash
+- six affected case IDs and five control case IDs
+- two repetitions per case and deterministic run order
+- case payload hashes
+- exact model snapshot `gpt-5.4-mini-2026-03-17`
+- low reasoning effort
+- prompt versions, prompt hashes, schema versions, and agent versions
+- evaluator versions `eval-semantic-v3` and `eval-safety-v3`
+- deterministic duplicate normalizer version
+- pricing version, USD 10 budget, request limit 35, retry limit 1, timeout, and concurrency 1
+- application Git commit
+
+The run requires explicit `--new-run` or `--resume <run_public_id>`. Completed
+runs are not silently reused. Completed run items are skipped on resume, and the
+runner must not read or mutate operational classroom records.

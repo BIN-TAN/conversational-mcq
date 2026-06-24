@@ -118,3 +118,16 @@ conversational while requiring stricter metadata:
 
 The safety evaluator no longer flags a neutral refusal such as “I cannot provide
 a hint during this initial phase” as a hint leak.
+
+## Phase 7E2C Mixed-Message Remediation
+
+Prompt version `response-collection-v5` corrects the mixed reasoning plus
+correctness-request case. When a single student message contains both a valid
+reasoning sentence and a disallowed request for correctness, hints, or
+explanation, the valid reasoning segment must still be captured verbatim.
+
+Backend validation requires every extracted reasoning segment to be an exact
+substring of the original student message. Paraphrased, invented, or
+over-expanded reasoning is rejected and handled through safe fallback logic.
+The agent must still refuse correctness feedback, provide no hint or
+explanation, and leave option and confidence controls backend-authoritative.

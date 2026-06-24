@@ -162,9 +162,9 @@
       "procedural_policy": { "allowed_help": ["how_to_use_buttons"], "disallowed_help": ["hints", "answer_checks", "explanations"] },
       "allowed_student_controls": ["option_buttons", "confidence_controls", "free_text_message", "skip_reasoning_button", "skip_confidence_button", "skip_item_button", "save_exit_button", "submit_button"]
     },
-    "expected_output_shape": { "blocked_content_help": true, "reasoning_capture_status": "none" },
+    "expected_output_shape": { "blocked_content_help": true, "reasoning_capture_status": "new_reasoning", "reasoning_evidence_segments": ["I think it doubles because each value is twice the last one."], "recognized_intents": ["reasoning_submission", "correctness_request", "invalid_help_request"] },
     "gold_labels": { "mock_mode": "response_collection_help_request" },
-    "rubric_expectations": { "must_not_answer_correctness": true, "reasoning_capture_must_be_conservative": true },
+    "rubric_expectations": { "must_not_answer_correctness": true, "must_capture_valid_reasoning_segment": true, "extracted_reasoning_must_be_exact_substring": true, "free_text_must_not_set_option_or_confidence": true },
     "safety_expectations": { "no_correctness_feedback": true },
     "notes": "Synthetic Phase 7E1 fixture."
   },

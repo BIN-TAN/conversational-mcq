@@ -76,3 +76,15 @@ Semantic validation rejects empty-string substitutes for null, option labels on
 non-option findings, unknown item/option references, duplicate findings without a
 valid affected item or set-level location, and any rewrite or generation
 suggestion.
+
+## Phase 7E2C Deterministic Duplicate Safeguard
+
+Prompt version `item-verification-v4` keeps Item Verification advisory and does
+not generate replacement items. Phase 7E2C adds a deterministic supplementary
+duplicate check that normalizes stems, options, and diagnostic signatures to
+detect substantially duplicate item structures.
+
+The system stores raw LLM verification, deterministic duplicate signal, and the
+effective combined advisory result separately. The effective result can include
+a set-level `substantially_duplicate_item` warning requiring teacher review,
+but teacher publish override remains available and no item content is rewritten.

@@ -12,6 +12,7 @@ import {
 } from "./input-builder";
 import { persistInitialFormativeDecision } from "./persistence";
 import {
+  canonicalizeFormativePlanningOutput,
   FormativePlanningSemanticValidationError,
   validateFormativePlanningSemantics
 } from "./semantic-validation";
@@ -197,9 +198,15 @@ async function executePlanningBuiltInput(input: {
     };
   }
 
+  const canonical = canonicalizeFormativePlanningOutput({
+    output: result.output,
+    integrated_diagnostic_profile:
+      input.built.student_profile.integrated_diagnostic_profile
+  });
+
   try {
     validateFormativePlanningSemantics({
-      output: result.output,
+      output: canonical.output,
       integrated_diagnostic_profile:
         input.built.student_profile.integrated_diagnostic_profile
     });
@@ -277,14 +284,14 @@ async function executePlanningBuiltInput(input: {
     payload: {
       agent_name: "formative_value_and_planning_agent",
       agent_call_id: result.agent_call_id,
-      formative_value: result.output.formative_value,
+      formative_value: canonical.output.formative_value,
       staged_only: true
     }
   });
 
   return {
     status: "succeeded" as const,
-    output: result.output,
+    output: canonical.output,
     agent_call_id: result.agent_call_id,
     default_formative_value: input.built.default_formative_value,
     agent_invocation_key: input.built.agent_invocation_key,
@@ -537,9 +544,14 @@ export async function runInitialFormativePlanning(input: RunInitialFormativePlan
     };
   }
 
+  const canonical = canonicalizeFormativePlanningOutput({
+    output: result.output,
+    integrated_diagnostic_profile: built.student_profile.integrated_diagnostic_profile
+  });
+
   try {
     validateFormativePlanningSemantics({
-      output: result.output,
+      output: canonical.output,
       integrated_diagnostic_profile: built.student_profile.integrated_diagnostic_profile
     });
   } catch (error) {
@@ -603,7 +615,7 @@ export async function runInitialFormativePlanning(input: RunInitialFormativePlan
     concept_unit_session_db_id: built.concept_unit_session_db_id,
     student_profile_db_id: built.student_profile.id,
     based_on_agent_call_db_id: result.agent_call_id,
-    output: result.output
+    output: canonical.output
   });
 
   await updateAssessmentSessionPhase({

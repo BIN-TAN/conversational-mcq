@@ -231,3 +231,27 @@ the appropriate concept-evidence action rather than as a pure redirect.
 The safety evaluator no longer flags a neutral refusal to share system
 instructions as hidden-prompt disclosure unless hidden instructions are actually
 revealed or materially paraphrased.
+
+## Phase 7E2C Follow-Up Authority Remediation
+
+Prompt version `followup-v6` makes saved formative value and process events
+backend-owned. The effective output must match the saved formative value from
+the current plan; incompatible model metadata are rejected or canonicalized
+without changing the saved plan.
+
+Action-type compatibility is explicit. For example,
+`consolidation_or_transfer` can produce a transfer task, while
+`independent_understanding_verification` can produce an independent-verification
+prompt. A transfer plan must not silently become an independent-verification
+plan.
+
+A student move-on request is nonsubstantive:
+
+- `student_turn_substantive=false`
+- `should_offer_move_on=true`
+- `evidence_trigger_candidate=true`
+- `evidence_trigger_reasons` includes `move_on_request`
+
+This is a technical final-update trigger only. It does not count toward the
+substantive-turn threshold, prove understanding, or create new conceptual
+evidence. Missing `evidence_request` is represented as `null`.

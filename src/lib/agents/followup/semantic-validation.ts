@@ -34,6 +34,18 @@ function containsMoveOnRequest(message: string | null | undefined) {
   return /\b(move on|continue|next|done|finished|go ahead|ready to proceed)\b/i.test(message);
 }
 
+function isMoveOnOnlyTechnicalTrigger(input: {
+  output: FollowupOutput;
+  student_message?: string | null;
+}) {
+  return (
+    input.output.should_offer_move_on &&
+    containsMoveOnRequest(input.student_message) &&
+    input.output.evidence_trigger_reasons.length === 1 &&
+    input.output.evidence_trigger_reasons[0] === "move_on_request"
+  );
+}
+
 export class FollowupSemanticValidationError extends Error {
   issues: string[];
 
@@ -89,11 +101,24 @@ export function validateFollowupSemantics(input: {
     }
   }
 
-  if (!output.student_turn_substantive && output.evidence_trigger_reasons.length > 0) {
+  const moveOnOnlyTechnicalTrigger = isMoveOnOnlyTechnicalTrigger({
+    output,
+    student_message: input.student_message
+  });
+
+  if (
+    !output.student_turn_substantive &&
+    output.evidence_trigger_reasons.length > 0 &&
+    !moveOnOnlyTechnicalTrigger
+  ) {
     issues.push("nonsubstantive turns must use evidence_trigger_reasons=[]");
   }
 
-  if (output.evidence_trigger_candidate && !output.student_turn_substantive) {
+  if (
+    output.evidence_trigger_candidate &&
+    !output.student_turn_substantive &&
+    !moveOnOnlyTechnicalTrigger
+  ) {
     issues.push("evidence_trigger_candidate requires an interpretable substantive student turn.");
   }
 
@@ -134,6 +159,10 @@ export function validateFollowupSemantics(input: {
     issues.push("should_offer_move_on cannot be inferred from unrelated conversation.");
   }
 
+  if (moveOnOnlyTechnicalTrigger && output.student_turn_substantive) {
+    issues.push("pure move-on requests should not be counted as substantive conceptual evidence.");
+  }
+
   for (const event of output.events_to_log) {
     const parsedType = ProcessEventTypeSchema.safeParse(event.event_type);
 
@@ -170,6 +199,20 @@ export function validateFollowupSemantics(input: {
     warnings.push(
       `followup_action_type ${output.followup_action_type} is weakly aligned with ${input.current_formative_value}`
     );
+  }
+
+  if (
+    input.current_formative_value === "consolidation_or_transfer" &&
+    output.followup_action_type === "independent_verification_prompt"
+  ) {
+    issues.push("consolidation_or_transfer plans must not silently become independent verification prompts.");
+  }
+
+  if (
+    input.current_formative_value === "independent_understanding_verification" &&
+    output.followup_action_type === "transfer_task"
+  ) {
+    issues.push("independent verification plans must not silently become transfer tasks.");
   }
 
   if (issues.length > 0) {

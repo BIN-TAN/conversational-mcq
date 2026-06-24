@@ -140,9 +140,15 @@ export function validateResponseCollectionOutputSemantics(input: {
     }
   }
 
+  for (const segment of analysis.reasoning_evidence_segments) {
+    if (!output.reasoning_evidence_segments.includes(segment)) {
+      issues.push("Valid reasoning in a mixed message must be captured as an exact reasoning_evidence_segments entry.");
+    }
+  }
+
   if (
     output.reasoning_capture_status === "none" &&
-    output.reasoning_evidence_segments.length > 0
+    (output.reasoning_evidence_segments.length > 0 || analysis.reasoning_evidence_segments.length > 0)
   ) {
     issues.push("reasoning_capture_status none cannot include reasoning segments.");
   }

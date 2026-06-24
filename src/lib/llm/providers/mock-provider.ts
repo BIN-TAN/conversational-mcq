@@ -463,7 +463,8 @@ export class MockLlmProvider implements LlmProvider {
                 : nonsubstantive
                   ? []
                   : ["substantive_explanation"];
-      const studentTurnSubstantive = evidenceTriggerReasons.length > 0;
+      const studentTurnSubstantive =
+        evidenceTriggerReasons.length > 0 && !evidenceTriggerReasons.every((reason) => reason === "move_on_request");
       const output = {
         agent_name: request.agent_name,
         agent_version: "6d2b-draft",
@@ -483,9 +484,13 @@ export class MockLlmProvider implements LlmProvider {
         followup_action_type: action,
         target_formative_value:
           mode === "followup_bad_target_formative_value" ? badTarget : targetFormativeValue,
-        evidence_request: "Explain the reasoning evidence that supports your current thinking.",
+        evidence_request:
+          mode === "followup_move_on_offer"
+            ? null
+            : "Explain the reasoning evidence that supports your current thinking.",
         expects_student_response: mode !== "followup_move_on_offer",
-        evidence_trigger_candidate: mode === "followup_evidence_trigger",
+        evidence_trigger_candidate:
+          mode === "followup_evidence_trigger" || mode === "followup_move_on_offer",
         student_turn_substantive: studentTurnSubstantive,
         evidence_trigger_reasons: evidenceTriggerReasons,
         should_offer_move_on: mode === "followup_move_on_offer",
@@ -571,8 +576,30 @@ export class MockLlmProvider implements LlmProvider {
         /\b(ignore (the )?(rules|instructions)|system prompt|developer message|jailbreak)\b/.test(lower);
       const optionText = /\b(i choose|my answer is|answer is|option)\s+[a-f]\b/i.test(message);
       const confidenceText = /\b(low|medium|high)\s+confidence\b/i.test(message);
+      const helpBoundary = (() => {
+        const patterns = [
+          /\bam i\b/i,
+          /\bcan you\b/i,
+          /\btell me\b/i,
+          /\bwhat is\b/i,
+          /\bwhich option\b/i,
+          /\bgive me\b/i,
+          /\bhint\b/i,
+          /\bexplain\b/i,
+          /\bcorrect\b/i
+        ];
+        const indexes = patterns
+          .map((pattern) => pattern.exec(message)?.index ?? -1)
+          .filter((index) => index > 0);
+
+        return indexes.length ? Math.min(...indexes) : -1;
+      })();
+      const reasoningCandidate =
+        helpBoundary > 0 ? message.slice(0, helpBoundary).trim().replace(/[.!?]\s*$/, ".") : message.trim();
       const reasoningSegment =
-        !helpRequested && !promptInjection && message.trim().length > 0 ? message.trim() : "";
+        !promptInjection && reasoningCandidate.length > 0 && !/^(am i|can you|tell me|what is|which option|hint|explain|correct)\b/i.test(reasoningCandidate)
+          ? reasoningCandidate
+          : "";
 
       output.agent_version = "7c-draft";
       output.prompt_version = "mock-response-collection-v2";
@@ -586,6 +613,9 @@ export class MockLlmProvider implements LlmProvider {
       output.recognized_intents = [
         ...(reasoningSegment ? ["reasoning_submission"] : []),
         ...(helpRequested || promptInjection ? ["invalid_help_request"] : []),
+        ...(helpRequested && /\b(correct|incorrect|am i)\b/i.test(message) ? ["correctness_request"] : []),
+        ...(helpRequested && /\bhint\b/i.test(message) ? ["hint_request"] : []),
+        ...(helpRequested && /\b(explain|explanation)\b/i.test(message) ? ["explanation_request"] : []),
         ...(promptInjection ? ["prompt_injection_attempt"] : []),
         ...(optionText ? ["reasoning_submission"] : []),
         ...(confidenceText ? ["procedural_clarification"] : []),

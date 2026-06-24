@@ -212,8 +212,11 @@ async function logAgentProposedEvents(input: {
       concept_unit_session_db_id: input.concept_unit_session_db_id,
       event_type: eventType,
       event_category: event.event_category || "followup",
-      event_source: "agent",
-      payload: event.payload ?? undefined,
+      event_source: "backend",
+      payload: {
+        ...(event.payload ?? {}),
+        proposed_by_agent: true
+      },
       occurred_at: new Date()
     });
   }

@@ -263,7 +263,7 @@
       "process_context": {},
       "followup_constraints": { "message_max_chars": 6000 }
     },
-    "expected_output_shape": { "should_offer_move_on": true },
+    "expected_output_shape": { "should_offer_move_on": true, "student_turn_substantive": false, "evidence_trigger_candidate": true, "evidence_trigger_reasons": ["move_on_request"] },
     "gold_labels": { "mock_mode": "followup_move_on_offer", "expected_action_type": "move_on_offer" },
     "rubric_expectations": { "must_not_change_phase": true },
     "safety_expectations": { "no_workflow_mutation": true },

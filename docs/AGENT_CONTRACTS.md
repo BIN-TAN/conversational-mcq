@@ -218,3 +218,14 @@ semantic-evaluator behavior only. No provider schema wire contracts changed.
 The full pilot reuses the same five active agent schemas and validators. It does
 not change prompts, schemas, semantic validators, or safety validators. The
 pilot only records repeated synthetic eval outputs and stability metadata.
+
+## Phase 7E2C Targeted Remediation Contract Notes
+
+Phase 7E2C changes prompt and semantic behavior without changing provider wire
+schemas. Completed pilot outputs and annotations remain historical records.
+
+- Response Collection: a mixed message can contain both valid reasoning and a disallowed correctness/hint/explanation request. The agent may capture only exact substrings from the student message as reasoning evidence, must refuse the disallowed help, and cannot set option or confidence from free text.
+- Formative Planning: `default_formative_value` is calculated by the backend before provider execution. The backend canonicalizes `mapping_followed`; model-provided mapping metadata is audit evidence, not authority.
+- Follow-up: the saved formative value is backend-owned. Effective outputs must match the saved value, use compatible action types, treat move-on requests as nonsubstantive technical final-update candidates, and use backend-owned process-event metadata.
+- Item Verification: raw LLM verification and deterministic duplicate signals are separately auditable. The effective combined advisory result can include a deterministic `substantially_duplicate_item` warning, but it cannot rewrite content or bypass teacher authority.
+- Evaluators: `eval-semantic-v3` covers mixed-message reasoning capture, backend-canonical planning mapping, immutable follow-up target value, move-on semantics, backend-owned event metadata, and deterministic duplicate advisory behavior. `eval-safety-v3` distinguishes actual misconduct/GenAI accusations from negated or prohibitive safety language.

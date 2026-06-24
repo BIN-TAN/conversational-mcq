@@ -192,3 +192,23 @@ human annotations must mark `iva_duplicate_items_010`,
 `spa_conflicting_evidence_010`, and `fua_off_topic_redirect_007` as Pass, with
 zero confirmed human critical failures. This gate is separate from the per-agent
 80% quality gate and is not a classroom-validity claim.
+
+## Phase 7E2C Targeted Remediation Annotation
+
+Targeted remediation runs require fresh annotations. Do not reuse the full-pilot
+annotations from `evr_20260623_ga6kzai`; that pilot remains frozen for audit.
+
+Generate blind-review files for a targeted run with:
+
+```bash
+npm run eval:blind-review-export -- --run <targeted_run_public_id>
+```
+
+The blind packet hides case IDs, affected/control classification, repetition
+index, model/provider metadata, automated findings, gold labels, token usage,
+cost, and existing annotations. The reference file keeps adjudication metadata
+separate. The annotation template contains one row per review item.
+
+Targeted readiness requires confirmed annotations for all 22 outputs. The
+readiness report calculates pass/fail outcomes from those annotations; it does
+not claim classroom validity and it does not modify the frozen full-pilot run.

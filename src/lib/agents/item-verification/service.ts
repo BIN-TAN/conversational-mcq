@@ -9,6 +9,7 @@ import { validateConceptUnitPublishable } from "@/lib/services/content/publishin
 import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
 import { buildItemVerificationFingerprintPayload, buildItemVerificationInput } from "./input-builder";
+import { combineItemVerificationWithDeterministicDuplicates } from "./deterministic-duplicates";
 import { hashVerificationContent, stableSerialize } from "./fingerprint";
 import {
   countItemVerificationWarnings,
@@ -231,9 +232,13 @@ export async function runConceptUnitVerification(input: {
     };
   }
 
-  const semantic = validateItemVerificationOutputSemantics({
+  const combined = combineItemVerificationWithDeterministicDuplicates({
     providerInput,
     output: execution.output
+  });
+  const semantic = validateItemVerificationOutputSemantics({
+    providerInput,
+    output: combined.output
   });
 
   if (!semantic.ok) {
@@ -248,7 +253,7 @@ export async function runConceptUnitVerification(input: {
         verification_status: "unable_to_verify",
         deterministic_validation_result: prismaJson(context.deterministic_validation),
         agent_call_db_id: execution.agent_call_id,
-        output_payload: prismaJson(execution.output),
+        output_payload: prismaJson(combined.output),
         warning_count: 0,
         teacher_review_required: false,
         failure_message: semantic.errors.join("; ")
@@ -276,7 +281,13 @@ export async function runConceptUnitVerification(input: {
     };
   }
 
-  const warningCount = countItemVerificationWarnings(execution.output);
+  const warningCount = countItemVerificationWarnings(combined.output);
+  const deterministicValidationResult = {
+    ...(context.deterministic_validation as Record<string, unknown>),
+    deterministic_duplicate_signal: combined.deterministic_duplicate_signal,
+    deterministic_duplicate_applied: combined.deterministic_duplicate_applied,
+    effective_combined_advisory_result: true
+  };
   const run = await prisma.$transaction(async (tx) => {
     const created = await tx.itemVerificationRun.create({
       data: {
@@ -286,12 +297,12 @@ export async function runConceptUnitVerification(input: {
         content_fingerprint: context.content_fingerprint,
         concept_unit_version: context.conceptUnit.version,
         status: "completed",
-        verification_status: execution.output.verification_status,
-        deterministic_validation_result: prismaJson(context.deterministic_validation),
+        verification_status: combined.output.verification_status,
+        deterministic_validation_result: prismaJson(deterministicValidationResult),
         agent_call_db_id: execution.agent_call_id,
-        output_payload: prismaJson(execution.output),
+        output_payload: prismaJson(combined.output),
         warning_count: warningCount,
-        teacher_review_required: execution.output.teacher_review_required
+        teacher_review_required: combined.output.teacher_review_required
       },
       include: {
         agent_call: {

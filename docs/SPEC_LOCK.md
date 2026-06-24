@@ -831,3 +831,22 @@ Phase 6A.5 must not implement:
 - Full-pilot blind review export supports 100 rows and hides stratum, repetition, paired case key, model/provider metadata, automated results, gold labels, costs, tokens, and prior canary results from the blind packet.
 - Full-pilot blind review export must keep review files safe without mutating eval outputs: exact configured secrets and standalone credential-shaped tokens are redacted only in exported copies, benign references such as `API key`, `system prompt`, and `hidden instructions` remain reviewable, and diagnostic reports expose only field paths, categories, lengths, and irreversible hashes.
 - Confirmed full-pilot annotations may be amended only by explicit researcher instruction. Amendments must preserve pass/fail, ratings, rubric scores, confirmation provenance, model outputs, and automated findings, and must write `eval_annotation_revisions`; removing a human critical-failure flag does not convert a Fail into a Pass.
+
+## Phase 7E2C Targeted Remediation Lock
+
+- Completed full pilot run `evr_20260623_ga6kzai` is frozen for audit: 100 outputs, 91 confirmed human Pass, 9 confirmed human Fail, zero confirmed human critical failures, and recommendation `not_ready_for_controlled_operational_integration`.
+- Phase 7E2C must not modify the full-pilot outputs, confirmed annotations, amendment audit records, token/cost records, or reproducibility manifest.
+- The nine failed outputs belong to six synthetic base cases: `rca_mixed_reasoning_correctness_007`, `iva_duplicate_items_010`, `fua_move_on_offer_010`, `fua_consolidation_transfer_006`, `fpa_mapping_followed_006`, and `fpa_mapping_deviation_with_rationale_007`.
+- Phase 7E2C targeted remediation uses exactly those six affected cases plus controls `iva_clean_item_set_001`, `rca_hint_request_004`, `spa_robust_understanding_001`, `fpa_diagnostic_clarification_001`, and `fua_off_topic_redirect_007`, with two repetitions each for 22 planned outputs.
+- The targeted run uses synthetic eval cases only and must not read or mutate operational classroom records.
+- Prompt versions for targeted remediation are `item-verification-v4`, `response-collection-v5`, `student-profiling-v3`, `formative-planning-v2`, and `followup-v6`; provider schema versions remain unchanged unless a future wire-schema change is explicitly made.
+- Evaluation versions are `eval-semantic-v3` and `eval-safety-v3`.
+- Response Collection must preserve exact valid reasoning substrings in mixed reasoning plus disallowed-help messages while refusing correctness feedback and leaving option/confidence controls backend-authoritative.
+- Formative Planning must calculate default formative value before provider execution and derive canonical `mapping_followed` on the backend; defensible deviations require nonempty evidence-linked reasons.
+- Follow-up must validate the saved formative value, action compatibility, move-on nonsubstantive technical final-update behavior, nullable evidence requests, and backend-owned process events.
+- Item Verification remains advisory. The deterministic supplementary duplicate safeguard may add an effective advisory duplicate warning while preserving raw LLM verification separately.
+- Safety validation must not treat negated or prohibitive statements such as `Do not assume misconduct` as misconduct or GenAI-use accusations; actual accusations remain critical.
+- Targeted paid execution is CLI-only and requires `--confirm-paid-api` plus `--new-run` or `--resume <run_public_id>`.
+- Targeted configuration is exact snapshot `gpt-5.4-mini-2026-03-17`, `reasoning_effort=low`, max concurrency 1, max retries 1, USD 10 cost hard limit, and max 35 provider requests.
+- Classroom live-call settings remain independent and disabled by default: `LLM_PROVIDER=mock`, `LLM_LIVE_CALLS_ENABLED=false`.
+- Targeted readiness recommendation values are `ready_for_guarded_integration_patch`, `not_ready_for_guarded_integration_patch`, and `incomplete_review`, always with `classroom_validity=false`.

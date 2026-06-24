@@ -169,3 +169,20 @@ The full pilot freezes prompt versions, prompt hashes, schema versions, agent
 versions, case payload hashes, and evaluator versions at run creation. Prompt
 tuning during an active pilot run is not allowed; create a new run after any
 prompt or evaluator change.
+
+## Phase 7E2C Targeted Remediation Prompt Versions
+
+Phase 7E2C creates new future-run prompt versions after the full pilot failure
+adjudication. Historical full-pilot run `evr_20260623_ga6kzai` is not modified.
+
+- `item_verification_agent`: `item-verification-v4`
+- `response_collection_agent`: `response-collection-v5`
+- `student_profiling_agent`: `student-profiling-v3`
+- `formative_value_and_planning_agent`: `formative-planning-v2`
+- `followup_agent`: `followup-v6`
+
+The provider output schemas remain unchanged. Targeted remediation runs freeze
+these prompt versions, prompt hashes, schema versions, evaluator versions
+`eval-semantic-v3` and `eval-safety-v3`, deterministic normalizer versions,
+case hashes, run order, Git commit, model snapshot, reasoning effort, and
+budget configuration.

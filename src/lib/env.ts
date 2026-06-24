@@ -154,7 +154,15 @@ const serverEnvSchema = z.object({
     (value) => (value === "" || value === undefined ? 1 : value),
     z.coerce.number().int().min(0).max(3)
   ),
-  EVAL_PILOT_REQUEST_TIMEOUT_MS: positiveIntWithDefault(60000)
+  EVAL_PILOT_REQUEST_TIMEOUT_MS: positiveIntWithDefault(60000),
+  EVAL_TARGETED_REMEDIATION_COST_HARD_LIMIT_USD: nonnegativeNumberWithDefault(10),
+  EVAL_TARGETED_REMEDIATION_MAX_PROVIDER_REQUESTS: positiveIntWithDefault(35),
+  EVAL_TARGETED_REMEDIATION_MAX_CONCURRENCY: positiveIntWithDefault(1),
+  EVAL_TARGETED_REMEDIATION_MAX_RETRIES: z.preprocess(
+    (value) => (value === "" || value === undefined ? 1 : value),
+    z.coerce.number().int().min(0).max(3)
+  ),
+  EVAL_TARGETED_REMEDIATION_REQUEST_TIMEOUT_MS: positiveIntWithDefault(60000)
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

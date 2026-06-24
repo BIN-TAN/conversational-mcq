@@ -147,3 +147,20 @@ Phase 6D1 follow-up verification is covered by:
 ```bash
 npm run agent:followup-smoke
 ```
+
+## Phase 7E2C Backend-Canonical Mapping
+
+Prompt version `formative-planning-v2` treats the default formative-value
+mapping as backend-owned guidance rather than an absolute pedagogical rule.
+The backend calculates `default_formative_value` before provider execution and
+includes it in the planning input.
+
+After the provider returns one of the approved five formative values, the
+backend derives canonical mapping state:
+
+- selected value equals default: `mapping_followed=true` and `mapping_deviation_reason=null`
+- selected value differs from default: `mapping_followed=false` and a nonempty evidence-linked deviation reason is required
+
+The raw provider output remains preserved for audit. The semantic evaluator must
+not raise `incorrect_top_level_formative_value` merely because a defensible
+non-default value was selected.
