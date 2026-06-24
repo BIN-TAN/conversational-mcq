@@ -52,6 +52,10 @@ It does not assign another transfer task, directly complete the concept, choose
 the next concept, reveal profile/formative labels, or require live teacher
 approval.
 
+For `evr_20260624_bltzgtq`, the v2 AI-agent blind review is stored as 22 Pass /
+0 Fail with zero critical-failure flags. This is still AI review, not human
+confirmation, and does not establish classroom validity.
+
 ## Safeguards
 
 Response Collection effective readiness checks exact reasoning capture,

@@ -13,11 +13,12 @@ async function main() {
   const referencePath = argValue("--reference");
   const reviewerModel = argValue("--reviewer-model");
   const reviewTarget = argValue("--review-target");
+  const reviewArtifactVersion = argValue("--review-artifact-version");
   const confirmAiReview = process.argv.includes("--confirm-ai-review");
 
   if (!runPublicId || !annotationsPath || !referencePath || !reviewerModel) {
     throw new Error(
-      "Usage: npm run eval:annotations:confirm-ai-review -- --run <run_public_id> --annotations <csv_path> --reference <reference_path> --reviewer-model <model> [--review-target raw_model_output|effective_system_output] --confirm-ai-review"
+      "Usage: npm run eval:annotations:confirm-ai-review -- --run <run_public_id> --annotations <csv_path> --reference <reference_path> --reviewer-model <model> [--review-target raw_model_output|effective_system_output] [--review-artifact-version raw-model-output|effective-system-eval-v1|effective-system-eval-v2] --confirm-ai-review"
     );
   }
 
@@ -31,7 +32,8 @@ async function main() {
     referenceJsonlText,
     reviewerModel,
     confirmAiReview,
-    reviewTarget
+    reviewTarget,
+    reviewArtifactVersion
   });
 
   console.log(JSON.stringify(result, null, 2));

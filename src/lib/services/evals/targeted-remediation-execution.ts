@@ -1679,6 +1679,12 @@ export async function createTargetedRemediationReadinessReport(runPublicId: stri
     EFFECTIVE_SYSTEM_REVIEW_TARGET,
     EFFECTIVE_SYSTEM_RESULT_VERSION_V2
   );
+  const effectiveHumanAnnotations = annotationEntriesForReviewSource(
+    run.run_items,
+    "human_manual",
+    EFFECTIVE_SYSTEM_REVIEW_TARGET,
+    EFFECTIVE_SYSTEM_RESULT_VERSION_V2
+  );
   const reviewSource = effectiveAiAnnotations.length === EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS
     ? "ai_agent_review"
     : "none";
@@ -1826,7 +1832,9 @@ export async function createTargetedRemediationReadinessReport(runPublicId: stri
   return {
     label: "provisional engineering readiness",
     review_source: reviewSource,
-    human_review_pending: false,
+    human_review_pending:
+      reviewSource === "ai_agent_review" &&
+      effectiveHumanAnnotations.length < EVAL_TARGETED_REMEDIATION_TOTAL_ITEMS,
     classroom_validity: false,
     recommendation,
     run_public_id: run.run_public_id,

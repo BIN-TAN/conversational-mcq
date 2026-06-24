@@ -237,8 +237,10 @@ For `evr_20260624_bltzgtq`, the stored `effective-system-eval-v1` AI review is
 20 Pass / 2 Fail with both Fail judgments on `fua_move_on_offer_010`. The v2
 fallback preserves explicit move-on intent, keeps the student-led asynchronous
 progression path, runs final update/progression preparation through backend
-workflow ownership, and keeps unresolved-evidence confirmation available. V2
-annotations remain pending until a new blind review is imported.
+workflow ownership, and keeps unresolved-evidence confirmation available. The
+v2 AI blind review is stored as 22 Pass / 0 Fail with zero critical-failure
+flags. It is still AI-agent review, not human confirmation, so human review
+remains pending.
 
 ## AI-Agent Review Confirmation
 
@@ -263,6 +265,7 @@ For effective-system review, use the effective reference file and add:
 ```bash
   --reference .data/eval-review/<targeted_run_public_id>/effective-system-v2/review_reference.jsonl \
   --review-target effective_system_output
+  --review-artifact-version effective-system-eval-v2
 ```
 
 The command requires the explicit `--confirm-ai-review` flag and stores:

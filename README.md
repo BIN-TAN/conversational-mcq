@@ -999,7 +999,10 @@ student's explicit move-on request and assigned another transfer task. The
 corrected artifact version is `effective-system-eval-v2`; it keeps move-on
 student-led and asynchronous by preparing the final update/progression path
 without directly advancing the student or bypassing unresolved-evidence
-confirmation. V2 requires a new blind review and must not reuse v1 judgments.
+confirmation. The v2 AI blind review for this run is stored as 22 Pass / 0 Fail
+with zero critical-failure flags, and it must not reuse v1 judgments. The
+report remains provisional engineering evidence with human review pending and
+`classroom_validity=false`.
 
 Generate the effective-system blind packet with:
 
@@ -1026,6 +1029,7 @@ npm run eval:annotations:confirm-ai-review -- \
   --reference .data/eval-review/<targeted_run_public_id>/effective-system-v2/review_reference.jsonl \
   --reviewer-model gpt-5.5-pro \
   --review-target effective_system_output \
+  --review-artifact-version effective-system-eval-v2 \
   --confirm-ai-review
 ```
 

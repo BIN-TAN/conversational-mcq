@@ -220,9 +220,10 @@ changes, account changes, or exports.
 `effective-system-eval-v1` remains reproducible for audit. For
 `evr_20260624_bltzgtq`, v1 has a stored 20 Pass / 2 Fail AI review; both Fail
 judgments are `fua_move_on_offer_010`. `effective-system-eval-v2` corrects the
-deterministic move-on fallback only. Its artifact hash includes the artifact
-version and fallback version (`followup-move-on-fallback-v2`), so v1 review
-judgments must not be applied to v2 artifacts.
+deterministic move-on fallback only and has a stored AI-agent blind review of
+22 Pass / 0 Fail with zero critical-failure flags. Its artifact hash includes
+the artifact version and fallback version (`followup-move-on-fallback-v2`), so
+v1 review judgments must not be applied to v2 artifacts.
 
 Effective blind review packets for v2 are written under
 `.data/eval-review/<run_public_id>/effective-system-v2/` and are not tracked by

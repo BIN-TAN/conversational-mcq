@@ -131,8 +131,10 @@ move-on request is nonsubstantive conceptual evidence, sets
 `should_offer_move_on=true`, may request the technical final-follow-up update,
 prepares concept progression through backend-owned workflow actions, preserves
 unresolved-evidence confirmation, and does not directly mark the concept
-complete or choose the next concept. V2 annotations are pending until a new
-blind review is imported; v1 judgments must not be copied onto v2 hashes.
+complete or choose the next concept. The v2 AI blind review is stored as 22
+Pass / 0 Fail with zero critical-failure flags; v1 judgments must not be copied
+onto v2 hashes. Human review remains pending and classroom validity remains
+false.
 
 ## Readiness Gates
 
@@ -179,6 +181,7 @@ npm run eval:annotations:confirm-ai-review -- \
   --reference .data/eval-review/<targeted_run_public_id>/effective-system-v2/review_reference.jsonl \
   --reviewer-model gpt-5.5-pro \
   --review-target effective_system_output \
+  --review-artifact-version effective-system-eval-v2 \
   --confirm-ai-review
 ```
 

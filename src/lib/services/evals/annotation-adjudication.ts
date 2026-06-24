@@ -335,6 +335,7 @@ function validateRowsAgainstReferenceAndRun(input: {
   referenceByReviewId: Map<string, ReferenceRecord>;
   run: Awaited<ReturnType<typeof loadRunForImport>>;
   reviewTarget?: EvalReviewTarget;
+  reviewArtifactVersion?: string | null;
 }) {
   const expectedReviewItemCount = input.run.run_items.length;
 
@@ -380,6 +381,12 @@ function validateRowsAgainstReferenceAndRun(input: {
   const itemByReviewId = new Map<string, typeof input.run.run_items[number]>();
   const agentByReviewId = new Map<string, string>();
   let reviewArtifactVersion: string | null = null;
+  const requestedReviewArtifactVersion = input.reviewArtifactVersion
+    ? reviewArtifactVersionForTarget({
+        reviewTarget: input.reviewTarget ?? RAW_MODEL_REVIEW_TARGET,
+        effectiveResultVersion: input.reviewArtifactVersion
+      })
+    : null;
 
   for (const reference of input.referenceByReviewId.values()) {
     if (reference.review_target && input.reviewTarget && reference.review_target !== input.reviewTarget) {
@@ -405,6 +412,14 @@ function validateRowsAgainstReferenceAndRun(input: {
       });
     }
     reviewArtifactVersion = referenceArtifactVersion;
+
+    if (requestedReviewArtifactVersion && requestedReviewArtifactVersion !== referenceArtifactVersion) {
+      throw new EvalServiceError("reference_review_artifact_version_mismatch", "Reference file artifact version does not match the requested import artifact version.", 400, {
+        review_item_id: reference.review_item_id,
+        reference_review_artifact_version: referenceArtifactVersion,
+        requested_review_artifact_version: requestedReviewArtifactVersion
+      });
+    }
 
     const item = reference.run_item_public_id
       ? itemByPublicId.get(reference.run_item_public_id)
@@ -607,6 +622,7 @@ export async function importDraftAnnotationsForRun(input: {
   data: unknown;
   requestedByUserDbId?: string;
   reviewTarget?: string | null;
+  reviewArtifactVersion?: string | null;
 }) {
   const parsedInput = importDraftAnnotationsSchema.parse(input.data);
   const [rows, referenceRecords, run] = await Promise.all([
@@ -620,7 +636,8 @@ export async function importDraftAnnotationsForRun(input: {
     rows,
     referenceByReviewId,
     run,
-    reviewTarget
+    reviewTarget,
+    reviewArtifactVersion: input.reviewArtifactVersion
   });
 
   const summary = calculateImportSummary({ rows, referenceByReviewId, agentByReviewId });
@@ -742,6 +759,7 @@ export async function confirmAiReviewAnnotationsForRun(input: {
   reviewerModel: string;
   confirmAiReview: boolean;
   reviewTarget?: string | null;
+  reviewArtifactVersion?: string | null;
 }) {
   if (!input.confirmAiReview) {
     throw new EvalServiceError("missing_ai_review_confirmation", "AI review confirmation requires --confirm-ai-review.", 400);
@@ -771,7 +789,8 @@ export async function confirmAiReviewAnnotationsForRun(input: {
     rows,
     referenceByReviewId,
     run,
-    reviewTarget
+    reviewTarget,
+    reviewArtifactVersion: input.reviewArtifactVersion
   });
   const summary = calculateImportSummary({ rows, referenceByReviewId, agentByReviewId });
 

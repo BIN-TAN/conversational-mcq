@@ -87,6 +87,7 @@ async function main() {
   assert(ready.recommendation === "ready_for_guarded_integration_patch", "All-pass effective-system review should pass readiness gates.");
   assert(ready.label === "provisional engineering readiness", "Report should be labeled as provisional engineering readiness.");
   assert(ready.review_source === "ai_agent_review", "Effective readiness should use AI-agent review source.");
+  assert(ready.human_review_pending === true, "AI-agent review should leave human review pending.");
   assert(ready.classroom_validity === false, "Report must not claim classroom validity.");
   assert(ready.raw_model_quality, "Report should include raw model quality section.");
   assert(ready.effective_system_readiness, "Report should include effective-system readiness section.");

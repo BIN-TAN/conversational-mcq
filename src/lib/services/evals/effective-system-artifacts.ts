@@ -85,9 +85,15 @@ export function reviewArtifactVersionForTarget(input: {
   reviewTarget: EvalReviewTarget;
   effectiveResultVersion?: string | null;
 }) {
-  return input.reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET
-    ? parseEffectiveSystemResultVersion(input.effectiveResultVersion)
-    : RAW_MODEL_REVIEW_ARTIFACT_VERSION;
+  if (input.reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET) {
+    return parseEffectiveSystemResultVersion(input.effectiveResultVersion);
+  }
+
+  if (input.effectiveResultVersion && input.effectiveResultVersion !== RAW_MODEL_REVIEW_ARTIFACT_VERSION) {
+    throw new Error(`Unsupported raw-model review artifact version: ${input.effectiveResultVersion}`);
+  }
+
+  return RAW_MODEL_REVIEW_ARTIFACT_VERSION;
 }
 
 function stableJson(value: unknown): string {

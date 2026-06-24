@@ -863,8 +863,9 @@ Phase 6A.5 must not implement:
   `review_artifact_version=raw-model-output`. The preserved
   `effective-system-eval-v1` review for `evr_20260624_bltzgtq` is 20 Pass / 2
   Fail and remains the review of v1 artifact hashes only. Corrected
-  `effective-system-eval-v2` artifacts require a new blind review; v1 judgments
-  must not be copied onto v2.
+  `effective-system-eval-v2` artifacts have an AI-agent blind review of 22 Pass
+  / 0 Fail with zero critical-failure flags; v1 judgments must not be copied
+  onto v2. This remains AI review, not human confirmation.
 - Effective-system artifacts are eval-only derived evidence. They may include
   deterministic duplicate safeguards, backend-owned response-control
   canonicalization, planning canonicalization/fallback, and follow-up safe
