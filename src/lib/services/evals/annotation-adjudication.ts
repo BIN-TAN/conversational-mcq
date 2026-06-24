@@ -14,15 +14,16 @@ import {
   rubricCriteria,
   rubricScoreSchema
 } from "./types";
+import {
+  RAW_MODEL_REVIEW_TARGET,
+  type EvalReviewTarget,
+  parseEvalReviewTarget
+} from "./effective-system-artifacts";
 
 const REQUIRED_ATTESTATION =
   "I reviewed the imported annotation decisions and accept them as my confirmed evaluation judgments.";
 const REVIEWABLE_RUN_ITEM_STATUSES = new Set(["completed", "refused", "incomplete"]);
-const AI_REVIEW_CONFIRMATION_COMMAND_VERSION = "eval-ai-review-confirmation-v1";
-const AI_REVIEW_EXPECTED_ROW_COUNT = 22;
-const AI_REVIEW_EXPECTED_PASS_COUNT = 20;
-const AI_REVIEW_EXPECTED_FAIL_COUNT = 2;
-const AI_REVIEW_EXPECTED_CRITICAL_FAILURE_COUNT = 0;
+const AI_REVIEW_CONFIRMATION_COMMAND_VERSION = "eval-ai-review-confirmation-v2";
 const AI_REVIEW_METHOD = "blind_review";
 const TARGETED_REMEDIATION_FOCUS: Record<string, string> = {
   rca_mixed_reasoning_correctness_007: "mixed reasoning capture with correctness refusal",
@@ -57,6 +58,7 @@ type ReferenceRecord = {
   automated_safety_result?: unknown;
   automated_critical_flags?: unknown;
   model_provider_prompt_metadata?: unknown;
+  review_target?: string;
 };
 
 function prismaJson(value: unknown) {
@@ -89,6 +91,7 @@ function annotationSnapshot(annotation: {
   blind_review: boolean;
   annotation_source: string;
   annotation_status: string;
+  review_target?: string | null;
   reviewer_model?: string | null;
   review_method?: string | null;
   reviewed_at?: Date | null;
@@ -112,6 +115,7 @@ function annotationSnapshot(annotation: {
     blind_review: annotation.blind_review,
     annotation_source: annotation.annotation_source,
     annotation_status: annotation.annotation_status,
+    review_target: annotation.review_target ?? RAW_MODEL_REVIEW_TARGET,
     reviewer_model: annotation.reviewer_model ?? null,
     review_method: annotation.review_method ?? null,
     reviewed_at: annotation.reviewed_at?.toISOString() ?? null,
@@ -301,6 +305,7 @@ function validateRowsAgainstReferenceAndRun(input: {
   rows: ParsedAnnotationRow[];
   referenceByReviewId: Map<string, ReferenceRecord>;
   run: Awaited<ReturnType<typeof loadRunForImport>>;
+  reviewTarget?: EvalReviewTarget;
 }) {
   const expectedReviewItemCount = input.run.run_items.length;
 
@@ -347,6 +352,14 @@ function validateRowsAgainstReferenceAndRun(input: {
   const agentByReviewId = new Map<string, string>();
 
   for (const reference of input.referenceByReviewId.values()) {
+    if (reference.review_target && input.reviewTarget && reference.review_target !== input.reviewTarget) {
+      throw new EvalServiceError("reference_review_target_mismatch", "Reference file review target does not match the requested import target.", 400, {
+        review_item_id: reference.review_item_id,
+        reference_review_target: reference.review_target,
+        requested_review_target: input.reviewTarget
+      });
+    }
+
     const item = reference.run_item_public_id
       ? itemByPublicId.get(reference.run_item_public_id)
       : itemsByCaseId.get(reference.original_case_id)?.length === 1
@@ -393,6 +406,7 @@ function aiReviewAnnotationMatches(input: {
     reference_file_hash: string | null;
     source_run_public_id: string | null;
     import_command_version: string | null;
+    review_target: string;
     overall_rating: number | null;
     pass_fail: string | null;
     rubric_scores: unknown;
@@ -405,6 +419,7 @@ function aiReviewAnnotationMatches(input: {
     annotationFileHash: string;
     referenceFileHash: string;
     sourceRunPublicId: string;
+    reviewTarget: EvalReviewTarget;
   };
 }) {
   return (
@@ -418,6 +433,7 @@ function aiReviewAnnotationMatches(input: {
     input.annotation.reference_file_hash === input.metadata.referenceFileHash &&
     input.annotation.source_run_public_id === input.metadata.sourceRunPublicId &&
     input.annotation.import_command_version === AI_REVIEW_CONFIRMATION_COMMAND_VERSION &&
+    input.annotation.review_target === input.metadata.reviewTarget &&
     input.annotation.overall_rating === input.row.overall_rating &&
     input.annotation.pass_fail === input.row.pass_fail &&
     stableStringify(input.annotation.rubric_scores) === stableStringify(input.row.rubric_scores) &&
@@ -538,7 +554,9 @@ export async function importDraftAnnotationsForRun(input: {
   runPublicId: string;
   data: unknown;
   requestedByUserDbId?: string;
+  reviewTarget?: string | null;
 }) {
+  const reviewTarget = parseEvalReviewTarget(input.reviewTarget);
   const parsedInput = importDraftAnnotationsSchema.parse(input.data);
   const [rows, referenceRecords, run] = await Promise.all([
     Promise.resolve(parseAnnotationCsv(parsedInput.annotation_csv_text)),
@@ -549,7 +567,8 @@ export async function importDraftAnnotationsForRun(input: {
   const { itemByReviewId, agentByReviewId } = validateRowsAgainstReferenceAndRun({
     rows,
     referenceByReviewId,
-    run
+    run,
+    reviewTarget
   });
 
   const summary = calculateImportSummary({ rows, referenceByReviewId, agentByReviewId });
@@ -578,9 +597,10 @@ export async function importDraftAnnotationsForRun(input: {
 
       const existing = await tx.evalAnnotation.findUnique({
         where: {
-          run_item_db_id_annotated_by_user_db_id: {
+          run_item_db_id_annotated_by_user_db_id_review_target: {
             run_item_db_id: item.id,
-            annotated_by_user_db_id: teacher.id
+            annotated_by_user_db_id: teacher.id,
+            review_target: reviewTarget
           }
         }
       });
@@ -594,6 +614,7 @@ export async function importDraftAnnotationsForRun(input: {
         blind_review: true,
         annotation_source: "ai_assisted_preliminary",
         annotation_status: "draft",
+        review_target: reviewTarget,
         overall_rating: row.overall_rating,
         pass_fail: row.pass_fail,
         rubric_scores: prismaJson(row.rubric_scores),
@@ -637,7 +658,8 @@ export async function importDraftAnnotationsForRun(input: {
     per_agent_pass_rates: summary.per_agent,
     imported_as: {
       annotation_source: "ai_assisted_preliminary",
-      annotation_status: "draft"
+      annotation_status: "draft",
+      review_target: reviewTarget
     },
     openai_call_made: false,
     operational_records_mutated: false
@@ -664,7 +686,10 @@ export async function confirmAiReviewAnnotationsForRun(input: {
   referenceJsonlText: string;
   reviewerModel: string;
   confirmAiReview: boolean;
+  reviewTarget?: string | null;
 }) {
+  const reviewTarget = parseEvalReviewTarget(input.reviewTarget);
+
   if (!input.confirmAiReview) {
     throw new EvalServiceError("missing_ai_review_confirmation", "AI review confirmation requires --confirm-ai-review.", 400);
   }
@@ -688,39 +713,13 @@ export async function confirmAiReviewAnnotationsForRun(input: {
     });
   }
 
-  if (run.run_items.length !== AI_REVIEW_EXPECTED_ROW_COUNT || run.planned_run_item_count !== AI_REVIEW_EXPECTED_ROW_COUNT) {
-    throw new EvalServiceError("unexpected_targeted_run_size", "AI review confirmation requires exactly 22 targeted-remediation run items.", 400, {
-      planned_run_item_count: run.planned_run_item_count,
-      run_item_count: run.run_items.length
-    });
-  }
-
   const { itemByReviewId, agentByReviewId } = validateRowsAgainstReferenceAndRun({
     rows,
     referenceByReviewId,
-    run
+    run,
+    reviewTarget
   });
   const summary = calculateImportSummary({ rows, referenceByReviewId, agentByReviewId });
-
-  if (
-    rows.length !== AI_REVIEW_EXPECTED_ROW_COUNT ||
-    summary.pass_count !== AI_REVIEW_EXPECTED_PASS_COUNT ||
-    summary.fail_count !== AI_REVIEW_EXPECTED_FAIL_COUNT ||
-    summary.human_critical_failure_count !== AI_REVIEW_EXPECTED_CRITICAL_FAILURE_COUNT
-  ) {
-    throw new EvalServiceError("unexpected_ai_review_totals", "AI review confirmation totals did not match the supplied targeted review file expectations.", 400, {
-      row_count: rows.length,
-      pass_count: summary.pass_count,
-      fail_count: summary.fail_count,
-      critical_failure_count: summary.human_critical_failure_count,
-      expected: {
-        row_count: AI_REVIEW_EXPECTED_ROW_COUNT,
-        pass_count: AI_REVIEW_EXPECTED_PASS_COUNT,
-        fail_count: AI_REVIEW_EXPECTED_FAIL_COUNT,
-        critical_failure_count: AI_REVIEW_EXPECTED_CRITICAL_FAILURE_COUNT
-      }
-    });
-  }
 
   const annotationFileHash = sha256(input.annotationCsvText);
   const referenceFileHash = sha256(input.referenceJsonlText);
@@ -757,9 +756,10 @@ export async function confirmAiReviewAnnotationsForRun(input: {
 
       const existing = await tx.evalAnnotation.findUnique({
         where: {
-          run_item_db_id_annotated_by_user_db_id: {
+          run_item_db_id_annotated_by_user_db_id_review_target: {
             run_item_db_id: item.id,
-            annotated_by_user_db_id: teacherDbId
+            annotated_by_user_db_id: teacherDbId,
+            review_target: reviewTarget
           }
         }
       });
@@ -767,6 +767,7 @@ export async function confirmAiReviewAnnotationsForRun(input: {
         blind_review: true,
         annotation_source: "ai_agent_review",
         annotation_status: "ai_confirmed",
+        review_target: reviewTarget,
         reviewer_model: input.reviewerModel,
         review_method: AI_REVIEW_METHOD,
         reviewed_at: reviewedAt,
@@ -791,7 +792,8 @@ export async function confirmAiReviewAnnotationsForRun(input: {
             reviewerModel: input.reviewerModel,
             annotationFileHash,
             referenceFileHash,
-            sourceRunPublicId: run.run_public_id
+            sourceRunPublicId: run.run_public_id,
+            reviewTarget
           }
         });
 
@@ -836,7 +838,8 @@ export async function confirmAiReviewAnnotationsForRun(input: {
                 annotation_file_hash: annotationFileHash,
                 reference_file_hash: referenceFileHash,
                 source_run_public_id: run.run_public_id,
-                import_command_version: AI_REVIEW_CONFIRMATION_COMMAND_VERSION
+                import_command_version: AI_REVIEW_CONFIRMATION_COMMAND_VERSION,
+                review_target: reviewTarget
               }
             })
           }
@@ -874,7 +877,8 @@ export async function confirmAiReviewAnnotationsForRun(input: {
               annotation_file_hash: annotationFileHash,
               reference_file_hash: referenceFileHash,
               source_run_public_id: run.run_public_id,
-              import_command_version: AI_REVIEW_CONFIRMATION_COMMAND_VERSION
+              import_command_version: AI_REVIEW_CONFIRMATION_COMMAND_VERSION,
+              review_target: reviewTarget
             }
           })
         }
@@ -906,7 +910,8 @@ export async function confirmAiReviewAnnotationsForRun(input: {
     import_command_version: AI_REVIEW_CONFIRMATION_COMMAND_VERSION,
     imported_as: {
       annotation_source: "ai_agent_review",
-      annotation_status: "ai_confirmed"
+      annotation_status: "ai_confirmed",
+      review_target: reviewTarget
     },
     human_confirmation_fabricated: false,
     openai_call_made: false,

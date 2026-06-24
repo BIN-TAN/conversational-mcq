@@ -209,9 +209,25 @@ index, model/provider metadata, automated findings, gold labels, token usage,
 cost, and existing annotations. The reference file keeps adjudication metadata
 separate. The annotation template contains one row per review item.
 
-Targeted readiness requires confirmed annotations for all 22 outputs. The
-readiness report calculates pass/fail outcomes from those annotations; it does
-not claim classroom validity and it does not modify the frozen full-pilot run.
+Effective-system review uses a separate target and output directory:
+
+```bash
+npm run eval:blind-review-export -- \
+  --run <targeted_run_public_id> \
+  --review-target effective_system_output
+```
+
+This writes to `.data/eval-review/<targeted_run_public_id>/effective-system/`.
+The effective blind packet shows effective student-facing behavior, effective
+structured result, and effective workflow actions. It hides raw model failure
+status and fallback status from the blind reviewer. The reference file keeps raw
+output, deterministic guard, canonicalization, fallback, and raw/effective
+comparison data for adjudication.
+
+Targeted readiness requires confirmed effective-system annotations for all 22
+outputs. The readiness report keeps raw model quality and effective-system
+readiness separate; it does not claim classroom validity and it does not modify
+the frozen full-pilot run.
 
 ## AI-Agent Review Confirmation
 
@@ -231,6 +247,12 @@ npm run eval:annotations:confirm-ai-review -- \
   --confirm-ai-review
 ```
 
+For effective-system review, use the effective reference file and add:
+
+```bash
+  --review-target effective_system_output
+```
+
 The command requires the explicit `--confirm-ai-review` flag and stores:
 
 - `annotation_source=ai_agent_review`
@@ -242,6 +264,7 @@ The command requires the explicit `--confirm-ai-review` flag and stores:
 - reference JSONL hash
 - source run ID
 - import command version
+- review target
 
 It does not populate `confirmed_by_user_db_id`, `confirmed_at`, or any human
 confirmer field. The targeted remediation report displays AI-confirmed counts,
@@ -253,4 +276,6 @@ engineering readiness`, `review_source=ai_agent_review`, and
 Human researchers can later accept, edit, or replace AI-confirmed judgments
 through the normal annotation workflow. A later human review sets human
 confirmation provenance and writes an audit revision; it must not erase the
-original AI-review provenance stored in the annotation history.
+original AI-review provenance stored in the annotation history. Raw-output and
+effective-system AI reviews are separate annotation layers and must not
+overwrite each other.

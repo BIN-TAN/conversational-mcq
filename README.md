@@ -984,6 +984,42 @@ provider requests, and a USD 10 hard limit. Classroom settings remain
 `LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`. The readiness label is a
 guarded integration patch check, not classroom validity.
 
+Phase 7E2C separates `raw_model_quality` from
+`effective_system_readiness`. Raw-output annotations remain visible and are
+stored with `review_target=raw_model_output`. Effective-system review uses
+derived artifacts that include deterministic safeguards, backend
+canonicalization, and safe fallbacks, and is stored separately with
+`review_target=effective_system_output`.
+
+Generate the effective-system blind packet with:
+
+```bash
+npm run eval:blind-review-export -- \
+  --run <targeted_run_public_id> \
+  --review-target effective_system_output
+```
+
+Confirm an externally reviewed effective-system packet with:
+
+```bash
+npm run eval:annotations:confirm-ai-review -- \
+  --run <targeted_run_public_id> \
+  --annotations <completed_effective_annotation_csv_path> \
+  --reference .data/eval-review/<targeted_run_public_id>/effective-system/review_reference.jsonl \
+  --reviewer-model gpt-5.5-pro \
+  --review-target effective_system_output \
+  --confirm-ai-review
+```
+
+Additional no-provider smoke checks:
+
+```bash
+npm run eval:effective-system-artifact-smoke
+npm run eval:effective-system-report-smoke
+npm run eval:effective-system-blind-export-smoke
+npm run eval:effective-system-annotation-smoke
+```
+
 AI-agent blind review can be confirmed as provisional engineering evidence
 without labeling it as human review:
 

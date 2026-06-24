@@ -239,9 +239,10 @@ async function main() {
   );
   const humanAnnotation = await prisma.evalAnnotation.findUniqueOrThrow({
     where: {
-      run_item_db_id_annotated_by_user_db_id: {
+      run_item_db_id_annotated_by_user_db_id_review_target: {
         run_item_db_id: firstItem.id,
-        annotated_by_user_db_id: run.created_by.id
+        annotated_by_user_db_id: run.created_by.id,
+        review_target: "raw_model_output"
       }
     }
   });

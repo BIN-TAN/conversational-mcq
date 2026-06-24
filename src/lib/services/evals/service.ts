@@ -12,6 +12,7 @@ import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
 import type { PublicUser } from "@/types/auth";
 import { EvalServiceError } from "./errors";
+import { RAW_MODEL_REVIEW_TARGET } from "./effective-system-artifacts";
 import { loadEvalFixtureCases } from "./fixtures";
 import { allRubricDefinitions, rubricDefinitionForAgent } from "./rubrics";
 import {
@@ -802,9 +803,10 @@ export async function upsertEvalAnnotation(
   const annotation = await prisma.$transaction(async (tx) => {
     const existing = await tx.evalAnnotation.findUnique({
       where: {
-        run_item_db_id_annotated_by_user_db_id: {
+        run_item_db_id_annotated_by_user_db_id_review_target: {
           run_item_db_id: runItem.id,
-          annotated_by_user_db_id: teacher.id
+          annotated_by_user_db_id: teacher.id,
+          review_target: RAW_MODEL_REVIEW_TARGET
         }
       }
     });
@@ -814,6 +816,7 @@ export async function upsertEvalAnnotation(
       blind_review: parsed.blind_review,
       annotation_source: "human_manual",
       annotation_status: "confirmed",
+      review_target: RAW_MODEL_REVIEW_TARGET,
       reviewer_model: null,
       review_method: null,
       reviewed_at: null,

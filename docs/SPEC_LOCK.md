@@ -854,3 +854,19 @@ Phase 6A.5 must not implement:
 - AI-confirmed review can drive only a separately labelled `provisional engineering readiness` gate with `review_source=ai_agent_review` and `classroom_validity=false`; human review remains pending until a human researcher confirms or supersedes the annotations.
 - AI review provenance must include reviewer model, review method, reviewed timestamp, annotation file hash, reference file hash, source run ID, and import command version.
 - Later human review must be able to accept, edit, or replace AI-confirmed judgments and must write an audit revision without erasing the original AI-review provenance.
+- Phase 7E2C evaluation must keep `raw_model_quality` separate from
+  `effective_system_readiness`.
+- Raw-output reviews use `review_target=raw_model_output`; effective-system
+  reviews use `review_target=effective_system_output`. These review layers must
+  coexist and must not overwrite each other.
+- Effective-system artifacts are eval-only derived evidence. They may include
+  deterministic duplicate safeguards, backend-owned response-control
+  canonicalization, planning canonicalization/fallback, and follow-up safe
+  fallback. They must not modify raw provider outputs or operational classroom
+  records.
+- A safeguarded raw model failure may support provisional engineering readiness
+  only when the effective artifact shows zero student-facing failures, zero
+  workflow failures, zero effective critical failures, all effective results
+  safe/usable, and all effective engineering gates passing.
+- Effective-system readiness is not classroom validity and must not enable
+  classroom live calls.

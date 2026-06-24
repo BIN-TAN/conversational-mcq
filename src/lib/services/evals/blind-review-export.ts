@@ -7,6 +7,13 @@ import { prisma } from "@/lib/db";
 import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
 import { rubricDefinitionForAgent } from "./rubrics";
 import { EvalServiceError } from "./errors";
+import {
+  EFFECTIVE_SYSTEM_REVIEW_TARGET,
+  RAW_MODEL_REVIEW_TARGET,
+  type EvalReviewTarget,
+  buildEffectiveSystemArtifact,
+  parseEvalReviewTarget
+} from "./effective-system-artifacts";
 
 const redactionMarker = "[REDACTED_SECRET_LIKE_TOKEN]";
 
@@ -573,11 +580,56 @@ function jsonl(records: unknown[]) {
   return `${records.map((record) => stableJson(record)).join("\n")}\n`;
 }
 
-export function blindReviewDirectory(runPublicId: string) {
-  return path.join(process.cwd(), ".data", "eval-review", runPublicId);
+export function blindReviewDirectory(runPublicId: string, reviewTarget: EvalReviewTarget = RAW_MODEL_REVIEW_TARGET) {
+  const base = path.join(process.cwd(), ".data", "eval-review", runPublicId);
+
+  return reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET
+    ? path.join(base, "effective-system")
+    : base;
 }
 
-async function buildBlindReviewExportPayload(runPublicId: string) {
+function blindEffectiveStructuredResult(artifact: ReturnType<typeof buildEffectiveSystemArtifact>) {
+  const structured =
+    artifact.effective_structured_result &&
+    typeof artifact.effective_structured_result === "object" &&
+    !Array.isArray(artifact.effective_structured_result)
+      ? artifact.effective_structured_result as Record<string, unknown>
+      : {};
+
+  if (artifact.agent_name === "formative_value_and_planning_agent") {
+    return safeValue(structured.effective_output ?? artifact.effective_structured_result);
+  }
+
+  if (artifact.agent_name === "followup_agent") {
+    const output = record(structured.effective_output);
+    return safeValue({
+      assistant_message: output.assistant_message,
+      followup_action_type: output.followup_action_type,
+      target_formative_value: output.target_formative_value,
+      evidence_request: output.evidence_request,
+      expects_student_response: output.expects_student_response,
+      evidence_trigger_candidate: output.evidence_trigger_candidate,
+      student_turn_substantive: output.student_turn_substantive,
+      evidence_trigger_reasons: output.evidence_trigger_reasons,
+      should_offer_move_on: output.should_offer_move_on,
+      off_topic_detected: output.off_topic_detected
+    });
+  }
+
+  if (artifact.agent_name === "item_verification_agent") {
+    return safeValue(structured.effective_output ?? artifact.effective_structured_result);
+  }
+
+  return safeValue(artifact.effective_structured_result);
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+async function buildBlindReviewExportPayload(runPublicId: string, reviewTarget: EvalReviewTarget = RAW_MODEL_REVIEW_TARGET) {
   const run = await prisma.evalRun.findUnique({
     where: { run_public_id: runPublicId },
     select: {
@@ -708,6 +760,33 @@ async function buildBlindReviewExportPayload(runPublicId: string) {
 
   const blindRecords = orderedItems.map((item) => {
     const agentName = item.eval_case.agent_name as AgentNameType;
+    const effectiveArtifact = buildEffectiveSystemArtifact(item);
+
+    if (reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET) {
+      return {
+        review_item_id: reviewItemId(run.run_public_id, item.run_item_public_id),
+        agent_name: agentName,
+        case_title: item.eval_case.title,
+        case_description: item.eval_case.description,
+        input_payload: safeValue(item.input_payload),
+        effective_student_facing_behavior: safeValue({
+          assistant_message: effectiveArtifact.effective_student_message
+        }),
+        effective_structured_result: blindEffectiveStructuredResult(effectiveArtifact),
+        effective_workflow_actions: safeValue(effectiveArtifact.effective_workflow_actions),
+        effective_process_events: safeValue(effectiveArtifact.effective_process_events),
+        agent_specific_rubric_criteria: rubricForBlindPacket(agentName),
+        rubric_scale: {
+          "0": "unacceptable",
+          "1": "weak",
+          "2": "acceptable",
+          "3": "strong"
+        },
+        safety_expectations: safeValue(item.eval_case.safety_expectations),
+        critical_failure_definitions: criticalFailureDefinitionsForAgent(agentName)
+      };
+    }
+
     const outputPayload = item.parsed_output ?? item.raw_output;
     const outputField =
       item.parsed_output === null || item.parsed_output === undefined
@@ -737,12 +816,23 @@ async function buildBlindReviewExportPayload(runPublicId: string) {
     review_item_id: reviewItemId(run.run_public_id, item.run_item_public_id),
     run_item_public_id: item.run_item_public_id,
     original_case_id: item.eval_case.case_id,
+    review_target: reviewTarget,
     gold_labels: safeValue(item.eval_case.gold_labels),
     expected_behavior: {
       expected_output: safeValue(item.eval_case.expected_output),
       rubric_expectations: safeValue(item.eval_case.rubric_expectations),
       safety_expectations: safeValue(item.eval_case.safety_expectations)
     },
+    ...(reviewTarget === EFFECTIVE_SYSTEM_REVIEW_TARGET
+      ? {
+          raw_and_effective_comparison: safeValue({
+            raw_output: item.parsed_output ?? item.raw_output,
+            raw_semantic_result: item.semantic_validation_result,
+            raw_safety_result: item.safety_validation_result,
+            effective_system_artifact: buildEffectiveSystemArtifact(item)
+          })
+        }
+      : {}),
     automated_semantic_result: safeValue(item.semantic_validation_result),
     automated_safety_result: safeValue(item.safety_validation_result),
     automated_critical_flags: safeValue(
@@ -797,6 +887,7 @@ async function buildBlindReviewExportPayload(runPublicId: string) {
 
   return {
     run,
+    reviewTarget,
     blindRecords,
     referenceRecords,
     annotationRows
@@ -855,7 +946,15 @@ export async function inspectBlindReviewExportSafety(runPublicId: string) {
 }
 
 export async function exportBlindReviewPacket(runPublicId: string) {
-  const payload = await buildBlindReviewExportPayload(runPublicId);
+  return exportBlindReviewPacketForTarget({ runPublicId });
+}
+
+export async function exportBlindReviewPacketForTarget(input: {
+  runPublicId: string;
+  reviewTarget?: string | null;
+}) {
+  const reviewTarget = parseEvalReviewTarget(input.reviewTarget);
+  const payload = await buildBlindReviewExportPayload(input.runPublicId, reviewTarget);
   const blind = processExportSafety(payload.blindRecords, "blind_review_packet.jsonl");
   const reference = processExportSafety(payload.referenceRecords, "review_reference.jsonl");
   const annotation = processExportSafety(payload.annotationRows, "annotation_template.csv");
@@ -866,7 +965,7 @@ export async function exportBlindReviewPacket(runPublicId: string) {
     annotation
   });
 
-  const outputDir = blindReviewDirectory(payload.run.run_public_id);
+  const outputDir = blindReviewDirectory(payload.run.run_public_id, reviewTarget);
   await mkdir(outputDir, { recursive: true });
 
   const blindPacketPath = path.join(outputDir, "blind_review_packet.jsonl");
@@ -888,6 +987,7 @@ export async function exportBlindReviewPacket(runPublicId: string) {
 
   return {
     run_public_id: payload.run.run_public_id,
+    review_target: reviewTarget,
     output_dir: outputDir,
     blind_review_packet_path: blindPacketPath,
     review_reference_path: referencePath,

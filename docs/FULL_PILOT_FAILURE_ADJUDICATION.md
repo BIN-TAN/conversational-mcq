@@ -64,3 +64,14 @@ remain critical failures.
 The full pilot result is development evaluation evidence, not classroom
 validation. Phase 7E2C targeted remediation may support a guarded integration
 patch decision, but it does not enable classroom live model calls.
+
+## Raw and Effective Layers
+
+The frozen full pilot remains a raw/effective audit source, but Phase 7E2C
+targeted readiness separates `raw_model_quality` from
+`effective_system_readiness`.
+
+Raw failures remain visible. Effective readiness may pass only when deterministic
+safeguards, backend canonicalization, or safe fallback logic prevent unsafe
+student-facing behavior and unsafe workflow mutation. This does not convert the
+raw output into a Pass and does not claim classroom validity.

@@ -183,6 +183,7 @@ AI-confirmed annotations use:
 
 - `annotation_source=ai_agent_review`
 - `annotation_status=ai_confirmed`
+- `review_target=raw_model_output` or `effective_system_output`
 - `confirmed_by_user_db_id=null`
 - `confirmed_at=null`
 
@@ -191,3 +192,26 @@ or promoted annotations. Re-running the same command with the same files is
 idempotent and does not create duplicate revisions. Later human review can
 supersede AI-confirmed annotations; that human supersession creates another
 revision and preserves the original AI-review snapshot.
+
+## Phase 7E2C Effective-System Artifact Reproducibility
+
+Effective-system evaluation derives a versioned artifact from each eval run item
+without modifying raw provider output:
+
+- `effective_result_version=effective-system-eval-v1`
+- raw output status and raw semantic status
+- deterministic guard flags and versions
+- canonicalization flags and versions
+- fallback flags and versions
+- effective student-facing message
+- effective workflow actions
+- effective process events
+- effective structured result
+- deterministic `effective_result_hash`
+
+The artifact is eval-only evidence. It must not create operational agent calls,
+student profiles, formative decisions, follow-up rounds, process events, item
+verification runs, workflow jobs, sessions, responses, content changes, roster
+changes, account changes, or exports. Effective blind review packets are written
+under `.data/eval-review/<run_public_id>/effective-system/` and are not tracked
+by Git.

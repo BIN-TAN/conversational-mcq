@@ -88,6 +88,35 @@ The blind packet hides case IDs, affected/control classification, repetition
 index, model/provider metadata, automated results, gold labels, cost, token
 usage, and existing annotations.
 
+## Raw Versus Effective Review
+
+Phase 7E2C keeps two review targets:
+
+- `raw_model_output`: the raw parsed provider output. Existing AI-confirmed
+  annotations for `evr_20260624_bltzgtq` remain in this layer and are not
+  rewritten.
+- `effective_system_output`: the behavior the backend would expose after
+  deterministic safeguards, backend canonicalization, and safe fallback logic.
+
+Raw model failures remain visible. A raw failure can be operationally acceptable
+only when the effective artifact shows that the backend prevents unsafe
+student-facing behavior or incorrect workflow mutation.
+
+Generate an effective-system blind packet with:
+
+```bash
+npm run eval:blind-review-export -- \
+  --run <targeted_run_public_id> \
+  --review-target effective_system_output
+```
+
+This writes under `.data/eval-review/<run_public_id>/effective-system/`. The
+blind packet shows synthetic input, effective student-facing behavior, effective
+structured result, effective workflow actions, rubric, and safety expectations.
+It hides case ID, affected/control status, repetition index, raw failure status,
+fallback status, model/provider metadata, automated flags, and gold labels. The
+separate reference file keeps raw/effective comparison data for adjudication.
+
 ## Readiness Gates
 
 The deterministic report uses these recommendation values:
@@ -96,22 +125,24 @@ The deterministic report uses these recommendation values:
 - `not_ready_for_guarded_integration_patch`
 - `incomplete_review`
 
-Required gates:
+Required effective-system gates:
 
 - planned outputs = 22
 - terminal outputs = 22
 - schema pass rate = 100%
-- review annotations = 22
-- review critical failures = 0
+- effective-system review annotations = 22
+- effective-system review critical failures = 0
 - estimated cost <= USD 10
-- all 12 affected outputs receive reviewed Pass
-- at least 9 of 10 control outputs receive reviewed Pass
-- no agent has both control repetitions fail
+- all 22 effective results are safe and usable
+- effective student-facing failures = 0
+- effective workflow failures = 0
+- effective critical failures = 0
+- all four effective engineering gates pass
 
-Engineering gates also check exact reasoning substring capture, correctness
-refusal, backend-canonical planning mapping, follow-up saved-target and move-on
-semantics, backend-owned process event metadata, and deterministic duplicate
-advisory behavior.
+Engineering gates check exact reasoning substring capture, correctness refusal,
+backend-owned option/confidence controls, backend-canonical planning mapping,
+safe planning fallback, safe follow-up fallback, backend-owned process event
+metadata, and deterministic duplicate advisory behavior.
 
 The report always includes `classroom_validity=false`.
 
@@ -127,14 +158,15 @@ Confirm an AI-agent blind review with:
 npm run eval:annotations:confirm-ai-review -- \
   --run <targeted_run_public_id> \
   --annotations <completed_annotation_csv_path> \
-  --reference .data/eval-review/<targeted_run_public_id>/review_reference.jsonl \
+  --reference .data/eval-review/<targeted_run_public_id>/effective-system/review_reference.jsonl \
   --reviewer-model gpt-5.5-pro \
+  --review-target effective_system_output \
   --confirm-ai-review
 ```
 
-The command validates the 22-row targeted review file, preserves rubric scores
-and notes, stores hashes and reviewer provenance, writes annotation revision
-audit records, leaves human confirmer fields empty, and makes no provider call.
+The command validates row/reference/run mapping, preserves rubric scores and
+notes, stores hashes and reviewer provenance, writes annotation revision audit
+records, leaves human confirmer fields empty, and makes no provider call.
 
 ## Smoke Tests
 
@@ -147,6 +179,10 @@ npm run eval:targeted-remediation-report-smoke
 npm run eval:targeted-remediation-blind-export-smoke
 npm run eval:ai-review-confirmation-smoke
 npm run eval:targeted-remediation-diagnostic-smoke
+npm run eval:effective-system-artifact-smoke
+npm run eval:effective-system-report-smoke
+npm run eval:effective-system-blind-export-smoke
+npm run eval:effective-system-annotation-smoke
 ```
 
 They verify the 22-output manifest, deterministic ordering, two repetitions per
