@@ -61,3 +61,33 @@ integration through a production-like synthetic harness. It uses a `_e2e`
 database, the built Next.js server, the real worker process, and synthetic
 Playwright journeys. The result is synthetic engineering readiness only, not
 classroom validity.
+
+## Phase 8C Guarded-Live Synthetic Canary Infrastructure
+
+Phase 8C adds CLI-only infrastructure for a future guarded-live synthetic
+operational canary. It does not enable classroom live calls and does not execute
+paid provider requests during normal development, tests, builds, migrations, or
+smoke tests.
+
+The canary uses an isolated database whose name must end in
+`_live_canary_e2e`. The database guard rejects the normal development database
+and the Phase 8B `_e2e` database. The canary fixture is synthetic-only and is
+defined by `tests/fixtures/operational-live-canary/manifest.json`.
+
+The future paid command is guarded by all of the following:
+
+- `OPERATIONAL_LIVE_CANARY_ENABLED=true`
+- `OPERATIONAL_AGENT_MODE=guarded_live`
+- `LLM_PROVIDER=openai`
+- `LLM_LIVE_CALLS_ENABLED=true`
+- server-side `OPENAI_API_KEY` configured
+- approved operational configuration hash match
+- exact model snapshot `gpt-5.4-mini-2026-03-17`
+- reasoning effort `low`
+- isolated canary database suffix guard
+- request, retry, concurrency, network, and budget guards
+- explicit `--confirm-paid-api`
+
+The teacher UI does not start the canary and does not accept API keys. The
+review workflow exports blind review packets after a run and stores AI-assisted
+review provenance separately from human review.

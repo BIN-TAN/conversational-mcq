@@ -66,3 +66,15 @@ harness. Teacher routes may review sessions and operational audit metadata, but
 the E2E teacher journey must not expose controls that answer for a student,
 approve or deny the next concept, mutate submitted responses, or enable live
 provider calls in the browser.
+
+## Phase 8C Canary Non-Intervention Boundary
+
+The guarded-live synthetic canary is a CLI-only validation path. It does not add
+teacher approval controls to classroom sessions, does not add browser controls
+for starting paid provider calls, and does not allow a teacher to advance,
+complete, skip, reopen, or edit an active student workflow.
+
+The canary fixture uses synthetic students and synthetic content in an isolated
+`_live_canary_e2e` database. Canary review pages and exported packets are
+retrospective audit artifacts. They are not operational intervention controls
+and must not modify classroom records.

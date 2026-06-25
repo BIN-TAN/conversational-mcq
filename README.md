@@ -1167,3 +1167,50 @@ Artifacts are written to `.data/e2e/<e2e_run_id>/` and are ignored by Git. See
 `docs/PRODUCTION_LIKE_E2E_TESTING.md`,
 `docs/SYNTHETIC_CLASSROOM_FIXTURE.md`, `docs/E2E_FAILURE_MATRIX.md`, and
 `docs/E2E_ACCEPTANCE_GATES.md`.
+
+## Phase 8C Guarded-Live Synthetic Operational Canary
+
+Phase 8C adds CLI-only infrastructure for a small synthetic operational canary
+against a dedicated database ending in `_live_canary_e2e`. It is disabled by
+default and does not authorize real student use or public deployment.
+
+Default local settings remain:
+
+```text
+OPERATIONAL_AGENT_MODE=disabled
+LLM_PROVIDER=mock
+LLM_LIVE_CALLS_ENABLED=false
+OPERATIONAL_LIVE_CANARY_ENABLED=false
+```
+
+No-provider commands:
+
+```bash
+npm run operational:live-canary:preflight
+npm run operational:live-canary:dry-run
+```
+
+Future paid command, only after manual server-side configuration:
+
+```bash
+npm run operational:live-canary -- --confirm-paid-api --new-run
+npm run operational:live-canary -- --confirm-paid-api --resume <run_public_id>
+```
+
+Review/report commands:
+
+```bash
+npm run operational:live-canary:inspect -- --run <run_public_id>
+npm run operational:live-canary:report -- --run <run_public_id>
+npm run operational:live-canary:review-export -- --run <run_public_id>
+```
+
+The manifest is
+`tests/fixtures/operational-live-canary/manifest.json`; it freezes 5 synthetic
+students, 1 synthetic teacher, 2 concept units, 8 items, 30 planned logical
+invocations, a USD 15 budget cap, and an 80 provider-request cap.
+
+See `docs/GUARDED_LIVE_SYNTHETIC_CANARY.md`,
+`docs/OPERATIONAL_LIVE_CANARY_BUDGET.md`,
+`docs/OPERATIONAL_LIVE_CANARY_REVIEW.md`, and
+`docs/OPERATIONAL_LIVE_CANARY_ACCEPTANCE.md`.

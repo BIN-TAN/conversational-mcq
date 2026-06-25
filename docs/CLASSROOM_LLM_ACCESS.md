@@ -78,3 +78,27 @@ from targeted run `evr_20260624_bltzgtq`, not classroom validity, and human
 review remains pending.
 
 See `docs/LLM_USAGE_LIMITS.md` for operational safeguards.
+
+## Phase 8C Synthetic Canary Access Boundary
+
+Phase 8C adds `OPERATIONAL_LIVE_CANARY_*` settings for a future synthetic
+guarded-live canary. These settings are separate from classroom workflow
+settings and must not be exposed to students or entered in a browser form.
+
+Default values keep the canary disabled:
+
+```text
+OPERATIONAL_LIVE_CANARY_ENABLED=false
+OPERATIONAL_AGENT_MODE=disabled
+LLM_PROVIDER=mock
+LLM_LIVE_CALLS_ENABLED=false
+```
+
+Setting `OPERATIONAL_LIVE_CANARY_ENABLED=true` by itself does not enable
+classroom live calls. The canary also requires an isolated `_live_canary_e2e`
+database, exact approved configuration hash, exact model snapshot
+`gpt-5.4-mini-2026-03-17`, reasoning effort `low`, network allowlisting, budget
+guards, and a CLI `--confirm-paid-api` flag.
+
+The canary uses synthetic accounts and synthetic assessment content only. It
+must not read real, deidentified, or summative outcome data.

@@ -124,6 +124,19 @@ const serverEnvSchema = z.object({
     .string()
     .min(1)
     .default("evr_20260624_bltzgtq"),
+  OPERATIONAL_LIVE_CANARY_ENABLED: booleanWithDefault(false),
+  OPERATIONAL_LIVE_CANARY_TARGET_MODEL: z.string().min(1).default("gpt-5.4-mini-2026-03-17"),
+  OPERATIONAL_LIVE_CANARY_REASONING_EFFORT: z.enum(["low"]).default("low"),
+  OPERATIONAL_LIVE_CANARY_COST_HARD_LIMIT_USD: nonnegativeNumberWithDefault(15),
+  OPERATIONAL_LIVE_CANARY_MAX_PROVIDER_REQUESTS: positiveIntWithDefault(80),
+  OPERATIONAL_LIVE_CANARY_MAX_CONCURRENCY: positiveIntWithDefault(1),
+  OPERATIONAL_LIVE_CANARY_MAX_RETRIES: z.preprocess(
+    (value) => (value === "" || value === undefined ? 1 : value),
+    z.coerce.number().int().min(0).max(3)
+  ),
+  OPERATIONAL_LIVE_CANARY_REQUEST_TIMEOUT_MS: positiveIntWithDefault(60000),
+  OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: z.string().optional(),
+  OPERATIONAL_LIVE_CANARY_DATABASE_URL: z.string().optional(),
   WORKFLOW_JOB_MAX_ATTEMPTS: positiveIntWithDefault(3),
   WORKFLOW_JOB_BASE_RETRY_MS: positiveIntWithDefault(5000),
   WORKFLOW_JOB_MAX_RETRY_MS: positiveIntWithDefault(300000),

@@ -16,6 +16,9 @@ export type PublicIdKind =
   | "roster_import_batch"
   | "student_account_event"
   | "operational_effective_result"
+  | "operational_canary_run"
+  | "operational_canary_step"
+  | "operational_canary_annotation"
   | "eval_suite"
   | "eval_case"
   | "eval_run"
@@ -40,6 +43,9 @@ const prefixes: Record<PublicIdKind, string> = {
   roster_import_batch: "rib",
   student_account_event: "sae",
   operational_effective_result: "oper",
+  operational_canary_run: "olcr",
+  operational_canary_step: "olcs",
+  operational_canary_annotation: "olca",
   eval_suite: "evs",
   eval_case: "evc",
   eval_run: "evr",

@@ -963,3 +963,37 @@ Phase 6A.5 must not implement:
 - A passing Phase 8B run may recommend
   `ready_for_guarded_live_synthetic_canary`, but `classroom_validity=false`
   remains binding.
+
+## Phase 8C Guarded-Live Synthetic Operational Canary Lock
+
+- Phase 8C adds canary infrastructure only. The paid canary must not run during
+  implementation, tests, builds, migrations, or smoke tests.
+- The canary is CLI-only, synthetic-only, and isolated to a database ending in
+  `_live_canary_e2e`; scripts must refuse the normal development DB and the
+  Phase 8B `_e2e` database.
+- Normal defaults remain `OPERATIONAL_AGENT_MODE=disabled`,
+  `LLM_PROVIDER=mock`, `LLM_LIVE_CALLS_ENABLED=false`, and
+  `OPERATIONAL_LIVE_CANARY_ENABLED=false`.
+- Paid execution requires explicit `--confirm-paid-api` plus `--new-run` or
+  `--resume <run_public_id>`, and must never start from a browser button.
+- The frozen canary manifest is
+  `tests/fixtures/operational-live-canary/manifest.json` with hash
+  `6e59f0014e805eedfdb97c8fee5ea6c3053c7a913945b13afafb1b602d14e2d6`.
+- The manifest covers 1 synthetic teacher, 5 synthetic students, 2 concept
+  units, 8 items, all five active agents, 30 planned logical invocations, a
+  maximum of 80 provider requests, concurrency 1, retry limit 1, and USD 15
+  hard cost limit.
+- Preflight and dry-run commands must make no provider call and must not expose
+  API keys, database URLs, cookies, password hashes, access-code hashes, or
+  session secrets.
+- Future paid execution may use only the approved exact model snapshot
+  `gpt-5.4-mini-2026-03-17` with `reasoning_effort=low` and the approved
+  active configuration hash
+  `58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2`.
+- Canary review artifacts are ignored under `.data/operational-live-canary/`.
+  AI-assisted review uses `annotation_source=ai_agent_review`,
+  `annotation_status=ai_confirmed`, and
+  `review_target=operational_effective_output`; it is not human confirmation.
+- A passing canary report may recommend
+  `ready_for_private_staging_deployment`, but `classroom_validity=false`
+  remains binding and real student use is still not authorized.

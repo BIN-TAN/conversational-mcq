@@ -1,0 +1,399 @@
+{
+  "manifest_version": "phase8c-operational-live-canary-v1",
+  "synthetic_course_id": "phase8c_synthetic_course",
+  "synthetic_assessment_id": "phase8c_operational_live_canary_assessment",
+  "synthetic_teacher": {
+    "user_id": "phase8c_live_canary_teacher",
+    "display_name": "Phase 8C Synthetic Teacher"
+  },
+  "student_personas": [
+    {
+      "student_public_id": "phase8c_student_01",
+      "user_id": "phase8c_live_canary_student_01",
+      "persona": "standard_robust_completion"
+    },
+    {
+      "student_public_id": "phase8c_student_02",
+      "user_id": "phase8c_live_canary_student_02",
+      "persona": "mixed_reasoning_correctness_request"
+    },
+    {
+      "student_public_id": "phase8c_student_03",
+      "user_id": "phase8c_live_canary_student_03",
+      "persona": "hint_request_prompt_injection"
+    },
+    {
+      "student_public_id": "phase8c_student_04",
+      "user_id": "phase8c_live_canary_student_04",
+      "persona": "off_topic_move_on_request"
+    },
+    {
+      "student_public_id": "phase8c_student_05",
+      "user_id": "phase8c_live_canary_student_05",
+      "persona": "insufficient_evidence_save_resume"
+    }
+  ],
+  "concept_units": [
+    {
+      "concept_unit_public_id": "phase8c_concept_1",
+      "order_index": 1,
+      "title": "Evidence and claim alignment"
+    },
+    {
+      "concept_unit_public_id": "phase8c_concept_2",
+      "order_index": 2,
+      "title": "Evidence strength comparison"
+    }
+  ],
+  "items": [
+    {
+      "item_public_id": "phase8c_item_1_1",
+      "concept_unit_public_id": "phase8c_concept_1",
+      "item_order": 1,
+      "correct_option": "A"
+    },
+    {
+      "item_public_id": "phase8c_item_1_2",
+      "concept_unit_public_id": "phase8c_concept_1",
+      "item_order": 2,
+      "correct_option": "A"
+    },
+    {
+      "item_public_id": "phase8c_item_1_3",
+      "concept_unit_public_id": "phase8c_concept_1",
+      "item_order": 3,
+      "correct_option": "A"
+    },
+    {
+      "item_public_id": "phase8c_item_1_4",
+      "concept_unit_public_id": "phase8c_concept_1",
+      "item_order": 4,
+      "correct_option": "A"
+    },
+    {
+      "item_public_id": "phase8c_item_2_1",
+      "concept_unit_public_id": "phase8c_concept_2",
+      "item_order": 1,
+      "correct_option": "A"
+    },
+    {
+      "item_public_id": "phase8c_item_2_2",
+      "concept_unit_public_id": "phase8c_concept_2",
+      "item_order": 2,
+      "correct_option": "A"
+    },
+    {
+      "item_public_id": "phase8c_item_2_3",
+      "concept_unit_public_id": "phase8c_concept_2",
+      "item_order": 3,
+      "correct_option": "A"
+    },
+    {
+      "item_public_id": "phase8c_item_2_4",
+      "concept_unit_public_id": "phase8c_concept_2",
+      "item_order": 4,
+      "correct_option": "A"
+    }
+  ],
+  "teacher_item_verification_scenarios": [
+    {
+      "scenario_id": "teacher_clean_item_set",
+      "concept_unit_public_id": "phase8c_concept_1",
+      "expected_safeguard": "clean_item_set_advisory"
+    },
+    {
+      "scenario_id": "teacher_duplicate_item_set",
+      "concept_unit_public_id": "phase8c_concept_2",
+      "expected_safeguard": "deterministic_duplicate_warning"
+    }
+  ],
+  "student_action_scripts": [
+    {
+      "scenario_id": "student_01_standard_completion",
+      "student_public_id": "phase8c_student_01",
+      "actions": [
+        "login",
+        "start_assessment",
+        "complete_concept_1_structured_evidence",
+        "send_valid_reasoning_message",
+        "wait_for_profiling_and_planning",
+        "interact_with_followup",
+        "student_led_move_on",
+        "complete_concept_2",
+        "complete_assessment"
+      ]
+    },
+    {
+      "scenario_id": "student_02_mixed_message",
+      "student_public_id": "phase8c_student_02",
+      "actions": [
+        "login",
+        "start_assessment",
+        "send_valid_reasoning_plus_correctness_request",
+        "verify_correctness_refused",
+        "verify_option_confidence_backend_owned",
+        "continue_and_complete"
+      ]
+    },
+    {
+      "scenario_id": "student_03_hint_injection",
+      "student_public_id": "phase8c_student_03",
+      "actions": [
+        "login",
+        "start_assessment",
+        "request_hint",
+        "request_explanation",
+        "submit_prompt_injection",
+        "verify_no_hidden_instruction_disclosure",
+        "continue_safely"
+      ]
+    },
+    {
+      "scenario_id": "student_04_off_topic_move_on",
+      "student_public_id": "phase8c_student_04",
+      "actions": [
+        "login",
+        "start_assessment",
+        "send_off_topic_message",
+        "verify_neutral_redirect",
+        "request_move_on",
+        "verify_backend_owned_progression_preparation",
+        "continue_safely"
+      ]
+    },
+    {
+      "scenario_id": "student_05_save_resume",
+      "student_public_id": "phase8c_student_05",
+      "actions": [
+        "login",
+        "start_assessment",
+        "provide_incomplete_evidence",
+        "save_and_exit",
+        "resume_later",
+        "verify_evidence_preserved",
+        "complete_after_resume"
+      ]
+    }
+  ],
+  "expected_operational_invocation_points": [
+    {
+      "logical_invocation_key": "phase8c:item_verification:clean",
+      "agent_name": "item_verification_agent",
+      "scenario_id": "teacher_clean_item_set",
+      "student_public_id": null,
+      "step_order": 1
+    },
+    {
+      "logical_invocation_key": "phase8c:item_verification:duplicate",
+      "agent_name": "item_verification_agent",
+      "scenario_id": "teacher_duplicate_item_set",
+      "student_public_id": null,
+      "step_order": 2
+    },
+    {
+      "logical_invocation_key": "phase8c:response_collection:student_01",
+      "agent_name": "response_collection_agent",
+      "scenario_id": "student_01_standard_completion",
+      "student_public_id": "phase8c_student_01",
+      "step_order": 3
+    },
+    {
+      "logical_invocation_key": "phase8c:response_collection:student_02",
+      "agent_name": "response_collection_agent",
+      "scenario_id": "student_02_mixed_message",
+      "student_public_id": "phase8c_student_02",
+      "step_order": 4
+    },
+    {
+      "logical_invocation_key": "phase8c:response_collection:student_03",
+      "agent_name": "response_collection_agent",
+      "scenario_id": "student_03_hint_injection",
+      "student_public_id": "phase8c_student_03",
+      "step_order": 5
+    },
+    {
+      "logical_invocation_key": "phase8c:response_collection:student_04",
+      "agent_name": "response_collection_agent",
+      "scenario_id": "student_04_off_topic_move_on",
+      "student_public_id": "phase8c_student_04",
+      "step_order": 6
+    },
+    {
+      "logical_invocation_key": "phase8c:response_collection:student_05",
+      "agent_name": "response_collection_agent",
+      "scenario_id": "student_05_save_resume",
+      "student_public_id": "phase8c_student_05",
+      "step_order": 7
+    },
+    {
+      "logical_invocation_key": "phase8c:profiling:initial:student_01:c1",
+      "agent_name": "student_profiling_agent",
+      "scenario_id": "student_01_standard_completion",
+      "student_public_id": "phase8c_student_01",
+      "step_order": 8
+    },
+    {
+      "logical_invocation_key": "phase8c:planning:initial:student_01:c1",
+      "agent_name": "formative_value_and_planning_agent",
+      "scenario_id": "student_01_standard_completion",
+      "student_public_id": "phase8c_student_01",
+      "step_order": 9
+    },
+    {
+      "logical_invocation_key": "phase8c:followup:opening:student_01:c1",
+      "agent_name": "followup_agent",
+      "scenario_id": "student_01_standard_completion",
+      "student_public_id": "phase8c_student_01",
+      "step_order": 10
+    },
+    {
+      "logical_invocation_key": "phase8c:followup:message:student_01:c1",
+      "agent_name": "followup_agent",
+      "scenario_id": "student_01_standard_completion",
+      "student_public_id": "phase8c_student_01",
+      "step_order": 11
+    },
+    {
+      "logical_invocation_key": "phase8c:profiling:initial:student_01:c2",
+      "agent_name": "student_profiling_agent",
+      "scenario_id": "student_01_standard_completion",
+      "student_public_id": "phase8c_student_01",
+      "step_order": 12
+    },
+    {
+      "logical_invocation_key": "phase8c:planning:initial:student_01:c2",
+      "agent_name": "formative_value_and_planning_agent",
+      "scenario_id": "student_01_standard_completion",
+      "student_public_id": "phase8c_student_01",
+      "step_order": 13
+    },
+    {
+      "logical_invocation_key": "phase8c:profiling:initial:student_02:c1",
+      "agent_name": "student_profiling_agent",
+      "scenario_id": "student_02_mixed_message",
+      "student_public_id": "phase8c_student_02",
+      "step_order": 14
+    },
+    {
+      "logical_invocation_key": "phase8c:planning:initial:student_02:c1",
+      "agent_name": "formative_value_and_planning_agent",
+      "scenario_id": "student_02_mixed_message",
+      "student_public_id": "phase8c_student_02",
+      "step_order": 15
+    },
+    {
+      "logical_invocation_key": "phase8c:followup:opening:student_02:c1",
+      "agent_name": "followup_agent",
+      "scenario_id": "student_02_mixed_message",
+      "student_public_id": "phase8c_student_02",
+      "step_order": 16
+    },
+    {
+      "logical_invocation_key": "phase8c:profiling:initial:student_03:c1",
+      "agent_name": "student_profiling_agent",
+      "scenario_id": "student_03_hint_injection",
+      "student_public_id": "phase8c_student_03",
+      "step_order": 17
+    },
+    {
+      "logical_invocation_key": "phase8c:planning:initial:student_03:c1",
+      "agent_name": "formative_value_and_planning_agent",
+      "scenario_id": "student_03_hint_injection",
+      "student_public_id": "phase8c_student_03",
+      "step_order": 18
+    },
+    {
+      "logical_invocation_key": "phase8c:followup:opening:student_03:c1",
+      "agent_name": "followup_agent",
+      "scenario_id": "student_03_hint_injection",
+      "student_public_id": "phase8c_student_03",
+      "step_order": 19
+    },
+    {
+      "logical_invocation_key": "phase8c:profiling:initial:student_04:c1",
+      "agent_name": "student_profiling_agent",
+      "scenario_id": "student_04_off_topic_move_on",
+      "student_public_id": "phase8c_student_04",
+      "step_order": 20
+    },
+    {
+      "logical_invocation_key": "phase8c:planning:initial:student_04:c1",
+      "agent_name": "formative_value_and_planning_agent",
+      "scenario_id": "student_04_off_topic_move_on",
+      "student_public_id": "phase8c_student_04",
+      "step_order": 21
+    },
+    {
+      "logical_invocation_key": "phase8c:followup:opening:student_04:c1",
+      "agent_name": "followup_agent",
+      "scenario_id": "student_04_off_topic_move_on",
+      "student_public_id": "phase8c_student_04",
+      "step_order": 22
+    },
+    {
+      "logical_invocation_key": "phase8c:followup:message:student_04:move_on",
+      "agent_name": "followup_agent",
+      "scenario_id": "student_04_off_topic_move_on",
+      "student_public_id": "phase8c_student_04",
+      "step_order": 23
+    },
+    {
+      "logical_invocation_key": "phase8c:profiling:updated:student_04:c1",
+      "agent_name": "student_profiling_agent",
+      "scenario_id": "student_04_off_topic_move_on",
+      "student_public_id": "phase8c_student_04",
+      "step_order": 24
+    },
+    {
+      "logical_invocation_key": "phase8c:planning:updated:student_04:c1",
+      "agent_name": "formative_value_and_planning_agent",
+      "scenario_id": "student_04_off_topic_move_on",
+      "student_public_id": "phase8c_student_04",
+      "step_order": 25
+    },
+    {
+      "logical_invocation_key": "phase8c:profiling:initial:student_05:c1",
+      "agent_name": "student_profiling_agent",
+      "scenario_id": "student_05_save_resume",
+      "student_public_id": "phase8c_student_05",
+      "step_order": 26
+    },
+    {
+      "logical_invocation_key": "phase8c:planning:initial:student_05:c1",
+      "agent_name": "formative_value_and_planning_agent",
+      "scenario_id": "student_05_save_resume",
+      "student_public_id": "phase8c_student_05",
+      "step_order": 27
+    },
+    {
+      "logical_invocation_key": "phase8c:followup:opening:student_05:c1",
+      "agent_name": "followup_agent",
+      "scenario_id": "student_05_save_resume",
+      "student_public_id": "phase8c_student_05",
+      "step_order": 28
+    },
+    {
+      "logical_invocation_key": "phase8c:profiling:updated:student_05:c1",
+      "agent_name": "student_profiling_agent",
+      "scenario_id": "student_05_save_resume",
+      "student_public_id": "phase8c_student_05",
+      "step_order": 29
+    },
+    {
+      "logical_invocation_key": "phase8c:planning:updated:student_05:c1",
+      "agent_name": "formative_value_and_planning_agent",
+      "scenario_id": "student_05_save_resume",
+      "student_public_id": "phase8c_student_05",
+      "step_order": 30
+    }
+  ],
+  "approved_operational_configuration_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "model_snapshot": "gpt-5.4-mini-2026-03-17",
+  "reasoning_effort": "low",
+  "maximum_provider_requests": 80,
+  "maximum_budget_usd": 15,
+  "maximum_concurrency": 1,
+  "maximum_retries": 1,
+  "ordering_algorithm": "agent-and-workflow-stable-step-order-v1",
+  "deterministic_manifest_hash": "6e59f0014e805eedfdb97c8fee5ea6c3053c7a913945b13afafb1b602d14e2d6"
+}

@@ -128,3 +128,29 @@ npm run operational:guarded-integration-smoke
 ```
 
 These tests run without OpenAI network calls. The workflow smoke verifies automatic jobs use the same usage-guarded agent services in mock mode.
+
+## Phase 8C Operational Live Canary Limits
+
+Phase 8C introduces a separate operational live-canary budget guard for a
+future synthetic-only canary. It does not consume classroom per-student or
+per-session limits and does not change normal classroom usage accounting.
+
+Default local settings are disabled:
+
+```text
+OPERATIONAL_LIVE_CANARY_ENABLED=false
+OPERATIONAL_LIVE_CANARY_COST_HARD_LIMIT_USD=15
+OPERATIONAL_LIVE_CANARY_MAX_PROVIDER_REQUESTS=80
+OPERATIONAL_LIVE_CANARY_MAX_CONCURRENCY=1
+OPERATIONAL_LIVE_CANARY_MAX_RETRIES=1
+```
+
+The manifest currently plans 30 logical agent invocations across the five
+active agents and bounds execution with a maximum of 80 provider requests. The
+preflight and dry-run commands calculate an upper-bound estimate, validate the
+approved configuration, and make no provider request.
+
+The paid canary command is blocked unless all readiness gates pass and the CLI
+includes `--confirm-paid-api`. Any unavailable token usage or budget
+verification failure must pause or block execution rather than continuing
+blindly.
