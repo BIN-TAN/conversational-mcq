@@ -1191,6 +1191,8 @@ npm run operational:live-canary:dry-run
 npm run operational:live-canary-db-resolution-smoke
 npm run operational:live-canary-guard-parity-smoke
 npm run operational:live-canary-block-reason-smoke
+npm run operational:live-canary-context-smoke
+npm run operational:live-canary-actual-step-parity-smoke
 ```
 
 The live-canary database resolver is idempotent: `conversational_mcq` resolves
@@ -1201,9 +1203,12 @@ suffixes such as `_live_canary_live_canary_e2e` are rejected. The parent
 receive the isolated URL explicitly.
 
 Preflight and operational execution use the same typed readiness evaluator. If
-preflight is permitted but the executor probe is blocked, the canary refuses to
-create a run or step rows. Dry run prepares and seeds the isolated database
-without dropping historical canary runs.
+preflight is permitted, the runner stages the real run plus first step and
+validates a canonical `operational-live-canary-context-v1` attestation before
+creating the remaining executable steps. If that actual-step probe is blocked,
+the canary makes no provider request and does not create a full 30-step run.
+Dry run prepares and seeds the isolated database without dropping historical
+canary runs.
 
 Future paid command, only after manual server-side configuration:
 

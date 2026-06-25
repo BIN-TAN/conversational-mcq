@@ -14,6 +14,9 @@ import {
   type OperationalExecutionBlockReason,
   type SanitizedReadinessSnapshot
 } from "@/lib/operational/guarded-agent-integration";
+import {
+  createOperationalLiveCanaryContext,
+} from "@/lib/operational/live-canary-context";
 import { getServerEnv } from "@/lib/env";
 import { hashSecret } from "@/lib/password";
 import { generatePublicId } from "@/lib/services/ids";
@@ -330,9 +333,7 @@ export async function createOperationalLiveCanaryPreflightReport() {
     checkDatabase: true,
     checkUsageGuard: true,
     evidenceContext: {
-      canaryManifestHash: manifest.deterministic_manifest_hash,
-      isolatedDatabaseName: databaseName,
-      canaryRunCreatedThroughCli: true
+      isolatedDatabaseName: databaseName
     }
   });
   const blockingReasons: string[] = [];
@@ -771,6 +772,81 @@ export async function createCanaryRunSkeleton(input: {
   }
 }
 
+async function createCanaryRunWithFirstStep(input: {
+  prisma: PrismaClient;
+  manifest: OperationalLiveCanaryManifest;
+}) {
+  const validation = validateOperationalLiveCanaryManifest(input.manifest);
+  const firstPoint = input.manifest.expected_operational_invocation_points
+    .slice()
+    .sort((left, right) => left.step_order - right.step_order)[0];
+  if (!firstPoint) {
+    throw new Error("Operational live canary manifest has no invocation points.");
+  }
+
+  const run = await input.prisma.operationalLiveCanaryRun.create({
+    data: {
+      run_public_id: generatePublicId("operational_canary_run"),
+      status: "running",
+      manifest_version: input.manifest.manifest_version,
+      manifest_hash: validation.manifest_hash,
+      approved_config_hash: input.manifest.approved_operational_configuration_hash,
+      model_snapshot: input.manifest.model_snapshot,
+      reasoning_effort: input.manifest.reasoning_effort,
+      planned_logical_invocations: validation.planned_logical_invocations,
+      provider_request_count: 0,
+      retry_count: 0,
+      estimated_cost_usd: new Prisma.Decimal(0),
+      budget_limit_usd: new Prisma.Decimal(input.manifest.maximum_budget_usd),
+      application_git_commit: safeGitCommit(),
+      started_at: new Date()
+    }
+  });
+
+  const step = await input.prisma.operationalLiveCanaryStep.create({
+    data: {
+      step_public_id: generatePublicId("operational_canary_step"),
+      run_db_id: run.id,
+      scenario_id: firstPoint.scenario_id,
+      student_public_id: firstPoint.student_public_id,
+      logical_invocation_key: firstPoint.logical_invocation_key,
+      agent_name: firstPoint.agent_name,
+      step_order: firstPoint.step_order,
+      execution_status: "running"
+    }
+  });
+
+  return { run, firstStep: step };
+}
+
+async function ensureRemainingCanarySteps(input: {
+  prisma: PrismaClient;
+  runDbId: string;
+  manifest: OperationalLiveCanaryManifest;
+}) {
+  for (const point of input.manifest.expected_operational_invocation_points) {
+    await input.prisma.operationalLiveCanaryStep.upsert({
+      where: {
+        run_db_id_logical_invocation_key: {
+          run_db_id: input.runDbId,
+          logical_invocation_key: point.logical_invocation_key
+        }
+      },
+      create: {
+        step_public_id: generatePublicId("operational_canary_step"),
+        run_db_id: input.runDbId,
+        scenario_id: point.scenario_id,
+        student_public_id: point.student_public_id,
+        logical_invocation_key: point.logical_invocation_key,
+        agent_name: point.agent_name,
+        step_order: point.step_order,
+        execution_status: "pending"
+      },
+      update: {}
+    });
+  }
+}
+
 function optionArray() {
   return [
     { label: "A", text: "The claim is supported by the stated evidence." },
@@ -1094,9 +1170,80 @@ function agentCallPublicRef(agentCallDbId: string | null | undefined) {
   return agentCallDbId ? `agent_call_${sha256(agentCallDbId).slice(0, 20)}` : null;
 }
 
-async function dispatchOperationalLiveCanaryStep(input: {
+async function evaluateActualCanaryStepReadiness(input: {
+  prisma: PrismaClient;
+  run: {
+    run_public_id: string;
+    manifest_version: string;
+    manifest_hash: string;
+    approved_config_hash: string;
+  };
+  step: {
+    step_public_id: string;
+    logical_invocation_key: string;
+    agent_name: string;
+  };
+  manifest: OperationalLiveCanaryManifest;
+  databaseName: string;
+}) {
+  const agentName = AgentName.parse(input.step.agent_name);
+  const canaryContext = createOperationalLiveCanaryContext({
+    run: input.run,
+    step: input.step,
+    manifest: input.manifest,
+    databaseName: input.databaseName
+  });
+  const readiness = await evaluateOperationalExecutionReadiness({
+    agentName,
+    checkDatabase: true,
+    checkUsageGuard: true,
+    evidenceContext: {
+      operationalLiveCanaryContext: canaryContext,
+      canaryPrisma: input.prisma
+    }
+  });
+
+  return { canaryContext, readiness };
+}
+
+async function markPreDispatchParityFailure(input: {
   prisma: PrismaClient;
   runPublicId: string;
+  stepId: string;
+  readiness: Awaited<ReturnType<typeof evaluateActualCanaryStepReadiness>>["readiness"];
+}) {
+  const typedReason = input.readiness.allowed ? null : input.readiness.reason;
+  const subreason = input.readiness.readinessSnapshot.canary_context_subreason;
+  await input.prisma.operationalLiveCanaryStep.update({
+    where: { id: input.stepId },
+    data: {
+      execution_status: "failed",
+      error_category: "blocked_by_operational_guard",
+      blocked_reason: typedReason,
+      readiness_snapshot_json: prismaJson(input.readiness.readinessSnapshot),
+      completed_at: new Date()
+    }
+  });
+  await input.prisma.operationalLiveCanaryRun.update({
+    where: { run_public_id: input.runPublicId },
+    data: {
+      status: "failed",
+      failure_reason: subreason
+        ? `pre_run_executor_parity_failed:${subreason}`
+        : "pre_run_executor_parity_failed",
+      completed_at: new Date()
+    }
+  });
+}
+
+async function dispatchOperationalLiveCanaryStep(input: {
+  prisma: PrismaClient;
+  run: {
+    run_public_id: string;
+    manifest_version: string;
+    manifest_hash: string;
+    approved_config_hash: string;
+  };
   step: {
     id: string;
     step_public_id: string;
@@ -1120,14 +1267,24 @@ async function dispatchOperationalLiveCanaryStep(input: {
   const { executeOperationalAgent } = await import("@/lib/agents/operational/executor");
   const { persistOperationalEffectiveResult } = await import("@/lib/agents/operational/effective-results");
 
-  const invocationKey = `operational-live-canary:${input.runPublicId}:${point.logical_invocation_key}`;
+  const databaseName = operationalLiveCanaryDatabaseName();
+  const readinessProbe = await evaluateActualCanaryStepReadiness({
+    prisma: input.prisma,
+    run: input.run,
+    step: input.step,
+    manifest: input.manifest,
+    databaseName
+  });
+  const invocationKey = `operational-live-canary:${input.run.run_public_id}:${point.logical_invocation_key}`;
   const result = await executeOperationalAgent({
     agentName: point.agent_name,
     invocationKey,
     allowlistedInput: allowlistedInput as AgentInputByName[typeof point.agent_name],
     operationalContext: {},
+    operationalLiveCanaryContext: readinessProbe.canaryContext,
+    readinessPrisma: input.prisma,
     metadata: {
-      operational_live_canary_run_public_id: input.runPublicId,
+      operational_live_canary_run_public_id: input.run.run_public_id,
       operational_live_canary_step_public_id: input.step.step_public_id,
       operational_live_canary_manifest_hash: input.manifest.deterministic_manifest_hash
     }
@@ -1240,6 +1397,7 @@ export async function runOperationalLiveCanary(input: {
   confirmPaidApi: boolean;
   newRun?: boolean;
   resumeRunPublicId?: string;
+  testOnlyForceInvalidActualContext?: boolean;
 }) {
   if (!input.confirmPaidApi) {
     throw new Error("Refusing to run paid operational live canary without --confirm-paid-api.");
@@ -1286,12 +1444,20 @@ export async function runOperationalLiveCanary(input: {
       await seedOperationalLiveCanaryFixture(prisma);
     }
 
-    const run = input.newRun
-      ? await createCanaryRunSkeleton({ status: "created", prisma })
+    preparePaidCanaryProcessEnv(databaseResolution.isolated_canary_database_url);
+
+    let run = input.newRun
+      ? (await createCanaryRunWithFirstStep({ prisma, manifest })).run
       : await getCanaryRunOrThrow(input.resumeRunPublicId ?? "", prisma);
 
     if (run.status === "completed") {
       throw new Error("Completed operational live canary runs cannot be resumed.");
+    }
+    const maybeRunSteps = "steps" in run && Array.isArray(run.steps)
+      ? run.steps as Array<{ execution_status: string }>
+      : [];
+    if (run.status === "failed" && maybeRunSteps.length > 0 && maybeRunSteps.every((step) => step.execution_status === "failed")) {
+      throw new Error("Terminal failed operational live canary runs cannot be resumed; create a fresh run.");
     }
     if (run.manifest_hash !== manifest.deterministic_manifest_hash) {
       throw new Error("Operational live canary manifest mismatch blocks run or resume.");
@@ -1300,9 +1466,7 @@ export async function runOperationalLiveCanary(input: {
       throw new Error("Operational live canary approved configuration mismatch blocks run or resume.");
     }
 
-    preparePaidCanaryProcessEnv(databaseResolution.isolated_canary_database_url);
-
-    await prisma.operationalLiveCanaryRun.update({
+    run = await prisma.operationalLiveCanaryRun.update({
       where: { run_public_id: run.run_public_id },
       data: {
         status: "running",
@@ -1311,6 +1475,51 @@ export async function runOperationalLiveCanary(input: {
         failure_reason: null
       }
     });
+
+    const firstProbeStep = await prisma.operationalLiveCanaryStep.findFirst({
+      where: {
+        run_db_id: run.id,
+        execution_status: { in: ["running", "pending"] }
+      },
+      orderBy: { step_order: "asc" }
+    });
+    if (!firstProbeStep) {
+      throw new Error("Operational live canary run has no pending step for readiness parity.");
+    }
+    const parityProbe = await evaluateActualCanaryStepReadiness({
+      prisma,
+      run,
+      step: firstProbeStep,
+      manifest,
+      databaseName: input.testOnlyForceInvalidActualContext
+        ? "conversational_mcq"
+        : databaseResolution.effective_canary_database_name
+    });
+    if (!parityProbe.readiness.allowed) {
+      await markPreDispatchParityFailure({
+        prisma,
+        runPublicId: run.run_public_id,
+        stepId: firstProbeStep.id,
+        readiness: parityProbe.readiness
+      });
+      return {
+        status: "blocked",
+        paid_api_request_made: false,
+        run_public_id: run.run_public_id,
+        blocking_reasons: parityProbe.readiness.readinessSnapshot.typed_blocking_reasons,
+        typed_blocked_reason: parityProbe.readiness.reason,
+        canary_context_subreason: parityProbe.readiness.readinessSnapshot.canary_context_subreason,
+        parity_failure: {
+          preflight_paid_execution_permitted: preflight.paid_execution_permitted,
+          actual_context_probe_allowed: false,
+          first_step_public_id: firstProbeStep.step_public_id
+        }
+      };
+    }
+
+    if (input.newRun) {
+      await ensureRemainingCanarySteps({ prisma, runDbId: run.id, manifest });
+    }
 
     const steps = await prisma.operationalLiveCanaryStep.findMany({
       where: { run_db_id: run.id },
@@ -1370,7 +1579,7 @@ export async function runOperationalLiveCanary(input: {
 
       const dispatch = await dispatchOperationalLiveCanaryStep({
         prisma,
-        runPublicId: run.run_public_id,
+        run,
         step,
         manifest
       });
@@ -1539,6 +1748,23 @@ function typedBlockedReasonFromEffectiveOutput(value: unknown): OperationalExecu
     : null;
 }
 
+function readinessSnapshotFromStep(step: { readiness_snapshot_json?: unknown }) {
+  return objectValue(step.readiness_snapshot_json);
+}
+
+function canarySubreasonFromReadinessSnapshot(step: { readiness_snapshot_json?: unknown }) {
+  const snapshot = readinessSnapshotFromStep(step);
+  if (!snapshot) {
+    return null;
+  }
+  const direct = snapshot.canary_context_subreason;
+  if (typeof direct === "string") {
+    return direct;
+  }
+  const failedRule = snapshot.failed_canary_context_rule;
+  return typeof failedRule === "string" ? failedRule : null;
+}
+
 async function effectiveResultBlockedReasonMap(steps: Array<{
   effective_result_public_id: string | null;
 }>) {
@@ -1597,6 +1823,7 @@ export async function inspectOperationalLiveCanaryRun(runPublicId: string) {
       estimated_cost_usd: decimalToNumber(step.estimated_cost_usd),
       error_category: step.error_category,
       typed_blocked_reason: typedBlockedReason ?? "legacy_generic_block_reason_unrecoverable",
+      canary_context_subreason: canarySubreasonFromReadinessSnapshot(step),
       completed_at: step.completed_at?.toISOString() ?? null
     };
   });
@@ -1682,6 +1909,15 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
   const allStepsTerminal = completedSteps === run.planned_logical_invocations;
   const reviewComplete = aiConfirmed.length === run.planned_logical_invocations;
   const effectiveFailureCount = run.steps.filter((step) => step.execution_status === "failed").length;
+  const terminalZeroProviderExecutionFailure =
+    run.status === "failed" &&
+    completedSteps === 0 &&
+    run.provider_request_count === 0 &&
+    run.steps.length > 0 &&
+    run.steps.every((step) => step.execution_status === "failed");
+  const allFailedByCanaryContext =
+    terminalZeroProviderExecutionFailure &&
+    typedBlockedReasons.every((reason) => reason === "canary_context_invalid");
   const requestWithinLimit = run.provider_request_count <= OPERATIONAL_LIVE_CANARY_MAX_PROVIDER_REQUESTS;
   const costWithinLimit = decimalToNumber(run.estimated_cost_usd) <= OPERATIONAL_LIVE_CANARY_BUDGET_LIMIT_USD;
   const allAgentsCovered = Object.values(agentCounts(run.steps)).every((value) => value.planned > 0);
@@ -1699,7 +1935,9 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
     label: "guarded-live synthetic operational canary",
     classroom_validity: false,
     real_student_data_used: false,
-    recommendation: reviewComplete
+    recommendation: terminalZeroProviderExecutionFailure
+      ? "not_ready_for_private_staging_deployment"
+      : reviewComplete
       ? ready
         ? "ready_for_private_staging_deployment"
         : "not_ready_for_private_staging_deployment"
@@ -1742,7 +1980,15 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
     },
     guard_diagnostics: {
       blocked_reason_count_by_type: countByType(typedBlockedReasons),
-      preflight_executor_readiness_match: true,
+      preflight_executor_readiness_match: !allFailedByCanaryContext,
+      historical_parity_claim_invalid_under_corrected_definition: allFailedByCanaryContext,
+      first_actual_step_readiness: run.steps[0]
+        ? {
+            step_public_id: run.steps[0].step_public_id,
+            typed_blocked_reason: typedBlockedReasons[0] ?? null,
+            canary_context_subreason: canarySubreasonFromReadinessSnapshot(run.steps[0])
+          }
+        : null,
       failed_run_classification: {
         status: run.status,
         provider_request_count: run.provider_request_count,

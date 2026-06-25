@@ -66,6 +66,9 @@ Operational preflight and execution share one typed readiness evaluator. Blocked
 execution returns a typed reason such as `legacy_mode_conflict`,
 `api_key_missing`, `approved_config_hash_mismatch`, `evaluation_evidence_missing`,
 or `usage_guard_blocked`; no provider request is made for blocked readiness.
+Phase 8C canary execution additionally passes a canonical attested canary
+context into the executor. Loose run metadata is not enough to authorize a
+synthetic guarded-live canary step.
 
 ## Agent Boundaries
 

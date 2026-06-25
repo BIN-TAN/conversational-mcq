@@ -52,6 +52,8 @@ npm run operational:live-canary:dry-run
 npm run operational:live-canary-db-resolution-smoke
 npm run operational:live-canary-guard-parity-smoke
 npm run operational:live-canary-block-reason-smoke
+npm run operational:live-canary-context-smoke
+npm run operational:live-canary-actual-step-parity-smoke
 ```
 
 Paid command, for a future manual run only:
@@ -100,6 +102,15 @@ Preflight and executor readiness share one typed readiness source. Blocked
 canary steps store a typed `blocked_reason` and sanitized readiness snapshot.
 Inspect and report recover legacy generic blocked reasons from immutable
 effective-result metadata when older failed runs predate the dedicated columns.
+Actual canary execution also requires a canonical
+`operational-live-canary-context-v1` attestation built from the persisted run
+and step. The attestation binds the run public ID, step public ID, logical
+invocation key, manifest hash, approved config hash, effective versions,
+approved targeted evidence run ID, isolated database name, synthetic-only
+marker, and CLI-origin marker. The pre-run parity probe stages the real first
+step and validates this same context before creating the remaining executable
+steps. A context failure makes no provider request and must not create a full
+30-step run.
 
 ## Scope
 

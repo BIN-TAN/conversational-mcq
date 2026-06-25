@@ -1,4 +1,5 @@
 import type { AgentName as AgentNameType } from "@/lib/agents/names";
+import type { PrismaClient } from "@prisma/client";
 import {
   executeAgent,
   type AgentExecutionResult,
@@ -11,6 +12,7 @@ import {
   type OperationalExecutionBlockReason,
   type SanitizedReadinessSnapshot
 } from "@/lib/operational/guarded-agent-integration";
+import type { OperationalLiveCanaryContext } from "@/lib/operational/live-canary-context";
 
 export type OperationalAgentBlockedResult = {
   status: "blocked_by_operational_guard";
@@ -35,6 +37,8 @@ export type ExecuteOperationalAgentInput<TAgentName extends AgentNameType> = {
   };
   forceNewInvocation?: boolean;
   metadata?: Record<string, string>;
+  operationalLiveCanaryContext?: OperationalLiveCanaryContext;
+  readinessPrisma?: PrismaClient;
   providerOverrideForTest?: ExecuteAgentInput<TAgentName>["model_config_override"];
 };
 
@@ -47,6 +51,12 @@ export async function executeOperationalAgent<TAgentName extends AgentNameType>(
       assessment_session_db_id: input.operationalContext.assessment_session_db_id,
       metadata: input.metadata
     },
+    evidenceContext: input.operationalLiveCanaryContext
+      ? {
+          operationalLiveCanaryContext: input.operationalLiveCanaryContext,
+          canaryPrisma: input.readinessPrisma
+        }
+      : undefined,
     checkDatabase: true,
     checkUsageGuard: true
   });

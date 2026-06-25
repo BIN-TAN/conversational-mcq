@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
 import {
   activeOperationalConfigHash,
@@ -10,7 +10,14 @@ import {
 import { checkLlmLiveCallReadiness, type LlmUsageGuardBlockedReason } from "@/lib/llm/usage/usage-guard";
 import { prisma } from "@/lib/db";
 import { getServerEnv } from "@/lib/env";
-import { databaseNameFromUrl, OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX } from "@/lib/services/operational-live-canary/database-url";
+import { databaseNameFromUrl } from "@/lib/services/operational-live-canary/database-url";
+import {
+  missingCanaryContextDiagnostics,
+  validateOperationalLiveCanaryContext,
+  type CanaryContextDiagnostics,
+  type CanaryContextInvalidSubreason,
+  type OperationalLiveCanaryContext
+} from "@/lib/operational/live-canary-context";
 
 export type OperationalAgentMode = "disabled" | "mock" | "guarded_live";
 
@@ -73,7 +80,7 @@ export type OperationalExecutionBlockReason =
   | "canary_context_invalid"
   | "other_typed_configuration_error";
 
-export type SanitizedReadinessSnapshot = {
+export type SanitizedReadinessSnapshot = CanaryContextDiagnostics & {
   agent_name: AgentNameType | null;
   operational_mode: OperationalAgentMode;
   legacy_alias_value: boolean | null;
@@ -95,6 +102,7 @@ export type SanitizedReadinessSnapshot = {
   evaluation_evidence_found: boolean;
   evaluation_evidence_source: string | null;
   canary_context_recognized: boolean;
+  canary_context_subreason: CanaryContextInvalidSubreason | null;
   isolated_database_name: string | null;
   final_guard_allowed: boolean;
   typed_blocked_reason: OperationalExecutionBlockReason | null;
@@ -372,6 +380,8 @@ export async function evaluateOperationalExecutionReadiness(input: {
   checkDatabase?: boolean;
   checkUsageGuard?: boolean;
   evidenceContext?: {
+    operationalLiveCanaryContext?: OperationalLiveCanaryContext | null;
+    canaryPrisma?: PrismaClient;
     canaryRunPublicId?: string | null;
     canaryManifestHash?: string | null;
     isolatedDatabaseName?: string | null;
@@ -394,50 +404,53 @@ export async function evaluateOperationalExecutionReadiness(input: {
       : [])
   ];
   const isolatedDatabaseName =
-    input.evidenceContext?.isolatedDatabaseName ?? currentIsolatedDatabaseName();
+    input.evidenceContext?.operationalLiveCanaryContext?.databaseName ??
+    input.evidenceContext?.isolatedDatabaseName ??
+    currentIsolatedDatabaseName();
   const metadata = input.operationalContext?.metadata ?? {};
   const canaryRunPublicId =
+    input.evidenceContext?.operationalLiveCanaryContext?.runPublicId ??
     input.evidenceContext?.canaryRunPublicId ??
     metadata.operational_live_canary_run_public_id ??
     null;
   const canaryManifestHash =
+    input.evidenceContext?.operationalLiveCanaryContext?.manifestHash ??
     input.evidenceContext?.canaryManifestHash ??
     metadata.operational_live_canary_manifest_hash ??
     null;
+  const operationalLiveCanaryContext =
+    input.evidenceContext?.operationalLiveCanaryContext ?? null;
   const canaryContextRecognized = Boolean(
+    operationalLiveCanaryContext ||
     canaryRunPublicId ||
       canaryManifestHash ||
       input.evidenceContext?.canaryRunCreatedThroughCli ||
       process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE === "true"
   );
-  let canaryRunAttestationFound = false;
-  if (canaryRunPublicId) {
-    try {
-      const run = await prisma.operationalLiveCanaryRun.findUnique({
-        where: { run_public_id: canaryRunPublicId },
-        select: {
-          manifest_hash: true,
-          approved_config_hash: true
+  const canaryValidation = canaryContextRecognized
+    ? input.evidenceContext?.forceCanaryContextInvalid
+      ? {
+          valid: false,
+          failedRule: "canary_context_missing" as const,
+          diagnostics: operationalLiveCanaryContext
+            ? missingCanaryContextDiagnostics()
+            : missingCanaryContextDiagnostics()
         }
-      });
-      canaryRunAttestationFound = Boolean(
-        run &&
-          run.manifest_hash === canaryManifestHash &&
-          run.approved_config_hash === manifest.approved_active_configuration_hash
-      );
-    } catch {
-      canaryRunAttestationFound = false;
-    }
-  }
-  const canaryContextValid =
-    !input.evidenceContext?.forceCanaryContextInvalid &&
-    (!canaryContextRecognized ||
-      Boolean(
-        isolatedDatabaseName?.endsWith(OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX) &&
-          canaryManifestHash &&
-          config.operational_approved_config_hash === manifest.approved_active_configuration_hash &&
-          (input.evidenceContext?.canaryRunCreatedThroughCli || canaryRunAttestationFound)
-      ));
+      : await validateOperationalLiveCanaryContext({
+          context: operationalLiveCanaryContext,
+          agentName: input.agentName,
+          prisma: input.evidenceContext?.canaryPrisma ?? prisma
+        })
+    : {
+        valid: true,
+        failedRule: null,
+        diagnostics: {
+          ...missingCanaryContextDiagnostics(),
+          final_canary_context_valid: null,
+          failed_canary_context_rule: null
+        }
+      };
+  const canaryContextValid = canaryValidation.valid;
 
   if (config.legacy_alias_conflict) {
     blockingReasons.push("legacy_mode_conflict");
@@ -562,12 +575,14 @@ export async function evaluateOperationalExecutionReadiness(input: {
     evaluation_evidence_found: evidence.found,
     evaluation_evidence_source: evidence.source,
     canary_context_recognized: canaryContextRecognized,
+    canary_context_subreason: canaryValidation.failedRule,
     isolated_database_name: isolatedDatabaseName,
     final_guard_allowed: allowed,
     typed_blocked_reason: uniqueTypedReasons[0] ?? null,
     typed_blocking_reasons: uniqueTypedReasons,
     legacy_blocking_reasons: legacyReasons,
-    sanitized_warnings: warnings
+    sanitized_warnings: warnings,
+    ...canaryValidation.diagnostics
   };
 
   if (allowed) {

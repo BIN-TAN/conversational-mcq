@@ -19,8 +19,14 @@ import {
 } from "../src/lib/services/operational-live-canary/service";
 import { activeOperationalConfigHash } from "../src/lib/agents/operational/approved-config";
 import type { AgentInputByName } from "../src/lib/agents/contracts";
+import type { AgentName as AgentNameType } from "../src/lib/agents/names";
 import { executeOperationalAgent } from "../src/lib/agents/operational/executor";
 import { evaluateOperationalExecutionReadiness } from "../src/lib/operational/guarded-agent-integration";
+import {
+  createOperationalLiveCanaryContext,
+  operationalLiveCanaryContextAttestationHash,
+  type OperationalLiveCanaryContext
+} from "../src/lib/operational/live-canary-context";
 import {
   resolveOperationalLiveCanaryDatabaseUrl
 } from "../src/lib/services/operational-live-canary/database-url";
@@ -45,7 +51,9 @@ type SuiteName =
   | "isolation"
   | "db-resolution"
   | "guard-parity"
-  | "block-reason";
+  | "block-reason"
+  | "context"
+  | "actual-step-parity";
 
 function argValue(name: string) {
   const index = process.argv.indexOf(name);
@@ -381,6 +389,82 @@ async function validCanaryReadinessEnv() {
   };
 }
 
+function reattest(context: OperationalLiveCanaryContext): OperationalLiveCanaryContext {
+  const rest = {
+    contextVersion: context.contextVersion,
+    runPublicId: context.runPublicId,
+    stepPublicId: context.stepPublicId,
+    logicalInvocationKey: context.logicalInvocationKey,
+    manifestVersion: context.manifestVersion,
+    manifestHash: context.manifestHash,
+    approvedConfigHash: context.approvedConfigHash,
+    effectiveResultVersion: context.effectiveResultVersion,
+    effectiveValidatorVersion: context.effectiveValidatorVersion,
+    targetedEvidenceRunPublicId: context.targetedEvidenceRunPublicId,
+    databaseName: context.databaseName,
+    syntheticOnly: context.syntheticOnly,
+    createdThroughPhase8cCli: context.createdThroughPhase8cCli
+  };
+  return {
+    ...rest,
+    attestationHash: operationalLiveCanaryContextAttestationHash(rest)
+  };
+}
+
+async function withCanonicalContextRun<T>(
+  callback: (input: {
+    prisma: ReturnType<typeof createCanaryPrismaClient>;
+    manifest: Awaited<ReturnType<typeof loadOperationalLiveCanaryManifest>>;
+    run: Awaited<ReturnType<typeof createCanaryRunSkeleton>>;
+    contexts: OperationalLiveCanaryContext[];
+  }) => Promise<T>
+) {
+  await ensureDatabaseReady();
+  const manifest = await loadOperationalLiveCanaryManifest();
+  const prisma = createCanaryPrismaClient();
+  const run = await createCanaryRunSkeleton({ status: "running", prisma });
+  const contexts = run.steps.map((step) =>
+    createOperationalLiveCanaryContext({
+      run,
+      step,
+      manifest,
+      databaseName: operationalLiveCanaryDatabaseName()
+    })
+  );
+  try {
+    return await callback({ prisma, manifest, run, contexts });
+  } finally {
+    await prisma.operationalLiveCanaryStep.deleteMany({ where: { run_db_id: run.id } });
+    await prisma.operationalLiveCanaryRun.deleteMany({ where: { id: run.id } });
+    await prisma.$disconnect();
+  }
+}
+
+async function expectContextReason(input: {
+  prisma: ReturnType<typeof createCanaryPrismaClient>;
+  agentName: string;
+  context: OperationalLiveCanaryContext | null;
+  reason: string;
+  subreason: string | null;
+}) {
+  const readiness = await evaluateOperationalExecutionReadiness({
+    agentName: input.agentName as AgentNameType,
+    checkDatabase: false,
+    checkUsageGuard: false,
+    evidenceContext: {
+      operationalLiveCanaryContext: input.context,
+      canaryPrisma: input.prisma,
+      canaryRunCreatedThroughCli: input.context ? undefined : true
+    }
+  });
+  assert(!readiness.allowed, `Expected ${input.reason} to block.`);
+  assert(readiness.reason === input.reason, `Expected ${input.reason}, got ${readiness.reason}.`);
+  assert(
+    readiness.readinessSnapshot.canary_context_subreason === input.subreason,
+    `Expected canary subreason ${input.subreason}, got ${readiness.readinessSnapshot.canary_context_subreason}.`
+  );
+}
+
 async function guardParitySmoke() {
   await ensureDatabaseReady();
   const valid = await validCanaryReadinessEnv();
@@ -403,17 +487,21 @@ async function guardParitySmoke() {
     assert(preflight.executor_readiness.allowed, "Executor readiness should allow the same valid canary config.");
     assert(preflight.preflight_executor_readiness_match, "Preflight and executor readiness should match.");
 
-    const readiness = await evaluateOperationalExecutionReadiness({
-      agentName: "response_collection_agent",
-      checkDatabase: true,
-      checkUsageGuard: true,
-      evidenceContext: {
-        canaryManifestHash: valid.manifest.deterministic_manifest_hash,
-        isolatedDatabaseName: databaseName(valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL),
-        canaryRunCreatedThroughCli: true
-      }
+    await withCanonicalContextRun(async ({ prisma, run, contexts }) => {
+      const responseCollectionIndex = run.steps.findIndex((step) => step.agent_name === "response_collection_agent");
+      assert(responseCollectionIndex >= 0, "Smoke run should contain a response collection step.");
+      const readiness = await evaluateOperationalExecutionReadiness({
+        agentName: "response_collection_agent",
+        checkDatabase: true,
+        checkUsageGuard: true,
+        evidenceContext: {
+          operationalLiveCanaryContext: contexts[responseCollectionIndex],
+          canaryPrisma: prisma
+        }
+      });
+      assert(readiness.allowed, "Direct executor parity probe should allow valid persisted canary context.");
+      assert(readiness.readinessSnapshot.final_canary_context_valid === true, "Persisted canary context should validate.");
     });
-    assert(readiness.allowed, "Direct executor parity probe should allow valid guarded-live canary config.");
 
     const childEnv = liveCanaryEnv();
     for (const key of [
@@ -466,11 +554,6 @@ async function blockReasonSmoke() {
     LLM_LIVE_CALLS_ENABLED: valid.LLM_LIVE_CALLS_ENABLED,
     OPENAI_API_KEY: valid.OPENAI_API_KEY
   };
-  const evidenceContext = {
-    canaryManifestHash: valid.manifest.deterministic_manifest_hash,
-    isolatedDatabaseName: databaseName(valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL),
-    canaryRunCreatedThroughCli: true
-  };
   const expectReason = async (
     env: Partial<Record<(typeof liveCanaryEnvKeys)[number], string | undefined>>,
     reason: string,
@@ -481,7 +564,6 @@ async function blockReasonSmoke() {
         agentName: "response_collection_agent",
         checkDatabase: false,
         checkUsageGuard: false,
-        evidenceContext,
         ...(extra ?? {})
       });
       assert(!readiness.allowed, `Expected ${reason} to block.`);
@@ -490,19 +572,33 @@ async function blockReasonSmoke() {
     });
   };
 
-  await expectReason({ OPENAI_API_KEY: "" }, "api_key_missing");
-  await expectReason({ OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: "wrong" }, "approved_config_hash_mismatch");
-  await expectReason({}, "evaluation_evidence_missing", {
-    evidenceContext: { ...evidenceContext, forceMissingEvaluationEvidence: true }
+  await withCanonicalContextRun(async ({ prisma, run, contexts }) => {
+    const responseCollectionIndex = run.steps.findIndex((step) => step.agent_name === "response_collection_agent");
+    assert(responseCollectionIndex >= 0, "Smoke run should contain a response collection step.");
+    const context = contexts[responseCollectionIndex];
+    const evidenceContext = {
+      operationalLiveCanaryContext: context,
+      canaryPrisma: prisma
+    };
+
+    await expectReason({ OPENAI_API_KEY: "" }, "api_key_missing", { evidenceContext });
+    await expectReason({ OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: "wrong" }, "approved_config_hash_mismatch", { evidenceContext });
+    await expectReason({}, "evaluation_evidence_missing", {
+      evidenceContext: { ...evidenceContext, forceMissingEvaluationEvidence: true }
+    });
+    await expectReason({}, "canary_context_invalid", {
+      evidenceContext: {
+        operationalLiveCanaryContext: reattest({ ...context, databaseName: "conversational_mcq" }),
+        canaryPrisma: prisma
+      }
+    });
+    await expectReason({}, "usage_guard_blocked", {
+      evidenceContext,
+      checkUsageGuard: false,
+      usageContext: { forceBlockedReason: "class_daily_call_limit_exceeded" }
+    });
+    await expectReason({ OPERATIONAL_AGENT_INTEGRATION_ENABLED: "true" }, "legacy_mode_conflict", { evidenceContext });
   });
-  await expectReason({}, "canary_context_invalid", {
-    evidenceContext: { ...evidenceContext, isolatedDatabaseName: "conversational_mcq" }
-  });
-  await expectReason({}, "usage_guard_blocked", {
-    checkUsageGuard: false,
-    usageContext: { forceBlockedReason: "class_daily_call_limit_exceeded" }
-  });
-  await expectReason({ OPERATIONAL_AGENT_INTEGRATION_ENABLED: "true" }, "legacy_mode_conflict");
 
   await withLiveCanaryEnv({ ...common, OPERATIONAL_AGENT_MODE: "disabled" }, async () => {
     const result = await executeOperationalAgent({
@@ -525,6 +621,229 @@ async function blockReasonSmoke() {
     existing.blocked_reason_count_by_type.legacy_mode_conflict === 30,
     "Existing failed run should recover legacy-mode conflict for all 30 steps."
   );
+}
+
+async function contextSmoke() {
+  const valid = await validCanaryReadinessEnv();
+  const common = {
+    OPERATIONAL_AGENT_MODE: valid.OPERATIONAL_AGENT_MODE,
+    OPERATIONAL_AGENT_INTEGRATION_ENABLED: undefined,
+    OPERATIONAL_APPROVED_CONFIG_HASH: undefined,
+    OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: valid.OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH,
+    OPERATIONAL_LIVE_CANARY_ENABLED: valid.OPERATIONAL_LIVE_CANARY_ENABLED,
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL: valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL,
+    LLM_PROVIDER: valid.LLM_PROVIDER,
+    LLM_LIVE_CALLS_ENABLED: valid.LLM_LIVE_CALLS_ENABLED,
+    OPENAI_API_KEY: valid.OPENAI_API_KEY
+  };
+
+  await withLiveCanaryEnv(common, async () => {
+    await withCanonicalContextRun(async ({ prisma, run, contexts }) => {
+      assert(contexts.length === 30, "Canonical context should be created for all 30 manifest steps.");
+      const seenStepIds = new Set(contexts.map((context) => context.stepPublicId));
+      assert(seenStepIds.size === 30, "Each context should bind to a distinct step public ID.");
+
+      for (const [index, step] of run.steps.entries()) {
+        const readiness = await evaluateOperationalExecutionReadiness({
+          agentName: step.agent_name as AgentNameType,
+          checkDatabase: false,
+          checkUsageGuard: false,
+          evidenceContext: {
+            operationalLiveCanaryContext: contexts[index],
+            canaryPrisma: prisma
+          }
+        });
+        assert(readiness.allowed, `Context should validate for step ${step.step_public_id}.`);
+        assert(readiness.readinessSnapshot.final_canary_context_valid === true, "Final canary context should be valid.");
+        assert(readiness.readinessSnapshot.canary_attestation_hash_valid === true, "Attestation hash should verify.");
+        if (step.student_public_id === null) {
+          assert(step.agent_name === "item_verification_agent", "Only teacher item verification steps should omit student public ID.");
+        }
+      }
+
+      const updatedProfileContexts = contexts.filter((context) => context.logicalInvocationKey.includes(":profiling:updated:"));
+      const updatedPlanningContexts = contexts.filter((context) => context.logicalInvocationKey.includes(":planning:updated:"));
+      assert(updatedProfileContexts.length === 2, "Updated profiling steps should have their own contexts.");
+      assert(updatedPlanningContexts.length === 2, "Updated planning steps should have their own contexts.");
+
+      const first = contexts[0];
+      const second = contexts[1];
+      await expectContextReason({
+        prisma,
+        agentName: run.steps[0].agent_name,
+        context: null,
+        reason: "canary_context_invalid",
+        subreason: "canary_context_missing"
+      });
+      await expectContextReason({
+        prisma,
+        agentName: run.steps[0].agent_name,
+        context: reattest({ ...first, runPublicId: "olcr_preview_not_real" }),
+        reason: "canary_context_invalid",
+        subreason: "canary_run_not_found"
+      });
+      await expectContextReason({
+        prisma,
+        agentName: run.steps[0].agent_name,
+        context: reattest({ ...first, runPublicId: "olcr_wrong_not_real" }),
+        reason: "canary_context_invalid",
+        subreason: "canary_run_not_found"
+      });
+      await expectContextReason({
+        prisma,
+        agentName: run.steps[0].agent_name,
+        context: reattest({ ...first, stepPublicId: "olcs_wrong_not_real" }),
+        reason: "canary_context_invalid",
+        subreason: "canary_step_not_in_run"
+      });
+      await expectContextReason({
+        prisma,
+        agentName: run.steps[0].agent_name,
+        context: reattest({ ...first, logicalInvocationKey: "phase8c:wrong:logical:key" }),
+        reason: "canary_context_invalid",
+        subreason: "canary_logical_invocation_mismatch"
+      });
+      await expectContextReason({
+        prisma,
+        agentName: run.steps[0].agent_name,
+        context: reattest({ ...first, manifestHash: "wrong_manifest_hash" }),
+        reason: "canary_context_invalid",
+        subreason: "canary_manifest_hash_mismatch"
+      });
+      await expectContextReason({
+        prisma,
+        agentName: run.steps[0].agent_name,
+        context: reattest({ ...first, approvedConfigHash: "wrong_config_hash" }),
+        reason: "canary_context_invalid",
+        subreason: "canary_config_hash_mismatch"
+      });
+      await expectContextReason({
+        prisma,
+        agentName: run.steps[0].agent_name,
+        context: reattest({ ...first, databaseName: "conversational_mcq" }),
+        reason: "canary_context_invalid",
+        subreason: "canary_database_invalid"
+      });
+      await expectContextReason({
+        prisma,
+        agentName: run.steps[0].agent_name,
+        context: reattest({ ...first, createdThroughPhase8cCli: false } as unknown as OperationalLiveCanaryContext),
+        reason: "canary_context_invalid",
+        subreason: "canary_fixture_namespace_invalid"
+      });
+      await expectContextReason({
+        prisma,
+        agentName: run.steps[0].agent_name,
+        context: reattest({ ...first, targetedEvidenceRunPublicId: "evr_wrong" }),
+        reason: "canary_context_invalid",
+        subreason: "canary_evidence_reference_mismatch"
+      });
+      await expectContextReason({
+        prisma,
+        agentName: run.steps[0].agent_name,
+        context: { ...first, attestationHash: "tampered" },
+        reason: "canary_context_invalid",
+        subreason: "canary_attestation_hash_mismatch"
+      });
+      await expectContextReason({
+        prisma,
+        agentName: run.steps.find((step) => step.agent_name === "response_collection_agent")?.agent_name ?? "response_collection_agent",
+        context: first,
+        reason: "canary_context_invalid",
+        subreason: "canary_agent_mismatch"
+      });
+      await expectContextReason({
+        prisma,
+        agentName: run.steps[0].agent_name,
+        context: reattest({ ...first, stepPublicId: second.stepPublicId }),
+        reason: "canary_context_invalid",
+        subreason: "canary_logical_invocation_mismatch"
+      });
+    });
+  });
+}
+
+async function actualStepParitySmoke() {
+  const valid = await validCanaryReadinessEnv();
+  const common = {
+    OPERATIONAL_AGENT_MODE: valid.OPERATIONAL_AGENT_MODE,
+    OPERATIONAL_AGENT_INTEGRATION_ENABLED: undefined,
+    OPERATIONAL_APPROVED_CONFIG_HASH: undefined,
+    OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: valid.OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH,
+    OPERATIONAL_LIVE_CANARY_ENABLED: valid.OPERATIONAL_LIVE_CANARY_ENABLED,
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL: valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL,
+    LLM_PROVIDER: valid.LLM_PROVIDER,
+    LLM_LIVE_CALLS_ENABLED: valid.LLM_LIVE_CALLS_ENABLED,
+    OPENAI_API_KEY: valid.OPENAI_API_KEY
+  };
+
+  await withLiveCanaryEnv(common, async () => {
+    const preflight = await createOperationalLiveCanaryPreflightReport();
+    assert(preflight.paid_execution_permitted, "Valid global preflight should be permitted.");
+    await withCanonicalContextRun(async ({ prisma, run, contexts }) => {
+      const first = run.steps[0];
+      const readiness = await evaluateOperationalExecutionReadiness({
+        agentName: first.agent_name as AgentNameType,
+        checkDatabase: false,
+        checkUsageGuard: false,
+        evidenceContext: {
+          operationalLiveCanaryContext: contexts[0],
+          canaryPrisma: prisma
+        }
+      });
+      assert(readiness.allowed, "Actual persisted first-step parity probe should be allowed.");
+      assert(readiness.readinessSnapshot.final_canary_context_valid === true, "Actual first-step context should validate.");
+    });
+
+    const prisma = createCanaryPrismaClient(valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL);
+    const result = await runOperationalLiveCanary({
+      confirmPaidApi: true,
+      newRun: true,
+      testOnlyForceInvalidActualContext: true
+    });
+    try {
+      assert(result.status === "blocked", "Forced actual-context mismatch should block before provider dispatch.");
+      assert(result.paid_api_request_made === false, "Forced parity failure should not make provider requests.");
+      const runPublicId = "run_public_id" in result ? result.run_public_id : null;
+      assert(runPublicId, "Forced parity failure should preserve a classified one-step run.");
+      const run = await prisma.operationalLiveCanaryRun.findUniqueOrThrow({
+        where: { run_public_id: runPublicId },
+        include: { steps: true }
+      });
+      assert(run.steps.length === 1, "Parity failure should not create a 30-step executable run.");
+      assert(run.provider_request_count === 0, "Parity failure should not increment provider request count.");
+      assert(run.steps[0].blocked_reason === "canary_context_invalid", "Parity failure should store typed blocked reason.");
+      await prisma.operationalLiveCanaryStep.deleteMany({ where: { run_db_id: run.id } });
+      await prisma.operationalLiveCanaryRun.delete({ where: { id: run.id } });
+    } finally {
+      await prisma.$disconnect();
+    }
+
+    const completed = await createCanaryRunSkeleton({ status: "completed", markCompletedSteps: true });
+    try {
+      const report = await createOperationalLiveCanaryReport(completed.run_public_id);
+      assert(report.recommendation === "incomplete_review", "Completed execution awaiting review should report incomplete_review.");
+    } finally {
+      const cleanup = createCanaryPrismaClient();
+      await cleanup.operationalLiveCanaryStep.deleteMany({ where: { run_db_id: completed.id } });
+      await cleanup.operationalLiveCanaryRun.delete({ where: { id: completed.id } });
+      await cleanup.$disconnect();
+    }
+
+    const historical = await createOperationalLiveCanaryReport("olcr_20260625_yzrceiu");
+    assert(
+      historical.recommendation === "not_ready_for_private_staging_deployment",
+      "Terminal zero-provider execution failure should report not ready."
+    );
+    assert(
+      historical.guard_diagnostics.preflight_executor_readiness_match === false,
+      "Historical all-context-failed run should not claim corrected parity."
+    );
+    assert(
+      historical.guard_diagnostics.historical_parity_claim_invalid_under_corrected_definition === true,
+      "Historical parity claim should be marked invalid under corrected definition."
+    );
+  });
 }
 
 async function dryRunSmoke() {
@@ -565,6 +884,10 @@ async function main() {
     await guardParitySmoke();
   } else if (suite === "block-reason") {
     await blockReasonSmoke();
+  } else if (suite === "context") {
+    await contextSmoke();
+  } else if (suite === "actual-step-parity") {
+    await actualStepParitySmoke();
   } else {
     throw new Error(`Unknown operational live canary smoke suite: ${suite}`);
   }

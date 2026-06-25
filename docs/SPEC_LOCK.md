@@ -983,6 +983,16 @@ Phase 6A.5 must not implement:
 - Live-canary preflight and operational execution must use the same typed
   readiness evaluator. A preflight/executor mismatch must create no canary run
   or steps, and blocked steps must expose a typed sanitized blocked reason.
+- Live-canary operational execution must validate a canonical immutable
+  `operational-live-canary-context-v1` attestation for the actual persisted run
+  and step. Loose metadata such as a run ID plus manifest hash is insufficient.
+  The context must bind run public ID, step public ID, logical invocation key,
+  manifest hash, approved config hash, effective-result versions, targeted
+  evidence run ID, isolated `_live_canary_e2e` database name, synthetic-only
+  marker, CLI-origin marker, and attestation hash.
+- The pre-run parity probe must use the actual context factory and validation
+  path. If the actual first-step context fails, the system must make no provider
+  request and must not create a full 30-step executable canary run.
 - Dry-run checks must not delete historical canary runs. A failed all-terminal
   no-provider-request canary run is preserved as audit history and requires a
   fresh `--new-run` after a fix.

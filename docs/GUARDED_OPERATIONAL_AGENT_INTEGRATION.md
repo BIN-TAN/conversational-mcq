@@ -36,6 +36,11 @@ legacy `OPERATIONAL_AGENT_INTEGRATION_ENABLED` alias remains deprecated; if it
 conflicts with `OPERATIONAL_AGENT_MODE`, the typed blocked reason is
 `legacy_mode_conflict`.
 
+For Phase 8C live-canary execution, `executeOperationalAgent(...)` also requires
+a canonical run/step-bound `operational-live-canary-context-v1` attestation.
+The attestation is synthetic-only, CLI-originated, and validated against the
+isolated `_live_canary_e2e` database before any provider dispatch.
+
 ## Executor Boundary
 
 Operational domain services call `executeOperationalAgent(...)`. The executor validates mode, approved manifest, active configuration, readiness, usage guard, and redaction before allowing the existing audited agent execution path. Domain services consume only the effective result or deterministic fallback, not raw provider output directly.
