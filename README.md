@@ -1,6 +1,6 @@
 # Conversational MCQ
 
-Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, Phase 7B complete master CSV export coverage for persisted platform records, Phase 7C Response Collection Agent integration for student free-text messages during initial administration, Phase 7D Item Verification Agent governance for teacher-authored item sets, Phase 7E1 internal mock evaluation harness for the five active agents, Phase 7E2A guarded live-evaluation canary support with annotation adjudication, Phase 7E2B full-pilot evaluation infrastructure, Phase 7E2C targeted remediation/regression tooling, and Phase 8A default-off guarded operational agent integration for local mock-mode workflow testing. Item generation, item rewriting, classroom live model activation, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, and student self-registration remain intentionally unimplemented.
+Classroom prototype for a conversation-based MCQ formative assessment system. The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, Phase 7B complete master CSV export coverage for persisted platform records, Phase 7C Response Collection Agent integration for student free-text messages during initial administration, Phase 7D Item Verification Agent governance for teacher-authored item sets, Phase 7E1 internal mock evaluation harness for the five active agents, Phase 7E2A guarded live-evaluation canary support with annotation adjudication, Phase 7E2B full-pilot evaluation infrastructure, Phase 7E2C targeted remediation/regression tooling, and Phase 8A default-off guarded operational agent integration with disabled/mock/guarded-live modes. Item generation, item rewriting, classroom live model activation, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, and student self-registration remain intentionally unimplemented.
 
 ## Local Setup
 
@@ -43,7 +43,7 @@ If either command is missing, update your shell PATH according to your Node inst
 
 8. Keep `ALLOW_MOCK_RESPONSE_COLLECTION_IN_STUDENT_WORKFLOW=false` for ordinary local classroom-style workflow. Set it to `true` only for explicit Response Collection Agent infrastructure testing with the mock provider.
 
-9. Keep `OPERATIONAL_AGENT_INTEGRATION_ENABLED=false` for ordinary local/classroom-style workflow. Phase 8A guarded integration is mock-only and local when explicitly enabled.
+9. Keep `OPERATIONAL_AGENT_MODE=disabled` for ordinary local/classroom-style workflow. `mock` is for local development/testing, and `guarded_live` remains blocked unless the approved manifest, config hash, usage guard, database, exact model snapshot, and server-side live-call checks all pass. The legacy `OPERATIONAL_AGENT_INTEGRATION_ENABLED` flag is deprecated and must not conflict with `OPERATIONAL_AGENT_MODE`.
 
 10. Keep `EVAL_LIVE_CALLS_ENABLED=false` for Phase 7E1. `EVAL_TARGET_MODEL=gpt-5.4-mini` is future live-evaluation metadata only and does not trigger OpenAI calls.
 
@@ -107,8 +107,19 @@ npm run content:verification-publish-smoke
 npm run item:verification-ui-smoke
 npm run agent:item-verification-rename-smoke
 npm run eval:harness-smoke
+npm run operational:approval-manifest:verify
+npm run operational:agents:preflight
 npm run operational:guarded-integration-status
 npm run operational:guarded-integration-smoke
+npm run operational:approval-manifest-smoke
+npm run operational:agent-execution-smoke
+npm run operational:workflow-integration-smoke
+npm run operational:fallback-smoke
+npm run operational:idempotency-smoke
+npm run operational:student-payload-smoke
+npm run operational:teacher-audit-smoke
+npm run operational:nonintervention-smoke
+npm run operational:isolation-smoke
 npm run agent:profiling-smoke
 npm run agent:planning-smoke
 npm run agent:followup-smoke
@@ -1088,3 +1099,37 @@ original AI-review provenance.
 
 See `docs/FULL_PILOT_FAILURE_ADJUDICATION.md` and
 `docs/TARGETED_REMEDIATION_EVAL.md`.
+
+## Phase 8A Guarded Operational Integration
+
+Phase 8A keeps the existing default-off outer guard and adds the actual operational executor behind explicit modes:
+
+```text
+OPERATIONAL_AGENT_MODE=disabled
+OPERATIONAL_APPROVED_CONFIG_HASH=
+OPERATIONAL_EFFECTIVE_RESULT_VERSION=effective-system-eval-v2
+OPERATIONAL_EFFECTIVE_VALIDATOR_VERSION=effective-validator-v1
+```
+
+Allowed modes are `disabled`, `mock`, and `guarded_live`. The default `disabled` mode makes no provider request and uses deterministic behavior or fallback. `mock` is for local development and injected-provider tests. `guarded_live` validates the approved manifest, exact model snapshot, reasoning effort, active configuration hash, usage guard, database readiness, and classroom live-call settings before any provider request could be permitted.
+
+The approved manifest is `config/approved-operational-agent-config.json`. It freezes `gpt-5.4-mini-2026-03-17`, low reasoning effort, evaluated prompt/schema hashes, validator versions, deterministic guard versions, canonicalization versions, fallback versions, and evaluation evidence. Configuration changes require reevaluation.
+
+Operational services consume only effective results. Raw provider output stays in `agent_calls`; backend-effective outputs are stored in `operational_agent_effective_results` with public IDs, version metadata, status fields, sanitized warnings, and an effective-result hash. Student payloads hide operational audit metadata, profile labels, formative-value labels, model/provider identity, prompts, answer keys, token usage, and cost.
+
+Useful Phase 8A checks:
+
+```bash
+npm run operational:approval-manifest:verify
+npm run operational:agents:preflight
+npm run operational:guarded-integration-smoke
+npm run operational:agent-execution-smoke
+npm run operational:student-payload-smoke
+npm run operational:teacher-audit-smoke
+```
+
+See `docs/GUARDED_OPERATIONAL_AGENT_INTEGRATION.md`,
+`docs/APPROVED_OPERATIONAL_AGENT_CONFIG.md`,
+`docs/OPERATIONAL_EFFECTIVE_RESULTS.md`,
+`docs/OPERATIONAL_AGENT_FALLBACKS.md`, and
+`docs/OPERATIONAL_AGENT_INTEGRATION.md`.

@@ -114,6 +114,10 @@ const serverEnvSchema = z.object({
   RESPONSE_COLLECTION_CONTEXT_MAX_TURNS: positiveIntWithDefault(12),
   RESPONSE_COLLECTION_CONTEXT_MAX_CHARS: positiveIntWithDefault(20000),
   FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE: positiveIntWithDefault(3),
+  OPERATIONAL_AGENT_MODE: z.enum(["disabled", "mock", "guarded_live"]).default("disabled"),
+  OPERATIONAL_APPROVED_CONFIG_HASH: z.string().optional(),
+  OPERATIONAL_EFFECTIVE_RESULT_VERSION: z.string().default("effective-system-eval-v2"),
+  OPERATIONAL_EFFECTIVE_VALIDATOR_VERSION: z.string().default("effective-validator-v1"),
   OPERATIONAL_AGENT_INTEGRATION_ENABLED: booleanWithDefault(false),
   OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED: booleanWithDefault(true),
   OPERATIONAL_AGENT_INTEGRATION_APPROVED_TARGETED_RUN_ID: z

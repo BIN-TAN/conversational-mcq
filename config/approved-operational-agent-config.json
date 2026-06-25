@@ -1,0 +1,83 @@
+{
+  "manifest_version": "phase8a-approved-operational-agent-config-v1",
+  "generated_from_git_commit": "1da1086",
+  "model_snapshot": "gpt-5.4-mini-2026-03-17",
+  "reasoning_effort": "low",
+  "agents": {
+    "item_verification_agent": {
+      "agent_version": "7d-draft",
+      "prompt_version": "item-verification-v4",
+      "prompt_hash": "1befb1898538f5894a564eb65e4c905a5e19e91244d2caf1b8ed3b10e5f343ab",
+      "schema_version": "item-verification-output-v2",
+      "max_output_tokens": 3000
+    },
+    "response_collection_agent": {
+      "agent_version": "7c-draft",
+      "prompt_version": "response-collection-v5",
+      "prompt_hash": "dfb166feca80bb85d33302a266ba96a8fe2824a80ac308375453bc20733430e6",
+      "schema_version": "response-collection-output-v3",
+      "max_output_tokens": 1500
+    },
+    "student_profiling_agent": {
+      "agent_version": "6a-draft",
+      "prompt_version": "student-profiling-v3",
+      "prompt_hash": "9d2f95916a12c932041a02d6dec359ccf6a9881ef1d5f862f6986e2aafc5481c",
+      "schema_version": "student-profile-output-v2",
+      "max_output_tokens": 4000
+    },
+    "formative_value_and_planning_agent": {
+      "agent_version": "6a-draft",
+      "prompt_version": "formative-planning-v2",
+      "prompt_hash": "7017e3ad803495b6ff82316e71ad91bb50a94e432baead99d2863ff230eab818",
+      "schema_version": "formative-planning-output-v1",
+      "max_output_tokens": 3000
+    },
+    "followup_agent": {
+      "agent_version": "6d2b-draft",
+      "prompt_version": "followup-v6",
+      "prompt_hash": "7cb5774c48bc03753795dae5e92d62a7face61e6f0b7dbb1f7323043c50e807d",
+      "schema_version": "followup-output-v4",
+      "max_output_tokens": 2500
+    }
+  },
+  "semantic_validator_version": "eval-semantic-v3",
+  "safety_validator_version": "eval-safety-v3",
+  "effective_result_version": "effective-system-eval-v2",
+  "effective_validator_version": "effective-validator-v1",
+  "deterministic_guard_versions": {
+    "item_verification_duplicate_detection": "item-verification-deterministic-duplicates-v1",
+    "response_collection_backend_controls": "response-collection-backend-controls-v1"
+  },
+  "canonicalization_versions": {
+    "response_collection": "response-collection-canonical-v1",
+    "student_profiling": "student-profiling-canonical-v1",
+    "formative_planning": "formative-planning-canonical-v1",
+    "followup": "followup-canonical-v1",
+    "item_verification": "item-verification-effective-advisory-v1"
+  },
+  "fallback_versions": {
+    "response_collection": "response-collection-fallback-v1",
+    "student_profiling": "student-profiling-deterministic-fallback-v1",
+    "formative_planning": "formative-planning-deterministic-fallback-v1",
+    "followup": "followup-safe-fallback-v1",
+    "followup_move_on": "followup-move-on-fallback-v2",
+    "item_verification": "item-verification-deterministic-fallback-v1"
+  },
+  "evaluation_evidence": {
+    "canary_run_public_id": "evr_20260623_trzkizm",
+    "full_pilot_run_public_id": "evr_20260623_ga6kzai",
+    "targeted_run_public_id": "evr_20260624_bltzgtq",
+    "review_target": "effective_system_output",
+    "review_artifact_version": "effective-system-eval-v2",
+    "targeted_ai_review": {
+      "pass_count": 22,
+      "fail_count": 0,
+      "critical_failure_count": 0
+    },
+    "recommendation": "ready_for_guarded_integration_patch",
+    "classroom_validity": false,
+    "human_review_pending": true
+  },
+  "approved_active_configuration_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "config_hash": "3040d13fbe5dae09cc8734dd3c638b223c5d40234b3e79132367bd173853548f"
+}

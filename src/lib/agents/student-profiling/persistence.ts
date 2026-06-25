@@ -11,7 +11,7 @@ function json(value: unknown): Prisma.InputJsonValue {
 
 export async function persistInitialStudentProfile(input: {
   concept_unit_session_db_id: string;
-  based_on_agent_call_db_id: string;
+  based_on_agent_call_db_id: string | null;
   output: StudentProfileOutput;
 }) {
   return prisma.$transaction(async (tx) => {

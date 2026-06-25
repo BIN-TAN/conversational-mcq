@@ -1,105 +1,94 @@
-# Guarded Operational Agent Integration
+# Operational Agent Integration
 
-Phase 8A connects evaluated agent infrastructure to local operational workflow
-boundaries behind a default-off gate. It does not authorize classroom use and
-does not enable live OpenAI calls.
+Phase 8A completes guarded operational wiring for the five active agents behind a fail-closed feature gate. The prior default-off outer guard is preserved, but the operational executor now supports explicit modes, manifest verification, deterministic fallbacks, and immutable effective-result audit records.
 
-## Approved Evidence
+## Evidence Boundary
 
-The Phase 8A guard records this approved engineering evidence:
+Approved engineering evidence:
 
+- canary run: `evr_20260623_trzkizm`
+- full pilot run: `evr_20260623_ga6kzai`
 - targeted run: `evr_20260624_bltzgtq`
 - raw model review: 20 Pass / 2 Fail
 - `effective-system-eval-v1`: 20 Pass / 2 Fail
-- `effective-system-eval-v2`: 22 Pass / 0 Fail
-- v2 critical failures: 0
-- final recommendation: `ready_for_guarded_integration_patch`
+- `effective-system-eval-v2`: 22 Pass / 0 Fail, 0 critical failures
+- recommendation: `ready_for_guarded_integration_patch`
 - `classroom_validity=false`
 - `human_review_pending=true`
 
 This is provisional engineering readiness only. It is not classroom validation.
 
-## Feature Gate
+## Operational Modes
 
-Default local configuration:
-
-```text
-OPERATIONAL_AGENT_INTEGRATION_ENABLED=false
-OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED=true
-OPERATIONAL_AGENT_INTEGRATION_APPROVED_TARGETED_RUN_ID=evr_20260624_bltzgtq
-LLM_PROVIDER=mock
-LLM_LIVE_CALLS_ENABLED=false
-```
-
-When the gate is disabled:
-
-- automatic profiling/planning/follow-up startup jobs are not enqueued
-- queued automatic agent workflow jobs are blocked before agent execution
-- automatic follow-up evidence updates become teacher-review-required
-- Response Collection Agent execution in student initial chat falls back to the
-  deterministic response-collection fallback
-- no operational OpenAI calls are possible from this gate
-
-Existing teacher review pages remain available for inspection. Agent-backed
-workflow actions that enqueue guarded jobs require the Phase 8A gate to allow
-local mock-mode execution.
-
-## Mock-Only Local Testing
-
-For synthetic local smoke tests only, the gate may be enabled with live calls
-still disabled:
+`OPERATIONAL_AGENT_MODE` is authoritative:
 
 ```text
-OPERATIONAL_AGENT_INTEGRATION_ENABLED=true
-OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED=false
-LLM_PROVIDER=mock
-LLM_LIVE_CALLS_ENABLED=false
+disabled
+mock
+guarded_live
 ```
 
-`OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED=false` is for synthetic
-smoke fixtures that do not create the real targeted eval run. Do not use that as
-classroom evidence.
+Default mode is `disabled`. The older `OPERATIONAL_AGENT_INTEGRATION_ENABLED` flag is a deprecated alias. If both variables are set inconsistently, readiness fails closed.
 
-For a local database that contains the approved targeted run, verify readiness
-without provider calls:
+In `disabled`, no provider request is made and deterministic behavior or fallback is used. In `mock`, tests and development paths may use injected mock providers. In `guarded_live`, provider execution is allowed only after exact manifest, configuration, usage, database, and live-call readiness checks pass.
+
+## Approved Configuration
+
+The approved manifest is `config/approved-operational-agent-config.json`. It freezes:
+
+- exact model snapshot `gpt-5.4-mini-2026-03-17`
+- reasoning effort `low`
+- prompt versions and hashes
+- schema versions
+- max output token limits
+- semantic and safety validator versions
+- effective-result and effective-validator versions
+- deterministic guard, canonicalization, and fallback versions
+- canary, pilot, and targeted evaluation evidence
+- active configuration hash
+
+Run:
 
 ```bash
-npm run operational:guarded-integration-status -- --check-eval
+npm run operational:approval-manifest:verify
+npm run operational:agents:preflight
 ```
 
-Run the Phase 8A smoke:
+The commands make no provider calls and print no secrets.
+
+## Effective Result Rule
+
+Operational services must consume only effective results. The effective result is produced after raw structured output validation, semantic and safety validation, deterministic guards, backend canonicalization, deterministic fallback where needed, and effective validation.
+
+Raw provider output remains in `agent_calls`. The operational result is stored in `operational_agent_effective_results` with public IDs, status metadata, version metadata, sanitized warnings, and an effective result hash.
+
+## Agent Boundaries
+
+- Response Collection captures exact reasoning substrings only, refuses hints/correctness/explanations, and keeps option/confidence backend-owned.
+- Student Profiling uses allowlisted input and persists a profile only after effective validation; initial fallback is conservative and deterministic.
+- Formative Planning derives default mapping on the backend and canonicalizes or falls back before updating active decision pointers.
+- Follow-Up preserves saved formative value, applies off-topic and move-on fallbacks, and never lets an agent advance, complete, or select concepts.
+- Item Verification combines raw advisory verification with deterministic duplicate detection and never rewrites or generates items.
+
+## Non-Intervention
+
+Automatic workflow remains asynchronous and student-led. The system does not require an online teacher to progress, does not add teacher approval for next concepts, and keeps save/exit/resume available. Release and close dates block new starts only; existing sessions can resume according to the existing session rules.
+
+## Verification
+
+Phase 8A smoke commands:
 
 ```bash
 npm run operational:guarded-integration-smoke
+npm run operational:approval-manifest-smoke
+npm run operational:agent-execution-smoke
+npm run operational:workflow-integration-smoke
+npm run operational:fallback-smoke
+npm run operational:idempotency-smoke
+npm run operational:student-payload-smoke
+npm run operational:teacher-audit-smoke
+npm run operational:nonintervention-smoke
+npm run operational:isolation-smoke
 ```
 
-The smoke uses synthetic fixtures, mock provider configuration, and no OpenAI
-network call.
-
-## Live-Call Boundary
-
-Phase 8A explicitly blocks guarded operational integration when classroom live
-calls are configured:
-
-```text
-LLM_PROVIDER=openai
-LLM_LIVE_CALLS_ENABLED=true
-```
-
-Evaluation live-call settings remain separate from classroom workflow settings.
-No browser form accepts API keys, and frontend code must never receive provider
-secrets.
-
-## Prompt And Schema Boundary
-
-The guard verifies active prompt and schema versions against the evaluated
-configuration:
-
-- `item_verification_agent`: `item-verification-v4`, `item-verification-output-v2`
-- `response_collection_agent`: `response-collection-v5`, `response-collection-output-v3`
-- `student_profiling_agent`: `student-profiling-v3`, `student-profile-output-v2`
-- `formative_value_and_planning_agent`: `formative-planning-v2`, `formative-planning-output-v1`
-- `followup_agent`: `followup-v6`, `followup-output-v4`
-
-Changing active prompts or provider schemas requires new evaluation evidence
-before guarded integration can be considered again.
+They run in disabled or injected-mock mode and must not make OpenAI calls.

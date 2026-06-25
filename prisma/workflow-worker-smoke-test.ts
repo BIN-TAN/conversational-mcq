@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import {
   claimNextWorkflowJob,
@@ -12,7 +13,7 @@ import {
 } from "./followup-smoke-fixture";
 
 const prisma = new PrismaClient();
-const prefix = `phase6d2a_worker_${Date.now()}`;
+const prefix = `phase6d2a_worker_${Date.now()}_${randomUUID().slice(0, 8)}`;
 
 async function main() {
   setFollowupSmokeEnv({
@@ -29,7 +30,8 @@ async function main() {
     LLM_USAGE_TIMEZONE: "UTC",
     FOLLOWUP_CONTEXT_MAX_TURNS: "4",
     FOLLOWUP_MESSAGE_MAX_CHARS: "600",
-    FOLLOWUP_CONTEXT_MAX_CHARS: "4000"
+    FOLLOWUP_CONTEXT_MAX_CHARS: "4000",
+    OPERATIONAL_AGENT_MODE: "mock"
   });
   process.env.WORKFLOW_JOB_LEASE_TIMEOUT_MS = "1000";
   await cleanupFollowupSmoke(prisma, prefix);
@@ -50,6 +52,7 @@ async function main() {
     assessment_session_db_id: fixture.session.id,
     concept_unit_session_db_id: fixture.conceptUnitSession.id,
     idempotency_key: `${prefix}:claim`,
+    run_after: new Date(Date.now() - 1000),
     payload: {
       session_public_id: fixture.session.session_public_id,
       concept_unit_public_id: fixture.conceptUnit.concept_unit_public_id
@@ -87,6 +90,7 @@ async function main() {
     assessment_session_db_id: pausedFixture.session.id,
     concept_unit_session_db_id: pausedFixture.conceptUnitSession.id,
     idempotency_key: `${prefix}:paused`,
+    run_after: new Date(Date.now() - 1000),
     payload: {
       session_public_id: pausedFixture.session.session_public_id,
       concept_unit_public_id: pausedFixture.conceptUnit.concept_unit_public_id

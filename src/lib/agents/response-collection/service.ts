@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import type { Item, ItemResponse } from "@prisma/client";
 import { z } from "zod";
-import { executeAgent } from "@/lib/agents/execute-agent";
+import { executeOperationalAgent } from "@/lib/agents/operational/executor";
+import { persistOperationalEffectiveResult } from "@/lib/agents/operational/effective-results";
 import { getPromptForAgent } from "@/lib/agents/prompts/registry";
 import { prisma } from "@/lib/db";
 import { getServerEnv } from "@/lib/env";
@@ -308,7 +309,7 @@ async function withInitialMessageIdempotency<T extends Record<string, unknown>>(
 async function runtimeReadinessForStudentWorkflow() {
   const env = getServerEnv();
   const integrationReadiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkEvaluationEvidence: true
+    checkDatabase: true
   });
 
   if (!integrationReadiness.allowed) {
@@ -325,7 +326,7 @@ async function runtimeReadinessForStudentWorkflow() {
       return { can_execute: false as const, fallback_reason: "mock_provider_disabled" as const };
     }
 
-    return { can_execute: true as const, provider: runtime.provider };
+    return { can_execute: true as const, provider: runtime.provider, mode: integrationReadiness.mode };
   } catch (error) {
     if (error instanceof LlmConfigurationError) {
       return { can_execute: false as const, fallback_reason: "live_provider_not_ready" as const };
@@ -380,12 +381,47 @@ async function runAgentOrFallback(input: {
   const readiness = await runtimeReadinessForStudentWorkflow();
 
   if (!readiness.can_execute) {
-    return {
-      output: buildResponseCollectionFallback({
-        student_message: input.student_message,
-        has_existing_reasoning: input.has_existing_reasoning,
+    const invocationKey = agentInvocationKey({
+      assessment_session_db_id: input.context.session.id,
+      concept_unit_session_db_id: input.context.conceptUnitSession.id,
+      item_db_id: input.context.item.id,
+      client_message_id: input.client_message_id,
+      agentInput: input.agentInput
+    });
+    const fallbackOutput = buildResponseCollectionFallback({
+      student_message: input.student_message,
+      has_existing_reasoning: input.has_existing_reasoning,
+      fallback_reason: readiness.fallback_reason
+    });
+
+    await persistOperationalEffectiveResult({
+      agent_name: "response_collection_agent",
+      operational_context_type: "initial_item_free_text",
+      operational_context_public_id: input.context.item.item_public_id,
+      invocation_key: invocationKey,
+      deterministic_guard_version: "response-collection-backend-controls-v1",
+      canonicalization_version: "response-collection-canonical-v1",
+      fallback_version: "response-collection-fallback-v1",
+      raw_output_status: "blocked",
+      raw_semantic_status: "not_run",
+      effective_semantic_status: "pass",
+      effective_overall_status: "fallback_safe",
+      effective_student_facing_usable: true,
+      effective_workflow_usable: true,
+      deterministic_guard_applied: true,
+      canonicalization_applied: true,
+      fallback_applied: true,
+      effective_output: fallbackOutput,
+      effective_actions: {
+        option_control_backend_owned: true,
+        confidence_control_backend_owned: true,
         fallback_reason: readiness.fallback_reason
-      }),
+      },
+      warnings: ["Deterministic response-collection fallback was used before provider execution."]
+    });
+
+    return {
+      output: fallbackOutput,
       usedFallback: true,
       fallbackReason: readiness.fallback_reason,
       agentCallCreated: false
@@ -405,18 +441,21 @@ async function runAgentOrFallback(input: {
     }
   });
 
-  const result = await executeAgent({
-    agent_name: "response_collection_agent",
-    input: input.agentInput,
+  const invocationKey = agentInvocationKey({
     assessment_session_db_id: input.context.session.id,
     concept_unit_session_db_id: input.context.conceptUnitSession.id,
-    agent_invocation_key: agentInvocationKey({
+    item_db_id: input.context.item.id,
+    client_message_id: input.client_message_id,
+    agentInput: input.agentInput
+  });
+  const result = await executeOperationalAgent({
+    agentName: "response_collection_agent",
+    allowlistedInput: input.agentInput,
+    invocationKey,
+    operationalContext: {
       assessment_session_db_id: input.context.session.id,
-      concept_unit_session_db_id: input.context.conceptUnitSession.id,
-      item_db_id: input.context.item.id,
-      client_message_id: input.client_message_id,
-      agentInput: input.agentInput
-    }),
+      concept_unit_session_db_id: input.context.conceptUnitSession.id
+    },
     metadata: {
       classroom_workflow: "student_initial_administration",
       mock_mode: "response_collection_reasoning"
@@ -434,6 +473,29 @@ async function runAgentOrFallback(input: {
     });
 
     if (semantic.ok) {
+      await persistOperationalEffectiveResult({
+        agent_call_db_id: result.agent_call_id,
+        agent_name: "response_collection_agent",
+        operational_context_type: "initial_item_free_text",
+        operational_context_public_id: input.context.item.item_public_id,
+        invocation_key: invocationKey,
+        deterministic_guard_version: "response-collection-backend-controls-v1",
+        canonicalization_version: "response-collection-canonical-v1",
+        raw_output_status: "succeeded",
+        raw_semantic_status: "pass",
+        effective_semantic_status: "pass",
+        effective_overall_status: "pass",
+        effective_student_facing_usable: true,
+        effective_workflow_usable: true,
+        deterministic_guard_applied: true,
+        canonicalization_applied: true,
+        effective_output: result.output,
+        effective_actions: {
+          option_control_backend_owned: true,
+          confidence_control_backend_owned: true,
+          reasoning_segments_exact: true
+        }
+      });
       await logProcessEvent({
         assessment_session_db_id: input.context.session.id,
         concept_unit_session_db_id: input.context.conceptUnitSession.id,
@@ -488,18 +550,49 @@ async function runAgentOrFallback(input: {
     }
   });
 
+  const fallbackReason =
+    result.status === "blocked_by_usage_limit"
+      ? ("usage_blocked" as const)
+      : result.status === "blocked_by_operational_guard"
+        ? ("operational_integration_disabled" as const)
+        : ("agent_execution_failed" as const);
+  const fallbackOutput = buildResponseCollectionFallback({
+    student_message: input.student_message,
+    has_existing_reasoning: input.has_existing_reasoning,
+    fallback_reason: fallbackReason
+  });
+
+  await persistOperationalEffectiveResult({
+    agent_call_db_id: "agent_call_id" in result ? result.agent_call_id : null,
+    agent_name: "response_collection_agent",
+    operational_context_type: "initial_item_free_text",
+    operational_context_public_id: input.context.item.item_public_id,
+    invocation_key: invocationKey,
+    deterministic_guard_version: "response-collection-backend-controls-v1",
+    canonicalization_version: "response-collection-canonical-v1",
+    fallback_version: "response-collection-fallback-v1",
+    raw_output_status: result.status,
+    raw_semantic_status: result.status === "succeeded" ? "fail" : "not_run",
+    effective_semantic_status: "pass",
+    effective_overall_status: "fallback_safe",
+    effective_student_facing_usable: true,
+    effective_workflow_usable: true,
+    deterministic_guard_applied: true,
+    canonicalization_applied: true,
+    fallback_applied: true,
+    effective_output: fallbackOutput,
+    effective_actions: {
+      option_control_backend_owned: true,
+      confidence_control_backend_owned: true,
+      fallback_reason: fallbackReason
+    },
+    warnings: ["Deterministic response-collection fallback was used."]
+  });
+
   return {
-    output: buildResponseCollectionFallback({
-      student_message: input.student_message,
-      has_existing_reasoning: input.has_existing_reasoning,
-      fallback_reason:
-        result.status === "blocked_by_usage_limit" ? "usage_blocked" : "agent_execution_failed"
-    }),
+    output: fallbackOutput,
     usedFallback: true,
-    fallbackReason:
-      result.status === "blocked_by_usage_limit"
-        ? ("usage_blocked" as const)
-        : ("agent_execution_failed" as const),
+    fallbackReason,
     agentCallCreated: "agent_call_id" in result && Boolean(result.agent_call_id)
   };
 }

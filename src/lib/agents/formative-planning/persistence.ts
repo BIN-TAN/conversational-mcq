@@ -12,7 +12,7 @@ function json(value: unknown): Prisma.InputJsonValue {
 export async function persistInitialFormativeDecision(input: {
   concept_unit_session_db_id: string;
   student_profile_db_id: string;
-  based_on_agent_call_db_id: string;
+  based_on_agent_call_db_id: string | null;
   output: FormativePlanningOutput;
 }) {
   return prisma.$transaction(async (tx) => {

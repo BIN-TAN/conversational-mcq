@@ -1,6 +1,6 @@
 # Data Model
 
-Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, Phase 6, Phase 7A, Phase 7B, Phase 7C, and Phase 7D additions. The data model supports roster-managed student accounts, audited profiling, planning, first-round follow-up records, Phase 6D2B staged iterative follow-up evidence updates inside the current concept unit, Phase 6D3 deterministic student-led concept progression/completion, Phase 7B export of persisted platform records, Phase 7C response collection mode snapshots for initial-administration free-text handling, and Phase 7D item verification run audit records. It still does not imply adaptive concept routing or item generation/rewrite behavior.
+Phase 2A added the normalized database foundation for the classroom prototype. Later sections document the incremental Phase 2B, Phase 3, Phase 4, Phase 5A, Phase 5B, Phase 6, Phase 7A, Phase 7B, Phase 7C, Phase 7D, and Phase 8A additions. The data model supports roster-managed student accounts, audited profiling, planning, first-round follow-up records, Phase 6D2B staged iterative follow-up evidence updates inside the current concept unit, Phase 6D3 deterministic student-led concept progression/completion, Phase 7B export of persisted platform records, Phase 7C response collection mode snapshots for initial-administration free-text handling, Phase 7D item verification run audit records, and Phase 8A immutable operational effective-result records. It still does not imply adaptive concept routing, item generation/rewrite behavior, or classroom live model authorization.
 
 ## Identifier Convention
 
@@ -42,6 +42,7 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `roster_import_batches`: Phase 7A teacher_researcher roster preview/commit audit batches. They store normalized preview payloads but never plaintext access codes.
 - `student_account_events`: Phase 7A append-only audit events for student creation, display-name update, access-code reset, deactivation, and reactivation. They never store plaintext access codes or hashes.
 - `item_verification_runs`: Phase 7D advisory semantic verification runs for teacher-authored concept-unit item sets. Runs store a content fingerprint, deterministic validation result, optional agent-call link, output payload, warning counts, acknowledgement metadata, and timestamps. They do not store student data or rewritten/generated content.
+- `operational_agent_effective_results`: Phase 8A immutable records of the backend-effective result consumed by operational workflow after raw validation, semantic/safety checks, deterministic guards, canonicalization, and fallback. Raw provider data remain in `agent_calls`; these rows store public context IDs, statuses, version metadata, safe warnings, effective JSON, and hashes.
 
 ## Key Relations
 
@@ -76,6 +77,7 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `item_verification_runs.agent_call_db_id -> agent_calls.id` when a provider execution was attempted.
 - `item_verification_runs.acknowledged_by_user_db_id -> users.id` when advisory warnings were acknowledged.
 - `concept_units.latest_item_verification_run_db_id -> item_verification_runs.id` points to the latest completed verification run but freshness is determined by matching the stored content fingerprint to current content.
+- `operational_agent_effective_results.agent_call_db_id -> agent_calls.id` when a provider call was attempted.
 
 ## Uniqueness Constraints
 
@@ -105,6 +107,8 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `roster_import_batches.batch_public_id`: unique public roster import batch identifier.
 - `student_account_events.event_public_id`: unique public account-event identifier.
 - `item_verification_runs.verification_public_id`: unique public verification identifier.
+- `operational_agent_effective_results.public_id`: unique public effective-result identifier.
+- `operational_agent_effective_results`: unique `invocation_key + effective_result_version`, preventing duplicate effective records for the same logical invocation/version.
 
 The schema intentionally avoids constraints that would prevent future legitimate reassessment attempts across different assessment sessions.
 
@@ -133,6 +137,13 @@ The schema indexes:
 - Student account events by student, performer, event type, batch, and creation time.
 - Assessment and session response collection mode for Phase 7C review/export filters.
 - Item verification runs by concept unit, public verification ID, agent-call link, acknowledgement user, status, verification status, and creation time.
+- Operational effective results by public ID, agent call, agent name, context, invocation key/version, overall status, usability flags, and creation time.
+
+## Phase 8A Operational Effective Results
+
+`operational_agent_effective_results` is the operational boundary between raw agent execution and classroom workflow. It records whether deterministic guards, canonicalization, or fallback were applied and whether the resulting output is usable for student-facing or workflow behavior. Student serializers do not expose this metadata. Teacher serializers expose only public IDs, safe status fields, version metadata, sanitized warnings, and usage/cost metadata when available.
+
+The table is append-only for normal runtime behavior. Changing prompts, schemas, validators, guards, canonicalization, fallbacks, or model snapshot requires reevaluation and a new approved manifest before guarded-live execution can be permitted.
 
 ## Phase 7C Response Collection Mode
 

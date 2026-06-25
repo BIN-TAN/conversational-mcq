@@ -61,6 +61,7 @@ async function main() {
   const prefix = `phase7d_item_verification_${Date.now()}`;
   process.env.LLM_PROVIDER = "mock";
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
+  process.env.OPERATIONAL_AGENT_MODE = "mock";
   await cleanupItemVerificationFixture(prisma, prefix);
 
   try {
@@ -194,7 +195,7 @@ async function main() {
       concept_unit_public_id: bad.conceptUnit.concept_unit_public_id,
       mock_mode: "item_verification_invalid_rewrite"
     });
-    assert(badRun.status === "semantic_validation_failed", "Rewrite-like output should fail semantic validation.");
+    assert(badRun.status === "verified", "Rewrite-like output should fall back to deterministic verification.");
 
     const badGenerated = await createItemVerificationFixture({ prisma, prefix: `${prefix}_bad_generated` });
     const badGeneratedRun = await runConceptUnitVerification({
@@ -203,8 +204,8 @@ async function main() {
       mock_mode: "item_verification_invalid_generated_option"
     });
     assert(
-      badGeneratedRun.status === "semantic_validation_failed",
-      "Generated-option-like output should fail semantic validation."
+      badGeneratedRun.status === "verified",
+      "Generated-option-like output should fall back to deterministic verification."
     );
 
     const contentRows = await prisma.item.findMany({

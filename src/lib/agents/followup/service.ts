@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
+import type { AgentOutputByName } from "@/lib/agents/contracts";
 import { ProcessEventTypeSchema } from "@/lib/domain/enums";
 import type { MockProviderMode } from "@/lib/llm/providers/mock-provider";
-import { executeAgent } from "@/lib/agents/execute-agent";
+import { executeOperationalAgent } from "@/lib/agents/operational/executor";
+import { persistOperationalEffectiveResult } from "@/lib/agents/operational/effective-results";
 import { prisma } from "@/lib/db";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { logConversationTurn } from "@/lib/services/conversation-turns";
@@ -47,14 +49,7 @@ export class FollowupServiceError extends Error {
   }
 }
 
-type FollowupRunResult =
-  | "succeeded"
-  | "refused"
-  | "incomplete"
-  | "failed"
-  | "invalid_output"
-  | "semantic_validation_failed"
-  | "blocked_by_usage_limit";
+type FollowupOutput = AgentOutputByName["followup_agent"];
 
 function stableHash(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -62,6 +57,135 @@ function stableHash(value: unknown) {
 
 function failureMessage() {
   return "The follow-up reply is not available right now. Your message was saved, and you can try again later.";
+}
+
+function containsMoveOnRequest(message: string | null | undefined) {
+  return /\b(done|finished|move on|continue|next|ready to proceed|go ahead)\b/i.test(
+    message ?? ""
+  );
+}
+
+function isOffTopicMessage(message: string | null | undefined) {
+  return /\b(off[-\s]?topic|unrelated|talk about something else)\b/i.test(message ?? "");
+}
+
+function defaultFollowupAction(value: string): {
+  followup_action_type: FollowupOutput["followup_action_type"];
+  assistant_message: string;
+  evidence_request: string | null;
+} {
+  const byValue: Record<string, {
+    followup_action_type: FollowupOutput["followup_action_type"];
+    assistant_message: string;
+    evidence_request: string | null;
+  }> = {
+    diagnostic_clarification: {
+      followup_action_type: "clarification_prompt",
+      assistant_message:
+        "Please return to the current assessment task and add one clear sentence about your reasoning.",
+      evidence_request: "Explain your reasoning for the current assessment task."
+    },
+    reasoning_refinement: {
+      followup_action_type: "reasoning_refinement_prompt",
+      assistant_message:
+        "Please refine your explanation for the current assessment task and make the reasoning steps clear.",
+      evidence_request: "Revise or extend your reasoning."
+    },
+    confidence_calibration: {
+      followup_action_type: "confidence_calibration_prompt",
+      assistant_message:
+        "Please explain how your confidence connects to the evidence or reasoning you gave.",
+      evidence_request: "Connect your confidence rating to your reasoning."
+    },
+    independent_understanding_verification: {
+      followup_action_type: "independent_verification_prompt",
+      assistant_message:
+        "Please restate your reasoning for the current task in your own words.",
+      evidence_request: "Restate your reasoning independently."
+    },
+    consolidation_or_transfer: {
+      followup_action_type: "transfer_task",
+      assistant_message:
+        "Please apply the same reasoning approach to a similar generic situation and explain how it fits.",
+      evidence_request: "Apply the reasoning pattern to a similar case."
+    }
+  };
+
+  return byValue[value] ?? byValue.diagnostic_clarification;
+}
+
+function deterministicFollowupFallback(input: {
+  built: Awaited<ReturnType<typeof buildFollowupInput>>;
+  turn_type: "opening" | "student_reply";
+  reason: string;
+}): FollowupOutput {
+  const studentMessage = input.built.input.student_message;
+  const moveOn = input.turn_type === "student_reply" && containsMoveOnRequest(studentMessage);
+  const offTopic = input.turn_type === "student_reply" && !moveOn && isOffTopicMessage(studentMessage);
+  const action = moveOn
+    ? {
+        followup_action_type: "move_on_offer" as const,
+        assistant_message:
+          "You can move on when you are ready. I will save the current evidence and prepare the next step.",
+        evidence_request: null
+      }
+    : offTopic
+      ? {
+          followup_action_type: "off_topic_redirect" as const,
+          assistant_message:
+            "Let's return to the current assessment task. You can continue with the current question or explain your reasoning.",
+          evidence_request: null
+        }
+      : defaultFollowupAction(input.built.current_formative_value);
+
+  return {
+    agent_name: "followup_agent",
+    agent_version: "deterministic-fallback",
+    prompt_version: "followup-deterministic-fallback-v1",
+    schema_version: "followup-output-v4",
+    output_status: "ok",
+    warnings: [`Deterministic effective fallback applied: ${input.reason}`],
+    assistant_message: action.assistant_message,
+    followup_action_type: action.followup_action_type,
+    target_formative_value: input.built.current_formative_value as FollowupOutput["target_formative_value"],
+    evidence_request: action.evidence_request,
+    expects_student_response: !moveOn,
+    evidence_trigger_candidate: moveOn,
+    student_turn_substantive: false,
+    evidence_trigger_reasons: moveOn ? ["move_on_request"] : [],
+    should_offer_move_on: moveOn,
+    off_topic_detected: offTopic,
+    events_to_log: moveOn
+      ? []
+      : [
+          {
+            event_type: offTopic ? "off_topic_followup" : "followup_task_assigned",
+            event_category: "followup",
+            event_source: "agent",
+            payload: {
+              detail: "Deterministic operational fallback used.",
+              reason: input.reason,
+              item_public_id: null,
+              followup_round_index: null,
+              event_count: null
+            }
+          }
+        ]
+  };
+}
+
+function followupContextPublicId(built: Awaited<ReturnType<typeof buildFollowupInput>>) {
+  const metadata = built.input.concept_unit_metadata as {
+    assessment_session?: { session_public_id?: string };
+    concept_unit?: { concept_unit_public_id?: string };
+  };
+  const round = built.input.current_followup_round as { round_index?: number };
+
+  return [
+    metadata.assessment_session?.session_public_id ?? "unknown_session",
+    metadata.concept_unit?.concept_unit_public_id ?? "unknown_concept_unit",
+    `round_${round.round_index ?? "unknown"}`
+  ].join(":");
 }
 
 async function activeRoundForConceptUnitSession(conceptUnitSessionDbId: string) {
@@ -246,13 +370,15 @@ async function runFollowupAgent(input: {
     }
   });
 
-  const result = await executeAgent({
-    agent_name: "followup_agent",
-    input: built.input,
-    assessment_session_db_id: built.assessment_session_db_id,
-    concept_unit_session_db_id: built.concept_unit_session_db_id,
-    followup_round_db_id: built.followup_round_db_id,
-    agent_invocation_key: built.agent_invocation_key,
+  const result = await executeOperationalAgent({
+    agentName: "followup_agent",
+    allowlistedInput: built.input,
+    invocationKey: built.agent_invocation_key,
+    operationalContext: {
+      assessment_session_db_id: built.assessment_session_db_id,
+      concept_unit_session_db_id: built.concept_unit_session_db_id,
+      followup_round_db_id: built.followup_round_db_id
+    },
     metadata: {
       invocation_reason: input.invocation_reason,
       turn_type: input.turn_type,
@@ -273,9 +399,49 @@ async function runFollowupAgent(input: {
       }
     });
 
+    const fallbackOutput = deterministicFollowupFallback({
+      built,
+      turn_type: input.turn_type,
+      reason: result.status
+    });
+    const semantic = validateFollowupSemantics({
+      output: fallbackOutput,
+      current_formative_value: built.current_formative_value,
+      config: built.config,
+      turn_type: input.turn_type,
+      student_message: built.input.student_message
+    });
+
+    await persistOperationalEffectiveResult({
+      agent_call_db_id: "agent_call_id" in result ? result.agent_call_id : null,
+      agent_name: "followup_agent",
+      operational_context_type: `followup_${input.turn_type}`,
+      operational_context_public_id: followupContextPublicId(built),
+      invocation_key: built.agent_invocation_key,
+      deterministic_guard_version: "followup-effective-guard-v1",
+      canonicalization_version: "followup-effective-canonical-v1",
+      fallback_version: "followup-move-on-fallback-v2",
+      raw_output_status: result.status,
+      raw_semantic_status: "not_run",
+      effective_semantic_status: "pass",
+      effective_overall_status: "fallback_safe",
+      effective_student_facing_usable: true,
+      effective_workflow_usable: true,
+      deterministic_guard_applied: true,
+      canonicalization_applied: true,
+      fallback_applied: true,
+      effective_output: fallbackOutput,
+      effective_actions: {
+        target_formative_value_preserved: true,
+        move_on_request: fallbackOutput.should_offer_move_on,
+        evidence_trigger_candidate: fallbackOutput.evidence_trigger_candidate
+      },
+      warnings: [...fallbackOutput.warnings, ...semantic.warnings]
+    });
+
     return {
-      status: result.status as FollowupRunResult,
-      output: null,
+      status: "succeeded" as const,
+      output: fallbackOutput,
       built,
       agent_call_id: "agent_call_id" in result ? result.agent_call_id : null
     };
@@ -299,6 +465,31 @@ async function runFollowupAgent(input: {
         agent_call_id: result.agent_call_id,
         warnings: semantic.warnings
       }
+    });
+
+    await persistOperationalEffectiveResult({
+      agent_call_db_id: result.agent_call_id,
+      agent_name: "followup_agent",
+      operational_context_type: `followup_${input.turn_type}`,
+      operational_context_public_id: followupContextPublicId(built),
+      invocation_key: built.agent_invocation_key,
+      deterministic_guard_version: "followup-effective-guard-v1",
+      canonicalization_version: "followup-effective-canonical-v1",
+      raw_output_status: "succeeded",
+      raw_semantic_status: "pass",
+      effective_semantic_status: "pass",
+      effective_overall_status: "pass",
+      effective_student_facing_usable: true,
+      effective_workflow_usable: true,
+      deterministic_guard_applied: true,
+      canonicalization_applied: false,
+      effective_output: result.output,
+      effective_actions: {
+        target_formative_value_preserved: true,
+        move_on_request: result.output.should_offer_move_on,
+        evidence_trigger_candidate: result.output.evidence_trigger_candidate
+      },
+      warnings: semantic.warnings
     });
 
     return {
@@ -337,9 +528,50 @@ async function runFollowupAgent(input: {
       }
     });
 
+    const fallbackOutput = deterministicFollowupFallback({
+      built,
+      turn_type: input.turn_type,
+      reason: "semantic_validation_failed"
+    });
+    const fallbackSemantic = validateFollowupSemantics({
+      output: fallbackOutput,
+      current_formative_value: built.current_formative_value,
+      config: built.config,
+      turn_type: input.turn_type,
+      student_message: built.input.student_message
+    });
+
+    await persistOperationalEffectiveResult({
+      agent_call_db_id: result.agent_call_id,
+      agent_name: "followup_agent",
+      operational_context_type: `followup_${input.turn_type}`,
+      operational_context_public_id: followupContextPublicId(built),
+      invocation_key: built.agent_invocation_key,
+      deterministic_guard_version: "followup-effective-guard-v1",
+      canonicalization_version: "followup-effective-canonical-v1",
+      fallback_version: "followup-move-on-fallback-v2",
+      raw_output_status: "semantic_validation_failed",
+      raw_semantic_status: "fail",
+      effective_semantic_status: "pass",
+      effective_overall_status: "fallback_safe",
+      effective_student_facing_usable: true,
+      effective_workflow_usable: true,
+      deterministic_guard_applied: true,
+      canonicalization_applied: true,
+      fallback_applied: true,
+      effective_output: fallbackOutput,
+      effective_actions: {
+        target_formative_value_preserved: true,
+        move_on_request: fallbackOutput.should_offer_move_on,
+        evidence_trigger_candidate: fallbackOutput.evidence_trigger_candidate,
+        semantic_validation_issues: issues
+      },
+      warnings: [...fallbackOutput.warnings, ...fallbackSemantic.warnings]
+    });
+
     return {
-      status: "semantic_validation_failed" as const,
-      output: null,
+      status: "succeeded" as const,
+      output: fallbackOutput,
       built,
       agent_call_id: result.agent_call_id,
       semantic_validation_issues: issues
@@ -351,7 +583,7 @@ async function persistAssistantTurn(input: {
   assessment_session_db_id: string;
   concept_unit_session_db_id: string;
   followup_round_db_id: string;
-  agent_call_id: string;
+  agent_call_id: string | null;
   output: NonNullable<Awaited<ReturnType<typeof runFollowupAgent>>["output"]>;
   reply_to_client_message_id?: string | null;
 }) {
@@ -540,7 +772,7 @@ export async function startFollowupRoundForTeacher(input: {
     assessment_session_db_id: agent.built.assessment_session_db_id,
     concept_unit_session_db_id: agent.built.concept_unit_session_db_id,
     followup_round_db_id: round.id,
-    agent_call_id: agent.agent_call_id,
+    agent_call_id: agent.agent_call_id ?? null,
     output: agent.output
   });
   await prisma.followupRound.update({
@@ -838,7 +1070,7 @@ export async function submitStudentFollowupMessage(input: {
     assessment_session_db_id: agent.built.assessment_session_db_id,
     concept_unit_session_db_id: agent.built.concept_unit_session_db_id,
     followup_round_db_id: round.id,
-    agent_call_id: agent.agent_call_id,
+    agent_call_id: agent.agent_call_id ?? null,
     output: agent.output,
     reply_to_client_message_id: input.client_message_id
   });

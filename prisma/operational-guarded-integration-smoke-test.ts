@@ -43,14 +43,15 @@ async function drainUntilAtLeast(input: { worker_id: string; expected_count: num
 }
 
 function setBaseMockEnv(input: {
-  enabled: boolean;
+  mode: "disabled" | "mock" | "guarded_live";
   evidenceRequired?: boolean;
   allowMockResponseCollection?: boolean;
 }) {
   process.env.LLM_PROVIDER = "mock";
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
   process.env.OPENAI_API_KEY = "";
-  process.env.OPERATIONAL_AGENT_INTEGRATION_ENABLED = input.enabled ? "true" : "false";
+  process.env.OPERATIONAL_AGENT_MODE = input.mode;
+  delete process.env.OPERATIONAL_AGENT_INTEGRATION_ENABLED;
   process.env.OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED =
     input.evidenceRequired === undefined || input.evidenceRequired ? "true" : "false";
   process.env.OPERATIONAL_AGENT_INTEGRATION_APPROVED_TARGETED_RUN_ID = "evr_20260624_bltzgtq";
@@ -88,12 +89,13 @@ async function createAutomaticCompletedFixture(suffix: string) {
   return fixture;
 }
 
-async function defaultOffBlocksAutomaticEnqueue() {
+async function defaultOffEnqueuesFallbackWorkflow() {
   setFollowupSmokeEnv({
     LLM_PROVIDER: "mock",
     LLM_LIVE_CALLS_ENABLED: "false",
     OPENAI_API_KEY: "",
-    OPERATIONAL_AGENT_INTEGRATION_ENABLED: "false",
+    OPERATIONAL_AGENT_MODE: "disabled",
+    OPERATIONAL_AGENT_INTEGRATION_ENABLED: undefined,
     OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED: "true",
     FOLLOWUP_CONTEXT_MAX_TURNS: "4",
     FOLLOWUP_MESSAGE_MAX_CHARS: "600",
@@ -102,25 +104,36 @@ async function defaultOffBlocksAutomaticEnqueue() {
   });
   const fixture = await createAutomaticCompletedFixture("default_off");
   const readiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkEvaluationEvidence: true
+    checkDatabase: true
   });
 
   assert(!readiness.allowed, "Default Phase 8A integration should be blocked.");
   assert(
-    readiness.block_reason === "operational_agent_integration_disabled",
+    readiness.block_reason === "operational_agent_mode_disabled",
     "Default-off block reason should be explicit."
   );
 
   const enqueued = await enqueueInitialProfilingJobIfAutomatic(fixture.conceptUnitSession.id);
-  assert(enqueued === null, "Default-off integration should not enqueue automatic profiling.");
+  assert(enqueued?.created, "Default-off integration should enqueue automatic fallback profiling.");
+  const processed = await drainUntilAtLeast({
+    worker_id: `${prefix}_default_off_worker`,
+    expected_count: 3
+  });
+  assert(processed.length >= 3, "Default-off workflow should process through deterministic fallbacks.");
   assert(
-    (await prisma.workflowJob.count({ where: { assessment_session_db_id: fixture.session.id } })) === 0,
-    "Default-off integration should not create workflow jobs."
+    (await prisma.agentCall.count({ where: { assessment_session_db_id: fixture.session.id } })) === 0,
+    "Default-off fallback workflow should not create provider agent calls."
+  );
+  assert(
+    (await prisma.operationalAgentEffectiveResult.count({
+      where: { operational_context_public_id: { contains: fixture.session.session_public_id } }
+    })) >= 2,
+    "Default-off fallback workflow should persist operational effective results."
   );
 }
 
-async function workerBackstopBlocksQueuedJob() {
-  setBaseMockEnv({ enabled: false, evidenceRequired: true });
+async function workerBackstopRunsFallbackQueuedJob() {
+  setBaseMockEnv({ mode: "disabled", evidenceRequired: true });
   const fixture = await createAutomaticCompletedFixture("worker_backstop");
   const enqueued = await enqueueWorkflowJob({
     job_type: "run_initial_profiling",
@@ -131,11 +144,11 @@ async function workerBackstopBlocksQueuedJob() {
   });
   const result = await processWorkflowJob(enqueued.job);
 
-  assert(result.outcome === "failed", "Worker backstop should fail a queued agent job while gate is off.");
+  assert(result.outcome === "completed", "Worker backstop should run deterministic fallback while mode is disabled.");
   const updated = await prisma.workflowJob.findUniqueOrThrow({ where: { id: enqueued.job.id } });
   assert(
-    updated.last_error_category === "operational_agent_integration_disabled",
-    "Worker backstop should preserve the integration block reason."
+    updated.last_error_category === null,
+    "Worker backstop should not mark disabled-mode fallback as an error."
   );
   assert(
     (await prisma.agentCall.count({ where: { assessment_session_db_id: fixture.session.id } })) === 0,
@@ -148,7 +161,8 @@ async function mockOnlyOptInAllowsAutomaticWorkflow() {
     LLM_PROVIDER: "mock",
     LLM_LIVE_CALLS_ENABLED: "false",
     OPENAI_API_KEY: "",
-    OPERATIONAL_AGENT_INTEGRATION_ENABLED: "true",
+    OPERATIONAL_AGENT_MODE: "mock",
+    OPERATIONAL_AGENT_INTEGRATION_ENABLED: undefined,
     OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED: "false",
     LLM_DAILY_STUDENT_CALL_LIMIT: "100",
     LLM_DAILY_STUDENT_TOKEN_LIMIT: "100000",
@@ -165,13 +179,13 @@ async function mockOnlyOptInAllowsAutomaticWorkflow() {
   });
   const fixture = await createAutomaticCompletedFixture("mock_opt_in");
   const readiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkEvaluationEvidence: true
+    checkDatabase: true
   });
 
   assert(readiness.allowed, "Mock-only synthetic smoke opt-in should allow guarded integration.");
   assert(
-    readiness.evidence_status === "not_required_for_synthetic_smoke",
-    "Synthetic smoke should not require the real eval table record."
+    readiness.evidence_status === "manifest_verified",
+    "Mock operational mode should verify the approved manifest."
   );
 
   const enqueued = await enqueueInitialProfilingJobIfAutomatic(fixture.conceptUnitSession.id);
@@ -188,7 +202,7 @@ async function mockOnlyOptInAllowsAutomaticWorkflow() {
 }
 
 async function responseCollectionFallsBackWhenGateOff() {
-  setBaseMockEnv({ enabled: false, evidenceRequired: true, allowMockResponseCollection: true });
+  setBaseMockEnv({ mode: "disabled", evidenceRequired: true, allowMockResponseCollection: true });
   const fixture = await createResponseCollectionFixture({
     prisma,
     prefix,
@@ -211,20 +225,22 @@ async function responseCollectionFallsBackWhenGateOff() {
 }
 
 async function liveClassroomConfigStillBlocked() {
-  process.env.OPERATIONAL_AGENT_INTEGRATION_ENABLED = "true";
+  process.env.OPERATIONAL_AGENT_MODE = "guarded_live";
+  delete process.env.OPERATIONAL_AGENT_INTEGRATION_ENABLED;
   process.env.OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED = "false";
   process.env.LLM_PROVIDER = "openai";
   process.env.LLM_LIVE_CALLS_ENABLED = "true";
   process.env.OPENAI_API_KEY = "fake-smoke-key-never-sent";
 
   const readiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkEvaluationEvidence: true
+    checkDatabase: true
   });
 
-  assert(!readiness.allowed, "Phase 8A must not allow live operational OpenAI configuration.");
+  assert(!readiness.allowed, "Guarded live must remain blocked without full approved readiness.");
   assert(
-    readiness.block_reason === "classroom_live_calls_not_allowed_phase8a",
-    "Live operational config should be blocked by Phase 8A."
+    readiness.blocking_reasons.includes("approved_config_hash_missing") ||
+      readiness.blocking_reasons.includes("approved_manifest_invalid"),
+    "Guarded live should be blocked by missing approved readiness, not by a provider call."
   );
 }
 
@@ -233,8 +249,8 @@ async function main() {
   await cleanupResponseCollectionFixture(prisma, prefix);
 
   try {
-    await defaultOffBlocksAutomaticEnqueue();
-    await workerBackstopBlocksQueuedJob();
+    await defaultOffEnqueuesFallbackWorkflow();
+    await workerBackstopRunsFallbackQueuedJob();
     await mockOnlyOptInAllowsAutomaticWorkflow();
     await responseCollectionFallsBackWhenGateOff();
     await liveClassroomConfigStillBlocked();

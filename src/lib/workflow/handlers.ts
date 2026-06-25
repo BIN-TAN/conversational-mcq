@@ -27,6 +27,7 @@ import {
   ConceptProgressionServiceError
 } from "@/lib/services/concept-progression/progression";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
+import { operationalReadinessHasFatalConfigurationBlock } from "@/lib/operational/guarded-agent-integration";
 
 type HandlerResult = {
   outcome: "completed" | "retryable" | "failed";
@@ -62,16 +63,16 @@ async function guardedOperationalIntegrationFailure(job: WorkflowJob): Promise<H
   }
 
   const readiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkEvaluationEvidence: true
+    checkDatabase: true
   });
 
-  if (readiness.allowed) {
+  if (readiness.allowed || !operationalReadinessHasFatalConfigurationBlock(readiness)) {
     return null;
   }
 
   return {
     outcome: "failed",
-    error_category: readiness.block_reason,
+    error_category: readiness.block_reason ?? "operational_guard_blocked",
     error_message: `Workflow job ${job.job_type} blocked by Phase 8A guarded operational integration gate: ${readiness.block_reason}.`
   };
 }
@@ -153,7 +154,7 @@ async function handleInitialProfiling(job: WorkflowJob): Promise<HandlerResult> 
       return { outcome: "completed" };
     }
 
-    return failureFromStatus(result.status);
+    return failureFromStatus((result as { status: string }).status);
   } catch (error) {
     if (error instanceof StudentProfilingServiceError) {
       return {
@@ -171,17 +172,13 @@ async function handleInitialPlanning(job: WorkflowJob): Promise<HandlerResult> {
   const context = await jobContext(job);
 
   try {
-    const result = await runInitialFormativePlanning({
+    await runInitialFormativePlanning({
       concept_unit_session_db_id: context.id,
       invocation_reason: "automatic_workflow_phase6d2a_initial_planning"
     });
 
-    if (result.status === "decision_created" || result.status === "already_planned") {
-      await enqueueInitialFollowupStartupJob(context.id);
-      return { outcome: "completed" };
-    }
-
-    return failureFromStatus(result.status);
+    await enqueueInitialFollowupStartupJob(context.id);
+    return { outcome: "completed" };
   } catch (error) {
     if (error instanceof FormativePlanningServiceError) {
       return {

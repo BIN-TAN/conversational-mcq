@@ -55,6 +55,19 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - The OpenAI API key must never be exposed to the browser or committed to source control.
 - Phase 6D2A automatic workflow jobs must respect the same server-side live-call gates and usage guards as manual agent triggers.
 
+## Phase 8A Guarded Operational Integration
+
+- `OPERATIONAL_AGENT_MODE` is the authoritative server-only operational mode. Valid values are `disabled`, `mock`, and `guarded_live`; the default is `disabled`.
+- `OPERATIONAL_AGENT_INTEGRATION_ENABLED` is a deprecated backward-compatible alias. If it conflicts with `OPERATIONAL_AGENT_MODE`, the system must fail closed.
+- Guarded live execution requires the exact approved manifest, exact active configuration hash, exact approved model snapshot, `reasoning_effort=low`, matching effective result and validator versions, server-side OpenAI readiness, usage-guard approval, and database readiness.
+- The approved manifest is `config/approved-operational-agent-config.json`. It must not contain API keys, database URLs, cookies, session secrets, or internal database IDs.
+- Operational services must consume effective results, not raw provider output directly.
+- Raw provider audit remains in `agent_calls`; backend-effective operational results are stored immutably in `operational_agent_effective_results`.
+- Deterministic guards, backend canonicalization, and deterministic fallbacks remain authoritative when model output is invalid, blocked, unavailable, or unsafe.
+- Student payloads must not expose raw provider output, model/provider identity, prompt/schema versions, profile taxonomy labels, formative-value labels, answer keys, correctness feedback, token usage, costs, guard versions, or fallback reasons.
+- Teacher review may expose read-only sanitized operational audit fields, version metadata, status flags, token usage, and estimated cost when available.
+- Phase 8A remains default-off and is not classroom validation. `classroom_validity=false` and `human_review_pending=true` remain binding.
+
 ## Phase 7E1 Evaluation Harness
 
 - Phase 7E1 evaluation is internal development evaluation, not classroom validation.
@@ -903,12 +916,13 @@ Phase 6A.5 must not implement:
 ## Phase 8A Guarded Operational Agent Integration Lock
 
 - Phase 8A connects evaluated agent infrastructure to local operational workflow
-  boundaries only behind `OPERATIONAL_AGENT_INTEGRATION_ENABLED`.
-- The default remains `OPERATIONAL_AGENT_INTEGRATION_ENABLED=false`,
-  `LLM_PROVIDER=mock`, and `LLM_LIVE_CALLS_ENABLED=false`.
-- Enabling the Phase 8A integration gate must not enable live OpenAI calls.
-  The guard explicitly blocks classroom workflow integration if
-  `LLM_PROVIDER=openai` or `LLM_LIVE_CALLS_ENABLED=true`.
+  boundaries only behind `OPERATIONAL_AGENT_MODE`.
+- The default remains `OPERATIONAL_AGENT_MODE=disabled`, `LLM_PROVIDER=mock`,
+  and `LLM_LIVE_CALLS_ENABLED=false`.
+- Enabling `mock` mode must not enable live OpenAI calls. `guarded_live` may
+  permit a provider request only when the approved manifest, exact active
+  configuration hash, usage guard, database readiness, exact model snapshot,
+  and server-side live-call checks all pass.
 - The approved engineering evidence is targeted run `evr_20260624_bltzgtq`:
   raw model review 20 Pass / 2 Fail, `effective-system-eval-v1` 20 Pass / 2
   Fail, and `effective-system-eval-v2` 22 Pass / 0 Fail with zero critical
@@ -916,18 +930,18 @@ Phase 6A.5 must not implement:
 - The approved recommendation is `ready_for_guarded_integration_patch` with
   `classroom_validity=false` and `human_review_pending=true`. This is
   provisional engineering readiness only.
-- `OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED=true` must verify the
-  approved targeted report before guarded local workflow integration is allowed.
-  Synthetic smoke tests may set it to `false` only with mock provider and live
-  calls disabled.
+- The approved manifest and active configuration hash are the guarded-live
+  evidence boundary. Legacy targeted-report checks are superseded by manifest
+  verification.
 - Active prompt and schema versions must match the evaluated targeted
   remediation versions: `item-verification-v4`, `response-collection-v5`,
   `student-profiling-v3`, `formative-planning-v2`, `followup-v6`, and their
   locked provider schema versions.
-- When the gate is disabled, automatic profiling, planning, follow-up startup,
-  follow-up update, and concept-progression workflow jobs must not be enqueued
-  or executed. Queued guarded workflow jobs require a worker-side backstop.
-- Student initial-administration free-text Response Collection Agent execution
-  must fall back deterministically while the gate is disabled.
+- When mode is `disabled`, automatic profiling, planning, follow-up startup,
+  follow-up update, and item verification must use deterministic behavior or
+  deterministic fallback and must not make provider calls. Queued guarded
+  workflow jobs require a worker-side backstop.
+- Student initial-administration free-text Response Collection execution must
+  fall back deterministically while mode is `disabled`.
 - Phase 8A must not modify completed evaluation runs, outputs, annotations, or
   audit records, and must not modify active prompts or provider schemas.

@@ -104,14 +104,16 @@ The Phase 7E2A pricing registry is versioned as `openai-pricing-2026-06-22-v1` a
 Phase 8A adds operational workflow integration flags:
 
 ```text
-OPERATIONAL_AGENT_INTEGRATION_ENABLED=false
-OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED=true
-OPERATIONAL_AGENT_INTEGRATION_APPROVED_TARGETED_RUN_ID=evr_20260624_bltzgtq
+OPERATIONAL_AGENT_MODE=disabled
+OPERATIONAL_APPROVED_CONFIG_HASH=
+OPERATIONAL_EFFECTIVE_RESULT_VERSION=effective-system-eval-v2
+OPERATIONAL_EFFECTIVE_VALIDATOR_VERSION=effective-validator-v1
 ```
 
 These flags are separate from eval live-call settings and do not enable
-classroom OpenAI calls. The Phase 8A guard requires mock provider mode and live
-calls disabled.
+classroom OpenAI calls. `guarded_live` must still pass the same usage guard
+before dispatch and is additionally blocked by manifest, configuration hash,
+database, exact model snapshot, and server-side live-call readiness.
 
 ## Smoke Tests
 

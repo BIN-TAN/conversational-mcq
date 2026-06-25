@@ -1,5 +1,6 @@
 import type { MockProviderMode } from "@/lib/llm/providers/mock-provider";
-import { executeAgent } from "@/lib/agents/execute-agent";
+import { executeOperationalAgent } from "@/lib/agents/operational/executor";
+import { persistOperationalEffectiveResult } from "@/lib/agents/operational/effective-results";
 import { prisma } from "@/lib/db";
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { logProcessEvent } from "@/lib/services/process-events";
@@ -122,6 +123,62 @@ function profileSummary(profile: StudentProfileWithAgentCall) {
   return serializeStudentProfileForTeacher(profile);
 }
 
+function profilingContextPublicId(built: BuiltStudentProfilingInput) {
+  const metadata = built.input.concept_unit_metadata as {
+    assessment_session?: { session_public_id?: string };
+    concept_unit?: { concept_unit_public_id?: string };
+  };
+
+  return [
+    metadata.assessment_session?.session_public_id ?? "unknown_session",
+    metadata.concept_unit?.concept_unit_public_id ?? "unknown_concept_unit"
+  ].join(":");
+}
+
+function deterministicInitialProfileFallback(built: BuiltStudentProfilingInput) {
+  return {
+    agent_name: "student_profiling_agent" as const,
+    agent_version: "deterministic-fallback",
+    prompt_version: "student-profiling-deterministic-fallback-v1",
+    schema_version: "student-profile-output-v2",
+    output_status: "ok" as const,
+    warnings: [
+      "Deterministic conservative fallback used; this is not an LLM-derived student profile."
+    ],
+    profile_type: built.input.profile_type,
+    ability_profile: "insufficient_evidence" as const,
+    ability_pattern_flags: [],
+    engagement_profile: "insufficient_process_evidence" as const,
+    engagement_pattern_flags: [],
+    integrated_diagnostic_profile: "insufficient_evidence_for_formative_decision" as const,
+    integrated_profile_confidence: "low" as const,
+    integrated_profile_rationale:
+      "The operational profiling agent was unavailable or invalid, so no diagnostic inference was made.",
+    evidence_sufficiency: "insufficient" as const,
+    confidence_alignment: "insufficient_evidence" as const,
+    independence_interpretability: "insufficient_evidence" as const,
+    misconception_indicators: [],
+    item_level_evidence: [],
+    reasoning_quality_summary:
+      "No LLM-derived reasoning-quality summary is available from this fallback.",
+    engagement_summary:
+      "No LLM-derived engagement summary is available from this fallback.",
+    process_interpretation_cautions: [
+      "Fallback-derived profile; do not interpret as validated student profiling output."
+    ],
+    profile_confidence: "low" as const,
+    rationale:
+      "A conservative fallback was used to keep the workflow resumable without overclaiming student understanding.",
+    recommended_next_evidence: [
+      {
+        evidence_type: "teacher_review_or_later_followup",
+        reason: "The profiling agent did not produce a validated effective result.",
+        item_public_id: null
+      }
+    ]
+  };
+}
+
 async function executeProfilingBuiltInput(input: {
   built: BuiltStudentProfilingInput;
   invocation_reason: string;
@@ -140,13 +197,15 @@ async function executeProfilingBuiltInput(input: {
     }
   });
 
-  const result = await executeAgent({
-    agent_name: "student_profiling_agent",
-    input: input.built.input,
-    assessment_session_db_id: input.built.assessment_session_db_id,
-    concept_unit_session_db_id: input.built.concept_unit_session_db_id,
-    agent_invocation_key: input.built.agent_invocation_key,
-    force_new_invocation: input.force_new_invocation,
+  const result = await executeOperationalAgent({
+    agentName: "student_profiling_agent",
+    allowlistedInput: input.built.input,
+    invocationKey: input.built.agent_invocation_key,
+    operationalContext: {
+      assessment_session_db_id: input.built.assessment_session_db_id,
+      concept_unit_session_db_id: input.built.concept_unit_session_db_id
+    },
+    forceNewInvocation: input.force_new_invocation,
     metadata: {
       invocation_reason: input.invocation_reason,
       response_package_type: input.built.response_package.package_type,
@@ -233,6 +292,28 @@ async function executeProfilingBuiltInput(input: {
       agent_call_id: result.agent_call_id,
       retry_count: result.retry_count
     }
+  });
+
+  await persistOperationalEffectiveResult({
+    agent_call_db_id: result.agent_call_id,
+    agent_name: "student_profiling_agent",
+    operational_context_type: `${input.built.input.profile_type}_student_profile`,
+    operational_context_public_id: profilingContextPublicId(input.built),
+    invocation_key: input.built.agent_invocation_key,
+    canonicalization_version: "student-profiling-canonical-v1",
+    raw_output_status: "succeeded",
+    raw_semantic_status: "pass",
+    effective_semantic_status: "pass",
+    effective_overall_status: "pass",
+    effective_student_facing_usable: false,
+    effective_workflow_usable: true,
+    canonicalization_applied: true,
+    effective_output: result.output,
+    effective_actions: {
+      profile_type: input.built.input.profile_type,
+      may_update_profile_pointer: true
+    },
+    warnings: result.output.warnings
   });
 
   return {
@@ -352,13 +433,15 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
     }
   });
 
-  const result = await executeAgent({
-    agent_name: "student_profiling_agent",
-    input: built.input,
-    assessment_session_db_id: built.assessment_session_db_id,
-    concept_unit_session_db_id: built.concept_unit_session_db_id,
-    agent_invocation_key: built.agent_invocation_key,
-    force_new_invocation: input.force_new_invocation,
+  const result = await executeOperationalAgent({
+    agentName: "student_profiling_agent",
+    allowlistedInput: built.input,
+    invocationKey: built.agent_invocation_key,
+    operationalContext: {
+      assessment_session_db_id: built.assessment_session_db_id,
+      concept_unit_session_db_id: built.concept_unit_session_db_id
+    },
+    forceNewInvocation: input.force_new_invocation,
     metadata: {
       invocation_reason: input.invocation_reason,
       response_package_type: built.response_package.package_type,
@@ -393,9 +476,52 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
       }
     });
 
+    const fallbackOutput = deterministicInitialProfileFallback(built);
+    await persistOperationalEffectiveResult({
+      agent_call_db_id: "agent_call_id" in result ? result.agent_call_id : null,
+      agent_name: "student_profiling_agent",
+      operational_context_type: "initial_student_profile",
+      operational_context_public_id: profilingContextPublicId(built),
+      invocation_key: built.agent_invocation_key,
+      canonicalization_version: "student-profiling-canonical-v1",
+      fallback_version: "student-profiling-deterministic-fallback-v1",
+      raw_output_status: result.status,
+      raw_semantic_status: "not_run",
+      effective_semantic_status: "pass",
+      effective_overall_status: "fallback_safe",
+      effective_student_facing_usable: false,
+      effective_workflow_usable: true,
+      canonicalization_applied: true,
+      fallback_applied: true,
+      effective_output: fallbackOutput,
+      effective_actions: {
+        profile_type: "initial",
+        may_update_profile_pointer: true,
+        fallback_derived: true
+      },
+      warnings: fallbackOutput.warnings
+    });
+
+    const fallbackProfile = await persistInitialStudentProfile({
+      concept_unit_session_db_id: built.concept_unit_session_db_id,
+      based_on_agent_call_db_id: "agent_call_id" in result ? result.agent_call_id ?? null : null,
+      output: fallbackOutput
+    });
+
+    await updateAssessmentSessionPhase({
+      assessment_session_db_id: built.assessment_session_db_id,
+      to_phase: "profiling_completed",
+      reason: "student_profiling_deterministic_fallback_completed",
+      payload: {
+        agent_name: "student_profiling_agent",
+        fallback_derived: true,
+        result_status: result.status
+      }
+    });
+
     return {
-      status: result.status,
-      profile: null,
+      status: "profile_created" as const,
+      profile: profileSummary(fallbackProfile),
       agent_call_id: "agent_call_id" in result ? result.agent_call_id : null,
       agent_invocation_key: built.agent_invocation_key
     };
@@ -445,6 +571,28 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
       agent_name: "student_profiling_agent",
       agent_call_id: result.agent_call_id
     }
+  });
+
+  await persistOperationalEffectiveResult({
+    agent_call_db_id: result.agent_call_id,
+    agent_name: "student_profiling_agent",
+    operational_context_type: "initial_student_profile",
+    operational_context_public_id: profilingContextPublicId(built),
+    invocation_key: built.agent_invocation_key,
+    canonicalization_version: "student-profiling-canonical-v1",
+    raw_output_status: "succeeded",
+    raw_semantic_status: "pass",
+    effective_semantic_status: "pass",
+    effective_overall_status: "pass",
+    effective_student_facing_usable: false,
+    effective_workflow_usable: true,
+    canonicalization_applied: true,
+    effective_output: result.output,
+    effective_actions: {
+      profile_type: "initial",
+      may_update_profile_pointer: true
+    },
+    warnings: result.output.warnings
   });
 
   const profile = await persistInitialStudentProfile({

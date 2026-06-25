@@ -164,3 +164,12 @@ backend derives canonical mapping state:
 The raw provider output remains preserved for audit. The semantic evaluator must
 not raise `incorrect_top_level_formative_value` merely because a defensible
 non-default value was selected.
+
+## Phase 8A Operational Effective Result
+
+Operational planning calls route through `executeOperationalAgent`. The backend
+derives default formative value and mapping state before execution and consumes
+only the effective result after validation, canonicalization, and fallback. If
+initial planning cannot use a valid effective result, a deterministic
+course-agnostic fallback plan keeps the workflow resumable. Updated planning
+failure preserves the previous active decision pointer.

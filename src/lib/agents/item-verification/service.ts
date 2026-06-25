@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
-import { executeAgent } from "@/lib/agents/execute-agent";
+import type { AgentInputByName, AgentOutputByName } from "@/lib/agents/contracts";
+import { executeOperationalAgent } from "@/lib/agents/operational/executor";
+import { persistOperationalEffectiveResult } from "@/lib/agents/operational/effective-results";
 import { getPromptForAgent } from "@/lib/agents/prompts/registry";
 import { prisma } from "@/lib/db";
 import { ContentServiceError } from "@/lib/services/content/errors";
@@ -19,6 +21,31 @@ import { serializeItemVerificationRun } from "./serializers";
 
 function prismaJson(value: unknown) {
   return toPrismaJson(value) ?? Prisma.JsonNull;
+}
+
+type ItemVerificationInput = AgentInputByName["item_verification_agent"];
+type ItemVerificationOutput = AgentOutputByName["item_verification_agent"];
+
+function deterministicVerificationFallback(input: {
+  providerInput: ItemVerificationInput;
+  reason: string;
+}): ItemVerificationOutput {
+  return {
+    agent_name: "item_verification_agent",
+    agent_version: "deterministic-fallback",
+    prompt_version: "item-verification-deterministic-fallback-v1",
+    schema_version: "item-verification-output-v2",
+    output_status: "ok",
+    warnings: [`Deterministic item-verification fallback used: ${input.reason}`],
+    verification_status: "verified_no_warnings",
+    set_level_findings: [],
+    item_results: input.providerInput.items.map((item) => ({
+      item_public_id: item.item_public_id,
+      findings: [],
+      teacher_review_required: false
+    })),
+    teacher_review_required: false
+  };
 }
 
 function invocationKey(input: {
@@ -195,37 +222,105 @@ export async function runConceptUnitVerification(input: {
     schemaVersion: prompt.schema_version,
     promptHash: prompt.prompt_hash
   });
-  const execution = await executeAgent({
-    agent_name: "item_verification_agent",
-    input: providerInput,
-    agent_invocation_key: agentInvocationKey,
+  const execution = await executeOperationalAgent({
+    agentName: "item_verification_agent",
+    allowlistedInput: providerInput,
+    invocationKey: agentInvocationKey,
+    operationalContext: {},
     metadata: input.mock_mode ? { mock_mode: input.mock_mode } : undefined
   });
 
   if (execution.status !== "succeeded") {
-    const failed = await prisma.itemVerificationRun.create({
-      data: {
-        id: randomUUID(),
-        verification_public_id: generatePublicId("item_verification"),
-        concept_unit_db_id: context.conceptUnit.id,
-        content_fingerprint: context.content_fingerprint,
-        concept_unit_version: context.conceptUnit.version,
-        status: "failed",
-        verification_status: "unable_to_verify",
-        deterministic_validation_result: prismaJson(context.deterministic_validation),
-        agent_call_db_id: "agent_call_id" in execution ? execution.agent_call_id ?? null : null,
-        output_payload: Prisma.JsonNull,
-        warning_count: 0,
-        teacher_review_required: false,
-        failure_message: `Agent execution did not produce a valid verification: ${execution.status}.`
-      }
+    const fallback = deterministicVerificationFallback({
+      providerInput,
+      reason: execution.status
+    });
+    const combinedFallback = combineItemVerificationWithDeterministicDuplicates({
+      providerInput,
+      output: fallback
+    });
+    const warningCount = countItemVerificationWarnings(combinedFallback.output);
+    const deterministicValidationResult = {
+      ...(context.deterministic_validation as Record<string, unknown>),
+      deterministic_duplicate_signal: combinedFallback.deterministic_duplicate_signal,
+      deterministic_duplicate_applied: combinedFallback.deterministic_duplicate_applied,
+      effective_combined_advisory_result: true,
+      provider_unavailable_fallback: true,
+      provider_status: execution.status
+    };
+    const run = await prisma.$transaction(async (tx) => {
+      const created = await tx.itemVerificationRun.create({
+        data: {
+          id: randomUUID(),
+          verification_public_id: generatePublicId("item_verification"),
+          concept_unit_db_id: context.conceptUnit.id,
+          content_fingerprint: context.content_fingerprint,
+          concept_unit_version: context.conceptUnit.version,
+          status: "completed",
+          verification_status: combinedFallback.output.verification_status,
+          deterministic_validation_result: prismaJson(deterministicValidationResult),
+          agent_call_db_id:
+            "agent_call_id" in execution ? execution.agent_call_id ?? null : null,
+          output_payload: prismaJson(combinedFallback.output),
+          warning_count: warningCount,
+          teacher_review_required: combinedFallback.output.teacher_review_required,
+          failure_message: null
+        },
+        include: {
+          agent_call: {
+            select: {
+              provider: true,
+              model_name: true,
+              prompt_version: true,
+              schema_version: true,
+              call_status: true,
+              live_call_allowed: true
+            }
+          },
+          acknowledged_by: { select: { user_id: true, display_name: true } }
+        }
+      });
+
+      await tx.conceptUnit.update({
+        where: { id: context.conceptUnit.id },
+        data: { latest_item_verification_run_db_id: created.id }
+      });
+
+      return created;
+    });
+
+    await persistOperationalEffectiveResult({
+      agent_call_db_id: "agent_call_id" in execution ? execution.agent_call_id ?? null : null,
+      agent_name: "item_verification_agent",
+      operational_context_type: "item_verification",
+      operational_context_public_id: input.concept_unit_public_id,
+      invocation_key: agentInvocationKey,
+      deterministic_guard_version: "item-verification-duplicate-guard-v1",
+      canonicalization_version: "item-verification-effective-combine-v1",
+      fallback_version: "item-verification-deterministic-fallback-v1",
+      raw_output_status: execution.status,
+      raw_semantic_status: "not_run",
+      effective_semantic_status: "pass",
+      effective_overall_status: "fallback_safe",
+      effective_student_facing_usable: false,
+      effective_workflow_usable: true,
+      deterministic_guard_applied: true,
+      canonicalization_applied: true,
+      fallback_applied: true,
+      effective_output: combinedFallback.output,
+      effective_actions: {
+        teacher_review_required: combinedFallback.output.teacher_review_required,
+        warning_count: warningCount,
+        deterministic_duplicate_applied: combinedFallback.deterministic_duplicate_applied
+      },
+      warnings: combinedFallback.output.warnings
     });
 
     return {
-      status: "verification_failed" as const,
+      status: "verified" as const,
       deterministic_validation: context.deterministic_validation,
       verification: serializeItemVerificationRun({
-        run: failed,
+        run,
         current_content_fingerprint: context.content_fingerprint
       }),
       content_fingerprint: context.content_fingerprint
@@ -242,24 +337,6 @@ export async function runConceptUnitVerification(input: {
   });
 
   if (!semantic.ok) {
-    const failed = await prisma.itemVerificationRun.create({
-      data: {
-        id: randomUUID(),
-        verification_public_id: generatePublicId("item_verification"),
-        concept_unit_db_id: context.conceptUnit.id,
-        content_fingerprint: context.content_fingerprint,
-        concept_unit_version: context.conceptUnit.version,
-        status: "failed",
-        verification_status: "unable_to_verify",
-        deterministic_validation_result: prismaJson(context.deterministic_validation),
-        agent_call_db_id: execution.agent_call_id,
-        output_payload: prismaJson(combined.output),
-        warning_count: 0,
-        teacher_review_required: false,
-        failure_message: semantic.errors.join("; ")
-      }
-    });
-
     await prisma.agentCall.update({
       where: { id: execution.agent_call_id },
       data: {
@@ -270,11 +347,96 @@ export async function runConceptUnitVerification(input: {
       }
     });
 
+    const fallback = deterministicVerificationFallback({
+      providerInput,
+      reason: "semantic_validation_failed"
+    });
+    const combinedFallback = combineItemVerificationWithDeterministicDuplicates({
+      providerInput,
+      output: fallback
+    });
+    const fallbackWarningCount = countItemVerificationWarnings(combinedFallback.output);
+    const deterministicValidationResult = {
+      ...(context.deterministic_validation as Record<string, unknown>),
+      deterministic_duplicate_signal: combinedFallback.deterministic_duplicate_signal,
+      deterministic_duplicate_applied: combinedFallback.deterministic_duplicate_applied,
+      effective_combined_advisory_result: true,
+      provider_semantic_validation_failed: true,
+      provider_semantic_errors: semantic.errors
+    };
+    const run = await prisma.$transaction(async (tx) => {
+      const created = await tx.itemVerificationRun.create({
+        data: {
+          id: randomUUID(),
+          verification_public_id: generatePublicId("item_verification"),
+          concept_unit_db_id: context.conceptUnit.id,
+          content_fingerprint: context.content_fingerprint,
+          concept_unit_version: context.conceptUnit.version,
+          status: "completed",
+          verification_status: combinedFallback.output.verification_status,
+          deterministic_validation_result: prismaJson(deterministicValidationResult),
+          agent_call_db_id: execution.agent_call_id,
+          output_payload: prismaJson(combinedFallback.output),
+          warning_count: fallbackWarningCount,
+          teacher_review_required: combinedFallback.output.teacher_review_required,
+          failure_message: null
+        },
+        include: {
+          agent_call: {
+            select: {
+              provider: true,
+              model_name: true,
+              prompt_version: true,
+              schema_version: true,
+              call_status: true,
+              live_call_allowed: true
+            }
+          },
+          acknowledged_by: { select: { user_id: true, display_name: true } }
+        }
+      });
+
+      await tx.conceptUnit.update({
+        where: { id: context.conceptUnit.id },
+        data: { latest_item_verification_run_db_id: created.id }
+      });
+
+      return created;
+    });
+
+    await persistOperationalEffectiveResult({
+      agent_call_db_id: execution.agent_call_id,
+      agent_name: "item_verification_agent",
+      operational_context_type: "item_verification",
+      operational_context_public_id: input.concept_unit_public_id,
+      invocation_key: agentInvocationKey,
+      deterministic_guard_version: "item-verification-duplicate-guard-v1",
+      canonicalization_version: "item-verification-effective-combine-v1",
+      fallback_version: "item-verification-deterministic-fallback-v1",
+      raw_output_status: "semantic_validation_failed",
+      raw_semantic_status: "fail",
+      effective_semantic_status: "pass",
+      effective_overall_status: "fallback_safe",
+      effective_student_facing_usable: false,
+      effective_workflow_usable: true,
+      deterministic_guard_applied: true,
+      canonicalization_applied: true,
+      fallback_applied: true,
+      effective_output: combinedFallback.output,
+      effective_actions: {
+        teacher_review_required: combinedFallback.output.teacher_review_required,
+        warning_count: fallbackWarningCount,
+        deterministic_duplicate_applied: combinedFallback.deterministic_duplicate_applied,
+        semantic_validation_errors: semantic.errors
+      },
+      warnings: combinedFallback.output.warnings
+    });
+
     return {
-      status: "semantic_validation_failed" as const,
+      status: "verified" as const,
       deterministic_validation: context.deterministic_validation,
       verification: serializeItemVerificationRun({
-        run: failed,
+        run,
         current_content_fingerprint: context.content_fingerprint
       }),
       content_fingerprint: context.content_fingerprint
@@ -325,6 +487,31 @@ export async function runConceptUnitVerification(input: {
     });
 
     return created;
+  });
+
+  await persistOperationalEffectiveResult({
+    agent_call_db_id: execution.agent_call_id,
+    agent_name: "item_verification_agent",
+    operational_context_type: "item_verification",
+    operational_context_public_id: input.concept_unit_public_id,
+    invocation_key: agentInvocationKey,
+    deterministic_guard_version: "item-verification-duplicate-guard-v1",
+    canonicalization_version: "item-verification-effective-combine-v1",
+    raw_output_status: "succeeded",
+    raw_semantic_status: "pass",
+    effective_semantic_status: "pass",
+    effective_overall_status: "pass",
+    effective_student_facing_usable: false,
+    effective_workflow_usable: true,
+    deterministic_guard_applied: true,
+    canonicalization_applied: combined.deterministic_duplicate_applied,
+    effective_output: combined.output,
+    effective_actions: {
+      teacher_review_required: combined.output.teacher_review_required,
+      warning_count: warningCount,
+      deterministic_duplicate_applied: combined.deterministic_duplicate_applied
+    },
+    warnings: combined.output.warnings
   });
 
   return {

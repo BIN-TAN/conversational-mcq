@@ -6,6 +6,7 @@ import { serializeStudentProfileForTeacher } from "@/lib/agents/student-profilin
 import { getServerEnv } from "@/lib/env";
 import { serializeProgressionForTeacher } from "@/lib/services/concept-progression/progression";
 import { serializeAssessmentContentState } from "@/lib/services/content/governance";
+import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 import { deriveAutomationState } from "@/lib/workflow/automation";
 import { serializeWorkflowJob } from "@/lib/workflow/jobs";
 import { TeacherReviewServiceError } from "./errors";
@@ -266,6 +267,67 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
     );
   }
 
+  const [operationalReadiness, operationalEffectiveResults] = await Promise.all([
+    getGuardedOperationalAgentIntegrationReadiness({ checkDatabase: false }),
+    prisma.operationalAgentEffectiveResult.findMany({
+      where: {
+        operational_context_public_id: {
+          contains: session.session_public_id
+        }
+      },
+      orderBy: [{ created_at: "desc" }],
+      take: 50,
+      select: {
+        public_id: true,
+        agent_name: true,
+        operational_context_type: true,
+        operational_context_public_id: true,
+        invocation_key: true,
+        effective_result_version: true,
+        effective_validator_version: true,
+        deterministic_guard_version: true,
+        canonicalization_version: true,
+        fallback_version: true,
+        raw_output_status: true,
+        raw_semantic_status: true,
+        raw_safety_status: true,
+        effective_semantic_status: true,
+        effective_safety_status: true,
+        effective_overall_status: true,
+        effective_student_facing_usable: true,
+        effective_workflow_usable: true,
+        deterministic_guard_applied: true,
+        canonicalization_applied: true,
+        fallback_applied: true,
+        warnings_json: true,
+        effective_result_hash: true,
+        created_at: true,
+        agent_call: {
+          select: {
+            agent_name: true,
+            provider: true,
+            model_name: true,
+            prompt_version: true,
+            schema_version: true,
+            prompt_hash: true,
+            call_status: true,
+            output_validated: true,
+            live_call_allowed: true,
+            blocked_reason: true,
+            retry_count: true,
+            latency_ms: true,
+            input_tokens: true,
+            output_tokens: true,
+            total_tokens: true,
+            estimated_cost: true,
+            created_at: true,
+            completed_at: true
+          }
+        }
+      }
+    })
+  ]);
+
   const itemResponseCount = session.concept_unit_sessions.reduce(
     (total, conceptUnitSession) => total + conceptUnitSession._count.item_responses,
     0
@@ -445,6 +507,64 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       agent_call_count: session._count.agent_calls,
       message:
         "Student Profiling, Formative Planning, Follow-up Agent, and staged follow-up update-cycle records may exist. Staged outputs become current only after a completed update cycle."
+    },
+    operational_agent_audit: {
+      operational_mode: operationalReadiness.mode,
+      approved_manifest_status: operationalReadiness.details ? "invalid" : "valid",
+      active_configuration_hash: operationalReadiness.active_configuration_hash,
+      approved_configuration_hash: operationalReadiness.approved_configuration_hash,
+      live_call_permitted: operationalReadiness.live_call_permitted,
+      blocking_reasons: operationalReadiness.blocking_reasons,
+      sanitized_warnings: operationalReadiness.sanitized_warnings,
+      effective_results: operationalEffectiveResults.map((result) => ({
+        public_id: result.public_id,
+        agent_name: result.agent_name,
+        operational_context_type: result.operational_context_type,
+        operational_context_public_id: result.operational_context_public_id,
+        invocation_key: result.invocation_key,
+        effective_result_version: result.effective_result_version,
+        effective_validator_version: result.effective_validator_version,
+        deterministic_guard_version: result.deterministic_guard_version,
+        canonicalization_version: result.canonicalization_version,
+        fallback_version: result.fallback_version,
+        raw_call_status: result.agent_call?.call_status ?? result.raw_output_status,
+        raw_output_status: result.raw_output_status,
+        raw_semantic_status: result.raw_semantic_status,
+        raw_safety_status: result.raw_safety_status,
+        effective_semantic_status: result.effective_semantic_status,
+        effective_safety_status: result.effective_safety_status,
+        effective_overall_status: result.effective_overall_status,
+        effective_student_facing_usable: result.effective_student_facing_usable,
+        effective_workflow_usable: result.effective_workflow_usable,
+        deterministic_guard_applied: result.deterministic_guard_applied,
+        canonicalization_applied: result.canonicalization_applied,
+        fallback_applied: result.fallback_applied,
+        sanitized_warnings: result.warnings_json,
+        effective_result_hash: result.effective_result_hash,
+        created_at: serializeDate(result.created_at),
+        agent_call: result.agent_call
+          ? {
+              agent_name: result.agent_call.agent_name,
+              provider: result.agent_call.provider,
+              model_name: result.agent_call.model_name,
+              prompt_version: result.agent_call.prompt_version,
+              schema_version: result.agent_call.schema_version,
+              prompt_hash: result.agent_call.prompt_hash,
+              call_status: result.agent_call.call_status,
+              output_validated: result.agent_call.output_validated,
+              live_call_allowed: result.agent_call.live_call_allowed,
+              blocked_reason: result.agent_call.blocked_reason,
+              retry_count: result.agent_call.retry_count,
+              latency_ms: result.agent_call.latency_ms,
+              input_tokens: result.agent_call.input_tokens,
+              output_tokens: result.agent_call.output_tokens,
+              total_tokens: result.agent_call.total_tokens,
+              estimated_cost: result.agent_call.estimated_cost?.toString() ?? null,
+              created_at: serializeDate(result.agent_call.created_at),
+              completed_at: serializeDate(result.agent_call.completed_at)
+            }
+          : null
+      }))
     }
   };
 }

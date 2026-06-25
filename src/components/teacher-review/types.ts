@@ -148,6 +148,62 @@ export type SessionDetailResponse = {
     agent_call_count: number;
     message: string;
   };
+  operational_agent_audit: {
+    operational_mode: string;
+    approved_manifest_status: string;
+    active_configuration_hash: string;
+    approved_configuration_hash: string;
+    live_call_permitted: boolean;
+    blocking_reasons: string[];
+    sanitized_warnings: string[];
+    effective_results: Array<{
+      public_id: string;
+      agent_name: string;
+      operational_context_type: string;
+      operational_context_public_id: string;
+      invocation_key: string;
+      effective_result_version: string;
+      effective_validator_version: string;
+      deterministic_guard_version: string | null;
+      canonicalization_version: string | null;
+      fallback_version: string | null;
+      raw_call_status: string;
+      raw_output_status: string;
+      raw_semantic_status: string;
+      raw_safety_status: string;
+      effective_semantic_status: string;
+      effective_safety_status: string;
+      effective_overall_status: string;
+      effective_student_facing_usable: boolean;
+      effective_workflow_usable: boolean;
+      deterministic_guard_applied: boolean;
+      canonicalization_applied: boolean;
+      fallback_applied: boolean;
+      sanitized_warnings: unknown;
+      effective_result_hash: string;
+      created_at: string | null;
+      agent_call: {
+        agent_name: string;
+        provider: string;
+        model_name: string;
+        prompt_version: string;
+        schema_version: string;
+        prompt_hash: string | null;
+        call_status: string;
+        output_validated: boolean;
+        live_call_allowed: boolean;
+        blocked_reason: string | null;
+        retry_count: number;
+        latency_ms: number | null;
+        input_tokens: number | null;
+        output_tokens: number | null;
+        total_tokens: number | null;
+        estimated_cost: string | null;
+        created_at: string | null;
+        completed_at: string | null;
+      } | null;
+    }>;
+  };
 };
 
 export type TeacherStudentProfile = {

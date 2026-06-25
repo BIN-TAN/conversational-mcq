@@ -883,7 +883,7 @@ export async function getStudentSessionState(input: {
   const automaticAgentIntegrationReady =
     session.workflow_mode_snapshot === "automatic"
       ? (await getGuardedOperationalAgentIntegrationReadiness({
-          checkEvaluationEvidence: true
+          checkDatabase: true
         })).allowed
       : false;
 

@@ -59,19 +59,22 @@ It remains synthetic-only and eval-table-only. It must not activate live
 profiling, planning, follow-up, response collection, or item verification for
 students or teacher content workflows.
 
-Phase 8A adds a separate guarded operational integration gate for local
-workflow wiring:
+Phase 8A adds separate guarded operational integration modes for local workflow
+wiring:
 
 ```text
-OPERATIONAL_AGENT_INTEGRATION_ENABLED=false
-OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED=true
-OPERATIONAL_AGENT_INTEGRATION_APPROVED_TARGETED_RUN_ID=evr_20260624_bltzgtq
+OPERATIONAL_AGENT_MODE=disabled
+OPERATIONAL_APPROVED_CONFIG_HASH=
+OPERATIONAL_EFFECTIVE_RESULT_VERSION=effective-system-eval-v2
+OPERATIONAL_EFFECTIVE_VALIDATOR_VERSION=effective-validator-v1
 ```
 
-This gate is default-off. If enabled for local testing, it still requires
-`LLM_PROVIDER=mock` and `LLM_LIVE_CALLS_ENABLED=false`; classroom live OpenAI
-settings remain blocked. The approved evidence is provisional engineering
-readiness from targeted run `evr_20260624_bltzgtq`, not classroom validity, and
-human review remains pending.
+This integration is default-off. `mock` mode is for controlled local
+development/testing. `guarded_live` remains unavailable unless the approved
+manifest, exact active configuration hash, usage guard, database readiness,
+server-side OpenAI readiness, exact model snapshot, and effective-result
+versions all match. The approved evidence is provisional engineering readiness
+from targeted run `evr_20260624_bltzgtq`, not classroom validity, and human
+review remains pending.
 
 See `docs/LLM_USAGE_LIMITS.md` for operational safeguards.

@@ -15,6 +15,7 @@ export type PublicIdKind =
   | "concept_progression"
   | "roster_import_batch"
   | "student_account_event"
+  | "operational_effective_result"
   | "eval_suite"
   | "eval_case"
   | "eval_run"
@@ -38,6 +39,7 @@ const prefixes: Record<PublicIdKind, string> = {
   concept_progression: "cpr",
   roster_import_batch: "rib",
   student_account_event: "sae",
+  operational_effective_result: "oper",
   eval_suite: "evs",
   eval_case: "evc",
   eval_run: "evr",

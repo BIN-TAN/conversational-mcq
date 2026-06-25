@@ -80,6 +80,7 @@ async function main() {
     FOLLOWUP_CONTEXT_MAX_TURNS: "4",
     FOLLOWUP_MESSAGE_MAX_CHARS: "600",
     FOLLOWUP_CONTEXT_MAX_CHARS: "4000",
+    OPERATIONAL_AGENT_MODE: "mock",
     OPERATIONAL_AGENT_INTEGRATION_ENABLED: "true",
     OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED: "false",
     DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED: "true",
@@ -156,7 +157,10 @@ async function main() {
     session_public_id: paused.session.session_public_id,
     teacher_user_db_id: paused.teacher.id
   });
-  const resumedDrain = await drainAvailableWorkflowJobsOnce({ worker_id: `${prefix}_resumed_worker` });
+  const resumedDrain = await drainUntilAtLeast({
+    worker_id: `${prefix}_resumed_worker`,
+    expected_count: 3
+  });
   assert(resumedDrain.length >= 3, "Resumed automatic session should continue idempotently.");
   assert(
     (await prisma.workflowJob.count({ where: { assessment_session_db_id: paused.session.id, status: "completed" } })) === 3,
@@ -193,7 +197,10 @@ async function main() {
     teacher_user_db_id: retry.teacher.id
   });
   assert(retryResult.job_public_id !== failedJob.job_public_id, "Retry should preserve failed job and create a new job.");
-  const retryDrain = await drainAvailableWorkflowJobsOnce({ worker_id: `${prefix}_retry_worker` });
+  const retryDrain = await drainUntilAtLeast({
+    worker_id: `${prefix}_retry_worker`,
+    expected_count: 3
+  });
   assert(retryDrain.length >= 3, "Retry job should drain available automatic jobs.");
   assert(
     (await prisma.workflowJob.count({ where: { assessment_session_db_id: retry.session.id, status: "completed" } })) === 3,

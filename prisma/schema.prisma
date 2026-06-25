@@ -777,15 +777,16 @@ model AgentCall {
   created_at                 DateTime        @default(now()) @db.Timestamptz(6)
   updated_at                 DateTime        @updatedAt @db.Timestamptz(6)
 
-  assessment_session              AssessmentSession?    @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
-  concept_unit_session            ConceptUnitSession?   @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
-  followup_round                  FollowupRound?        @relation(fields: [followup_round_db_id], references: [id], onDelete: Restrict)
-  student_profiles                StudentProfile[]      @relation("StudentProfileAgentCall")
-  formative_decisions             FormativeDecision[]   @relation("FormativeDecisionAgentCall")
-  followup_profile_update_cycles  FollowupUpdateCycle[] @relation("FollowupProfileAgentCall")
-  followup_planning_update_cycles FollowupUpdateCycle[] @relation("FollowupPlanningAgentCall")
-  followup_opening_update_cycles  FollowupUpdateCycle[] @relation("FollowupOpeningAgentCall")
-  item_verification_runs          ItemVerificationRun[] @relation("ItemVerificationAgentCall")
+  assessment_session              AssessmentSession?                @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit_session            ConceptUnitSession?               @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  followup_round                  FollowupRound?                    @relation(fields: [followup_round_db_id], references: [id], onDelete: Restrict)
+  student_profiles                StudentProfile[]                  @relation("StudentProfileAgentCall")
+  formative_decisions             FormativeDecision[]               @relation("FormativeDecisionAgentCall")
+  followup_profile_update_cycles  FollowupUpdateCycle[]             @relation("FollowupProfileAgentCall")
+  followup_planning_update_cycles FollowupUpdateCycle[]             @relation("FollowupPlanningAgentCall")
+  followup_opening_update_cycles  FollowupUpdateCycle[]             @relation("FollowupOpeningAgentCall")
+  item_verification_runs          ItemVerificationRun[]             @relation("ItemVerificationAgentCall")
+  operational_effective_results   OperationalAgentEffectiveResult[]
 
   @@index([assessment_session_db_id, created_at])
   @@index([concept_unit_session_db_id, created_at])
@@ -796,6 +797,47 @@ model AgentCall {
   @@index([blocked_reason, created_at])
   @@index([live_call_allowed, created_at])
   @@map("agent_calls")
+}
+
+model OperationalAgentEffectiveResult {
+  id                              String   @id @default(uuid()) @db.Uuid
+  public_id                       String   @unique @default(cuid())
+  agent_call_db_id                String?  @db.Uuid
+  agent_name                      String
+  operational_context_type        String
+  operational_context_public_id   String
+  invocation_key                  String
+  effective_result_version        String
+  effective_validator_version     String
+  deterministic_guard_version     String?
+  canonicalization_version        String?
+  fallback_version                String?
+  raw_output_status               String
+  raw_semantic_status             String
+  raw_safety_status               String
+  effective_semantic_status       String
+  effective_safety_status         String
+  effective_overall_status        String
+  effective_student_facing_usable Boolean  @default(false)
+  effective_workflow_usable       Boolean  @default(false)
+  deterministic_guard_applied     Boolean  @default(false)
+  canonicalization_applied        Boolean  @default(false)
+  fallback_applied                Boolean  @default(false)
+  effective_output_json           Json
+  effective_actions_json          Json
+  warnings_json                   Json
+  effective_result_hash           String
+  created_at                      DateTime @default(now()) @db.Timestamptz(6)
+
+  agent_call AgentCall? @relation(fields: [agent_call_db_id], references: [id], onDelete: SetNull)
+
+  @@unique([invocation_key, effective_result_version], map: "operational_effective_invocation_version_key")
+  @@index([agent_call_db_id])
+  @@index([agent_name, created_at])
+  @@index([operational_context_type, operational_context_public_id])
+  @@index([effective_overall_status])
+  @@index([fallback_applied])
+  @@map("operational_agent_effective_results")
 }
 
 model ItemVerificationRun {

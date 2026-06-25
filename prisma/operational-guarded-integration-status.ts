@@ -5,7 +5,7 @@ loadEnvConfig(process.cwd());
 
 async function main() {
   const readiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkEvaluationEvidence: process.argv.includes("--check-eval")
+    checkDatabase: process.argv.includes("--check-db") || process.argv.includes("--check-eval")
   });
 
   console.log(JSON.stringify(readiness, null, 2));

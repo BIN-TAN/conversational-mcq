@@ -6,7 +6,8 @@ import {
   type FollowupUpdatePostCycleAction,
   type FollowupUpdateTriggerType
 } from "@/lib/domain/enums";
-import { executeAgent } from "@/lib/agents/execute-agent";
+import { executeOperationalAgent } from "@/lib/agents/operational/executor";
+import { persistOperationalEffectiveResult } from "@/lib/agents/operational/effective-results";
 import {
   FollowupInput,
   FollowupOutput,
@@ -26,6 +27,7 @@ import { executeFormativePlanningCandidate } from "@/lib/agents/formative-planni
 import { prisma } from "@/lib/db";
 import { enqueueWorkflowJob } from "@/lib/workflow/jobs";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
+import { operationalReadinessHasFatalConfigurationBlock } from "@/lib/operational/guarded-agent-integration";
 import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
 import { logProcessEvent } from "@/lib/services/process-events";
@@ -68,6 +70,91 @@ type StudentProfileAgentOutput = AgentOutputByName["student_profiling_agent"];
 type PlanningAgentOutput = AgentOutputByName["formative_value_and_planning_agent"];
 type FollowupAgentOutput = AgentOutputByName["followup_agent"];
 type FollowupAgentInput = AgentInputByName["followup_agent"];
+
+function defaultOpeningAction(value: string): {
+  followup_action_type: FollowupAgentOutput["followup_action_type"];
+  assistant_message: string;
+  evidence_request: string | null;
+} {
+  const byValue: Record<string, {
+    followup_action_type: FollowupAgentOutput["followup_action_type"];
+    assistant_message: string;
+    evidence_request: string | null;
+  }> = {
+    diagnostic_clarification: {
+      followup_action_type: "clarification_prompt",
+      assistant_message:
+        "Please add one clear sentence about your reasoning for the current assessment task.",
+      evidence_request: "Explain your reasoning for the current assessment task."
+    },
+    reasoning_refinement: {
+      followup_action_type: "reasoning_refinement_prompt",
+      assistant_message:
+        "Please refine your explanation and make the reasoning steps clear.",
+      evidence_request: "Revise or extend your reasoning."
+    },
+    confidence_calibration: {
+      followup_action_type: "confidence_calibration_prompt",
+      assistant_message:
+        "Please explain how your confidence connects to your evidence or reasoning.",
+      evidence_request: "Connect your confidence rating to your reasoning."
+    },
+    independent_understanding_verification: {
+      followup_action_type: "independent_verification_prompt",
+      assistant_message:
+        "Please restate your reasoning for the current task in your own words.",
+      evidence_request: "Restate your reasoning independently."
+    },
+    consolidation_or_transfer: {
+      followup_action_type: "transfer_task",
+      assistant_message:
+        "Please apply the same reasoning approach to a similar generic situation and explain how it fits.",
+      evidence_request: "Apply the reasoning pattern to a similar case."
+    }
+  };
+
+  return byValue[value] ?? byValue.diagnostic_clarification;
+}
+
+function deterministicOpeningFallback(input: {
+  formative_value: string;
+  reason: string;
+}): FollowupAgentOutput {
+  const action = defaultOpeningAction(input.formative_value);
+
+  return {
+    agent_name: "followup_agent",
+    agent_version: "deterministic-fallback",
+    prompt_version: "followup-opening-update-deterministic-fallback-v1",
+    schema_version: "followup-output-v4",
+    output_status: "ok",
+    warnings: [`Deterministic update-cycle opening fallback applied: ${input.reason}`],
+    assistant_message: action.assistant_message,
+    followup_action_type: action.followup_action_type,
+    target_formative_value: input.formative_value as FollowupAgentOutput["target_formative_value"],
+    evidence_request: action.evidence_request,
+    expects_student_response: true,
+    evidence_trigger_candidate: false,
+    student_turn_substantive: false,
+    evidence_trigger_reasons: [],
+    should_offer_move_on: false,
+    off_topic_detected: false,
+    events_to_log: [
+      {
+        event_type: "followup_task_assigned",
+        event_category: "followup",
+        event_source: "agent",
+        payload: {
+          detail: "Deterministic operational fallback used for follow-up update opening.",
+          reason: input.reason,
+          item_public_id: null,
+          followup_round_index: null,
+          event_count: null
+        }
+      }
+    ]
+  };
+}
 
 const triggerDetailsSchema = z.object({
   reason: z.string().optional(),
@@ -720,10 +807,10 @@ export async function enqueueFollowupProfileUpdateJob(cyclePublicId: string) {
   });
 
   const readiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkEvaluationEvidence: true
+    checkDatabase: true
   });
 
-  if (!readiness.allowed) {
+  if (!readiness.allowed && operationalReadinessHasFatalConfigurationBlock(readiness)) {
     return null;
   }
 
@@ -752,10 +839,10 @@ export async function enqueueFollowupPlanningUpdateJob(cyclePublicId: string) {
   });
 
   const readiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkEvaluationEvidence: true
+    checkDatabase: true
   });
 
-  if (!readiness.allowed) {
+  if (!readiness.allowed && operationalReadinessHasFatalConfigurationBlock(readiness)) {
     return null;
   }
 
@@ -784,10 +871,10 @@ export async function enqueueFollowupFinalizeJob(cyclePublicId: string) {
   });
 
   const readiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkEvaluationEvidence: true
+    checkDatabase: true
   });
 
-  if (!readiness.allowed) {
+  if (!readiness.allowed && operationalReadinessHasFatalConfigurationBlock(readiness)) {
     return null;
   }
 
@@ -824,10 +911,10 @@ async function enqueuePostCycleProgressionFinalizeJob(input: {
   }
 
   const readiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkEvaluationEvidence: true
+    checkDatabase: true
   });
 
-  if (!readiness.allowed) {
+  if (!readiness.allowed && operationalReadinessHasFatalConfigurationBlock(readiness)) {
     return null;
   }
 
@@ -893,12 +980,12 @@ export async function handleFollowupAssistantEvidence(input: {
   const readiness =
     conceptUnitSession.assessment_session.workflow_mode_snapshot === "automatic"
       ? await getGuardedOperationalAgentIntegrationReadiness({
-          checkEvaluationEvidence: true
+          checkDatabase: true
         })
       : null;
   const requiresTeacherReview =
     conceptUnitSession.assessment_session.workflow_mode_snapshot === "manual_review" ||
-    (readiness !== null && !readiness.allowed);
+    (readiness !== null && operationalReadinessHasFatalConfigurationBlock(readiness));
 
   if (requiresTeacherReview) {
     await prisma.assessmentSession.update({
@@ -1377,13 +1464,21 @@ async function executeFollowupOpeningCandidate(input: {
     schema_version: prompt.schema_version,
     prompt_hash: prompt.prompt_hash
   })}`;
-  const result = await executeAgent({
-    agent_name: "followup_agent",
-    input: FollowupInput.parse(followupInput),
-    assessment_session_db_id: cycle.assessment_session_db_id,
-    concept_unit_session_db_id: cycle.concept_unit_session_db_id,
-    followup_round_db_id: cycle.source_followup_round_db_id,
-    agent_invocation_key: agentInvocationKey,
+  const parsedFollowupInput = FollowupInput.parse(followupInput);
+  const contextPublicId = [
+    cycle.concept_unit_session.assessment_session.session_public_id,
+    cycle.concept_unit_session.concept_unit.concept_unit_public_id,
+    cycle.cycle_public_id
+  ].join(":");
+  const result = await executeOperationalAgent({
+    agentName: "followup_agent",
+    allowlistedInput: parsedFollowupInput,
+    invocationKey: agentInvocationKey,
+    operationalContext: {
+      assessment_session_db_id: cycle.assessment_session_db_id,
+      concept_unit_session_db_id: cycle.concept_unit_session_db_id,
+      followup_round_db_id: cycle.source_followup_round_db_id
+    },
     metadata: {
       invocation_reason: "phase6d2b_followup_update_opening",
       turn_type: "opening",
@@ -1392,20 +1487,140 @@ async function executeFollowupOpeningCandidate(input: {
   });
 
   if (result.status !== "succeeded") {
+    const fallbackOutput = deterministicOpeningFallback({
+      formative_value: planning.formative_value,
+      reason: result.status
+    });
+    const semantic = validateFollowupSemantics({
+      output: fallbackOutput,
+      current_formative_value: planning.formative_value,
+      config,
+      turn_type: "opening"
+    });
+
+    await persistOperationalEffectiveResult({
+      agent_call_db_id: "agent_call_id" in result ? result.agent_call_id : null,
+      agent_name: "followup_agent",
+      operational_context_type: "followup_update_opening",
+      operational_context_public_id: contextPublicId,
+      invocation_key: agentInvocationKey,
+      deterministic_guard_version: "followup-effective-guard-v1",
+      canonicalization_version: "followup-effective-canonical-v1",
+      fallback_version: "followup-opening-update-deterministic-fallback-v1",
+      raw_output_status: result.status,
+      raw_semantic_status: "not_run",
+      effective_semantic_status: "pass",
+      effective_overall_status: "fallback_safe",
+      effective_student_facing_usable: true,
+      effective_workflow_usable: true,
+      deterministic_guard_applied: true,
+      canonicalization_applied: true,
+      fallback_applied: true,
+      effective_output: fallbackOutput,
+      effective_actions: {
+        update_cycle_public_id: cycle.cycle_public_id,
+        target_formative_value_preserved: true
+      },
+      warnings: [...fallbackOutput.warnings, ...semantic.warnings]
+    });
+
     return {
-      status: result.status,
-      output: null,
+      status: "succeeded" as const,
+      output: fallbackOutput,
       agent_call_id: "agent_call_id" in result ? result.agent_call_id : null,
       retry_count: result.retry_count
     };
   }
 
-  validateFollowupSemantics({
-    output: result.output,
-    current_formative_value: planning.formative_value,
-    config,
-    turn_type: "opening"
-  });
+  try {
+    const semantic = validateFollowupSemantics({
+      output: result.output,
+      current_formative_value: planning.formative_value,
+      config,
+      turn_type: "opening"
+    });
+
+    await persistOperationalEffectiveResult({
+      agent_call_db_id: result.agent_call_id,
+      agent_name: "followup_agent",
+      operational_context_type: "followup_update_opening",
+      operational_context_public_id: contextPublicId,
+      invocation_key: agentInvocationKey,
+      deterministic_guard_version: "followup-effective-guard-v1",
+      canonicalization_version: "followup-effective-canonical-v1",
+      raw_output_status: "succeeded",
+      raw_semantic_status: "pass",
+      effective_semantic_status: "pass",
+      effective_overall_status: "pass",
+      effective_student_facing_usable: true,
+      effective_workflow_usable: true,
+      deterministic_guard_applied: true,
+      canonicalization_applied: false,
+      effective_output: result.output,
+      effective_actions: {
+        update_cycle_public_id: cycle.cycle_public_id,
+        target_formative_value_preserved: true
+      },
+      warnings: semantic.warnings
+    });
+  } catch (error) {
+    const issues = error instanceof Error ? error.message : "semantic validation failed";
+    const fallbackOutput = deterministicOpeningFallback({
+      formative_value: planning.formative_value,
+      reason: "semantic_validation_failed"
+    });
+    const semantic = validateFollowupSemantics({
+      output: fallbackOutput,
+      current_formative_value: planning.formative_value,
+      config,
+      turn_type: "opening"
+    });
+
+    await prisma.agentCall.update({
+      where: { id: result.agent_call_id },
+      data: {
+        output_validated: false,
+        call_status: "invalid_output",
+        error_category: "semantic_validation",
+        validation_error: issues,
+        output_payload: Prisma.JsonNull,
+        raw_output: toPrismaJson(result.output) ?? Prisma.JsonNull
+      }
+    });
+    await persistOperationalEffectiveResult({
+      agent_call_db_id: result.agent_call_id,
+      agent_name: "followup_agent",
+      operational_context_type: "followup_update_opening",
+      operational_context_public_id: contextPublicId,
+      invocation_key: agentInvocationKey,
+      deterministic_guard_version: "followup-effective-guard-v1",
+      canonicalization_version: "followup-effective-canonical-v1",
+      fallback_version: "followup-opening-update-deterministic-fallback-v1",
+      raw_output_status: "semantic_validation_failed",
+      raw_semantic_status: "fail",
+      effective_semantic_status: "pass",
+      effective_overall_status: "fallback_safe",
+      effective_student_facing_usable: true,
+      effective_workflow_usable: true,
+      deterministic_guard_applied: true,
+      canonicalization_applied: true,
+      fallback_applied: true,
+      effective_output: fallbackOutput,
+      effective_actions: {
+        update_cycle_public_id: cycle.cycle_public_id,
+        target_formative_value_preserved: true,
+        semantic_validation_error: issues
+      },
+      warnings: [...fallbackOutput.warnings, ...semantic.warnings]
+    });
+
+    return {
+      status: "succeeded" as const,
+      output: fallbackOutput,
+      agent_call_id: result.agent_call_id,
+      retry_count: result.retry_count
+    };
+  }
 
   return {
     status: "succeeded" as const,

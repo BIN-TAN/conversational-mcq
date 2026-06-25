@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import type { MockProviderMode } from "@/lib/llm/providers/mock-provider";
-import { executeAgent } from "@/lib/agents/execute-agent";
+import { executeOperationalAgent } from "@/lib/agents/operational/executor";
+import { persistOperationalEffectiveResult } from "@/lib/agents/operational/effective-results";
 import { prisma } from "@/lib/db";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
@@ -122,6 +123,55 @@ function decisionSummary(decision: FormativeDecisionWithAgentCall) {
   return serializeFormativeDecisionForTeacher(decision);
 }
 
+function planningContextPublicId(built: BuiltFormativePlanningInput) {
+  const metadata = built.input.concept_unit_metadata as {
+    assessment_session?: { session_public_id?: string };
+    concept_unit?: { concept_unit_public_id?: string };
+  };
+
+  return [
+    metadata.assessment_session?.session_public_id ?? "unknown_session",
+    metadata.concept_unit?.concept_unit_public_id ?? "unknown_concept_unit"
+  ].join(":");
+}
+
+function deterministicPlanningFallback(built: BuiltFormativePlanningInput) {
+  return {
+    agent_name: "formative_value_and_planning_agent" as const,
+    agent_version: "deterministic-fallback",
+    prompt_version: "formative-planning-deterministic-fallback-v1",
+    schema_version: "formative-planning-output-v1",
+    output_status: "ok" as const,
+    warnings: [
+      "Deterministic conservative fallback used; this is not an LLM-derived formative plan."
+    ],
+    formative_value: built.default_formative_value as
+      | "diagnostic_clarification"
+      | "reasoning_refinement"
+      | "confidence_calibration"
+      | "independent_understanding_verification"
+      | "consolidation_or_transfer",
+    formative_action_plan:
+      "Use a conservative, course-agnostic follow-up plan that asks the student for one additional piece of evidence before any later decision.",
+    target_evidence: [
+      "One concise student-provided explanation or example connected to the current concept."
+    ],
+    success_criteria: [
+      "The student provides interpretable evidence that can be reviewed without inferring unsupported profile labels."
+    ],
+    followup_prompt_constraints: [
+      "Do not reveal profile labels, formative-value labels, answer keys, correctness feedback, or hidden system metadata."
+    ],
+    profile_update_triggers: [
+      "A substantive student response that adds interpretable evidence may trigger the normal backend-owned update cycle."
+    ],
+    rationale:
+      "The planning agent did not produce a validated effective result, so the backend used the approved default mapping to keep the workflow resumable without overclaiming.",
+    mapping_followed: true,
+    mapping_deviation_reason: null
+  };
+}
+
 async function executePlanningBuiltInput(input: {
   built: BuiltFormativePlanningInput;
   invocation_reason: string;
@@ -149,13 +199,15 @@ async function executePlanningBuiltInput(input: {
     }
   });
 
-  const result = await executeAgent({
-    agent_name: "formative_value_and_planning_agent",
-    input: input.built.input,
-    assessment_session_db_id: input.built.assessment_session_db_id,
-    concept_unit_session_db_id: input.built.concept_unit_session_db_id,
-    agent_invocation_key: input.built.agent_invocation_key,
-    force_new_invocation: input.force_new_invocation,
+  const result = await executeOperationalAgent({
+    agentName: "formative_value_and_planning_agent",
+    allowlistedInput: input.built.input,
+    invocationKey: input.built.agent_invocation_key,
+    operationalContext: {
+      assessment_session_db_id: input.built.assessment_session_db_id,
+      concept_unit_session_db_id: input.built.concept_unit_session_db_id
+    },
+    forceNewInvocation: input.force_new_invocation,
     metadata: {
       invocation_reason: input.invocation_reason,
       response_package_type: input.built.response_package.package_type,
@@ -186,6 +238,32 @@ async function executePlanningBuiltInput(input: {
         result_status: result.status,
         agent_call_id: "agent_call_id" in result ? result.agent_call_id : null
       }
+    });
+
+    const fallbackOutput = deterministicPlanningFallback(input.built);
+    await persistOperationalEffectiveResult({
+      agent_call_db_id: "agent_call_id" in result ? result.agent_call_id : null,
+      agent_name: "formative_value_and_planning_agent",
+      operational_context_type: "updated_formative_planning_candidate",
+      operational_context_public_id: planningContextPublicId(input.built),
+      invocation_key: input.built.agent_invocation_key,
+      canonicalization_version: "formative-planning-canonical-v1",
+      fallback_version: "formative-planning-deterministic-fallback-v1",
+      raw_output_status: result.status,
+      raw_semantic_status: "not_run",
+      effective_semantic_status: "pass",
+      effective_overall_status: "fallback_preserve_prior",
+      effective_student_facing_usable: false,
+      effective_workflow_usable: false,
+      canonicalization_applied: true,
+      fallback_applied: true,
+      effective_output: fallbackOutput,
+      effective_actions: {
+        default_formative_value: input.built.default_formative_value,
+        may_update_decision_pointer: false,
+        preserve_prior_decision: true
+      },
+      warnings: fallbackOutput.warnings
     });
 
     return {
@@ -247,6 +325,33 @@ async function executePlanningBuiltInput(input: {
       }
     });
 
+    const fallbackOutput = deterministicPlanningFallback(input.built);
+    await persistOperationalEffectiveResult({
+      agent_call_db_id: result.agent_call_id,
+      agent_name: "formative_value_and_planning_agent",
+      operational_context_type: "updated_formative_planning_candidate",
+      operational_context_public_id: planningContextPublicId(input.built),
+      invocation_key: input.built.agent_invocation_key,
+      canonicalization_version: "formative-planning-canonical-v1",
+      fallback_version: "formative-planning-deterministic-fallback-v1",
+      raw_output_status: "semantic_validation_failed",
+      raw_semantic_status: "fail",
+      effective_semantic_status: "pass",
+      effective_overall_status: "fallback_preserve_prior",
+      effective_student_facing_usable: false,
+      effective_workflow_usable: false,
+      canonicalization_applied: true,
+      fallback_applied: true,
+      effective_output: fallbackOutput,
+      effective_actions: {
+        default_formative_value: input.built.default_formative_value,
+        may_update_decision_pointer: false,
+        preserve_prior_decision: true,
+        semantic_validation_issues: issues
+      },
+      warnings: fallbackOutput.warnings
+    });
+
     return {
       status: "semantic_validation_failed" as const,
       output: null,
@@ -266,6 +371,33 @@ async function executePlanningBuiltInput(input: {
       agent_name: "formative_value_and_planning_agent",
       agent_call_id: result.agent_call_id
     }
+  });
+
+  await persistOperationalEffectiveResult({
+    agent_call_db_id: result.agent_call_id,
+    agent_name: "formative_value_and_planning_agent",
+    operational_context_type: "updated_formative_planning_candidate",
+    operational_context_public_id: planningContextPublicId(input.built),
+    invocation_key: input.built.agent_invocation_key,
+    canonicalization_version: "formative-planning-canonical-v1",
+    raw_output_status: "succeeded",
+    raw_semantic_status: "pass",
+    effective_semantic_status: "pass",
+    effective_overall_status: "pass",
+    effective_student_facing_usable: false,
+    effective_workflow_usable: true,
+    canonicalization_applied: canonical.backend_canonicalized,
+    effective_output: canonical.output,
+    effective_actions: {
+      default_formative_value: input.built.default_formative_value,
+      mapping_followed: canonical.output.mapping_followed,
+      raw_mapping_followed: canonical.raw_mapping_followed,
+      raw_mapping_deviation_reason: canonical.raw_mapping_deviation_reason,
+      may_update_decision_pointer: true
+    },
+    warnings: canonical.backend_canonicalized
+      ? ["Backend canonicalized formative-planning mapping metadata."]
+      : []
   });
   await logPlanningEvent({
     assessment_session_db_id: input.built.assessment_session_db_id,
@@ -484,13 +616,15 @@ export async function runInitialFormativePlanning(input: RunInitialFormativePlan
     }
   });
 
-  const result = await executeAgent({
-    agent_name: "formative_value_and_planning_agent",
-    input: built.input,
-    assessment_session_db_id: built.assessment_session_db_id,
-    concept_unit_session_db_id: built.concept_unit_session_db_id,
-    agent_invocation_key: built.agent_invocation_key,
-    force_new_invocation: input.force_new_invocation,
+  const result = await executeOperationalAgent({
+    agentName: "formative_value_and_planning_agent",
+    allowlistedInput: built.input,
+    invocationKey: built.agent_invocation_key,
+    operationalContext: {
+      assessment_session_db_id: built.assessment_session_db_id,
+      concept_unit_session_db_id: built.concept_unit_session_db_id
+    },
+    forceNewInvocation: input.force_new_invocation,
     metadata: {
       invocation_reason: input.invocation_reason,
       response_package_type: built.response_package.package_type,
@@ -535,9 +669,54 @@ export async function runInitialFormativePlanning(input: RunInitialFormativePlan
       }
     });
 
+    const fallbackOutput = deterministicPlanningFallback(built);
+    await persistOperationalEffectiveResult({
+      agent_call_db_id: "agent_call_id" in result ? result.agent_call_id : null,
+      agent_name: "formative_value_and_planning_agent",
+      operational_context_type: "initial_formative_planning",
+      operational_context_public_id: planningContextPublicId(built),
+      invocation_key: built.agent_invocation_key,
+      canonicalization_version: "formative-planning-canonical-v1",
+      fallback_version: "formative-planning-deterministic-fallback-v1",
+      raw_output_status: result.status,
+      raw_semantic_status: "not_run",
+      effective_semantic_status: "pass",
+      effective_overall_status: "fallback_safe",
+      effective_student_facing_usable: false,
+      effective_workflow_usable: true,
+      canonicalization_applied: true,
+      fallback_applied: true,
+      effective_output: fallbackOutput,
+      effective_actions: {
+        default_formative_value: built.default_formative_value,
+        may_update_decision_pointer: true,
+        fallback_derived: true
+      },
+      warnings: fallbackOutput.warnings
+    });
+
+    const decision = await persistInitialFormativeDecision({
+      concept_unit_session_db_id: built.concept_unit_session_db_id,
+      student_profile_db_id: built.student_profile.id,
+      based_on_agent_call_db_id: "agent_call_id" in result ? result.agent_call_id ?? null : null,
+      output: fallbackOutput
+    });
+
+    await updateAssessmentSessionPhase({
+      assessment_session_db_id: built.assessment_session_db_id,
+      to_phase: "planning_completed",
+      reason: "formative_planning_deterministic_fallback_completed",
+      payload: {
+        agent_name: "formative_value_and_planning_agent",
+        fallback_derived: true,
+        result_status: result.status,
+        default_formative_value: built.default_formative_value
+      }
+    });
+
     return {
-      status: result.status,
-      decision: null,
+      status: "decision_created" as const,
+      decision: decisionSummary(decision),
       agent_call_id: "agent_call_id" in result ? result.agent_call_id : null,
       default_formative_value: built.default_formative_value,
       agent_invocation_key: built.agent_invocation_key
@@ -591,9 +770,55 @@ export async function runInitialFormativePlanning(input: RunInitialFormativePlan
       }
     });
 
+    const fallbackOutput = deterministicPlanningFallback(built);
+    await persistOperationalEffectiveResult({
+      agent_call_db_id: result.agent_call_id,
+      agent_name: "formative_value_and_planning_agent",
+      operational_context_type: "initial_formative_planning",
+      operational_context_public_id: planningContextPublicId(built),
+      invocation_key: built.agent_invocation_key,
+      canonicalization_version: "formative-planning-canonical-v1",
+      fallback_version: "formative-planning-deterministic-fallback-v1",
+      raw_output_status: "semantic_validation_failed",
+      raw_semantic_status: "fail",
+      effective_semantic_status: "pass",
+      effective_overall_status: "fallback_safe",
+      effective_student_facing_usable: false,
+      effective_workflow_usable: true,
+      canonicalization_applied: true,
+      fallback_applied: true,
+      effective_output: fallbackOutput,
+      effective_actions: {
+        default_formative_value: built.default_formative_value,
+        may_update_decision_pointer: true,
+        fallback_derived: true,
+        semantic_validation_issues: issues
+      },
+      warnings: fallbackOutput.warnings
+    });
+
+    const decision = await persistInitialFormativeDecision({
+      concept_unit_session_db_id: built.concept_unit_session_db_id,
+      student_profile_db_id: built.student_profile.id,
+      based_on_agent_call_db_id: result.agent_call_id,
+      output: fallbackOutput
+    });
+
+    await updateAssessmentSessionPhase({
+      assessment_session_db_id: built.assessment_session_db_id,
+      to_phase: "planning_completed",
+      reason: "formative_planning_semantic_fallback_completed",
+      payload: {
+        agent_name: "formative_value_and_planning_agent",
+        agent_call_id: result.agent_call_id,
+        fallback_derived: true,
+        default_formative_value: built.default_formative_value
+      }
+    });
+
     return {
-      status: "semantic_validation_failed" as const,
-      decision: null,
+      status: "decision_created" as const,
+      decision: decisionSummary(decision),
       agent_call_id: result.agent_call_id,
       default_formative_value: built.default_formative_value,
       semantic_validation_issues: issues,
@@ -609,6 +834,33 @@ export async function runInitialFormativePlanning(input: RunInitialFormativePlan
       agent_name: "formative_value_and_planning_agent",
       agent_call_id: result.agent_call_id
     }
+  });
+
+  await persistOperationalEffectiveResult({
+    agent_call_db_id: result.agent_call_id,
+    agent_name: "formative_value_and_planning_agent",
+    operational_context_type: "initial_formative_planning",
+    operational_context_public_id: planningContextPublicId(built),
+    invocation_key: built.agent_invocation_key,
+    canonicalization_version: "formative-planning-canonical-v1",
+    raw_output_status: "succeeded",
+    raw_semantic_status: "pass",
+    effective_semantic_status: "pass",
+    effective_overall_status: "pass",
+    effective_student_facing_usable: false,
+    effective_workflow_usable: true,
+    canonicalization_applied: canonical.backend_canonicalized,
+    effective_output: canonical.output,
+    effective_actions: {
+      default_formative_value: built.default_formative_value,
+      mapping_followed: canonical.output.mapping_followed,
+      raw_mapping_followed: canonical.raw_mapping_followed,
+      raw_mapping_deviation_reason: canonical.raw_mapping_deviation_reason,
+      may_update_decision_pointer: true
+    },
+    warnings: canonical.backend_canonicalized
+      ? ["Backend canonicalized formative-planning mapping metadata."]
+      : []
   });
 
   const decision = await persistInitialFormativeDecision({

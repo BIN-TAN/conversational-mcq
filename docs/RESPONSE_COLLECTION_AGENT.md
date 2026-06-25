@@ -131,3 +131,12 @@ substring of the original student message. Paraphrased, invented, or
 over-expanded reasoning is rejected and handled through safe fallback logic.
 The agent must still refuse correctness feedback, provide no hint or
 explanation, and leave option and confidence controls backend-authoritative.
+
+## Phase 8A Operational Effective Result
+
+Operational Response Collection calls route through `executeOperationalAgent`.
+The student workflow consumes only the effective result. If readiness is
+disabled, blocked, invalid, unsafe, or unavailable, deterministic fallback
+preserves the exact-substring rule, refuses disallowed help, keeps option and
+confidence backend-owned, and records neutral process context without
+fabricating provider metadata.

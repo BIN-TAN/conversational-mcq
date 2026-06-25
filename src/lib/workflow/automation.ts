@@ -1,6 +1,7 @@
 import type { AssessmentWorkflowMode } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
+import { operationalReadinessHasFatalConfigurationBlock } from "@/lib/operational/guarded-agent-integration";
 import { enqueueWorkflowJob, type WorkflowJobSummary } from "./jobs";
 
 export type SessionAutomationState =
@@ -74,10 +75,10 @@ export async function enqueueInitialProfilingJobIfAutomatic(conceptUnitSessionDb
   }
 
   const readiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkEvaluationEvidence: true
+    checkDatabase: true
   });
 
-  if (!readiness.allowed) {
+  if (!readiness.allowed && operationalReadinessHasFatalConfigurationBlock(readiness)) {
     return null;
   }
 
@@ -126,10 +127,10 @@ export async function enqueueInitialPlanningJob(conceptUnitSessionDbId: string) 
   }
 
   const readiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkEvaluationEvidence: true
+    checkDatabase: true
   });
 
-  if (!readiness.allowed) {
+  if (!readiness.allowed && operationalReadinessHasFatalConfigurationBlock(readiness)) {
     return null;
   }
 
@@ -178,10 +179,10 @@ export async function enqueueInitialFollowupStartupJob(conceptUnitSessionDbId: s
   }
 
   const readiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkEvaluationEvidence: true
+    checkDatabase: true
   });
 
-  if (!readiness.allowed) {
+  if (!readiness.allowed && operationalReadinessHasFatalConfigurationBlock(readiness)) {
     return null;
   }
 

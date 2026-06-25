@@ -15,7 +15,7 @@ export async function getLlmReadiness() {
     const modelReadiness = agentModelReadiness();
     const usage = await getTeacherLlmUsageStatus();
     const operationalIntegration = await getGuardedOperationalAgentIntegrationReadiness({
-      checkEvaluationEvidence: false
+      checkDatabase: false
     });
 
     return {

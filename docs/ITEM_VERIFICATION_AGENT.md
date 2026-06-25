@@ -88,3 +88,11 @@ The system stores raw LLM verification, deterministic duplicate signal, and the
 effective combined advisory result separately. The effective result can include
 a set-level `substantially_duplicate_item` warning requiring teacher review,
 but teacher publish override remains available and no item content is rewritten.
+
+## Phase 8A Operational Effective Result
+
+Operational item verification routes through `executeOperationalAgent`. The
+effective advisory result combines raw verification, deterministic structural
+checks, and deterministic duplicate detection. Warnings require teacher review,
+but the service never rewrites items, generates replacement items, edits concept
+definitions, or removes explicit teacher publication override behavior.

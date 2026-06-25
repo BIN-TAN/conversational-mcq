@@ -255,3 +255,12 @@ A student move-on request is nonsubstantive:
 This is a technical final-update trigger only. It does not count toward the
 substantive-turn threshold, prove understanding, or create new conceptual
 evidence. Missing `evidence_request` is represented as `null`.
+
+## Phase 8A Operational Effective Result
+
+Operational follow-up calls route through `executeOperationalAgent`. The backend
+consumes only effective follow-up output after saved formative-value
+compatibility checks, action compatibility checks, deterministic guards,
+canonicalization, and fallback. Off-topic and move-on fallbacks are
+backend-owned. The agent never advances, completes, selects the next concept, or
+creates authoritative process-event source/type values.

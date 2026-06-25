@@ -30,7 +30,8 @@ const llmEnvKeys = [
   "LLM_SESSION_CALL_LIMIT",
   "LLM_SESSION_TOKEN_LIMIT",
   "LLM_AGENT_CALL_LIMIT_PER_SESSION",
-  "LLM_USAGE_TIMEZONE"
+  "LLM_USAGE_TIMEZONE",
+  "OPERATIONAL_AGENT_MODE"
 ] as const;
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -576,21 +577,17 @@ async function runApiSmoke(prefix: string) {
   }
 }
 
-async function assertNoDecision(conceptUnitSessionId: string, message: string) {
-  assert(
-    (await prisma.formativeDecision.count({
-      where: { concept_unit_session_db_id: conceptUnitSessionId }
-    })) === 0,
-    message
-  );
-}
-
 async function main() {
   const prefix = `phase6c_planning_smoke_${Date.now()}_${randomUUID().slice(0, 8)}`;
   const originalEnv = Object.fromEntries(llmEnvKeys.map((key) => [key, process.env[key]]));
 
   try {
-    setEnv({ LLM_PROVIDER: "mock", LLM_LIVE_CALLS_ENABLED: "false", LLM_USAGE_TIMEZONE: "UTC" });
+    setEnv({
+      LLM_PROVIDER: "mock",
+      LLM_LIVE_CALLS_ENABLED: "false",
+      LLM_USAGE_TIMEZONE: "UTC",
+      OPERATIONAL_AGENT_MODE: "mock"
+    });
 
     const fixture = await createPlanningFixture({ prefix, suffix: "service", withProfile: true });
     const profiledSession = await prisma.assessmentSession.findUniqueOrThrow({
@@ -713,12 +710,8 @@ async function main() {
       mock_provider_mode: "planning_bad_mapping_deviation"
     });
     assert(
-      badDeviation.status === "semantic_validation_failed",
-      "Mapping deviation without rationale should be rejected."
-    );
-    await assertNoDecision(
-      badDeviationFixture.conceptUnitSession.id,
-      "Bad mapping deviation should not create a decision."
+      badDeviation.status === "decision_created",
+      "Mapping deviation without rationale should create a deterministic fallback decision."
     );
 
     const contradictoryFixture = await createPlanningFixture({ prefix, suffix: "contradictory", withProfile: true });
@@ -747,8 +740,7 @@ async function main() {
       invocation_reason: "phase6c_invalid_output_smoke",
       mock_provider_mode: "invalid_output"
     });
-    assert(invalid.status === "invalid_output", "Invalid output should be rejected.");
-    await assertNoDecision(invalidFixture.conceptUnitSession.id, "Invalid output should not create a decision.");
+    assert(invalid.status === "decision_created", "Invalid output should create a deterministic fallback decision.");
 
     const refusalFixture = await createPlanningFixture({ prefix, suffix: "refusal", withProfile: true });
     const refusal = await runInitialFormativePlanning({
@@ -756,8 +748,7 @@ async function main() {
       invocation_reason: "phase6c_refusal_smoke",
       mock_provider_mode: "refusal"
     });
-    assert(refusal.status === "refused", "Refusal should return refused.");
-    await assertNoDecision(refusalFixture.conceptUnitSession.id, "Refusal should not create a decision.");
+    assert(refusal.status === "decision_created", "Refusal should create a deterministic fallback decision.");
 
     const incompleteFixture = await createPlanningFixture({ prefix, suffix: "incomplete", withProfile: true });
     const incomplete = await runInitialFormativePlanning({
@@ -765,8 +756,7 @@ async function main() {
       invocation_reason: "phase6c_incomplete_smoke",
       mock_provider_mode: "incomplete"
     });
-    assert(incomplete.status === "incomplete", "Incomplete output should return incomplete.");
-    await assertNoDecision(incompleteFixture.conceptUnitSession.id, "Incomplete output should not create a decision.");
+    assert(incomplete.status === "decision_created", "Incomplete output should create a deterministic fallback decision.");
 
     const noProfileFixture = await createPlanningFixture({ prefix, suffix: "no_profile", withProfile: false });
     try {
@@ -795,7 +785,8 @@ async function main() {
       LLM_SESSION_CALL_LIMIT: "1000",
       LLM_SESSION_TOKEN_LIMIT: "1000000",
       LLM_AGENT_CALL_LIMIT_PER_SESSION: "1000",
-      LLM_USAGE_TIMEZONE: "UTC"
+      LLM_USAGE_TIMEZONE: "UTC",
+      OPERATIONAL_AGENT_MODE: "guarded_live"
     });
     await createSyntheticOpenAiCall(prefix, blockedFixture.session.id);
     const blocked = await runInitialFormativePlanning({
@@ -803,17 +794,17 @@ async function main() {
       invocation_reason: "phase6c_usage_blocked_smoke"
     });
     assert(
-      blocked.status === "blocked_by_usage_limit",
-      "Usage-blocked execution should return blocked_by_usage_limit."
+      blocked.status === "decision_created",
+      "Guarded-live readiness block should create a deterministic fallback decision."
     );
-    await assertNoDecision(blockedFixture.conceptUnitSession.id, "Usage-blocked execution should not create a decision.");
-    const blockedCall = blocked.agent_call_id
-      ? await prisma.agentCall.findUniqueOrThrow({ where: { id: blocked.agent_call_id } })
-      : null;
-    assert(blockedCall?.provider === "openai", "Blocked audit row should preserve provider.");
-    assert(blockedCall.provider_response_id === null, "Blocked execution should not call OpenAI.");
+    assert(blocked.agent_call_id === null, "Readiness-blocked fallback should not create an agent call.");
 
-    setEnv({ LLM_PROVIDER: "mock", LLM_LIVE_CALLS_ENABLED: "false", LLM_USAGE_TIMEZONE: "UTC" });
+    setEnv({
+      LLM_PROVIDER: "mock",
+      LLM_LIVE_CALLS_ENABLED: "false",
+      LLM_USAGE_TIMEZONE: "UTC",
+      OPERATIONAL_AGENT_MODE: "mock"
+    });
     await runApiSmoke(prefix);
 
     assert(

@@ -1693,6 +1693,87 @@ function FutureAgentSection({
         <Fact labelText="Follow-up round rows" value={counts.followup_round_count} />
         <Fact labelText="Agent call rows" value={counts.agent_call_count} />
       </div>
+      <section className="rounded-lg border border-line bg-white p-5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-ink">Operational agent audit</h3>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Read-only effective-result records show backend safeguards and fallback use. Raw
+              provider output, API keys, local environment values, and internal UUIDs are not shown.
+            </p>
+          </div>
+          <StatusPill value={detail.operational_agent_audit.operational_mode} />
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <Fact
+            labelText="Manifest"
+            value={label(detail.operational_agent_audit.approved_manifest_status)}
+          />
+          <Fact
+            labelText="Live permitted"
+            value={detail.operational_agent_audit.live_call_permitted ? "yes" : "no"}
+          />
+          <Fact
+            labelText="Effective records"
+            value={detail.operational_agent_audit.effective_results.length}
+          />
+          <Fact
+            labelText="Blocking reasons"
+            value={
+              detail.operational_agent_audit.blocking_reasons.length > 0
+                ? detail.operational_agent_audit.blocking_reasons.map(label).join(", ")
+                : "none"
+            }
+          />
+        </div>
+        <div className="mt-4 rounded-md border border-line bg-slate-50 p-3 text-xs text-muted">
+          <p>Active hash: {detail.operational_agent_audit.active_configuration_hash}</p>
+          <p className="mt-1">
+            Approved hash: {detail.operational_agent_audit.approved_configuration_hash}
+          </p>
+        </div>
+        {detail.operational_agent_audit.effective_results.length === 0 ? (
+          <p className="mt-4 text-sm text-muted">
+            No operational effective-result records are associated with this session yet.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {detail.operational_agent_audit.effective_results.map((result) => (
+              <article className="rounded-lg border border-line p-4" key={result.public_id}>
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="font-semibold text-ink">{label(result.agent_name)}</p>
+                    <p className="mt-1 text-xs text-muted">{result.public_id}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <StatusPill value={result.effective_overall_status} />
+                    {result.fallback_applied ? <StatusPill value="fallback_applied" tone="warn" /> : null}
+                    {result.deterministic_guard_applied ? <StatusPill value="guard_applied" /> : null}
+                    {result.canonicalization_applied ? <StatusPill value="canonicalized" /> : null}
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <Fact labelText="Raw status" value={label(result.raw_output_status)} />
+                  <Fact labelText="Workflow usable" value={result.effective_workflow_usable ? "yes" : "no"} />
+                  <Fact labelText="Created" value={formatDate(result.created_at)} />
+                </div>
+                <JsonDetails
+                  labelText="Version metadata and sanitized warnings"
+                  value={{
+                    effective_result_version: result.effective_result_version,
+                    effective_validator_version: result.effective_validator_version,
+                    deterministic_guard_version: result.deterministic_guard_version,
+                    canonicalization_version: result.canonicalization_version,
+                    fallback_version: result.fallback_version,
+                    warnings: result.sanitized_warnings,
+                    agent_call: result.agent_call
+                  }}
+                />
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </section>
   );
 }

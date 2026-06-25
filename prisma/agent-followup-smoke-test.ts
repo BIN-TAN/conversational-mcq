@@ -16,6 +16,7 @@ import {
   getStudentSessionState
 } from "../src/lib/services/student-assessment/service";
 import { getTeacherReviewSessionDetail } from "../src/lib/services/teacher-review/session-detail";
+import approvedOperationalConfig from "../config/approved-operational-agent-config.json";
 import {
   assert,
   assertNoForbiddenSerializedFields,
@@ -55,7 +56,7 @@ async function expectStudentError(action: () => Promise<unknown>, code: string) 
   throw new Error(`Expected ${code} StudentAssessmentServiceError.`);
 }
 
-async function assertNoAssistantReply(roundId: string, clientMessageId: string) {
+async function assertAssistantReply(roundId: string, clientMessageId: string) {
   const count = await prisma.conversationTurn.count({
     where: {
       followup_round_db_id: roundId,
@@ -67,7 +68,19 @@ async function assertNoAssistantReply(roundId: string, clientMessageId: string) 
     }
   });
 
-  assert(count === 0, `Unexpected assistant reply for ${clientMessageId}.`);
+  assert(count === 1, `Expected one deterministic assistant fallback reply for ${clientMessageId}.`);
+}
+
+async function assertFollowupFallbackCountIncreased(before: number, label: string) {
+  const after = await prisma.operationalAgentEffectiveResult.count({
+    where: {
+      agent_name: "followup_agent",
+      fallback_applied: true
+    }
+  });
+
+  assert(after > before, `${label} should persist a fallback operational effective result.`);
+  return after;
 }
 
 async function waitForHealth(child: ChildProcessWithoutNullStreams) {
@@ -259,7 +272,8 @@ async function main() {
       LLM_USAGE_TIMEZONE: "UTC",
       FOLLOWUP_CONTEXT_MAX_TURNS: "4",
       FOLLOWUP_MESSAGE_MAX_CHARS: "600",
-      FOLLOWUP_CONTEXT_MAX_CHARS: "4000"
+      FOLLOWUP_CONTEXT_MAX_CHARS: "4000",
+      OPERATIONAL_AGENT_MODE: "mock"
     });
 
     const fixture = await createFollowupSmokeFixture(prisma, {
@@ -459,6 +473,13 @@ async function main() {
     );
     assertNoForbiddenSerializedFields(boundedBuilt.input, "FollowupInput student reply");
 
+    let fallbackCount = await prisma.operationalAgentEffectiveResult.count({
+      where: {
+        agent_name: "followup_agent",
+        fallback_applied: true
+      }
+    });
+
     const badTarget = await submitStudentFollowupMessage({
       student_user_db_id: fixture.student.id,
       session_public_id: fixture.session.session_public_id,
@@ -467,10 +488,14 @@ async function main() {
       mock_provider_mode: "followup_bad_target_formative_value"
     });
     assert(
-      badTarget.message_status === "semantic_validation_failed",
-      "Bad target formative value should fail semantic validation."
+      badTarget.message_status === "assistant_replied",
+      "Bad target formative value should receive deterministic fallback reply."
     );
-    await assertNoAssistantReply(activeRound.id, "service_message_bad_target");
+    await assertAssistantReply(activeRound.id, "service_message_bad_target");
+    fallbackCount = await assertFollowupFallbackCountIncreased(
+      fallbackCount,
+      "Bad target formative value"
+    );
 
     const invalid = await submitStudentFollowupMessage({
       student_user_db_id: fixture.student.id,
@@ -479,8 +504,9 @@ async function main() {
       client_message_id: "service_message_invalid",
       mock_provider_mode: "invalid_output"
     });
-    assert(invalid.message_status === "invalid_output", "Invalid output should be rejected.");
-    await assertNoAssistantReply(activeRound.id, "service_message_invalid");
+    assert(invalid.message_status === "assistant_replied", "Invalid output should use deterministic fallback.");
+    await assertAssistantReply(activeRound.id, "service_message_invalid");
+    fallbackCount = await assertFollowupFallbackCountIncreased(fallbackCount, "Invalid output");
 
     const refused = await submitStudentFollowupMessage({
       student_user_db_id: fixture.student.id,
@@ -489,8 +515,9 @@ async function main() {
       client_message_id: "service_message_refusal",
       mock_provider_mode: "refusal"
     });
-    assert(refused.message_status === "refused", "Provider refusal should not create a reply.");
-    await assertNoAssistantReply(activeRound.id, "service_message_refusal");
+    assert(refused.message_status === "assistant_replied", "Provider refusal should use deterministic fallback.");
+    await assertAssistantReply(activeRound.id, "service_message_refusal");
+    fallbackCount = await assertFollowupFallbackCountIncreased(fallbackCount, "Provider refusal");
 
     const incomplete = await submitStudentFollowupMessage({
       student_user_db_id: fixture.student.id,
@@ -499,14 +526,24 @@ async function main() {
       client_message_id: "service_message_incomplete",
       mock_provider_mode: "incomplete"
     });
-    assert(incomplete.message_status === "incomplete", "Incomplete provider output should not create a reply.");
-    await assertNoAssistantReply(activeRound.id, "service_message_incomplete");
+    assert(incomplete.message_status === "assistant_replied", "Incomplete provider output should use deterministic fallback.");
+    await assertAssistantReply(activeRound.id, "service_message_incomplete");
+    fallbackCount = await assertFollowupFallbackCountIncreased(fallbackCount, "Incomplete output");
 
     setFollowupSmokeEnv({
       LLM_PROVIDER: "openai",
       LLM_LIVE_CALLS_ENABLED: "true",
       OPENAI_API_KEY: "placeholder-not-a-real-secret",
-      OPENAI_MODEL_FOLLOWUP: "synthetic-followup-smoke-model",
+      OPENAI_MODEL_ITEM_VERIFICATION: approvedOperationalConfig.model_snapshot,
+      OPENAI_MODEL_RESPONSE_COLLECTION: approvedOperationalConfig.model_snapshot,
+      OPENAI_MODEL_PROFILING: approvedOperationalConfig.model_snapshot,
+      OPENAI_MODEL_PLANNING: approvedOperationalConfig.model_snapshot,
+      OPENAI_MODEL_FOLLOWUP: approvedOperationalConfig.model_snapshot,
+      OPENAI_REASONING_EFFORT_ITEM_VERIFICATION: approvedOperationalConfig.reasoning_effort,
+      OPENAI_REASONING_EFFORT_RESPONSE_COLLECTION: approvedOperationalConfig.reasoning_effort,
+      OPENAI_REASONING_EFFORT_PROFILING: approvedOperationalConfig.reasoning_effort,
+      OPENAI_REASONING_EFFORT_PLANNING: approvedOperationalConfig.reasoning_effort,
+      OPENAI_REASONING_EFFORT_FOLLOWUP: approvedOperationalConfig.reasoning_effort,
       LLM_DAILY_STUDENT_CALL_LIMIT: "1",
       LLM_DAILY_STUDENT_TOKEN_LIMIT: "1000000",
       LLM_DAILY_CLASS_CALL_LIMIT: "1000",
@@ -517,7 +554,11 @@ async function main() {
       LLM_USAGE_TIMEZONE: "UTC",
       FOLLOWUP_CONTEXT_MAX_TURNS: "4",
       FOLLOWUP_MESSAGE_MAX_CHARS: "600",
-      FOLLOWUP_CONTEXT_MAX_CHARS: "4000"
+      FOLLOWUP_CONTEXT_MAX_CHARS: "4000",
+      OPERATIONAL_AGENT_MODE: "guarded_live",
+      OPERATIONAL_APPROVED_CONFIG_HASH: approvedOperationalConfig.approved_active_configuration_hash,
+      OPERATIONAL_EFFECTIVE_RESULT_VERSION: approvedOperationalConfig.effective_result_version,
+      OPERATIONAL_EFFECTIVE_VALIDATOR_VERSION: approvedOperationalConfig.effective_validator_version
     });
     await createSyntheticOpenAiCall(prisma, prefix, fixture.session.id);
     const blocked = await submitStudentFollowupMessage({
@@ -527,10 +568,11 @@ async function main() {
       client_message_id: "service_message_blocked"
     });
     assert(
-      blocked.message_status === "blocked_by_usage_limit",
-      "Usage-blocked execution should not create a follow-up reply."
+      blocked.message_status === "assistant_replied",
+      "Usage-blocked execution should use deterministic fallback."
     );
-    await assertNoAssistantReply(activeRound.id, "service_message_blocked");
+    await assertAssistantReply(activeRound.id, "service_message_blocked");
+    await assertFollowupFallbackCountIncreased(fallbackCount, "Usage-blocked execution");
     const blockedCall = await prisma.agentCall.findFirstOrThrow({
       where: {
         assessment_session_db_id: fixture.session.id,

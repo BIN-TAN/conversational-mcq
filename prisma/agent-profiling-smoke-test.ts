@@ -28,7 +28,8 @@ const llmEnvKeys = [
   "LLM_SESSION_CALL_LIMIT",
   "LLM_SESSION_TOKEN_LIMIT",
   "LLM_AGENT_CALL_LIMIT_PER_SESSION",
-  "LLM_USAGE_TIMEZONE"
+  "LLM_USAGE_TIMEZONE",
+  "OPERATIONAL_AGENT_MODE"
 ] as const;
 
 type Fixture = Awaited<ReturnType<typeof createProfilingFixture>>;
@@ -648,7 +649,12 @@ async function main() {
   let blockedFixture: Fixture | undefined;
 
   try {
-    setEnv({ LLM_PROVIDER: "mock", LLM_LIVE_CALLS_ENABLED: "false", LLM_USAGE_TIMEZONE: "UTC" });
+    setEnv({
+      LLM_PROVIDER: "mock",
+      LLM_LIVE_CALLS_ENABLED: "false",
+      LLM_USAGE_TIMEZONE: "UTC",
+      OPERATIONAL_AGENT_MODE: "mock"
+    });
     fixture = await createProfilingFixture({ prefix, suffix: "service", createPackage: true });
     assert(
       fixture.conceptUnitSession.initial_completed_at,
@@ -741,12 +747,12 @@ async function main() {
       invocation_reason: "phase6b_invalid_output_smoke",
       mock_provider_mode: "invalid_output"
     });
-    assert(invalidResult.status === "invalid_output", "Invalid mock output should be rejected.");
+    assert(invalidResult.status === "profile_created", "Invalid mock output should create a deterministic fallback profile.");
     assert(
       (await prisma.studentProfile.count({
         where: { concept_unit_session_db_id: invalidFixture.conceptUnitSession.id }
-      })) === 0,
-      "Invalid output should not create a profile."
+      })) === 1,
+      "Invalid output fallback should create one profile."
     );
 
     blockedFixture = await createProfilingFixture({
@@ -766,31 +772,29 @@ async function main() {
       LLM_SESSION_CALL_LIMIT: "1000",
       LLM_SESSION_TOKEN_LIMIT: "1000000",
       LLM_AGENT_CALL_LIMIT_PER_SESSION: "1000",
-      LLM_USAGE_TIMEZONE: "UTC"
+      LLM_USAGE_TIMEZONE: "UTC",
+      OPERATIONAL_AGENT_MODE: "guarded_live"
     });
     await createSyntheticOpenAiCall(prefix, blockedFixture.session.id);
     const blocked = await runInitialStudentProfiling({
       concept_unit_session_db_id: blockedFixture.conceptUnitSession.id,
       invocation_reason: "phase6b_usage_blocked_smoke"
     });
-    assert(
-      blocked.status === "blocked_by_usage_limit",
-      "Usage-blocked execution should return blocked_by_usage_limit."
-    );
+    assert(blocked.status === "profile_created", "Guarded-live readiness block should create a fallback profile.");
     assert(
       (await prisma.studentProfile.count({
         where: { concept_unit_session_db_id: blockedFixture.conceptUnitSession.id }
-      })) === 0,
-      "Usage-blocked execution should not create a profile."
+      })) === 1,
+      "Readiness-blocked fallback should create one profile."
     );
-    const blockedCall = blocked.agent_call_id
-      ? await prisma.agentCall.findUniqueOrThrow({ where: { id: blocked.agent_call_id } })
-      : null;
-    assert(blockedCall?.provider === "openai", "Blocked audit row should preserve provider.");
-    assert(blockedCall.provider_response_id === null, "Blocked execution should not call OpenAI.");
-    assert(blockedCall.blocked_reason, "Blocked execution should persist blocked reason.");
+    assert(blocked.agent_call_id === null, "Readiness-blocked fallback should not create an agent call.");
 
-    setEnv({ LLM_PROVIDER: "mock", LLM_LIVE_CALLS_ENABLED: "false", LLM_USAGE_TIMEZONE: "UTC" });
+    setEnv({
+      LLM_PROVIDER: "mock",
+      LLM_LIVE_CALLS_ENABLED: "false",
+      LLM_USAGE_TIMEZONE: "UTC",
+      OPERATIONAL_AGENT_MODE: "mock"
+    });
     await runApiSmoke(prefix);
 
     assert(
