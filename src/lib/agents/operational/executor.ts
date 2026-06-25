@@ -7,14 +7,16 @@ import {
 import type { AgentInputByName, AgentOutputByName } from "@/lib/agents/contracts";
 import {
   approvedOperationalModelConfigForAgent,
-  getGuardedOperationalAgentIntegrationReadiness,
-  type OperationalAgentIntegrationBlockReason
+  evaluateOperationalExecutionReadiness,
+  type OperationalExecutionBlockReason,
+  type SanitizedReadinessSnapshot
 } from "@/lib/operational/guarded-agent-integration";
 
 export type OperationalAgentBlockedResult = {
   status: "blocked_by_operational_guard";
-  reason: OperationalAgentIntegrationBlockReason;
-  blocking_reasons: OperationalAgentIntegrationBlockReason[];
+  reason: OperationalExecutionBlockReason;
+  blocking_reasons: OperationalExecutionBlockReason[];
+  readiness_snapshot: SanitizedReadinessSnapshot;
   retry_count: 0;
 };
 
@@ -39,15 +41,22 @@ export type ExecuteOperationalAgentInput<TAgentName extends AgentNameType> = {
 export async function executeOperationalAgent<TAgentName extends AgentNameType>(
   input: ExecuteOperationalAgentInput<TAgentName>
 ): Promise<OperationalAgentExecutionResult<AgentOutputByName[TAgentName]>> {
-  const readiness = await getGuardedOperationalAgentIntegrationReadiness({
-    checkDatabase: true
+  const readiness = await evaluateOperationalExecutionReadiness({
+    agentName: input.agentName,
+    operationalContext: {
+      assessment_session_db_id: input.operationalContext.assessment_session_db_id,
+      metadata: input.metadata
+    },
+    checkDatabase: true,
+    checkUsageGuard: true
   });
 
   if (!readiness.allowed) {
     return {
       status: "blocked_by_operational_guard",
-      reason: readiness.block_reason ?? "operational_agent_mode_disabled",
-      blocking_reasons: readiness.blocking_reasons,
+      reason: readiness.reason,
+      blocking_reasons: readiness.readinessSnapshot.typed_blocking_reasons,
+      readiness_snapshot: readiness.readinessSnapshot,
       retry_count: 0
     };
   }
@@ -61,9 +70,9 @@ export async function executeOperationalAgent<TAgentName extends AgentNameType>(
     agent_invocation_key: input.invocationKey,
     force_new_invocation: input.forceNewInvocation,
     metadata: {
-      operational_agent_mode: readiness.mode,
-      approved_config_hash: readiness.approved_configuration_hash,
-      active_config_hash: readiness.active_configuration_hash,
+      operational_agent_mode: readiness.readinessSnapshot.operational_mode,
+      approved_config_hash: readiness.readinessSnapshot.approved_config_hash_matches ? "matched" : "unmatched",
+      active_config_hash: readiness.readinessSnapshot.active_config_hash_matches ? "matched" : "unmatched",
       ...(input.metadata ?? {})
     },
     model_config_override:

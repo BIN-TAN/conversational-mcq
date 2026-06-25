@@ -980,6 +980,12 @@ Phase 6A.5 must not implement:
   `OPERATIONAL_LIVE_CANARY_ENABLED=false`.
 - Paid execution requires explicit `--confirm-paid-api` plus `--new-run` or
   `--resume <run_public_id>`, and must never start from a browser button.
+- Live-canary preflight and operational execution must use the same typed
+  readiness evaluator. A preflight/executor mismatch must create no canary run
+  or steps, and blocked steps must expose a typed sanitized blocked reason.
+- Dry-run checks must not delete historical canary runs. A failed all-terminal
+  no-provider-request canary run is preserved as audit history and requires a
+  fresh `--new-run` after a fix.
 - The frozen canary manifest is
   `tests/fixtures/operational-live-canary/manifest.json` with hash
   `6e59f0014e805eedfdb97c8fee5ea6c3053c7a913945b13afafb1b602d14e2d6`.

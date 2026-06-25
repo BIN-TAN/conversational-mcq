@@ -238,9 +238,8 @@ async function liveClassroomConfigStillBlocked() {
 
   assert(!readiness.allowed, "Guarded live must remain blocked without full approved readiness.");
   assert(
-    readiness.blocking_reasons.includes("approved_config_hash_missing") ||
-      readiness.blocking_reasons.includes("approved_manifest_invalid"),
-    "Guarded live should be blocked by missing approved readiness, not by a provider call."
+    readiness.typed_blocking_reasons.includes("approved_config_hash_mismatch"),
+    "Guarded live should be blocked by typed approved-config readiness, not by a provider call."
   );
 }
 

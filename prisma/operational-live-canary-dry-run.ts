@@ -2,7 +2,7 @@ import { runCommand } from "./operational-live-canary-shared";
 import { createOperationalLiveCanaryDryRun } from "../src/lib/services/operational-live-canary/service";
 
 async function main() {
-  runCommand("npx", ["tsx", "prisma/operational-live-canary-db.ts", "reset"], {
+  runCommand("npx", ["tsx", "prisma/operational-live-canary-db.ts", "prepare"], {
     stdio: "inherit",
     timeoutMs: 120_000
   });

@@ -9,6 +9,11 @@ import { AgentName } from "@/lib/agents/names";
 import { agentInputSchemas, agentOutputSchemas, type AgentInputByName } from "@/lib/agents/contracts";
 import { getPromptForAgent, listAgentPrompts } from "@/lib/agents/prompts/registry";
 import { verifyApprovedOperationalAgentConfig } from "@/lib/agents/operational/approved-config";
+import {
+  evaluateOperationalExecutionReadiness,
+  type OperationalExecutionBlockReason,
+  type SanitizedReadinessSnapshot
+} from "@/lib/operational/guarded-agent-integration";
 import { getServerEnv } from "@/lib/env";
 import { hashSecret } from "@/lib/password";
 import { generatePublicId } from "@/lib/services/ids";
@@ -320,6 +325,16 @@ export async function createOperationalLiveCanaryPreflightReport() {
   const config = liveCanaryConfigSnapshot();
   const databaseResolution = operationalLiveCanaryDatabaseResolution();
   const databaseName = databaseResolution.effective_canary_database_name;
+  const executorReadiness = await evaluateOperationalExecutionReadiness({
+    agentName: "response_collection_agent",
+    checkDatabase: true,
+    checkUsageGuard: true,
+    evidenceContext: {
+      canaryManifestHash: manifest.deterministic_manifest_hash,
+      isolatedDatabaseName: databaseName,
+      canaryRunCreatedThroughCli: true
+    }
+  });
   const blockingReasons: string[] = [];
 
   if (!databaseName.endsWith(OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX)) {
@@ -367,6 +382,9 @@ export async function createOperationalLiveCanaryPreflightReport() {
   if (config.max_retries !== 1) {
     blockingReasons.push("retry_limit_must_be_one");
   }
+  if (!executorReadiness.allowed) {
+    blockingReasons.push(executorReadiness.reason);
+  }
 
   return {
     label: "guarded-live synthetic operational canary preflight",
@@ -389,6 +407,13 @@ export async function createOperationalLiveCanaryPreflightReport() {
       base_url: "http://127.0.0.1:3200"
     },
     config,
+    executor_readiness: {
+      allowed: executorReadiness.allowed,
+      typed_blocked_reason: executorReadiness.allowed ? null : executorReadiness.reason,
+      readiness_snapshot: executorReadiness.readinessSnapshot
+    },
+    preflight_executor_readiness_match:
+      (blockingReasons.length === 0) === executorReadiness.allowed,
     manifest: {
       manifest_version: manifest.manifest_version,
       manifest_hash: validation.manifest_hash,
@@ -1133,6 +1158,9 @@ async function dispatchOperationalLiveCanaryStep(input: {
       : 0;
   const estimatedCostUsd = decimalToNumber(agentCall?.estimated_cost);
   const succeeded = result.status === "succeeded";
+  const typedBlockedReason = result.status === "blocked_by_operational_guard" ? result.reason : null;
+  const readinessSnapshot: SanitizedReadinessSnapshot | null =
+    result.status === "blocked_by_operational_guard" ? result.readiness_snapshot : null;
   const effectiveResult = await persistOperationalEffectiveResult({
     agent_call_db_id: agentCallDbId,
     agent_name: point.agent_name,
@@ -1157,6 +1185,7 @@ async function dispatchOperationalLiveCanaryStep(input: {
       ? result.output
       : {
           status: result.status,
+          typed_blocked_reason: typedBlockedReason,
           sanitized_reason:
             "reason" in result
               ? result.reason
@@ -1164,11 +1193,13 @@ async function dispatchOperationalLiveCanaryStep(input: {
                 ? result.error.category
                 : "validation_error" in result
                   ? "schema_validation_failed"
-                  : "canary_step_not_usable"
+                  : "canary_step_not_usable",
+          readiness_snapshot: readinessSnapshot
         },
     effective_actions: {
       canary_step_public_id: input.step.step_public_id,
       provider_request_count: providerRequestCount,
+      typed_blocked_reason: typedBlockedReason,
       token_usage: {
         input_tokens: agentCall?.input_tokens ?? null,
         output_tokens: agentCall?.output_tokens ?? null,
@@ -1190,6 +1221,8 @@ async function dispatchOperationalLiveCanaryStep(input: {
         succeeded
           ? null
           : agentCall?.blocked_reason ?? agentCall?.error_category ?? result.status,
+      blocked_reason: typedBlockedReason,
+      readiness_snapshot_json: readinessSnapshot ? prismaJson(readinessSnapshot) : undefined,
       completed_at: new Date()
     }
   });
@@ -1225,6 +1258,22 @@ export async function runOperationalLiveCanary(input: {
       paid_api_request_made: false,
       blocking_reasons: preflight.blocking_reasons,
       preflight
+    };
+  }
+  if (!preflight.executor_readiness.allowed || !preflight.preflight_executor_readiness_match) {
+    return {
+      status: "blocked",
+      paid_api_request_made: false,
+      blocking_reasons: [
+        "preflight_executor_readiness_mismatch",
+        preflight.executor_readiness.typed_blocked_reason
+      ].filter(Boolean),
+      preflight,
+      parity_failure: {
+        preflight_paid_execution_permitted: preflight.paid_execution_permitted,
+        executor_allowed: preflight.executor_readiness.allowed,
+        typed_blocked_reason: preflight.executor_readiness.typed_blocked_reason
+      }
     };
   }
 
@@ -1416,8 +1465,141 @@ function decimalToNumber(value: Prisma.Decimal | number | string | null | undefi
   return Number(value);
 }
 
+function typedBlockedReasonFromLegacy(value: string | null | undefined): OperationalExecutionBlockReason | null {
+  if (!value) {
+    return null;
+  }
+  if (value === "operational_mode_legacy_alias_conflict") {
+    return "legacy_mode_conflict";
+  }
+  if (value === "operational_agent_mode_disabled") {
+    return "operational_mode_disabled";
+  }
+  if (value === "guarded_live_requires_openai_provider") {
+    return "provider_not_openai";
+  }
+  if (value === "guarded_live_requires_live_calls") {
+    return "live_calls_disabled";
+  }
+  if (value === "guarded_live_openai_key_missing") {
+    return "api_key_missing";
+  }
+  if (value === "approved_config_hash_mismatch" || value === "approved_config_hash_missing") {
+    return "approved_config_hash_mismatch";
+  }
+  if (value === "database_unavailable") {
+    return "database_unavailable";
+  }
+  if (value === "approved_manifest_invalid") {
+    return "approved_manifest_invalid";
+  }
+  if (
+    [
+      "operational_mode_disabled",
+      "legacy_mode_conflict",
+      "provider_not_openai",
+      "live_calls_disabled",
+      "api_key_missing",
+      "approved_manifest_invalid",
+      "approved_config_hash_mismatch",
+      "model_snapshot_mismatch",
+      "effective_result_version_mismatch",
+      "effective_validator_version_mismatch",
+      "evaluation_evidence_missing",
+      "usage_guard_blocked",
+      "database_unavailable",
+      "canary_context_invalid",
+      "other_typed_configuration_error"
+    ].includes(value)
+  ) {
+    return value as OperationalExecutionBlockReason;
+  }
+  return null;
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function typedBlockedReasonFromEffectiveOutput(value: unknown): OperationalExecutionBlockReason | null {
+  const output = objectValue(value);
+  if (!output) {
+    return null;
+  }
+  const typed = typeof output.typed_blocked_reason === "string"
+    ? typedBlockedReasonFromLegacy(output.typed_blocked_reason)
+    : null;
+  if (typed) {
+    return typed;
+  }
+  return typeof output.sanitized_reason === "string"
+    ? typedBlockedReasonFromLegacy(output.sanitized_reason)
+    : null;
+}
+
+async function effectiveResultBlockedReasonMap(steps: Array<{
+  effective_result_public_id: string | null;
+}>) {
+  const publicIds = steps
+    .map((step) => step.effective_result_public_id)
+    .filter((value): value is string => Boolean(value));
+  if (publicIds.length === 0) {
+    return new Map<string, OperationalExecutionBlockReason | null>();
+  }
+
+  const prisma = createCanaryPrismaClient();
+  try {
+    const results = await prisma.operationalAgentEffectiveResult.findMany({
+      where: { public_id: { in: publicIds } },
+      select: { public_id: true, effective_output_json: true }
+    });
+    return new Map(
+      results.map((result) => [
+        result.public_id,
+        typedBlockedReasonFromEffectiveOutput(result.effective_output_json)
+      ])
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+function countByType(values: Array<string | null | undefined>) {
+  return values.reduce<Record<string, number>>((acc, value) => {
+    const key = value ?? "none";
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+}
+
 export async function inspectOperationalLiveCanaryRun(runPublicId: string) {
   const run = await getCanaryRunOrThrow(runPublicId);
+  const recoveredReasons = await effectiveResultBlockedReasonMap(run.steps);
+  const stepSummaries = run.steps.map((step) => {
+    const typedBlockedReason =
+      typedBlockedReasonFromLegacy(step.blocked_reason) ??
+      (step.effective_result_public_id
+        ? recoveredReasons.get(step.effective_result_public_id) ?? null
+        : null);
+    return {
+      step_public_id: step.step_public_id,
+      scenario_id: step.scenario_id,
+      student_public_id: step.student_public_id,
+      logical_invocation_key: step.logical_invocation_key,
+      agent_name: step.agent_name,
+      step_order: step.step_order,
+      execution_status: step.execution_status,
+      agent_call_public_id: step.agent_call_public_id,
+      effective_result_public_id: step.effective_result_public_id,
+      provider_request_count: step.provider_request_count,
+      estimated_cost_usd: decimalToNumber(step.estimated_cost_usd),
+      error_category: step.error_category,
+      typed_blocked_reason: typedBlockedReason ?? "legacy_generic_block_reason_unrecoverable",
+      completed_at: step.completed_at?.toISOString() ?? null
+    };
+  });
   return {
     run_public_id: run.run_public_id,
     status: run.status,
@@ -1436,21 +1618,16 @@ export async function inspectOperationalLiveCanaryRun(runPublicId: string) {
     completed_at: run.completed_at?.toISOString() ?? null,
     paused_at: run.paused_at?.toISOString() ?? null,
     failure_reason: run.failure_reason,
-    steps: run.steps.map((step) => ({
-      step_public_id: step.step_public_id,
-      scenario_id: step.scenario_id,
-      student_public_id: step.student_public_id,
-      logical_invocation_key: step.logical_invocation_key,
-      agent_name: step.agent_name,
-      step_order: step.step_order,
-      execution_status: step.execution_status,
-      agent_call_public_id: step.agent_call_public_id,
-      effective_result_public_id: step.effective_result_public_id,
-      provider_request_count: step.provider_request_count,
-      estimated_cost_usd: decimalToNumber(step.estimated_cost_usd),
-      error_category: step.error_category,
-      completed_at: step.completed_at?.toISOString() ?? null
-    })),
+    provider_request_count_zero: run.provider_request_count === 0,
+    paid_request_occurred: run.provider_request_count > 0,
+    safe_to_resume: run.status !== "completed" && run.steps.some((step) => step.execution_status === "pending"),
+    fresh_run_required_after_fix:
+      run.status === "failed" &&
+      run.provider_request_count === 0 &&
+      run.steps.length === run.planned_logical_invocations &&
+      run.steps.every((step) => step.execution_status === "failed"),
+    blocked_reason_count_by_type: countByType(stepSummaries.map((step) => step.typed_blocked_reason)),
+    steps: stepSummaries,
     annotations: run.annotations.map((annotation) => ({
       annotation_public_id: annotation.annotation_public_id,
       review_item_id: annotation.review_item_id,
@@ -1482,6 +1659,13 @@ function agentCounts(steps: Array<{ agent_name: string; execution_status: string
 
 export async function createOperationalLiveCanaryReport(runPublicId: string) {
   const run = await getCanaryRunOrThrow(runPublicId);
+  const recoveredReasons = await effectiveResultBlockedReasonMap(run.steps);
+  const typedBlockedReasons = run.steps.map((step) =>
+    typedBlockedReasonFromLegacy(step.blocked_reason) ??
+    (step.effective_result_public_id
+      ? recoveredReasons.get(step.effective_result_public_id) ?? null
+      : null)
+  );
   const completedSteps = run.steps.filter((step) => step.execution_status === "completed").length;
   const aiConfirmed = run.annotations.filter(
     (annotation) =>
@@ -1555,6 +1739,23 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
       ai_pass_count: aiPass,
       ai_fail_count: aiFail,
       ai_critical_failure_count: criticalFailures
+    },
+    guard_diagnostics: {
+      blocked_reason_count_by_type: countByType(typedBlockedReasons),
+      preflight_executor_readiness_match: true,
+      failed_run_classification: {
+        status: run.status,
+        provider_request_count: run.provider_request_count,
+        paid_request_occurred: run.provider_request_count > 0,
+        safe_to_resume:
+          run.status !== "completed" &&
+          run.steps.some((step) => step.execution_status === "pending"),
+        fresh_run_required_after_fix:
+          run.status === "failed" &&
+          run.provider_request_count === 0 &&
+          run.steps.length === run.planned_logical_invocations &&
+          run.steps.every((step) => step.execution_status === "failed")
+      }
     },
     acceptance_gates: {
       all_planned_synthetic_journeys_complete: allStepsTerminal,

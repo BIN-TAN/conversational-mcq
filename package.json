@@ -167,6 +167,8 @@
     "operational:live-canary-report-smoke": "tsx prisma/operational-live-canary-smoke-test.ts --suite report",
     "operational:live-canary-isolation-smoke": "tsx prisma/operational-live-canary-smoke-test.ts --suite isolation",
     "operational:live-canary-db-resolution-smoke": "tsx prisma/operational-live-canary-smoke-test.ts --suite db-resolution",
+    "operational:live-canary-guard-parity-smoke": "tsx prisma/operational-live-canary-smoke-test.ts --suite guard-parity",
+    "operational:live-canary-block-reason-smoke": "tsx prisma/operational-live-canary-smoke-test.ts --suite block-reason",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts"

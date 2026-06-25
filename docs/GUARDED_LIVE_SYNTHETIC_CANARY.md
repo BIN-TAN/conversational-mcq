@@ -50,6 +50,8 @@ No-provider checks:
 npm run operational:live-canary:preflight
 npm run operational:live-canary:dry-run
 npm run operational:live-canary-db-resolution-smoke
+npm run operational:live-canary-guard-parity-smoke
+npm run operational:live-canary-block-reason-smoke
 ```
 
 Paid command, for a future manual run only:
@@ -67,7 +69,10 @@ npm run operational:live-canary:report -- --run <run_public_id>
 npm run operational:live-canary:review-export -- --run <run_public_id>
 ```
 
-The implementation and smoke tests do not execute the paid canary.
+The implementation and smoke tests do not execute the paid canary. Dry run
+applies pending migrations and seeds the synthetic fixture without dropping
+historical canary runs. Failed paid attempts remain audit history and should
+not be resumed if all planned steps are already terminal failures.
 
 ## Isolated Database
 
@@ -90,6 +95,11 @@ resolving an already isolated URL returns the same URL. Repeated malformed
 suffixes such as `_live_canary_live_canary_e2e` fail closed. The parent
 `DATABASE_URL` remains the base URL; Prisma clients and app/worker child
 processes receive the isolated canary URL explicitly.
+
+Preflight and executor readiness share one typed readiness source. Blocked
+canary steps store a typed `blocked_reason` and sanitized readiness snapshot.
+Inspect and report recover legacy generic blocked reasons from immutable
+effective-result metadata when older failed runs predate the dedicated columns.
 
 ## Scope
 

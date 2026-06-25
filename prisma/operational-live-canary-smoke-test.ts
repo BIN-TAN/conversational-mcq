@@ -17,6 +17,10 @@ import {
   runOperationalLiveCanary,
   validateOperationalLiveCanaryManifest
 } from "../src/lib/services/operational-live-canary/service";
+import { activeOperationalConfigHash } from "../src/lib/agents/operational/approved-config";
+import type { AgentInputByName } from "../src/lib/agents/contracts";
+import { executeOperationalAgent } from "../src/lib/agents/operational/executor";
+import { evaluateOperationalExecutionReadiness } from "../src/lib/operational/guarded-agent-integration";
 import {
   resolveOperationalLiveCanaryDatabaseUrl
 } from "../src/lib/services/operational-live-canary/database-url";
@@ -39,7 +43,9 @@ type SuiteName =
   | "review-export"
   | "report"
   | "isolation"
-  | "db-resolution";
+  | "db-resolution"
+  | "guard-parity"
+  | "block-reason";
 
 function argValue(name: string) {
   const index = process.argv.indexOf(name);
@@ -49,6 +55,43 @@ function argValue(name: string) {
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
+  }
+}
+
+const liveCanaryEnvKeys = [
+  "OPERATIONAL_AGENT_MODE",
+  "OPERATIONAL_AGENT_INTEGRATION_ENABLED",
+  "OPERATIONAL_APPROVED_CONFIG_HASH",
+  "OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH",
+  "OPERATIONAL_LIVE_CANARY_ENABLED",
+  "OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE",
+  "OPERATIONAL_LIVE_CANARY_DATABASE_URL",
+  "LLM_PROVIDER",
+  "LLM_LIVE_CALLS_ENABLED",
+  "OPENAI_API_KEY",
+  "LLM_DAILY_CLASS_CALL_LIMIT"
+] as const;
+
+function setEnv(values: Partial<Record<(typeof liveCanaryEnvKeys)[number], string | undefined>>) {
+  for (const key of liveCanaryEnvKeys) {
+    if (values[key] === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = values[key];
+    }
+  }
+}
+
+async function withLiveCanaryEnv<T>(
+  values: Partial<Record<(typeof liveCanaryEnvKeys)[number], string | undefined>>,
+  callback: () => Promise<T>
+) {
+  const original = Object.fromEntries(liveCanaryEnvKeys.map((key) => [key, process.env[key]]));
+  try {
+    setEnv(values);
+    return await callback();
+  } finally {
+    setEnv(original);
   }
 }
 
@@ -278,8 +321,214 @@ async function dbResolutionSmoke() {
   assert(defaultDatabaseUrl() === parentDatabaseUrl || Boolean(parentDatabaseUrl) === false, "Parent default DB URL should remain stable.");
 }
 
+function syntheticCanaryInput(): AgentInputByName["response_collection_agent"] {
+  return {
+    current_phase: "initial_item_administration" as const,
+    allowed_interaction_type: "initial_free_text" as const,
+    current_item_student_safe: {
+      item_public_id: "phase8c_smoke_item",
+      item_stem: "Which option best connects a claim to evidence?",
+      options: [
+        { label: "A", text: "The claim is supported." },
+        { label: "B", text: "The claim is unrelated." }
+      ]
+    },
+    student_message: "I chose A because the evidence directly supports the claim.",
+    collected_response_state: {
+      selected_option: "A" as const,
+      confidence_rating: "medium" as const
+    },
+    missing_evidence_state: {
+      missing_reasoning: true
+    },
+    recent_student_safe_transcript: [],
+    orchestration_constraints: {
+      no_correctness_feedback: true,
+      no_hints_or_explanations: true
+    },
+    procedural_policy: {
+      answer_and_confidence_backend_owned: true
+    },
+    allowed_student_controls: [
+      "option_buttons",
+      "confidence_controls",
+      "free_text_message",
+      "skip_reasoning_button",
+      "skip_confidence_button",
+      "skip_item_button",
+      "save_exit_button",
+      "submit_button"
+    ]
+  };
+}
+
+async function validCanaryReadinessEnv() {
+  const manifest = await loadOperationalLiveCanaryManifest();
+  const approvedHash = activeOperationalConfigHash();
+  const isolatedUrl = liveCanaryDatabaseUrl();
+  return {
+    OPERATIONAL_AGENT_MODE: "guarded_live",
+    OPERATIONAL_AGENT_INTEGRATION_ENABLED: undefined,
+    OPERATIONAL_APPROVED_CONFIG_HASH: undefined,
+    OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: approvedHash,
+    OPERATIONAL_LIVE_CANARY_ENABLED: "true",
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE: undefined,
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL: isolatedUrl,
+    LLM_PROVIDER: "openai",
+    LLM_LIVE_CALLS_ENABLED: "true",
+    OPENAI_API_KEY: "fake-key-never-sent",
+    manifest
+  };
+}
+
+async function guardParitySmoke() {
+  await ensureDatabaseReady();
+  const valid = await validCanaryReadinessEnv();
+  const baseEnv = {
+    OPERATIONAL_AGENT_MODE: valid.OPERATIONAL_AGENT_MODE,
+    OPERATIONAL_AGENT_INTEGRATION_ENABLED: valid.OPERATIONAL_AGENT_INTEGRATION_ENABLED,
+    OPERATIONAL_APPROVED_CONFIG_HASH: valid.OPERATIONAL_APPROVED_CONFIG_HASH,
+    OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: valid.OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH,
+    OPERATIONAL_LIVE_CANARY_ENABLED: valid.OPERATIONAL_LIVE_CANARY_ENABLED,
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE: valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE,
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL: valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL,
+    LLM_PROVIDER: valid.LLM_PROVIDER,
+    LLM_LIVE_CALLS_ENABLED: valid.LLM_LIVE_CALLS_ENABLED,
+    OPENAI_API_KEY: valid.OPENAI_API_KEY
+  };
+
+  await withLiveCanaryEnv(baseEnv, async () => {
+    const preflight = await createOperationalLiveCanaryPreflightReport();
+    assert(preflight.paid_execution_permitted, `Valid preflight should be permitted: ${JSON.stringify(preflight.blocking_reasons)}`);
+    assert(preflight.executor_readiness.allowed, "Executor readiness should allow the same valid canary config.");
+    assert(preflight.preflight_executor_readiness_match, "Preflight and executor readiness should match.");
+
+    const readiness = await evaluateOperationalExecutionReadiness({
+      agentName: "response_collection_agent",
+      checkDatabase: true,
+      checkUsageGuard: true,
+      evidenceContext: {
+        canaryManifestHash: valid.manifest.deterministic_manifest_hash,
+        isolatedDatabaseName: databaseName(valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL),
+        canaryRunCreatedThroughCli: true
+      }
+    });
+    assert(readiness.allowed, "Direct executor parity probe should allow valid guarded-live canary config.");
+
+    const childEnv = liveCanaryEnv();
+    for (const key of [
+      "DATABASE_URL",
+      "OPERATIONAL_AGENT_MODE",
+      "LLM_PROVIDER",
+      "LLM_LIVE_CALLS_ENABLED",
+      "OPERATIONAL_LIVE_CANARY_ENABLED",
+      "OPERATIONAL_APPROVED_CONFIG_HASH",
+      "OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH",
+      "OPERATIONAL_EFFECTIVE_RESULT_VERSION",
+      "OPERATIONAL_EFFECTIVE_VALIDATOR_VERSION",
+      "OPENAI_API_KEY"
+    ]) {
+      assert(childEnv[key], `Child app/worker env should include ${key}.`);
+    }
+    assert(databaseName(childEnv.DATABASE_URL) === databaseName(valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL), "Child env DATABASE_URL should be the canonical canary DB.");
+    assert(childEnv.OPERATIONAL_AGENT_INTEGRATION_ENABLED === undefined, "Child env should not carry deprecated legacy alias.");
+  });
+
+  await withLiveCanaryEnv({ ...baseEnv, OPERATIONAL_AGENT_INTEGRATION_ENABLED: "true" }, async () => {
+    const preflight = await createOperationalLiveCanaryPreflightReport();
+    assert(!preflight.paid_execution_permitted, "Legacy alias conflict should block preflight.");
+    assert(preflight.blocking_reasons.includes("legacy_mode_conflict"), "Legacy alias conflict should be typed.");
+    const prisma = createCanaryPrismaClient(valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL);
+    const beforeRuns = await prisma.operationalLiveCanaryRun.count();
+    const result = await runOperationalLiveCanary({ confirmPaidApi: true, newRun: true });
+    try {
+      const afterRuns = await prisma.operationalLiveCanaryRun.count();
+      assert(afterRuns === beforeRuns, "Parity/blocking failure should create no canary run.");
+    } finally {
+      await prisma.$disconnect();
+    }
+    assert(result.status === "blocked", "Blocked parity run should not execute.");
+    assert(result.paid_api_request_made === false, "Blocked parity run should make no provider request.");
+  });
+}
+
+async function blockReasonSmoke() {
+  await ensureDatabaseReady();
+  const valid = await validCanaryReadinessEnv();
+  const common = {
+    OPERATIONAL_AGENT_MODE: valid.OPERATIONAL_AGENT_MODE,
+    OPERATIONAL_AGENT_INTEGRATION_ENABLED: undefined,
+    OPERATIONAL_APPROVED_CONFIG_HASH: undefined,
+    OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: valid.OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH,
+    OPERATIONAL_LIVE_CANARY_ENABLED: valid.OPERATIONAL_LIVE_CANARY_ENABLED,
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL: valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL,
+    LLM_PROVIDER: valid.LLM_PROVIDER,
+    LLM_LIVE_CALLS_ENABLED: valid.LLM_LIVE_CALLS_ENABLED,
+    OPENAI_API_KEY: valid.OPENAI_API_KEY
+  };
+  const evidenceContext = {
+    canaryManifestHash: valid.manifest.deterministic_manifest_hash,
+    isolatedDatabaseName: databaseName(valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL),
+    canaryRunCreatedThroughCli: true
+  };
+  const expectReason = async (
+    env: Partial<Record<(typeof liveCanaryEnvKeys)[number], string | undefined>>,
+    reason: string,
+    extra?: Parameters<typeof evaluateOperationalExecutionReadiness>[0]
+  ) => {
+    await withLiveCanaryEnv({ ...common, ...env }, async () => {
+      const readiness = await evaluateOperationalExecutionReadiness({
+        agentName: "response_collection_agent",
+        checkDatabase: false,
+        checkUsageGuard: false,
+        evidenceContext,
+        ...(extra ?? {})
+      });
+      assert(!readiness.allowed, `Expected ${reason} to block.`);
+      assert(readiness.reason === reason, `Expected ${reason}, got ${readiness.reason}.`);
+      assert(!JSON.stringify(readiness).includes("fake-key-never-sent"), "Readiness output must not expose API key.");
+    });
+  };
+
+  await expectReason({ OPENAI_API_KEY: "" }, "api_key_missing");
+  await expectReason({ OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: "wrong" }, "approved_config_hash_mismatch");
+  await expectReason({}, "evaluation_evidence_missing", {
+    evidenceContext: { ...evidenceContext, forceMissingEvaluationEvidence: true }
+  });
+  await expectReason({}, "canary_context_invalid", {
+    evidenceContext: { ...evidenceContext, isolatedDatabaseName: "conversational_mcq" }
+  });
+  await expectReason({}, "usage_guard_blocked", {
+    checkUsageGuard: false,
+    usageContext: { forceBlockedReason: "class_daily_call_limit_exceeded" }
+  });
+  await expectReason({ OPERATIONAL_AGENT_INTEGRATION_ENABLED: "true" }, "legacy_mode_conflict");
+
+  await withLiveCanaryEnv({ ...common, OPERATIONAL_AGENT_MODE: "disabled" }, async () => {
+    const result = await executeOperationalAgent({
+      agentName: "response_collection_agent",
+      invocationKey: `phase8c_block_reason_${Date.now()}`,
+      allowlistedInput: syntheticCanaryInput(),
+      operationalContext: {}
+    });
+    assert(result.status === "blocked_by_operational_guard", "Blocked executor should not dispatch provider.");
+    assert(result.status === "blocked_by_operational_guard" && result.reason === "operational_mode_disabled", "Blocked executor should expose typed reason.");
+  });
+
+  const existing = await inspectOperationalLiveCanaryRun("olcr_20260625_fgdjkha");
+  assert(existing.run_public_id === "olcr_20260625_fgdjkha", "Existing failed run should be inspectable.");
+  assert(existing.status === "failed", "Existing failed run should remain failed.");
+  assert(existing.paid_request_occurred === false, "Existing failed run should show no paid request occurred.");
+  assert(existing.safe_to_resume === false, "Existing all-failed run should not be resumable.");
+  assert(existing.fresh_run_required_after_fix === true, "Existing all-failed run should require a fresh run after fix.");
+  assert(
+    existing.blocked_reason_count_by_type.legacy_mode_conflict === 30,
+    "Existing failed run should recover legacy-mode conflict for all 30 steps."
+  );
+}
+
 async function dryRunSmoke() {
-  runCommand("npx", ["tsx", "prisma/operational-live-canary-db.ts", "reset"], {
+  runCommand("npx", ["tsx", "prisma/operational-live-canary-db.ts", "prepare"], {
     timeoutMs: 120_000
   });
   const dryRun = await createOperationalLiveCanaryDryRun();
@@ -312,6 +561,10 @@ async function main() {
     await isolationSmoke();
   } else if (suite === "db-resolution") {
     await dbResolutionSmoke();
+  } else if (suite === "guard-parity") {
+    await guardParitySmoke();
+  } else if (suite === "block-reason") {
+    await blockReasonSmoke();
   } else {
     throw new Error(`Unknown operational live canary smoke suite: ${suite}`);
   }

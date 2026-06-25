@@ -30,6 +30,12 @@ Guarded live execution requires all of the following:
 
 Any missing requirement blocks the provider call, records a sanitized blocked reason, and returns the relevant deterministic fallback or blocked result. Blocked readiness never fabricates provider metadata.
 
+The operational agents preflight, live-canary preflight, and
+`executeOperationalAgent(...)` use the same typed readiness evaluator. The
+legacy `OPERATIONAL_AGENT_INTEGRATION_ENABLED` alias remains deprecated; if it
+conflicts with `OPERATIONAL_AGENT_MODE`, the typed blocked reason is
+`legacy_mode_conflict`.
+
 ## Executor Boundary
 
 Operational domain services call `executeOperationalAgent(...)`. The executor validates mode, approved manifest, active configuration, readiness, usage guard, and redaction before allowing the existing audited agent execution path. Domain services consume only the effective result or deterministic fallback, not raw provider output directly.
@@ -91,3 +97,6 @@ The future paid command is guarded by all of the following:
 The teacher UI does not start the canary and does not accept API keys. The
 review workflow exports blind review packets after a run and stores AI-assisted
 review provenance separately from human review.
+
+Before a paid canary creates a run, it performs an executor-parity probe with no
+provider dispatch. If the probe is blocked, no run or step rows are created.

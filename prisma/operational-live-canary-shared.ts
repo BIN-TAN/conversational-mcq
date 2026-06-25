@@ -89,6 +89,7 @@ export function liveCanaryEnv(overrides: Record<string, string | undefined> = {}
     NODE_ENV: "production",
     DATABASE_URL: isolatedCanaryDatabaseUrl,
     OPERATIONAL_LIVE_CANARY_DATABASE_URL: isolatedCanaryDatabaseUrl,
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE: "true",
     SESSION_SECRET: process.env.SESSION_SECRET || LIVE_CANARY_SESSION_SECRET,
     COURSE_TIMEZONE: "America/Edmonton",
     OPERATIONAL_AGENT_MODE: "guarded_live",

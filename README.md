@@ -1189,6 +1189,8 @@ No-provider commands:
 npm run operational:live-canary:preflight
 npm run operational:live-canary:dry-run
 npm run operational:live-canary-db-resolution-smoke
+npm run operational:live-canary-guard-parity-smoke
+npm run operational:live-canary-block-reason-smoke
 ```
 
 The live-canary database resolver is idempotent: `conversational_mcq` resolves
@@ -1197,6 +1199,11 @@ to `conversational_mcq_live_canary_e2e`, while an already isolated
 suffixes such as `_live_canary_live_canary_e2e` are rejected. The parent
 `DATABASE_URL` is not rewritten; canary Prisma clients and child processes
 receive the isolated URL explicitly.
+
+Preflight and operational execution use the same typed readiness evaluator. If
+preflight is permitted but the executor probe is blocked, the canary refuses to
+create a run or step rows. Dry run prepares and seeds the isolated database
+without dropping historical canary runs.
 
 Future paid command, only after manual server-side configuration:
 

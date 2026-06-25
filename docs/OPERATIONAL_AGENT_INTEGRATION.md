@@ -62,6 +62,11 @@ Operational services must consume only effective results. The effective result i
 
 Raw provider output remains in `agent_calls`. The operational result is stored in `operational_agent_effective_results` with public IDs, status metadata, version metadata, sanitized warnings, and an effective result hash.
 
+Operational preflight and execution share one typed readiness evaluator. Blocked
+execution returns a typed reason such as `legacy_mode_conflict`,
+`api_key_missing`, `approved_config_hash_mismatch`, `evaluation_evidence_missing`,
+or `usage_guard_blocked`; no provider request is made for blocked readiness.
+
 ## Agent Boundaries
 
 - Response Collection captures exact reasoning substrings only, refuses hints/correctness/explanations, and keeps option/confidence backend-owned.
