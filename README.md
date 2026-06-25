@@ -1133,3 +1133,37 @@ See `docs/GUARDED_OPERATIONAL_AGENT_INTEGRATION.md`,
 `docs/OPERATIONAL_EFFECTIVE_RESULTS.md`,
 `docs/OPERATIONAL_AGENT_FALLBACKS.md`, and
 `docs/OPERATIONAL_AGENT_INTEGRATION.md`.
+
+## Phase 8B Production-Like Synthetic E2E
+
+Phase 8B adds a local, production-like E2E validation harness. It uses an
+isolated PostgreSQL database whose name must end in `_e2e`, runs `next build`,
+starts `next start` on `http://127.0.0.1:3100`, starts the real workflow worker,
+and exercises synthetic student and teacher journeys with Playwright. It keeps
+`OPERATIONAL_AGENT_MODE=mock`, `LLM_PROVIDER=mock`, and
+`LLM_LIVE_CALLS_ENABLED=false`; no OpenAI call is made.
+
+```bash
+npm run e2e:production-like:preflight
+npm run e2e:db:prepare
+npm run e2e:db:reset
+npm run e2e:production-like
+npm run e2e:production-like:report -- --run <e2e_run_id>
+```
+
+Focused suites:
+
+```bash
+npm run e2e:browser-smoke
+npm run e2e:worker-restart-smoke
+npm run e2e:app-restart-smoke
+npm run e2e:failure-matrix-smoke
+npm run e2e:concurrency-smoke
+npm run e2e:export-smoke
+npm run e2e:privacy-smoke
+```
+
+Artifacts are written to `.data/e2e/<e2e_run_id>/` and are ignored by Git. See
+`docs/PRODUCTION_LIKE_E2E_TESTING.md`,
+`docs/SYNTHETIC_CLASSROOM_FIXTURE.md`, `docs/E2E_FAILURE_MATRIX.md`, and
+`docs/E2E_ACCEPTANCE_GATES.md`.

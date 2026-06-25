@@ -206,3 +206,9 @@ npm run export:master-complete-smoke
 ```
 
 The complete smoke verifies stable headers, placeholder rows, skipped evidence distinction, profile/decision/follow-up/update/progression/workflow columns, concept-specific history behavior, active versus staged profile behavior, multiple summative outcomes without row multiplication, raw JSON suppression, formula protection, public identifiers, secret exclusion, parseable JSON columns, cleanup behavior, and no OpenAI calls.
+
+Phase 8B adds E2E export verification through the production-like teacher
+journey. The harness creates a synthetic master CSV export, downloads it through
+the authorized teacher route, parses it with the CSV library, verifies stable
+row counts and public identifiers, checks formula-protection evidence, and
+confirms that internal UUIDs and credential fields are absent.

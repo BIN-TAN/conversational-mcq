@@ -945,3 +945,21 @@ Phase 6A.5 must not implement:
   fall back deterministically while mode is `disabled`.
 - Phase 8A must not modify completed evaluation runs, outputs, annotations, or
   audit records, and must not modify active prompts or provider schemas.
+
+## Phase 8B Production-Like Synthetic E2E Lock
+
+- Phase 8B validates the platform only with synthetic local data.
+- Phase 8B does not enable operational OpenAI calls and does not authorize
+  classroom live use.
+- The E2E database must be isolated and end in `_e2e`; scripts must refuse
+  destructive operations against any other database name.
+- The runtime uses `next build`, `next start` on `127.0.0.1:3100`, and the real
+  workflow worker process.
+- The E2E runtime keeps `OPERATIONAL_AGENT_MODE=mock`, `LLM_PROVIDER=mock`,
+  `LLM_LIVE_CALLS_ENABLED=false`, and `E2E_FORBID_EXTERNAL_PROVIDER_CALLS=true`.
+- Synthetic fixtures must not include real student data, deidentified student
+  data, summative outcome imports from real students, or classroom transcripts.
+- Phase 8B reports are local ignored artifacts under `.data/e2e/<e2e_run_id>/`.
+- A passing Phase 8B run may recommend
+  `ready_for_guarded_live_synthetic_canary`, but `classroom_validity=false`
+  remains binding.

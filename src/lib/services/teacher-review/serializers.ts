@@ -31,7 +31,10 @@ export function stripInternalKeys(value: unknown): unknown {
   for (const [key, entry] of Object.entries(value)) {
     const normalizedKey = key.toLowerCase();
     const isInternalIdKey =
-      key === "id" || key.endsWith("_db_id") || key.endsWith("_db_ids");
+      key === "id" ||
+      key === "agent_call_id" ||
+      key.endsWith("_db_id") ||
+      key.endsWith("_db_ids");
     const isSecretKey = secretKeyFragments.some((fragment) => normalizedKey.includes(fragment));
 
     if (isInternalIdKey || isSecretKey) {
@@ -142,7 +145,12 @@ export function assertNoInternalIds(value: unknown, path = "response") {
   }
 
   for (const [key, entry] of Object.entries(value)) {
-    if (key === "id" || key.endsWith("_db_id") || key.endsWith("_db_ids")) {
+    if (
+      key === "id" ||
+      key === "agent_call_id" ||
+      key.endsWith("_db_id") ||
+      key.endsWith("_db_ids")
+    ) {
       throw new Error(`Internal database identifier leaked at ${path}.${key}.`);
     }
 

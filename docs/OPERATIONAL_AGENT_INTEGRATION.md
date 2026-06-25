@@ -92,3 +92,18 @@ npm run operational:isolation-smoke
 ```
 
 They run in disabled or injected-mock mode and must not make OpenAI calls.
+
+## Phase 8B Validation
+
+Phase 8B adds production-like synthetic E2E validation around this integration.
+It does not change the operational executor, prompts, schemas, validators, or
+fallbacks. The harness runs the built app, real worker, real PostgreSQL, and
+synthetic browser/API journeys in `OPERATIONAL_AGENT_MODE=mock`.
+
+Run:
+
+```bash
+npm run e2e:production-like
+```
+
+See `docs/PRODUCTION_LIKE_E2E_TESTING.md`.

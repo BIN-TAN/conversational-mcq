@@ -34,3 +34,8 @@ Run:
 ```bash
 npm run assessment:completion-smoke
 ```
+
+Phase 8B validates completion in a synthetic E2E classroom run. The harness
+checks standard completion, save/resume, restart behavior, and the rule that
+release and close dates block new starts only while existing sessions remain
+resumable.

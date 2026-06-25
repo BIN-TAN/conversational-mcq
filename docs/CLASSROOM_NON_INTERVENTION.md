@@ -60,3 +60,9 @@ Run:
 ```bash
 npm run classroom:nonintervention-smoke
 ```
+
+Phase 8B also checks non-intervention behavior in the production-like synthetic
+harness. Teacher routes may review sessions and operational audit metadata, but
+the E2E teacher journey must not expose controls that answer for a student,
+approve or deny the next concept, mutate submitted responses, or enable live
+provider calls in the browser.

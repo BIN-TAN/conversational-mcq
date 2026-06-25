@@ -54,3 +54,10 @@ Automatic workflow jobs remain asynchronous and non-interventionist. Students ca
 
 The default remains `OPERATIONAL_AGENT_MODE=disabled`, `LLM_PROVIDER=mock`, and `LLM_LIVE_CALLS_ENABLED=false`. Phase 8A smoke tests use disabled or injected-mock paths and make no OpenAI calls.
 
+## Phase 8B Synthetic End-To-End Validation
+
+Phase 8B keeps guarded-live disabled and validates the guarded operational
+integration through a production-like synthetic harness. It uses a `_e2e`
+database, the built Next.js server, the real worker process, and synthetic
+Playwright journeys. The result is synthetic engineering readiness only, not
+classroom validity.
