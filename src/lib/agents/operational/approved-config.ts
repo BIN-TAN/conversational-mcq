@@ -4,6 +4,7 @@ import path from "node:path";
 import { z } from "zod";
 import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
 import { listAgentPrompts } from "@/lib/agents/prompts/registry";
+import type { AgentModelConfig } from "@/lib/llm/config";
 import { getServerEnv } from "@/lib/env";
 
 export const APPROVED_OPERATIONAL_CONFIG_PATH = path.join(
@@ -67,7 +68,29 @@ export type ApprovedOperationalConfigVerification = {
     schema_version: string;
     max_output_tokens: number;
   }>;
+  runtime_model_resolution: Record<string, {
+    approved_model_snapshot: string;
+    resolved_model_snapshot: string | null;
+    approved_reasoning_effort: string;
+    resolved_reasoning_effort: string | null;
+    approved_max_output_tokens: number;
+    resolved_max_output_tokens: number | null;
+    source: string;
+  }>;
   manifest: ApprovedOperationalAgentConfig;
+};
+
+type ActiveAgentConfig = ApprovedOperationalConfigVerification["active_agents"][string];
+type RuntimeModelResolution = {
+  model_name?: string | null;
+  reasoning_effort?: string | null;
+  max_output_tokens?: number | null;
+  source: string;
+};
+
+type ApprovedOperationalConfigVerificationOptions = {
+  activeAgentConfigOverridesForTest?: Partial<Record<AgentNameType, Partial<ActiveAgentConfig>>>;
+  runtimeModelConfigOverridesForTest?: Partial<Record<AgentNameType, Partial<RuntimeModelResolution>>>;
 };
 
 const agentMaxTokenEnvKeys: Record<AgentNameType, keyof ReturnType<typeof getServerEnv>> = {
@@ -76,22 +99,6 @@ const agentMaxTokenEnvKeys: Record<AgentNameType, keyof ReturnType<typeof getSer
   student_profiling_agent: "OPENAI_MAX_OUTPUT_TOKENS_PROFILING",
   formative_value_and_planning_agent: "OPENAI_MAX_OUTPUT_TOKENS_PLANNING",
   followup_agent: "OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP"
-};
-
-const agentModelEnvKeys: Record<AgentNameType, keyof ReturnType<typeof getServerEnv>> = {
-  item_verification_agent: "OPENAI_MODEL_ITEM_VERIFICATION",
-  response_collection_agent: "OPENAI_MODEL_RESPONSE_COLLECTION",
-  student_profiling_agent: "OPENAI_MODEL_PROFILING",
-  formative_value_and_planning_agent: "OPENAI_MODEL_PLANNING",
-  followup_agent: "OPENAI_MODEL_FOLLOWUP"
-};
-
-const agentReasoningEnvKeys: Record<AgentNameType, keyof ReturnType<typeof getServerEnv>> = {
-  item_verification_agent: "OPENAI_REASONING_EFFORT_ITEM_VERIFICATION",
-  response_collection_agent: "OPENAI_REASONING_EFFORT_RESPONSE_COLLECTION",
-  student_profiling_agent: "OPENAI_REASONING_EFFORT_PROFILING",
-  formative_value_and_planning_agent: "OPENAI_REASONING_EFFORT_PLANNING",
-  followup_agent: "OPENAI_REASONING_EFFORT_FOLLOWUP"
 };
 
 function stable(value: unknown): unknown {
@@ -170,13 +177,73 @@ export function activeOperationalConfigHash() {
   return stableHash(activeOperationalAgentConfigSnapshot());
 }
 
-export function verifyApprovedOperationalAgentConfig(): ApprovedOperationalConfigVerification {
+function resolvedOperationalRuntimeModelConfig(
+  agentName: AgentNameType,
+  override?: Partial<RuntimeModelResolution>
+): RuntimeModelResolution {
+  const approved = approvedModelConfigForAgent(agentName);
+  return {
+    model_name: approved.model_name,
+    reasoning_effort: approved.reasoning_effort ?? null,
+    max_output_tokens: approved.max_output_tokens ?? null,
+    source: "approvedOperationalModelConfigForAgent",
+    ...(override ?? {})
+  };
+}
+
+function applyActiveAgentOverrides(
+  activeAgents: ApprovedOperationalConfigVerification["active_agents"],
+  overrides?: ApprovedOperationalConfigVerificationOptions["activeAgentConfigOverridesForTest"]
+) {
+  if (!overrides) {
+    return activeAgents;
+  }
+
+  return Object.fromEntries(
+    Object.entries(activeAgents).map(([agentName, config]) => [
+      agentName,
+      {
+        ...config,
+        ...(overrides[agentName as AgentNameType] ?? {})
+      }
+    ])
+  ) as ApprovedOperationalConfigVerification["active_agents"];
+}
+
+export function verifyApprovedOperationalAgentConfig(
+  options: ApprovedOperationalConfigVerificationOptions = {}
+): ApprovedOperationalConfigVerification {
   const env = getServerEnv();
   const manifest = readApprovedOperationalAgentConfig();
   const issues: ApprovedOperationalConfigVerification["issues"] = [];
   const manifestHash = approvedOperationalConfigHash(manifest);
   const activeSnapshot = activeOperationalAgentConfigSnapshot();
+  activeSnapshot.agents = applyActiveAgentOverrides(
+    activeSnapshot.agents,
+    options.activeAgentConfigOverridesForTest
+  );
   const activeHash = stableHash(activeSnapshot);
+  const runtimeModelResolution = Object.fromEntries(
+    AgentName.options.map((agentName) => {
+      const approved = manifest.agents[agentName];
+      const resolved = resolvedOperationalRuntimeModelConfig(
+        agentName,
+        options.runtimeModelConfigOverridesForTest?.[agentName]
+      );
+      return [
+        agentName,
+        {
+          approved_model_snapshot: manifest.model_snapshot,
+          resolved_model_snapshot: resolved.model_name ?? null,
+          approved_reasoning_effort: manifest.reasoning_effort,
+          resolved_reasoning_effort: resolved.reasoning_effort ?? null,
+          approved_max_output_tokens: approved?.max_output_tokens ?? null,
+          resolved_max_output_tokens: resolved.max_output_tokens ?? null,
+          source: resolved.source
+        }
+      ];
+    })
+  ) as ApprovedOperationalConfigVerification["runtime_model_resolution"];
 
   if (manifestHash !== manifest.config_hash) {
     issues.push({
@@ -202,6 +269,59 @@ export function verifyApprovedOperationalAgentConfig(): ApprovedOperationalConfi
           details: { agent_name: agentName, field: key }
         });
       }
+    }
+
+    const resolved = runtimeModelResolution[agentName];
+
+    if (!resolved.resolved_model_snapshot) {
+      issues.push({
+        code: "model_snapshot_missing",
+        message: `${agentName} resolved runtime model snapshot is missing.`,
+        details: { agent_name: agentName, source: resolved.source }
+      });
+    } else if (resolved.resolved_model_snapshot !== resolved.approved_model_snapshot) {
+      issues.push({
+        code: "model_snapshot_mismatch",
+        message: `${agentName} resolved runtime model is not the approved exact snapshot.`,
+        details: {
+          agent_name: agentName,
+          source: resolved.source,
+          approved_model_snapshot: resolved.approved_model_snapshot,
+          resolved_model_snapshot: resolved.resolved_model_snapshot
+        }
+      });
+    }
+
+    if (!resolved.resolved_reasoning_effort) {
+      issues.push({
+        code: "reasoning_effort_missing",
+        message: `${agentName} resolved runtime reasoning effort is missing.`,
+        details: { agent_name: agentName, source: resolved.source }
+      });
+    } else if (resolved.resolved_reasoning_effort !== resolved.approved_reasoning_effort) {
+      issues.push({
+        code: "reasoning_effort_mismatch",
+        message: `${agentName} resolved runtime reasoning effort is not the approved value.`,
+        details: {
+          agent_name: agentName,
+          source: resolved.source,
+          approved_reasoning_effort: resolved.approved_reasoning_effort,
+          resolved_reasoning_effort: resolved.resolved_reasoning_effort
+        }
+      });
+    }
+
+    if (resolved.resolved_max_output_tokens !== resolved.approved_max_output_tokens) {
+      issues.push({
+        code: "runtime_token_limit_mismatch",
+        message: `${agentName} resolved runtime token limit does not match the approved manifest.`,
+        details: {
+          agent_name: agentName,
+          source: resolved.source,
+          approved_max_output_tokens: resolved.approved_max_output_tokens,
+          resolved_max_output_tokens: resolved.resolved_max_output_tokens
+        }
+      });
     }
   }
 
@@ -233,29 +353,6 @@ export function verifyApprovedOperationalAgentConfig(): ApprovedOperationalConfi
     });
   }
 
-  if (env.OPERATIONAL_AGENT_MODE === "guarded_live") {
-    for (const agentName of AgentName.options) {
-      const model = env[agentModelEnvKeys[agentName]];
-      const reasoning = env[agentReasoningEnvKeys[agentName]];
-
-      if (model !== manifest.model_snapshot) {
-        issues.push({
-          code: "model_snapshot_mismatch",
-          message: `${agentName} model is not the approved exact snapshot.`,
-          details: { agent_name: agentName }
-        });
-      }
-
-      if (reasoning !== manifest.reasoning_effort) {
-        issues.push({
-          code: "reasoning_effort_mismatch",
-          message: `${agentName} reasoning effort is not the approved value.`,
-          details: { agent_name: agentName }
-        });
-      }
-    }
-  }
-
   return {
     valid: issues.length === 0,
     manifest_hash: manifestHash,
@@ -263,11 +360,12 @@ export function verifyApprovedOperationalAgentConfig(): ApprovedOperationalConfi
     issues,
     active_configuration_hash: activeHash,
     active_agents: activeSnapshot.agents,
+    runtime_model_resolution: runtimeModelResolution,
     manifest
   };
 }
 
-export function approvedModelConfigForAgent(agentName: AgentNameType) {
+export function approvedModelConfigForAgent(agentName: AgentNameType): AgentModelConfig {
   const manifest = readApprovedOperationalAgentConfig();
   const agent = manifest.agents[agentName];
 

@@ -17,6 +17,9 @@ loadEnvConfig(process.cwd());
 
 const prisma = new PrismaClient();
 const prefix = `phase8a_operational_${randomUUID()}`;
+const suiteArg = process.argv.includes("--suite")
+  ? process.argv[process.argv.indexOf("--suite") + 1]
+  : "all";
 
 const envKeys = [
   "LLM_PROVIDER",
@@ -51,6 +54,143 @@ function setEnv(values: Partial<Record<(typeof envKeys)[number], string | undefi
       process.env[key] = values[key];
     }
   }
+}
+
+function assertIssue(
+  verification: ReturnType<typeof verifyApprovedOperationalAgentConfig>,
+  code: string
+) {
+  assert(
+    verification.issues.some((issue) => issue.code === code),
+    `Expected manifest verification issue ${code}.`
+  );
+}
+
+function assertApprovalManifestVerification() {
+  const manifest = verifyApprovedOperationalAgentConfig();
+  assert(manifest.valid, "Approved operational manifest must match active registry.");
+  assert(
+    manifest.active_configuration_hash === manifest.manifest.approved_active_configuration_hash,
+    "Active configuration hash must match the approved manifest."
+  );
+
+  for (const agentName of [
+    "item_verification_agent",
+    "response_collection_agent",
+    "student_profiling_agent",
+    "formative_value_and_planning_agent",
+    "followup_agent"
+  ] as const) {
+    const resolved = manifest.runtime_model_resolution[agentName];
+    const approved = manifest.manifest.agents[agentName];
+    assert(resolved, `${agentName} should have runtime model-resolution diagnostics.`);
+    assert(approved, `${agentName} should exist in the approved manifest.`);
+    assert(
+      resolved.source === "approvedOperationalModelConfigForAgent",
+      `${agentName} should resolve through the operational executor model-config source.`
+    );
+    assert(
+      resolved.resolved_model_snapshot === manifest.manifest.model_snapshot,
+      `${agentName} runtime model should match approved snapshot.`
+    );
+    assert(
+      resolved.resolved_reasoning_effort === manifest.manifest.reasoning_effort,
+      `${agentName} runtime reasoning effort should match approved value.`
+    );
+    assert(
+      resolved.resolved_max_output_tokens === approved.max_output_tokens,
+      `${agentName} runtime token limit should match approved value.`
+    );
+  }
+
+  const wrongModel = verifyApprovedOperationalAgentConfig({
+    runtimeModelConfigOverridesForTest: {
+      response_collection_agent: {
+        model_name: "gpt-5.4-mini",
+        source: "test_override"
+      }
+    }
+  });
+  assert(!wrongModel.valid, "Wrong global model snapshot should fail field validation.");
+  assertIssue(wrongModel, "model_snapshot_mismatch");
+  assert(
+    wrongModel.active_configuration_hash === manifest.active_configuration_hash,
+    "Matching active/approved hashes alone must not bypass runtime model validation."
+  );
+
+  const wrongReasoning = verifyApprovedOperationalAgentConfig({
+    runtimeModelConfigOverridesForTest: {
+      followup_agent: {
+        reasoning_effort: "medium",
+        source: "test_override"
+      }
+    }
+  });
+  assert(!wrongReasoning.valid, "Wrong reasoning effort should fail field validation.");
+  assertIssue(wrongReasoning, "reasoning_effort_mismatch");
+
+  const missingModel = verifyApprovedOperationalAgentConfig({
+    runtimeModelConfigOverridesForTest: {
+      student_profiling_agent: {
+        model_name: null,
+        source: "test_override"
+      }
+    }
+  });
+  assert(!missingModel.valid, "Missing model configuration should fail field validation.");
+  assertIssue(missingModel, "model_snapshot_missing");
+
+  const missingReasoning = verifyApprovedOperationalAgentConfig({
+    runtimeModelConfigOverridesForTest: {
+      formative_value_and_planning_agent: {
+        reasoning_effort: null,
+        source: "test_override"
+      }
+    }
+  });
+  assert(!missingReasoning.valid, "Missing reasoning configuration should fail field validation.");
+  assertIssue(missingReasoning, "reasoning_effort_missing");
+
+  const promptHashMismatch = verifyApprovedOperationalAgentConfig({
+    activeAgentConfigOverridesForTest: {
+      item_verification_agent: {
+        prompt_hash: "wrong-prompt-hash"
+      }
+    }
+  });
+  assert(!promptHashMismatch.valid, "Prompt hash mismatch should fail.");
+  assertIssue(promptHashMismatch, "active_agent_config_mismatch");
+
+  const schemaMismatch = verifyApprovedOperationalAgentConfig({
+    activeAgentConfigOverridesForTest: {
+      response_collection_agent: {
+        schema_version: "wrong-schema-version"
+      }
+    }
+  });
+  assert(!schemaMismatch.valid, "Schema version mismatch should fail.");
+  assertIssue(schemaMismatch, "active_agent_config_mismatch");
+
+  const tokenMismatch = verifyApprovedOperationalAgentConfig({
+    activeAgentConfigOverridesForTest: {
+      followup_agent: {
+        max_output_tokens: 999
+      }
+    }
+  });
+  assert(!tokenMismatch.valid, "Token-limit mismatch should fail.");
+  assertIssue(tokenMismatch, "active_agent_config_mismatch");
+
+  const runtimeTokenMismatch = verifyApprovedOperationalAgentConfig({
+    runtimeModelConfigOverridesForTest: {
+      followup_agent: {
+        max_output_tokens: 999,
+        source: "test_override"
+      }
+    }
+  });
+  assert(!runtimeTokenMismatch.valid, "Runtime token-limit mismatch should fail.");
+  assertIssue(runtimeTokenMismatch, "runtime_token_limit_mismatch");
 }
 
 function syntheticResponseCollectionInput(): AgentInputByName["response_collection_agent"] {
@@ -109,16 +249,34 @@ async function run() {
   const profileCountBefore = await prisma.studentProfile.count();
   const decisionCountBefore = await prisma.formativeDecision.count();
   const roundCountBefore = await prisma.followupRound.count();
+  const agentCallCountBefore = await prisma.agentCall.count();
+  const effectiveResultCountBefore = await prisma.operationalAgentEffectiveResult.count();
 
   try {
-    await cleanup();
+    const approvedHash = activeOperationalConfigHash();
 
-    const manifest = verifyApprovedOperationalAgentConfig();
-    assert(manifest.valid, "Approved operational manifest must match active registry.");
-    assert(
-      manifest.active_configuration_hash === manifest.manifest.approved_active_configuration_hash,
-      "Active configuration hash must match the approved manifest."
-    );
+    if (suiteArg === "approval-manifest") {
+      setEnv({
+        LLM_PROVIDER: "openai",
+        LLM_LIVE_CALLS_ENABLED: "true",
+        OPENAI_API_KEY: "fake-key-never-sent",
+        OPERATIONAL_AGENT_MODE: "guarded_live",
+        OPERATIONAL_AGENT_INTEGRATION_ENABLED: undefined,
+        OPERATIONAL_APPROVED_CONFIG_HASH: approvedHash
+      });
+      assertApprovalManifestVerification();
+      assert((await prisma.evalRun.count()) === evalRunCountBefore, "Approval manifest smoke must not mutate eval runs.");
+      assert((await prisma.agentCall.count()) === agentCallCountBefore, "Approval manifest smoke must not create agent calls.");
+      assert(
+        (await prisma.operationalAgentEffectiveResult.count()) === effectiveResultCountBefore,
+        "Approval manifest smoke must not create operational effective results."
+      );
+      console.log("Phase 8A approval-manifest smoke test passed. No OpenAI call was made.");
+      return;
+    }
+
+    await cleanup();
+    assertApprovalManifestVerification();
 
     setEnv({
       LLM_PROVIDER: "mock",
@@ -217,23 +375,13 @@ async function run() {
     });
     assert(effectiveOne.id === effectiveTwo.id, "Effective-result persistence should be idempotent.");
 
-    const approvedHash = activeOperationalConfigHash();
     setEnv({
       LLM_PROVIDER: "openai",
       LLM_LIVE_CALLS_ENABLED: "true",
       OPENAI_API_KEY: "fake-key-never-sent",
       OPERATIONAL_AGENT_MODE: "guarded_live",
       OPERATIONAL_APPROVED_CONFIG_HASH: approvedHash,
-      OPENAI_MODEL_ITEM_VERIFICATION: "gpt-5.4-mini-2026-03-17",
-      OPENAI_MODEL_RESPONSE_COLLECTION: "gpt-5.4-mini-2026-03-17",
-      OPENAI_MODEL_PROFILING: "gpt-5.4-mini-2026-03-17",
-      OPENAI_MODEL_PLANNING: "gpt-5.4-mini-2026-03-17",
-      OPENAI_MODEL_FOLLOWUP: "gpt-5.4-mini-2026-03-17",
-      OPENAI_REASONING_EFFORT_ITEM_VERIFICATION: "low",
-      OPENAI_REASONING_EFFORT_RESPONSE_COLLECTION: "low",
-      OPENAI_REASONING_EFFORT_PROFILING: "low",
-      OPENAI_REASONING_EFFORT_PLANNING: "low",
-      OPENAI_REASONING_EFFORT_FOLLOWUP: "low"
+      OPERATIONAL_AGENT_INTEGRATION_ENABLED: undefined
     });
     const guardedReady = await getGuardedOperationalAgentIntegrationReadiness({
       checkDatabase: true
@@ -246,12 +394,8 @@ async function run() {
       LLM_LIVE_CALLS_ENABLED: "true",
       OPENAI_API_KEY: "fake-key-never-sent",
       OPERATIONAL_AGENT_MODE: "guarded_live",
-      OPERATIONAL_APPROVED_CONFIG_HASH: "wrong-hash",
-      OPENAI_MODEL_ITEM_VERIFICATION: "gpt-5.4-mini",
-      OPENAI_MODEL_RESPONSE_COLLECTION: "gpt-5.4-mini",
-      OPENAI_MODEL_PROFILING: "gpt-5.4-mini",
-      OPENAI_MODEL_PLANNING: "gpt-5.4-mini",
-      OPENAI_MODEL_FOLLOWUP: "gpt-5.4-mini"
+      OPERATIONAL_AGENT_INTEGRATION_ENABLED: undefined,
+      OPERATIONAL_APPROVED_CONFIG_HASH: "wrong-hash"
     });
     const mismatch = await getGuardedOperationalAgentIntegrationReadiness({
       checkDatabase: true

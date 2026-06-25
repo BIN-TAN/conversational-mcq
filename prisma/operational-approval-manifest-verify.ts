@@ -17,6 +17,7 @@ console.log(
       reasoning_effort: verification.manifest.reasoning_effort,
       effective_result_version: verification.manifest.effective_result_version,
       effective_validator_version: verification.manifest.effective_validator_version,
+      runtime_model_resolution: verification.runtime_model_resolution,
       issues: verification.issues
     },
     null,
