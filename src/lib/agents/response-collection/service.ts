@@ -6,6 +6,7 @@ import { getPromptForAgent } from "@/lib/agents/prompts/registry";
 import { prisma } from "@/lib/db";
 import { getServerEnv } from "@/lib/env";
 import { getLlmRuntimeConfig, LlmConfigurationError } from "@/lib/llm/config";
+import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 import { logConversationTurn } from "@/lib/services/conversation-turns";
 import { INCLUDED_ITEM_RANGE } from "@/lib/services/content/governance";
 import { toPrismaJson } from "@/lib/services/json";
@@ -304,8 +305,18 @@ async function withInitialMessageIdempotency<T extends Record<string, unknown>>(
   }
 }
 
-function runtimeReadinessForStudentWorkflow() {
+async function runtimeReadinessForStudentWorkflow() {
   const env = getServerEnv();
+  const integrationReadiness = await getGuardedOperationalAgentIntegrationReadiness({
+    checkEvaluationEvidence: true
+  });
+
+  if (!integrationReadiness.allowed) {
+    return {
+      can_execute: false as const,
+      fallback_reason: "operational_integration_disabled" as const
+    };
+  }
 
   try {
     const runtime = getLlmRuntimeConfig();
@@ -366,7 +377,7 @@ async function runAgentOrFallback(input: {
     };
   }
 
-  const readiness = runtimeReadinessForStudentWorkflow();
+  const readiness = await runtimeReadinessForStudentWorkflow();
 
   if (!readiness.can_execute) {
     return {

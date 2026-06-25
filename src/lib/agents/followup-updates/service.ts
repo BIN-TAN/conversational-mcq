@@ -25,6 +25,7 @@ import { executeStudentProfilingCandidate } from "@/lib/agents/student-profiling
 import { executeFormativePlanningCandidate } from "@/lib/agents/formative-planning/service";
 import { prisma } from "@/lib/db";
 import { enqueueWorkflowJob } from "@/lib/workflow/jobs";
+import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
 import { logProcessEvent } from "@/lib/services/process-events";
@@ -718,6 +719,14 @@ export async function enqueueFollowupProfileUpdateJob(cyclePublicId: string) {
     }
   });
 
+  const readiness = await getGuardedOperationalAgentIntegrationReadiness({
+    checkEvaluationEvidence: true
+  });
+
+  if (!readiness.allowed) {
+    return null;
+  }
+
   return enqueueWorkflowJob({
     job_type: "run_followup_profile_update",
     assessment_session_db_id: cycle.assessment_session_db_id,
@@ -742,6 +751,14 @@ export async function enqueueFollowupPlanningUpdateJob(cyclePublicId: string) {
     }
   });
 
+  const readiness = await getGuardedOperationalAgentIntegrationReadiness({
+    checkEvaluationEvidence: true
+  });
+
+  if (!readiness.allowed) {
+    return null;
+  }
+
   return enqueueWorkflowJob({
     job_type: "run_followup_planning_update",
     assessment_session_db_id: cycle.assessment_session_db_id,
@@ -765,6 +782,14 @@ export async function enqueueFollowupFinalizeJob(cyclePublicId: string) {
       planning_agent_call_db_id: true
     }
   });
+
+  const readiness = await getGuardedOperationalAgentIntegrationReadiness({
+    checkEvaluationEvidence: true
+  });
+
+  if (!readiness.allowed) {
+    return null;
+  }
 
   return enqueueWorkflowJob({
     job_type: "finalize_followup_update",
@@ -795,6 +820,14 @@ async function enqueuePostCycleProgressionFinalizeJob(input: {
   });
 
   if (!progression) {
+    return null;
+  }
+
+  const readiness = await getGuardedOperationalAgentIntegrationReadiness({
+    checkEvaluationEvidence: true
+  });
+
+  if (!readiness.allowed) {
     return null;
   }
 
@@ -857,12 +890,25 @@ export async function handleFollowupAssistantEvidence(input: {
     threshold: config.substantive_turns_before_update
   };
 
-  if (conceptUnitSession.assessment_session.workflow_mode_snapshot === "manual_review") {
+  const readiness =
+    conceptUnitSession.assessment_session.workflow_mode_snapshot === "automatic"
+      ? await getGuardedOperationalAgentIntegrationReadiness({
+          checkEvaluationEvidence: true
+        })
+      : null;
+  const requiresTeacherReview =
+    conceptUnitSession.assessment_session.workflow_mode_snapshot === "manual_review" ||
+    (readiness !== null && !readiness.allowed);
+
+  if (requiresTeacherReview) {
     await prisma.assessmentSession.update({
       where: { id: conceptUnitSession.assessment_session.id },
       data: {
         needs_review: true,
-        needs_review_reason: "followup_evidence_ready_for_profile_update",
+        needs_review_reason:
+          readiness && !readiness.allowed
+            ? `followup_evidence_ready_for_profile_update:${readiness.block_reason}`
+            : "followup_evidence_ready_for_profile_update",
         last_activity_at: new Date()
       }
     });
@@ -872,8 +918,10 @@ export async function handleFollowupAssistantEvidence(input: {
       event_type: "followup_update_triggered",
       payload: {
         trigger_type: triggerType,
-        workflow_mode: "manual_review",
-        action: "teacher_review_required"
+        workflow_mode: conceptUnitSession.assessment_session.workflow_mode_snapshot,
+        action: "teacher_review_required",
+        operational_integration_blocked_reason:
+          readiness && !readiness.allowed ? readiness.block_reason : null
       }
     });
 

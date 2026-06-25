@@ -899,3 +899,35 @@ Phase 6A.5 must not implement:
   safe/usable, and all effective engineering gates passing.
 - Effective-system readiness is not classroom validity and must not enable
   classroom live calls.
+
+## Phase 8A Guarded Operational Agent Integration Lock
+
+- Phase 8A connects evaluated agent infrastructure to local operational workflow
+  boundaries only behind `OPERATIONAL_AGENT_INTEGRATION_ENABLED`.
+- The default remains `OPERATIONAL_AGENT_INTEGRATION_ENABLED=false`,
+  `LLM_PROVIDER=mock`, and `LLM_LIVE_CALLS_ENABLED=false`.
+- Enabling the Phase 8A integration gate must not enable live OpenAI calls.
+  The guard explicitly blocks classroom workflow integration if
+  `LLM_PROVIDER=openai` or `LLM_LIVE_CALLS_ENABLED=true`.
+- The approved engineering evidence is targeted run `evr_20260624_bltzgtq`:
+  raw model review 20 Pass / 2 Fail, `effective-system-eval-v1` 20 Pass / 2
+  Fail, and `effective-system-eval-v2` 22 Pass / 0 Fail with zero critical
+  failures.
+- The approved recommendation is `ready_for_guarded_integration_patch` with
+  `classroom_validity=false` and `human_review_pending=true`. This is
+  provisional engineering readiness only.
+- `OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED=true` must verify the
+  approved targeted report before guarded local workflow integration is allowed.
+  Synthetic smoke tests may set it to `false` only with mock provider and live
+  calls disabled.
+- Active prompt and schema versions must match the evaluated targeted
+  remediation versions: `item-verification-v4`, `response-collection-v5`,
+  `student-profiling-v3`, `formative-planning-v2`, `followup-v6`, and their
+  locked provider schema versions.
+- When the gate is disabled, automatic profiling, planning, follow-up startup,
+  follow-up update, and concept-progression workflow jobs must not be enqueued
+  or executed. Queued guarded workflow jobs require a worker-side backstop.
+- Student initial-administration free-text Response Collection Agent execution
+  must fall back deterministically while the gate is disabled.
+- Phase 8A must not modify completed evaluation runs, outputs, annotations, or
+  audit records, and must not modify active prompts or provider schemas.

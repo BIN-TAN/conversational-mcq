@@ -1,6 +1,6 @@
 # LLM Infrastructure
 
-Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration. Phase 6C connects only the Formative Value and Planning Agent after a saved student profile. Phase 6D1 connects only the Follow-up Agent for the first open-ended follow-up conversation round. Phase 6D2B adds staged iterative follow-up evidence updates within the current concept unit. Phase 6D3 adds deterministic student-led concept progression and final assessment completion. Phase 7C connects the Response Collection Agent only for submitted free-text messages during initial administration. Phase 7D replaces the former Item Preparation concept with advisory Item Verification for teacher-authored item sets.
+Phase 6A adds provider wiring, structured-output contracts, prompt registry metadata, and agent-call audit logging. Phase 6A.5 adds classroom access controls, usage-limit checks, live-call readiness checks, and teacher-visible usage monitoring. Phase 6B connects only the Student Profiling Agent after initial concept-unit administration. Phase 6C connects only the Formative Value and Planning Agent after a saved student profile. Phase 6D1 connects only the Follow-up Agent for the first open-ended follow-up conversation round. Phase 6D2B adds staged iterative follow-up evidence updates within the current concept unit. Phase 6D3 adds deterministic student-led concept progression and final assessment completion. Phase 7C connects the Response Collection Agent only for submitted free-text messages during initial administration. Phase 7D replaces the former Item Preparation concept with advisory Item Verification for teacher-authored item sets. Phase 8A adds a default-off guarded operational integration gate for local mock-mode workflow wiring.
 
 ## Phase Boundary
 
@@ -97,6 +97,21 @@ Phase 7D implements:
 - Teacher-only verification APIs and UI.
 - Mock verification fixtures and smoke tests that do not call OpenAI.
 
+Phase 8A implements:
+
+- Default-off `OPERATIONAL_AGENT_INTEGRATION_ENABLED` workflow gate.
+- Verification of approved targeted evaluation evidence from
+  `evr_20260624_bltzgtq` when `OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED=true`.
+- Prompt/schema version matching against the evaluated targeted-remediation
+  versions.
+- Automatic workflow enqueue guards for profiling, planning, follow-up startup,
+  follow-up update, and concept progression jobs.
+- Worker-side backstop for queued guarded workflow jobs.
+- Deterministic Response Collection fallback while the operational integration
+  gate is disabled.
+- Teacher-visible operational integration status on `/teacher/system/llm`.
+- Status and smoke commands that make no OpenAI call.
+
 Not implemented through Phase 7D:
 
 - No automatic next-concept-unit movement.
@@ -166,6 +181,9 @@ Phase 6A LLM variables are optional unless intentionally enabling live connectiv
 - `FOLLOWUP_MESSAGE_MAX_CHARS`
 - `FOLLOWUP_CONTEXT_MAX_CHARS`
 - `FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE`
+- `OPERATIONAL_AGENT_INTEGRATION_ENABLED`
+- `OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED`
+- `OPERATIONAL_AGENT_INTEGRATION_APPROVED_TARGETED_RUN_ID`
 - `ALLOW_MOCK_RESPONSE_COLLECTION_IN_STUDENT_WORKFLOW`
 - `INITIAL_CHAT_MESSAGE_MAX_CHARS`
 - `RESPONSE_COLLECTION_CONTEXT_MAX_TURNS`
@@ -203,6 +221,10 @@ Phase 7C Response Collection Agent calls attach to the relevant assessment sessi
 
 Phase 7D Item Verification Agent calls attach to `item_verification_runs`, which link to teacher-authored concept units and preserve the content fingerprint, deterministic validation result, warning count, acknowledgement metadata, and optional agent-call audit link. They do not attach to student sessions and must not include student records.
 
+Phase 8A does not add a new agent-call type. It only decides whether evaluated
+agent services may be reached by local operational workflow boundaries. When
+the gate blocks execution, no successful agent-call row is fabricated.
+
 Phase 7E1 evaluation runs use the mock provider directly inside the evaluation harness. They reuse the active prompt/version metadata and output schemas, but they do not call `executeAgent`, do not write `agent_calls`, and do not mutate classroom workflow tables. Evaluation outputs are stored only in eval tables.
 
 Evaluation configuration defaults:
@@ -231,6 +253,10 @@ Teacher-only page:
 ```
 
 The page shows provider mode, whether live calls are enabled, whether an API key is configured, per-agent model readiness, prompt versions, schema versions, prompt statuses, current usage counts, limits, blocked-call counts, recent safe audit metadata, and safety boundaries. It never displays secrets or raw student evidence.
+
+In Phase 8A the page also shows the guarded operational integration state, the
+current block reason, and the approved targeted evaluation run. This is
+provisional engineering readiness only and does not claim classroom validity.
 
 ## Connectivity Test
 
@@ -276,6 +302,9 @@ npm run classroom:nonintervention-smoke
 npm run student:progression-ui-smoke
 npm run workflow:automation-smoke
 npm run workflow:worker-smoke
+npm run operational:guarded-integration-status
+npm run operational:guarded-integration-status -- --check-eval
+npm run operational:guarded-integration-smoke
 ```
 
 These tests validate schemas, prompt hashes, mock provider execution, retries, refusal/incomplete/invalid-output handling, audit logging, redaction, usage limits, safe status serialization, Student Profiling Agent integration, Formative Planning Agent integration, Follow-up Agent integration, iterative follow-up update cycles, final stop updates, student-led concept progression, final assessment completion, non-intervention classroom controls, student-safe updating states, idempotency, usage-blocked behavior, and isolated mock evaluation harness behavior. They do not call OpenAI.

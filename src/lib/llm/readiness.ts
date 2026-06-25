@@ -6,6 +6,7 @@ import {
   LlmConfigurationError
 } from "@/lib/llm/config";
 import { getTeacherLlmUsageStatus } from "@/lib/llm/usage/usage-serializers";
+import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 
 export async function getLlmReadiness() {
   try {
@@ -13,6 +14,9 @@ export async function getLlmReadiness() {
     const prompts = listAgentPrompts();
     const modelReadiness = agentModelReadiness();
     const usage = await getTeacherLlmUsageStatus();
+    const operationalIntegration = await getGuardedOperationalAgentIntegrationReadiness({
+      checkEvaluationEvidence: false
+    });
 
     return {
       provider: runtime.provider,
@@ -27,8 +31,9 @@ export async function getLlmReadiness() {
       ),
       prompt_statuses: Object.fromEntries(prompts.map((prompt) => [prompt.agent_name, prompt.status])),
       mock_provider_available: true,
-      agents_connected_to_classroom_workflows: false,
-      prompts_active_in_classroom_workflows: false,
+      agents_connected_to_classroom_workflows: operationalIntegration.allowed,
+      prompts_active_in_classroom_workflows: operationalIntegration.allowed,
+      guarded_operational_agent_integration: operationalIntegration,
       connectivity_test_uses_synthetic_data_only: true,
       students_use_openai_accounts: false,
       students_provide_api_keys: false,
@@ -50,6 +55,7 @@ export async function getLlmReadiness() {
         mock_provider_available: true,
         agents_connected_to_classroom_workflows: false,
         prompts_active_in_classroom_workflows: false,
+        guarded_operational_agent_integration: null,
         connectivity_test_uses_synthetic_data_only: true,
         students_use_openai_accounts: false,
         students_provide_api_keys: false,

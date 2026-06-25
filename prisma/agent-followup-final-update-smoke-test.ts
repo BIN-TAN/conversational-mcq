@@ -19,9 +19,21 @@ const prisma = new PrismaClient();
 const prefix = `phase6d2b_final_${Date.now()}_${randomUUID().slice(0, 8)}`;
 
 async function drainAll() {
-  const processed = await drainAvailableWorkflowJobsOnce({
-    worker_id: `${prefix}_worker`
-  });
+  const processed = [];
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    processed.push(
+      ...(await drainAvailableWorkflowJobsOnce({
+        worker_id: `${prefix}_worker_${attempt}`
+      }))
+    );
+
+    if (processed.length > 0) {
+      break;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
 
   assert(processed.length > 0, "Expected final update workflow jobs.");
   assert(
@@ -184,7 +196,9 @@ async function main() {
     FOLLOWUP_CONTEXT_MAX_TURNS: "8",
     FOLLOWUP_MESSAGE_MAX_CHARS: "1000",
     FOLLOWUP_CONTEXT_MAX_CHARS: "8000",
-    FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE: "3"
+    FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE: "3",
+    OPERATIONAL_AGENT_INTEGRATION_ENABLED: "true",
+    OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED: "false"
   });
 
   await cleanupFollowupSmoke(prisma, prefix);

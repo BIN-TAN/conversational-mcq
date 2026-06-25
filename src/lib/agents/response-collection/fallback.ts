@@ -3,6 +3,7 @@ import { analyzeResponseCollectionMessage } from "./reasoning-extraction";
 
 export type ResponseCollectionFallbackReason =
   | "deterministic_mode"
+  | "operational_integration_disabled"
   | "mock_provider_disabled"
   | "live_provider_not_ready"
   | "agent_execution_failed"

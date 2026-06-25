@@ -38,6 +38,8 @@ async function main() {
   process.env.LLM_PROVIDER = "mock";
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
   process.env.ALLOW_MOCK_RESPONSE_COLLECTION_IN_STUDENT_WORKFLOW = "true";
+  process.env.OPERATIONAL_AGENT_INTEGRATION_ENABLED = "true";
+  process.env.OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED = "false";
   await cleanupResponseCollectionFixture(prisma, prefix);
 
   const beforeProfiles = await prisma.studentProfile.count();
@@ -163,4 +165,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

@@ -114,6 +114,12 @@ const serverEnvSchema = z.object({
   RESPONSE_COLLECTION_CONTEXT_MAX_TURNS: positiveIntWithDefault(12),
   RESPONSE_COLLECTION_CONTEXT_MAX_CHARS: positiveIntWithDefault(20000),
   FOLLOWUP_SUBSTANTIVE_TURNS_BEFORE_UPDATE: positiveIntWithDefault(3),
+  OPERATIONAL_AGENT_INTEGRATION_ENABLED: booleanWithDefault(false),
+  OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED: booleanWithDefault(true),
+  OPERATIONAL_AGENT_INTEGRATION_APPROVED_TARGETED_RUN_ID: z
+    .string()
+    .min(1)
+    .default("evr_20260624_bltzgtq"),
   WORKFLOW_JOB_MAX_ATTEMPTS: positiveIntWithDefault(3),
   WORKFLOW_JOB_BASE_RETRY_MS: positiveIntWithDefault(5000),
   WORKFLOW_JOB_MAX_RETRY_MS: positiveIntWithDefault(300000),

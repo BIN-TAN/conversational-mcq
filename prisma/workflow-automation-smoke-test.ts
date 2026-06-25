@@ -17,6 +17,26 @@ import { generatePublicId } from "../src/lib/services/ids";
 const prisma = new PrismaClient();
 const prefix = `phase6d2a_workflow_${Date.now()}`;
 
+async function drainUntilAtLeast(input: { worker_id: string; expected_count: number }) {
+  const processed = [];
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    processed.push(
+      ...(await drainAvailableWorkflowJobsOnce({
+        worker_id: `${input.worker_id}_${attempt}`
+      }))
+    );
+
+    if (processed.length >= input.expected_count) {
+      return processed;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  return processed;
+}
+
 async function makeAutomaticFixture(suffix: string) {
   const fixture = await createFollowupSmokeFixture(prisma, {
     prefix,
@@ -60,6 +80,8 @@ async function main() {
     FOLLOWUP_CONTEXT_MAX_TURNS: "4",
     FOLLOWUP_MESSAGE_MAX_CHARS: "600",
     FOLLOWUP_CONTEXT_MAX_CHARS: "4000",
+    OPERATIONAL_AGENT_INTEGRATION_ENABLED: "true",
+    OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED: "false",
     DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED: "true",
     ALLOW_MANUAL_REVIEW_STUDENT_STARTS: "true"
   });
@@ -81,7 +103,10 @@ async function main() {
   const auto = await makeAutomaticFixture("auto");
   const enqueue = await enqueueInitialProfilingJobIfAutomatic(auto.conceptUnitSession.id);
   assert(enqueue?.created, "Automatic session should enqueue profiling job.");
-  const processed = await drainAvailableWorkflowJobsOnce({ worker_id: `${prefix}_worker` });
+  const processed = await drainUntilAtLeast({
+    worker_id: `${prefix}_worker`,
+    expected_count: 3
+  });
   assert(processed.length >= 3, "Automatic workflow should process available jobs.");
 
   const autoSession = await prisma.assessmentSession.findUniqueOrThrow({

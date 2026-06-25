@@ -17,6 +17,7 @@ import { updateAssessmentSessionPhase, markSessionExited } from "@/lib/services/
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { INCLUDED_ITEM_RANGE } from "@/lib/services/content/governance";
 import { enqueueInitialProfilingJobIfAutomatic } from "@/lib/workflow/automation";
+import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 import { getStudentProgressionStateBySessionDbId } from "@/lib/services/concept-progression/progression";
 import {
   assertStudentPayloadIsSafe,
@@ -879,6 +880,12 @@ export async function getStudentSessionState(input: {
     session.workflow_mode_snapshot === "automatic" &&
     (Boolean(session.automation_exception_reason) ||
       automaticJobs.some((job) => job.status === "failed"));
+  const automaticAgentIntegrationReady =
+    session.workflow_mode_snapshot === "automatic"
+      ? (await getGuardedOperationalAgentIntegrationReadiness({
+          checkEvaluationEvidence: true
+        })).allowed
+      : false;
 
   if (effectivePhase === "session_completed") {
     nextStep = "session_completed";
@@ -894,17 +901,17 @@ export async function getStudentSessionState(input: {
   } else if (automaticWorkflowFailed) {
     nextStep = "automatic_workflow_failed";
   } else if (
-    session.workflow_mode_snapshot === "automatic" &&
+    automaticAgentIntegrationReady &&
     (effectivePhase === "profiling_pending" || effectivePhase === "initial_concept_unit_completed")
   ) {
     nextStep = "automatic_profiling_pending";
   } else if (
-    session.workflow_mode_snapshot === "automatic" &&
+    automaticAgentIntegrationReady &&
     (effectivePhase === "profiling_completed" || effectivePhase === "planning_pending")
   ) {
     nextStep = "automatic_planning_pending";
   } else if (
-    session.workflow_mode_snapshot === "automatic" &&
+    automaticAgentIntegrationReady &&
     effectivePhase === "planning_completed"
   ) {
     nextStep = "automatic_followup_opening_pending";

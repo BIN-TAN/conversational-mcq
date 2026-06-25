@@ -100,6 +100,8 @@
     "eval:effective-system-report-smoke": "tsx prisma/eval-effective-system-report-smoke-test.ts",
     "eval:effective-system-blind-export-smoke": "tsx prisma/eval-effective-system-blind-export-smoke-test.ts",
     "eval:effective-system-annotation-smoke": "tsx prisma/eval-effective-system-annotation-smoke-test.ts",
+    "operational:guarded-integration-status": "tsx prisma/operational-guarded-integration-status.ts",
+    "operational:guarded-integration-smoke": "tsx prisma/operational-guarded-integration-smoke-test.ts",
     "agent:profiling-smoke": "tsx prisma/agent-profiling-smoke-test.ts",
     "agent:planning-smoke": "tsx prisma/agent-planning-smoke-test.ts",
     "agent:followup-smoke": "tsx prisma/agent-followup-smoke-test.ts",

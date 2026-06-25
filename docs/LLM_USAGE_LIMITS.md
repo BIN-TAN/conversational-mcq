@@ -49,7 +49,7 @@ type LlmUsageGuardResult =
     };
 ```
 
-Blocked calls do not call OpenAI and do not fabricate agent output. In Phase 7C initial-administration free-text handling, a blocked Response Collection Agent call falls back to deterministic safe wording and records fallback as process context rather than as a successful model call. In Phase 7D item verification, a blocked verification call leaves deterministic validation available and must not be represented as a completed LLM verification.
+Blocked calls do not call OpenAI and do not fabricate agent output. In Phase 7C initial-administration free-text handling, a blocked Response Collection Agent call falls back to deterministic safe wording and records fallback as process context rather than as a successful model call. In Phase 7D item verification, a blocked verification call leaves deterministic validation available and must not be represented as a completed LLM verification. In Phase 8A, the default-off operational integration gate can block workflow access to evaluated agent services before usage accounting or provider dispatch; this is a configuration boundary, not a model failure.
 
 ## Accounting Source
 
@@ -101,6 +101,18 @@ guards.
 
 The Phase 7E2A pricing registry is versioned as `openai-pricing-2026-06-22-v1` and estimates cost for `gpt-5.4-mini-2026-03-17`. Estimated cost is not an exact invoice.
 
+Phase 8A adds operational workflow integration flags:
+
+```text
+OPERATIONAL_AGENT_INTEGRATION_ENABLED=false
+OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED=true
+OPERATIONAL_AGENT_INTEGRATION_APPROVED_TARGETED_RUN_ID=evr_20260624_bltzgtq
+```
+
+These flags are separate from eval live-call settings and do not enable
+classroom OpenAI calls. The Phase 8A guard requires mock provider mode and live
+calls disabled.
+
 ## Smoke Tests
 
 ```bash
@@ -110,6 +122,7 @@ npm run workflow:automation-smoke
 npm run agent:item-verification-smoke
 npm run eval:harness-smoke
 npm run eval:budget-smoke
+npm run operational:guarded-integration-smoke
 ```
 
 These tests run without OpenAI network calls. The workflow smoke verifies automatic jobs use the same usage-guarded agent services in mock mode.

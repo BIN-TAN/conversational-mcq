@@ -20,6 +20,7 @@ export default async function TeacherLlmSystemPage() {
   const schemaVersions = readiness.schema_versions as Record<string, string>;
   const promptStatuses = readiness.prompt_statuses as Record<string, string>;
   const usage = readiness.usage;
+  const operationalIntegration = readiness.guarded_operational_agent_integration;
 
   return (
     <main className="min-h-screen px-6 py-8">
@@ -31,8 +32,9 @@ export default async function TeacherLlmSystemPage() {
           </p>
           <h1 className="mt-2 text-3xl font-semibold text-ink">LLM system status</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-            Phase 6A.5 adds classroom access controls, usage safeguards, and audit
-            visibility. No agent is connected to classroom workflows.
+            Phase 8A adds a default-off guarded operational integration switch for local
+            workflow testing. It does not enable live OpenAI calls and does not establish
+            classroom validity.
           </p>
         </header>
 
@@ -49,6 +51,18 @@ export default async function TeacherLlmSystemPage() {
           <StatusCard
             label="Mock provider"
             value={readiness.mock_provider_available ? "available" : "unavailable"}
+          />
+          <StatusCard
+            label="Operational integration"
+            value={operationalIntegration?.allowed ? "enabled" : "blocked"}
+          />
+          <StatusCard
+            label="Integration block reason"
+            value={operationalIntegration?.allowed ? "none" : operationalIntegration?.block_reason ?? "unknown"}
+          />
+          <StatusCard
+            label="Approved eval run"
+            value={operationalIntegration?.config.approved_targeted_run_public_id ?? "not configured"}
           />
           <StatusCard
             label="Class calls today"
@@ -213,8 +227,11 @@ export default async function TeacherLlmSystemPage() {
 
         <section className="mt-6 rounded-lg border border-line bg-white p-5 text-sm leading-6 text-muted shadow-soft">
           <h2 className="text-xl font-semibold text-ink">Safety boundaries</h2>
-          <p className="mt-3">No agent is connected to real classroom workflows.</p>
-          <p>Prompts remain draft and are not validated for live classroom use.</p>
+          <p className="mt-3">
+            Guarded operational integration is default-off and local-only in Phase 8A.
+          </p>
+          <p>Live OpenAI classroom calls remain disabled unless separate server-side settings are changed in a later approved phase.</p>
+          <p>The approved evaluation evidence is provisional engineering readiness, not classroom validity.</p>
           <p>Connectivity testing uses only fixed synthetic data.</p>
           <p>This page never displays an API key and does not provide a browser form for secrets.</p>
         </section>

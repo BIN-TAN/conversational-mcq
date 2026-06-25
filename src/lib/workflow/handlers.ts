@@ -26,6 +26,7 @@ import {
   finalizeConceptProgression,
   ConceptProgressionServiceError
 } from "@/lib/services/concept-progression/progression";
+import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 
 type HandlerResult = {
   outcome: "completed" | "retryable" | "failed";
@@ -42,6 +43,36 @@ function failureFromStatus(status: string): HandlerResult {
     outcome: isRetryableAgentStatus(status) ? "retryable" : "failed",
     error_category: status,
     error_message: `Agent workflow step returned ${status}.`
+  };
+}
+
+const guardedOperationalJobTypes = new Set([
+  "run_initial_profiling",
+  "run_initial_planning",
+  "start_initial_followup",
+  "run_followup_profile_update",
+  "run_followup_planning_update",
+  "finalize_followup_update",
+  "finalize_concept_progression"
+]);
+
+async function guardedOperationalIntegrationFailure(job: WorkflowJob): Promise<HandlerResult | null> {
+  if (!guardedOperationalJobTypes.has(job.job_type)) {
+    return null;
+  }
+
+  const readiness = await getGuardedOperationalAgentIntegrationReadiness({
+    checkEvaluationEvidence: true
+  });
+
+  if (readiness.allowed) {
+    return null;
+  }
+
+  return {
+    outcome: "failed",
+    error_category: readiness.block_reason,
+    error_message: `Workflow job ${job.job_type} blocked by Phase 8A guarded operational integration gate: ${readiness.block_reason}.`
   };
 }
 
@@ -306,6 +337,12 @@ async function handleConceptProgressionFinalize(job: WorkflowJob): Promise<Handl
 }
 
 export async function handleWorkflowJob(job: WorkflowJob): Promise<HandlerResult> {
+  const guardedFailure = await guardedOperationalIntegrationFailure(job);
+
+  if (guardedFailure) {
+    return guardedFailure;
+  }
+
   if (job.job_type === "run_initial_profiling") {
     return handleInitialProfiling(job);
   }

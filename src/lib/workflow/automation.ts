@@ -1,5 +1,6 @@
 import type { AssessmentWorkflowMode } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 import { enqueueWorkflowJob, type WorkflowJobSummary } from "./jobs";
 
 export type SessionAutomationState =
@@ -72,6 +73,14 @@ export async function enqueueInitialProfilingJobIfAutomatic(conceptUnitSessionDb
     return null;
   }
 
+  const readiness = await getGuardedOperationalAgentIntegrationReadiness({
+    checkEvaluationEvidence: true
+  });
+
+  if (!readiness.allowed) {
+    return null;
+  }
+
   return enqueueWorkflowJob({
     job_type: "run_initial_profiling",
     assessment_session_db_id: context.assessment_session_db_id,
@@ -116,6 +125,14 @@ export async function enqueueInitialPlanningJob(conceptUnitSessionDbId: string) 
     return null;
   }
 
+  const readiness = await getGuardedOperationalAgentIntegrationReadiness({
+    checkEvaluationEvidence: true
+  });
+
+  if (!readiness.allowed) {
+    return null;
+  }
+
   return enqueueWorkflowJob({
     job_type: "run_initial_planning",
     assessment_session_db_id: context.assessment_session_db_id,
@@ -157,6 +174,14 @@ export async function enqueueInitialFollowupStartupJob(conceptUnitSessionDbId: s
   });
 
   if (!context?.latest_formative_decision_db_id) {
+    return null;
+  }
+
+  const readiness = await getGuardedOperationalAgentIntegrationReadiness({
+    checkEvaluationEvidence: true
+  });
+
+  if (!readiness.allowed) {
     return null;
   }
 
