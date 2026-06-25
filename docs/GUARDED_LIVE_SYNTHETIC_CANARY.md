@@ -49,6 +49,7 @@ No-provider checks:
 ```bash
 npm run operational:live-canary:preflight
 npm run operational:live-canary:dry-run
+npm run operational:live-canary-db-resolution-smoke
 ```
 
 Paid command, for a future manual run only:
@@ -83,6 +84,12 @@ conversational_mcq_live_canary_e2e
 ```
 
 The canary DB tools refuse to operate on `conversational_mcq` or `conversational_mcq_e2e`.
+Database URL resolution is canonical and idempotent: resolving the base
+`conversational_mcq` URL produces exactly one `_live_canary_e2e` suffix, and
+resolving an already isolated URL returns the same URL. Repeated malformed
+suffixes such as `_live_canary_live_canary_e2e` fail closed. The parent
+`DATABASE_URL` remains the base URL; Prisma clients and app/worker child
+processes receive the isolated canary URL explicitly.
 
 ## Scope
 

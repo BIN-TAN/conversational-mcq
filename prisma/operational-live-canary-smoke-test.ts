@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import {
   createCanaryRunSkeleton,
+  createCanaryPrismaClient,
   createOperationalLiveCanaryDryRun,
   createOperationalLiveCanaryPreflightReport,
   createOperationalLiveCanaryReport,
@@ -11,12 +12,19 @@ import {
   inspectOperationalLiveCanaryRun,
   loadOperationalLiveCanaryManifest,
   manifestHash,
+  operationalLiveCanaryDatabaseResolution,
   operationalLiveCanaryDatabaseName,
   runOperationalLiveCanary,
   validateOperationalLiveCanaryManifest
 } from "../src/lib/services/operational-live-canary/service";
 import {
+  resolveOperationalLiveCanaryDatabaseUrl
+} from "../src/lib/services/operational-live-canary/database-url";
+import {
   LIVE_CANARY_DATABASE_SUFFIX,
+  databaseName,
+  defaultDatabaseUrl,
+  liveCanaryEnv,
   liveCanaryDatabaseUrl,
   runCommand
 } from "./operational-live-canary-shared";
@@ -30,7 +38,8 @@ type SuiteName =
   | "network"
   | "review-export"
   | "report"
-  | "isolation";
+  | "isolation"
+  | "db-resolution";
 
 function argValue(name: string) {
   const index = process.argv.indexOf(name);
@@ -196,6 +205,79 @@ async function isolationSmoke() {
   assert(!JSON.stringify(inspect).match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i), "Inspect output should not expose internal UUIDs.");
 }
 
+async function dbResolutionSmoke() {
+  const baseUrl = "postgresql://user:pass@localhost:5432/conversational_mcq?schema=public";
+  const expectedName = "conversational_mcq_live_canary_e2e";
+  const resolved = resolveOperationalLiveCanaryDatabaseUrl(baseUrl);
+  assert(resolved.effective_canary_database_name === expectedName, "Base DB should resolve to one live-canary suffix.");
+  assert(resolved.database_name_was_already_isolated === false, "Base DB should not be reported as already isolated.");
+
+  const isolatedUrl = resolved.isolated_canary_database_url;
+  const alreadyIsolated = resolveOperationalLiveCanaryDatabaseUrl(isolatedUrl);
+  assert(alreadyIsolated.isolated_canary_database_url === isolatedUrl, "Already-isolated URL should remain unchanged.");
+  assert(alreadyIsolated.database_name_was_already_isolated, "Already-isolated URL should be reported.");
+
+  let iterated = isolatedUrl;
+  for (let index = 0; index < 10; index += 1) {
+    iterated = resolveOperationalLiveCanaryDatabaseUrl(iterated).isolated_canary_database_url;
+  }
+  assert(iterated === isolatedUrl, "Resolver should remain idempotent after ten calls.");
+
+  for (const malformedName of [
+    "conversational_mcq_live_canary_live_canary_e2e",
+    "conversational_mcq_live_canary_live_canary_live_canary_e2e"
+  ]) {
+    let rejected = false;
+    try {
+      resolveOperationalLiveCanaryDatabaseUrl(`postgresql://user:pass@localhost:5432/${malformedName}?schema=public`);
+    } catch (error) {
+      rejected = error instanceof Error && error.message.includes("malformed");
+    }
+    assert(rejected, `Malformed repeated suffix should be rejected: ${malformedName}`);
+  }
+
+  const parentDatabaseUrl = process.env.DATABASE_URL;
+  const currentResolution = operationalLiveCanaryDatabaseResolution();
+  const currentCanaryName = currentResolution.effective_canary_database_name;
+  const preflight = await createOperationalLiveCanaryPreflightReport();
+  assert(
+    preflight.isolated_database.effective_canary_database_name === currentCanaryName,
+    "Preflight should report the canonical canary database name."
+  );
+  assert(preflight.isolated_database.resolver_idempotency_passed, "Preflight resolver idempotency should pass.");
+
+  await ensureDatabaseReady();
+  const dryRun = await createOperationalLiveCanaryDryRun();
+  assert(dryRun.isolated_database.effective_canary_database_name === currentCanaryName, "Dry run DB name should match preflight.");
+  assert(process.env.DATABASE_URL === parentDatabaseUrl, "Dry run must not mutate parent DATABASE_URL.");
+
+  const blocked = await runOperationalLiveCanary({ confirmPaidApi: true, newRun: true });
+  assert(blocked.status === "blocked", "Default paid setup should be blocked before provider execution.");
+  assert(process.env.DATABASE_URL === parentDatabaseUrl, "Blocked paid setup must not mutate parent DATABASE_URL.");
+
+  const childEnv = liveCanaryEnv();
+  assert(databaseName(childEnv.DATABASE_URL) === currentCanaryName, "App/worker child env should receive canonical canary DB.");
+  assert(
+    childEnv.OPERATIONAL_LIVE_CANARY_DATABASE_URL &&
+      databaseName(childEnv.OPERATIONAL_LIVE_CANARY_DATABASE_URL) === currentCanaryName,
+    "Child env should carry canonical OPERATIONAL_LIVE_CANARY_DATABASE_URL."
+  );
+
+  const canaryPrisma = createCanaryPrismaClient(currentResolution.isolated_canary_database_url);
+  try {
+    const manifest = await loadOperationalLiveCanaryManifest();
+    const count = await canaryPrisma.assessment.count({
+      where: { assessment_public_id: manifest.synthetic_assessment_id }
+    });
+    assert(count === 1, "Fixture cleanup/seed should use the injected isolated Prisma client.");
+  } finally {
+    await canaryPrisma.$disconnect();
+  }
+
+  assert(!liveCanaryDatabaseUrl().includes("conversational_mcq?"), "Normal development DB must not be used as canary DB.");
+  assert(defaultDatabaseUrl() === parentDatabaseUrl || Boolean(parentDatabaseUrl) === false, "Parent default DB URL should remain stable.");
+}
+
 async function dryRunSmoke() {
   runCommand("npx", ["tsx", "prisma/operational-live-canary-db.ts", "reset"], {
     timeoutMs: 120_000
@@ -228,6 +310,8 @@ async function main() {
   } else if (suite === "isolation") {
     await ensureDatabaseReady();
     await isolationSmoke();
+  } else if (suite === "db-resolution") {
+    await dbResolutionSmoke();
   } else {
     throw new Error(`Unknown operational live canary smoke suite: ${suite}`);
   }

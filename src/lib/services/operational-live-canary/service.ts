@@ -13,6 +13,15 @@ import { getServerEnv } from "@/lib/env";
 import { hashSecret } from "@/lib/password";
 import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
+import {
+  DEFAULT_OPERATIONAL_LIVE_CANARY_BASE_DATABASE_URL,
+  OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX,
+  assertOperationalLiveCanaryDatabaseUrl,
+  databaseNameFromUrl,
+  redactedOperationalLiveCanaryDatabaseUrl,
+  resolveOperationalLiveCanaryDatabaseUrl,
+  type OperationalLiveCanaryDatabaseResolution
+} from "./database-url";
 
 export const OPERATIONAL_LIVE_CANARY_MANIFEST_PATH = path.join(
   process.cwd(),
@@ -26,7 +35,6 @@ export const OPERATIONAL_LIVE_CANARY_REPORT_ROOT = path.join(
   ".data",
   "operational-live-canary"
 );
-export const OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX = "_live_canary_e2e";
 export const OPERATIONAL_LIVE_CANARY_MODEL = "gpt-5.4-mini-2026-03-17";
 export const OPERATIONAL_LIVE_CANARY_REASONING_EFFORT = "low";
 export const OPERATIONAL_LIVE_CANARY_BUDGET_LIMIT_USD = 15;
@@ -144,57 +152,37 @@ function safeGitCommit() {
 export function defaultDatabaseUrl() {
   return (
     process.env.DATABASE_URL ||
-    "postgresql://conversational_mcq:conversational_mcq_dev_password@localhost:5432/conversational_mcq?schema=public"
+    DEFAULT_OPERATIONAL_LIVE_CANARY_BASE_DATABASE_URL
   );
 }
 
-export function operationalLiveCanaryDatabaseUrl() {
+export function operationalLiveCanaryDatabaseResolution(): OperationalLiveCanaryDatabaseResolution {
   if (process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL?.trim()) {
     assertOperationalLiveCanaryDatabaseUrl(process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL);
-    return process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL;
+    return resolveOperationalLiveCanaryDatabaseUrl(process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL);
   }
 
-  const url = new URL(defaultDatabaseUrl());
-  const currentName = decodeURIComponent(url.pathname.replace(/^\//, ""));
-  const baseName = currentName.endsWith("_e2e") ? currentName.slice(0, -"_e2e".length) : currentName;
-  const nextName = baseName.endsWith(OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX)
-    ? baseName
-    : `${baseName}${OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX}`;
-  url.pathname = `/${nextName}`;
-  const value = url.toString();
-  assertOperationalLiveCanaryDatabaseUrl(value);
-  return value;
+  return resolveOperationalLiveCanaryDatabaseUrl(defaultDatabaseUrl());
+}
+
+export function operationalLiveCanaryDatabaseUrl() {
+  return operationalLiveCanaryDatabaseResolution().isolated_canary_database_url;
 }
 
 export function operationalLiveCanaryDatabaseName(databaseUrl = operationalLiveCanaryDatabaseUrl()) {
-  return decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\//, ""));
+  return databaseNameFromUrl(databaseUrl);
 }
 
 export function redactedDatabaseUrl(databaseUrl = operationalLiveCanaryDatabaseUrl()) {
-  const url = new URL(databaseUrl);
-  if (url.password) {
-    url.password = "REDACTED";
-  }
-  return url.toString();
+  return redactedOperationalLiveCanaryDatabaseUrl(databaseUrl);
 }
 
-export function assertOperationalLiveCanaryDatabaseUrl(databaseUrl: string) {
-  const name = operationalLiveCanaryDatabaseName(databaseUrl);
-  if (!name.endsWith(OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX)) {
-    throw new Error(
-      `Operational live canary database '${name}' must end with '${OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX}'.`
-    );
-  }
-  if (name === "conversational_mcq" || name === "conversational_mcq_e2e") {
-    throw new Error(`Operational live canary refuses to use reserved database '${name}'.`);
-  }
-}
-
-export function createCanaryPrismaClient() {
+export function createCanaryPrismaClient(databaseUrl = operationalLiveCanaryDatabaseUrl()) {
+  assertOperationalLiveCanaryDatabaseUrl(databaseUrl);
   return new PrismaClient({
     datasources: {
       db: {
-        url: operationalLiveCanaryDatabaseUrl()
+        url: databaseUrl
       }
     },
     log: ["error"]
@@ -330,7 +318,8 @@ export async function createOperationalLiveCanaryPreflightReport() {
   const manifest = await loadOperationalLiveCanaryManifest();
   const validation = validateOperationalLiveCanaryManifest(manifest);
   const config = liveCanaryConfigSnapshot();
-  const databaseName = operationalLiveCanaryDatabaseName();
+  const databaseResolution = operationalLiveCanaryDatabaseResolution();
+  const databaseName = databaseResolution.effective_canary_database_name;
   const blockingReasons: string[] = [];
 
   if (!databaseName.endsWith(OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX)) {
@@ -384,10 +373,14 @@ export async function createOperationalLiveCanaryPreflightReport() {
     paid_execution_permitted: blockingReasons.length === 0,
     blocking_reasons: blockingReasons,
     isolated_database: {
+      base_database_name: databaseResolution.base_database_name,
+      effective_canary_database_name: databaseResolution.effective_canary_database_name,
       database_name: databaseName,
-      database_url: redactedDatabaseUrl(),
-      guard_suffix: OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX,
-      guard_passed: databaseName.endsWith(OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX)
+      database_url: redactedDatabaseUrl(databaseResolution.isolated_canary_database_url),
+      database_name_was_already_isolated: databaseResolution.database_name_was_already_isolated,
+      resolver_idempotency_passed: databaseResolution.resolver_idempotency_passed,
+      guard_suffix: databaseResolution.guard_suffix,
+      guard_passed: databaseResolution.guard_passed
     },
     production_runtime: {
       build_command: "npm run build",
@@ -598,7 +591,8 @@ export async function seedOperationalLiveCanaryFixture(prisma = createCanaryPris
 export async function createOperationalLiveCanaryDryRun() {
   const manifest = await loadOperationalLiveCanaryManifest();
   const validation = validateOperationalLiveCanaryManifest(manifest);
-  const prisma = createCanaryPrismaClient();
+  const databaseResolution = operationalLiveCanaryDatabaseResolution();
+  const prisma = createCanaryPrismaClient(databaseResolution.isolated_canary_database_url);
 
   try {
     const fixture = await seedOperationalLiveCanaryFixture(prisma);
@@ -633,6 +627,14 @@ export async function createOperationalLiveCanaryDryRun() {
       label: "guarded-live synthetic operational canary dry run",
       paid_api_request_made: false,
       fixture,
+      isolated_database: {
+        base_database_name: databaseResolution.base_database_name,
+        effective_canary_database_name: databaseResolution.effective_canary_database_name,
+        database_name_was_already_isolated: databaseResolution.database_name_was_already_isolated,
+        resolver_idempotency_passed: databaseResolution.resolver_idempotency_passed,
+        guard_suffix: databaseResolution.guard_suffix,
+        guard_passed: databaseResolution.guard_passed
+      },
       manifest: {
         manifest_version: manifest.manifest_version,
         manifest_hash: validation.manifest_hash,
@@ -679,10 +681,12 @@ export async function createCanaryRunSkeleton(input: {
   status?: string;
   runPublicId?: string;
   markCompletedSteps?: boolean;
+  prisma?: PrismaClient;
 }) {
   const manifest = await loadOperationalLiveCanaryManifest();
   const validation = validateOperationalLiveCanaryManifest(manifest);
-  const prisma = createCanaryPrismaClient();
+  const prisma = input.prisma ?? createCanaryPrismaClient();
+  const ownsClient = !input.prisma;
   const runPublicId = input.runPublicId ?? generatePublicId("operational_canary_run");
 
   try {
@@ -736,7 +740,9 @@ export async function createCanaryRunSkeleton(input: {
       include: { steps: { orderBy: { step_order: "asc" } }, annotations: true }
     });
   } finally {
-    await prisma.$disconnect();
+    if (ownsClient) {
+      await prisma.$disconnect();
+    }
   }
 }
 
@@ -1050,8 +1056,10 @@ function buildSyntheticOperationalAgentInput(
   return followupInput(manifest, point);
 }
 
-function preparePaidCanaryProcessEnv() {
-  process.env.DATABASE_URL = operationalLiveCanaryDatabaseUrl();
+function preparePaidCanaryProcessEnv(isolatedCanaryDatabaseUrl: string) {
+  assertOperationalLiveCanaryDatabaseUrl(isolatedCanaryDatabaseUrl);
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = isolatedCanaryDatabaseUrl;
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE = "true";
   if (!process.env.OPERATIONAL_APPROVED_CONFIG_HASH && process.env.OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH) {
     process.env.OPERATIONAL_APPROVED_CONFIG_HASH = process.env.OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH;
   }
@@ -1210,7 +1218,6 @@ export async function runOperationalLiveCanary(input: {
     throw new Error("Paid operational live canary requires --new-run or --resume <run_public_id>.");
   }
 
-  preparePaidCanaryProcessEnv();
   const preflight = await createOperationalLiveCanaryPreflightReport();
   if (!preflight.paid_execution_permitted) {
     return {
@@ -1222,7 +1229,8 @@ export async function runOperationalLiveCanary(input: {
   }
 
   const manifest = await loadOperationalLiveCanaryManifest();
-  const prisma = createCanaryPrismaClient();
+  const databaseResolution = operationalLiveCanaryDatabaseResolution();
+  const prisma = createCanaryPrismaClient(databaseResolution.isolated_canary_database_url);
 
   try {
     if (input.newRun) {
@@ -1230,8 +1238,8 @@ export async function runOperationalLiveCanary(input: {
     }
 
     const run = input.newRun
-      ? await createCanaryRunSkeleton({ status: "created" })
-      : await getCanaryRunOrThrow(input.resumeRunPublicId ?? "");
+      ? await createCanaryRunSkeleton({ status: "created", prisma })
+      : await getCanaryRunOrThrow(input.resumeRunPublicId ?? "", prisma);
 
     if (run.status === "completed") {
       throw new Error("Completed operational live canary runs cannot be resumed.");
@@ -1242,6 +1250,8 @@ export async function runOperationalLiveCanary(input: {
     if (run.approved_config_hash !== manifest.approved_operational_configuration_hash) {
       throw new Error("Operational live canary approved configuration mismatch blocks run or resume.");
     }
+
+    preparePaidCanaryProcessEnv(databaseResolution.isolated_canary_database_url);
 
     await prisma.operationalLiveCanaryRun.update({
       where: { run_public_id: run.run_public_id },
@@ -1380,8 +1390,9 @@ export async function runOperationalLiveCanary(input: {
   }
 }
 
-async function getCanaryRunOrThrow(runPublicId: string) {
-  const prisma = createCanaryPrismaClient();
+async function getCanaryRunOrThrow(runPublicId: string, prismaInput?: PrismaClient) {
+  const prisma = prismaInput ?? createCanaryPrismaClient();
+  const ownsClient = !prismaInput;
   try {
     const run = await prisma.operationalLiveCanaryRun.findUnique({
       where: { run_public_id: runPublicId },
@@ -1392,7 +1403,9 @@ async function getCanaryRunOrThrow(runPublicId: string) {
     }
     return run;
   } finally {
-    await prisma.$disconnect();
+    if (ownsClient) {
+      await prisma.$disconnect();
+    }
   }
 }
 

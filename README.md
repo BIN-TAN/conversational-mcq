@@ -1188,7 +1188,15 @@ No-provider commands:
 ```bash
 npm run operational:live-canary:preflight
 npm run operational:live-canary:dry-run
+npm run operational:live-canary-db-resolution-smoke
 ```
+
+The live-canary database resolver is idempotent: `conversational_mcq` resolves
+to `conversational_mcq_live_canary_e2e`, while an already isolated
+`conversational_mcq_live_canary_e2e` remains unchanged. Repeated malformed
+suffixes such as `_live_canary_live_canary_e2e` are rejected. The parent
+`DATABASE_URL` is not rewritten; canary Prisma clients and child processes
+receive the isolated URL explicitly.
 
 Future paid command, only after manual server-side configuration:
 

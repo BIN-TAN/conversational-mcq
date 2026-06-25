@@ -11,6 +11,10 @@ import {
   redactedDatabaseUrl,
   runCommand
 } from "./operational-live-canary-shared";
+import {
+  databaseNameFromUrl,
+  resolveOperationalLiveCanaryDatabaseUrl
+} from "../src/lib/services/operational-live-canary/database-url";
 
 function assertGitPreflight() {
   runCommand("git", ["rev-parse", "--is-inside-work-tree"]);
@@ -34,7 +38,8 @@ function assertGitPreflight() {
 }
 
 async function preflight() {
-  assertLiveCanaryDatabaseUrl(liveCanaryDatabaseUrl());
+  const resolution = resolveOperationalLiveCanaryDatabaseUrl(liveCanaryDatabaseUrl());
+  assertLiveCanaryDatabaseUrl(resolution.isolated_canary_database_url);
   assertGitPreflight();
   runCommand("docker", ["compose", "ps", "postgres"]);
 
@@ -46,9 +51,15 @@ async function preflight() {
     JSON.stringify(
       {
         status: "ok",
+        base_database_name: databaseNameFromUrl(defaultDatabaseUrl()),
+        effective_canary_database_name: databaseName(),
         database_name: databaseName(),
         database_url: redactedDatabaseUrl(),
         normal_database_url: redactedDatabaseUrl(defaultDatabaseUrl()),
+        database_name_was_already_isolated: resolution.database_name_was_already_isolated,
+        resolver_idempotency_passed: resolution.resolver_idempotency_passed,
+        guard_suffix: resolution.guard_suffix,
+        guard_passed: resolution.guard_passed,
         live_canary_database_exists: exists,
         tracked_worktree_clean: gitStatus.length === 0,
         tracked_worktree_changes: gitStatus,

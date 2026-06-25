@@ -971,6 +971,10 @@ Phase 6A.5 must not implement:
 - The canary is CLI-only, synthetic-only, and isolated to a database ending in
   `_live_canary_e2e`; scripts must refuse the normal development DB and the
   Phase 8B `_e2e` database.
+- Live-canary database URL resolution must be canonical and idempotent. The
+  base database URL and isolated canary database URL remain separate, repeated
+  `_live_canary` suffixes fail closed, and commands must not permanently
+  rewrite the parent process `DATABASE_URL`.
 - Normal defaults remain `OPERATIONAL_AGENT_MODE=disabled`,
   `LLM_PROVIDER=mock`, `LLM_LIVE_CALLS_ENABLED=false`, and
   `OPERATIONAL_LIVE_CANARY_ENABLED=false`.

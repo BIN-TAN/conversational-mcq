@@ -100,5 +100,9 @@ database, exact approved configuration hash, exact model snapshot
 `gpt-5.4-mini-2026-03-17`, reasoning effort `low`, network allowlisting, budget
 guards, and a CLI `--confirm-paid-api` flag.
 
+The isolated database URL is resolved idempotently and passed explicitly to
+canary Prisma clients and child processes. The parent `DATABASE_URL` should
+remain pointed at the normal local database.
+
 The canary uses synthetic accounts and synthetic assessment content only. It
 must not read real, deidentified, or summative outcome data.

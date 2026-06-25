@@ -6,7 +6,7 @@ function argValue(name: string) {
 }
 
 async function main() {
-  process.env.DATABASE_URL = liveCanaryDatabaseUrl();
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = liveCanaryDatabaseUrl();
   const { runOperationalLiveCanary } = await import("../src/lib/services/operational-live-canary/service");
   const confirmPaidApi = process.argv.includes("--confirm-paid-api");
   const newRun = process.argv.includes("--new-run");

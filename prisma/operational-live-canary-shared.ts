@@ -3,6 +3,14 @@ import { execFileSync, spawnSync, type SpawnSyncOptionsWithStringEncoding } from
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadEnvConfig } from "@next/env";
+import {
+  DEFAULT_OPERATIONAL_LIVE_CANARY_BASE_DATABASE_URL,
+  OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX,
+  assertOperationalLiveCanaryDatabaseUrl,
+  databaseNameFromUrl,
+  redactedOperationalLiveCanaryDatabaseUrl,
+  resolveOperationalLiveCanaryDatabaseUrl
+} from "../src/lib/services/operational-live-canary/database-url";
 
 loadEnvConfig(process.cwd());
 
@@ -11,7 +19,7 @@ export const LIVE_CANARY_HOST = "127.0.0.1";
 export const LIVE_CANARY_BASE_URL =
   process.env.OPERATIONAL_LIVE_CANARY_BASE_URL?.trim() ||
   `http://${LIVE_CANARY_HOST}:${LIVE_CANARY_PORT}`;
-export const LIVE_CANARY_DATABASE_SUFFIX = "_live_canary_e2e";
+export const LIVE_CANARY_DATABASE_SUFFIX = OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX;
 export const LIVE_CANARY_REPORT_ROOT = path.join(process.cwd(), ".data", "operational-live-canary");
 export const LIVE_CANARY_SESSION_SECRET =
   "phase8c-live-canary-session-secret-never-use-in-production";
@@ -45,7 +53,7 @@ export function timestampCanaryRunId() {
 export function defaultDatabaseUrl() {
   return (
     process.env.DATABASE_URL ||
-    "postgresql://conversational_mcq:conversational_mcq_dev_password@localhost:5432/conversational_mcq?schema=public"
+    DEFAULT_OPERATIONAL_LIVE_CANARY_BASE_DATABASE_URL
   );
 }
 
@@ -55,22 +63,11 @@ export function liveCanaryDatabaseUrl() {
     return process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL;
   }
 
-  const url = new URL(defaultDatabaseUrl());
-  const currentName = decodeURIComponent(url.pathname.replace(/^\//, ""));
-  const baseName = currentName.endsWith("_e2e")
-    ? currentName.slice(0, -"_e2e".length)
-    : currentName;
-  const nextName = baseName.endsWith(LIVE_CANARY_DATABASE_SUFFIX)
-    ? baseName
-    : `${baseName}${LIVE_CANARY_DATABASE_SUFFIX}`;
-  url.pathname = `/${nextName}`;
-  const value = url.toString();
-  assertLiveCanaryDatabaseUrl(value);
-  return value;
+  return resolveOperationalLiveCanaryDatabaseUrl(defaultDatabaseUrl()).isolated_canary_database_url;
 }
 
 export function databaseName(databaseUrl = liveCanaryDatabaseUrl()) {
-  return decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\//, ""));
+  return databaseNameFromUrl(databaseUrl);
 }
 
 export function databaseUser(databaseUrl = liveCanaryDatabaseUrl()) {
@@ -78,32 +75,20 @@ export function databaseUser(databaseUrl = liveCanaryDatabaseUrl()) {
 }
 
 export function assertLiveCanaryDatabaseUrl(databaseUrl: string) {
-  const name = decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\//, ""));
-
-  if (!name.endsWith(LIVE_CANARY_DATABASE_SUFFIX)) {
-    throw new Error(
-      `Refusing live canary database operation because database '${name}' does not end with '${LIVE_CANARY_DATABASE_SUFFIX}'.`
-    );
-  }
-
-  if (name === "conversational_mcq" || name === "conversational_mcq_e2e") {
-    throw new Error(`Refusing live canary database operation against reserved database '${name}'.`);
-  }
+  assertOperationalLiveCanaryDatabaseUrl(databaseUrl);
 }
 
 export function redactedDatabaseUrl(databaseUrl = liveCanaryDatabaseUrl()) {
-  const url = new URL(databaseUrl);
-  if (url.password) {
-    url.password = "REDACTED";
-  }
-  return url.toString();
+  return redactedOperationalLiveCanaryDatabaseUrl(databaseUrl);
 }
 
 export function liveCanaryEnv(overrides: Record<string, string | undefined> = {}): NodeJS.ProcessEnv {
+  const isolatedCanaryDatabaseUrl = liveCanaryDatabaseUrl();
   const env = {
     ...process.env,
     NODE_ENV: "production",
-    DATABASE_URL: liveCanaryDatabaseUrl(),
+    DATABASE_URL: isolatedCanaryDatabaseUrl,
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL: isolatedCanaryDatabaseUrl,
     SESSION_SECRET: process.env.SESSION_SECRET || LIVE_CANARY_SESSION_SECRET,
     COURSE_TIMEZONE: "America/Edmonton",
     OPERATIONAL_AGENT_MODE: "guarded_live",
