@@ -1,4 +1,9 @@
 export const OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX = "_live_canary_e2e";
+export const OPERATIONAL_LIVE_CANARY_SMOKE_DATABASE_SUFFIX = "_live_canary_smoke_e2e";
+export const OPERATIONAL_LIVE_CANARY_ALLOWED_DATABASE_SUFFIXES = [
+  OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX,
+  OPERATIONAL_LIVE_CANARY_SMOKE_DATABASE_SUFFIX
+] as const;
 
 export const DEFAULT_OPERATIONAL_LIVE_CANARY_BASE_DATABASE_URL =
   "postgresql://conversational_mcq:conversational_mcq_dev_password@localhost:5432/conversational_mcq?schema=public";
@@ -37,12 +42,19 @@ export function redactedOperationalLiveCanaryDatabaseUrl(databaseUrl: string) {
   return url.toString();
 }
 
+function canarySuffixForDatabaseName(databaseName: string) {
+  return OPERATIONAL_LIVE_CANARY_ALLOWED_DATABASE_SUFFIXES.find((suffix) =>
+    databaseName.endsWith(suffix)
+  ) ?? null;
+}
+
 function isCanonicalLiveCanaryDatabaseName(databaseName: string) {
-  if (!databaseName.endsWith(OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX)) {
+  const suffix = canarySuffixForDatabaseName(databaseName);
+  if (!suffix) {
     return false;
   }
 
-  const prefix = databaseName.slice(0, -OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX.length);
+  const prefix = databaseName.slice(0, -suffix.length);
   return !prefix.includes("_live_canary");
 }
 
@@ -55,7 +67,7 @@ function assertNoMalformedLiveCanaryName(databaseName: string) {
   if (!isCanonicalLiveCanaryDatabaseName(databaseName)) {
     throw new OperationalLiveCanaryDatabaseUrlError(
       "malformed_live_canary_database_name",
-      `Operational live canary database name '${databaseName}' is malformed. It must contain exactly one '${OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX}' suffix.`,
+      `Operational live canary database name '${databaseName}' is malformed. It must contain exactly one approved live-canary suffix.`,
       databaseName
     );
   }
@@ -102,7 +114,7 @@ export function assertOperationalLiveCanaryDatabaseUrl(databaseUrl: string) {
   if (!isCanonicalLiveCanaryDatabaseName(databaseName)) {
     throw new OperationalLiveCanaryDatabaseUrlError(
       "database_suffix_invalid",
-      `Operational live canary database '${databaseName}' must end with exactly '${OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX}'.`,
+      `Operational live canary database '${databaseName}' must end with an approved live-canary suffix.`,
       databaseName
     );
   }
@@ -141,7 +153,7 @@ export function resolveOperationalLiveCanaryDatabaseUrl(baseUrl: string): Operat
     effective_canary_database_name: derived.name,
     database_name_was_already_isolated: derived.wasAlreadyIsolated,
     resolver_idempotency_passed: idempotencyCheck.name === derived.name && idempotencyCheck.wasAlreadyIsolated,
-    guard_suffix: OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX,
+    guard_suffix: canarySuffixForDatabaseName(derived.name) ?? OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX,
     guard_passed: true
   };
 }

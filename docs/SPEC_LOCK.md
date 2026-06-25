@@ -1014,6 +1014,35 @@ Phase 6A.5 must not implement:
   AI-assisted review uses `annotation_source=ai_agent_review`,
   `annotation_status=ai_confirmed`, and
   `review_target=operational_effective_output`; it is not human confirmation.
+- Phase 8C execution-integrity hardening requires immutable dispatch attempts
+  in `operational_live_canary_dispatch_attempts`. Provider requests, token
+  usage, and estimated cost must be derived from verified dispatch rows, not
+  from step status alone.
+- Dispatch lifecycle statuses are `reserved`, `pre_dispatch_failed`,
+  `dispatch_started`, `response_received`, `usage_verified`,
+  `finalized_success`, `finalized_provider_failure`,
+  `unknown_after_dispatch`, and `cancelled_before_dispatch`.
+- Step forensics must distinguish `live_provider_verified`,
+  `live_provider_failed_verified`, `dispatch_possible_but_unverified`,
+  `deterministic_fallback`, `mock_provider`, `blocked_pre_dispatch`,
+  `reused_verified_result`, `no_dispatch`, and
+  `unknown_legacy_provenance`. Legacy completed rows without dispatch ledger
+  provenance must not count as verified paid provider calls.
+- Resume must run reconciliation first and fail closed when provenance is
+  unknown, usage is unverified, dispatch state is `unknown_after_dispatch`,
+  duplicate dispatch risk exists, or a lease is stale.
+- The full 30-step paid canary must refuse to start until a successful one-call
+  synthetic Response Collection transport probe exists. The probe is CLI-only,
+  paid only with explicit confirmation, and must remain isolated from classroom
+  workflows.
+- Reset-heavy smoke tests must use `conversational_mcq_live_canary_smoke_e2e`
+  or another database ending in `_live_canary_smoke_e2e`; historical canary
+  databases ending in `_live_canary_e2e` must not be reset, rewritten,
+  fabricated, or backfilled.
+- Reports must separate `provider_execution`, `effective_execution`, and
+  `integrity`. Readiness requires verified provider accounting, usable
+  effective results, completed review, zero critical failures, and
+  `classroom_validity=false`.
 - A passing canary report may recommend
   `ready_for_private_staging_deployment`, but `classroom_validity=false`
   remains binding and real student use is still not authorized.

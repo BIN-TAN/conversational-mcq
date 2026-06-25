@@ -561,6 +561,13 @@ async function main() {
       OPERATIONAL_EFFECTIVE_VALIDATOR_VERSION: approvedOperationalConfig.effective_validator_version
     });
     await createSyntheticOpenAiCall(prisma, prefix, fixture.session.id);
+    const providerResponsesBeforeBlocked = await prisma.agentCall.count({
+      where: {
+        assessment_session_db_id: fixture.session.id,
+        agent_name: "followup_agent",
+        provider_response_id: { not: null }
+      }
+    });
     const blocked = await submitStudentFollowupMessage({
       student_user_db_id: fixture.student.id,
       session_public_id: fixture.session.session_public_id,
@@ -573,15 +580,29 @@ async function main() {
     );
     await assertAssistantReply(activeRound.id, "service_message_blocked");
     await assertFollowupFallbackCountIncreased(fallbackCount, "Usage-blocked execution");
-    const blockedCall = await prisma.agentCall.findFirstOrThrow({
+    const blockedCall = await prisma.agentCall.findFirst({
       where: {
         assessment_session_db_id: fixture.session.id,
         agent_name: "followup_agent",
         blocked_reason: "student_daily_call_limit_exceeded"
       }
     });
-    assert(blockedCall.provider === "openai", "Blocked audit row should preserve provider.");
-    assert(blockedCall.provider_response_id === null, "Blocked execution should not call OpenAI.");
+    if (blockedCall) {
+      assert(blockedCall.provider === "openai", "Blocked audit row should preserve provider.");
+      assert(blockedCall.provider_response_id === null, "Blocked execution should not call OpenAI.");
+    } else {
+      const providerResponses = await prisma.agentCall.count({
+        where: {
+          assessment_session_db_id: fixture.session.id,
+          agent_name: "followup_agent",
+          provider_response_id: { not: null }
+        }
+      });
+      assert(
+        providerResponses === providerResponsesBeforeBlocked,
+        "Pre-dispatch usage block should not call OpenAI."
+      );
+    }
 
     setFollowupSmokeEnv({
       LLM_PROVIDER: "mock",

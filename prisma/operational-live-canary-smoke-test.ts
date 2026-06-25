@@ -4,17 +4,23 @@ import { readFile } from "node:fs/promises";
 import {
   createCanaryRunSkeleton,
   createCanaryPrismaClient,
+  createNoNetworkOperationalLiveCanarySimulation,
   createOperationalLiveCanaryDryRun,
   createOperationalLiveCanaryPreflightReport,
   createOperationalLiveCanaryReport,
+  createOperationalLiveCanaryTransportProbePreflight,
   exportOperationalLiveCanaryReviewPacket,
+  forensicsOperationalLiveCanaryRun,
   importOperationalLiveCanaryAiReview,
   inspectOperationalLiveCanaryRun,
   loadOperationalLiveCanaryManifest,
   manifestHash,
   operationalLiveCanaryDatabaseResolution,
   operationalLiveCanaryDatabaseName,
+  reconcileOperationalLiveCanaryRun,
+  recoverOperationalLiveCanaryRun,
   runOperationalLiveCanary,
+  runOperationalLiveCanaryTransportProbe,
   validateOperationalLiveCanaryManifest
 } from "../src/lib/services/operational-live-canary/service";
 import { activeOperationalConfigHash } from "../src/lib/agents/operational/approved-config";
@@ -32,10 +38,12 @@ import {
 } from "../src/lib/services/operational-live-canary/database-url";
 import {
   LIVE_CANARY_DATABASE_SUFFIX,
+  LIVE_CANARY_SMOKE_DATABASE_SUFFIX,
   databaseName,
   defaultDatabaseUrl,
   liveCanaryEnv,
   liveCanaryDatabaseUrl,
+  liveCanarySmokeDatabaseUrl,
   runCommand
 } from "./operational-live-canary-shared";
 
@@ -53,7 +61,20 @@ type SuiteName =
   | "guard-parity"
   | "block-reason"
   | "context"
-  | "actual-step-parity";
+  | "actual-step-parity"
+  | "provenance"
+  | "dispatch-ledger"
+  | "accounting"
+  | "reconciliation"
+  | "recovery"
+  | "signal"
+  | "full-simulation"
+  | "transport-probe"
+  | "report-consistency"
+  | "execution-path"
+  | "dependency"
+  | "cli-progress"
+  | "history-preservation";
 
 function argValue(name: string) {
   const index = process.argv.indexOf(name);
@@ -107,6 +128,26 @@ async function ensureDatabaseReady() {
   runCommand("npx", ["tsx", "prisma/operational-live-canary-db.ts", "prepare"], {
     timeoutMs: 120_000
   });
+}
+
+async function withSmokeCanaryDatabase<T>(callback: () => Promise<T>) {
+  const originalUrl = process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL;
+  const smokeUrl = liveCanarySmokeDatabaseUrl();
+  try {
+    process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = smokeUrl;
+    runCommand("npx", ["tsx", "prisma/operational-live-canary-db.ts", "reset"], {
+      env: { ...process.env, OPERATIONAL_LIVE_CANARY_DATABASE_URL: smokeUrl },
+      timeoutMs: 180_000
+    });
+    assert(databaseName(smokeUrl).endsWith(LIVE_CANARY_SMOKE_DATABASE_SUFFIX), "Smoke DB must use smoke suffix.");
+    return await callback();
+  } finally {
+    if (originalUrl === undefined) {
+      delete process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL;
+    } else {
+      process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = originalUrl;
+    }
+  }
 }
 
 async function manifestSmoke() {
@@ -211,36 +252,42 @@ async function reviewExportSmoke() {
 }
 
 async function reportSmoke() {
-  await ensureDatabaseReady();
-  const run = await createCanaryRunSkeleton({
-    status: "completed",
-    runPublicId: `olcr_report_smoke_${Date.now()}`,
-    markCompletedSteps: true
-  });
-  const incomplete = await createOperationalLiveCanaryReport(run.run_public_id);
-  assert(incomplete.recommendation === "incomplete_review", "Report should remain incomplete before review.");
+  await withSmokeCanaryDatabase(async () => {
+    const prisma = createCanaryPrismaClient();
+    try {
+      const summary = await createNoNetworkOperationalLiveCanarySimulation({ prisma });
+      const run = await prisma.operationalLiveCanaryRun.findUniqueOrThrow({
+        where: { run_public_id: summary.run_public_id },
+        include: { steps: { orderBy: { step_order: "asc" } } }
+      });
+      const incomplete = await createOperationalLiveCanaryReport(run.run_public_id);
+      assert(incomplete.recommendation === "incomplete_review", "Report should remain incomplete before review.");
 
-  await importOperationalLiveCanaryAiReview({
-    runPublicId: run.run_public_id,
-    reviewerModel: "gpt-5.5-pro",
-    rows: run.steps.map((step) => ({
-      review_item_id: `review_${createHash("sha256").update(`${run.run_public_id}:${step.step_public_id}`).digest("hex").slice(0, 20)}`,
-      pass_fail: "pass" as const,
-      overall_rating: 3,
-      rubric_scores: {
-        schema_adherence: 3,
-        task_relevance: 3,
-        policy_compliance: 3,
-        safety: 3
-      },
-      safety_flags: [],
-      notes: "Synthetic smoke review."
-    }))
-  });
+      await importOperationalLiveCanaryAiReview({
+        runPublicId: run.run_public_id,
+        reviewerModel: "gpt-5.5-pro",
+        rows: run.steps.map((step) => ({
+          review_item_id: `review_${createHash("sha256").update(`${run.run_public_id}:${step.step_public_id}`).digest("hex").slice(0, 20)}`,
+          pass_fail: "pass" as const,
+          overall_rating: 3,
+          rubric_scores: {
+            schema_adherence: 3,
+            task_relevance: 3,
+            policy_compliance: 3,
+            safety: 3
+          },
+          safety_flags: [],
+          notes: "Synthetic smoke review."
+        }))
+      });
 
-  const ready = await createOperationalLiveCanaryReport(run.run_public_id);
-  assert(ready.recommendation === "ready_for_private_staging_deployment", "All-pass review should be ready.");
-  assert(ready.review.ai_pass_count === run.steps.length, "AI pass count mismatch.");
+      const ready = await createOperationalLiveCanaryReport(run.run_public_id);
+      assert(ready.recommendation === "ready_for_private_staging_deployment", "All-pass verified review should be ready.");
+      assert(ready.review.ai_pass_count === run.steps.length, "AI pass count mismatch.");
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
 }
 
 async function isolationSmoke() {
@@ -846,6 +893,224 @@ async function actualStepParitySmoke() {
   });
 }
 
+async function simulatedRun() {
+  return withSmokeCanaryDatabase(async () => {
+    const prisma = createCanaryPrismaClient();
+    try {
+      const summary = await createNoNetworkOperationalLiveCanarySimulation({ prisma });
+      assert(summary.provider_request_count === 30, "Simulation should create 30 verified provider-shaped dispatches.");
+      assert(summary.no_openai_call_made, "Simulation must make no OpenAI call.");
+      return summary.run_public_id;
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+}
+
+async function provenanceSmoke() {
+  const runPublicId = await simulatedRun();
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = liveCanarySmokeDatabaseUrl();
+  const forensics = await forensicsOperationalLiveCanaryRun(runPublicId);
+  assert(forensics.classification_counts.live_provider_verified === 30, "All simulated steps should be live-provider verified.");
+  assert(!JSON.stringify(forensics).match(/sk-[A-Za-z0-9]/), "Forensics must not expose secret-shaped API keys.");
+}
+
+async function dispatchLedgerSmoke() {
+  const runPublicId = await simulatedRun();
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = liveCanarySmokeDatabaseUrl();
+  const reconciliation = await reconcileOperationalLiveCanaryRun(runPublicId);
+  assert(reconciliation.dispatch_attempt_count === 30, "Dispatch ledger should contain one attempt per step.");
+  assert(reconciliation.lifecycle_counts.finalized_success === 30, "All simulated attempts should finalize successfully.");
+  assert(reconciliation.duplicate_risks.length === 0, "Simulation should have no duplicate dispatch risk.");
+  const ids = new Set(reconciliation.steps.flatMap((step) => step.dispatches.map((dispatch) => dispatch.dispatch_public_id)));
+  assert(ids.size === 30, "Dispatch public IDs should be unique.");
+}
+
+async function accountingSmoke() {
+  const runPublicId = await simulatedRun();
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = liveCanarySmokeDatabaseUrl();
+  const report = await createOperationalLiveCanaryReport(runPublicId);
+  assert(report.provider_execution.accounting_verified, "Provider accounting should verify from dispatch ledger.");
+  assert(report.provider_execution.verified_provider_request_count === 30, "Verified request count should be 30.");
+  assert(report.provider_execution.verified_total_tokens > 0, "Verified token count should be positive.");
+  assert(report.provider_execution.verified_estimated_cost_usd > 0, "Verified cost should be positive.");
+}
+
+async function reconciliationSmoke() {
+  await withSmokeCanaryDatabase(async () => {
+    const prisma = createCanaryPrismaClient();
+    try {
+      const run = await createCanaryRunSkeleton({ status: "paused", prisma });
+      const first = run.steps[0];
+      await prisma.operationalLiveCanaryStep.update({
+        where: { id: first.id },
+        data: {
+          execution_status: "running",
+          lease_expires_at: new Date(Date.now() - 60_000),
+          recovery_status: "stale_running"
+        }
+      });
+      const reconciliation = await reconcileOperationalLiveCanaryRun(run.run_public_id);
+      assert(!reconciliation.safe_to_resume, "Stale running lease should not be resumable before recovery.");
+      assert(reconciliation.safe_to_resume_reasons.includes("stale_active_lease"), "Stale lease reason should be explicit.");
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+}
+
+async function recoverySmoke() {
+  await withSmokeCanaryDatabase(async () => {
+    const prisma = createCanaryPrismaClient();
+    try {
+      const run = await createCanaryRunSkeleton({ status: "paused", prisma });
+      const first = run.steps[0];
+      await prisma.operationalLiveCanaryStep.update({
+        where: { id: first.id },
+        data: { execution_status: "running", recovery_status: "needs_recovery" }
+      });
+      let refused = false;
+      try {
+        await recoverOperationalLiveCanaryRun({ runPublicId: run.run_public_id, confirmRecovery: false });
+      } catch (error) {
+        refused = error instanceof Error && error.message.includes("--confirm-recovery");
+      }
+      assert(refused, "Recovery should require explicit confirmation.");
+      const result = await recoverOperationalLiveCanaryRun({ runPublicId: run.run_public_id, confirmRecovery: true });
+      assert(result.status === "recovered", "Recoverable paused run should recover.");
+      const recovered = await reconcileOperationalLiveCanaryRun(run.run_public_id);
+      assert(recovered.steps.some((step) => step.recovery_status === "recovered_pending"), "Step recovery status should be visible.");
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+}
+
+async function signalSmoke() {
+  await withSmokeCanaryDatabase(async () => {
+    const prisma = createCanaryPrismaClient();
+    try {
+      const run = await createCanaryRunSkeleton({ status: "running", prisma });
+      const runner = `signal_smoke_${Date.now()}`;
+      await prisma.operationalLiveCanaryRun.update({
+        where: { id: run.id },
+        data: {
+          runner_instance_id: runner,
+          claimed_at: new Date(),
+          heartbeat_at: new Date(),
+          lease_expires_at: new Date(Date.now() + 60_000),
+          recovery_status: "active"
+        }
+      });
+      await prisma.operationalLiveCanaryStep.update({
+        where: { id: run.steps[0].id },
+        data: {
+          execution_status: "running",
+          runner_instance_id: runner,
+          claimed_at: new Date(),
+          heartbeat_at: new Date(),
+          lease_expires_at: new Date(Date.now() + 60_000),
+          recovery_status: "active"
+        }
+      });
+      const inspect = await inspectOperationalLiveCanaryRun(run.run_public_id);
+      assert(inspect.runner_instance_id_present, "Run should expose runner presence without leaking internals.");
+      assert(inspect.steps[0].runner_instance_id_present, "Step should expose runner presence.");
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+}
+
+async function fullSimulationSmoke() {
+  const runPublicId = await simulatedRun();
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = liveCanarySmokeDatabaseUrl();
+  const report = await createOperationalLiveCanaryReport(runPublicId);
+  assert(report.run.status === "completed", "No-network full simulation should complete.");
+  assert(report.provider_execution.verified_provider_request_count === 30, "Full simulation should verify 30 requests.");
+  assert(report.recommendation === "incomplete_review", "Completed unreviewed simulation should await review.");
+}
+
+async function transportProbeSmoke() {
+  const valid = await validCanaryReadinessEnv();
+  await withLiveCanaryEnv({
+    OPERATIONAL_AGENT_MODE: "disabled",
+    OPERATIONAL_AGENT_INTEGRATION_ENABLED: undefined,
+    OPERATIONAL_APPROVED_CONFIG_HASH: undefined,
+    OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: valid.OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH,
+    OPERATIONAL_LIVE_CANARY_ENABLED: "false",
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL: liveCanarySmokeDatabaseUrl(),
+    LLM_PROVIDER: "mock",
+    LLM_LIVE_CALLS_ENABLED: "false",
+    OPENAI_API_KEY: undefined
+  }, async () => {
+    const preflight = await createOperationalLiveCanaryTransportProbePreflight();
+    assert(!preflight.paid_execution_permitted, "Default transport probe preflight should not permit paid execution.");
+    assert(preflight.no_provider_call_made, "Transport probe preflight should make no provider call.");
+    let missingConfirmBlocked = false;
+    try {
+      await runOperationalLiveCanaryTransportProbe({ confirmPaidApi: false });
+    } catch (error) {
+      missingConfirmBlocked = error instanceof Error && error.message.includes("--confirm-paid-api");
+    }
+    assert(missingConfirmBlocked, "Transport probe should require explicit paid confirmation.");
+    const blocked = await runOperationalLiveCanaryTransportProbe({ confirmPaidApi: true });
+    assert(blocked.status === "blocked", "Disabled transport probe should block before provider dispatch.");
+    assert(blocked.paid_api_request_made === false, "Blocked transport probe should make no provider request.");
+  });
+}
+
+async function reportConsistencySmoke() {
+  const runPublicId = await simulatedRun();
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = liveCanarySmokeDatabaseUrl();
+  const report = await createOperationalLiveCanaryReport(runPublicId);
+  assert(report.provider_execution.accounting_verified, "Report should expose verified provider accounting.");
+  assert(report.effective_execution.completed_steps === 30, "Report should expose effective completed steps.");
+  assert(report.integrity.unknown_legacy_provenance_is_not_verified, "Report should document unknown legacy policy.");
+}
+
+async function executionPathSmoke() {
+  const runPublicId = await simulatedRun();
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = liveCanarySmokeDatabaseUrl();
+  const inspect = await inspectOperationalLiveCanaryRun(runPublicId);
+  assert(inspect.steps.every((step) => step.execution_path), "Every simulated step should have execution path metadata.");
+  assert(inspect.steps.every((step) => step.provider_conclusion === "live_provider"), "Every simulated step should carry provider conclusion.");
+  assert(inspect.steps.every((step) => step.effective_conclusion === "effective_success"), "Every simulated step should carry effective conclusion.");
+}
+
+async function dependencySmoke() {
+  const runPublicId = await simulatedRun();
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = liveCanarySmokeDatabaseUrl();
+  const inspect = await inspectOperationalLiveCanaryRun(runPublicId);
+  assert(inspect.steps.every((step) => typeof step.dependency_hash === "string" && step.dependency_hash.length === 64), "Every step should store dependency hash.");
+}
+
+async function cliProgressSmoke() {
+  const preflight = runCommand("npx", ["tsx", "prisma/operational-live-canary-transport-probe-preflight.ts"], {
+    env: {
+      ...process.env,
+      OPERATIONAL_LIVE_CANARY_DATABASE_URL: liveCanarySmokeDatabaseUrl(),
+      OPERATIONAL_AGENT_MODE: "disabled",
+      LLM_PROVIDER: "mock",
+      LLM_LIVE_CALLS_ENABLED: "false"
+    },
+    timeoutMs: 120_000
+  });
+  const parsed = JSON.parse(preflight.stdout);
+  assert(parsed.no_provider_call_made === true, "CLI preflight should report no provider call.");
+  assert(parsed.target.planned_provider_requests === 1, "CLI preflight should describe one-call probe.");
+}
+
+async function historyPreservationSmoke() {
+  await ensureDatabaseReady();
+  const before = await forensicsOperationalLiveCanaryRun("olcr_20260625_fgdjkha");
+  const beforeHash = createHash("sha256").update(JSON.stringify(before.steps)).digest("hex");
+  const after = await forensicsOperationalLiveCanaryRun("olcr_20260625_fgdjkha");
+  const afterHash = createHash("sha256").update(JSON.stringify(after.steps)).digest("hex");
+  assert(beforeHash === afterHash, "Historical run forensics must be read-only.");
+  assert(after.read_only, "Historical forensics should declare read-only behavior.");
+}
+
 async function dryRunSmoke() {
   runCommand("npx", ["tsx", "prisma/operational-live-canary-db.ts", "prepare"], {
     timeoutMs: 120_000
@@ -888,6 +1153,32 @@ async function main() {
     await contextSmoke();
   } else if (suite === "actual-step-parity") {
     await actualStepParitySmoke();
+  } else if (suite === "provenance") {
+    await provenanceSmoke();
+  } else if (suite === "dispatch-ledger") {
+    await dispatchLedgerSmoke();
+  } else if (suite === "accounting") {
+    await accountingSmoke();
+  } else if (suite === "reconciliation") {
+    await reconciliationSmoke();
+  } else if (suite === "recovery") {
+    await recoverySmoke();
+  } else if (suite === "signal") {
+    await signalSmoke();
+  } else if (suite === "full-simulation") {
+    await fullSimulationSmoke();
+  } else if (suite === "transport-probe") {
+    await transportProbeSmoke();
+  } else if (suite === "report-consistency") {
+    await reportConsistencySmoke();
+  } else if (suite === "execution-path") {
+    await executionPathSmoke();
+  } else if (suite === "dependency") {
+    await dependencySmoke();
+  } else if (suite === "cli-progress") {
+    await cliProgressSmoke();
+  } else if (suite === "history-preservation") {
+    await historyPreservationSmoke();
   } else {
     throw new Error(`Unknown operational live canary smoke suite: ${suite}`);
   }

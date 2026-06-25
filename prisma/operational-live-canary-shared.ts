@@ -6,6 +6,7 @@ import { loadEnvConfig } from "@next/env";
 import {
   DEFAULT_OPERATIONAL_LIVE_CANARY_BASE_DATABASE_URL,
   OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX,
+  OPERATIONAL_LIVE_CANARY_SMOKE_DATABASE_SUFFIX,
   assertOperationalLiveCanaryDatabaseUrl,
   databaseNameFromUrl,
   redactedOperationalLiveCanaryDatabaseUrl,
@@ -20,6 +21,7 @@ export const LIVE_CANARY_BASE_URL =
   process.env.OPERATIONAL_LIVE_CANARY_BASE_URL?.trim() ||
   `http://${LIVE_CANARY_HOST}:${LIVE_CANARY_PORT}`;
 export const LIVE_CANARY_DATABASE_SUFFIX = OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX;
+export const LIVE_CANARY_SMOKE_DATABASE_SUFFIX = OPERATIONAL_LIVE_CANARY_SMOKE_DATABASE_SUFFIX;
 export const LIVE_CANARY_REPORT_ROOT = path.join(process.cwd(), ".data", "operational-live-canary");
 export const LIVE_CANARY_SESSION_SECRET =
   "phase8c-live-canary-session-secret-never-use-in-production";
@@ -64,6 +66,16 @@ export function liveCanaryDatabaseUrl() {
   }
 
   return resolveOperationalLiveCanaryDatabaseUrl(defaultDatabaseUrl()).isolated_canary_database_url;
+}
+
+export function liveCanarySmokeDatabaseUrl() {
+  const url = new URL(resolveOperationalLiveCanaryDatabaseUrl(defaultDatabaseUrl()).isolated_canary_database_url);
+  const currentName = databaseNameFromUrl(url.toString());
+  const baseName = currentName.endsWith(OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX)
+    ? currentName.slice(0, -OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX.length)
+    : currentName.replace(/_live_canary.*$/, "");
+  url.pathname = `/${baseName}${OPERATIONAL_LIVE_CANARY_SMOKE_DATABASE_SUFFIX}`;
+  return url.toString();
 }
 
 export function databaseName(databaseUrl = liveCanaryDatabaseUrl()) {

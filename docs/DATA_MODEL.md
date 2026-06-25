@@ -43,6 +43,7 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `student_account_events`: Phase 7A append-only audit events for student creation, display-name update, access-code reset, deactivation, and reactivation. They never store plaintext access codes or hashes.
 - `item_verification_runs`: Phase 7D advisory semantic verification runs for teacher-authored concept-unit item sets. Runs store a content fingerprint, deterministic validation result, optional agent-call link, output payload, warning counts, acknowledgement metadata, and timestamps. They do not store student data or rewritten/generated content.
 - `operational_agent_effective_results`: Phase 8A immutable records of the backend-effective result consumed by operational workflow after raw validation, semantic/safety checks, deterministic guards, canonicalization, and fallback. Raw provider data remain in `agent_calls`; these rows store public context IDs, statuses, version metadata, safe warnings, effective JSON, and hashes.
+- `operational_live_canary_runs`, `operational_live_canary_steps`, and `operational_live_canary_dispatch_attempts`: Phase 8C isolated synthetic canary records. Runs and steps store lease/recovery metadata; dispatch attempts are the immutable source of truth for provider provenance, request/response IDs, usage, cost, lifecycle status, and retry accounting.
 
 ## Key Relations
 
@@ -78,6 +79,10 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `item_verification_runs.acknowledged_by_user_db_id -> users.id` when advisory warnings were acknowledged.
 - `concept_units.latest_item_verification_run_db_id -> item_verification_runs.id` points to the latest completed verification run but freshness is determined by matching the stored content fingerprint to current content.
 - `operational_agent_effective_results.agent_call_db_id -> agent_calls.id` when a provider call was attempted.
+- `operational_live_canary_steps.run_db_id -> operational_live_canary_runs.id`.
+- `operational_live_canary_dispatch_attempts.run_db_id -> operational_live_canary_runs.id`.
+- `operational_live_canary_dispatch_attempts.step_db_id -> operational_live_canary_steps.id`.
+- `operational_live_canary_dispatch_attempts.agent_call_db_id -> agent_calls.id` when an operational provider call audit row exists.
 
 ## Uniqueness Constraints
 
@@ -109,6 +114,11 @@ Phase 2A added the normalized database foundation for the classroom prototype. L
 - `item_verification_runs.verification_public_id`: unique public verification identifier.
 - `operational_agent_effective_results.public_id`: unique public effective-result identifier.
 - `operational_agent_effective_results`: unique `invocation_key + effective_result_version`, preventing duplicate effective records for the same logical invocation/version.
+- `operational_live_canary_runs.run_public_id`: unique public canary run identifier.
+- `operational_live_canary_steps.step_public_id`: unique public canary step identifier.
+- `operational_live_canary_steps`: unique `run_db_id + logical_invocation_key`.
+- `operational_live_canary_dispatch_attempts.dispatch_public_id`, `dispatch_key`, and `client_dispatch_id`: unique dispatch identifiers.
+- `operational_live_canary_dispatch_attempts`: unique `run_db_id + step_db_id + attempt_index`, preventing duplicate attempt ordering for one logical step.
 
 The schema intentionally avoids constraints that would prevent future legitimate reassessment attempts across different assessment sessions.
 
@@ -138,12 +148,40 @@ The schema indexes:
 - Assessment and session response collection mode for Phase 7C review/export filters.
 - Item verification runs by concept unit, public verification ID, agent-call link, acknowledgement user, status, verification status, and creation time.
 - Operational effective results by public ID, agent call, agent name, context, invocation key/version, overall status, usability flags, and creation time.
+- Operational live-canary runs by status, manifest hash, runner instance, and lease expiration.
+- Operational live-canary steps by run/order, agent/status, scenario, runner instance, lease expiration, provider conclusion, and effective conclusion.
+- Operational live-canary dispatch attempts by run/time, step/attempt index, agent call, provenance type, lifecycle status, and usage status.
 
 ## Phase 8A Operational Effective Results
 
 `operational_agent_effective_results` is the operational boundary between raw agent execution and classroom workflow. It records whether deterministic guards, canonicalization, or fallback were applied and whether the resulting output is usable for student-facing or workflow behavior. Student serializers do not expose this metadata. Teacher serializers expose only public IDs, safe status fields, version metadata, sanitized warnings, and usage/cost metadata when available.
 
 The table is append-only for normal runtime behavior. Changing prompts, schemas, validators, guards, canonicalization, fallbacks, or model snapshot requires reevaluation and a new approved manifest before guarded-live execution can be permitted.
+
+## Phase 8C Operational Live Canary Integrity
+
+`operational_live_canary_runs` stores one isolated synthetic canary run. It
+records the frozen manifest, approved configuration hash, exact model snapshot,
+reasoning effort, planned invocation count, cost/request counters, lifecycle
+version, and lease/recovery fields.
+
+`operational_live_canary_steps` stores one planned logical invocation. It uses
+public step IDs at CLI/report boundaries and stores execution status,
+provider/effective conclusions, dependency hash, lease/recovery metadata, and
+safe references to agent/effective-result public IDs.
+
+`operational_live_canary_dispatch_attempts` is the immutable provider-provenance
+ledger. It records one dispatch attempt per step attempt, including the
+dispatch key, client dispatch ID, model snapshot, reasoning effort, lifecycle
+status, provenance type, provider request/response IDs when available, usage
+verification status, token counts, pricing registry version, and estimated
+cost. This table is the source of truth for provider request counting and
+budget accounting. Step status alone is not provider provenance.
+
+Historical canary rows created before the dispatch ledger are preserved. If no
+dispatch attempt exists, forensics may classify completed rows as
+`unknown_legacy_provenance`; those rows are not counted as verified paid
+provider calls.
 
 ## Phase 7C Response Collection Mode
 

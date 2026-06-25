@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -48,6 +48,58 @@ export const OPERATIONAL_LIVE_CANARY_REASONING_EFFORT = "low";
 export const OPERATIONAL_LIVE_CANARY_BUDGET_LIMIT_USD = 15;
 export const OPERATIONAL_LIVE_CANARY_MAX_PROVIDER_REQUESTS = 80;
 export const OPERATIONAL_LIVE_CANARY_MAX_LOGICAL_INVOCATIONS = 60;
+export const OPERATIONAL_LIVE_CANARY_EXECUTION_LIFECYCLE_VERSION =
+  "phase8c-execution-integrity-v1";
+export const OPERATIONAL_LIVE_CANARY_PRICING_REGISTRY_VERSION =
+  "phase8c-operational-canary-pricing-v1";
+export const OPERATIONAL_LIVE_CANARY_LEASE_MS = 5 * 60 * 1000;
+
+export const LiveCanaryProvenanceType = z.enum([
+  "live_provider",
+  "live_provider_failure",
+  "deterministic_fallback",
+  "mock_provider",
+  "blocked",
+  "reused",
+  "no_dispatch",
+  "unknown"
+]);
+export type LiveCanaryProvenanceType = z.infer<typeof LiveCanaryProvenanceType>;
+
+export const LiveCanaryLifecycleStatus = z.enum([
+  "reserved",
+  "pre_dispatch_failed",
+  "dispatch_started",
+  "response_received",
+  "usage_verified",
+  "finalized_success",
+  "finalized_provider_failure",
+  "unknown_after_dispatch",
+  "cancelled_before_dispatch"
+]);
+export type LiveCanaryLifecycleStatus = z.infer<typeof LiveCanaryLifecycleStatus>;
+
+export const LiveCanaryStepForensicClassification = z.enum([
+  "live_provider_verified",
+  "live_provider_failed_verified",
+  "dispatch_possible_but_unverified",
+  "deterministic_fallback",
+  "mock_provider",
+  "blocked_pre_dispatch",
+  "reused_verified_result",
+  "no_dispatch",
+  "unknown_legacy_provenance"
+]);
+export type LiveCanaryStepForensicClassification =
+  z.infer<typeof LiveCanaryStepForensicClassification>;
+
+export const LiveCanaryInterruptionStage = z.enum([
+  "interrupted_before_dispatch",
+  "interrupted_after_dispatch_before_response",
+  "interrupted_after_response_before_persistence",
+  "unknown_interruption_stage"
+]);
+export type LiveCanaryInterruptionStage = z.infer<typeof LiveCanaryInterruptionStage>;
 
 const teacherPassword = "phase8c_live_canary_teacher_password";
 const studentAccessCode = "phase8c_live_canary_student_access_code";
@@ -386,6 +438,17 @@ export async function createOperationalLiveCanaryPreflightReport() {
   if (!executorReadiness.allowed) {
     blockingReasons.push(executorReadiness.reason);
   }
+  let transportProbeRunPublicId: string | null = null;
+  try {
+    const prisma = createCanaryPrismaClient(databaseResolution.isolated_canary_database_url);
+    try {
+      transportProbeRunPublicId = await successfulTransportProbeExists(prisma);
+    } finally {
+      await prisma.$disconnect();
+    }
+  } catch {
+    transportProbeRunPublicId = null;
+  }
 
   return {
     label: "guarded-live synthetic operational canary preflight",
@@ -444,6 +507,11 @@ export async function createOperationalLiveCanaryPreflightReport() {
         Number((validation.planned_logical_invocations * 0.05).toFixed(2))
       ),
       hard_limit_usd: config.cost_hard_limit_usd
+    },
+    transport_probe: {
+      required_before_full_canary: true,
+      successful_probe_run_public_id: transportProbeRunPublicId,
+      full_canary_start_gate_satisfied: Boolean(transportProbeRunPublicId)
     },
     network_policy: {
       approved_external_hosts: ["api.openai.com"],
@@ -765,6 +833,153 @@ export async function createCanaryRunSkeleton(input: {
       where: { run_public_id: runPublicId },
       include: { steps: { orderBy: { step_order: "asc" } }, annotations: true }
     });
+  } finally {
+    if (ownsClient) {
+      await prisma.$disconnect();
+    }
+  }
+}
+
+export async function createNoNetworkOperationalLiveCanarySimulation(input: {
+  prisma?: PrismaClient;
+  runPublicId?: string;
+  withFailures?: boolean;
+} = {}) {
+  const prisma = input.prisma ?? createCanaryPrismaClient();
+  const ownsClient = !input.prisma;
+  const run = await createCanaryRunSkeleton({
+    status: "running",
+    runPublicId: input.runPublicId ?? `olcr_sim_${Date.now()}`,
+    prisma
+  });
+
+  try {
+    for (const step of run.steps) {
+      const attempt = await reserveDispatchAttempt({
+        prisma,
+        run,
+        step,
+        attemptIndex: 1
+      });
+      const shouldFail =
+        Boolean(input.withFailures) &&
+        (step.step_order === 7 || step.step_order === 19);
+      await markDispatchStarted(prisma, attempt.id);
+      await prisma.operationalLiveCanaryDispatchAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          provider: "openai",
+          provenance_type: shouldFail ? "live_provider_failure" : "live_provider",
+          lifecycle_status: shouldFail ? "finalized_provider_failure" : "finalized_success",
+          response_received_at: new Date(),
+          usage_verified_at: new Date(),
+          finalized_at: new Date(),
+          provider_request_id: `sim_req_${step.step_order}`,
+          provider_response_id: `sim_resp_${step.step_order}`,
+          raw_response_hash: sha256(`simulated-provider-response:${run.run_public_id}:${step.step_public_id}`),
+          input_tokens: 100 + step.step_order,
+          cached_input_tokens: step.step_order % 2 === 0 ? 10 : 0,
+          output_tokens: 40 + step.step_order,
+          reasoning_tokens: 8,
+          total_tokens: 148 + step.step_order * 2,
+          pricing_registry_version: OPERATIONAL_LIVE_CANARY_PRICING_REGISTRY_VERSION,
+          estimated_cost_usd: new Prisma.Decimal(0.0005),
+          usage_status: "verified",
+          error_category: shouldFail ? "simulated_provider_failure" : null,
+          sanitized_error_message: shouldFail ? "Synthetic provider failure for no-network simulation." : null
+        }
+      });
+
+      const invocationKey = `operational-live-canary:${run.run_public_id}:${step.logical_invocation_key}`;
+      const effectiveResult = await prisma.operationalAgentEffectiveResult.upsert({
+        where: {
+          invocation_key_effective_result_version: {
+            invocation_key: invocationKey,
+            effective_result_version: "effective-system-eval-v2"
+          }
+        },
+        create: {
+          public_id: generatePublicId("operational_effective_result"),
+          agent_name: step.agent_name,
+          operational_context_type: "operational_live_canary_step",
+          operational_context_public_id: step.step_public_id,
+          invocation_key: invocationKey,
+          effective_result_version: "effective-system-eval-v2",
+          effective_validator_version: "effective-validator-v1",
+          deterministic_guard_version: "phase8c-synthetic-canary-guard-v1",
+          canonicalization_version: "phase8c-synthetic-canary-canonicalization-v1",
+          fallback_version: shouldFail ? "phase8c-synthetic-canary-fallback-v1" : null,
+          raw_output_status: shouldFail ? "failed" : "succeeded",
+          raw_semantic_status: shouldFail ? "not_run" : "pass",
+          raw_safety_status: shouldFail ? "not_run" : "pass",
+          effective_semantic_status: shouldFail ? "failed" : "pass",
+          effective_safety_status: shouldFail ? "failed" : "pass",
+          effective_overall_status: shouldFail ? "failed" : "succeeded",
+          effective_student_facing_usable: !shouldFail,
+          effective_workflow_usable: !shouldFail,
+          deterministic_guard_applied: true,
+          canonicalization_applied: !shouldFail,
+          fallback_applied: shouldFail,
+          effective_output_json: prismaJson({
+            simulated: true,
+            agent_name: step.agent_name,
+            status: shouldFail ? "failed" : "succeeded"
+          }),
+          effective_actions_json: prismaJson({
+            simulated: true,
+            step_public_id: step.step_public_id
+          }),
+          warnings_json: prismaJson(shouldFail ? ["Synthetic no-network failure."] : []),
+          effective_result_hash: sha256(`effective:${run.run_public_id}:${step.step_public_id}:${shouldFail}`)
+        },
+        update: {}
+      });
+
+      await prisma.operationalLiveCanaryStep.update({
+        where: { id: step.id },
+        data: {
+          execution_status: shouldFail ? "failed" : "completed",
+          effective_result_public_id: effectiveResult.public_id,
+          provider_request_count: 1,
+          estimated_cost_usd: new Prisma.Decimal(0.0005),
+          error_category: shouldFail ? "simulated_provider_failure" : null,
+          execution_path: "operational_live_canary_no_network_simulation",
+          provider_conclusion: shouldFail ? "live_provider_failure" : "live_provider",
+          effective_conclusion: shouldFail ? "effective_failure_or_fallback" : "effective_success",
+          dependency_hash: dependencyHashForStep({
+            runPublicId: run.run_public_id,
+            manifestHash: run.manifest_hash,
+            approvedConfigHash: run.approved_config_hash,
+            logicalInvocationKey: step.logical_invocation_key,
+            agentName: step.agent_name
+          }),
+          completed_at: new Date()
+        }
+      });
+    }
+
+    const aggregates = await recomputeCanaryAggregates(prisma, run.id);
+    const failedCount = input.withFailures ? 2 : 0;
+    await prisma.operationalLiveCanaryRun.update({
+      where: { id: run.id },
+      data: {
+        status: failedCount > 0 ? "failed" : "completed",
+        completed_at: new Date(),
+        failure_reason: failedCount > 0 ? "simulated_failures_present" : null,
+        recovery_status: failedCount > 0 ? "complete_with_failures" : "complete",
+        heartbeat_at: new Date(),
+        lease_expires_at: null
+      }
+    });
+
+    return {
+      run_public_id: run.run_public_id,
+      planned_logical_invocations: run.planned_logical_invocations,
+      provider_request_count: aggregates.provider_request_count,
+      estimated_cost_usd: aggregates.estimated_cost_usd,
+      failed_count: failedCount,
+      no_openai_call_made: true
+    };
   } finally {
     if (ownsClient) {
       await prisma.$disconnect();
@@ -1159,6 +1374,7 @@ function buildSyntheticOperationalAgentInput(
 
 function preparePaidCanaryProcessEnv(isolatedCanaryDatabaseUrl: string) {
   assertOperationalLiveCanaryDatabaseUrl(isolatedCanaryDatabaseUrl);
+  process.env.DATABASE_URL = isolatedCanaryDatabaseUrl;
   process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = isolatedCanaryDatabaseUrl;
   process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE = "true";
   if (!process.env.OPERATIONAL_APPROVED_CONFIG_HASH && process.env.OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH) {
@@ -1168,6 +1384,284 @@ function preparePaidCanaryProcessEnv(isolatedCanaryDatabaseUrl: string) {
 
 function agentCallPublicRef(agentCallDbId: string | null | undefined) {
   return agentCallDbId ? `agent_call_${sha256(agentCallDbId).slice(0, 20)}` : null;
+}
+
+function leaseExpiresAt(now = new Date()) {
+  return new Date(now.getTime() + OPERATIONAL_LIVE_CANARY_LEASE_MS);
+}
+
+function runnerInstanceId() {
+  return `olcr_runner_${randomUUID()}`;
+}
+
+function clientDispatchId(runPublicId: string, stepPublicId: string, attemptIndex: number) {
+  return `olcd_client_${sha256(`${runPublicId}:${stepPublicId}:${attemptIndex}`).slice(0, 24)}`;
+}
+
+function dispatchKey(runPublicId: string, stepPublicId: string, attemptIndex: number) {
+  return `operational-live-canary-dispatch:${runPublicId}:${stepPublicId}:${attemptIndex}`;
+}
+
+function dependencyHashForStep(input: {
+  runPublicId: string;
+  manifestHash: string;
+  approvedConfigHash: string;
+  logicalInvocationKey: string;
+  agentName: string;
+}) {
+  const prompt = getPromptForAgent(AgentName.parse(input.agentName));
+  return hashJson({
+    run_public_id: input.runPublicId,
+    manifest_hash: input.manifestHash,
+    approved_config_hash: input.approvedConfigHash,
+    logical_invocation_key: input.logicalInvocationKey,
+    agent_name: input.agentName,
+    prompt_version: prompt.prompt_version,
+    prompt_hash: prompt.prompt_hash,
+    schema_version: prompt.schema_version,
+    model_snapshot: OPERATIONAL_LIVE_CANARY_MODEL,
+    reasoning_effort: OPERATIONAL_LIVE_CANARY_REASONING_EFFORT
+  });
+}
+
+function tokenUsageObject(value: unknown): Record<string, unknown> {
+  const object = objectValue(value);
+  if (!object) {
+    return {};
+  }
+  const raw = objectValue(object.raw);
+  return { ...object, ...(raw ?? {}) };
+}
+
+function numericTokenFromUsage(value: unknown, key: string) {
+  const object = tokenUsageObject(value);
+  const direct = object[key];
+  if (typeof direct === "number" && Number.isFinite(direct)) {
+    return direct;
+  }
+  const nestedInputDetails = objectValue(object.input_tokens_details) ?? objectValue(object.input_token_details);
+  const nestedOutputDetails = objectValue(object.output_tokens_details) ?? objectValue(object.output_token_details);
+  const nested =
+    nestedInputDetails?.[key] ??
+    nestedOutputDetails?.[key] ??
+    objectValue(object.usage)?.[key];
+  return typeof nested === "number" && Number.isFinite(nested) ? nested : null;
+}
+
+async function nextDispatchAttemptIndex(prisma: PrismaClient, stepDbId: string) {
+  const latest = await prisma.operationalLiveCanaryDispatchAttempt.findFirst({
+    where: { step_db_id: stepDbId },
+    orderBy: { attempt_index: "desc" },
+    select: { attempt_index: true }
+  });
+  return (latest?.attempt_index ?? 0) + 1;
+}
+
+async function reserveDispatchAttempt(input: {
+  prisma: PrismaClient;
+  run: {
+    id: string;
+    run_public_id: string;
+    model_snapshot: string;
+    reasoning_effort: string;
+  };
+  step: {
+    id: string;
+    step_public_id: string;
+    logical_invocation_key: string;
+  };
+  attemptIndex: number;
+}) {
+  const now = new Date();
+  return input.prisma.operationalLiveCanaryDispatchAttempt.create({
+    data: {
+      dispatch_public_id: generatePublicId("operational_canary_dispatch"),
+      run_db_id: input.run.id,
+      step_db_id: input.step.id,
+      logical_invocation_key: input.step.logical_invocation_key,
+      attempt_index: input.attemptIndex,
+      dispatch_key: dispatchKey(input.run.run_public_id, input.step.step_public_id, input.attemptIndex),
+      provider: "openai",
+      model_snapshot: input.run.model_snapshot,
+      reasoning_effort: input.run.reasoning_effort,
+      execution_path: "operational_live_canary_cli_guarded_live",
+      provenance_type: "unknown",
+      lifecycle_status: "reserved",
+      request_reserved_at: now,
+      client_dispatch_id: clientDispatchId(input.run.run_public_id, input.step.step_public_id, input.attemptIndex),
+      usage_status: "not_available"
+    }
+  });
+}
+
+async function markDispatchStarted(prisma: PrismaClient, dispatchId: string) {
+  return prisma.operationalLiveCanaryDispatchAttempt.update({
+    where: { id: dispatchId },
+    data: {
+      lifecycle_status: "dispatch_started",
+      dispatch_started_at: new Date()
+    }
+  });
+}
+
+async function finalizeDispatchAttempt(input: {
+  prisma: PrismaClient;
+  dispatchId: string;
+  resultStatus: string;
+  agentCall: {
+    id: string;
+    provider: string;
+    provider_response_id: string | null;
+    provider_request_id: string | null;
+    client_request_id: string | null;
+    live_call_allowed: boolean;
+    raw_output: unknown;
+    input_tokens: number | null;
+    output_tokens: number | null;
+    total_tokens: number | null;
+    token_usage: unknown;
+    estimated_cost: Prisma.Decimal | null;
+    error_category: string | null;
+    validation_error: string | null;
+    call_status: string;
+  } | null;
+}) {
+  const agentCall = input.agentCall;
+  const tokenUsage = tokenUsageObject(agentCall?.token_usage);
+  const cachedInputTokens = numericTokenFromUsage(tokenUsage, "cached_input_tokens");
+  const reasoningTokens = numericTokenFromUsage(tokenUsage, "reasoning_tokens");
+  const inputTokens = agentCall?.input_tokens ?? numericTokenFromUsage(tokenUsage, "input_tokens");
+  const outputTokens = agentCall?.output_tokens ?? numericTokenFromUsage(tokenUsage, "output_tokens");
+  const totalTokens =
+    agentCall?.total_tokens ??
+    numericTokenFromUsage(tokenUsage, "total_tokens") ??
+    (typeof inputTokens === "number" && typeof outputTokens === "number"
+      ? inputTokens + outputTokens
+      : null);
+  const liveProviderAttempt =
+    agentCall?.provider === "openai" &&
+    agentCall.live_call_allowed &&
+    Boolean(agentCall.provider_request_id || agentCall.provider_response_id);
+  const providerFailure =
+    input.resultStatus !== "succeeded" && liveProviderAttempt;
+  const usageVerified = liveProviderAttempt && totalTokens !== null;
+  const provenanceType: LiveCanaryProvenanceType =
+    liveProviderAttempt && input.resultStatus === "succeeded"
+      ? "live_provider"
+      : providerFailure
+        ? "live_provider_failure"
+        : agentCall?.provider === "mock"
+          ? "mock_provider"
+          : input.resultStatus === "blocked_by_operational_guard" ||
+              input.resultStatus === "blocked_by_usage_limit"
+            ? "blocked"
+            : "deterministic_fallback";
+  const lifecycleStatus: LiveCanaryLifecycleStatus =
+    provenanceType === "blocked"
+      ? "pre_dispatch_failed"
+      : liveProviderAttempt && input.resultStatus === "succeeded" && usageVerified
+        ? "finalized_success"
+        : providerFailure
+          ? "finalized_provider_failure"
+          : liveProviderAttempt && !usageVerified
+            ? "unknown_after_dispatch"
+            : input.resultStatus === "succeeded"
+              ? "finalized_success"
+              : "finalized_provider_failure";
+  const finalizedAt = new Date();
+
+  return input.prisma.operationalLiveCanaryDispatchAttempt.update({
+    where: { id: input.dispatchId },
+    data: {
+      agent_call_db_id: agentCall?.id ?? null,
+      provider: agentCall?.provider ?? "openai",
+      provenance_type: provenanceType,
+      lifecycle_status: lifecycleStatus,
+      response_received_at: agentCall ? finalizedAt : null,
+      usage_verified_at: usageVerified ? finalizedAt : null,
+      finalized_at: lifecycleStatus === "unknown_after_dispatch" ? null : finalizedAt,
+      provider_request_id: agentCall?.provider_request_id ?? null,
+      provider_response_id: agentCall?.provider_response_id ?? null,
+      raw_response_hash: agentCall?.raw_output ? hashJson(agentCall.raw_output) : null,
+      input_tokens: inputTokens,
+      cached_input_tokens: cachedInputTokens,
+      output_tokens: outputTokens,
+      reasoning_tokens: reasoningTokens,
+      total_tokens: totalTokens,
+      pricing_registry_version: liveProviderAttempt ? OPERATIONAL_LIVE_CANARY_PRICING_REGISTRY_VERSION : null,
+      estimated_cost_usd: agentCall?.estimated_cost ?? null,
+      usage_status: liveProviderAttempt ? (usageVerified ? "verified" : "unverified") : "not_applicable",
+      error_category: agentCall?.error_category ?? null,
+      sanitized_error_message: agentCall?.validation_error ?? null
+    }
+  });
+}
+
+async function recomputeCanaryAggregates(prisma: PrismaClient, runDbId: string) {
+  const attempts = await prisma.operationalLiveCanaryDispatchAttempt.findMany({
+    where: { run_db_id: runDbId },
+    select: {
+      step_db_id: true,
+      attempt_index: true,
+      provider: true,
+      provenance_type: true,
+      lifecycle_status: true,
+      estimated_cost_usd: true
+    }
+  });
+  const providerAttempts = attempts.filter((attempt) =>
+    attempt.provider === "openai" &&
+    ["live_provider", "live_provider_failure"].includes(attempt.provenance_type) &&
+    !["reserved", "pre_dispatch_failed", "cancelled_before_dispatch"].includes(attempt.lifecycle_status)
+  );
+  const estimatedCost = providerAttempts.reduce((sum, attempt) => sum + decimalToNumber(attempt.estimated_cost_usd), 0);
+  const retryCount = attempts.filter((attempt) => attempt.attempt_index > 1).length;
+  const stepIds = new Set(attempts.map((attempt) => attempt.step_db_id));
+
+  for (const stepId of stepIds) {
+    const stepAttempts = attempts.filter((attempt) => attempt.step_db_id === stepId);
+    const stepProviderAttempts = stepAttempts.filter((attempt) =>
+      attempt.provider === "openai" &&
+      ["live_provider", "live_provider_failure"].includes(attempt.provenance_type) &&
+      !["reserved", "pre_dispatch_failed", "cancelled_before_dispatch"].includes(attempt.lifecycle_status)
+    );
+    await prisma.operationalLiveCanaryStep.update({
+      where: { id: stepId },
+      data: {
+        provider_request_count: stepProviderAttempts.length,
+        estimated_cost_usd: new Prisma.Decimal(
+          stepProviderAttempts.reduce((sum, attempt) => sum + decimalToNumber(attempt.estimated_cost_usd), 0)
+        )
+      }
+    });
+  }
+
+  await prisma.operationalLiveCanaryRun.update({
+    where: { id: runDbId },
+    data: {
+      provider_request_count: providerAttempts.length,
+      retry_count: retryCount,
+      estimated_cost_usd: new Prisma.Decimal(Number(estimatedCost.toFixed(6)))
+    }
+  });
+
+  return {
+    provider_request_count: providerAttempts.length,
+    retry_count: retryCount,
+    estimated_cost_usd: Number(estimatedCost.toFixed(6))
+  };
+}
+
+async function successfulTransportProbeExists(prisma: PrismaClient) {
+  const probe = await prisma.operationalLiveCanaryRun.findFirst({
+    where: {
+      status: "completed",
+      planned_logical_invocations: 1,
+      failure_reason: "transport_probe_success"
+    },
+    select: { run_public_id: true }
+  });
+  return probe?.run_public_id ?? null;
 }
 
 async function evaluateActualCanaryStepReadiness(input: {
@@ -1239,10 +1733,13 @@ async function markPreDispatchParityFailure(input: {
 async function dispatchOperationalLiveCanaryStep(input: {
   prisma: PrismaClient;
   run: {
+    id: string;
     run_public_id: string;
     manifest_version: string;
     manifest_hash: string;
     approved_config_hash: string;
+    model_snapshot: string;
+    reasoning_effort: string;
   };
   step: {
     id: string;
@@ -1276,6 +1773,15 @@ async function dispatchOperationalLiveCanaryStep(input: {
     databaseName
   });
   const invocationKey = `operational-live-canary:${input.run.run_public_id}:${point.logical_invocation_key}`;
+  const attemptIndex = await nextDispatchAttemptIndex(input.prisma, input.step.id);
+  const dispatchAttempt = await reserveDispatchAttempt({
+    prisma: input.prisma,
+    run: input.run,
+    step: input.step,
+    attemptIndex
+  });
+  await markDispatchStarted(input.prisma, dispatchAttempt.id);
+
   const result = await executeOperationalAgent({
     agentName: point.agent_name,
     invocationKey,
@@ -1295,7 +1801,13 @@ async function dispatchOperationalLiveCanaryStep(input: {
     ? await input.prisma.agentCall.findUnique({
         where: { id: agentCallDbId },
         select: {
+          id: true,
+          provider: true,
+          provider_response_id: true,
+          provider_request_id: true,
+          client_request_id: true,
           live_call_allowed: true,
+          raw_output: true,
           estimated_cost: true,
           retry_count: true,
           call_status: true,
@@ -1305,7 +1817,8 @@ async function dispatchOperationalLiveCanaryStep(input: {
           error_category: true,
           input_tokens: true,
           output_tokens: true,
-          total_tokens: true
+          total_tokens: true,
+          token_usage: true
         }
       })
     : null;
@@ -1313,7 +1826,6 @@ async function dispatchOperationalLiveCanaryStep(input: {
     agentCall?.live_call_allowed && !(result.status === "succeeded" && result.idempotent_replay)
       ? 1
       : 0;
-  const estimatedCostUsd = decimalToNumber(agentCall?.estimated_cost);
   const succeeded = result.status === "succeeded";
   const typedBlockedReason = result.status === "blocked_by_operational_guard" ? result.reason : null;
   const readinessSnapshot: SanitizedReadinessSnapshot | null =
@@ -1365,6 +1877,18 @@ async function dispatchOperationalLiveCanaryStep(input: {
     },
     warnings: succeeded ? [] : ["Operational live canary step did not produce a usable effective result."]
   });
+  const finalizedAttempt = await finalizeDispatchAttempt({
+    prisma: input.prisma,
+    dispatchId: dispatchAttempt.id,
+    resultStatus: result.status,
+    agentCall
+  });
+  const finalizedProviderRequestCount =
+    finalizedAttempt.provenance_type === "live_provider" ||
+    finalizedAttempt.provenance_type === "live_provider_failure"
+      ? 1
+      : 0;
+  const finalizedEstimatedCostUsd = decimalToNumber(finalizedAttempt.estimated_cost_usd);
 
   await input.prisma.operationalLiveCanaryStep.update({
     where: { id: input.step.id },
@@ -1372,24 +1896,41 @@ async function dispatchOperationalLiveCanaryStep(input: {
       execution_status: succeeded ? "completed" : "failed",
       agent_call_public_id: agentCallPublicRef(agentCallDbId),
       effective_result_public_id: effectiveResult.public_id,
-      provider_request_count: providerRequestCount,
-      estimated_cost_usd: new Prisma.Decimal(estimatedCostUsd),
+      provider_request_count: finalizedProviderRequestCount,
+      estimated_cost_usd: new Prisma.Decimal(finalizedEstimatedCostUsd),
       error_category:
         succeeded
           ? null
           : agentCall?.blocked_reason ?? agentCall?.error_category ?? result.status,
       blocked_reason: typedBlockedReason,
       readiness_snapshot_json: readinessSnapshot ? prismaJson(readinessSnapshot) : undefined,
+      execution_path: finalizedAttempt.execution_path,
+      provider_conclusion: finalizedAttempt.provenance_type,
+      effective_conclusion: succeeded
+        ? "effective_success"
+        : finalizedAttempt.provenance_type === "blocked"
+          ? "blocked_before_provider"
+          : "effective_failure_or_fallback",
+      dependency_hash: dependencyHashForStep({
+        runPublicId: input.run.run_public_id,
+        manifestHash: input.run.manifest_hash,
+        approvedConfigHash: input.run.approved_config_hash,
+        logicalInvocationKey: input.step.logical_invocation_key,
+        agentName: input.step.agent_name
+      }),
       completed_at: new Date()
     }
   });
 
   return {
     succeeded,
-    providerRequestCount,
-    estimatedCostUsd,
+    providerRequestCount: finalizedProviderRequestCount,
+    estimatedCostUsd: finalizedEstimatedCostUsd,
     retryCount: agentCall?.retry_count ?? result.retry_count,
-    status: result.status
+    status: result.status,
+    usageStatus: finalizedAttempt.usage_status,
+    provenanceType: finalizedAttempt.provenance_type,
+    lifecycleStatus: finalizedAttempt.lifecycle_status
   };
 }
 
@@ -1438,8 +1979,23 @@ export async function runOperationalLiveCanary(input: {
   const manifest = await loadOperationalLiveCanaryManifest();
   const databaseResolution = operationalLiveCanaryDatabaseResolution();
   const prisma = createCanaryPrismaClient(databaseResolution.isolated_canary_database_url);
+  const activeRunnerInstanceId = runnerInstanceId();
 
   try {
+    if (!input.testOnlyForceInvalidActualContext) {
+      const probeRunPublicId = await successfulTransportProbeExists(prisma);
+      if (!probeRunPublicId) {
+        return {
+          status: "blocked",
+          paid_api_request_made: false,
+          blocking_reasons: ["transport_probe_missing"],
+          preflight,
+          note:
+            "Full 30-step guarded-live canary requires a successful one-call transport probe before paid execution."
+        };
+      }
+    }
+
     if (input.newRun) {
       await seedOperationalLiveCanaryFixture(prisma);
     }
@@ -1472,7 +2028,12 @@ export async function runOperationalLiveCanary(input: {
         status: "running",
         started_at: run.started_at ?? new Date(),
         paused_at: null,
-        failure_reason: null
+        failure_reason: null,
+        runner_instance_id: activeRunnerInstanceId,
+        claimed_at: new Date(),
+        heartbeat_at: new Date(),
+        lease_expires_at: leaseExpiresAt(),
+        recovery_status: "active"
       }
     });
 
@@ -1574,7 +2135,22 @@ export async function runOperationalLiveCanary(input: {
 
       await prisma.operationalLiveCanaryStep.update({
         where: { id: step.id },
-        data: { execution_status: "running" }
+        data: {
+          execution_status: "running",
+          runner_instance_id: activeRunnerInstanceId,
+          claimed_at: new Date(),
+          heartbeat_at: new Date(),
+          lease_expires_at: leaseExpiresAt(),
+          recovery_status: "active",
+          execution_path: "operational_live_canary_cli_guarded_live",
+          dependency_hash: dependencyHashForStep({
+            runPublicId: run.run_public_id,
+            manifestHash: run.manifest_hash,
+            approvedConfigHash: run.approved_config_hash,
+            logicalInvocationKey: step.logical_invocation_key,
+            agentName: step.agent_name
+          })
+        }
       });
 
       const dispatch = await dispatchOperationalLiveCanaryStep({
@@ -1589,14 +2165,34 @@ export async function runOperationalLiveCanary(input: {
       completedThisInvocation += dispatch.succeeded ? 1 : 0;
       failedThisInvocation += dispatch.succeeded ? 0 : 1;
 
-      await prisma.operationalLiveCanaryRun.update({
-        where: { run_public_id: run.run_public_id },
-        data: {
-          provider_request_count: { increment: dispatch.providerRequestCount },
-          retry_count: { increment: dispatch.retryCount },
-          estimated_cost_usd: { increment: new Prisma.Decimal(dispatch.estimatedCostUsd) }
-        }
-      });
+      await recomputeCanaryAggregates(prisma, run.id);
+
+      if (dispatch.lifecycleStatus === "unknown_after_dispatch" || dispatch.usageStatus === "unverified") {
+        await prisma.operationalLiveCanaryStep.update({
+          where: { id: step.id },
+          data: {
+            execution_status: "running",
+            recovery_status: "requires_reconciliation",
+            interruption_detected_at: new Date()
+          }
+        });
+        await prisma.operationalLiveCanaryRun.update({
+          where: { run_public_id: run.run_public_id },
+          data: {
+            status: "paused",
+            paused_at: new Date(),
+            recovery_status: "requires_reconciliation",
+            interruption_detected_at: new Date(),
+            failure_reason: "budget_or_usage_unverifiable"
+          }
+        });
+        return {
+          status: "paused",
+          paid_api_request_made: dispatchedRequests > 0,
+          run_public_id: run.run_public_id,
+          reason: "budget_or_usage_unverifiable"
+        };
+      }
     }
 
     const latestSteps = await prisma.operationalLiveCanaryStep.findMany({
@@ -1611,7 +2207,10 @@ export async function runOperationalLiveCanary(input: {
         status: finalStatus,
         completed_at: finalStatus === "completed" ? new Date() : null,
         paused_at: finalStatus === "paused" ? new Date() : null,
-        failure_reason: failed ? "one_or_more_canary_steps_failed" : null
+        failure_reason: failed ? "one_or_more_canary_steps_failed" : null,
+        heartbeat_at: new Date(),
+        lease_expires_at: null,
+        recovery_status: finalStatus === "completed" ? "complete" : finalStatus
       }
     });
 
@@ -1643,6 +2242,136 @@ export async function runOperationalLiveCanary(input: {
       });
     }
     throw error;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export async function createOperationalLiveCanaryTransportProbePreflight() {
+  const preflight = await createOperationalLiveCanaryPreflightReport();
+  const manifest = await loadOperationalLiveCanaryManifest();
+  const responseCollectionPoint = manifest.expected_operational_invocation_points.find(
+    (point) => point.agent_name === "response_collection_agent"
+  );
+  return {
+    label: "guarded-live operational one-call transport probe preflight",
+    paid_execution_permitted: preflight.paid_execution_permitted,
+    blocking_reasons: preflight.blocking_reasons,
+    target: {
+      planned_provider_requests: 1,
+      agent_name: "response_collection_agent",
+      logical_invocation_key: responseCollectionPoint?.logical_invocation_key ?? null,
+      retry_limit: 0,
+      full_canary_gate: "required_before_30_step_canary"
+    },
+    parent_preflight: preflight,
+    no_provider_call_made: true
+  };
+}
+
+export async function runOperationalLiveCanaryTransportProbe(input: {
+  confirmPaidApi: boolean;
+}) {
+  if (!input.confirmPaidApi) {
+    throw new Error("Refusing one-call transport probe without --confirm-paid-api.");
+  }
+  const preflight = await createOperationalLiveCanaryTransportProbePreflight();
+  if (!preflight.paid_execution_permitted) {
+    return {
+      status: "blocked",
+      paid_api_request_made: false,
+      blocking_reasons: preflight.blocking_reasons,
+      preflight
+    };
+  }
+
+  const manifest = await loadOperationalLiveCanaryManifest();
+  const point = manifest.expected_operational_invocation_points.find(
+    (entry) => entry.agent_name === "response_collection_agent"
+  );
+  if (!point) {
+    throw new Error("Transport probe requires one response_collection_agent invocation point.");
+  }
+  const validation = validateOperationalLiveCanaryManifest(manifest);
+  const databaseResolution = operationalLiveCanaryDatabaseResolution();
+  const prisma = createCanaryPrismaClient(databaseResolution.isolated_canary_database_url);
+  const activeRunnerInstanceId = runnerInstanceId();
+
+  try {
+    await seedOperationalLiveCanaryFixture(prisma);
+    preparePaidCanaryProcessEnv(databaseResolution.isolated_canary_database_url);
+    const run = await prisma.operationalLiveCanaryRun.create({
+      data: {
+        run_public_id: generatePublicId("operational_canary_run"),
+        status: "running",
+        manifest_version: manifest.manifest_version,
+        manifest_hash: validation.manifest_hash,
+        approved_config_hash: manifest.approved_operational_configuration_hash,
+        model_snapshot: manifest.model_snapshot,
+        reasoning_effort: manifest.reasoning_effort,
+        planned_logical_invocations: 1,
+        provider_request_count: 0,
+        retry_count: 0,
+        estimated_cost_usd: new Prisma.Decimal(0),
+        budget_limit_usd: new Prisma.Decimal(manifest.maximum_budget_usd),
+        application_git_commit: safeGitCommit(),
+        started_at: new Date(),
+        runner_instance_id: activeRunnerInstanceId,
+        claimed_at: new Date(),
+        heartbeat_at: new Date(),
+        lease_expires_at: leaseExpiresAt(),
+        recovery_status: "transport_probe_active"
+      }
+    });
+    const step = await prisma.operationalLiveCanaryStep.create({
+      data: {
+        step_public_id: generatePublicId("operational_canary_step"),
+        run_db_id: run.id,
+        scenario_id: point.scenario_id,
+        student_public_id: point.student_public_id,
+        logical_invocation_key: point.logical_invocation_key,
+        agent_name: point.agent_name,
+        step_order: 1,
+        execution_status: "running",
+        runner_instance_id: activeRunnerInstanceId,
+        claimed_at: new Date(),
+        heartbeat_at: new Date(),
+        lease_expires_at: leaseExpiresAt(),
+        recovery_status: "transport_probe_active",
+        execution_path: "operational_live_canary_transport_probe"
+      }
+    });
+
+    const dispatch = await dispatchOperationalLiveCanaryStep({ prisma, run, step, manifest });
+    const aggregates = await recomputeCanaryAggregates(prisma, run.id);
+    const succeeded =
+      dispatch.succeeded &&
+      dispatch.providerRequestCount === 1 &&
+      dispatch.lifecycleStatus === "finalized_success" &&
+      dispatch.usageStatus === "verified";
+    await prisma.operationalLiveCanaryRun.update({
+      where: { id: run.id },
+      data: {
+        status: succeeded ? "completed" : "failed",
+        completed_at: new Date(),
+        lease_expires_at: null,
+        recovery_status: succeeded ? "transport_probe_success" : "transport_probe_failed",
+        failure_reason: succeeded ? "transport_probe_success" : "transport_probe_failed",
+        provider_request_count: aggregates.provider_request_count,
+        retry_count: aggregates.retry_count,
+        estimated_cost_usd: new Prisma.Decimal(aggregates.estimated_cost_usd)
+      }
+    });
+
+    return {
+      status: succeeded ? "completed" : "failed",
+      paid_api_request_made: dispatch.providerRequestCount === 1,
+      run_public_id: run.run_public_id,
+      provider_request_count: aggregates.provider_request_count,
+      estimated_cost_usd: aggregates.estimated_cost_usd,
+      note:
+        "One-call transport probe uses a synthetic Response Collection invocation and remains isolated from classroom workflows."
+    };
   } finally {
     await prisma.$disconnect();
   }
@@ -1800,14 +2529,323 @@ function countByType(values: Array<string | null | undefined>) {
   }, {});
 }
 
+function hasUsableEffectiveResult(step: {
+  execution_status: string;
+  effective_result_public_id: string | null;
+}) {
+  return step.execution_status === "completed" && Boolean(step.effective_result_public_id);
+}
+
+function classifyForensics(input: {
+  step: {
+    execution_status: string;
+    agent_call_public_id: string | null;
+    effective_result_public_id: string | null;
+    blocked_reason: string | null;
+    error_category: string | null;
+    provider_conclusion?: string | null;
+  };
+  attempts: Array<{
+    provenance_type: string;
+    lifecycle_status: string;
+    usage_status: string;
+    provider_request_id: string | null;
+    provider_response_id: string | null;
+    finalized_at: Date | null;
+    response_received_at: Date | null;
+    dispatch_started_at: Date | null;
+  }>;
+}): {
+  classification: LiveCanaryStepForensicClassification;
+  interruption_stage: LiveCanaryInterruptionStage | null;
+} {
+  const latest = input.attempts.at(-1);
+  if (latest) {
+    if (
+      latest.provenance_type === "live_provider" &&
+      latest.lifecycle_status === "finalized_success" &&
+      latest.usage_status === "verified" &&
+      Boolean(latest.provider_request_id || latest.provider_response_id)
+    ) {
+      return { classification: "live_provider_verified", interruption_stage: null };
+    }
+    if (
+      latest.provenance_type === "live_provider_failure" &&
+      latest.lifecycle_status === "finalized_provider_failure" &&
+      Boolean(latest.provider_request_id || latest.provider_response_id)
+    ) {
+      return { classification: "live_provider_failed_verified", interruption_stage: null };
+    }
+    if (latest.provenance_type === "mock_provider") {
+      return { classification: "mock_provider", interruption_stage: null };
+    }
+    if (latest.provenance_type === "deterministic_fallback") {
+      return { classification: "deterministic_fallback", interruption_stage: null };
+    }
+    if (latest.provenance_type === "blocked" || latest.lifecycle_status === "pre_dispatch_failed") {
+      return { classification: "blocked_pre_dispatch", interruption_stage: "interrupted_before_dispatch" };
+    }
+    if (latest.lifecycle_status === "reserved") {
+      return { classification: "dispatch_possible_but_unverified", interruption_stage: "interrupted_before_dispatch" };
+    }
+    if (latest.lifecycle_status === "dispatch_started") {
+      return {
+        classification: "dispatch_possible_but_unverified",
+        interruption_stage: "interrupted_after_dispatch_before_response"
+      };
+    }
+    if (
+      latest.lifecycle_status === "unknown_after_dispatch" ||
+      (latest.response_received_at && !latest.finalized_at)
+    ) {
+      return {
+        classification: "dispatch_possible_but_unverified",
+        interruption_stage: "interrupted_after_response_before_persistence"
+      };
+    }
+    return { classification: "dispatch_possible_but_unverified", interruption_stage: "unknown_interruption_stage" };
+  }
+
+  if (input.step.execution_status === "failed" && (input.step.blocked_reason || input.step.error_category === "blocked_by_operational_guard")) {
+    return { classification: "blocked_pre_dispatch", interruption_stage: "interrupted_before_dispatch" };
+  }
+  if (input.step.execution_status === "pending") {
+    return { classification: "no_dispatch", interruption_stage: null };
+  }
+  if (hasUsableEffectiveResult(input.step) && input.step.provider_conclusion === "reused") {
+    return { classification: "reused_verified_result", interruption_stage: null };
+  }
+  if (input.step.execution_status === "running" && !input.step.agent_call_public_id && !input.step.effective_result_public_id) {
+    return { classification: "no_dispatch", interruption_stage: "interrupted_before_dispatch" };
+  }
+  return { classification: "unknown_legacy_provenance", interruption_stage: "unknown_interruption_stage" };
+}
+
+async function runWithAttempts(runPublicId: string, prismaInput?: PrismaClient) {
+  const prisma = prismaInput ?? createCanaryPrismaClient();
+  const ownsClient = !prismaInput;
+  try {
+    const run = await prisma.operationalLiveCanaryRun.findUnique({
+      where: { run_public_id: runPublicId },
+      include: {
+        steps: {
+          orderBy: { step_order: "asc" },
+          include: { dispatch_attempts: { orderBy: { attempt_index: "asc" } } }
+        },
+        annotations: true,
+        dispatch_attempts: { orderBy: [{ created_at: "asc" }, { attempt_index: "asc" }] }
+      }
+    });
+    if (!run) {
+      throw new Error(`Operational live canary run not found: ${runPublicId}`);
+    }
+    return run;
+  } finally {
+    if (ownsClient) {
+      await prisma.$disconnect();
+    }
+  }
+}
+
+export async function reconcileOperationalLiveCanaryRun(runPublicId: string) {
+  const run = await runWithAttempts(runPublicId);
+  const stepReports = run.steps.map((step) => {
+    const forensics = classifyForensics({ step, attempts: step.dispatch_attempts });
+    const duplicateDispatchRisk = step.dispatch_attempts.length > 1 &&
+      step.dispatch_attempts.some((attempt) => attempt.lifecycle_status === "finalized_success");
+    return {
+      step_public_id: step.step_public_id,
+      step_order: step.step_order,
+      logical_invocation_key: step.logical_invocation_key,
+      agent_name: step.agent_name,
+      execution_status: step.execution_status,
+      classification: forensics.classification,
+      interruption_stage: forensics.interruption_stage,
+      dispatch_attempt_count: step.dispatch_attempts.length,
+      duplicate_dispatch_risk: duplicateDispatchRisk,
+      usage_unverified: step.dispatch_attempts.some((attempt) => attempt.usage_status === "unverified"),
+      unknown_after_dispatch: step.dispatch_attempts.some((attempt) => attempt.lifecycle_status === "unknown_after_dispatch"),
+      provider_request_ids_present: step.dispatch_attempts.filter((attempt) => Boolean(attempt.provider_request_id)).length,
+      provider_response_ids_present: step.dispatch_attempts.filter((attempt) => Boolean(attempt.provider_response_id)).length,
+      provider_conclusion: step.provider_conclusion,
+      effective_conclusion: step.effective_conclusion,
+      recovery_status: step.recovery_status,
+      dispatches: step.dispatch_attempts.map((attempt) => ({
+        dispatch_public_id: attempt.dispatch_public_id,
+        attempt_index: attempt.attempt_index,
+        provenance_type: attempt.provenance_type,
+        lifecycle_status: attempt.lifecycle_status,
+        usage_status: attempt.usage_status,
+        provider_request_id_present: Boolean(attempt.provider_request_id),
+        provider_response_id_present: Boolean(attempt.provider_response_id),
+        estimated_cost_usd: decimalToNumber(attempt.estimated_cost_usd),
+        total_tokens: attempt.total_tokens
+      }))
+    };
+  });
+  const classifications = stepReports.map((step) => step.classification);
+  const lifecycleStatuses = run.dispatch_attempts.map((attempt) => attempt.lifecycle_status);
+  const usageStatuses = run.dispatch_attempts.map((attempt) => attempt.usage_status);
+  const unknownProvenanceCount = classifications.filter((value) => value === "unknown_legacy_provenance").length;
+  const unverifiedUsageCount = usageStatuses.filter((value) => value === "unverified").length;
+  const unknownAfterDispatchCount = lifecycleStatuses.filter((value) => value === "unknown_after_dispatch").length;
+  const duplicateRiskCount = stepReports.filter((step) => step.duplicate_dispatch_risk).length;
+  const pendingCount = run.steps.filter((step) => step.execution_status === "pending").length;
+  const runningCount = run.steps.filter((step) => step.execution_status === "running").length;
+  const staleLeaseCount = run.steps.filter((step) =>
+    step.lease_expires_at && step.lease_expires_at.getTime() < Date.now() &&
+    step.execution_status === "running"
+  ).length;
+  const safeToResume =
+    run.status !== "completed" &&
+    run.status !== "failed" &&
+    pendingCount > 0 &&
+    unknownProvenanceCount === 0 &&
+    unverifiedUsageCount === 0 &&
+    unknownAfterDispatchCount === 0 &&
+    duplicateRiskCount === 0 &&
+    staleLeaseCount === 0;
+  const safeToResumeReasons = [
+    run.status === "completed" ? "run_already_completed" : null,
+    run.status === "failed" ? "run_terminal_failed" : null,
+    pendingCount === 0 ? "no_pending_steps" : null,
+    unknownProvenanceCount > 0 ? "unknown_legacy_provenance_present" : null,
+    unverifiedUsageCount > 0 ? "usage_unverified" : null,
+    unknownAfterDispatchCount > 0 ? "unknown_after_dispatch_present" : null,
+    duplicateRiskCount > 0 ? "duplicate_dispatch_risk" : null,
+    staleLeaseCount > 0 ? "stale_active_lease" : null
+  ].filter((value): value is string => Boolean(value));
+  const verifiedAttempts = run.dispatch_attempts.filter((attempt) =>
+    attempt.usage_status === "verified" &&
+    ["live_provider", "live_provider_failure"].includes(attempt.provenance_type)
+  );
+
+  return {
+    run_public_id: run.run_public_id,
+    status: run.status,
+    read_only: true,
+    planned_logical_invocations: run.planned_logical_invocations,
+    observed_step_count: run.steps.length,
+    pending_step_count: pendingCount,
+    running_step_count: runningCount,
+    dispatch_attempt_count: run.dispatch_attempts.length,
+    classification_counts: countByType(classifications),
+    lifecycle_counts: countByType(lifecycleStatuses),
+    usage_counts: countByType(usageStatuses),
+    verified_provider_request_count: verifiedAttempts.length,
+    verified_total_tokens: verifiedAttempts.reduce((sum, attempt) => sum + (attempt.total_tokens ?? 0), 0),
+    verified_estimated_cost_usd: Number(
+      verifiedAttempts.reduce((sum, attempt) => sum + decimalToNumber(attempt.estimated_cost_usd), 0).toFixed(6)
+    ),
+    mismatches: {
+      run_provider_count_vs_verified_dispatch_count:
+        run.provider_request_count === verifiedAttempts.length
+          ? null
+          : {
+              run_provider_request_count: run.provider_request_count,
+              verified_dispatch_count: verifiedAttempts.length
+            },
+      completed_steps_with_unknown_legacy_provenance: stepReports.filter((step) =>
+        step.execution_status === "completed" && step.classification === "unknown_legacy_provenance"
+      ).length
+    },
+    duplicate_risks: stepReports.filter((step) => step.duplicate_dispatch_risk),
+    safe_to_resume: safeToResume,
+    safe_to_resume_reasons: safeToResume ? [] : safeToResumeReasons,
+    recommended_action: safeToResume
+      ? "resume_allowed"
+      : run.status === "failed"
+        ? "create_fresh_run_after_review"
+        : "inspect_or_recover_before_resume",
+    steps: stepReports
+  };
+}
+
+export async function forensicsOperationalLiveCanaryRun(runPublicId: string) {
+  const reconciliation = await reconcileOperationalLiveCanaryRun(runPublicId);
+  return {
+    ...reconciliation,
+    forensic_policy: {
+      no_records_mutated: true,
+      actual_provider_values_redacted: true,
+      classifications_are_evidence_based: true,
+      unknown_legacy_provenance_is_not_counted_as_verified_paid_dispatch: true
+    }
+  };
+}
+
+export async function recoverOperationalLiveCanaryRun(input: {
+  runPublicId: string;
+  confirmRecovery: boolean;
+}) {
+  if (!input.confirmRecovery) {
+    throw new Error("Refusing recovery without --confirm-recovery.");
+  }
+  const prisma = createCanaryPrismaClient();
+  try {
+    const reconciliation = await reconcileOperationalLiveCanaryRun(input.runPublicId);
+    if (!reconciliation.safe_to_resume) {
+      return {
+        status: "blocked",
+        run_public_id: input.runPublicId,
+        mutated: false,
+        reasons: reconciliation.safe_to_resume_reasons,
+        reconciliation
+      };
+    }
+    const run = await prisma.operationalLiveCanaryRun.findUniqueOrThrow({
+      where: { run_public_id: input.runPublicId },
+      include: { steps: true }
+    });
+    await prisma.operationalLiveCanaryStep.updateMany({
+      where: {
+        run_db_id: run.id,
+        execution_status: "running",
+        dispatch_attempts: { none: {} }
+      },
+      data: {
+        execution_status: "pending",
+        runner_instance_id: null,
+        heartbeat_at: null,
+        lease_expires_at: null,
+        recovery_status: "recovered_pending"
+      }
+    });
+    await prisma.operationalLiveCanaryRun.update({
+      where: { id: run.id },
+      data: {
+        status: "paused",
+        runner_instance_id: null,
+        heartbeat_at: null,
+        lease_expires_at: null,
+        recovery_status: "recovered_ready_to_resume",
+        paused_at: new Date()
+      }
+    });
+    return {
+      status: "recovered",
+      run_public_id: input.runPublicId,
+      mutated: true
+    };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 export async function inspectOperationalLiveCanaryRun(runPublicId: string) {
-  const run = await getCanaryRunOrThrow(runPublicId);
+  const run = await runWithAttempts(runPublicId);
+  const reconciliation = await reconcileOperationalLiveCanaryRun(runPublicId);
   const recoveredReasons = await effectiveResultBlockedReasonMap(run.steps);
   const stepSummaries = run.steps.map((step) => {
     const typedBlockedReason =
       typedBlockedReasonFromLegacy(step.blocked_reason) ??
       (step.effective_result_public_id
         ? recoveredReasons.get(step.effective_result_public_id) ?? null
+        : null);
+    const forensics = classifyForensics({ step, attempts: step.dispatch_attempts });
+    const displayBlockedReason = typedBlockedReason ??
+      (step.error_category === "blocked_by_operational_guard" || step.blocked_reason
+        ? "legacy_generic_block_reason_unrecoverable"
         : null);
     return {
       step_public_id: step.step_public_id,
@@ -1822,8 +2860,29 @@ export async function inspectOperationalLiveCanaryRun(runPublicId: string) {
       provider_request_count: step.provider_request_count,
       estimated_cost_usd: decimalToNumber(step.estimated_cost_usd),
       error_category: step.error_category,
-      typed_blocked_reason: typedBlockedReason ?? "legacy_generic_block_reason_unrecoverable",
+      typed_blocked_reason: displayBlockedReason,
       canary_context_subreason: canarySubreasonFromReadinessSnapshot(step),
+      execution_path: step.execution_path,
+      provider_conclusion: step.provider_conclusion,
+      effective_conclusion: step.effective_conclusion,
+      dependency_hash: step.dependency_hash,
+      runner_instance_id_present: Boolean(step.runner_instance_id),
+      lease_expires_at: step.lease_expires_at?.toISOString() ?? null,
+      recovery_status: step.recovery_status,
+      forensic_classification: forensics.classification,
+      interruption_stage: forensics.interruption_stage,
+      dispatch_attempt_count: step.dispatch_attempts.length,
+      dispatch_attempts: step.dispatch_attempts.map((attempt) => ({
+        dispatch_public_id: attempt.dispatch_public_id,
+        attempt_index: attempt.attempt_index,
+        provenance_type: attempt.provenance_type,
+        lifecycle_status: attempt.lifecycle_status,
+        usage_status: attempt.usage_status,
+        provider_request_id_present: Boolean(attempt.provider_request_id),
+        provider_response_id_present: Boolean(attempt.provider_response_id),
+        total_tokens: attempt.total_tokens,
+        estimated_cost_usd: decimalToNumber(attempt.estimated_cost_usd)
+      })),
       completed_at: step.completed_at?.toISOString() ?? null
     };
   });
@@ -1845,15 +2904,23 @@ export async function inspectOperationalLiveCanaryRun(runPublicId: string) {
     completed_at: run.completed_at?.toISOString() ?? null,
     paused_at: run.paused_at?.toISOString() ?? null,
     failure_reason: run.failure_reason,
+    runner_instance_id_present: Boolean(run.runner_instance_id),
+    lease_expires_at: run.lease_expires_at?.toISOString() ?? null,
+    recovery_status: run.recovery_status,
+    execution_lifecycle_version: run.execution_lifecycle_version,
     provider_request_count_zero: run.provider_request_count === 0,
     paid_request_occurred: run.provider_request_count > 0,
-    safe_to_resume: run.status !== "completed" && run.steps.some((step) => step.execution_status === "pending"),
+    safe_to_resume: reconciliation.safe_to_resume,
+    safe_to_resume_reasons: reconciliation.safe_to_resume_reasons,
     fresh_run_required_after_fix:
       run.status === "failed" &&
       run.provider_request_count === 0 &&
       run.steps.length === run.planned_logical_invocations &&
       run.steps.every((step) => step.execution_status === "failed"),
     blocked_reason_count_by_type: countByType(stepSummaries.map((step) => step.typed_blocked_reason)),
+    forensic_classification_counts: reconciliation.classification_counts,
+    lifecycle_counts: reconciliation.lifecycle_counts,
+    usage_counts: reconciliation.usage_counts,
     steps: stepSummaries,
     annotations: run.annotations.map((annotation) => ({
       annotation_public_id: annotation.annotation_public_id,
@@ -1886,6 +2953,7 @@ function agentCounts(steps: Array<{ agent_name: string; execution_status: string
 
 export async function createOperationalLiveCanaryReport(runPublicId: string) {
   const run = await getCanaryRunOrThrow(runPublicId);
+  const reconciliation = await reconcileOperationalLiveCanaryRun(runPublicId);
   const recoveredReasons = await effectiveResultBlockedReasonMap(run.steps);
   const typedBlockedReasons = run.steps.map((step) =>
     typedBlockedReasonFromLegacy(step.blocked_reason) ??
@@ -1906,9 +2974,17 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
     const flags = Array.isArray(annotation.safety_flags) ? annotation.safety_flags : [];
     return flags.length > 0;
   }).length;
-  const allStepsTerminal = completedSteps === run.planned_logical_invocations;
+  const failedSteps = run.steps.filter((step) => step.execution_status === "failed").length;
+  const pendingSteps = run.steps.filter((step) => step.execution_status === "pending").length;
+  const runningSteps = run.steps.filter((step) => step.execution_status === "running").length;
+  const allStepsTerminal = completedSteps + failedSteps === run.planned_logical_invocations;
   const reviewComplete = aiConfirmed.length === run.planned_logical_invocations;
   const effectiveFailureCount = run.steps.filter((step) => step.execution_status === "failed").length;
+  const accountingVerified =
+    reconciliation.mismatches.run_provider_count_vs_verified_dispatch_count === null &&
+    (reconciliation.usage_counts.unverified ?? 0) === 0 &&
+    (reconciliation.lifecycle_counts.unknown_after_dispatch ?? 0) === 0 &&
+    (reconciliation.classification_counts.unknown_legacy_provenance ?? 0) === 0;
   const terminalZeroProviderExecutionFailure =
     run.status === "failed" &&
     completedSteps === 0 &&
@@ -1923,6 +2999,8 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
   const allAgentsCovered = Object.values(agentCounts(run.steps)).every((value) => value.planned > 0);
   const ready =
     allStepsTerminal &&
+    run.status === "completed" &&
+    accountingVerified &&
     reviewComplete &&
     aiFail === 0 &&
     criticalFailures === 0 &&
@@ -1935,13 +3013,25 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
     label: "guarded-live synthetic operational canary",
     classroom_validity: false,
     real_student_data_used: false,
-    recommendation: terminalZeroProviderExecutionFailure
-      ? "not_ready_for_private_staging_deployment"
-      : reviewComplete
-      ? ready
-        ? "ready_for_private_staging_deployment"
-        : "not_ready_for_private_staging_deployment"
-      : "incomplete_review",
+    recommendation:
+      run.status === "running" || run.status === "paused"
+        ? "not_ready_for_private_staging_deployment"
+        : run.status === "failed" || terminalZeroProviderExecutionFailure
+          ? "not_ready_for_private_staging_deployment"
+          : run.status === "completed" && accountingVerified && !reviewComplete
+            ? "incomplete_review"
+            : ready
+              ? "ready_for_private_staging_deployment"
+              : reviewComplete
+                ? "not_ready_for_private_staging_deployment"
+                : "incomplete_review",
+    recommendation_semantics: {
+      running_or_paused_is_not_ready: run.status === "running" || run.status === "paused",
+      terminal_failure_is_not_ready: run.status === "failed" || terminalZeroProviderExecutionFailure,
+      complete_verified_review_pending_is_incomplete_review:
+        run.status === "completed" && accountingVerified && !reviewComplete,
+      complete_verified_review_pass_is_ready: ready
+    },
     run: {
       run_public_id: run.run_public_id,
       status: run.status,
@@ -1958,10 +3048,16 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
     },
     metrics: {
       completed_logical_invocations: completedSteps,
-      raw_provider_success_rate: run.provider_request_count > 0 ? completedSteps / run.provider_request_count : 0,
-      raw_schema_pass_rate: allStepsTerminal ? 1 : 0,
-      raw_semantic_pass_rate: allStepsTerminal ? 1 : 0,
-      raw_safety_pass_rate: allStepsTerminal ? 1 : 0,
+      failed_logical_invocations: failedSteps,
+      pending_logical_invocations: pendingSteps,
+      running_logical_invocations: runningSteps,
+      raw_provider_success_rate:
+        reconciliation.verified_provider_request_count > 0
+          ? completedSteps / reconciliation.verified_provider_request_count
+          : 0,
+      raw_schema_pass_rate: run.status === "completed" && accountingVerified ? 1 : 0,
+      raw_semantic_pass_rate: run.status === "completed" && accountingVerified ? 1 : 0,
+      raw_safety_pass_rate: run.status === "completed" && accountingVerified ? 1 : 0,
       deterministic_guard_count: 0,
       canonicalization_count: 0,
       fallback_count: run.steps.filter((step) => step.execution_status === "fallback").length,
@@ -1970,6 +3066,34 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
       effective_workflow_failure_count: effectiveFailureCount,
       effective_critical_failure_count: criticalFailures,
       per_agent: agentCounts(run.steps)
+    },
+    provider_execution: {
+      provider: "openai",
+      verified_provider_request_count: reconciliation.verified_provider_request_count,
+      run_provider_request_count: run.provider_request_count,
+      usage_counts: reconciliation.usage_counts,
+      lifecycle_counts: reconciliation.lifecycle_counts,
+      verified_total_tokens: reconciliation.verified_total_tokens,
+      verified_estimated_cost_usd: reconciliation.verified_estimated_cost_usd,
+      accounting_verified: accountingVerified,
+      mismatches: reconciliation.mismatches
+    },
+    effective_execution: {
+      completed_steps: completedSteps,
+      failed_steps: failedSteps,
+      pending_steps: pendingSteps,
+      running_steps: runningSteps,
+      effective_student_facing_failure_count: effectiveFailureCount,
+      effective_workflow_failure_count: effectiveFailureCount,
+      classification_counts: reconciliation.classification_counts
+    },
+    integrity: {
+      execution_lifecycle_version: "phase8c-execution-integrity-v1",
+      safe_to_resume: reconciliation.safe_to_resume,
+      safe_to_resume_reasons: reconciliation.safe_to_resume_reasons,
+      duplicate_risks: reconciliation.duplicate_risks,
+      recommended_action: reconciliation.recommended_action,
+      unknown_legacy_provenance_is_not_verified: true
     },
     review: {
       review_target: "operational_effective_output",
@@ -1993,9 +3117,7 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
         status: run.status,
         provider_request_count: run.provider_request_count,
         paid_request_occurred: run.provider_request_count > 0,
-        safe_to_resume:
-          run.status !== "completed" &&
-          run.steps.some((step) => step.execution_status === "pending"),
+        safe_to_resume: reconciliation.safe_to_resume,
         fresh_run_required_after_fix:
           run.status === "failed" &&
           run.provider_request_count === 0 &&
@@ -2004,10 +3126,12 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
       }
     },
     acceptance_gates: {
-      all_planned_synthetic_journeys_complete: allStepsTerminal,
+      all_planned_synthetic_journeys_complete:
+        run.status === "completed" && completedSteps === run.planned_logical_invocations,
       all_five_agents_covered: allAgentsCovered,
       provider_request_count_within_limit: requestWithinLimit,
       estimated_cost_within_limit: costWithinLimit,
+      accounting_verified: accountingVerified,
       effective_results_usable: effectiveFailureCount === 0,
       ai_review_complete: reviewComplete,
       all_review_items_pass: reviewComplete && aiFail === 0,

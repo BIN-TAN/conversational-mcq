@@ -1193,6 +1193,13 @@ npm run operational:live-canary-guard-parity-smoke
 npm run operational:live-canary-block-reason-smoke
 npm run operational:live-canary-context-smoke
 npm run operational:live-canary-actual-step-parity-smoke
+npm run operational:live-canary-provenance-smoke
+npm run operational:live-canary-dispatch-ledger-smoke
+npm run operational:live-canary-accounting-smoke
+npm run operational:live-canary-reconciliation-smoke
+npm run operational:live-canary-recovery-smoke
+npm run operational:live-canary-full-simulation-smoke
+npm run operational:live-canary-transport-probe-smoke
 ```
 
 The live-canary database resolver is idempotent: `conversational_mcq` resolves
@@ -1210,7 +1217,24 @@ the canary makes no provider request and does not create a full 30-step run.
 Dry run prepares and seeds the isolated database without dropping historical
 canary runs.
 
-Future paid command, only after manual server-side configuration:
+Phase 8C execution-integrity hardening adds an immutable dispatch ledger. A
+provider request counts only when `operational_live_canary_dispatch_attempts`
+contains verified provider provenance, usage, and lifecycle status. Historical
+completed rows without dispatch rows are preserved but classified as
+`unknown_legacy_provenance`, not verified paid provider calls.
+
+Reset-heavy smoke tests use `conversational_mcq_live_canary_smoke_e2e` and do
+not reset the historical `_live_canary_e2e` database.
+
+Future one-call paid transport probe, only after manual server-side
+configuration:
+
+```bash
+npm run operational:live-canary:transport-probe:preflight
+npm run operational:live-canary:transport-probe -- --confirm-paid-api
+```
+
+Future full paid command, only after the successful transport probe exists:
 
 ```bash
 npm run operational:live-canary -- --confirm-paid-api --new-run
@@ -1222,6 +1246,8 @@ Review/report commands:
 ```bash
 npm run operational:live-canary:inspect -- --run <run_public_id>
 npm run operational:live-canary:report -- --run <run_public_id>
+npm run operational:live-canary:forensics -- --run <run_public_id>
+npm run operational:live-canary:reconcile -- --run <run_public_id>
 npm run operational:live-canary:review-export -- --run <run_public_id>
 ```
 
@@ -1232,5 +1258,8 @@ invocations, a USD 15 budget cap, and an 80 provider-request cap.
 
 See `docs/GUARDED_LIVE_SYNTHETIC_CANARY.md`,
 `docs/OPERATIONAL_LIVE_CANARY_BUDGET.md`,
+`docs/OPERATIONAL_LIVE_CANARY_EXECUTION_LIFECYCLE.md`,
+`docs/OPERATIONAL_LIVE_CANARY_RECOVERY.md`,
+`docs/OPERATIONAL_LIVE_CANARY_TRANSPORT_PROBE.md`,
 `docs/OPERATIONAL_LIVE_CANARY_REVIEW.md`, and
 `docs/OPERATIONAL_LIVE_CANARY_ACCEPTANCE.md`.

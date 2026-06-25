@@ -54,9 +54,24 @@ npm run operational:live-canary-guard-parity-smoke
 npm run operational:live-canary-block-reason-smoke
 npm run operational:live-canary-context-smoke
 npm run operational:live-canary-actual-step-parity-smoke
+npm run operational:live-canary-provenance-smoke
+npm run operational:live-canary-dispatch-ledger-smoke
+npm run operational:live-canary-accounting-smoke
+npm run operational:live-canary-reconciliation-smoke
+npm run operational:live-canary-recovery-smoke
+npm run operational:live-canary-full-simulation-smoke
+npm run operational:live-canary-transport-probe-smoke
 ```
 
-Paid command, for a future manual run only:
+Paid one-call transport probe, for a future manual run only:
+
+```bash
+npm run operational:live-canary:transport-probe:preflight
+npm run operational:live-canary:transport-probe -- --confirm-paid-api
+```
+
+Paid full canary command, for a future manual run only. The full run refuses to
+start until a successful one-call transport probe exists:
 
 ```bash
 npm run operational:live-canary -- --confirm-paid-api --new-run
@@ -68,6 +83,8 @@ Read-only follow-up commands:
 ```bash
 npm run operational:live-canary:inspect -- --run <run_public_id>
 npm run operational:live-canary:report -- --run <run_public_id>
+npm run operational:live-canary:forensics -- --run <run_public_id>
+npm run operational:live-canary:reconcile -- --run <run_public_id>
 npm run operational:live-canary:review-export -- --run <run_public_id>
 ```
 
@@ -91,6 +108,20 @@ conversational_mcq_live_canary_e2e
 ```
 
 The canary DB tools refuse to operate on `conversational_mcq` or `conversational_mcq_e2e`.
+Reset-heavy smoke tests use a separate suffix:
+
+```text
+_live_canary_smoke_e2e
+```
+
+The default smoke database is:
+
+```text
+conversational_mcq_live_canary_smoke_e2e
+```
+
+Smoke resets are allowed only for that smoke database. Historical canary runs in
+`conversational_mcq_live_canary_e2e` are not reset or backfilled.
 Database URL resolution is canonical and idempotent: resolving the base
 `conversational_mcq` URL produces exactly one `_live_canary_e2e` suffix, and
 resolving an already isolated URL returns the same URL. Repeated malformed
@@ -111,6 +142,29 @@ marker, and CLI-origin marker. The pre-run parity probe stages the real first
 step and validates this same context before creating the remaining executable
 steps. A context failure makes no provider request and must not create a full
 30-step run.
+
+## Execution Integrity
+
+Phase 8C hardening adds an immutable dispatch ledger:
+
+```text
+operational_live_canary_dispatch_attempts
+```
+
+Provider execution is verified only from dispatch attempts with provider IDs,
+verified usage, and finalized lifecycle status. Completed legacy rows without a
+dispatch attempt are preserved but classified as `unknown_legacy_provenance`.
+They are not counted as verified provider calls.
+
+The runner records run and step leases, dependency hashes, provider conclusions,
+effective conclusions, and recovery status. Resume first runs reconciliation and
+is blocked if there is unknown provenance, an `unknown_after_dispatch` attempt,
+unverified usage, duplicate dispatch risk, or a stale lease.
+
+Reports now include separate `provider_execution`, `effective_execution`, and
+`integrity` sections. A run can be ready for private staging deployment only
+when provider accounting is verified, effective results are usable, and review
+has passed.
 
 ## Scope
 

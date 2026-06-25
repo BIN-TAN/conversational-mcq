@@ -90,6 +90,9 @@ async function main() {
       concept_unit_public_id: invalid.conceptUnit.concept_unit_public_id
     });
     assert(!invalidValidation.ok, "Structural failure should fail deterministic validation.");
+    const invalidAgentCallsBefore = await prisma.agentCall.count({
+      where: { agent_name: "item_verification_agent" }
+    });
     const invalidRun = await runConceptUnitVerification({
       teacher_user_db_id: invalid.teacher.id,
       concept_unit_public_id: invalid.conceptUnit.concept_unit_public_id
@@ -98,7 +101,10 @@ async function main() {
     const invalidAgentCalls = await prisma.agentCall.count({
       where: { agent_name: "item_verification_agent" }
     });
-    assert(invalidAgentCalls === 0, "Structural failure should not create an agent call.");
+    assert(
+      invalidAgentCalls === invalidAgentCallsBefore,
+      "Structural failure should not create an agent call."
+    );
 
     const clean = await createItemVerificationFixture({ prisma, prefix: `${prefix}_clean` });
     const cleanRun = await runConceptUnitVerification({
