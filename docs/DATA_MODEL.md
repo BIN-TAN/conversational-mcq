@@ -150,7 +150,7 @@ The schema indexes:
 - Operational effective results by public ID, agent call, agent name, context, invocation key/version, overall status, usability flags, and creation time.
 - Operational live-canary runs by status, manifest hash, runner instance, and lease expiration.
 - Operational live-canary steps by run/order, agent/status, scenario, runner instance, lease expiration, provider conclusion, and effective conclusion.
-- Operational live-canary dispatch attempts by run/time, step/attempt index, agent call, provenance type, lifecycle status, and usage status.
+- Operational live-canary dispatch attempts by run/time, step/attempt index, agent call, provenance type, lifecycle status, usage status, transport, failure stage, and typed failure reason.
 
 ## Phase 8A Operational Effective Results
 
@@ -173,10 +173,17 @@ safe references to agent/effective-result public IDs.
 `operational_live_canary_dispatch_attempts` is the immutable provider-provenance
 ledger. It records one dispatch attempt per step attempt, including the
 dispatch key, client dispatch ID, model snapshot, reasoning effort, lifecycle
-status, provenance type, provider request/response IDs when available, usage
-verification status, token counts, pricing registry version, and estimated
-cost. This table is the source of truth for provider request counting and
-budget accounting. Step status alone is not provider provenance.
+status, provenance type, selected transport, adapter version, dispatch-boundary
+marker, stage trace, typed failure reason, provider request/response IDs when
+available, usage verification status, token counts, pricing registry version,
+estimated cost, and the transport objective summary. This table is the source
+of truth for provider request counting and budget accounting. Step status alone
+is not provider provenance.
+
+Accounting verification means the stored request/cost totals match verified
+dispatch rows. It is separate from the transport objective, which requires an
+entered dispatch boundary, provider response, verified usage, cost, and usable
+effective result.
 
 Historical canary rows created before the dispatch ledger are preserved. If no
 dispatch attempt exists, forensics may classify completed rows as

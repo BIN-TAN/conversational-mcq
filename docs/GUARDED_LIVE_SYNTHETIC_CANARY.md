@@ -67,6 +67,8 @@ Paid one-call transport probe, for a future manual run only:
 
 ```bash
 npm run operational:live-canary:transport-probe:preflight
+npm run operational:live-canary:transport-probe:dry-run
+npm run operational:live-canary:transport-probe:diagnose -- --run <run_public_id>
 npm run operational:live-canary:transport-probe -- --confirm-paid-api
 ```
 

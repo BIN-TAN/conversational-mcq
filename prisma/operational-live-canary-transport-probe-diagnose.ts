@@ -1,0 +1,19 @@
+import { diagnoseOperationalLiveCanaryTransportProbe } from "../src/lib/services/operational-live-canary/service";
+
+function argValue(name: string) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+async function main() {
+  const runPublicId = argValue("--run");
+  if (!runPublicId) {
+    throw new Error("Usage: npm run operational:live-canary:transport-probe:diagnose -- --run <run_public_id>");
+  }
+  console.log(JSON.stringify(await diagnoseOperationalLiveCanaryTransportProbe(runPublicId), null, 2));
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : "Operational live canary transport probe diagnosis failed.");
+  process.exitCode = 1;
+});

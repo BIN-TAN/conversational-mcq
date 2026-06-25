@@ -8,6 +8,43 @@ import type {
   StructuredAgentResult
 } from "./types";
 
+export const OPENAI_RESPONSES_ADAPTER_VERSION = "openai-responses-adapter-v1";
+
+export type OpenAIResponsesTransportBoundaryEvent = {
+  provider: "openai";
+  transport: "openai_responses";
+  adapter_version: typeof OPENAI_RESPONSES_ADAPTER_VERSION;
+  network_dispatch_expected: true;
+  network_dispatch_started: true;
+  client_request_id: string;
+  model_name: string;
+  metadata?: Record<string, string>;
+};
+
+type OpenAIResponsesTransportBoundaryObserver = (
+  event: OpenAIResponsesTransportBoundaryEvent
+) => void | Promise<void>;
+
+const transportBoundaryObservers = new Set<OpenAIResponsesTransportBoundaryObserver>();
+
+export async function withOpenAIResponsesTransportBoundaryObserver<T>(
+  observer: OpenAIResponsesTransportBoundaryObserver,
+  callback: () => Promise<T>
+): Promise<T> {
+  transportBoundaryObservers.add(observer);
+  try {
+    return await callback();
+  } finally {
+    transportBoundaryObservers.delete(observer);
+  }
+}
+
+async function emitTransportBoundary(event: OpenAIResponsesTransportBoundaryEvent) {
+  for (const observer of transportBoundaryObservers) {
+    await observer(event);
+  }
+}
+
 function usageFromResponse(response: { usage?: unknown }): LlmUsage | undefined {
   const usage = response.usage as
     | {
@@ -105,6 +142,19 @@ export class OpenAIResponsesProvider implements LlmProvider {
           : {}),
         ...(reasoning ? { reasoning } : {})
       };
+      await emitTransportBoundary({
+        provider: "openai",
+        transport: "openai_responses",
+        adapter_version: OPENAI_RESPONSES_ADAPTER_VERSION,
+        network_dispatch_expected: true,
+        network_dispatch_started: true,
+        client_request_id: request.client_request_id,
+        model_name: request.model_config.model_name,
+        metadata: request.metadata
+      });
+      if (process.env.OPERATIONAL_LIVE_CANARY_TEST_ABORT_AT_TRANSPORT_BOUNDARY === "true") {
+        throw new Error("test_only_transport_boundary_abort_before_http_request");
+      }
       const { data, request_id: requestId } = await client.responses
         .parse(body, {
           timeout: request.timeout_ms,

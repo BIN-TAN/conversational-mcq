@@ -8,7 +8,9 @@ import {
   createOperationalLiveCanaryDryRun,
   createOperationalLiveCanaryPreflightReport,
   createOperationalLiveCanaryReport,
+  createOperationalLiveCanaryTransportProbeDryRun,
   createOperationalLiveCanaryTransportProbePreflight,
+  diagnoseOperationalLiveCanaryTransportProbe,
   exportOperationalLiveCanaryReviewPacket,
   forensicsOperationalLiveCanaryRun,
   importOperationalLiveCanaryAiReview,
@@ -70,6 +72,12 @@ type SuiteName =
   | "signal"
   | "full-simulation"
   | "transport-probe"
+  | "transport-probe-diagnostic"
+  | "transport-probe-dry-run"
+  | "transport-boundary"
+  | "transport-stage"
+  | "transport-error"
+  | "transport-report-consistency"
   | "report-consistency"
   | "execution-path"
   | "dependency"
@@ -98,7 +106,9 @@ const liveCanaryEnvKeys = [
   "LLM_PROVIDER",
   "LLM_LIVE_CALLS_ENABLED",
   "OPENAI_API_KEY",
-  "LLM_DAILY_CLASS_CALL_LIMIT"
+  "LLM_DAILY_CLASS_CALL_LIMIT",
+  "OPERATIONAL_LIVE_CANARY_TEST_ABORT_AT_TRANSPORT_BOUNDARY",
+  "OPERATIONAL_LIVE_CANARY_TEST_ALLOW_SMOKE_DATABASE"
 ] as const;
 
 function setEnv(values: Partial<Record<(typeof liveCanaryEnvKeys)[number], string | undefined>>) {
@@ -525,7 +535,8 @@ async function guardParitySmoke() {
     OPERATIONAL_LIVE_CANARY_DATABASE_URL: valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL,
     LLM_PROVIDER: valid.LLM_PROVIDER,
     LLM_LIVE_CALLS_ENABLED: valid.LLM_LIVE_CALLS_ENABLED,
-    OPENAI_API_KEY: valid.OPENAI_API_KEY
+    OPENAI_API_KEY: valid.OPENAI_API_KEY,
+    OPERATIONAL_LIVE_CANARY_TEST_ALLOW_SMOKE_DATABASE: "true"
   };
 
   await withLiveCanaryEnv(baseEnv, async () => {
@@ -1060,6 +1071,153 @@ async function transportProbeSmoke() {
   });
 }
 
+async function transportProbeDryRunSmoke() {
+  const valid = await validCanaryReadinessEnv();
+  await withLiveCanaryEnv({
+    OPERATIONAL_AGENT_MODE: valid.OPERATIONAL_AGENT_MODE,
+    OPERATIONAL_AGENT_INTEGRATION_ENABLED: valid.OPERATIONAL_AGENT_INTEGRATION_ENABLED,
+    OPERATIONAL_APPROVED_CONFIG_HASH: valid.OPERATIONAL_APPROVED_CONFIG_HASH,
+    OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: valid.OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH,
+    OPERATIONAL_LIVE_CANARY_ENABLED: valid.OPERATIONAL_LIVE_CANARY_ENABLED,
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE: valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE,
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL: liveCanarySmokeDatabaseUrl(),
+    LLM_PROVIDER: valid.LLM_PROVIDER,
+    LLM_LIVE_CALLS_ENABLED: valid.LLM_LIVE_CALLS_ENABLED,
+    OPENAI_API_KEY: valid.OPENAI_API_KEY,
+    OPERATIONAL_LIVE_CANARY_TEST_ALLOW_SMOKE_DATABASE: "true"
+  }, async () => {
+    await withSmokeCanaryDatabase(async () => {
+      const dryRun = await createOperationalLiveCanaryTransportProbeDryRun();
+      assert(dryRun.external_request_made === false, "Transport probe dry run must make no provider request.");
+      assert(dryRun.resolved_provider === "openai", "Dry run should resolve the OpenAI provider in valid env.");
+      assert(dryRun.resolved_transport === "openai_responses", "Dry run should resolve the Responses transport.");
+      assert(dryRun.input_contract_valid, "Dry run should validate the exact input contract.");
+      assert(dryRun.redaction_valid, "Dry run should validate redaction.");
+      assert(dryRun.output_schema_valid, "Dry run should compile the output schema.");
+      assert(dryRun.exact_dispatch_would_be_permitted, "Valid dry run should reach transport-ready stage.");
+      assert(dryRun.stage_trace.some((stage) => stage.stage === "transport_adapter_resolved" && stage.ok), "Transport-ready stage should be present.");
+    });
+  });
+}
+
+async function transportBoundarySmoke() {
+  const valid = await validCanaryReadinessEnv();
+  await withLiveCanaryEnv({
+    OPERATIONAL_AGENT_MODE: valid.OPERATIONAL_AGENT_MODE,
+    OPERATIONAL_AGENT_INTEGRATION_ENABLED: valid.OPERATIONAL_AGENT_INTEGRATION_ENABLED,
+    OPERATIONAL_APPROVED_CONFIG_HASH: valid.OPERATIONAL_APPROVED_CONFIG_HASH,
+    OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: valid.OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH,
+    OPERATIONAL_LIVE_CANARY_ENABLED: valid.OPERATIONAL_LIVE_CANARY_ENABLED,
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE: valid.OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE,
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL: liveCanarySmokeDatabaseUrl(),
+    LLM_PROVIDER: valid.LLM_PROVIDER,
+    LLM_LIVE_CALLS_ENABLED: valid.LLM_LIVE_CALLS_ENABLED,
+    OPENAI_API_KEY: valid.OPENAI_API_KEY,
+    OPERATIONAL_LIVE_CANARY_TEST_ALLOW_SMOKE_DATABASE: "true",
+    OPERATIONAL_LIVE_CANARY_TEST_ABORT_AT_TRANSPORT_BOUNDARY: "true"
+  }, async () => {
+    await withSmokeCanaryDatabase(async () => {
+      const result = await runOperationalLiveCanaryTransportProbe({ confirmPaidApi: true });
+      assert(result.status === "failed", "Boundary-aborted probe should fail without network.");
+      assert(result.paid_api_request_made === false, "Boundary-aborted smoke must not count a provider request.");
+      assert("run_public_id" in result && result.run_public_id, "Boundary-aborted probe should preserve a run ID.");
+      const diagnosis = await diagnoseOperationalLiveCanaryTransportProbe(result.run_public_id);
+      const attempt = diagnosis.steps[0].dispatch_attempts[0];
+      assert(attempt.transport_dispatch_entered, "Boundary hook should mark dispatch entered.");
+      assert(attempt.lifecycle === "finalized_provider_failure", "Post-boundary abort should be provider-dispatch failure.");
+      assert(attempt.typed_failure_reason === "probe_provider_dispatch_failed", "Post-boundary abort should keep typed provider failure.");
+      assert(attempt.provider_request_id_present === false, "Boundary abort should not have a real provider request ID.");
+    });
+  });
+}
+
+async function transportStageSmoke() {
+  const runPublicId = await simulatedRun();
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = liveCanarySmokeDatabaseUrl();
+  const diagnosis = await diagnoseOperationalLiveCanaryTransportProbe(runPublicId);
+  const first = diagnosis.steps[0].dispatch_attempts[0];
+  assert(first.stage_trace_present, "Simulated transport attempt should expose a stage trace.");
+  assert(first.last_completed_stage === "step_finalized", "Successful simulation should finalize the stage machine.");
+  assert(first.transport_objective.passed === true, "Successful simulation should satisfy transport objective per step.");
+}
+
+async function transportErrorSmoke() {
+  await withSmokeCanaryDatabase(async () => {
+    const prisma = createCanaryPrismaClient();
+    try {
+      const manifest = await loadOperationalLiveCanaryManifest();
+      const run = await createCanaryRunSkeleton({ status: "running", prisma });
+      const step = run.steps.find((entry) => entry.agent_name === "response_collection_agent") ?? run.steps[0];
+      const attempt = await prisma.operationalLiveCanaryDispatchAttempt.create({
+        data: {
+          dispatch_public_id: "olcd_transport_error_smoke",
+          run_db_id: run.id,
+          step_db_id: step.id,
+          logical_invocation_key: step.logical_invocation_key,
+          attempt_index: 1,
+          dispatch_key: `transport-error-smoke:${run.run_public_id}`,
+          provider: "openai",
+          transport: "openai_responses",
+          adapter_version: "openai-responses-adapter-v1",
+          network_dispatch_expected: true,
+          network_dispatch_started: false,
+          model_snapshot: manifest.model_snapshot,
+          reasoning_effort: manifest.reasoning_effort,
+          execution_path: "transport_error_smoke",
+          provenance_type: "deterministic_fallback",
+          lifecycle_status: "pre_dispatch_failed",
+          last_completed_stage: "transport_adapter_resolved",
+          failure_stage: "input_contract_validated",
+          typed_failure_reason: "probe_input_contract_invalid",
+          request_reserved_at: new Date(),
+          client_dispatch_id: "transport_error_smoke_client_dispatch",
+          usage_status: "not_applicable",
+          transport_objective_json: {
+            exactly_one_dispatch_required: true,
+            dispatch_started: false,
+            response_received: false,
+            usage_verified: false,
+            effective_result_usable: false,
+            passed: false
+          }
+        }
+      });
+      assert(attempt.lifecycle_status === "pre_dispatch_failed", "Pre-boundary failures should not be provider failures.");
+      const report = await createOperationalLiveCanaryReport(run.run_public_id);
+      assert(report.metrics.fallback_count === 1, "Fallback count should include deterministic fallback provenance.");
+      assert(!report.provider_execution.transport_objective.passed, "Fallback must not satisfy transport objective.");
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+}
+
+async function transportProbeDiagnosticSmoke() {
+  const runPublicId = await simulatedRun();
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = liveCanarySmokeDatabaseUrl();
+  const diagnosis = await diagnoseOperationalLiveCanaryTransportProbe(runPublicId);
+  assert(diagnosis.read_only, "Diagnosis should declare read-only behavior.");
+  assert(diagnosis.steps.length === 30, "Diagnosis should account for all simulated steps.");
+  assert(diagnosis.steps[0].dispatch_attempts[0].selected_transport_implementation === "openai_responses", "Diagnosis should expose transport descriptor.");
+  assert(!JSON.stringify(diagnosis).includes("fake-key-never-sent"), "Diagnosis must not expose API keys.");
+}
+
+async function transportReportConsistencySmoke() {
+  const runPublicId = await simulatedRun();
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = liveCanarySmokeDatabaseUrl();
+  const [inspect, forensics, reconciliation, report] = await Promise.all([
+    inspectOperationalLiveCanaryRun(runPublicId),
+    forensicsOperationalLiveCanaryRun(runPublicId),
+    reconcileOperationalLiveCanaryRun(runPublicId),
+    createOperationalLiveCanaryReport(runPublicId)
+  ]);
+  assert(inspect.lifecycle_counts.finalized_success === 30, "Inspect should agree on finalized successes.");
+  assert(forensics.lifecycle_counts.finalized_success === 30, "Forensics should agree on finalized successes.");
+  assert(reconciliation.lifecycle_counts.finalized_success === 30, "Reconcile should agree on finalized successes.");
+  assert(report.provider_execution.lifecycle_counts.finalized_success === 30, "Report should agree on finalized successes.");
+  assert(report.provider_execution.accounting_verified, "Report accounting should verify for simulation.");
+}
+
 async function reportConsistencySmoke() {
   const runPublicId = await simulatedRun();
   process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = liveCanarySmokeDatabaseUrl();
@@ -1169,6 +1327,18 @@ async function main() {
     await fullSimulationSmoke();
   } else if (suite === "transport-probe") {
     await transportProbeSmoke();
+  } else if (suite === "transport-probe-dry-run") {
+    await transportProbeDryRunSmoke();
+  } else if (suite === "transport-boundary") {
+    await transportBoundarySmoke();
+  } else if (suite === "transport-stage") {
+    await transportStageSmoke();
+  } else if (suite === "transport-error") {
+    await transportErrorSmoke();
+  } else if (suite === "transport-probe-diagnostic") {
+    await transportProbeDiagnosticSmoke();
+  } else if (suite === "transport-report-consistency") {
+    await transportReportConsistencySmoke();
   } else if (suite === "report-consistency") {
     await reportConsistencySmoke();
   } else if (suite === "execution-path") {

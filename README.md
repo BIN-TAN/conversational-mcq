@@ -1223,6 +1223,12 @@ contains verified provider provenance, usage, and lifecycle status. Historical
 completed rows without dispatch rows are preserved but classified as
 `unknown_legacy_provenance`, not verified paid provider calls.
 
+Transport probe hardening adds a local stage machine and transport objective.
+Dry run validates the exact synthetic Response Collection input, output schema,
+redaction, budget/readiness state, and OpenAI Responses transport descriptor
+without making a provider request. Diagnosis is read-only and reports
+unrecoverable historical errors without inventing a cause.
+
 Reset-heavy smoke tests use `conversational_mcq_live_canary_smoke_e2e` and do
 not reset the historical `_live_canary_e2e` database.
 
@@ -1231,6 +1237,8 @@ configuration:
 
 ```bash
 npm run operational:live-canary:transport-probe:preflight
+npm run operational:live-canary:transport-probe:dry-run
+npm run operational:live-canary:transport-probe:diagnose -- --run <run_public_id>
 npm run operational:live-canary:transport-probe -- --confirm-paid-api
 ```
 

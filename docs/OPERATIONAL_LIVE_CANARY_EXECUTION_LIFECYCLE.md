@@ -17,13 +17,21 @@ Important fields:
 - `dispatch_key`
 - `client_dispatch_id`
 - `provider`
+- `transport`
+- `adapter_version`
+- `network_dispatch_expected`
+- `network_dispatch_started`
 - `model_snapshot`
 - `reasoning_effort`
 - `execution_path`
 - `provenance_type`
 - `lifecycle_status`
+- `last_completed_stage`
+- `failure_stage`
+- `typed_failure_reason`
 - provider request/response IDs when available
 - token counts and estimated cost when usage is verified
+- `transport_objective_json`
 
 The ledger is append-only for audit purposes. Historical runs created before
 this table are preserved and classified as `unknown_legacy_provenance` unless a
@@ -41,13 +49,41 @@ response_received
 usage_verified
 finalized_success
 finalized_provider_failure
+finalized_local_validation_failure
 unknown_after_dispatch
 cancelled_before_dispatch
 ```
 
-The runner records `reserved` before dispatch and `dispatch_started` before the
-provider boundary. Results are finalized only after response, usage, and cost
-data have been persisted or the failure is known.
+The runner records `reserved` before local validation. `dispatch_started` is
+recorded only when the OpenAI Responses transport boundary is entered. Results
+are finalized only after response, usage, and cost data have been persisted or
+the failure is known.
+
+Execution stages are:
+
+```text
+readiness_validated
+canary_context_validated
+synthetic_input_built
+input_contract_validated
+redaction_validated
+output_schema_compiled
+budget_reserved
+provider_resolved
+transport_adapter_resolved
+dispatch_attempt_created
+dispatch_started
+response_received
+raw_response_persisted
+usage_persisted
+raw_output_validated
+effective_result_persisted
+step_finalized
+```
+
+Input, redaction, readiness, budget, provider-selection, transport-selection,
+and local schema failures are pre-dispatch/local validation failures unless the
+transport boundary was entered.
 
 If a request may have crossed the provider boundary but usage cannot be
 verified, the step is marked for reconciliation instead of being retried.
@@ -93,6 +129,6 @@ Reports separate:
 - `effective_execution`
 - `integrity`
 
-Readiness requires verified provider accounting, usable effective results, and
-completed review. Completed legacy rows without dispatch attempts are preserved
-but are not treated as verified provider calls.
+Readiness requires verified provider accounting, a passed transport objective,
+usable effective results, and completed review. Completed legacy rows without
+dispatch attempts are preserved but are not treated as verified provider calls.

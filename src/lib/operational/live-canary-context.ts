@@ -7,6 +7,7 @@ import {
 import { OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX } from "@/lib/services/operational-live-canary/database-url";
 
 export const OPERATIONAL_LIVE_CANARY_CONTEXT_VERSION = "operational-live-canary-context-v1" as const;
+const OPERATIONAL_LIVE_CANARY_SMOKE_DATABASE_SUFFIX = "_live_canary_smoke_e2e";
 
 export type OperationalLiveCanaryContext = {
   contextVersion: typeof OPERATIONAL_LIVE_CANARY_CONTEXT_VERSION;
@@ -219,6 +220,9 @@ function contextDiagnostics(
   context: OperationalLiveCanaryContext,
   overrides: Partial<CanaryContextDiagnostics> = {}
 ): CanaryContextDiagnostics {
+  const testAllowsSmokeDatabase =
+    process.env.OPERATIONAL_LIVE_CANARY_TEST_ALLOW_SMOKE_DATABASE === "true" &&
+    context.databaseName.endsWith(OPERATIONAL_LIVE_CANARY_SMOKE_DATABASE_SUFFIX);
   return {
     canary_context_present: true,
     canary_context_version: context.contextVersion,
@@ -232,7 +236,9 @@ function contextDiagnostics(
     canary_effective_validator_version: context.effectiveValidatorVersion,
     canary_targeted_evidence_run_id: context.targetedEvidenceRunPublicId,
     canary_database_name: context.databaseName,
-    canary_database_suffix_valid: context.databaseName.endsWith(OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX),
+    canary_database_suffix_valid:
+      context.databaseName.endsWith(OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX) ||
+      testAllowsSmokeDatabase,
     canary_synthetic_only: context.syntheticOnly,
     canary_created_through_phase8c_cli: context.createdThroughPhase8cCli,
     canary_attestation_hash_present: Boolean(context.attestationHash),
@@ -294,7 +300,10 @@ export async function validateOperationalLiveCanaryContext(input: {
     return invalidResult(context, "canary_attestation_hash_mismatch");
   }
 
-  if (!context.databaseName.endsWith(OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX)) {
+  const testAllowsSmokeDatabase =
+    process.env.OPERATIONAL_LIVE_CANARY_TEST_ALLOW_SMOKE_DATABASE === "true" &&
+    context.databaseName.endsWith(OPERATIONAL_LIVE_CANARY_SMOKE_DATABASE_SUFFIX);
+  if (!context.databaseName.endsWith(OPERATIONAL_LIVE_CANARY_DATABASE_SUFFIX) && !testAllowsSmokeDatabase) {
     return invalidResult(context, "canary_database_invalid");
   }
 

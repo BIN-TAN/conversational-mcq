@@ -935,11 +935,21 @@ model OperationalLiveCanaryDispatchAttempt {
   attempt_index            Int
   dispatch_key             String    @unique
   provider                 String
+  transport                String?
+  adapter_version          String?
+  network_dispatch_expected Boolean   @default(false)
+  network_dispatch_started Boolean   @default(false)
   model_snapshot           String
   reasoning_effort         String
   execution_path           String
   provenance_type          String
   lifecycle_status         String
+  last_completed_stage     String?
+  failure_stage            String?
+  typed_failure_reason     String?
+  original_error_class     String?
+  stage_trace_json         Json?
+  transport_objective_json Json?
   request_reserved_at      DateTime? @db.Timestamptz(6)
   dispatch_started_at      DateTime? @db.Timestamptz(6)
   response_received_at     DateTime? @db.Timestamptz(6)

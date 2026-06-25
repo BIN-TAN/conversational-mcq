@@ -1021,7 +1021,14 @@ Phase 6A.5 must not implement:
 - Dispatch lifecycle statuses are `reserved`, `pre_dispatch_failed`,
   `dispatch_started`, `response_received`, `usage_verified`,
   `finalized_success`, `finalized_provider_failure`,
-  `unknown_after_dispatch`, and `cancelled_before_dispatch`.
+  `finalized_local_validation_failure`, `unknown_after_dispatch`, and
+  `cancelled_before_dispatch`.
+- Dispatch attempts must record the selected transport, adapter version,
+  network-dispatch expectation, network-dispatch boundary marker, stage trace,
+  failure stage, typed failure reason, and transport objective summary.
+- The OpenAI Responses boundary, not dispatch-attempt reservation, is the
+  evidence that network dispatch was entered. A failure before that boundary is
+  pre-dispatch/local validation failure, not provider failure.
 - Step forensics must distinguish `live_provider_verified`,
   `live_provider_failed_verified`, `dispatch_possible_but_unverified`,
   `deterministic_fallback`, `mock_provider`, `blocked_pre_dispatch`,
@@ -1035,6 +1042,10 @@ Phase 6A.5 must not implement:
   synthetic Response Collection transport probe exists. The probe is CLI-only,
   paid only with explicit confirmation, and must remain isolated from classroom
   workflows.
+- A successful transport probe requires one verified OpenAI Responses dispatch,
+  provider request/response IDs, verified usage, persisted cost, and a usable
+  effective result. Deterministic fallback, mock output, missing transport
+  evidence, or unverified usage cannot satisfy this gate.
 - Reset-heavy smoke tests must use `conversational_mcq_live_canary_smoke_e2e`
   or another database ending in `_live_canary_smoke_e2e`; historical canary
   databases ending in `_live_canary_e2e` must not be reset, rewritten,
