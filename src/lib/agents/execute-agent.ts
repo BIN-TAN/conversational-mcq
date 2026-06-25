@@ -22,7 +22,11 @@ import {
   type AgentModelConfig
 } from "@/lib/llm/config";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
-import type { SanitizedAgentError, StructuredAgentResult } from "@/lib/llm/providers/types";
+import type {
+  OpenAITransportTelemetry,
+  SanitizedAgentError,
+  StructuredAgentResult
+} from "@/lib/llm/providers/types";
 import {
   checkLlmLiveCallReadiness,
   type LlmUsageGuardBlockedReason,
@@ -37,6 +41,7 @@ export type AgentExecutionResult<TOutput> =
       agent_call_id: string;
       provider_response_id?: string;
       provider_request_id?: string;
+      transport_telemetry?: OpenAITransportTelemetry;
       retry_count: number;
       idempotent_replay?: boolean;
     }
@@ -44,24 +49,28 @@ export type AgentExecutionResult<TOutput> =
       status: "refused";
       refusal: string;
       agent_call_id: string;
+      transport_telemetry?: OpenAITransportTelemetry;
       retry_count: number;
     }
   | {
       status: "incomplete";
       reason: string;
       agent_call_id: string;
+      transport_telemetry?: OpenAITransportTelemetry;
       retry_count: number;
     }
   | {
       status: "failed";
       error: SanitizedAgentError;
       agent_call_id?: string;
+      transport_telemetry?: OpenAITransportTelemetry;
       retry_count: number;
     }
   | {
       status: "invalid_output";
       validation_error: string;
       agent_call_id: string;
+      transport_telemetry?: OpenAITransportTelemetry;
       retry_count: number;
     }
   | {
@@ -369,6 +378,7 @@ export async function executeAgent<TAgentName extends AgentNameType>(
             status: "invalid_output",
             validation_error: message,
             agent_call_id: agentCall.id,
+            transport_telemetry: providerResult.transport_telemetry,
             retry_count: retryCount
           };
         }
@@ -396,6 +406,7 @@ export async function executeAgent<TAgentName extends AgentNameType>(
           agent_call_id: agentCall.id,
           provider_response_id: providerResult.provider_response_id,
           provider_request_id: providerResult.provider_request_id,
+          transport_telemetry: providerResult.transport_telemetry,
           retry_count: retryCount
         };
       }
@@ -423,6 +434,7 @@ export async function executeAgent<TAgentName extends AgentNameType>(
           status: "refused",
           refusal: providerResult.refusal ?? "Provider refused the request.",
           agent_call_id: agentCall.id,
+          transport_telemetry: providerResult.transport_telemetry,
           retry_count: retryCount
         };
       }
@@ -450,6 +462,7 @@ export async function executeAgent<TAgentName extends AgentNameType>(
           status: "incomplete",
           reason: providerResult.incomplete_reason ?? "incomplete",
           agent_call_id: agentCall.id,
+          transport_telemetry: providerResult.transport_telemetry,
           retry_count: retryCount
         };
       }
@@ -482,6 +495,7 @@ export async function executeAgent<TAgentName extends AgentNameType>(
         status: "failed",
         error,
         agent_call_id: agentCall.id,
+        transport_telemetry: providerResult.transport_telemetry,
         retry_count: retryCount
       };
     }
@@ -506,6 +520,7 @@ export async function executeAgent<TAgentName extends AgentNameType>(
       status: "failed",
       error: sanitized,
       agent_call_id: agentCall.id,
+      transport_telemetry: lastProviderResult?.transport_telemetry,
       retry_count: retryCount
     };
   }

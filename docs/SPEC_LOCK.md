@@ -1043,9 +1043,14 @@ Phase 6A.5 must not implement:
   paid only with explicit confirmation, and must remain isolated from classroom
   workflows.
 - A successful transport probe requires one verified OpenAI Responses dispatch,
-  provider request/response IDs, verified usage, persisted cost, and a usable
-  effective result. Deterministic fallback, mock output, missing transport
-  evidence, or unverified usage cannot satisfy this gate.
+  actual fetch invocation, provider request/response IDs, verified usage,
+  persisted cost, and a usable effective result. Deterministic fallback, mock
+  output, missing transport evidence, unverified usage, or
+  `cost_unverified_after_dispatch` cannot satisfy this gate.
+- Transport accounting must distinguish dispatch-attempt rows, actual network
+  fetch attempts, and provider-acknowledged requests. For new rows,
+  `network_dispatch_started` means fetch invocation, not merely provider-wrapper
+  entry. Legacy boundary markers are not retrospective proof of fetch.
 - Reset-heavy smoke tests must use `conversational_mcq_live_canary_smoke_e2e`
   or another database ending in `_live_canary_smoke_e2e`; historical canary
   databases ending in `_live_canary_e2e` must not be reset, rewritten,

@@ -21,6 +21,14 @@ Important fields:
 - `adapter_version`
 - `network_dispatch_expected`
 - `network_dispatch_started`
+- `transport_adapter_entered`
+- `request_serialization_completed`
+- `fetch_invoked`
+- `response_headers_received`
+- `response_body_received`
+- `network_request_attempt_count`
+- `provider_acknowledged_request_count`
+- `accounting_complete`
 - `model_snapshot`
 - `reasoning_effort`
 - `execution_path`
@@ -29,8 +37,10 @@ Important fields:
 - `last_completed_stage`
 - `failure_stage`
 - `typed_failure_reason`
+- sanitized OpenAI error class/type/status/code metadata when available
 - provider request/response IDs when available
 - token counts and estimated cost when usage is verified
+- `usage_status` and `cost_status`
 - `transport_objective_json`
 
 The ledger is append-only for audit purposes. Historical runs created before
@@ -54,10 +64,14 @@ unknown_after_dispatch
 cancelled_before_dispatch
 ```
 
-The runner records `reserved` before local validation. `dispatch_started` is
-recorded only when the OpenAI Responses transport boundary is entered. Results
-are finalized only after response, usage, and cost data have been persisted or
-the failure is known.
+The runner records `reserved` before local validation. New rows record
+`transport_adapter_entered` when the Responses adapter is entered,
+`request_serialization_completed` after the request body is built, and
+`fetch_invoked` when the SDK reaches the actual HTTP/fetch boundary.
+`network_dispatch_started` is now derived from `fetch_invoked` for new rows.
+Historical rows may have a legacy `network_dispatch_started` marker that only
+means the earlier adapter observer fired; it is not proof that fetch was
+invoked.
 
 Execution stages are:
 
@@ -72,7 +86,12 @@ budget_reserved
 provider_resolved
 transport_adapter_resolved
 dispatch_attempt_created
+transport_adapter_entered
+request_serialization_completed
+fetch_invoked
 dispatch_started
+response_headers_received
+response_body_received
 response_received
 raw_response_persisted
 usage_persisted
@@ -85,8 +104,20 @@ Input, redaction, readiness, budget, provider-selection, transport-selection,
 and local schema failures are pre-dispatch/local validation failures unless the
 transport boundary was entered.
 
-If a request may have crossed the provider boundary but usage cannot be
-verified, the step is marked for reconciliation instead of being retried.
+If fetch is invoked and no response/usage is captured, the row is marked
+`cost_status=cost_unverified_after_dispatch`, `accounting_complete=false`, and
+the run is not safe to resume automatically. The system does not treat this as
+verified zero cost.
+
+Provider request accounting is split into:
+
+- `dispatch_attempt_count`: rows reserved in the dispatch ledger
+- `network_request_attempt_count`: rows that reached fetch invocation
+- `provider_acknowledged_request_count`: rows where OpenAI returned a request
+  ID, response ID, or HTTP response metadata
+
+The legacy run-level `provider_request_count` is documented as provider
+acknowledged request count.
 
 ## Provenance Classification
 

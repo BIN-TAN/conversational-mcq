@@ -31,6 +31,78 @@ export type LlmUsage = {
   raw?: unknown;
 };
 
+export type OpenAITransportTypedFailureReason =
+  | "openai_authentication_failed"
+  | "openai_permission_denied"
+  | "openai_model_not_found"
+  | "openai_rate_limited"
+  | "openai_quota_exceeded"
+  | "openai_bad_request"
+  | "openai_server_error"
+  | "openai_request_timeout"
+  | "openai_connection_failed"
+  | "openai_dns_failed"
+  | "openai_tls_failed"
+  | "openai_response_parse_failed"
+  | "test_transport_hook_active"
+  | "nonapproved_base_url"
+  | "unknown_transport_error";
+
+export type OpenAITransportMilestone = {
+  transport_adapter_entered: boolean;
+  request_serialization_completed: boolean;
+  fetch_invoked: boolean;
+  response_headers_received: boolean;
+  response_body_received: boolean;
+};
+
+export type SanitizedOpenAITransportError = {
+  typed_failure_reason: OpenAITransportTypedFailureReason;
+  error_class: string | null;
+  error_name: string | null;
+  error_type: string | null;
+  http_status: number | null;
+  provider_error_code: string | null;
+  provider_error_type: string | null;
+  provider_error_param: string | null;
+  provider_request_id: string | null;
+  provider_request_header_id: string | null;
+  retry_after_ms: number | null;
+  node_cause_name: string | null;
+  node_cause_code: string | null;
+  network_category:
+    | "dns"
+    | "socket"
+    | "tls"
+    | "timeout"
+    | "abort"
+    | "http_error"
+    | "response_parse"
+    | "unknown"
+    | null;
+  sanitized_message: string;
+  has_http_response: boolean;
+  before_request_serialization: boolean;
+  fetch_invoked: boolean;
+  response_headers_received: boolean;
+  response_body_received: boolean;
+};
+
+export type OpenAITransportTelemetry = OpenAITransportMilestone & {
+  provider: "openai";
+  transport: "openai_responses";
+  adapter_version: string;
+  client_request_id: string;
+  model_name: string;
+  base_url_host: string;
+  base_url_approved: boolean;
+  provider_request_id?: string;
+  provider_response_id?: string;
+  http_status?: number;
+  retry_after_ms?: number | null;
+  normalized_error?: SanitizedOpenAITransportError;
+};
+
 export type StructuredAgentRequest<TInput, TOutput> = {
   agent_name: AgentName;
   model_config: AgentModelConfig;
@@ -56,6 +128,7 @@ export type StructuredAgentResult<TOutput> = {
   usage?: LlmUsage;
   latency_ms: number;
   error?: SanitizedAgentError;
+  transport_telemetry?: OpenAITransportTelemetry;
 };
 
 export interface LlmProvider {

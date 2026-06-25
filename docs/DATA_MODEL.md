@@ -174,16 +174,19 @@ safe references to agent/effective-result public IDs.
 ledger. It records one dispatch attempt per step attempt, including the
 dispatch key, client dispatch ID, model snapshot, reasoning effort, lifecycle
 status, provenance type, selected transport, adapter version, dispatch-boundary
-marker, stage trace, typed failure reason, provider request/response IDs when
-available, usage verification status, token counts, pricing registry version,
-estimated cost, and the transport objective summary. This table is the source
-of truth for provider request counting and budget accounting. Step status alone
-is not provider provenance.
+milestones, stage trace, typed failure reason, sanitized OpenAI error metadata,
+provider request/response IDs when available, usage and cost verification
+status, token counts, pricing registry version, estimated cost, and the
+transport objective summary. This table is the source of truth for provider
+request counting and budget accounting. Step status alone is not provider
+provenance.
 
-Accounting verification means the stored request/cost totals match verified
-dispatch rows. It is separate from the transport objective, which requires an
-entered dispatch boundary, provider response, verified usage, cost, and usable
-effective result.
+Accounting verification means dispatch rows distinguish reserved attempts,
+actual fetch attempts, provider-acknowledged requests, verified usage, and
+verified cost. `network_dispatch_started` means fetch invocation for new rows.
+Historical rows may contain a legacy marker that is not proof of fetch
+invocation. `cost_unverified_after_dispatch` blocks automatic resume because it
+cannot be treated as verified zero cost.
 
 Historical canary rows created before the dispatch ledger are preserved. If no
 dispatch attempt exists, forensics may classify completed rows as

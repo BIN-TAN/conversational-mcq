@@ -1,6 +1,8 @@
 import { parse } from "csv-parse/sync";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import http from "node:http";
+import { Prisma } from "@prisma/client";
 import {
   createCanaryRunSkeleton,
   createCanaryPrismaClient,
@@ -10,6 +12,7 @@ import {
   createOperationalLiveCanaryReport,
   createOperationalLiveCanaryTransportProbeDryRun,
   createOperationalLiveCanaryTransportProbePreflight,
+  createOperationalLiveCanaryTransportEnvironmentReport,
   diagnoseOperationalLiveCanaryTransportProbe,
   exportOperationalLiveCanaryReviewPacket,
   forensicsOperationalLiveCanaryRun,
@@ -25,6 +28,9 @@ import {
   runOperationalLiveCanaryTransportProbe,
   validateOperationalLiveCanaryManifest
 } from "../src/lib/services/operational-live-canary/service";
+import { normalizeOpenAITransportError } from "../src/lib/llm/openai-transport-diagnostics";
+import { OpenAIResponsesProvider } from "../src/lib/llm/providers/openai-responses-provider";
+import { agentOutputSchemas } from "../src/lib/agents/contracts";
 import { activeOperationalConfigHash } from "../src/lib/agents/operational/approved-config";
 import type { AgentInputByName } from "../src/lib/agents/contracts";
 import type { AgentName as AgentNameType } from "../src/lib/agents/names";
@@ -78,6 +84,13 @@ type SuiteName =
   | "transport-stage"
   | "transport-error"
   | "transport-report-consistency"
+  | "test-hook-isolation"
+  | "openai-error-normalization"
+  | "loopback-transport"
+  | "request-accounting"
+  | "cost-uncertainty"
+  | "cli-ledger-consistency"
+  | "transport-environment"
   | "report-consistency"
   | "execution-path"
   | "dependency"
@@ -101,11 +114,16 @@ const liveCanaryEnvKeys = [
   "OPERATIONAL_APPROVED_CONFIG_HASH",
   "OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH",
   "OPERATIONAL_LIVE_CANARY_ENABLED",
+  "OPERATIONAL_LIVE_CANARY_TARGET_MODEL",
   "OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE",
   "OPERATIONAL_LIVE_CANARY_DATABASE_URL",
   "LLM_PROVIDER",
   "LLM_LIVE_CALLS_ENABLED",
   "OPENAI_API_KEY",
+  "OPENAI_BASE_URL",
+  "OPERATIONAL_LIVE_CANARY_LOOPBACK_OPENAI_BASE_URL",
+  "OPERATIONAL_LIVE_CANARY_TEST_PROVIDER_OVERRIDE",
+  "OPERATIONAL_LIVE_CANARY_TEST_FETCH_ACTIVE",
   "LLM_DAILY_CLASS_CALL_LIMIT",
   "OPERATIONAL_LIVE_CANARY_TEST_ABORT_AT_TRANSPORT_BOUNDARY",
   "OPERATIONAL_LIVE_CANARY_TEST_ALLOW_SMOKE_DATABASE"
@@ -1118,15 +1136,13 @@ async function transportBoundarySmoke() {
   }, async () => {
     await withSmokeCanaryDatabase(async () => {
       const result = await runOperationalLiveCanaryTransportProbe({ confirmPaidApi: true });
-      assert(result.status === "failed", "Boundary-aborted probe should fail without network.");
+      assert(result.status === "blocked", "Test transport hook should block before paid probe execution.");
       assert(result.paid_api_request_made === false, "Boundary-aborted smoke must not count a provider request.");
-      assert("run_public_id" in result && result.run_public_id, "Boundary-aborted probe should preserve a run ID.");
-      const diagnosis = await diagnoseOperationalLiveCanaryTransportProbe(result.run_public_id);
-      const attempt = diagnosis.steps[0].dispatch_attempts[0];
-      assert(attempt.transport_dispatch_entered, "Boundary hook should mark dispatch entered.");
-      assert(attempt.lifecycle === "finalized_provider_failure", "Post-boundary abort should be provider-dispatch failure.");
-      assert(attempt.typed_failure_reason === "probe_provider_dispatch_failed", "Post-boundary abort should keep typed provider failure.");
-      assert(attempt.provider_request_id_present === false, "Boundary abort should not have a real provider request ID.");
+      assert(
+        Array.isArray(result.blocking_reasons) &&
+          result.blocking_reasons.includes("test_transport_hook_active"),
+        "Test transport hook block reason should be preserved."
+      );
     });
   });
 }
@@ -1158,7 +1174,7 @@ async function transportErrorSmoke() {
           dispatch_key: `transport-error-smoke:${run.run_public_id}`,
           provider: "openai",
           transport: "openai_responses",
-          adapter_version: "openai-responses-adapter-v1",
+          adapter_version: "openai-responses-adapter-v2",
           network_dispatch_expected: true,
           network_dispatch_started: false,
           model_snapshot: manifest.model_snapshot,
@@ -1171,12 +1187,16 @@ async function transportErrorSmoke() {
           typed_failure_reason: "probe_input_contract_invalid",
           request_reserved_at: new Date(),
           client_dispatch_id: "transport_error_smoke_client_dispatch",
-          usage_status: "not_applicable",
+          usage_status: "not_dispatched",
+          cost_status: "not_dispatched",
           transport_objective_json: {
             exactly_one_dispatch_required: true,
             dispatch_started: false,
+            fetch_invoked: false,
             response_received: false,
             usage_verified: false,
+            accounting_complete: true,
+            cost_status: "not_dispatched",
             effective_result_usable: false,
             passed: false
           }
@@ -1269,6 +1289,357 @@ async function historyPreservationSmoke() {
   assert(after.read_only, "Historical forensics should declare read-only behavior.");
 }
 
+function responseCollectionOutput() {
+  return {
+    agent_name: "response_collection_agent",
+    agent_version: "response-collection-agent-v1",
+    prompt_version: "response-collection-v5",
+    schema_version: "response-collection-output-v3",
+    output_status: "ok",
+    warnings: [],
+    assistant_message: "I recorded your reasoning.",
+    intervention_type: "none",
+    should_advance: false,
+    blocked_content_help: false,
+    missing_evidence_status: "complete",
+    recognized_intents: ["reasoning_submission"],
+    reasoning_capture_status: "new_reasoning",
+    reasoning_evidence_segments: ["I chose A because the pattern matches the example."],
+    requires_option_button: false,
+    requires_confidence_control: false,
+    requested_control_action: "none",
+    recommended_interaction_outcome: "stay_current_step",
+    events_to_log: []
+  };
+}
+
+function responseCollectionRequest(timeoutMs = 2000) {
+  return {
+    agent_name: "response_collection_agent" as const,
+    model_config: {
+      model_name: "gpt-5.4-mini-2026-03-17",
+      reasoning_effort: "low" as const,
+      max_output_tokens: 1500
+    },
+    instructions: "Return the required structured output.",
+    input: {
+      current_phase: "initial_item_administration",
+      allowed_interaction_type: "reasoning_text",
+      current_item_student_safe: { item_public_id: "item_synth_001", stem: "Synthetic item" },
+      student_message: "I chose A because the pattern matches the example.",
+      collected_response_state: { selected_option: "A", confidence_rating: "medium" },
+      missing_evidence_state: { missing: [] },
+      recent_student_safe_transcript: [],
+      orchestration_constraints: { no_hints: true },
+      procedural_policy: { refuse_correctness_feedback: true },
+      allowed_student_controls: ["free_text_message", "submit_button"]
+    },
+    output_schema: agentOutputSchemas.response_collection_agent,
+    schema_name: "response_collection_output_v3",
+    client_request_id: `loopback_${Date.now()}`,
+    timeout_ms: timeoutMs,
+    metadata: { smoke_test: "loopback_transport" }
+  };
+}
+
+async function withLoopbackServer(
+  handler: (req: http.IncomingMessage, body: string, res: http.ServerResponse) => void
+) {
+  const requests: Array<{ url: string | undefined; method: string | undefined; body: string }> = [];
+  const server = http.createServer((req, res) => {
+    let body = "";
+    req.setEncoding("utf8");
+    req.on("data", (chunk) => {
+      body += chunk;
+    });
+    req.on("end", () => {
+      requests.push({ url: req.url, method: req.method, body });
+      handler(req, body, res);
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("Loopback server did not bind to a TCP port.");
+  }
+  return {
+    baseURL: `http://127.0.0.1:${address.port}/v1`,
+    requests,
+    close: () => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+  };
+}
+
+async function runLoopbackProvider(
+  handler: (req: http.IncomingMessage, body: string, res: http.ServerResponse) => void
+) {
+  const loopback = await withLoopbackServer(handler);
+  try {
+    return await withLiveCanaryEnv({
+      OPERATIONAL_AGENT_MODE: "guarded_live",
+      OPERATIONAL_AGENT_INTEGRATION_ENABLED: "false",
+      OPERATIONAL_APPROVED_CONFIG_HASH: activeOperationalConfigHash(),
+      OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: activeOperationalConfigHash(),
+      OPERATIONAL_LIVE_CANARY_ENABLED: "true",
+      OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE: "true",
+      OPERATIONAL_LIVE_CANARY_DATABASE_URL: liveCanarySmokeDatabaseUrl(),
+      OPERATIONAL_LIVE_CANARY_LOOPBACK_OPENAI_BASE_URL: loopback.baseURL,
+      LLM_PROVIDER: "openai",
+      LLM_LIVE_CALLS_ENABLED: "true",
+      OPENAI_API_KEY: "sk-loopback-fake-key-never-sent",
+      LLM_DAILY_CLASS_CALL_LIMIT: "80"
+    }, async () => {
+      const result = await new OpenAIResponsesProvider().executeStructured(responseCollectionRequest());
+      return { result, requests: loopback.requests };
+    });
+  } finally {
+    await loopback.close();
+  }
+}
+
+async function testHookIsolationSmoke() {
+  await withLiveCanaryEnv({
+    OPERATIONAL_LIVE_CANARY_TEST_ABORT_AT_TRANSPORT_BOUNDARY: "true",
+    OPENAI_API_KEY: "sk-test-hook-fake-key-never-sent"
+  }, async () => {
+    const report = createOperationalLiveCanaryTransportEnvironmentReport();
+    assert(!report.paid_transport_eligible, "Test transport hook should block paid transport eligibility.");
+    assert(report.blocking_reasons.includes("test_transport_hook_active"), "Test hook block reason missing.");
+    const preflight = await createOperationalLiveCanaryTransportProbePreflight();
+    assert(!preflight.paid_execution_permitted, "Transport probe preflight should fail closed with a test hook.");
+  });
+}
+
+async function openAIErrorNormalizationSmoke() {
+  const milestones = {
+    transport_adapter_entered: true,
+    request_serialization_completed: true,
+    fetch_invoked: true,
+    response_headers_received: false,
+    response_body_received: false
+  };
+  const auth = normalizeOpenAITransportError({ status: 401, code: "invalid_api_key", message: "bad sk-secret-value" }, milestones);
+  assert(auth.typed_failure_reason === "openai_authentication_failed", "401 should normalize to authentication failure.");
+  assert(!JSON.stringify(auth).includes("sk-secret-value"), "Normalized errors must redact secret-like values.");
+  const model = normalizeOpenAITransportError({ status: 404, code: "model_not_found", message: "model not found" }, milestones);
+  assert(model.typed_failure_reason === "openai_model_not_found", "404 model should normalize to model_not_found.");
+  const quota = normalizeOpenAITransportError({ status: 429, code: "insufficient_quota", message: "quota" }, milestones);
+  assert(quota.typed_failure_reason === "openai_quota_exceeded", "Quota 429 should normalize to quota.");
+  const dns = normalizeOpenAITransportError(Object.assign(new Error("fetch failed"), { cause: { code: "ENOTFOUND", name: "Error" } }), milestones);
+  assert(dns.typed_failure_reason === "openai_dns_failed", "DNS failures should normalize.");
+}
+
+async function loopbackTransportSmoke() {
+  const output = responseCollectionOutput();
+  const { result, requests } = await runLoopbackProvider((_req, _body, res) => {
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json");
+    res.setHeader("x-request-id", "req_loopback_123");
+    res.end(JSON.stringify({
+      id: "resp_loopback_123",
+      object: "response",
+      created_at: Math.floor(Date.now() / 1000),
+      status: "completed",
+      model: "gpt-5.4-mini-2026-03-17",
+      output: [{
+        id: "msg_loopback_123",
+        type: "message",
+        status: "completed",
+        role: "assistant",
+        content: [{
+          type: "output_text",
+          text: JSON.stringify(output),
+          annotations: [],
+          parsed: output
+        }]
+      }],
+      output_parsed: output,
+      usage: {
+        input_tokens: 11,
+        output_tokens: 22,
+        total_tokens: 33,
+        input_tokens_details: { cached_tokens: 3 },
+        output_tokens_details: { reasoning_tokens: 4 }
+      }
+    }));
+  });
+  assert(requests.length === 1, "Loopback should receive exactly one SDK request.");
+  const requestBody = JSON.parse(requests[0].body);
+  assert(requests[0].method === "POST", "Responses adapter should POST.");
+  assert(requestBody.store === false, "Responses request must set store:false.");
+  assert(!("tools" in requestBody), "Responses request must not include tools.");
+  assert(result.transport_telemetry?.fetch_invoked, "Loopback result should mark fetch invoked.");
+  assert(result.transport_telemetry?.response_headers_received, "Loopback result should mark headers received.");
+  assert(result.transport_telemetry?.response_body_received, "Loopback result should mark body received.");
+  assert(result.status === "completed", `Loopback success should complete, got ${result.status}.`);
+
+  const missingUsage = await runLoopbackProvider((_req, _body, res) => {
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json");
+    res.setHeader("x-request-id", "req_loopback_missing_usage");
+    res.end(JSON.stringify({
+      id: "resp_loopback_missing_usage",
+      object: "response",
+      created_at: Math.floor(Date.now() / 1000),
+      status: "completed",
+      model: "gpt-5.4-mini-2026-03-17",
+      output: [{
+        id: "msg_loopback_missing_usage",
+        type: "message",
+        status: "completed",
+        role: "assistant",
+        content: [{ type: "output_text", text: JSON.stringify(output), annotations: [], parsed: output }]
+      }],
+      output_parsed: output
+    }));
+  });
+  assert(missingUsage.result.status === "completed", "Valid response missing usage should still parse.");
+  assert(!missingUsage.result.usage, "Missing usage should remain absent for accounting tests.");
+}
+
+async function requestAccountingSmoke() {
+  await ensureDatabaseReady();
+  await withSmokeCanaryDatabase(async () => {
+    const prisma = createCanaryPrismaClient();
+    try {
+      const run = await createCanaryRunSkeleton({ status: "running", runPublicId: `olcr_accounting_${Date.now()}`, prisma });
+      const step = run.steps[0];
+      const attempt = await prisma.operationalLiveCanaryDispatchAttempt.create({
+        data: {
+          dispatch_public_id: "olcd_accounting_smoke",
+          run_db_id: run.id,
+          step_db_id: step.id,
+          logical_invocation_key: step.logical_invocation_key,
+          attempt_index: 1,
+          dispatch_key: `accounting:${run.run_public_id}:${step.step_public_id}`,
+          provider: "openai",
+          transport: "openai_responses",
+          adapter_version: "openai-responses-adapter-v2",
+          network_dispatch_expected: true,
+          network_dispatch_started: true,
+          transport_adapter_entered: true,
+          request_serialization_completed: true,
+          fetch_invoked: true,
+          response_headers_received: true,
+          response_body_received: true,
+          network_request_attempt_count: 1,
+          provider_acknowledged_request_count: 1,
+          accounting_complete: true,
+          model_snapshot: "gpt-5.4-mini-2026-03-17",
+          reasoning_effort: "low",
+          execution_path: "smoke",
+          provenance_type: "live_provider",
+          lifecycle_status: "finalized_success",
+          client_dispatch_id: `client_accounting_${Date.now()}`,
+          dispatch_started_at: new Date(),
+          response_received_at: new Date(),
+          usage_verified_at: new Date(),
+          finalized_at: new Date(),
+          provider_request_id: "req_accounting",
+          provider_response_id: "resp_accounting",
+          input_tokens: 1,
+          output_tokens: 1,
+          total_tokens: 2,
+          estimated_cost_usd: new Prisma.Decimal(0.000001),
+          usage_status: "usage_verified",
+          cost_status: "usage_verified"
+        }
+      });
+      assert(attempt.network_request_attempt_count === 1, "Network request count should be one.");
+      assert(attempt.provider_acknowledged_request_count === 1, "Provider acknowledged count should be one.");
+      await prisma.operationalLiveCanaryRun.update({
+        where: { id: run.id },
+        data: {
+          provider_request_count: 1,
+          estimated_cost_usd: new Prisma.Decimal(0.000001)
+        }
+      });
+      const reconciliation = await reconcileOperationalLiveCanaryRun(run.run_public_id);
+      assert(reconciliation.network_request_attempt_count === 1, "Reconcile should expose network attempt count.");
+      assert(reconciliation.provider_acknowledged_request_count === 1, "Reconcile should expose provider acknowledgement count.");
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+}
+
+async function costUncertaintySmoke() {
+  await ensureDatabaseReady();
+  await withSmokeCanaryDatabase(async () => {
+    const prisma = createCanaryPrismaClient();
+    try {
+      const run = await createCanaryRunSkeleton({ status: "running", runPublicId: `olcr_cost_${Date.now()}`, prisma });
+      const step = run.steps[0];
+      await prisma.operationalLiveCanaryDispatchAttempt.create({
+        data: {
+          dispatch_public_id: "olcd_cost_uncertain_smoke",
+          run_db_id: run.id,
+          step_db_id: step.id,
+          logical_invocation_key: step.logical_invocation_key,
+          attempt_index: 1,
+          dispatch_key: `cost:${run.run_public_id}:${step.step_public_id}`,
+          provider: "openai",
+          transport: "openai_responses",
+          adapter_version: "openai-responses-adapter-v2",
+          network_dispatch_expected: true,
+          network_dispatch_started: true,
+          transport_adapter_entered: true,
+          request_serialization_completed: true,
+          fetch_invoked: true,
+          network_request_attempt_count: 1,
+          provider_acknowledged_request_count: 0,
+          accounting_complete: false,
+          model_snapshot: "gpt-5.4-mini-2026-03-17",
+          reasoning_effort: "low",
+          execution_path: "smoke",
+          provenance_type: "live_provider_failure",
+          lifecycle_status: "unknown_after_dispatch",
+          client_dispatch_id: `client_cost_${Date.now()}`,
+          usage_status: "unknown",
+          cost_status: "cost_unverified_after_dispatch"
+        }
+      });
+      const reconciliation = await reconcileOperationalLiveCanaryRun(run.run_public_id);
+      assert(!reconciliation.safe_to_resume, "Cost-unverified dispatch should not be safe to resume.");
+      assert(reconciliation.safe_to_resume_reasons.includes("usage_unverified"), "Cost uncertainty should produce usage_unverified resume reason.");
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+}
+
+async function cliLedgerConsistencySmoke() {
+  const runPublicId = await simulatedRun();
+  process.env.OPERATIONAL_LIVE_CANARY_DATABASE_URL = liveCanarySmokeDatabaseUrl();
+  const [inspect, report, reconciliation] = await Promise.all([
+    inspectOperationalLiveCanaryRun(runPublicId),
+    createOperationalLiveCanaryReport(runPublicId),
+    reconcileOperationalLiveCanaryRun(runPublicId)
+  ]);
+  assert(inspect.provider_request_count === report.run.provider_request_count, "Inspect/report provider count mismatch.");
+  assert(report.provider_execution.network_request_attempt_count === reconciliation.network_request_attempt_count, "Report/reconcile network count mismatch.");
+  assert(report.provider_execution.provider_acknowledged_request_count === reconciliation.provider_acknowledged_request_count, "Report/reconcile provider acknowledgement mismatch.");
+}
+
+async function transportEnvironmentSmoke() {
+  await withLiveCanaryEnv({
+    OPENAI_API_KEY: "sk-transport-env-fake-key-never-sent",
+    OPERATIONAL_LIVE_CANARY_TARGET_MODEL: "gpt-5.4-mini-2026-03-17"
+  }, async () => {
+    const report = createOperationalLiveCanaryTransportEnvironmentReport();
+    assert(report.base_url_approved, "Default OpenAI host should be approved.");
+    assert(report.api_key_configured, "API key configured boolean should be true.");
+    assert(!JSON.stringify(report).includes("sk-transport-env"), "Environment report must not expose API key.");
+  });
+  await withLiveCanaryEnv({
+    OPENAI_API_KEY: "sk-transport-env-fake-key-never-sent",
+    OPERATIONAL_LIVE_CANARY_LOOPBACK_OPENAI_BASE_URL: "http://127.0.0.1:1/v1"
+  }, async () => {
+    const report = createOperationalLiveCanaryTransportEnvironmentReport();
+    assert(!report.base_url_approved, "Loopback host should not be approved for paid transport.");
+    assert(!report.paid_transport_eligible, "Loopback should not satisfy paid transport eligibility.");
+  });
+}
+
 async function dryRunSmoke() {
   runCommand("npx", ["tsx", "prisma/operational-live-canary-db.ts", "prepare"], {
     timeoutMs: 120_000
@@ -1339,6 +1710,20 @@ async function main() {
     await transportProbeDiagnosticSmoke();
   } else if (suite === "transport-report-consistency") {
     await transportReportConsistencySmoke();
+  } else if (suite === "test-hook-isolation") {
+    await testHookIsolationSmoke();
+  } else if (suite === "openai-error-normalization") {
+    await openAIErrorNormalizationSmoke();
+  } else if (suite === "loopback-transport") {
+    await loopbackTransportSmoke();
+  } else if (suite === "request-accounting") {
+    await requestAccountingSmoke();
+  } else if (suite === "cost-uncertainty") {
+    await costUncertaintySmoke();
+  } else if (suite === "cli-ledger-consistency") {
+    await cliLedgerConsistencySmoke();
+  } else if (suite === "transport-environment") {
+    await transportEnvironmentSmoke();
   } else if (suite === "report-consistency") {
     await reportConsistencySmoke();
   } else if (suite === "execution-path") {

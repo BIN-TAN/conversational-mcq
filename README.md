@@ -1225,9 +1225,16 @@ completed rows without dispatch rows are preserved but classified as
 
 Transport probe hardening adds a local stage machine and transport objective.
 Dry run validates the exact synthetic Response Collection input, output schema,
-redaction, budget/readiness state, and OpenAI Responses transport descriptor
-without making a provider request. Diagnosis is read-only and reports
-unrecoverable historical errors without inventing a cause.
+redaction, budget/readiness state, transport environment, local request
+serialization, error-normalization readiness, and OpenAI Responses transport
+descriptor without making a provider request. Diagnosis is read-only and
+reports unrecoverable historical errors without inventing a cause.
+
+Transport accounting separates dispatch rows, actual fetch attempts, and
+provider-acknowledged requests. New rows set `network_dispatch_started` only at
+the actual fetch boundary. If fetch is invoked but usage is not captured, the
+run is marked `cost_unverified_after_dispatch` and is not safe to resume
+automatically.
 
 Reset-heavy smoke tests use `conversational_mcq_live_canary_smoke_e2e` and do
 not reset the historical `_live_canary_e2e` database.
@@ -1237,6 +1244,7 @@ configuration:
 
 ```bash
 npm run operational:live-canary:transport-probe:preflight
+npm run operational:live-canary:transport-environment
 npm run operational:live-canary:transport-probe:dry-run
 npm run operational:live-canary:transport-probe:diagnose -- --run <run_public_id>
 npm run operational:live-canary:transport-probe -- --confirm-paid-api

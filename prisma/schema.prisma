@@ -939,6 +939,14 @@ model OperationalLiveCanaryDispatchAttempt {
   adapter_version          String?
   network_dispatch_expected Boolean   @default(false)
   network_dispatch_started Boolean   @default(false)
+  transport_adapter_entered Boolean   @default(false)
+  request_serialization_completed Boolean @default(false)
+  fetch_invoked            Boolean   @default(false)
+  response_headers_received Boolean  @default(false)
+  response_body_received   Boolean   @default(false)
+  network_request_attempt_count Int   @default(0)
+  provider_acknowledged_request_count Int @default(0)
+  accounting_complete      Boolean   @default(false)
   model_snapshot           String
   reasoning_effort         String
   execution_path           String
@@ -957,6 +965,13 @@ model OperationalLiveCanaryDispatchAttempt {
   finalized_at             DateTime? @db.Timestamptz(6)
   provider_request_id      String?
   provider_response_id     String?
+  http_status              Int?
+  provider_error_code      String?
+  provider_error_type      String?
+  provider_error_param     String?
+  provider_request_header_id String?
+  retry_after_ms           Int?
+  normalized_failure_json  Json?
   client_dispatch_id       String    @unique
   raw_response_hash        String?
   input_tokens             Int?
@@ -967,6 +982,7 @@ model OperationalLiveCanaryDispatchAttempt {
   pricing_registry_version String?
   estimated_cost_usd       Decimal?  @db.Decimal(12, 6)
   usage_status             String
+  cost_status              String    @default("unknown")
   error_category           String?
   sanitized_error_message  String?   @db.Text
   created_at               DateTime  @default(now()) @db.Timestamptz(6)
