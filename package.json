@@ -169,6 +169,7 @@
     "operational:live-canary:transport-probe:verified": "tsx prisma/operational-live-canary-transport-probe-verified.ts",
     "operational:live-canary:ready-status": "tsx prisma/operational-live-canary-ready-status.ts",
     "operational:live-canary:review-export": "tsx prisma/operational-live-canary-review-export.ts",
+    "operational:live-canary:review-confirm-ai": "tsx prisma/operational-live-canary-review-confirm-ai.ts",
     "operational:live-canary:cleanup": "tsx prisma/operational-live-canary-cleanup.ts",
     "operational:live-canary-manifest-smoke": "tsx prisma/operational-live-canary-smoke-test.ts --suite manifest",
     "operational:live-canary-preflight-smoke": "tsx prisma/operational-live-canary-smoke-test.ts --suite preflight",

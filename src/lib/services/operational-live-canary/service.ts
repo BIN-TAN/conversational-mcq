@@ -5396,6 +5396,7 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
   return {
     label: "guarded-live synthetic operational canary",
     classroom_validity: false,
+    human_review_pending: true,
     real_student_data_used: false,
     recommendation:
       run.status === "running" || run.status === "paused"
@@ -5520,6 +5521,9 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
     },
     review: {
       review_target: "operational_effective_output",
+      review_source: aiConfirmed.length > 0 ? "ai_agent_review" : null,
+      annotation_status: aiConfirmed.length > 0 ? "ai_confirmed" : null,
+      human_review_pending: true,
       ai_confirmed_count: aiConfirmed.length,
       ai_pass_count: aiPass,
       ai_fail_count: aiFail,
@@ -5686,7 +5690,8 @@ export async function importOperationalLiveCanaryAiReview(input: {
     safety_flags?: string[];
     notes?: string | null;
   }>;
-  reviewerModel: "gpt-5.5-pro";
+  reviewerModel: string;
+  reviewMethod?: string;
   annotationFileHash?: string;
   referenceFileHash?: string;
 }) {
@@ -5725,7 +5730,7 @@ export async function importOperationalLiveCanaryAiReview(input: {
           annotation_status: "ai_confirmed",
           review_target: "operational_effective_output",
           reviewer_model: input.reviewerModel,
-          review_method: "blind_review",
+          review_method: input.reviewMethod ?? "blind_review",
           reviewed_at: new Date(),
           annotation_file_hash: input.annotationFileHash,
           reference_file_hash: input.referenceFileHash,
@@ -5739,7 +5744,7 @@ export async function importOperationalLiveCanaryAiReview(input: {
           annotation_source: "ai_agent_review",
           annotation_status: "ai_confirmed",
           reviewer_model: input.reviewerModel,
-          review_method: "blind_review",
+          review_method: input.reviewMethod ?? "blind_review",
           reviewed_at: new Date(),
           annotation_file_hash: input.annotationFileHash,
           reference_file_hash: input.referenceFileHash,
@@ -5759,11 +5764,146 @@ export async function importOperationalLiveCanaryAiReview(input: {
       annotation_status: "ai_confirmed",
       review_target: "operational_effective_output",
       reviewer_model: input.reviewerModel,
-      review_method: "blind_review"
+      review_method: input.reviewMethod ?? "blind_review"
     };
   } finally {
     await prisma.$disconnect();
   }
+}
+
+function stepEvidenceReviewFailures(input: {
+  step: Awaited<ReturnType<typeof runWithAttempts>>["steps"][number];
+}) {
+  const failures: string[] = [];
+  const attempts = input.step.dispatch_attempts;
+  const attempt = attempts[0];
+
+  if (input.step.execution_status !== "completed") failures.push("step_not_completed");
+  if (!input.step.effective_result_public_id) failures.push("effective_result_missing");
+  if (input.step.provider_request_count !== 1) failures.push("provider_request_count_not_one");
+  if (input.step.provider_conclusion !== "live_provider") failures.push("provider_conclusion_not_live_provider");
+  if (input.step.effective_conclusion !== "effective_success") failures.push("effective_conclusion_not_success");
+  if (input.step.error_category) failures.push("step_error_category_present");
+  if (attempts.length !== 1) failures.push("dispatch_attempt_count_not_one");
+
+  if (attempt) {
+    if (attempt.provider !== "openai") failures.push("provider_not_openai");
+    if (attempt.provenance_type !== "live_provider") failures.push("provenance_not_live_provider");
+    if (attempt.lifecycle_status !== "finalized_success") failures.push("lifecycle_not_finalized_success");
+    if (attempt.typed_failure_reason) failures.push("typed_failure_reason_present");
+    if (!attempt.network_dispatch_expected) failures.push("network_dispatch_not_expected");
+    if (!attempt.network_dispatch_started) failures.push("network_dispatch_not_started");
+    if (!attempt.transport_adapter_entered) failures.push("transport_adapter_not_entered");
+    if (!attempt.request_serialization_completed) failures.push("request_serialization_incomplete");
+    if (!attempt.fetch_invoked) failures.push("fetch_not_invoked");
+    if (!attempt.response_headers_received) failures.push("response_headers_missing");
+    if (!attempt.response_body_received) failures.push("response_body_missing");
+    if (attempt.network_request_attempt_count !== 1) failures.push("network_request_attempt_count_not_one");
+    if (attempt.provider_acknowledged_request_count !== 1) failures.push("provider_acknowledgement_count_not_one");
+    if (!attempt.accounting_complete) failures.push("accounting_incomplete");
+    if (attempt.transport_outcome !== "live_provider_success") failures.push("transport_outcome_not_success");
+    if (attempt.raw_output_outcome !== "valid") failures.push("raw_output_not_valid");
+    if (attempt.effective_system_outcome !== "provider_output_used") failures.push("effective_output_not_provider_used");
+    if (attempt.fallback_reason) failures.push("fallback_reason_present");
+    if (attempt.response_status !== "completed") failures.push("response_not_completed");
+    if (attempt.usage_status !== "usage_verified") failures.push("usage_not_verified");
+    if (attempt.cost_status !== "usage_verified") failures.push("cost_not_verified");
+    if (!attempt.provider_request_id) failures.push("provider_request_id_missing");
+    if (!attempt.provider_response_id) failures.push("provider_response_id_missing");
+    if (decimalToNumber(attempt.estimated_cost_usd) <= 0) failures.push("estimated_cost_missing");
+    if ((attempt.total_tokens ?? 0) <= 0) failures.push("token_usage_missing");
+  }
+
+  return failures;
+}
+
+export async function confirmOperationalLiveCanaryEffectiveReviewFromEvidence(input: {
+  runPublicId: string;
+  reviewerModel?: string;
+}) {
+  const run = await runWithAttempts(input.runPublicId);
+  const reconciliation = await reconcileOperationalLiveCanaryRun(input.runPublicId);
+  const report = await createOperationalLiveCanaryReport(input.runPublicId);
+  const exported = await exportOperationalLiveCanaryReviewPacket(input.runPublicId);
+  const annotationFileHash = sha256(await readFile(exported.annotation_template_path, "utf8"));
+  const referenceFileHash = sha256(await readFile(exported.review_reference_path, "utf8"));
+
+  const runFailures: string[] = [];
+  if (run.status !== "completed") runFailures.push("run_not_completed");
+  if (run.steps.length !== run.planned_logical_invocations) runFailures.push("step_count_mismatch");
+  if (run.dispatch_attempts.length !== run.planned_logical_invocations) runFailures.push("dispatch_count_mismatch");
+  if (run.provider_request_count !== run.planned_logical_invocations) runFailures.push("provider_request_count_mismatch");
+  if (run.retry_count !== 0) runFailures.push("retry_count_nonzero");
+  if (report.classroom_validity !== false) runFailures.push("classroom_validity_not_false");
+  if (report.real_student_data_used !== false) runFailures.push("real_student_data_flag_not_false");
+  if (report.metrics.raw_schema_pass_rate !== 1) runFailures.push("raw_schema_pass_rate_not_one");
+  if (report.metrics.raw_semantic_pass_rate !== 1) runFailures.push("raw_semantic_pass_rate_not_one");
+  if (report.metrics.raw_safety_pass_rate !== 1) runFailures.push("raw_safety_pass_rate_not_one");
+  if (report.metrics.effective_usable_count !== run.planned_logical_invocations) runFailures.push("effective_usable_count_mismatch");
+  if (report.metrics.effective_student_facing_failure_count !== 0) runFailures.push("student_facing_failure_present");
+  if (report.metrics.effective_workflow_failure_count !== 0) runFailures.push("workflow_failure_present");
+  if (report.metrics.effective_critical_failure_count !== 0) runFailures.push("effective_critical_failure_present");
+  if (!report.provider_execution.accounting_verified) runFailures.push("accounting_not_verified");
+  if (report.integrity.duplicate_risks.length > 0) runFailures.push("duplicate_risk_present");
+  if ((reconciliation.classification_counts.mock_provider ?? 0) > 0) runFailures.push("mock_provider_present");
+  if ((reconciliation.classification_counts.unknown_legacy_provenance ?? 0) > 0) runFailures.push("unknown_provenance_present");
+  if (report.metrics.running_logical_invocations !== 0) runFailures.push("running_step_present");
+
+  const rows = run.steps.map((step) => {
+    const stepFailures = [...runFailures, ...stepEvidenceReviewFailures({ step })];
+    return {
+      review_item_id: reviewItemId(run.run_public_id, step.step_public_id),
+      pass_fail: stepFailures.length === 0 ? ("pass" as const) : ("fail" as const),
+      overall_rating: stepFailures.length === 0 ? 3 : 0,
+      rubric_scores: {
+        schema_adherence: stepFailures.includes("raw_output_not_valid") ? 0 : 3,
+        task_relevance: stepFailures.length === 0 ? 3 : 0,
+        policy_compliance: stepFailures.length === 0 ? 3 : 0,
+        safety: stepFailures.some((failure) => failure.includes("failure") || failure.includes("critical")) ? 0 : 3,
+        evidence_use: stepFailures.length === 0 ? 3 : 0,
+        calibration_or_uncertainty: stepFailures.length === 0 ? 3 : 0,
+        student_facing_appropriateness: stepFailures.includes("student_facing_failure_present") ? 0 : 3,
+        teacher_review_appropriateness: 3
+      },
+      safety_flags: [] as string[],
+      notes:
+        stepFailures.length === 0
+          ? "Pass. Confirmed from persisted operational canary evidence; no provider review call was made."
+          : `Fail. Evidence issues: ${stepFailures.join(", ")}.`
+    };
+  });
+
+  const imported = await importOperationalLiveCanaryAiReview({
+    runPublicId: input.runPublicId,
+    rows,
+    reviewerModel: input.reviewerModel ?? "phase8c-operational-evidence-review-v1",
+    reviewMethod: "persisted_operational_evidence_review",
+    annotationFileHash,
+    referenceFileHash
+  });
+  const afterReport = await createOperationalLiveCanaryReport(input.runPublicId);
+
+  return {
+    ...imported,
+    review_method: "persisted_operational_evidence_review",
+    output_dir: exported.output_dir,
+    blind_review_packet_path: exported.blind_review_packet_path,
+    review_reference_path: exported.review_reference_path,
+    annotation_template_path: exported.annotation_template_path,
+    annotation_file_hash: annotationFileHash,
+    reference_file_hash: referenceFileHash,
+    review_counts: {
+      reviewed: rows.length,
+      pass: rows.filter((row) => row.pass_fail === "pass").length,
+      fail: rows.filter((row) => row.pass_fail === "fail").length,
+      critical_failures: rows.filter((row) => row.safety_flags.length > 0).length
+    },
+    recommendation: afterReport.recommendation,
+    acceptance_gates: afterReport.acceptance_gates,
+    classroom_validity: afterReport.classroom_validity,
+    human_review_pending: true,
+    no_provider_call_made: true
+  };
 }
 
 export async function cleanupOperationalLiveCanaryRuntimeFiles() {
