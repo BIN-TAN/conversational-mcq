@@ -1079,3 +1079,21 @@ Phase 6A.5 must not implement:
 - A passing canary report may recommend
   `ready_for_private_staging_deployment`, but `classroom_validity=false`
   remains binding and real student use is still not authorized.
+
+## Phase 8D Private Staging Lock
+
+- Phase 8D uses approved Phase 8C evidence from operational live canary
+  `olcr_20260626_j9ilznq`.
+- The Phase 8D recommendation boundary is private local staging only.
+  `classroom_validity=false` and `human_review_pending=true` remain binding.
+- Private staging uses only synthetic `phase8d_*` accounts and assessment
+  content in a database ending in `_private_staging`.
+- The app must bind to `127.0.0.1`; Phase 8D must not deploy publicly.
+- `PRIVATE_STAGING_MODE=true` blocks roster import preview and commit APIs.
+- Phase 8D must not modify prompts, provider-facing schemas, validators,
+  approved manifests, completed canary evidence, or classroom operational
+  records.
+- Private staging commands are:
+  `staging:private:preflight`, `staging:private:seed`,
+  `staging:private:start`, `staging:private:status`,
+  `staging:private:report`, and `staging:private:cleanup`.

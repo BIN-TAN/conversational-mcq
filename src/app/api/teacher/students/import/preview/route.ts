@@ -12,6 +12,18 @@ export async function POST(request: Request) {
     return auth.response;
   }
 
+  if (process.env.PRIVATE_STAGING_MODE === "true") {
+    return NextResponse.json(
+      {
+        error: {
+          code: "private_staging_roster_import_disabled",
+          message: "Roster import is disabled in private staging. Use the synthetic Phase 8D accounts only."
+        }
+      },
+      { status: 403 }
+    );
+  }
+
   try {
     const preview = await previewRosterImport({
       teacher_user_db_id: auth.user.user_db_id,

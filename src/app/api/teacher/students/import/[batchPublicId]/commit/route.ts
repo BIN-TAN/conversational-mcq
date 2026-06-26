@@ -16,6 +16,18 @@ export async function POST(request: Request, context: RouteContext) {
     return auth.response;
   }
 
+  if (process.env.PRIVATE_STAGING_MODE === "true") {
+    return NextResponse.json(
+      {
+        error: {
+          code: "private_staging_roster_import_disabled",
+          message: "Roster import is disabled in private staging. Use the synthetic Phase 8D accounts only."
+        }
+      },
+      { status: 403 }
+    );
+  }
+
   try {
     const params = await context.params;
     const result = await commitRosterImport({

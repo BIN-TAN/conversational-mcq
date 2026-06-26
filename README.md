@@ -1315,3 +1315,29 @@ See `docs/GUARDED_LIVE_SYNTHETIC_CANARY.md`,
 `docs/OPERATIONAL_LIVE_CANARY_TRANSPORT_PROBE.md`,
 `docs/OPERATIONAL_LIVE_CANARY_REVIEW.md`, and
 `docs/OPERATIONAL_LIVE_CANARY_ACCEPTANCE.md`.
+
+## Phase 8D Private Staging
+
+Private staging is a local, synthetic-only browser walkthrough after the
+approved Phase 8C canary `olcr_20260626_j9ilznq`. It uses guarded-live
+operational mode for the app and worker, but it is not public deployment and
+does not claim classroom validity.
+
+```bash
+npm run staging:private:preflight
+npm run staging:private:seed
+npm run staging:private:start
+npm run staging:private:status
+npm run staging:private:report
+npm run staging:private:cleanup
+```
+
+The app binds to `http://127.0.0.1:3200`. Seeded local-only credentials are:
+
+- teacher: `phase8d_teacher` / `phase8d_teacher_password`
+- students: `phase8d_student_01` through `phase8d_student_05`
+- shared student access code: `phase8d_student_access_code`
+
+The private staging database must end in `_private_staging`. Roster import
+preview and commit are blocked while `PRIVATE_STAGING_MODE=true`; use only the
+synthetic accounts. See `docs/PRIVATE_STAGING_WALKTHROUGH.md`.
