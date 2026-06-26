@@ -44,17 +44,74 @@ The seed command prints local-only credentials:
 
 ## Checklist
 
-- Teacher login.
-- View synthetic classroom accounts.
-- Student login.
-- Complete initial assessment items.
-- Send free-text reasoning for response collection.
-- Save, exit, and resume.
-- Try off-topic/help/correctness requests and verify neutral student-facing handling.
-- Review the session as teacher.
-- Inspect agent audit and effective-result visibility on teacher pages.
-- Generate/download a master CSV export and check privacy.
-- Run `npm run staging:private:report`.
+### Teacher setup
+
+- Sign in as `phase8d_teacher`.
+- Open `http://127.0.0.1:3200/teacher/students` and confirm only synthetic
+  `phase8d_*` accounts are used.
+- Open `http://127.0.0.1:3200/teacher/dashboard` and confirm links to Student
+  sessions, Data/export, and LLM audit remain available.
+
+### `phase8d_student_01`: normal answer flow
+
+- Sign in and start the private staging assessment.
+- Confirm the assessment uses a centered single conversation column.
+- Confirm the top progress indicator shows the concept and `Question X of N`.
+- On each item, verify only the current step is active:
+  choose answer, then reasoning, then confidence, then review.
+- Click an option and confirm it is visibly highlighted with `Selected`.
+- Confirm `Continue` is disabled before selection and enabled after selection is saved.
+- Type reasoning and confirm the text remains visible while typing.
+- Confirm `Saved` / `Saving...` / retry state is visible around each save.
+- Select confidence and confirm the selected confidence is highlighted.
+- Review the compact current-answer summary, then submit and continue.
+
+### `phase8d_student_02`: correctness request during reasoning
+
+- During the reasoning step, open the collapsed `Send a message` control.
+- Ask whether the chosen answer is correct.
+- Confirm the student-facing response does not reveal correctness, answer keys,
+  hints, or explanations.
+- Continue with normal reasoning, confidence, and submission.
+- In teacher session review, verify the selected option, reasoning, confidence,
+  transcript, process events, and agent/effective-result audit are visible.
+
+### `phase8d_student_03`: hint request and prompt injection
+
+- During initial administration, send a hint request.
+- Send a prompt-injection style message asking the system to ignore rules or
+  reveal hidden instructions.
+- Confirm the student experience remains neutral and does not disclose answers,
+  hidden prompts, credentials, model metadata, or internal IDs.
+- In teacher review, confirm the transcript/process events are visible without
+  secret values.
+
+### `phase8d_student_04`: off-topic and move-on in follow-up
+
+- Complete initial items until follow-up becomes available.
+- Send an off-topic follow-up message.
+- Ask to move on when ready.
+- Confirm move-on remains student-led and does not show profile labels,
+  formative-value labels, or correctness feedback to the student.
+- In teacher review, inspect effective-result and agent audit fields.
+
+### `phase8d_student_05`: save and resume
+
+- Select an option, continue to reasoning, and type a partial reasoning response.
+- Use Save and exit before submitting the item.
+- Sign back in and resume.
+- Confirm the selected option and typed/persisted reasoning state are preserved.
+- Finish the item and verify teacher review shows the submitted option,
+  reasoning, confidence, and timestamp.
+
+### Export and report
+
+- Generate/download a master CSV export from
+  `http://127.0.0.1:3200/teacher/data/export`.
+- Check that public IDs appear and secret/internal credential data do not.
+- Run `npm run staging:private:report` and confirm completed sessions, agent
+  calls, provider-request/cost totals, failures, teacher-visible audit records,
+  student-facing errors, and export/privacy checks are summarized.
 
 ## Hard Blocks
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -10,11 +10,8 @@ import {
   Loader2,
   LogOut,
   MessageSquareText,
-  PanelRightOpen,
-  Save,
   Send,
-  Square,
-  X
+  Square
 } from "lucide-react";
 import { buildSkipConfirmationFrame, buildStudentConversationFrame } from "@/lib/student-assessment-ui/presenter";
 import type {
@@ -49,6 +46,82 @@ import {
 import { useStudentProcessEvents } from "./process-events";
 
 const MAX_REASONING_LENGTH = 5000;
+
+type InitialFlowStage =
+  | "item_intro"
+  | "option_selection"
+  | "reasoning_prompt"
+  | "confidence_prompt"
+  | "review_before_submit"
+  | "submitted"
+  | "transition_next_item"
+  | "initial_assessment_complete"
+  | "followup_active";
+
+type FailedAction = {
+  label: string;
+  retry: () => void;
+};
+
+function initialFlowStage(frame: StudentConversationFrame): InitialFlowStage {
+  if (frame.interaction_type === "present_item") {
+    return "option_selection";
+  }
+
+  if (frame.interaction_type === "request_reasoning") {
+    return "reasoning_prompt";
+  }
+
+  if (frame.interaction_type === "request_confidence") {
+    return "confidence_prompt";
+  }
+
+  if (frame.interaction_type === "item_completed") {
+    return "review_before_submit";
+  }
+
+  if (frame.interaction_type === "concept_unit_completed") {
+    return "initial_assessment_complete";
+  }
+
+  if (frame.interaction_type === "followup_active") {
+    return "followup_active";
+  }
+
+  return "item_intro";
+}
+
+function stageLabel(stage: InitialFlowStage) {
+  if (stage === "option_selection") {
+    return "Choose your answer";
+  }
+
+  if (stage === "reasoning_prompt") {
+    return "Tell me your reasoning";
+  }
+
+  if (stage === "confidence_prompt") {
+    return "How confident are you?";
+  }
+
+  if (stage === "review_before_submit") {
+    return "Review your response";
+  }
+
+  if (stage === "initial_assessment_complete") {
+    return "Submit this section";
+  }
+
+  if (stage === "followup_active") {
+    return "Follow-up conversation";
+  }
+
+  if (stage === "submitted" || stage === "transition_next_item") {
+    return "Saved";
+  }
+
+  return "Start this section";
+}
 
 function fieldLabel(field: MissingEvidenceField) {
   if (field === "answer") {
@@ -161,9 +234,10 @@ function OptionButtons({
 
         return (
           <button
-            className={`flex min-h-12 items-start gap-3 rounded-md border px-3 py-3 text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60 ${
+            aria-pressed={selected}
+            className={`flex min-h-14 items-start gap-3 rounded-md border px-4 py-3 text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60 ${
               selected
-                ? "border-accent bg-accent-soft text-ink"
+                ? "border-accent bg-accent-soft text-ink shadow-sm"
                 : "border-line bg-white text-ink hover:border-accent"
             }`}
             data-testid={`${testIdPrefix}-${item.item_public_id}-${option.label}`}
@@ -175,7 +249,13 @@ function OptionButtons({
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-current text-xs font-semibold">
               {option.label}
             </span>
-            <span className="leading-6">{option.text}</span>
+            <span className="flex-1 leading-6">{option.text}</span>
+            {selected ? (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-white px-2 py-1 text-xs font-semibold text-accent">
+                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                Selected
+              </span>
+            ) : null}
           </button>
         );
       })}
@@ -203,9 +283,10 @@ function ConfidenceButtons({
 
         return (
           <button
-            className={`min-h-11 rounded-md border px-3 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60 ${
+            aria-pressed={selected}
+            className={`min-h-12 rounded-md border px-3 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60 ${
               selected
-                ? "border-accent bg-accent-soft text-ink"
+                ? "border-accent bg-accent-soft text-ink shadow-sm"
                 : "border-line bg-white text-ink hover:border-accent"
             }`}
             data-testid={`${testIdPrefix}-${level}`}
@@ -214,7 +295,10 @@ function ConfidenceButtons({
             onClick={() => onSelect(level)}
             type="button"
           >
-            {confidenceLabel(level)}
+            <span className="inline-flex items-center justify-center gap-2">
+              {selected ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
+              {confidenceLabel(level)}
+            </span>
           </button>
         );
       })}
@@ -237,12 +321,143 @@ function HelpDisclosure() {
   );
 }
 
+function SaveStateNotice({
+  error,
+  failedAction,
+  isBusy,
+  statusMessage
+}: {
+  error: StructuredStudentApiError | null;
+  failedAction: FailedAction | null;
+  isBusy: boolean;
+  statusMessage: string;
+}) {
+  if (error && failedAction) {
+    return (
+      <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900" role="alert">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span>Not saved. {error.message}</span>
+          <button
+            className="inline-flex h-9 items-center justify-center rounded-md border border-red-200 bg-white px-3 text-sm font-semibold text-red-900"
+            data-testid="retry-save-action"
+            onClick={failedAction.retry}
+            type="button"
+          >
+            Retry {failedAction.label}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isBusy) {
+    return (
+      <p className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm text-muted" aria-live="polite">
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        Saving...
+      </p>
+    );
+  }
+
+  if (statusMessage) {
+    return (
+      <p className="inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" aria-live="polite">
+        <Check className="h-4 w-4" aria-hidden="true" />
+        {statusMessage}
+      </p>
+    );
+  }
+
+  return null;
+}
+
+function CurrentAnswerSummary({
+  item,
+  reasoningDraft
+}: {
+  item: StudentSafeItem | null;
+  reasoningDraft: string;
+}) {
+  if (!item) {
+    return null;
+  }
+
+  const selectedOption = item.existing_selected_option;
+  const reasoning = reasoningDraft.trim() || item.existing_reasoning_text || "";
+  const confidence = item.existing_confidence_rating;
+
+  if (!selectedOption && !reasoning && !confidence) {
+    return null;
+  }
+
+  return (
+    <section className="rounded-lg border border-line bg-white p-4" data-testid="current-answer-summary">
+      <h2 className="text-sm font-semibold text-ink">Your current answer</h2>
+      <dl className="mt-3 grid gap-3 text-sm">
+        <div>
+          <dt className="font-semibold text-muted">Answer</dt>
+          <dd className="mt-1 text-ink">{selectedOption ? `Option ${selectedOption}` : "Not chosen yet"}</dd>
+        </div>
+        <div>
+          <dt className="font-semibold text-muted">Reasoning</dt>
+          <dd className="mt-1 whitespace-pre-wrap text-ink">{reasoning || "Not added yet"}</dd>
+        </div>
+        <div>
+          <dt className="font-semibold text-muted">Confidence</dt>
+          <dd className="mt-1 text-ink">{confidence ? confidenceLabel(confidence) : "Not selected yet"}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
+function SavedResponseList({
+  currentItemPublicId,
+  review
+}: {
+  currentItemPublicId: string | null;
+  review: StudentReviewResponse | null;
+}) {
+  if (!review) {
+    return null;
+  }
+
+  const savedItems = review.items.filter(
+    (item) => item.submission_state !== "not_started" && item.item_public_id !== currentItemPublicId
+  );
+
+  if (savedItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <details className="rounded-lg border border-line bg-white p-4">
+      <summary className="cursor-pointer text-sm font-semibold text-ink">
+        Saved earlier responses
+      </summary>
+      <div className="mt-3 space-y-3">
+        {savedItems.map((item) => (
+          <article className="rounded-md border border-line bg-[#fbfcfa] p-3 text-sm" key={item.item_public_id}>
+            <p className="font-semibold text-ink">Question {item.item_order}</p>
+            <p className="mt-1 text-muted">
+              {item.existing_selected_option ? `Option ${item.existing_selected_option}` : "No option"} /{" "}
+              {item.existing_confidence_rating ? confidenceLabel(item.existing_confidence_rating) : "No confidence"}
+            </p>
+            {item.existing_reasoning_text ? (
+              <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-ink">{item.existing_reasoning_text}</p>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: string }) {
   const router = useRouter();
   const [state, setState] = useState<StudentSessionState | null>(null);
   const [transcript, setTranscript] = useState<StudentTranscriptEntry[]>([]);
   const [review, setReview] = useState<StudentReviewResponse | null>(null);
-  const [reviewOpen, setReviewOpen] = useState(false);
   const [error, setError] = useState<StructuredStudentApiError | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -250,8 +465,12 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
   const [reasoningDraft, setReasoningDraft] = useState("");
   const [initialChatDraft, setInitialChatDraft] = useState("");
   const [followupDraft, setFollowupDraft] = useState("");
-  const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
   const [skipConfirmation, setSkipConfirmation] = useState<MissingEvidenceField[] | null>(null);
+  const [manualStage, setManualStage] = useState<InitialFlowStage | null>(null);
+  const [optimisticOptions, setOptimisticOptions] = useState<Record<string, string>>({});
+  const [optimisticConfidence, setOptimisticConfidence] = useState<Record<string, ConfidenceRating>>({});
+  const [failedAction, setFailedAction] = useState<FailedAction | null>(null);
+  const reasoningInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const frame = useMemo(() => {
     if (skipConfirmation) {
@@ -273,17 +492,6 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
     ]);
     setTranscript(nextTranscript.transcript);
     setReview(nextReview);
-    setReviewDrafts((existing) => {
-      const next = { ...existing };
-
-      for (const item of nextReview.items) {
-        if (!(item.item_public_id in next)) {
-          next[item.item_public_id] = item.existing_reasoning_text ?? "";
-        }
-      }
-
-      return next;
-    });
   }
 
   async function loadSession() {
@@ -333,12 +541,19 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
     setReasoningDraft(state?.current_item?.existing_reasoning_text ?? "");
   }, [state?.current_item?.item_public_id, state?.current_item?.existing_reasoning_text]);
 
+  useEffect(() => {
+    setManualStage(null);
+    setFailedAction(null);
+  }, [state?.current_item?.item_public_id]);
+
   async function runAction(
     action: () => Promise<StudentSessionState>,
-    message: string
-  ) {
+    message: string,
+    retry?: FailedAction
+  ): Promise<StudentSessionState | null> {
     setError(null);
     setStatusMessage("");
+    setFailedAction(null);
     setIsBusy(true);
 
     try {
@@ -347,15 +562,18 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
       setSkipConfirmation(null);
       setStatusMessage(message);
       await refreshSecondaryData();
+      return nextState;
     } catch (caught) {
       const apiError = caught as StructuredStudentApiError;
 
       if (apiError.status === 401) {
         router.push("/student/login");
-        return;
+        return null;
       }
 
       setError(apiError);
+      setFailedAction(retry ?? null);
+      return null;
     } finally {
       setIsBusy(false);
     }
@@ -377,15 +595,36 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
   }
 
   async function handleOption(item: StudentSafeItem, label: string) {
-    await runAction(
+    setOptimisticOptions((current) => ({ ...current, [item.item_public_id]: label }));
+    const previous = item.existing_selected_option;
+    const nextState = await runAction(
       () =>
         saveOption({
           sessionPublicId,
           itemPublicId: item.item_public_id,
           selectedOption: label
         }),
-      "Option saved."
+      "Saved.",
+      {
+        label: "answer",
+        retry: () => void handleOption(item, label)
+      }
     );
+
+    if (nextState) {
+      setManualStage("option_selection");
+      return;
+    }
+
+    setOptimisticOptions((current) => {
+      const next = { ...current };
+      if (previous) {
+        next[item.item_public_id] = previous;
+      } else {
+        delete next[item.item_public_id];
+      }
+      return next;
+    });
   }
 
   async function handleReasoning(item: StudentSafeItem) {
@@ -400,31 +639,60 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
       return;
     }
 
-    await runAction(
+    const nextState = await runAction(
       () =>
         saveReasoning({
           sessionPublicId,
           itemPublicId: item.item_public_id,
           reasoningText: trimmed
         }),
-      "Reasoning saved."
+      "Saved.",
+      {
+        label: "reasoning",
+        retry: () => void handleReasoning(item)
+      }
     );
+
+    if (nextState) {
+      setManualStage(null);
+    }
   }
 
   async function handleConfidence(item: StudentSafeItem, confidence: ConfidenceRating) {
-    await runAction(
+    setOptimisticConfidence((current) => ({ ...current, [item.item_public_id]: confidence }));
+    const previous = item.existing_confidence_rating;
+    const nextState = await runAction(
       () =>
         saveConfidence({
           sessionPublicId,
           itemPublicId: item.item_public_id,
           confidenceRating: confidence
         }),
-      "Confidence saved."
+      "Saved.",
+      {
+        label: "confidence",
+        retry: () => void handleConfidence(item, confidence)
+      }
     );
+
+    if (nextState) {
+      setManualStage("confidence_prompt");
+      return;
+    }
+
+    setOptimisticConfidence((current) => {
+      const next = { ...current };
+      if (previous) {
+        next[item.item_public_id] = previous;
+      } else {
+        delete next[item.item_public_id];
+      }
+      return next;
+    });
   }
 
   async function handleSubmit(item: StudentSafeItem) {
-    await runAction(
+    const nextState = await runAction(
       async () =>
         (
           await submitItem({
@@ -432,8 +700,16 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
             itemPublicId: item.item_public_id
           })
         ).state,
-      "Response submitted."
+      "Submitted.",
+      {
+        label: "submit",
+        retry: () => void handleSubmit(item)
+      }
     );
+
+    if (nextState) {
+      setManualStage(null);
+    }
   }
 
   async function handleSkipItem(item: StudentSafeItem) {
@@ -532,29 +808,6 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
       setError(caught as StructuredStudentApiError);
       setIsBusy(false);
     }
-  }
-
-  async function handleReviewReasoning(item: StudentReviewResponse["items"][number]) {
-    const text = (reviewDrafts[item.item_public_id] ?? "").trim();
-
-    if (!text) {
-      setError({
-        code: "validation_failed",
-        message: "Enter reasoning before saving, or leave it unchanged.",
-        status: 400
-      });
-      return;
-    }
-
-    await runAction(
-      () =>
-        saveReasoning({
-          sessionPublicId,
-          itemPublicId: item.item_public_id,
-          reasoningText: text
-        }),
-      "Review change saved."
-    );
   }
 
   async function handleSendFollowup() {
@@ -760,6 +1013,16 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
   }
 
   const currentItem = state.current_item;
+  const visibleCurrentItem = currentItem
+    ? {
+        ...currentItem,
+        existing_selected_option:
+          optimisticOptions[currentItem.item_public_id] ?? currentItem.existing_selected_option,
+        existing_confidence_rating:
+          optimisticConfidence[currentItem.item_public_id] ?? currentItem.existing_confidence_rating
+      }
+    : null;
+  const displayStage = manualStage ?? initialFlowStage(frame);
   const locked =
     review?.locked ??
     [
@@ -779,7 +1042,7 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
 
   return (
     <main className="min-h-screen bg-surface">
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 md:px-6">
+      <div className="mx-auto flex min-h-screen max-w-4xl flex-col px-4 py-4 md:px-6">
         <header className="flex flex-col gap-3 border-b border-line pb-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-semibold uppercase tracking-wide text-accent">
@@ -796,16 +1059,11 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
               <span aria-hidden="true">/</span>
               <span>{questionProgress}</span>
             </div>
+            <p className="mt-2 text-sm font-medium text-ink" data-testid="student-flow-stage">
+              {stageLabel(displayStage)}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft"
-              onClick={() => setReviewOpen(true)}
-              type="button"
-            >
-              <PanelRightOpen className="h-4 w-4" aria-hidden="true" />
-              Review responses
-            </button>
             <button
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isBusy || !state.can_exit}
@@ -818,109 +1076,83 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
           </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 gap-4 py-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <section className="flex min-h-[60vh] flex-col rounded-lg border border-line bg-[#eef3ef]">
+        <div className="min-h-0 flex-1 py-4">
+          <section className="flex min-h-[68vh] flex-col rounded-lg border border-line bg-[#eef3ef]">
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
               {transcript.map((entry) => (
                 <StudentBubble entry={entry} key={`${entry.created_at}-${entry.message_text}`} />
               ))}
               <AssistantBubble frame={frame} />
-              {currentItem ? <ItemPrompt item={currentItem} /> : null}
-            </div>
-
-            <div className="border-t border-line bg-surface p-4">
-              <ErrorNotice error={error} />
-              {statusMessage ? (
-                <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" aria-live="polite">
-                  {statusMessage}
-                </p>
-              ) : null}
-              <div className="mt-4">
-                <InteractionControls
-                  currentItem={currentItem}
-                  frame={frame}
-                  isBusy={isBusy}
-                  locked={locked}
-                  followupDraft={followupDraft}
-                  initialChatDraft={initialChatDraft}
-                  reasoningDraft={reasoningDraft}
-                  state={state}
-                  setFollowupDraft={setFollowupDraft}
-                  setInitialChatDraft={setInitialChatDraft}
-                  setReasoningDraft={setReasoningDraft}
-                  onBegin={() => void handleBegin()}
-                  onCompleteConceptUnit={() => void handleCompleteConceptUnit()}
-                  onConfirmMissingSkip={() => void handleConfirmMissingSkip()}
-                  onOption={(item, label) => void handleOption(item, label)}
-                  onReasoning={(item) => void handleReasoning(item)}
-                  onSkipConfirmationCancel={() => setSkipConfirmation(null)}
-                  onSkipEvidence={(item, field) => void handleSkipEvidence(item, field)}
-                  onSkipItem={(item) => void handleSkipItem(item)}
-                  onSubmit={(item) => void handleSubmit(item)}
-                  onSendInitialMessage={() => void handleSendInitialMessage()}
-                  onSendFollowup={() => void handleSendFollowup()}
-                  onShowSkipConfirmation={(fields) => setSkipConfirmation(fields)}
-                  onStopFollowup={() => void handleStopFollowup()}
-                  onRequestProgression={() => void handleRequestProgression()}
-                  onProgressionChoice={(choice) => void handleProgressionChoice(choice)}
-                  onSaveExit={() => void handleExit()}
-                  onConfidence={(item, confidence) => void handleConfidence(item, confidence)}
-                />
-              </div>
-              {state.next_step === "followup_active" ||
-              state.next_step === "followup_updating" ||
-              state.next_step === "followup_stopped" ? null : (
-                <div className="mt-4">
-                  <HelpDisclosure />
+              {visibleCurrentItem && displayStage !== "followup_active" ? <ItemPrompt item={visibleCurrentItem} /> : null}
+              <div className="rounded-lg border border-line bg-surface p-4">
+                <ErrorNotice error={error} />
+                <div className={error ? "mt-3" : ""}>
+                  <SaveStateNotice
+                    error={error}
+                    failedAction={failedAction}
+                    isBusy={isBusy}
+                    statusMessage={statusMessage}
+                  />
                 </div>
+                <div className="mt-4">
+                  <InteractionControls
+                    currentItem={visibleCurrentItem}
+                    displayStage={displayStage}
+                    frame={frame}
+                    isBusy={isBusy}
+                    locked={locked}
+                    followupDraft={followupDraft}
+                    initialChatDraft={initialChatDraft}
+                    reasoningDraft={reasoningDraft}
+                    reasoningInputRef={reasoningInputRef}
+                    state={state}
+                    setFollowupDraft={setFollowupDraft}
+                    setInitialChatDraft={setInitialChatDraft}
+                    setReasoningDraft={setReasoningDraft}
+                    onBegin={() => void handleBegin()}
+                    onCompleteConceptUnit={() => void handleCompleteConceptUnit()}
+                    onConfirmMissingSkip={() => void handleConfirmMissingSkip()}
+                    onContinueFromConfidence={() => setManualStage(null)}
+                    onContinueFromOption={() => {
+                      setManualStage(null);
+                      window.setTimeout(() => reasoningInputRef.current?.focus(), 0);
+                    }}
+                    onEditCurrentAnswer={() => setManualStage("option_selection")}
+                    onOption={(item, label) => void handleOption(item, label)}
+                    onReasoning={(item) => void handleReasoning(item)}
+                    onSkipConfirmationCancel={() => setSkipConfirmation(null)}
+                    onSkipEvidence={(item, field) => void handleSkipEvidence(item, field)}
+                    onSkipItem={(item) => void handleSkipItem(item)}
+                    onSubmit={(item) => void handleSubmit(item)}
+                    onSendInitialMessage={() => void handleSendInitialMessage()}
+                    onSendFollowup={() => void handleSendFollowup()}
+                    onShowSkipConfirmation={(fields) => setSkipConfirmation(fields)}
+                    onStopFollowup={() => void handleStopFollowup()}
+                    onRequestProgression={() => void handleRequestProgression()}
+                    onProgressionChoice={(choice) => void handleProgressionChoice(choice)}
+                    onSaveExit={() => void handleExit()}
+                    onConfidence={(item, confidence) => void handleConfidence(item, confidence)}
+                  />
+                </div>
+              </div>
+              {displayStage === "review_before_submit" ? null : (
+                <CurrentAnswerSummary item={visibleCurrentItem} reasoningDraft={reasoningDraft} />
               )}
+              <SavedResponseList
+                currentItemPublicId={visibleCurrentItem?.item_public_id ?? null}
+                review={review}
+              />
             </div>
+            {state.next_step === "followup_active" ||
+            state.next_step === "followup_updating" ||
+            state.next_step === "followup_stopped" ? null : (
+              <div className="border-t border-line bg-surface p-4">
+                <HelpDisclosure />
+              </div>
+            )}
           </section>
-
-          <aside className="hidden lg:block">
-            <ReviewPanel
-              currentItemPublicId={currentItem?.item_public_id ?? null}
-              disabled={isBusy}
-              locked={locked}
-              onConfidence={(item, confidence) => void handleConfidence(item, confidence)}
-              onOption={(item, label) => void handleOption(item, label)}
-              onReasoning={(item) => void handleReviewReasoning(item)}
-              review={review}
-              reviewDrafts={reviewDrafts}
-              setReviewDrafts={setReviewDrafts}
-            />
-          </aside>
         </div>
       </div>
-
-      {reviewOpen ? (
-        <div className="fixed inset-0 z-50 bg-black/25 lg:hidden" role="dialog" aria-modal="true">
-          <div className="ml-auto h-full w-full max-w-md overflow-y-auto bg-surface p-4 shadow-soft">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-ink">Review responses</h2>
-              <button
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line bg-white text-ink"
-                onClick={() => setReviewOpen(false)}
-                type="button"
-                aria-label="Close review"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
-            <ReviewPanel
-              currentItemPublicId={currentItem?.item_public_id ?? null}
-              disabled={isBusy}
-              locked={locked}
-              onConfidence={(item, confidence) => void handleConfidence(item, confidence)}
-              onOption={(item, label) => void handleOption(item, label)}
-              onReasoning={(item) => void handleReviewReasoning(item)}
-              review={review}
-              reviewDrafts={reviewDrafts}
-              setReviewDrafts={setReviewDrafts}
-            />
-          </div>
-        </div>
-      ) : null}
     </main>
   );
 }
@@ -939,10 +1171,11 @@ function InitialChatComposer({
   onSend: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-white p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-        Initial response message
-      </p>
+    <details className="rounded-lg border border-line bg-white p-3">
+      <summary className="cursor-pointer text-sm font-semibold text-ink">
+        Send a message
+      </summary>
+      <div className="mt-3">
       <textarea
         className="mt-2 min-h-24 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-slate-50 disabled:opacity-70"
         data-testid="initial-chat-message-input"
@@ -974,18 +1207,21 @@ function InitialChatComposer({
           Send
         </button>
       </div>
-    </div>
+      </div>
+    </details>
   );
 }
 
 function InteractionControls({
   currentItem,
+  displayStage,
   frame,
   isBusy,
   locked,
   followupDraft,
   initialChatDraft,
   reasoningDraft,
+  reasoningInputRef,
   state,
   setFollowupDraft,
   setInitialChatDraft,
@@ -994,6 +1230,9 @@ function InteractionControls({
   onCompleteConceptUnit,
   onConfirmMissingSkip,
   onConfidence,
+  onContinueFromConfidence,
+  onContinueFromOption,
+  onEditCurrentAnswer,
   onOption,
   onReasoning,
   onRequestProgression,
@@ -1009,12 +1248,14 @@ function InteractionControls({
   onStopFollowup
 }: {
   currentItem: StudentSafeItem | null;
+  displayStage: InitialFlowStage;
   frame: StudentConversationFrame;
   isBusy: boolean;
   locked: boolean;
   followupDraft: string;
   initialChatDraft: string;
   reasoningDraft: string;
+  reasoningInputRef: RefObject<HTMLTextAreaElement | null>;
   state: StudentSessionState;
   setFollowupDraft: (value: string) => void;
   setInitialChatDraft: (value: string) => void;
@@ -1023,6 +1264,9 @@ function InteractionControls({
   onCompleteConceptUnit: () => void;
   onConfirmMissingSkip: () => void;
   onConfidence: (item: StudentSafeItem, confidence: ConfidenceRating) => void;
+  onContinueFromConfidence: () => void;
+  onContinueFromOption: () => void;
+  onEditCurrentAnswer: () => void;
   onOption: (item: StudentSafeItem, label: string) => void;
   onReasoning: (item: StudentSafeItem) => void;
   onRequestProgression: () => void;
@@ -1280,7 +1524,9 @@ function InteractionControls({
     />
   );
 
-  if (frame.interaction_type === "present_item") {
+  if (displayStage === "option_selection") {
+    const hasSelectedOption = Boolean(currentItem.existing_selected_option);
+
     return (
       <div className="space-y-3">
         <OptionButtons
@@ -1298,21 +1544,37 @@ function InteractionControls({
         >
           Skip this item
         </button>
-        {initialComposer}
+        <div className="flex justify-end">
+          <button
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+            data-testid="continue-after-option"
+            disabled={isBusy || locked || !hasSelectedOption || state.next_step === "present_item"}
+            onClick={onContinueFromOption}
+            type="button"
+          >
+            Continue
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
       </div>
     );
   }
 
-  if (frame.interaction_type === "request_reasoning") {
+  if (displayStage === "reasoning_prompt") {
+    const canContinue = Boolean(reasoningDraft.trim());
+
     return (
       <div className="space-y-3">
         <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-          Your reasoning
+          Tell me your reasoning
           <textarea
+            ref={reasoningInputRef}
             className="min-h-28 resize-y rounded-md border border-line bg-white px-3 py-3 text-base outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
             data-testid="reasoning-input"
+            disabled={isBusy || locked}
             maxLength={MAX_REASONING_LENGTH}
             onChange={(event) => setReasoningDraft(event.target.value)}
+            placeholder="Briefly explain why you chose that option."
             value={reasoningDraft}
           />
           <span className="text-xs font-normal text-muted">
@@ -1322,13 +1584,13 @@ function InteractionControls({
         <div className="flex flex-wrap gap-2">
           <button
             className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
-            data-testid="save-reasoning"
-            disabled={isBusy || locked}
+            data-testid="continue-after-reasoning"
+            disabled={isBusy || locked || !canContinue}
             onClick={() => onReasoning(currentItem)}
             type="button"
           >
-            <Save className="h-4 w-4" aria-hidden="true" />
-            Save reasoning
+            Continue
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </button>
           <button
             className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
@@ -1345,7 +1607,9 @@ function InteractionControls({
     );
   }
 
-  if (frame.interaction_type === "request_confidence") {
+  if (displayStage === "confidence_prompt") {
+    const hasConfidence = Boolean(currentItem.existing_confidence_rating);
+
     return (
       <div className="space-y-3">
         <ConfidenceButtons
@@ -1363,7 +1627,18 @@ function InteractionControls({
         >
           Skip confidence
         </button>
-        {initialComposer}
+        <div className="flex justify-end">
+          <button
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+            data-testid="continue-after-confidence"
+            disabled={isBusy || locked || !hasConfidence || state.next_step === "request_confidence"}
+            onClick={onContinueFromConfidence}
+            type="button"
+          >
+            Continue
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
       </div>
     );
   }
@@ -1432,9 +1707,10 @@ function InteractionControls({
     );
   }
 
-  if (frame.interaction_type === "item_completed") {
+  if (displayStage === "review_before_submit") {
     return (
       <div className="space-y-3">
+        <CurrentAnswerSummary item={currentItem} reasoningDraft={reasoningDraft} />
         <button
           className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
           data-testid="submit-item"
@@ -1443,117 +1719,20 @@ function InteractionControls({
           type="button"
         >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          Submit response
+          Submit and continue
         </button>
-        {initialComposer}
+        <button
+          className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="edit-current-answer"
+          disabled={isBusy || locked}
+          onClick={onEditCurrentAnswer}
+          type="button"
+        >
+          Edit answer
+        </button>
       </div>
     );
   }
 
   return <p className="text-sm text-muted">Initial responses are saved.</p>;
-}
-
-function ReviewPanel({
-  currentItemPublicId,
-  disabled,
-  locked,
-  onConfidence,
-  onOption,
-  onReasoning,
-  review,
-  reviewDrafts,
-  setReviewDrafts
-}: {
-  currentItemPublicId: string | null;
-  disabled: boolean;
-  locked: boolean;
-  onConfidence: (item: StudentReviewResponse["items"][number], confidence: ConfidenceRating) => void;
-  onOption: (item: StudentReviewResponse["items"][number], label: string) => void;
-  onReasoning: (item: StudentReviewResponse["items"][number]) => void;
-  review: StudentReviewResponse | null;
-  reviewDrafts: Record<string, string>;
-  setReviewDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-}) {
-  if (!review) {
-    return (
-      <div className="rounded-lg border border-line bg-white p-4 text-sm text-muted">
-        Review will be available after the session loads.
-      </div>
-    );
-  }
-
-  return (
-    <section className="rounded-lg border border-line bg-white p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-ink">Review responses</h2>
-          <p className="mt-1 text-sm text-muted">{locked ? "Read only" : "Editable before completion"}</p>
-        </div>
-      </div>
-      <div className="mt-4 space-y-4">
-        {review.items.map((item) => {
-          const canEdit =
-            !locked &&
-            item.can_edit &&
-            (item.submission_state !== "not_started" || item.item_public_id === currentItemPublicId);
-
-          return (
-            <article className="rounded-lg border border-line bg-[#fbfcfa] p-3" key={item.item_public_id}>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Question {item.item_order} / {item.submission_state.replaceAll("_", " ")}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-ink">{item.item_stem}</p>
-              {item.missing_fields.length > 0 ? (
-                <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">
-                  Missing: {item.missing_fields.map(fieldLabel).join(", ")}
-                </p>
-              ) : null}
-              <div className="mt-3 space-y-3">
-                <OptionButtons
-                  disabled={disabled || !canEdit}
-                  item={item}
-                  onSelect={(label) => onOption(item, label)}
-                  testIdPrefix="review-option"
-                />
-                <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-                  Reasoning
-                  <textarea
-                    className="min-h-20 resize-y rounded-md border border-line bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:bg-slate-50"
-                    data-testid={`review-reasoning-${item.item_public_id}`}
-                    disabled={disabled || !canEdit}
-                    maxLength={MAX_REASONING_LENGTH}
-                    onChange={(event) =>
-                      setReviewDrafts((current) => ({
-                        ...current,
-                        [item.item_public_id]: event.target.value
-                      }))
-                    }
-                    value={reviewDrafts[item.item_public_id] ?? item.existing_reasoning_text ?? ""}
-                  />
-                </label>
-                {canEdit ? (
-                  <button
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft"
-                    data-testid={`review-save-reasoning-${item.item_public_id}`}
-                    disabled={disabled}
-                    onClick={() => onReasoning(item)}
-                    type="button"
-                  >
-                    <Save className="h-4 w-4" aria-hidden="true" />
-                    Save reasoning
-                  </button>
-                ) : null}
-                <ConfidenceButtons
-                  disabled={disabled || !canEdit}
-                  onSelect={(confidence) => onConfidence(item, confidence)}
-                  testIdPrefix={`review-confidence-${item.item_public_id}`}
-                  value={item.existing_confidence_rating}
-                />
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
 }

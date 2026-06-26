@@ -1330,6 +1330,7 @@ npm run staging:private:start
 npm run staging:private:status
 npm run staging:private:report
 npm run staging:private:cleanup
+npm run student:conversational-flow-smoke
 ```
 
 The app binds to `http://127.0.0.1:3200`. Seeded local-only credentials are:
@@ -1340,4 +1341,6 @@ The app binds to `http://127.0.0.1:3200`. Seeded local-only credentials are:
 
 The private staging database must end in `_private_staging`. Roster import
 preview and commit are blocked while `PRIVATE_STAGING_MODE=true`; use only the
-synthetic accounts. See `docs/PRIVATE_STAGING_WALKTHROUGH.md`.
+synthetic accounts. The student assessment page uses a centered, one-step
+conversation flow rather than a right-side answer panel. See
+`docs/PRIVATE_STAGING_WALKTHROUGH.md`.

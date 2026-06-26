@@ -16,6 +16,7 @@
     "content:governance-smoke": "tsx prisma/content-governance-smoke-test.ts",
     "student:initial-admin-smoke": "tsx prisma/student-initial-admin-smoke-test.ts",
     "student:ui-smoke": "tsx prisma/student-ui-smoke-test.ts",
+    "student:conversational-flow-smoke": "tsx prisma/student-conversational-flow-smoke-test.ts",
     "demo:student-assessment": "tsx prisma/demo-student-assessment.ts",
     "demo:student-assessment:cleanup": "tsx prisma/demo-student-assessment-cleanup.ts",
     "demo:roster": "tsx prisma/demo-roster.ts",
