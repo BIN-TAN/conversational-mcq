@@ -980,6 +980,9 @@ model OperationalLiveCanaryDispatchAttempt {
   raw_output_outcome       String?
   effective_system_outcome String?
   fallback_reason          String?
+  credential_fingerprint   String?
+  credential_source        String?
+  credential_resolver_version String?
   client_dispatch_id       String    @unique
   raw_response_hash        String?
   input_tokens             Int?
@@ -1011,7 +1014,37 @@ model OperationalLiveCanaryDispatchAttempt {
   @@index([raw_output_outcome])
   @@index([effective_system_outcome])
   @@index([fallback_reason])
+  @@index([credential_fingerprint])
   @@map("operational_live_canary_dispatch_attempts")
+}
+
+model OperationalLiveCanaryCredentialCheck {
+  id                       String   @id @default(uuid()) @db.Uuid
+  check_public_id          String   @unique
+  credential_fingerprint   String?
+  credential_source        String?
+  resolver_version         String
+  provider                 String
+  hostname                 String
+  model_snapshot           String
+  application_git_commit   String
+  approved_config_hash     String
+  manifest_hash            String
+  adapter_version          String
+  sdk_version              String
+  status                   String
+  http_status              Int?
+  provider_request_id      String?
+  authentication_verified  Boolean  @default(false)
+  model_access_verified    Boolean  @default(false)
+  checked_at               DateTime @default(now()) @db.Timestamptz(6)
+  expires_at               DateTime @db.Timestamptz(6)
+  sanitized_failure_reason String?  @db.Text
+
+  @@index([credential_fingerprint, status, expires_at])
+  @@index([model_snapshot, adapter_version, sdk_version])
+  @@index([application_git_commit, approved_config_hash, manifest_hash])
+  @@map("operational_live_canary_credential_checks")
 }
 
 model OperationalLiveCanaryReviewAnnotation {

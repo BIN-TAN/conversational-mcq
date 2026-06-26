@@ -39,13 +39,43 @@ readiness, and transport adapter that the paid probe would use:
 npm run operational:live-canary:transport-probe:dry-run
 ```
 
+Credential/model-access check makes one authenticated model metadata request,
+does not create a canary run, does not create an agent call, and consumes no
+model-generation tokens:
+
+```bash
+npm run operational:live-canary:credential-check -- --confirm-network-check
+```
+
+The primary operator command is the atomic verified probe. It resolves the
+OpenAI credential once, performs the credential/model-access check, creates the
+one-call probe run only after that check succeeds, and uses the same resolved
+credential, SDK client path, hostname, adapter, model snapshot, and fingerprint
+for the Responses request:
+
+```bash
+npm run operational:live-canary:transport-probe:verified -- \
+  --confirm-network-check \
+  --confirm-paid-api
+```
+
+If authentication fails, the verified command stops before creating a canary
+run, step, agent call, or effective result.
+
+Compact no-network operator status:
+
+```bash
+npm run operational:live-canary:ready-status
+```
+
 Read-only diagnosis of an existing probe run:
 
 ```bash
 npm run operational:live-canary:transport-probe:diagnose -- --run <run_public_id>
 ```
 
-Paid execution is manual only:
+The older paid probe command remains available but is gated by the same
+credential-check attestation:
 
 ```bash
 npm run operational:live-canary:transport-probe -- --confirm-paid-api
@@ -77,6 +107,12 @@ usable effective result, and no fallback. Deterministic fallback, mock provider
 output, missing request IDs, unverified usage, or
 `cost_unverified_after_dispatch` never satisfy the full-canary gate.
 
+The paid probe refuses before run creation unless there is a non-expired
+successful credential-check attestation matching the credential fingerprint,
+Git commit, approved config hash, canary manifest hash, exact model snapshot,
+approved hostname, OpenAI SDK version, and Responses adapter version. A
+successful attestation is valid for 15 minutes.
+
 The probe report separates transport execution, raw-output validation,
 effective execution, and accounting. A safe deterministic fallback is useful
 operational evidence, but it does not pass the one-call transport objective.
@@ -101,6 +137,23 @@ The transport error normalizer uses stable categories such as
 `openai_response_parse_failed`, `test_transport_hook_active`,
 `nonapproved_base_url`, and `unknown_transport_error`.
 
+HTTP 401 or provider `invalid_api_key` is classified as:
+
+```text
+transport_outcome=live_provider_error
+raw_output_outcome=missing
+effective_system_outcome=blocked
+lifecycle_status=finalized_provider_failure
+typed_failure_reason=openai_authentication_failed
+fallback_applied=false
+usage_status=provider_error_no_usage_expected
+cost_status=provider_error_no_usage_expected
+transport_objective_passed=false
+```
+
+Historical rows are not mutated. Read-only reports apply the corrected
+classifier and preserve legacy stored values under historical metadata.
+
 ## Safety
 
 The probe:
@@ -111,3 +164,31 @@ The probe:
 - never exposes API keys or headers
 - never reads real or deidentified student data
 - never mutates classroom workflow records
+
+## Credential Resolution
+
+All operational live-canary transport code uses one canonical resolver. The
+supported sources are:
+
+```text
+OPENAI_API_KEY
+OPENAI_API_KEY_FILE
+```
+
+If both are present and differ, execution fails closed with
+`credential_source_conflict`. If both match, the source is recorded as
+`matching_environment_and_file`.
+
+Recommended local file path:
+
+```text
+.data/secrets/openai_api_key
+```
+
+The file is ignored by Git through `.data/`, should be owner-readable only, and
+must contain only the credential plus at most one trailing newline. The resolver
+rejects embedded whitespace, control characters, non-ASCII characters, BOM or
+zero-width characters, surrounding quotes, malformed prefixes, and source
+conflicts. CLI output shows only a short SHA-256 fingerprint prefix. The
+database stores only the non-secret fingerprint, source classification, and
+resolver version.

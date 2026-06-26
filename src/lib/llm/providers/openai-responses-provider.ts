@@ -1,5 +1,9 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import { createOpenAIClient } from "@/lib/llm/openai-client";
+import {
+  currentResolvedOpenAICredential,
+  resolveOpenAICredentialFromEnv
+} from "@/lib/llm/openai-credential-resolver";
 import { sanitizeUnknownError } from "@/lib/llm/errors";
 import {
   isApprovedOpenAIBaseUrl,
@@ -120,6 +124,12 @@ export class OpenAIResponsesProvider implements LlmProvider {
     const baseURL = resolveOpenAIBaseUrl();
     const baseUrlHost = openAIBaseUrlHost(baseURL);
     const baseURLApproved = isApprovedOpenAIBaseUrl(baseURL);
+    const resolvedCredential =
+      currentResolvedOpenAICredential() ??
+      (() => {
+        const resolved = resolveOpenAICredentialFromEnv(process.env);
+        return resolved.ok ? resolved.credential : null;
+      })();
 
     const transportTelemetry = () => ({
       provider: "openai" as const,
@@ -129,6 +139,9 @@ export class OpenAIResponsesProvider implements LlmProvider {
       model_name: request.model_config.model_name,
       base_url_host: baseUrlHost,
       base_url_approved: baseURLApproved,
+      credential_fingerprint: resolvedCredential?.fingerprint,
+      credential_source: resolvedCredential?.source,
+      credential_resolver_version: resolvedCredential?.resolver_version,
       ...milestones
     });
 
@@ -148,6 +161,7 @@ export class OpenAIResponsesProvider implements LlmProvider {
     });
 
     const client = createOpenAIClient({
+      ...(resolvedCredential ? { credential: resolvedCredential } : {}),
       onFetchInvoked: async () => {
         milestones.fetch_invoked = true;
         await emit("fetch_invoked");

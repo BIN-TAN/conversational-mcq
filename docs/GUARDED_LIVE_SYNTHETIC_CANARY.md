@@ -49,6 +49,7 @@ No-provider checks:
 ```bash
 npm run operational:live-canary:preflight
 npm run operational:live-canary:dry-run
+npm run operational:live-canary:ready-status
 npm run operational:live-canary-db-resolution-smoke
 npm run operational:live-canary-guard-parity-smoke
 npm run operational:live-canary-block-reason-smoke
@@ -66,11 +67,18 @@ npm run operational:live-canary-transport-probe-smoke
 Paid one-call transport probe, for a future manual run only:
 
 ```bash
+npm run operational:live-canary:credential-check -- --confirm-network-check
 npm run operational:live-canary:transport-probe:preflight
 npm run operational:live-canary:transport-probe:dry-run
+npm run operational:live-canary:transport-probe:verified -- --confirm-network-check --confirm-paid-api
 npm run operational:live-canary:transport-probe:diagnose -- --run <run_public_id>
 npm run operational:live-canary:transport-probe -- --confirm-paid-api
 ```
+
+The verified transport-probe command is the preferred operator workflow. It
+performs the credential/model-access check and the one-call Responses probe in
+one process with one frozen credential resolution. A failed authentication or
+model-access check creates no canary run.
 
 Paid full canary command, for a future manual run only. The full run refuses to
 start until a successful one-call transport probe exists:
@@ -167,6 +175,13 @@ Reports now include separate `provider_execution`, `effective_execution`, and
 `integrity` sections. A run can be ready for private staging deployment only
 when provider accounting is verified, effective results are usable, and review
 has passed.
+
+Credential parity is part of execution integrity. The canonical resolver
+supports `OPENAI_API_KEY` and `OPENAI_API_KEY_FILE`; conflicting sources fail
+closed. Credential checks store only a non-secret SHA-256 fingerprint, source
+classification, resolver version, SDK version, adapter version, hostname, model
+snapshot, and sanitized status. A matching successful check is required before
+a paid transport probe can create a run, and it expires after 15 minutes.
 
 ## Scope
 

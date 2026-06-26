@@ -54,3 +54,18 @@ must remain preserved. If they lack dispatch ledger rows, the correct
 classification is `unknown_legacy_provenance` or blocked pre-dispatch,
 depending on the stored evidence. They should not be reset, cleaned, rewritten,
 or backfilled.
+
+The preserved failed transport probe `olcr_20260626_r5aew_c` is historical
+evidence. Corrected read-only reporting classifies its 401 provider response as
+`transport_outcome=live_provider_error`,
+`typed_failure_reason=openai_authentication_failed`,
+`raw_output_outcome=missing`, `effective_system_outcome=blocked`,
+`fallback_applied=false`, `usage_status=provider_error_no_usage_expected`,
+and `cost_status=provider_error_no_usage_expected`. Stored legacy
+classification fields are not mutated.
+
+Repeated blind retries are blocked by credential-check attestation. A failed
+credential check creates no canary run. A paid transport probe requires a fresh
+matching successful attestation; an expired check, changed fingerprint, commit
+mismatch, manifest/config mismatch, model mismatch, SDK mismatch, or adapter
+mismatch blocks before dispatch.

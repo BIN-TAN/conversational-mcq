@@ -20,9 +20,22 @@ import {
   createOperationalLiveCanaryContext,
 } from "@/lib/operational/live-canary-context";
 import { getServerEnv } from "@/lib/env";
+import { createOpenAIClient } from "@/lib/llm/openai-client";
 import {
+  OPENAI_CREDENTIAL_RESOLVER_VERSION,
+  currentResolvedOpenAICredential,
+  publicOpenAICredentialResolution,
+  resolveOpenAICredentialFromEnv,
+  withResolvedOpenAICredential,
+  type ResolvedOpenAICredential
+} from "@/lib/llm/openai-credential-resolver";
+import {
+  APPROVED_OPENAI_HOST,
   createOpenAITransportEnvironmentReport,
-  normalizeOpenAITransportError
+  normalizeOpenAITransportError,
+  openAIBaseUrlHost,
+  openaiSdkVersion,
+  resolveOpenAIBaseUrl
 } from "@/lib/llm/openai-transport-diagnostics";
 import {
   normalizeOpenAIResponsesResult,
@@ -32,7 +45,10 @@ import {
   type OpenAIResponsesTransportOutcome
 } from "@/lib/llm/openai-responses-normalizer";
 import { resolveLlmProviderDescriptor } from "@/lib/llm/providers/provider-factory";
-import { withOpenAIResponsesTransportBoundaryObserver } from "@/lib/llm/providers/openai-responses-provider";
+import {
+  OPENAI_RESPONSES_ADAPTER_VERSION,
+  withOpenAIResponsesTransportBoundaryObserver
+} from "@/lib/llm/providers/openai-responses-provider";
 import type {
   OpenAITransportTelemetry
 } from "@/lib/llm/providers/types";
@@ -73,6 +89,9 @@ export const OPERATIONAL_LIVE_CANARY_EXECUTION_LIFECYCLE_VERSION =
 export const OPERATIONAL_LIVE_CANARY_PRICING_REGISTRY_VERSION =
   "phase8c-operational-canary-pricing-v1";
 export const OPERATIONAL_LIVE_CANARY_LEASE_MS = 5 * 60 * 1000;
+export const OPERATIONAL_LIVE_CANARY_CREDENTIAL_CHECK_TTL_MS = 15 * 60 * 1000;
+export const OPERATIONAL_LIVE_CANARY_CREDENTIAL_CHECK_COMMAND_VERSION =
+  "phase8c-credential-check-v1";
 
 export const LiveCanaryProvenanceType = z.enum([
   "live_provider",
@@ -410,12 +429,16 @@ export function validateOperationalLiveCanaryManifest(
 export function liveCanaryConfigSnapshot() {
   const env = getServerEnv();
   const approved = verifyApprovedOperationalAgentConfig();
+  const credential = resolveOpenAICredentialFromEnv(process.env);
   return {
     operational_live_canary_enabled: env.OPERATIONAL_LIVE_CANARY_ENABLED,
     operational_mode: env.OPERATIONAL_AGENT_MODE,
     provider: env.LLM_PROVIDER,
     live_calls_enabled: env.LLM_LIVE_CALLS_ENABLED,
-    api_key_configured: Boolean(env.OPENAI_API_KEY),
+    api_key_configured: credential.ok,
+    credential_resolution_status: credential.ok ? "resolved" : credential.code,
+    credential_source: credential.ok ? credential.credential.source : credential.source,
+    credential_fingerprint_prefix: credential.ok ? credential.credential.fingerprint_prefix : null,
     exact_model_snapshot: env.OPERATIONAL_LIVE_CANARY_TARGET_MODEL,
     reasoning_effort: env.OPERATIONAL_LIVE_CANARY_REASONING_EFFORT,
     cost_hard_limit_usd: env.OPERATIONAL_LIVE_CANARY_COST_HARD_LIMIT_USD,
@@ -451,6 +474,210 @@ function structuredOutputSummary() {
       return [agentName, { schema_compiles: Boolean(schema), schema_type: schema?._def?.typeName ?? "unknown" }];
     })
   );
+}
+
+function credentialFingerprintPrefix(fingerprint?: string | null) {
+  return fingerprint ? fingerprint.slice(0, 12) : null;
+}
+
+function credentialCheckExpiresAt(now = new Date()) {
+  return new Date(now.getTime() + OPERATIONAL_LIVE_CANARY_CREDENTIAL_CHECK_TTL_MS);
+}
+
+function credentialCheckHost() {
+  return openAIBaseUrlHost(resolveOpenAIBaseUrl());
+}
+
+function credentialCheckContext(manifest: OperationalLiveCanaryManifest) {
+  return {
+    provider: "openai",
+    hostname: credentialCheckHost(),
+    model_snapshot: OPERATIONAL_LIVE_CANARY_MODEL,
+    application_git_commit: safeGitCommit(),
+    approved_config_hash: manifest.approved_operational_configuration_hash,
+    manifest_hash: manifestHash(manifest),
+    adapter_version: OPENAI_RESPONSES_ADAPTER_VERSION,
+    sdk_version: openaiSdkVersion()
+  };
+}
+
+function canUseCredentialCheckHost(hostname: string) {
+  return hostname === APPROVED_OPENAI_HOST ||
+    process.env.OPERATIONAL_LIVE_CANARY_TEST_ALLOW_LOOPBACK_CREDENTIAL_CHECK === "true";
+}
+
+function requestIdFromHeaders(headers: unknown) {
+  if (!headers || typeof headers !== "object") {
+    return null;
+  }
+  const get = (headers as { get?: unknown }).get;
+  if (typeof get === "function") {
+    return String(get.call(headers, "x-request-id") ?? get.call(headers, "request-id") ?? "") || null;
+  }
+  return null;
+}
+
+function credentialCheckStatusFromError(error: unknown) {
+  const normalized = normalizeOpenAITransportError(error, {
+    transport_adapter_entered: true,
+    request_serialization_completed: true,
+    fetch_invoked: true,
+    response_headers_received: Boolean((error as { status?: unknown })?.status),
+    response_body_received: false
+  });
+  const status =
+    normalized.typed_failure_reason === "openai_authentication_failed"
+      ? "authentication_failed"
+      : normalized.typed_failure_reason === "openai_permission_denied"
+        ? "permission_denied"
+        : normalized.typed_failure_reason === "openai_model_not_found"
+          ? "model_not_found"
+          : normalized.typed_failure_reason === "openai_request_timeout"
+            ? "timeout"
+            : normalized.typed_failure_reason === "openai_connection_failed" ||
+                normalized.typed_failure_reason === "openai_dns_failed" ||
+                normalized.typed_failure_reason === "openai_tls_failed"
+              ? "network_failed"
+              : "network_failed";
+  return { status, normalized };
+}
+
+async function persistCredentialCheck(input: {
+  prisma: PrismaClient;
+  credential?: ResolvedOpenAICredential | null;
+  context: ReturnType<typeof credentialCheckContext>;
+  status: string;
+  httpStatus?: number | null;
+  providerRequestId?: string | null;
+  authenticationVerified?: boolean;
+  modelAccessVerified?: boolean;
+  sanitizedFailureReason?: string | null;
+}) {
+  const now = new Date();
+  return input.prisma.operationalLiveCanaryCredentialCheck.create({
+    data: {
+      check_public_id: generatePublicId("operational_canary_credential_check"),
+      credential_fingerprint: input.credential?.fingerprint ?? null,
+      credential_source: input.credential?.source ?? null,
+      resolver_version: input.credential?.resolver_version ?? OPENAI_CREDENTIAL_RESOLVER_VERSION,
+      provider: input.context.provider,
+      hostname: input.context.hostname,
+      model_snapshot: input.context.model_snapshot,
+      application_git_commit: input.context.application_git_commit,
+      approved_config_hash: input.context.approved_config_hash,
+      manifest_hash: input.context.manifest_hash,
+      adapter_version: input.context.adapter_version,
+      sdk_version: input.context.sdk_version,
+      status: input.status,
+      http_status: input.httpStatus ?? null,
+      provider_request_id: input.providerRequestId ?? null,
+      authentication_verified: input.authenticationVerified ?? false,
+      model_access_verified: input.modelAccessVerified ?? false,
+      checked_at: now,
+      expires_at: credentialCheckExpiresAt(now),
+      sanitized_failure_reason: input.sanitizedFailureReason ?? null
+    }
+  });
+}
+
+function serializeCredentialCheck(check: {
+  check_public_id: string;
+  credential_fingerprint: string | null;
+  credential_source: string | null;
+  resolver_version: string;
+  provider: string;
+  hostname: string;
+  model_snapshot: string;
+  application_git_commit: string;
+  approved_config_hash: string;
+  manifest_hash: string;
+  adapter_version: string;
+  sdk_version: string;
+  status: string;
+  http_status: number | null;
+  provider_request_id: string | null;
+  authentication_verified: boolean;
+  model_access_verified: boolean;
+  checked_at: Date;
+  expires_at: Date;
+  sanitized_failure_reason: string | null;
+}) {
+  return {
+    credential_check_public_id: check.check_public_id,
+    status: check.status,
+    credential_fingerprint_prefix: credentialFingerprintPrefix(check.credential_fingerprint),
+    credential_source: check.credential_source,
+    resolver_version: check.resolver_version,
+    provider: check.provider,
+    approved_hostname: check.hostname,
+    model: check.model_snapshot,
+    sdk_version: check.sdk_version,
+    adapter_version: check.adapter_version,
+    http_status: check.http_status,
+    provider_request_id: check.provider_request_id,
+    authentication_verified: check.authentication_verified,
+    model_access_verified: check.model_access_verified,
+    checked_at: check.checked_at.toISOString(),
+    expires_at: check.expires_at.toISOString(),
+    sanitized_failure_reason: check.sanitized_failure_reason,
+    no_model_generation_request_made: true
+  };
+}
+
+function serializeCredentialResolutionForCli(credential: ResolvedOpenAICredential) {
+  const publicResolution = publicOpenAICredentialResolution(credential);
+  return {
+    source: publicResolution.source,
+    fingerprint_prefix: publicResolution.fingerprint_prefix,
+    length: publicResolution.length,
+    asciiOnly: publicResolution.asciiOnly,
+    embeddedWhitespace: publicResolution.embeddedWhitespace,
+    basicShapeValid: publicResolution.basicShapeValid,
+    resolver_version: publicResolution.resolver_version
+  };
+}
+
+async function findLatestCredentialCheck(prisma: PrismaClient, fingerprint?: string | null) {
+  return prisma.operationalLiveCanaryCredentialCheck.findFirst({
+    where: fingerprint ? { credential_fingerprint: fingerprint } : undefined,
+    orderBy: { checked_at: "desc" }
+  });
+}
+
+async function findMatchingCredentialCheck(input: {
+  prisma: PrismaClient;
+  credential: ResolvedOpenAICredential;
+  manifest: OperationalLiveCanaryManifest;
+}) {
+  const context = credentialCheckContext(input.manifest);
+  const latestForFingerprint = await findLatestCredentialCheck(input.prisma, input.credential.fingerprint);
+  if (!latestForFingerprint) {
+    return { ok: false as const, reason: "credential_check_missing", check: null, context };
+  }
+  if (latestForFingerprint.status !== "credential_verified" ||
+      !latestForFingerprint.authentication_verified ||
+      !latestForFingerprint.model_access_verified) {
+    return { ok: false as const, reason: "credential_check_failed", check: latestForFingerprint, context };
+  }
+  if (latestForFingerprint.expires_at.getTime() <= Date.now()) {
+    return { ok: false as const, reason: "credential_check_expired", check: latestForFingerprint, context };
+  }
+  if (latestForFingerprint.application_git_commit !== context.application_git_commit) {
+    return { ok: false as const, reason: "credential_check_commit_mismatch", check: latestForFingerprint, context };
+  }
+  if (latestForFingerprint.approved_config_hash !== context.approved_config_hash ||
+      latestForFingerprint.manifest_hash !== context.manifest_hash) {
+    return { ok: false as const, reason: "credential_check_config_mismatch", check: latestForFingerprint, context };
+  }
+  if (latestForFingerprint.model_snapshot !== context.model_snapshot ||
+      latestForFingerprint.hostname !== context.hostname) {
+    return { ok: false as const, reason: "credential_check_model_mismatch", check: latestForFingerprint, context };
+  }
+  if (latestForFingerprint.adapter_version !== context.adapter_version ||
+      latestForFingerprint.sdk_version !== context.sdk_version) {
+    return { ok: false as const, reason: "credential_check_adapter_mismatch", check: latestForFingerprint, context };
+  }
+  return { ok: true as const, check: latestForFingerprint, context };
 }
 
 export async function createOperationalLiveCanaryPreflightReport() {
@@ -606,6 +833,123 @@ export async function createOperationalLiveCanaryPreflightReport() {
     },
     current_git_commit: safeGitCommit()
   };
+}
+
+export async function performOperationalLiveCanaryCredentialCheck(input: {
+  confirmNetworkCheck: boolean;
+  credentialOverride?: ResolvedOpenAICredential;
+  prisma?: PrismaClient;
+}) {
+  if (!input.confirmNetworkCheck) {
+    throw new Error("Refusing credential/model-access check without --confirm-network-check.");
+  }
+
+  const manifest = await loadOperationalLiveCanaryManifest();
+  const context = credentialCheckContext(manifest);
+  const prisma = input.prisma ?? createCanaryPrismaClient();
+  const ownsClient = !input.prisma;
+
+  try {
+    const resolved = input.credentialOverride
+      ? { ok: true as const, credential: input.credentialOverride }
+      : resolveOpenAICredentialFromEnv(process.env);
+    if (!canUseCredentialCheckHost(context.hostname)) {
+      const check = await persistCredentialCheck({
+        prisma,
+        credential: resolved.ok ? resolved.credential : null,
+        context,
+        status: "network_failed",
+        sanitizedFailureReason: "credential_check_host_not_approved"
+      });
+      return {
+        ...serializeCredentialCheck(check),
+        result: "network_failed",
+        model_access_verified: false,
+        authentication_verified: false
+      };
+    }
+    if (!resolved.ok) {
+      const check = await persistCredentialCheck({
+        prisma,
+        credential: null,
+        context,
+        status: resolved.code,
+        sanitizedFailureReason: resolved.message
+      });
+      return {
+        ...serializeCredentialCheck(check),
+        result: resolved.code,
+        credential_resolution: {
+          ok: false,
+          code: resolved.code,
+          source: resolved.source
+        },
+        model_access_verified: false,
+        authentication_verified: false
+      };
+    }
+
+    try {
+      const client = createOpenAIClient({ credential: resolved.credential });
+      const { data, request_id: requestId, response } = await client.models
+        .retrieve(OPERATIONAL_LIVE_CANARY_MODEL)
+        .withResponse();
+      const modelId = typeof (data as { id?: unknown }).id === "string"
+        ? (data as { id: string }).id
+        : OPERATIONAL_LIVE_CANARY_MODEL;
+      const modelAccessVerified = modelId === OPERATIONAL_LIVE_CANARY_MODEL;
+      const status = modelAccessVerified ? "credential_verified" : "model_not_accessible";
+      const check = await persistCredentialCheck({
+        prisma,
+        credential: resolved.credential,
+        context,
+        status,
+        httpStatus: response?.status ?? 200,
+        providerRequestId: requestId ?? requestIdFromHeaders(response?.headers) ?? null,
+        authenticationVerified: true,
+        modelAccessVerified,
+        sanitizedFailureReason: modelAccessVerified ? null : "model_metadata_id_mismatch"
+      });
+      return {
+        ...serializeCredentialCheck(check),
+        result: status,
+        credential_resolution: serializeCredentialResolutionForCli(resolved.credential),
+        authentication_verified: true,
+        model_access_verified: modelAccessVerified
+      };
+    } catch (error) {
+      const mapped = credentialCheckStatusFromError(error);
+      const check = await persistCredentialCheck({
+        prisma,
+        credential: resolved.credential,
+        context,
+        status: mapped.status,
+        httpStatus: mapped.normalized.http_status,
+        providerRequestId:
+          mapped.normalized.provider_request_header_id ??
+          mapped.normalized.provider_request_id ??
+          null,
+        authenticationVerified: false,
+        modelAccessVerified: false,
+        sanitizedFailureReason: mapped.normalized.sanitized_message
+      });
+      return {
+        ...serializeCredentialCheck(check),
+        result: mapped.status,
+        credential_resolution: serializeCredentialResolutionForCli(resolved.credential),
+        normalized_failure: {
+          typed_failure_reason: mapped.normalized.typed_failure_reason,
+          http_status: mapped.normalized.http_status,
+          provider_error_code: mapped.normalized.provider_error_code,
+          network_category: mapped.normalized.network_category
+        }
+      };
+    }
+  } finally {
+    if (ownsClient) {
+      await prisma.$disconnect();
+    }
+  }
 }
 
 async function cleanupFixture(prisma: PrismaClient, manifest: OperationalLiveCanaryManifest) {
@@ -1644,7 +1988,7 @@ async function markDispatchFailure(input: {
       provenance_type:
         lifecycleStatus === "finalized_provider_failure"
           ? "live_provider_failure"
-          : "deterministic_fallback",
+          : "no_dispatch",
       failure_stage: input.failureStage,
       typed_failure_reason: input.typedFailureReason,
       original_error_class: input.error ? originalErrorClass(input.error) : null,
@@ -1662,8 +2006,8 @@ async function markDispatchFailure(input: {
       retry_after_ms: normalizedError?.retry_after_ms ?? undefined,
       transport_outcome: fetchInvoked ? "live_provider_error" : "no_dispatch",
       raw_output_outcome: "missing",
-      effective_system_outcome: "deterministic_fallback_used",
-      fallback_reason: fetchInvoked ? "unexpected_post_response_error" : "provider_output_missing",
+      effective_system_outcome: "blocked",
+      fallback_reason: null,
       stage_trace_json: prismaJson(stageTraceWith(current?.stage_trace_json, input.failureStage)),
       transport_objective_json: prismaJson({
         exactly_one_dispatch_required: true,
@@ -1673,6 +2017,10 @@ async function markDispatchFailure(input: {
         usage_verified: false,
         accounting_complete: accounting.accountingComplete,
         cost_status: accounting.costStatus,
+        transport_outcome: fetchInvoked ? "live_provider_error" : "no_dispatch",
+        raw_output_outcome: "missing",
+        effective_system_outcome: "blocked",
+        fallback_applied: false,
         effective_result_usable: false,
         passed: false
       })
@@ -1734,6 +2082,11 @@ async function reserveDispatchAttempt(input: {
 }) {
   const now = new Date();
   const descriptor = resolveLlmProviderDescriptor();
+  const credential = currentResolvedOpenAICredential() ??
+    (() => {
+      const resolved = resolveOpenAICredentialFromEnv(process.env);
+      return resolved.ok ? resolved.credential : null;
+    })();
   return input.prisma.operationalLiveCanaryDispatchAttempt.create({
     data: {
       dispatch_public_id: generatePublicId("operational_canary_dispatch"),
@@ -1755,6 +2108,9 @@ async function reserveDispatchAttempt(input: {
       last_completed_stage: "dispatch_attempt_created",
       stage_trace_json: prismaJson([stageTraceEntry("dispatch_attempt_created")]),
       request_reserved_at: now,
+      credential_fingerprint: credential?.fingerprint ?? null,
+      credential_source: credential?.source ?? null,
+      credential_resolver_version: credential?.resolver_version ?? OPENAI_CREDENTIAL_RESOLVER_VERSION,
       client_dispatch_id: clientDispatchId(input.run.run_public_id, input.step.step_public_id, input.attemptIndex),
       usage_status: "not_available"
     }
@@ -2001,12 +2357,18 @@ async function finalizeDispatchAttempt(input: {
   const dispatchStarted = fetchInvoked;
   const providerFailure =
     input.resultStatus !== "succeeded" && (liveProviderAttempt || dispatchStarted);
+  const providerError =
+    providerFailure ||
+    Boolean(normalized?.http_status && normalized.http_status >= 400) ||
+    Boolean(normalized?.typed_failure_reason?.startsWith("openai_"));
   const usageVerified =
     liveProviderAttempt &&
     normalizedResponse?.usage.status === "usage_verified" &&
     totalTokens !== null;
   const transportOutcome: OpenAIResponsesTransportOutcome =
-    liveProviderAttempt || providerAcknowledged
+    providerError
+      ? "live_provider_error"
+      : liveProviderAttempt || providerAcknowledged
       ? "live_provider_success"
       : providerFailure
         ? "live_provider_error"
@@ -2027,7 +2389,9 @@ async function finalizeDispatchAttempt(input: {
         ? "unknown"
         : "missing");
   const fallbackReason: OpenAIResponsesFallbackReason | null =
-    input.resultStatus === "succeeded"
+    providerError
+      ? null
+      : input.resultStatus === "succeeded"
       ? null
       : input.resultStatus === "invalid_output"
         ? "provider_output_schema_invalid"
@@ -2041,7 +2405,9 @@ async function finalizeDispatchAttempt(input: {
                 ? "unexpected_post_response_error"
                 : "provider_output_missing";
   const effectiveSystemOutcome: OpenAIResponsesEffectiveOutcome =
-    input.resultStatus === "succeeded"
+    providerError
+      ? "blocked"
+      : input.resultStatus === "succeeded"
       ? "provider_output_used"
       : input.resultStatus === "blocked_by_operational_guard" ||
           input.resultStatus === "blocked_by_usage_limit"
@@ -2050,7 +2416,9 @@ async function finalizeDispatchAttempt(input: {
           ? "deterministic_fallback_used"
           : "unusable";
   const provenanceType: LiveCanaryProvenanceType =
-    liveProviderAttempt && transportOutcome === "live_provider_success"
+    providerError
+      ? "live_provider_failure"
+      : liveProviderAttempt && transportOutcome === "live_provider_success"
       ? "live_provider"
       : providerFailure
         ? "live_provider_failure"
@@ -2083,7 +2451,7 @@ async function finalizeDispatchAttempt(input: {
     responseHeadersReceived,
     responseBodyReceived,
     usageVerified,
-    providerError: input.resultStatus !== "succeeded"
+    providerError
   });
   const providerRequestId =
     agentCall?.provider_request_id ??
@@ -3111,6 +3479,8 @@ export async function createOperationalLiveCanaryTransportProbePreflight() {
   const preflight = await createOperationalLiveCanaryPreflightReport();
   const transportEnvironment = createOpenAITransportEnvironmentReport();
   const manifest = await loadOperationalLiveCanaryManifest();
+  const credential = resolveOpenAICredentialFromEnv(process.env);
+  const databaseResolution = operationalLiveCanaryDatabaseResolution();
   const responseCollectionPoint = manifest.expected_operational_invocation_points.find(
     (point) => point.agent_name === "response_collection_agent"
   );
@@ -3121,13 +3491,52 @@ export async function createOperationalLiveCanaryTransportProbePreflight() {
   } catch (error) {
     descriptorError = sanitizedFailureMessage(error);
   }
+  let credentialCheck: {
+    ok: boolean;
+    reason?: string | null;
+    check: Awaited<ReturnType<typeof findLatestCredentialCheck>> | null;
+    context: ReturnType<typeof credentialCheckContext>;
+  };
+  try {
+    const prisma = createCanaryPrismaClient(databaseResolution.isolated_canary_database_url);
+    try {
+      credentialCheck = credential.ok
+        ? await findMatchingCredentialCheck({ prisma, credential: credential.credential, manifest })
+        : {
+            ok: false,
+            reason: credential.code,
+            check: null,
+            context: credentialCheckContext(manifest)
+          };
+    } finally {
+      await prisma.$disconnect();
+    }
+  } catch (error) {
+    credentialCheck = {
+      ok: false,
+      reason: `credential_check_unavailable:${sanitizedFailureMessage(error)}`,
+      check: null,
+      context: credentialCheckContext(manifest)
+    };
+  }
+
+  const transportProbeParentBlockingReasons = preflight.blocking_reasons.filter(
+    (reason) => !["canary_context_invalid", "evaluation_evidence_missing"].includes(reason)
+  );
+  const credentialBlockingReasons = [
+    credential.ok ? null : credential.code,
+    credentialCheck.ok ? null : credentialCheck.reason
+  ].filter((value): value is string => Boolean(value));
   const blockingReasons = Array.from(new Set([
-    ...preflight.blocking_reasons,
-    ...transportEnvironment.blocking_reasons
+    ...transportProbeParentBlockingReasons,
+    ...transportEnvironment.blocking_reasons,
+    ...credentialBlockingReasons
   ]));
   const paidExecutionPermitted =
-    preflight.paid_execution_permitted &&
+    transportProbeParentBlockingReasons.length === 0 &&
     transportEnvironment.paid_transport_eligible &&
+    credential.ok &&
+    credentialCheck.ok &&
     descriptor?.provider === "openai" &&
     descriptor?.transport === "openai_responses";
 
@@ -3139,6 +3548,29 @@ export async function createOperationalLiveCanaryTransportProbePreflight() {
     resolved_transport: descriptor?.transport ?? null,
     provider_descriptor_error: descriptorError,
     transport_environment: transportEnvironment,
+    credential_resolution: credential.ok
+      ? serializeCredentialResolutionForCli(credential.credential)
+      : {
+          ok: false,
+          code: credential.code,
+          source: credential.source
+        },
+    credential_check: {
+      required: true,
+      ok: credentialCheck.ok,
+      blocking_reason: credentialCheck.ok ? null : credentialCheck.reason,
+      latest_check: credentialCheck.check ? serializeCredentialCheck(credentialCheck.check) : null,
+      expected: {
+        credential_fingerprint_prefix: credential.ok ? credential.credential.fingerprint_prefix : null,
+        application_git_commit: credentialCheck.context.application_git_commit,
+        approved_config_hash: credentialCheck.context.approved_config_hash,
+        manifest_hash: credentialCheck.context.manifest_hash,
+        model_snapshot: credentialCheck.context.model_snapshot,
+        hostname: credentialCheck.context.hostname,
+        adapter_version: credentialCheck.context.adapter_version,
+        sdk_version: credentialCheck.context.sdk_version
+      }
+    },
     target: {
       planned_provider_requests: 1,
       agent_name: "response_collection_agent",
@@ -3219,7 +3651,7 @@ export async function createOperationalLiveCanaryTransportProbeDryRun() {
   };
 
   addStage("readiness_validated", preflight.paid_execution_permitted);
-  addStage("canary_context_validated", preflight.parent_preflight.executor_readiness.allowed);
+  addStage("canary_context_validated", preflight.paid_execution_permitted);
 
   let allowlistedInput: unknown;
   try {
@@ -3263,7 +3695,7 @@ export async function createOperationalLiveCanaryTransportProbeDryRun() {
     output.blocking_reasons.push("probe_output_schema_compilation_failed");
   }
 
-  output.budget_reservation_valid = preflight.parent_preflight.executor_readiness.allowed;
+  output.budget_reservation_valid = preflight.paid_execution_permitted;
   addStage("budget_reserved", output.budget_reservation_valid);
   const descriptor = preflight.resolved_provider && preflight.resolved_transport
     ? { provider: preflight.resolved_provider, transport: preflight.resolved_transport }
@@ -3453,6 +3885,159 @@ export async function runOperationalLiveCanaryTransportProbe(input: {
       typed_failure_reason: finalizedProbeAttempt?.typed_failure_reason ?? ("typedFailureReason" in dispatch ? dispatch.typedFailureReason : null),
       note:
         "One-call transport probe uses a synthetic Response Collection invocation and remains isolated from classroom workflows."
+    };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export async function runOperationalLiveCanaryVerifiedTransportProbe(input: {
+  confirmNetworkCheck: boolean;
+  confirmPaidApi: boolean;
+}) {
+  if (!input.confirmNetworkCheck) {
+    throw new Error("Refusing verified transport probe without --confirm-network-check.");
+  }
+  if (!input.confirmPaidApi) {
+    throw new Error("Refusing verified transport probe without --confirm-paid-api.");
+  }
+
+  const resolved = resolveOpenAICredentialFromEnv(process.env);
+  if (!resolved.ok) {
+    return {
+      status: "blocked",
+      paid_api_request_made: false,
+      blocking_reasons: [resolved.code],
+      credential_resolution: {
+        ok: false,
+        code: resolved.code,
+        source: resolved.source
+      }
+    };
+  }
+
+  return withResolvedOpenAICredential(resolved.credential, async () => {
+    const credentialCheck = await performOperationalLiveCanaryCredentialCheck({
+      confirmNetworkCheck: true,
+      credentialOverride: resolved.credential
+    });
+    if (credentialCheck.result !== "credential_verified") {
+      return {
+        status: "blocked",
+        paid_api_request_made: false,
+        blocking_reasons: [credentialCheck.result],
+        credential_check: credentialCheck,
+        run_created: false
+      };
+    }
+
+    const existingStatus = await createOperationalLiveCanaryReadyStatus();
+    if (existingStatus.latest_probe?.status === "completed" && existingStatus.latest_probe.transport_objective_passed) {
+      return {
+        status: "completed",
+        paid_api_request_made: false,
+        reused_existing_probe: true,
+        credential_check: credentialCheck,
+        run_public_id: existingStatus.latest_probe.run_public_id,
+        next_command: "npm run operational:live-canary -- --new-run --confirm-paid-api"
+      };
+    }
+
+    const result = await runOperationalLiveCanaryTransportProbe({ confirmPaidApi: true });
+    const persistedStatus = await createOperationalLiveCanaryReadyStatus();
+    return {
+      ...result,
+      credential_check: credentialCheck,
+      reconciled_ready_status: persistedStatus,
+      next_command:
+        result.status === "completed"
+          ? "npm run operational:live-canary -- --new-run --confirm-paid-api"
+          : null
+    };
+  });
+}
+
+export async function createOperationalLiveCanaryReadyStatus() {
+  const manifest = await loadOperationalLiveCanaryManifest();
+  const validation = validateOperationalLiveCanaryManifest(manifest);
+  const config = liveCanaryConfigSnapshot();
+  const credential = resolveOpenAICredentialFromEnv(process.env);
+  const databaseResolution = operationalLiveCanaryDatabaseResolution();
+  const prisma = createCanaryPrismaClient(databaseResolution.isolated_canary_database_url);
+
+  try {
+    const latestCheck = credential.ok
+      ? await findLatestCredentialCheck(prisma, credential.credential.fingerprint)
+      : null;
+    const matchingCheck = credential.ok
+      ? await findMatchingCredentialCheck({ prisma, credential: credential.credential, manifest })
+      : {
+          ok: false as const,
+          reason: credential.code,
+          check: null,
+          context: credentialCheckContext(manifest)
+        };
+    const latestProbe = await prisma.operationalLiveCanaryRun.findFirst({
+      where: { planned_logical_invocations: 1 },
+      include: { dispatch_attempts: true },
+      orderBy: { created_at: "desc" }
+    });
+    const latestAttempt = latestProbe?.dispatch_attempts[0] ?? null;
+    const objective = latestAttempt ? transportObjectiveFromAttempt(latestAttempt) : null;
+    const databaseReady = databaseResolution.guard_passed;
+    const manifestValid = validation.valid;
+    const configValid =
+      config.operational_live_canary_enabled &&
+      config.operational_mode === "guarded_live" &&
+      config.provider === "openai" &&
+      config.live_calls_enabled &&
+      config.exact_model_snapshot === OPERATIONAL_LIVE_CANARY_MODEL &&
+      config.reasoning_effort === OPERATIONAL_LIVE_CANARY_REASONING_EFFORT &&
+      config.approved_manifest_valid &&
+      config.approved_config_hash === config.active_configuration_hash;
+    const probeSucceeded =
+      latestProbe?.status === "completed" &&
+      latestProbe.failure_reason === "transport_probe_success" &&
+      objective?.passed === true;
+    const fullCanaryGate = probeSucceeded ? "satisfied" : "blocked";
+    const nextCommand =
+      !credential.ok
+        ? "Configure OPENAI_API_KEY or OPENAI_API_KEY_FILE locally, then rerun ready-status."
+        : !matchingCheck.ok
+          ? "npm run operational:live-canary:credential-check -- --confirm-network-check"
+          : !probeSucceeded
+            ? "npm run operational:live-canary:transport-probe:verified -- --confirm-network-check --confirm-paid-api"
+            : "npm run operational:live-canary -- --new-run --confirm-paid-api";
+
+    return {
+      label: "operational live canary ready status",
+      external_request_made: false,
+      code_version: safeGitCommit(),
+      database_ready: databaseReady,
+      manifest_valid: manifestValid,
+      config_valid: configValid,
+      credential_source_valid: credential.ok,
+      credential_fingerprint_parity: matchingCheck.ok,
+      credential_resolution: credential.ok
+        ? serializeCredentialResolutionForCli(credential.credential)
+        : { ok: false, code: credential.code, source: credential.source },
+      latest_credential_check: latestCheck ? serializeCredentialCheck(latestCheck) : null,
+      credential_check_blocking_reason: matchingCheck.ok ? null : matchingCheck.reason,
+      latest_probe: latestProbe
+        ? {
+            run_public_id: latestProbe.run_public_id,
+            status: latestProbe.status,
+            failure_reason: latestProbe.failure_reason,
+            transport_objective_passed: objective?.passed === true,
+            transport_outcome: objective?.transport_outcome ?? null,
+            raw_output_outcome: objective?.raw_output_outcome ?? null,
+            effective_system_outcome: objective?.effective_system_outcome ?? null,
+            typed_failure_reason: objective?.typed_failure_reason ?? latestAttempt?.typed_failure_reason ?? null
+          }
+        : null,
+      full_canary_gate_status: fullCanaryGate,
+      exact_next_command: nextCommand,
+      no_provider_call_made: true
     };
   } finally {
     await prisma.$disconnect();
@@ -3817,6 +4402,10 @@ function transportObjectiveFromAttempt(attempt: {
   provenance_type: string;
   usage_status: string;
   cost_status?: string | null;
+  typed_failure_reason?: string | null;
+  http_status?: number | null;
+  provider_error_code?: string | null;
+  normalized_failure_json?: unknown;
   transport_outcome?: string | null;
   raw_output_outcome?: string | null;
   effective_system_outcome?: string | null;
@@ -3840,16 +4429,44 @@ function transportObjectiveFromAttempt(attempt: {
       attempt.provider_response_id
   );
   const usageVerified = attempt.usage_status === "usage_verified" || attempt.usage_status === "verified";
+  const normalizedFailure = objectValue(attempt.normalized_failure_json);
+  const normalizedTypedReason = typeof normalizedFailure?.typed_failure_reason === "string"
+    ? normalizedFailure.typed_failure_reason
+    : null;
+  const normalizedProviderErrorCode = typeof normalizedFailure?.provider_error_code === "string"
+    ? normalizedFailure.provider_error_code
+    : null;
+  const httpStatus =
+    typeof attempt.http_status === "number"
+      ? attempt.http_status
+      : typeof normalizedFailure?.http_status === "number"
+        ? normalizedFailure.http_status
+        : null;
+  const providerError =
+    attempt.provenance_type === "live_provider_failure" ||
+    attempt.lifecycle_status === "finalized_provider_failure" ||
+    Boolean(attempt.typed_failure_reason?.startsWith("openai_")) ||
+    Boolean(normalizedTypedReason?.startsWith("openai_")) ||
+    Boolean(httpStatus && httpStatus >= 400) ||
+    Boolean(attempt.provider_error_code);
   const transportOutcome =
-    attempt.transport_outcome ??
-    (responseReceived ? "live_provider_success" : dispatchStarted ? "unknown" : "no_dispatch");
-  const rawOutputOutcome = attempt.raw_output_outcome ?? (usageVerified ? "valid" : "unknown");
+    providerError
+      ? "live_provider_error"
+      : attempt.transport_outcome ??
+        (responseReceived ? "live_provider_success" : dispatchStarted ? "unknown" : "no_dispatch");
+  const rawOutputOutcome =
+    providerError
+      ? "missing"
+      : attempt.raw_output_outcome ?? (usageVerified ? "valid" : "unknown");
   const effectiveSystemOutcome =
-    attempt.effective_system_outcome ??
-    (attempt.lifecycle_status === "finalized_success" && attempt.provenance_type === "live_provider"
+    providerError
+      ? "blocked"
+      : attempt.effective_system_outcome ??
+        (attempt.lifecycle_status === "finalized_success" && attempt.provenance_type === "live_provider"
       ? "provider_output_used"
       : "unusable");
   const effectiveUsable =
+    !providerError &&
     attempt.lifecycle_status === "finalized_success" &&
     attempt.provenance_type === "live_provider" &&
     effectiveSystemOutcome === "provider_output_used";
@@ -3868,7 +4485,12 @@ function transportObjectiveFromAttempt(attempt: {
     usage_verified: usageVerified,
     accounting_complete: Boolean(attempt.accounting_complete),
     cost_status: attempt.cost_status ?? "unknown",
-    fallback_reason: attempt.fallback_reason ?? null,
+    fallback_reason: providerError ? null : attempt.fallback_reason ?? null,
+    typed_failure_reason: providerError
+      ? attempt.typed_failure_reason ?? normalizedTypedReason
+      : attempt.typed_failure_reason ?? normalizedTypedReason ?? null,
+    provider_error_code: providerError ? attempt.provider_error_code ?? normalizedProviderErrorCode : null,
+    http_status: httpStatus,
     effective_result_usable: effectiveUsable,
     passed:
       dispatchStarted &&
@@ -3878,9 +4500,17 @@ function transportObjectiveFromAttempt(attempt: {
       transportOutcome === "live_provider_success" &&
       rawOutputOutcome === "valid" &&
       effectiveSystemOutcome === "provider_output_used" &&
-      !attempt.fallback_reason
+      !attempt.fallback_reason &&
+      !providerError
   };
-  return persisted ? { ...computed, ...persisted, passed: computed.passed } : computed;
+  return persisted
+    ? {
+        ...persisted,
+        historical_persisted_transport_objective: persisted,
+        ...computed,
+        passed: computed.passed
+      }
+    : computed;
 }
 
 function hasUsableEffectiveResult(step: {

@@ -37,6 +37,12 @@ If either command is missing, update your shell PATH according to your Node inst
 
 5. Leave OpenAI variables blank for normal local development. Mock mode is the default unless live calls are explicitly enabled server-side.
 
+   For a future guarded-live synthetic canary, the API key may be supplied
+   through `OPENAI_API_KEY` or `OPENAI_API_KEY_FILE`. The recommended local file
+   path is `.data/secrets/openai_api_key`; `.data/` is ignored by Git and the
+   file should be owner-readable only. Do not paste keys into chat, commit
+   keys, or enter keys in the browser.
+
 6. `COURSE_TIMEZONE` defaults to `America/Edmonton`. Assessment release/close inputs use this IANA timezone while PostgreSQL stores UTC timestamps.
 
 7. Keep `DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED=false` and `ALLOW_MANUAL_REVIEW_STUDENT_STARTS=false` for normal classroom behavior. Development smoke tests opt into these only when needed.
@@ -1188,6 +1194,7 @@ No-provider commands:
 ```bash
 npm run operational:live-canary:preflight
 npm run operational:live-canary:dry-run
+npm run operational:live-canary:ready-status
 npm run operational:live-canary-db-resolution-smoke
 npm run operational:live-canary-guard-parity-smoke
 npm run operational:live-canary-block-reason-smoke
@@ -1241,6 +1248,20 @@ fallback handling so request IDs, response IDs, status, usage source paths,
 token counts, pricing, raw-output outcome, effective-system outcome, and
 fallback reason remain separate.
 
+Credential parity hardening uses one canonical resolver for `OPENAI_API_KEY`
+and `OPENAI_API_KEY_FILE`. If both sources are configured and differ, live
+canary transport fails closed with `credential_source_conflict`. The resolver
+rejects embedded whitespace, control characters, non-ASCII characters, BOM or
+zero-width characters, surrounding quotes, and malformed prefixes. CLI output
+shows only a short non-secret fingerprint prefix. The database stores only the
+non-secret fingerprint, source classification, resolver version, and sanitized
+attestation metadata.
+
+A paid transport probe requires a non-expired successful credential/model-access
+check matching the credential fingerprint, Git commit, approved config hash,
+manifest hash, exact model snapshot, hostname, SDK version, and adapter version.
+The attestation is short-lived; current validity is 15 minutes.
+
 Reset-heavy smoke tests use `conversational_mcq_live_canary_smoke_e2e` and do
 not reset the historical `_live_canary_e2e` database.
 
@@ -1248,12 +1269,20 @@ Future one-call paid transport probe, only after manual server-side
 configuration:
 
 ```bash
+npm run operational:live-canary:credential-check -- --confirm-network-check
 npm run operational:live-canary:transport-probe:preflight
 npm run operational:live-canary:transport-environment
 npm run operational:live-canary:transport-probe:dry-run
+npm run operational:live-canary:transport-probe:verified -- --confirm-network-check --confirm-paid-api
 npm run operational:live-canary:transport-probe:diagnose -- --run <run_public_id>
 npm run operational:live-canary:transport-probe -- --confirm-paid-api
 ```
+
+The verified transport-probe command is the preferred operator workflow. It
+resolves the credential once, verifies authentication and access to
+`gpt-5.4-mini-2026-03-17` with a model metadata request, creates no probe run
+if that check fails, and uses the same resolved credential/client path for the
+one Responses request. The metadata request is not a model-generation request.
 
 Future full paid command, only after the successful transport probe exists:
 

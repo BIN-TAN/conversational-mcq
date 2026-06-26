@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { APIError } from "openai";
+import { resolveOpenAICredentialFromEnv } from "@/lib/llm/openai-credential-resolver";
 import type {
   OpenAITransportMilestone,
   OpenAITransportTypedFailureReason,
@@ -260,17 +261,22 @@ export function createOpenAITransportEnvironmentReport() {
   const testFetchActive = process.env.OPERATIONAL_LIVE_CANARY_TEST_FETCH_ACTIVE === "true";
   const noNetworkAbortActive =
     process.env.OPERATIONAL_LIVE_CANARY_TEST_ABORT_AT_TRANSPORT_BOUNDARY === "true";
-  const configured = typeof process.env.OPENAI_API_KEY === "string" && process.env.OPENAI_API_KEY.length > 0;
-  const shapeValid = configured && /^sk-[A-Za-z0-9_-]{20,}$/.test(process.env.OPENAI_API_KEY ?? "");
+  const loopbackCredentialCheckTestAllowed =
+    process.env.OPERATIONAL_LIVE_CANARY_TEST_ALLOW_LOOPBACK_CREDENTIAL_CHECK === "true" &&
+    (host.startsWith("127.0.0.1:") || host.startsWith("localhost:"));
+  const credential = resolveOpenAICredentialFromEnv(process.env);
+  const configured = credential.ok;
+  const shapeValid = credential.ok ? credential.credential.basicShapeValid : false;
   const proxyActive = Boolean(process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.ALL_PROXY);
   const baseURLApproved = host === APPROVED_OPENAI_HOST;
+  const baseURLAllowed = baseURLApproved || loopbackCredentialCheckTestAllowed;
   const paidTransportEligible =
-    baseURLApproved &&
+    baseURLAllowed &&
     !testProviderOverrideActive &&
     !testFetchActive &&
     !noNetworkAbortActive;
   const blockingReasons = [
-    baseURLApproved ? null : "nonapproved_base_url",
+    baseURLAllowed ? null : "nonapproved_base_url",
     testProviderOverrideActive ? "test_transport_hook_active" : null,
     testFetchActive ? "test_transport_hook_active" : null,
     noNetworkAbortActive ? "test_transport_hook_active" : null
@@ -282,6 +288,7 @@ export function createOpenAITransportEnvironmentReport() {
     approved_host: APPROVED_OPENAI_HOST,
     resolved_base_url_host: host,
     base_url_approved: baseURLApproved,
+    test_loopback_host_allowed: loopbackCredentialCheckTestAllowed,
     test_provider_override_active: testProviderOverrideActive,
     test_fetch_active: testFetchActive,
     no_network_abort_active: noNetworkAbortActive,
@@ -292,6 +299,12 @@ export function createOpenAITransportEnvironmentReport() {
     responses_transport_available: true,
     api_key_configured: configured,
     api_key_basic_shape_valid: shapeValid,
+    credential_source: credential.ok ? credential.credential.source : credential.source,
+    credential_resolver_version: credential.ok
+      ? credential.credential.resolver_version
+      : credential.public_resolution?.resolver_version ?? "openai-credential-resolver-v1",
+    credential_fingerprint_prefix: credential.ok ? credential.credential.fingerprint_prefix : null,
+    credential_resolution_status: credential.ok ? "resolved" : credential.code,
     model_snapshot: process.env.OPERATIONAL_LIVE_CANARY_TARGET_MODEL ?? null,
     paid_transport_eligible: paidTransportEligible,
     blocking_reasons: blockingReasons,

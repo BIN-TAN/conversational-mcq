@@ -52,6 +52,7 @@ const serverEnvSchema = z.object({
     }),
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters"),
   OPENAI_API_KEY: z.string().optional(),
+  OPENAI_API_KEY_FILE: z.string().optional(),
   LLM_PROVIDER: z.enum(["mock", "openai"]).default("mock"),
   LLM_LIVE_CALLS_ENABLED: z
     .enum(["true", "false"])

@@ -1,7 +1,9 @@
 import { parse } from "csv-parse/sync";
 import { createHash, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
+import path from "node:path";
+import { tmpdir } from "node:os";
 import { Prisma } from "@prisma/client";
 import {
   createCanaryRunSkeleton,
@@ -13,6 +15,7 @@ import {
   createOperationalLiveCanaryTransportProbeDryRun,
   createOperationalLiveCanaryTransportProbePreflight,
   createOperationalLiveCanaryTransportEnvironmentReport,
+  createOperationalLiveCanaryReadyStatus,
   diagnoseOperationalLiveCanaryTransportProbe,
   exportOperationalLiveCanaryReviewPacket,
   forensicsOperationalLiveCanaryRun,
@@ -22,13 +25,20 @@ import {
   manifestHash,
   operationalLiveCanaryDatabaseResolution,
   operationalLiveCanaryDatabaseName,
+  performOperationalLiveCanaryCredentialCheck,
   reconcileOperationalLiveCanaryRun,
   recoverOperationalLiveCanaryRun,
   replayOperationalLiveCanaryResponse,
   runOperationalLiveCanary,
   runOperationalLiveCanaryTransportProbe,
+  runOperationalLiveCanaryVerifiedTransportProbe,
   validateOperationalLiveCanaryManifest
 } from "../src/lib/services/operational-live-canary/service";
+import {
+  currentResolvedOpenAICredential,
+  resolveOpenAICredentialFromEnv,
+  withResolvedOpenAICredential
+} from "../src/lib/llm/openai-credential-resolver";
 import { normalizeOpenAITransportError } from "../src/lib/llm/openai-transport-diagnostics";
 import { normalizeOpenAIResponsesResult } from "../src/lib/llm/openai-responses-normalizer";
 import { OpenAIResponsesProvider } from "../src/lib/llm/providers/openai-responses-provider";
@@ -105,7 +115,14 @@ type SuiteName =
   | "execution-path"
   | "dependency"
   | "cli-progress"
-  | "history-preservation";
+  | "history-preservation"
+  | "credential-resolver"
+  | "credential-fingerprint"
+  | "credential-check"
+  | "verified-probe"
+  | "auth-classification"
+  | "retry-prevention"
+  | "ready-status";
 
 function argValue(name: string) {
   const index = process.argv.indexOf(name);
@@ -116,6 +133,10 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function fakeOpenAIKey(label: string) {
+  return ["sk", label, "fake", "openai", "key", "never", "sent", "000000"].join("-");
 }
 
 const liveCanaryEnvKeys = [
@@ -130,8 +151,10 @@ const liveCanaryEnvKeys = [
   "LLM_PROVIDER",
   "LLM_LIVE_CALLS_ENABLED",
   "OPENAI_API_KEY",
+  "OPENAI_API_KEY_FILE",
   "OPENAI_BASE_URL",
   "OPERATIONAL_LIVE_CANARY_LOOPBACK_OPENAI_BASE_URL",
+  "OPERATIONAL_LIVE_CANARY_TEST_ALLOW_LOOPBACK_CREDENTIAL_CHECK",
   "OPERATIONAL_LIVE_CANARY_TEST_PROVIDER_OVERRIDE",
   "OPERATIONAL_LIVE_CANARY_TEST_FETCH_ACTIVE",
   "LLM_DAILY_CLASS_CALL_LIMIT",
@@ -469,7 +492,7 @@ async function validCanaryReadinessEnv() {
     OPERATIONAL_LIVE_CANARY_DATABASE_URL: isolatedUrl,
     LLM_PROVIDER: "openai",
     LLM_LIVE_CALLS_ENABLED: "true",
-    OPENAI_API_KEY: "fake-key-never-sent",
+    OPENAI_API_KEY: fakeOpenAIKey("readiness"),
     manifest
   };
 }
@@ -654,7 +677,7 @@ async function blockReasonSmoke() {
       });
       assert(!readiness.allowed, `Expected ${reason} to block.`);
       assert(readiness.reason === reason, `Expected ${reason}, got ${readiness.reason}.`);
-      assert(!JSON.stringify(readiness).includes("fake-key-never-sent"), "Readiness output must not expose API key.");
+      assert(!JSON.stringify(readiness).includes(fakeOpenAIKey("readiness")), "Readiness output must not expose API key.");
     });
   };
 
@@ -1229,7 +1252,7 @@ async function transportProbeDiagnosticSmoke() {
   assert(diagnosis.read_only, "Diagnosis should declare read-only behavior.");
   assert(diagnosis.steps.length === 30, "Diagnosis should account for all simulated steps.");
   assert(diagnosis.steps[0].dispatch_attempts[0].selected_transport_implementation === "openai_responses", "Diagnosis should expose transport descriptor.");
-  assert(!JSON.stringify(diagnosis).includes("fake-key-never-sent"), "Diagnosis must not expose API keys.");
+  assert(!JSON.stringify(diagnosis).includes(fakeOpenAIKey("readiness")), "Diagnosis must not expose API keys.");
 }
 
 async function transportReportConsistencySmoke() {
@@ -1395,7 +1418,7 @@ async function runLoopbackProvider(
       OPERATIONAL_LIVE_CANARY_LOOPBACK_OPENAI_BASE_URL: loopback.baseURL,
       LLM_PROVIDER: "openai",
       LLM_LIVE_CALLS_ENABLED: "true",
-      OPENAI_API_KEY: "sk-loopback-fake-key-never-sent",
+      OPENAI_API_KEY: fakeOpenAIKey("loopback"),
       LLM_DAILY_CLASS_CALL_LIMIT: "80"
     }, async () => {
       const result = await new OpenAIResponsesProvider().executeStructured(responseCollectionRequest());
@@ -1406,10 +1429,309 @@ async function runLoopbackProvider(
   }
 }
 
+const validFakeCredential = fakeOpenAIKey("phase8c");
+
+async function withCredentialFile(value: string, callback: (filePath: string) => Promise<void>) {
+  const dir = await mkdtemp(path.join(tmpdir(), "phase8c-openai-key-"));
+  const filePath = path.join(dir, "openai_api_key");
+  try {
+    await writeFile(filePath, value, "utf8");
+    await chmod(filePath, 0o600);
+    await callback(filePath);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+async function credentialResolverSmoke() {
+  await withLiveCanaryEnv({ OPENAI_API_KEY: validFakeCredential }, async () => {
+    const resolved = resolveOpenAICredentialFromEnv(process.env);
+    assert(resolved.ok && resolved.credential.source === "environment", "Environment-only credential should resolve.");
+  });
+  await withCredentialFile(`${validFakeCredential}\n`, async (filePath) => {
+    await withLiveCanaryEnv({ OPENAI_API_KEY: undefined, OPENAI_API_KEY_FILE: filePath }, async () => {
+      const resolved = resolveOpenAICredentialFromEnv(process.env);
+      assert(resolved.ok && resolved.credential.source === "file", "File-only credential should resolve.");
+      assert(resolved.credential.length === validFakeCredential.length, "Single trailing newline should be stripped.");
+    });
+  });
+  await withCredentialFile(validFakeCredential, async (filePath) => {
+    await withLiveCanaryEnv({ OPENAI_API_KEY: validFakeCredential, OPENAI_API_KEY_FILE: filePath }, async () => {
+      const resolved = resolveOpenAICredentialFromEnv(process.env);
+      assert(resolved.ok && resolved.credential.source === "matching_environment_and_file", "Matching env/file credentials should resolve.");
+    });
+  });
+  await withCredentialFile(fakeOpenAIKey("phase8c-other"), async (filePath) => {
+    await withLiveCanaryEnv({ OPENAI_API_KEY: validFakeCredential, OPENAI_API_KEY_FILE: filePath }, async () => {
+      const resolved = resolveOpenAICredentialFromEnv(process.env);
+      assert(!resolved.ok && resolved.code === "credential_source_conflict", "Conflicting env/file credentials should fail closed.");
+    });
+  });
+  const badCases: Array<[string, string]> = [
+    [[["sk", "phase8c bad openai key never sent 000000"].join("-")].join(""), "credential_embedded_whitespace"],
+    [`"${validFakeCredential}"`, "credential_surrounding_quotes"],
+    [`\uFEFF${validFakeCredential}`, "credential_bom_or_zero_width"],
+    [`${validFakeCredential}\u200B`, "credential_bom_or_zero_width"]
+  ];
+  for (const [value, expectedCode] of badCases) {
+    await withLiveCanaryEnv({ OPENAI_API_KEY: value }, async () => {
+      const resolved = resolveOpenAICredentialFromEnv(process.env);
+      assert(!resolved.ok && resolved.code === expectedCode, `Expected ${expectedCode}, got ${resolved.ok ? "ok" : resolved.code}.`);
+    });
+  }
+}
+
+async function credentialFingerprintSmoke() {
+  await withLiveCanaryEnv({ OPENAI_API_KEY: validFakeCredential }, async () => {
+    const resolved = resolveOpenAICredentialFromEnv(process.env);
+    assert(resolved.ok, "Credential should resolve.");
+    await withResolvedOpenAICredential(resolved.credential, async () => {
+      const current = currentResolvedOpenAICredential();
+      assert(current?.fingerprint === resolved.credential.fingerprint, "Parent and scoped provider fingerprints should match.");
+      assert(current.fingerprint_prefix === resolved.credential.fingerprint.slice(0, 12), "Fingerprint prefix should be deterministic.");
+    });
+  });
+}
+
+function credentialCheckEnv(baseURL: string) {
+  return {
+    OPERATIONAL_AGENT_MODE: "guarded_live",
+    OPERATIONAL_AGENT_INTEGRATION_ENABLED: undefined,
+    OPERATIONAL_APPROVED_CONFIG_HASH: undefined,
+    OPERATIONAL_LIVE_CANARY_APPROVED_CONFIG_HASH: activeOperationalConfigHash(),
+    OPERATIONAL_LIVE_CANARY_ENABLED: "true",
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE: "true",
+    OPERATIONAL_LIVE_CANARY_DATABASE_URL: liveCanarySmokeDatabaseUrl(),
+    OPERATIONAL_LIVE_CANARY_LOOPBACK_OPENAI_BASE_URL: baseURL,
+    OPERATIONAL_LIVE_CANARY_TEST_ALLOW_LOOPBACK_CREDENTIAL_CHECK: "true",
+    OPERATIONAL_LIVE_CANARY_TEST_ALLOW_SMOKE_DATABASE: "true",
+    LLM_PROVIDER: "openai",
+    LLM_LIVE_CALLS_ENABLED: "true",
+    OPENAI_API_KEY: validFakeCredential,
+    LLM_DAILY_CLASS_CALL_LIMIT: "80"
+  };
+}
+
+async function credentialCheckSmoke() {
+  await ensureDatabaseReady();
+  await withSmokeCanaryDatabase(async () => {
+    const loopback = await withLoopbackServer((req, _body, res) => {
+      if (req.method === "GET" && req.url?.includes("/models/gpt-5.4-mini-2026-03-17")) {
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.setHeader("x-request-id", "req_model_check_ok");
+        res.end(JSON.stringify({
+          id: "gpt-5.4-mini-2026-03-17",
+          object: "model",
+          created: 1,
+          owned_by: "openai"
+        }));
+        return;
+      }
+      res.statusCode = 404;
+      res.end(JSON.stringify({ error: { code: "model_not_found" } }));
+    });
+    try {
+      await withLiveCanaryEnv(credentialCheckEnv(loopback.baseURL), async () => {
+        const before = await createCanaryPrismaClient().operationalLiveCanaryRun.count();
+        const result = await performOperationalLiveCanaryCredentialCheck({ confirmNetworkCheck: true });
+        const prisma = createCanaryPrismaClient();
+        try {
+          const after = await prisma.operationalLiveCanaryRun.count();
+          assert(after === before, "Credential check should create no canary run.");
+          assert(result.result === "credential_verified", `Credential check should verify, got ${result.result}.`);
+          assert(result.authentication_verified === true, "Authentication should verify.");
+          assert(result.model_access_verified === true, "Model access should verify.");
+          assert(loopback.requests.length === 1, "Credential check should make one metadata request.");
+          assert(loopback.requests[0].method === "GET", "Credential check should not make a generation request.");
+        } finally {
+          await prisma.$disconnect();
+        }
+      });
+    } finally {
+      await loopback.close();
+    }
+
+    const failing = await withLoopbackServer((_req, _body, res) => {
+      res.statusCode = 401;
+      res.setHeader("content-type", "application/json");
+      res.setHeader("x-request-id", "req_model_check_401");
+      res.end(JSON.stringify({ error: { code: "invalid_api_key", message: "Invalid API key" } }));
+    });
+    try {
+      await withLiveCanaryEnv(credentialCheckEnv(failing.baseURL), async () => {
+        const prisma = createCanaryPrismaClient();
+        const beforeRuns = await prisma.operationalLiveCanaryRun.count();
+        try {
+          const result = await performOperationalLiveCanaryCredentialCheck({ confirmNetworkCheck: true });
+          const afterRuns = await prisma.operationalLiveCanaryRun.count();
+          assert(result.result === "authentication_failed", "401 credential check should be authentication_failed.");
+          assert(afterRuns === beforeRuns, "Failed auth check should create no canary run.");
+        } finally {
+          await prisma.$disconnect();
+        }
+      });
+    } finally {
+      await failing.close();
+    }
+  });
+}
+
+async function verifiedProbeSmoke() {
+  await ensureDatabaseReady();
+  await withSmokeCanaryDatabase(async () => {
+    const loopback = await withLoopbackServer((req, _body, res) => {
+      if (req.method === "GET" && req.url?.includes("/models/gpt-5.4-mini-2026-03-17")) {
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.setHeader("x-request-id", "req_verified_model");
+        res.end(JSON.stringify({
+          id: "gpt-5.4-mini-2026-03-17",
+          object: "model",
+          created: 1,
+          owned_by: "openai"
+        }));
+        return;
+      }
+      if (req.method === "POST" && req.url?.includes("/responses")) {
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.setHeader("x-request-id", "req_verified_response");
+        res.end(JSON.stringify(sdkResponseFixture({ id: "resp_verified_probe" })));
+        return;
+      }
+      res.statusCode = 404;
+      res.end(JSON.stringify({ error: { code: "not_found" } }));
+    });
+    try {
+      await withLiveCanaryEnv(credentialCheckEnv(loopback.baseURL), async () => {
+        const result = await runOperationalLiveCanaryVerifiedTransportProbe({
+          confirmNetworkCheck: true,
+          confirmPaidApi: true
+        });
+        assert(result.status === "completed", `Verified probe should complete against loopback, got ${JSON.stringify(result)}`);
+        assert(result.paid_api_request_made === true, "Verified loopback probe should execute one Responses request.");
+        assert("credential_check" in result, "Verified probe should include credential check metadata.");
+        assert(result.credential_check?.result === "credential_verified", "Verified probe should include credential check.");
+        const methods = loopback.requests.map((request) => request.method);
+        assert(methods.filter((method) => method === "GET").length === 1, "Verified probe should perform one metadata request.");
+        assert(methods.filter((method) => method === "POST").length === 1, "Verified probe should perform one Responses request.");
+      });
+    } finally {
+      await loopback.close();
+    }
+  });
+}
+
+async function authClassificationSmoke() {
+  await ensureDatabaseReady();
+  await withSmokeCanaryDatabase(async () => {
+    const prisma = createCanaryPrismaClient();
+    try {
+      const run = await createCanaryRunSkeleton({ status: "running", runPublicId: `olcr_auth_${Date.now()}`, prisma });
+      const step = run.steps[0];
+      await prisma.operationalLiveCanaryDispatchAttempt.create({
+        data: {
+          dispatch_public_id: `olcd_auth_${Date.now()}`,
+          run_db_id: run.id,
+          step_db_id: step.id,
+          logical_invocation_key: step.logical_invocation_key,
+          attempt_index: 1,
+          dispatch_key: `auth:${run.run_public_id}:${step.step_public_id}`,
+          provider: "openai",
+          transport: "openai_responses",
+          adapter_version: "openai-responses-adapter-v2",
+          network_dispatch_expected: true,
+          network_dispatch_started: true,
+          transport_adapter_entered: true,
+          request_serialization_completed: true,
+          fetch_invoked: true,
+          response_headers_received: true,
+          response_body_received: false,
+          network_request_attempt_count: 1,
+          provider_acknowledged_request_count: 1,
+          accounting_complete: true,
+          model_snapshot: "gpt-5.4-mini-2026-03-17",
+          reasoning_effort: "low",
+          execution_path: "operational_live_canary_transport_probe",
+          provenance_type: "live_provider_success",
+          lifecycle_status: "finalized_provider_failure",
+          typed_failure_reason: "openai_authentication_failed",
+          http_status: 401,
+          provider_error_code: "invalid_api_key",
+          provider_request_header_id: "req_auth_401",
+          transport_outcome: "live_provider_success",
+          raw_output_outcome: "missing",
+          effective_system_outcome: "deterministic_fallback_used",
+          fallback_reason: "unexpected_post_response_error",
+          usage_status: "provider_error_no_usage_expected",
+          cost_status: "provider_error_no_usage_expected",
+          client_dispatch_id: `client_auth_${Date.now()}`,
+          normalized_failure_json: {
+            typed_failure_reason: "openai_authentication_failed",
+            http_status: 401,
+            provider_error_code: "invalid_api_key"
+          },
+          stage_trace_json: []
+        }
+      });
+      await prisma.operationalLiveCanaryRun.update({
+        where: { id: run.id },
+        data: { status: "failed", failure_reason: "transport_probe_failed", completed_at: new Date() }
+      });
+      const diagnosis = await diagnoseOperationalLiveCanaryTransportProbe(run.run_public_id);
+      const objective = diagnosis.steps[0].dispatch_attempts[0].transport_objective;
+      assert(objective.transport_outcome === "live_provider_error", "401 should report live_provider_error.");
+      assert(objective.effective_system_outcome === "blocked", "401 should report blocked effective outcome.");
+      assert(objective.fallback_reason === null, "401 probe should not report deterministic fallback.");
+      assert(objective.typed_failure_reason === "openai_authentication_failed", "401 typed reason should be preserved.");
+      assert(objective.cost_status === "provider_error_no_usage_expected", "401 cost state should not require usage.");
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+}
+
+async function retryPreventionSmoke() {
+  await ensureDatabaseReady();
+  await withSmokeCanaryDatabase(async () => {
+    const failing = await withLoopbackServer((_req, _body, res) => {
+      res.statusCode = 401;
+      res.setHeader("content-type", "application/json");
+      res.setHeader("x-request-id", "req_retry_401");
+      res.end(JSON.stringify({ error: { code: "invalid_api_key" } }));
+    });
+    try {
+      await withLiveCanaryEnv(credentialCheckEnv(failing.baseURL), async () => {
+        const check = await performOperationalLiveCanaryCredentialCheck({ confirmNetworkCheck: true });
+        assert(check.result === "authentication_failed", "Failed auth check should be recorded.");
+        const preflight = await createOperationalLiveCanaryTransportProbePreflight();
+        assert(!preflight.paid_execution_permitted, "Failed credential check should block probe creation.");
+        assert(preflight.blocking_reasons.includes("credential_check_failed"), "Preflight should expose credential_check_failed.");
+      });
+    } finally {
+      await failing.close();
+    }
+  });
+}
+
+async function readyStatusSmoke() {
+  await ensureDatabaseReady();
+  await withSmokeCanaryDatabase(async () => {
+    await withLiveCanaryEnv({ OPENAI_API_KEY: validFakeCredential }, async () => {
+      const status = await createOperationalLiveCanaryReadyStatus();
+      assert(status.external_request_made === false, "Ready status must make no external request.");
+      assert(status.database_ready === true, "Ready status should see smoke database.");
+      assert(status.exact_next_command, "Ready status should provide a next command.");
+      assert(!JSON.stringify(status).includes(validFakeCredential), "Ready status must not print credential.");
+    });
+  });
+}
+
 async function testHookIsolationSmoke() {
   await withLiveCanaryEnv({
     OPERATIONAL_LIVE_CANARY_TEST_ABORT_AT_TRANSPORT_BOUNDARY: "true",
-    OPENAI_API_KEY: "sk-test-hook-fake-key-never-sent"
+    OPENAI_API_KEY: fakeOpenAIKey("test-hook")
   }, async () => {
     const report = createOperationalLiveCanaryTransportEnvironmentReport();
     assert(!report.paid_transport_eligible, "Test transport hook should block paid transport eligibility.");
@@ -1427,9 +1749,9 @@ async function openAIErrorNormalizationSmoke() {
     response_headers_received: false,
     response_body_received: false
   };
-  const auth = normalizeOpenAITransportError({ status: 401, code: "invalid_api_key", message: "bad sk-secret-value" }, milestones);
+  const auth = normalizeOpenAITransportError({ status: 401, code: "invalid_api_key", message: ["bad", fakeOpenAIKey("secret")].join(" ") }, milestones);
   assert(auth.typed_failure_reason === "openai_authentication_failed", "401 should normalize to authentication failure.");
-  assert(!JSON.stringify(auth).includes("sk-secret-value"), "Normalized errors must redact secret-like values.");
+  assert(!JSON.stringify(auth).includes(fakeOpenAIKey("secret")), "Normalized errors must redact secret-like values.");
   const model = normalizeOpenAITransportError({ status: 404, code: "model_not_found", message: "model not found" }, milestones);
   assert(model.typed_failure_reason === "openai_model_not_found", "404 model should normalize to model_not_found.");
   const quota = normalizeOpenAITransportError({ status: 429, code: "insufficient_quota", message: "quota" }, milestones);
@@ -1632,16 +1954,16 @@ async function cliLedgerConsistencySmoke() {
 
 async function transportEnvironmentSmoke() {
   await withLiveCanaryEnv({
-    OPENAI_API_KEY: "sk-transport-env-fake-key-never-sent",
+    OPENAI_API_KEY: fakeOpenAIKey("transport-env"),
     OPERATIONAL_LIVE_CANARY_TARGET_MODEL: "gpt-5.4-mini-2026-03-17"
   }, async () => {
     const report = createOperationalLiveCanaryTransportEnvironmentReport();
     assert(report.base_url_approved, "Default OpenAI host should be approved.");
     assert(report.api_key_configured, "API key configured boolean should be true.");
-    assert(!JSON.stringify(report).includes("sk-transport-env"), "Environment report must not expose API key.");
+    assert(!JSON.stringify(report).includes(fakeOpenAIKey("transport-env")), "Environment report must not expose API key.");
   });
   await withLiveCanaryEnv({
-    OPENAI_API_KEY: "sk-transport-env-fake-key-never-sent",
+    OPENAI_API_KEY: fakeOpenAIKey("transport-env"),
     OPERATIONAL_LIVE_CANARY_LOOPBACK_OPENAI_BASE_URL: "http://127.0.0.1:1/v1"
   }, async () => {
     const report = createOperationalLiveCanaryTransportEnvironmentReport();
@@ -2041,6 +2363,20 @@ async function main() {
     await cliProgressSmoke();
   } else if (suite === "history-preservation") {
     await historyPreservationSmoke();
+  } else if (suite === "credential-resolver") {
+    await credentialResolverSmoke();
+  } else if (suite === "credential-fingerprint") {
+    await credentialFingerprintSmoke();
+  } else if (suite === "credential-check") {
+    await credentialCheckSmoke();
+  } else if (suite === "verified-probe") {
+    await verifiedProbeSmoke();
+  } else if (suite === "auth-classification") {
+    await authClassificationSmoke();
+  } else if (suite === "retry-prevention") {
+    await retryPreventionSmoke();
+  } else if (suite === "ready-status") {
+    await readyStatusSmoke();
   } else {
     throw new Error(`Unknown operational live canary smoke suite: ${suite}`);
   }

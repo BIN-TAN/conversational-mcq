@@ -118,6 +118,9 @@ export type OpenAITransportTelemetry = OpenAITransportMilestone & {
   usage_status?: string;
   usage_source_paths?: string[];
   raw_response_hash?: string;
+  credential_fingerprint?: string;
+  credential_source?: string;
+  credential_resolver_version?: string;
 };
 
 export type StructuredAgentRequest<TInput, TOutput> = {

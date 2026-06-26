@@ -4,9 +4,15 @@ import {
   isApprovedOpenAIBaseUrl,
   resolveOpenAIBaseUrl
 } from "@/lib/llm/openai-transport-diagnostics";
+import {
+  currentResolvedOpenAICredential,
+  resolveOpenAICredentialFromEnv,
+  type ResolvedOpenAICredential
+} from "@/lib/llm/openai-credential-resolver";
 import { LlmConfigurationError } from "./config";
 
 export type OpenAIClientTransportInstrumentation = {
+  credential?: ResolvedOpenAICredential;
   onFetchInvoked?: (input: { url: string; method: string }) => void | Promise<void>;
   onResponseHeadersReceived?: (input: {
     url: string;
@@ -30,11 +36,21 @@ function retryAfterMs(headers: Headers) {
 
 export function createOpenAIClient(instrumentation?: OpenAIClientTransportInstrumentation) {
   const env = getServerEnv();
+  const credential =
+    instrumentation?.credential ??
+    currentResolvedOpenAICredential() ??
+    (() => {
+      const resolved = resolveOpenAICredentialFromEnv(process.env);
+      if (!resolved.ok) {
+        throw new LlmConfigurationError(resolved.code, resolved.message);
+      }
+      return resolved.credential;
+    })();
 
-  if (!env.OPENAI_API_KEY || env.OPENAI_API_KEY.trim().length === 0) {
+  if (!credential.credential || credential.credential.length === 0) {
     throw new LlmConfigurationError(
       "openai_key_missing",
-      "OPENAI_API_KEY is required only when live OpenAI calls are explicitly enabled."
+      "A resolved OpenAI credential is required only when live OpenAI calls are explicitly enabled."
     );
   }
 
@@ -58,7 +74,7 @@ export function createOpenAIClient(instrumentation?: OpenAIClientTransportInstru
   };
 
   return new OpenAI({
-    apiKey: env.OPENAI_API_KEY,
+    apiKey: credential.credential,
     ...(isApprovedOpenAIBaseUrl(baseURL) ? {} : { baseURL }),
     timeout: env.OPENAI_REQUEST_TIMEOUT_MS,
     maxRetries: 0,

@@ -68,6 +68,18 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - Teacher review may expose read-only sanitized operational audit fields, version metadata, status flags, token usage, and estimated cost when available.
 - Phase 8A remains default-off and is not classroom validation. `classroom_validity=false` and `human_review_pending=true` remain binding.
 
+## Phase 8C Guarded-Live Synthetic Canary Transport
+
+- Operational live-canary provider calls remain CLI-only, synthetic-only, and isolated from classroom records.
+- Credential resolution is canonical. Supported sources are `OPENAI_API_KEY` and `OPENAI_API_KEY_FILE`; if both are present and differ, execution fails closed with `credential_source_conflict`.
+- The recommended local credential-file path is `.data/secrets/openai_api_key`; `.data/` remains ignored and plaintext credentials must never enter Git, logs, database rows, browser UI, or exported review files.
+- Credential fingerprints are SHA-256 equality fingerprints only. CLI output may show only a short fingerprint prefix; persisted audit records may store the full non-secret fingerprint for parity checks.
+- A paid transport probe requires a fresh successful credential/model-access attestation matching the credential fingerprint, Git commit, approved config hash, canary manifest hash, exact model snapshot, provider hostname, OpenAI SDK version, and Responses adapter version.
+- Authentication failure or model-access failure must create no canary run, no canary step, no agent call, and no effective result.
+- The atomic verified transport-probe command performs credential resolution, credential/model-access check, and the one-call Responses probe in one process with the same resolved credential and client path.
+- HTTP 401 or provider `invalid_api_key` must be classified as `live_provider_error` with `openai_authentication_failed`, missing raw output, blocked effective outcome, no deterministic fallback, no expected usage, and a failed transport objective.
+- Historical failed probes must not be mutated; read-only reports may apply corrected classification and mark stored contradictory values as historical legacy classification.
+
 ## Phase 7E1 Evaluation Harness
 
 - Phase 7E1 evaluation is internal development evaluation, not classroom validation.

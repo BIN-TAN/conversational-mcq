@@ -19,6 +19,7 @@ export type PublicIdKind =
   | "operational_canary_run"
   | "operational_canary_step"
   | "operational_canary_dispatch"
+  | "operational_canary_credential_check"
   | "operational_canary_annotation"
   | "eval_suite"
   | "eval_case"
@@ -47,6 +48,7 @@ const prefixes: Record<PublicIdKind, string> = {
   operational_canary_run: "olcr",
   operational_canary_step: "olcs",
   operational_canary_dispatch: "olcd",
+  operational_canary_credential_check: "olcc",
   operational_canary_annotation: "olca",
   eval_suite: "evs",
   eval_case: "evc",
