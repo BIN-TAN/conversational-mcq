@@ -7,9 +7,9 @@ import {
   openAIBaseUrlHost,
   resolveOpenAIBaseUrl
 } from "@/lib/llm/openai-transport-diagnostics";
+import { normalizeOpenAIResponsesResult } from "@/lib/llm/openai-responses-normalizer";
 import type {
   LlmProvider,
-  LlmUsage,
   OpenAITransportMilestone,
   StructuredAgentRequest,
   StructuredAgentResult
@@ -58,31 +58,6 @@ async function emitTransportBoundary(event: OpenAIResponsesTransportBoundaryEven
   for (const observer of transportBoundaryObservers) {
     await observer(event);
   }
-}
-
-function usageFromResponse(response: { usage?: unknown }): LlmUsage | undefined {
-  const usage = response.usage as
-    | {
-        input_tokens?: number;
-        output_tokens?: number;
-        total_tokens?: number;
-        input_tokens_details?: { cached_tokens?: number };
-        output_tokens_details?: { reasoning_tokens?: number };
-      }
-    | undefined;
-
-  if (!usage) {
-    return undefined;
-  }
-
-  return {
-    input_tokens: usage.input_tokens,
-    output_tokens: usage.output_tokens,
-    total_tokens: usage.total_tokens,
-    reasoning_tokens: usage.output_tokens_details?.reasoning_tokens,
-    cached_input_tokens: usage.input_tokens_details?.cached_tokens,
-    raw: usage
-  };
 }
 
 function refusalFromResponse(response: { output?: unknown[] }) {
@@ -228,12 +203,28 @@ export class OpenAIResponsesProvider implements LlmProvider {
       milestones.response_body_received = true;
       await emit("response_body_received", { provider_request_id: requestId ?? null });
       const response = data as unknown as Record<string, unknown>;
+      const normalized = normalizeOpenAIResponsesResult({
+        sdkResponse: response,
+        providerRequestId: requestId ?? null,
+        responseBodyReceived: true,
+        modelSnapshot: request.model_config.model_name
+      });
       const status = String(response.status ?? "completed");
-      const refusal = refusalFromResponse(data);
+      const refusal = normalized.rawOutput.refusal ?? refusalFromResponse(data);
       const telemetry = {
         ...transportTelemetry(),
         provider_request_id: requestId ?? undefined,
-        provider_response_id: typeof response.id === "string" ? response.id : undefined
+        provider_response_id: typeof response.id === "string" ? response.id : undefined,
+        response_status: normalized.rawOutput.responseStatus,
+        incomplete_details: normalized.rawOutput.incompleteDetails,
+        normalized_response: normalized,
+        transport_outcome: normalized.outcomes.transportOutcome,
+        raw_output_outcome: normalized.outcomes.rawOutputOutcome,
+        effective_system_outcome: normalized.outcomes.effectiveSystemOutcome,
+        fallback_reason: normalized.outcomes.fallbackReason,
+        usage_status: normalized.usage.status,
+        usage_source_paths: normalized.usage.sourcePaths,
+        raw_response_hash: normalized.rawOutput.rawResponseHash
       };
       const incompleteReason =
         response.incomplete_details &&
@@ -251,7 +242,16 @@ export class OpenAIResponsesProvider implements LlmProvider {
           status: "refused",
           refusal,
           raw_output: rawAuditResponse(response),
-          usage: usageFromResponse(data),
+          usage: normalized.usage.status === "usage_verified"
+            ? {
+                input_tokens: normalized.usage.inputTokens ?? undefined,
+                output_tokens: normalized.usage.outputTokens ?? undefined,
+                total_tokens: normalized.usage.totalTokens ?? undefined,
+                reasoning_tokens: normalized.usage.reasoningTokens ?? undefined,
+                cached_input_tokens: normalized.usage.cachedInputTokens ?? undefined,
+                raw: response.usage
+              }
+            : undefined,
           latency_ms: Date.now() - startedAt,
           transport_telemetry: telemetry
         };
@@ -266,7 +266,16 @@ export class OpenAIResponsesProvider implements LlmProvider {
           status: "incomplete",
           incomplete_reason: incompleteReason ?? "incomplete",
           raw_output: rawAuditResponse(response),
-          usage: usageFromResponse(data),
+          usage: normalized.usage.status === "usage_verified"
+            ? {
+                input_tokens: normalized.usage.inputTokens ?? undefined,
+                output_tokens: normalized.usage.outputTokens ?? undefined,
+                total_tokens: normalized.usage.totalTokens ?? undefined,
+                reasoning_tokens: normalized.usage.reasoningTokens ?? undefined,
+                cached_input_tokens: normalized.usage.cachedInputTokens ?? undefined,
+                raw: response.usage
+              }
+            : undefined,
           latency_ms: Date.now() - startedAt,
           transport_telemetry: telemetry
         };
@@ -280,7 +289,16 @@ export class OpenAIResponsesProvider implements LlmProvider {
           provider_response_id: typeof response.id === "string" ? response.id : undefined,
           status: "failed",
           raw_output: rawAuditResponse(response),
-          usage: usageFromResponse(data),
+          usage: normalized.usage.status === "usage_verified"
+            ? {
+                input_tokens: normalized.usage.inputTokens ?? undefined,
+                output_tokens: normalized.usage.outputTokens ?? undefined,
+                total_tokens: normalized.usage.totalTokens ?? undefined,
+                reasoning_tokens: normalized.usage.reasoningTokens ?? undefined,
+                cached_input_tokens: normalized.usage.cachedInputTokens ?? undefined,
+                raw: response.usage
+              }
+            : undefined,
           latency_ms: Date.now() - startedAt,
           transport_telemetry: telemetry,
           error: {
@@ -299,7 +317,16 @@ export class OpenAIResponsesProvider implements LlmProvider {
         status: "completed",
         parsed_output: data.output_parsed as TOutput,
         raw_output: rawAuditResponse(response),
-        usage: usageFromResponse(data),
+        usage: normalized.usage.status === "usage_verified"
+          ? {
+              input_tokens: normalized.usage.inputTokens ?? undefined,
+              output_tokens: normalized.usage.outputTokens ?? undefined,
+              total_tokens: normalized.usage.totalTokens ?? undefined,
+              reasoning_tokens: normalized.usage.reasoningTokens ?? undefined,
+              cached_input_tokens: normalized.usage.cachedInputTokens ?? undefined,
+              raw: response.usage
+            }
+          : undefined,
         latency_ms: Date.now() - startedAt,
         transport_telemetry: telemetry
       };

@@ -972,6 +972,14 @@ model OperationalLiveCanaryDispatchAttempt {
   provider_request_header_id String?
   retry_after_ms           Int?
   normalized_failure_json  Json?
+  sanitized_response_metadata_json Json?
+  usage_source_paths_json  Json?
+  response_status          String?
+  response_status_details_json Json?
+  transport_outcome        String?
+  raw_output_outcome       String?
+  effective_system_outcome String?
+  fallback_reason          String?
   client_dispatch_id       String    @unique
   raw_response_hash        String?
   input_tokens             Int?
@@ -999,6 +1007,10 @@ model OperationalLiveCanaryDispatchAttempt {
   @@index([provenance_type])
   @@index([lifecycle_status])
   @@index([usage_status])
+  @@index([transport_outcome])
+  @@index([raw_output_outcome])
+  @@index([effective_system_outcome])
+  @@index([fallback_reason])
   @@map("operational_live_canary_dispatch_attempts")
 }
 

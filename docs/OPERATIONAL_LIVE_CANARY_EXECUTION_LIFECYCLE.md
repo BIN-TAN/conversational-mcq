@@ -116,8 +116,54 @@ Provider request accounting is split into:
 - `provider_acknowledged_request_count`: rows where OpenAI returned a request
   ID, response ID, or HTTP response metadata
 
-The legacy run-level `provider_request_count` is documented as provider
-acknowledged request count.
+For corrected Phase 8C diagnostics, `provider_request_count` means actual
+network request attempts. Historical run rows are not rewritten, so reports show
+the preserved `run_provider_request_count` and the derived
+`derived_provider_request_count` side by side when they differ.
+
+## Successful Response Normalization
+
+The OpenAI Responses SDK result is normalized before raw schema, semantic,
+safety, canonicalization, or fallback handling. The normalizer preserves request
+ID, response ID, response status, incomplete details, sanitized response
+metadata, raw output evidence, usage source paths, and a raw response hash.
+
+Usage is verified only when the response contains internally consistent token
+counts. The supported Responses API paths include:
+
+- `usage.input_tokens`
+- `usage.input_tokens_details.cached_tokens`
+- `usage.output_tokens`
+- `usage.output_tokens_details.reasoning_tokens`
+- `usage.total_tokens`
+
+The system does not guess usage, invent zero values, or treat missing usage as
+verified zero cost. Cost is calculated only after verified usage resolves
+against the versioned pricing registry.
+
+## Outcome Separation
+
+Phase 8C separates three outcomes:
+
+- `transport_outcome`: `live_provider_success`, `live_provider_error`,
+  `no_dispatch`, or `unknown`
+- `raw_output_outcome`: `valid`, `schema_invalid`, `semantic_invalid`,
+  `safety_invalid`, `refused`, `incomplete`, `missing`, or `unknown`
+- `effective_system_outcome`: `provider_output_used`,
+  `canonicalized_provider_output_used`, `deterministic_fallback_used`,
+  `blocked`, or `unusable`
+
+A live provider response can therefore be transport-successful while the
+effective system safely uses a deterministic fallback. Fallback provenance does
+not erase provider request IDs, response IDs, usage, cost, or raw-output
+validation evidence.
+
+Fallback reasons are stable audit values such as
+`provider_output_schema_invalid`, `provider_output_semantic_invalid`,
+`provider_output_safety_invalid`, `provider_output_refused`,
+`provider_output_incomplete`, `provider_output_missing`,
+`provider_usage_unverified`, `operational_canonicalization_failed`, and
+`unexpected_post_response_error`.
 
 ## Provenance Classification
 
@@ -157,9 +203,23 @@ The CLI emits sanitized start, finish, and interrupt progress events when
 Reports separate:
 
 - `provider_execution`
+- `transport_execution`
+- `raw_output_validation`
 - `effective_execution`
+- `accounting`
 - `integrity`
 
 Readiness requires verified provider accounting, a passed transport objective,
 usable effective results, and completed review. Completed legacy rows without
 dispatch attempts are preserved but are not treated as verified provider calls.
+
+Read-only response commands are available for historical analysis:
+
+```bash
+npm run operational:live-canary:response-audit -- --run <run_public_id>
+npm run operational:live-canary:response-replay -- --run <run_public_id>
+```
+
+They do not call the provider or mutate canary records. Replay uses the
+persisted sanitized provider-response snapshot when available and reports
+whether the complete SDK response object was stored.

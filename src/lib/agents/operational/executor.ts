@@ -86,6 +86,7 @@ export async function executeOperationalAgent<TAgentName extends AgentNameType>(
       ...(input.metadata ?? {})
     },
     model_config_override:
-      input.providerOverrideForTest ?? approvedOperationalModelConfigForAgent(input.agentName)
+      input.providerOverrideForTest ?? approvedOperationalModelConfigForAgent(input.agentName),
+    prismaClient: input.readinessPrisma
   });
 }

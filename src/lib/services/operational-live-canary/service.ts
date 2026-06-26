@@ -24,6 +24,13 @@ import {
   createOpenAITransportEnvironmentReport,
   normalizeOpenAITransportError
 } from "@/lib/llm/openai-transport-diagnostics";
+import {
+  normalizeOpenAIResponsesResult,
+  type OpenAIResponsesEffectiveOutcome,
+  type OpenAIResponsesFallbackReason,
+  type OpenAIResponsesRawOutputOutcome,
+  type OpenAIResponsesTransportOutcome
+} from "@/lib/llm/openai-responses-normalizer";
 import { resolveLlmProviderDescriptor } from "@/lib/llm/providers/provider-factory";
 import { withOpenAIResponsesTransportBoundaryObserver } from "@/lib/llm/providers/openai-responses-provider";
 import type {
@@ -1653,6 +1660,10 @@ async function markDispatchFailure(input: {
       provider_error_param: normalizedError?.provider_error_param ?? undefined,
       provider_request_header_id: normalizedError?.provider_request_header_id ?? undefined,
       retry_after_ms: normalizedError?.retry_after_ms ?? undefined,
+      transport_outcome: fetchInvoked ? "live_provider_error" : "no_dispatch",
+      raw_output_outcome: "missing",
+      effective_system_outcome: "deterministic_fallback_used",
+      fallback_reason: fetchInvoked ? "unexpected_post_response_error" : "provider_output_missing",
       stage_trace_json: prismaJson(stageTraceWith(current?.stage_trace_json, input.failureStage)),
       transport_objective_json: prismaJson({
         exactly_one_dispatch_required: true,
@@ -1686,9 +1697,13 @@ function numericTokenFromUsage(value: unknown, key: string) {
   }
   const nestedInputDetails = objectValue(object.input_tokens_details) ?? objectValue(object.input_token_details);
   const nestedOutputDetails = objectValue(object.output_tokens_details) ?? objectValue(object.output_token_details);
+  const detailKey =
+    key === "cached_input_tokens"
+      ? "cached_tokens"
+      : key;
   const nested =
-    nestedInputDetails?.[key] ??
-    nestedOutputDetails?.[key] ??
+    nestedInputDetails?.[detailKey] ??
+    nestedOutputDetails?.[detailKey] ??
     objectValue(object.usage)?.[key];
   return typeof nested === "number" && Number.isFinite(nested) ? nested : null;
 }
@@ -1942,13 +1957,23 @@ async function finalizeDispatchAttempt(input: {
   const agentCall = input.agentCall;
   const telemetry = input.transportTelemetry;
   const normalized = telemetry?.normalized_error;
+  const normalizedResponse = telemetry?.normalized_response;
   const tokenUsage = tokenUsageObject(agentCall?.token_usage);
-  const cachedInputTokens = numericTokenFromUsage(tokenUsage, "cached_input_tokens");
-  const reasoningTokens = numericTokenFromUsage(tokenUsage, "reasoning_tokens");
-  const inputTokens = agentCall?.input_tokens ?? numericTokenFromUsage(tokenUsage, "input_tokens");
-  const outputTokens = agentCall?.output_tokens ?? numericTokenFromUsage(tokenUsage, "output_tokens");
+  const cachedInputTokens =
+    normalizedResponse?.usage.cachedInputTokens ?? numericTokenFromUsage(tokenUsage, "cached_input_tokens");
+  const reasoningTokens =
+    normalizedResponse?.usage.reasoningTokens ?? numericTokenFromUsage(tokenUsage, "reasoning_tokens");
+  const inputTokens =
+    agentCall?.input_tokens ??
+    normalizedResponse?.usage.inputTokens ??
+    numericTokenFromUsage(tokenUsage, "input_tokens");
+  const outputTokens =
+    agentCall?.output_tokens ??
+    normalizedResponse?.usage.outputTokens ??
+    numericTokenFromUsage(tokenUsage, "output_tokens");
   const totalTokens =
     agentCall?.total_tokens ??
+    normalizedResponse?.usage.totalTokens ??
     numericTokenFromUsage(tokenUsage, "total_tokens") ??
     (typeof inputTokens === "number" && typeof outputTokens === "number"
       ? inputTokens + outputTokens
@@ -1976,9 +2001,56 @@ async function finalizeDispatchAttempt(input: {
   const dispatchStarted = fetchInvoked;
   const providerFailure =
     input.resultStatus !== "succeeded" && (liveProviderAttempt || dispatchStarted);
-  const usageVerified = liveProviderAttempt && totalTokens !== null;
+  const usageVerified =
+    liveProviderAttempt &&
+    normalizedResponse?.usage.status === "usage_verified" &&
+    totalTokens !== null;
+  const transportOutcome: OpenAIResponsesTransportOutcome =
+    liveProviderAttempt || providerAcknowledged
+      ? "live_provider_success"
+      : providerFailure
+        ? "live_provider_error"
+        : fetchInvoked
+          ? "unknown"
+          : "no_dispatch";
+  const rawOutputOutcome: OpenAIResponsesRawOutputOutcome =
+    input.resultStatus === "invalid_output"
+      ? "schema_invalid"
+      : input.resultStatus === "refused"
+        ? "refused"
+        : input.resultStatus === "incomplete"
+          ? "incomplete"
+          : normalizedResponse?.rawOutput.outcome ??
+    (input.resultStatus === "succeeded"
+      ? "valid"
+      : agentCall?.raw_output
+        ? "unknown"
+        : "missing");
+  const fallbackReason: OpenAIResponsesFallbackReason | null =
+    input.resultStatus === "succeeded"
+      ? null
+      : input.resultStatus === "invalid_output"
+        ? "provider_output_schema_invalid"
+        : input.resultStatus === "refused"
+          ? "provider_output_refused"
+          : input.resultStatus === "incomplete"
+            ? "provider_output_incomplete"
+            : normalizedResponse?.usage.status === "usage_missing_after_response"
+              ? "provider_usage_unverified"
+              : dispatchStarted
+                ? "unexpected_post_response_error"
+                : "provider_output_missing";
+  const effectiveSystemOutcome: OpenAIResponsesEffectiveOutcome =
+    input.resultStatus === "succeeded"
+      ? "provider_output_used"
+      : input.resultStatus === "blocked_by_operational_guard" ||
+          input.resultStatus === "blocked_by_usage_limit"
+        ? "blocked"
+        : fallbackReason
+          ? "deterministic_fallback_used"
+          : "unusable";
   const provenanceType: LiveCanaryProvenanceType =
-    liveProviderAttempt && input.resultStatus === "succeeded"
+    liveProviderAttempt && transportOutcome === "live_provider_success"
       ? "live_provider"
       : providerFailure
         ? "live_provider_failure"
@@ -1991,9 +2063,9 @@ async function finalizeDispatchAttempt(input: {
   const lifecycleStatus: LiveCanaryLifecycleStatus =
     provenanceType === "blocked"
       ? "pre_dispatch_failed"
-      : liveProviderAttempt && input.resultStatus === "succeeded" && usageVerified
+      : liveProviderAttempt && input.resultStatus === "succeeded"
         ? "finalized_success"
-        : dispatchStarted && !responseHeadersReceived
+      : dispatchStarted && !responseHeadersReceived
           ? "unknown_after_dispatch"
         : providerFailure
         ? "finalized_provider_failure"
@@ -2020,6 +2092,16 @@ async function finalizeDispatchAttempt(input: {
     null;
   const providerRequestHeaderId = normalized?.provider_request_header_id ?? null;
   const providerResponseId = agentCall?.provider_response_id ?? telemetry?.provider_response_id ?? null;
+  const estimatedCostUsd =
+    usageVerified
+      ? normalizedResponse?.usage.calculatedCostUsd ?? null
+      : null;
+  if (agentCall?.id && estimatedCostUsd !== null && agentCall.estimated_cost === null) {
+    await input.prisma.agentCall.update({
+      where: { id: agentCall.id },
+      data: { estimated_cost: new Prisma.Decimal(Number(estimatedCostUsd.toFixed(6))) }
+    });
+  }
   const finalTrace = [
     ...(Array.isArray(existingAttempt?.stage_trace_json) ? existingAttempt.stage_trace_json : []),
     ...(responseHeadersReceived ? [stageTraceEntry("response_headers_received")] : []),
@@ -2030,7 +2112,7 @@ async function finalizeDispatchAttempt(input: {
     ...(agentCall?.output_validated ? [stageTraceEntry("raw_output_validated" as LiveCanaryExecutionStage)] : []),
     stageTraceEntry("step_finalized")
   ];
-  const fallbackApplied = provenanceType === "deterministic_fallback";
+  const fallbackApplied = effectiveSystemOutcome === "deterministic_fallback_used";
   const transportObjective = {
     exactly_one_dispatch_required: true,
     dispatch_started: dispatchStarted,
@@ -2042,16 +2124,21 @@ async function finalizeDispatchAttempt(input: {
     response_headers_received: responseHeadersReceived,
     response_body_received: responseBodyReceived,
     response_received: responseReceived,
+    transport_outcome: transportOutcome,
+    raw_output_outcome: rawOutputOutcome,
+    effective_system_outcome: effectiveSystemOutcome,
     usage_verified: usageVerified,
     accounting_complete: accounting.accountingComplete,
     cost_status: accounting.costStatus,
-    effective_result_usable: input.resultStatus === "succeeded",
+    effective_result_usable: input.resultStatus === "succeeded" && effectiveSystemOutcome === "provider_output_used",
     passed:
       dispatchStarted &&
       responseReceived &&
       usageVerified &&
       input.resultStatus === "succeeded" &&
-      provenanceType === "live_provider"
+      provenanceType === "live_provider" &&
+      effectiveSystemOutcome === "provider_output_used" &&
+      !fallbackApplied
   };
 
   return input.prisma.operationalLiveCanaryDispatchAttempt.update({
@@ -2097,14 +2184,34 @@ async function finalizeDispatchAttempt(input: {
       provider_request_header_id: providerRequestHeaderId,
       retry_after_ms: telemetry?.retry_after_ms ?? normalized?.retry_after_ms ?? null,
       normalized_failure_json: normalized ? prismaJson(normalized) : undefined,
-      raw_response_hash: agentCall?.raw_output ? hashJson(agentCall.raw_output) : null,
+      sanitized_response_metadata_json: normalizedResponse?.sanitizedResponseMetadata
+        ? prismaJson(normalizedResponse.sanitizedResponseMetadata)
+        : undefined,
+      usage_source_paths_json: normalizedResponse?.usage.sourcePaths
+        ? prismaJson(normalizedResponse.usage.sourcePaths)
+        : undefined,
+      response_status: normalizedResponse?.rawOutput.responseStatus ?? telemetry?.response_status ?? null,
+      response_status_details_json: normalizedResponse
+        ? prismaJson({
+            incomplete_details: normalizedResponse.rawOutput.incompleteDetails,
+            provider_error_present: Boolean(normalizedResponse.rawOutput.providerError)
+          })
+        : undefined,
+      transport_outcome: transportOutcome,
+      raw_output_outcome: rawOutputOutcome,
+      effective_system_outcome: effectiveSystemOutcome,
+      fallback_reason: fallbackReason,
+      raw_response_hash: normalizedResponse?.rawOutput.rawResponseHash ??
+        (agentCall?.raw_output ? hashJson(agentCall.raw_output) : null),
       input_tokens: inputTokens,
       cached_input_tokens: cachedInputTokens,
       output_tokens: outputTokens,
       reasoning_tokens: reasoningTokens,
       total_tokens: totalTokens,
-      pricing_registry_version: fetchInvoked ? OPERATIONAL_LIVE_CANARY_PRICING_REGISTRY_VERSION : null,
-      estimated_cost_usd: agentCall?.estimated_cost ?? null,
+      pricing_registry_version: fetchInvoked
+        ? normalizedResponse?.usage.pricingRegistryVersion ?? OPERATIONAL_LIVE_CANARY_PRICING_REGISTRY_VERSION
+        : null,
+      estimated_cost_usd: estimatedCostUsd !== null ? new Prisma.Decimal(Number(estimatedCostUsd.toFixed(6))) : null,
       usage_status: accounting.usageStatus,
       cost_status: accounting.costStatus,
       error_category: agentCall?.error_category ?? null,
@@ -2139,7 +2246,11 @@ async function recomputeCanaryAggregates(prisma: PrismaClient, runDbId: string) 
     attempt.provider === "openai" &&
     ["live_provider", "live_provider_failure"].includes(attempt.provenance_type) &&
     !["reserved", "pre_dispatch_failed", "cancelled_before_dispatch"].includes(attempt.lifecycle_status) &&
-    attempt.provider_acknowledged_request_count > 0
+    attempt.network_request_attempt_count > 0
+  );
+  const providerRequestCount = providerAttempts.reduce(
+    (sum, attempt) => sum + attempt.network_request_attempt_count,
+    0
   );
   const estimatedCost = providerAttempts.reduce((sum, attempt) => sum + decimalToNumber(attempt.estimated_cost_usd), 0);
   const retryCount = attempts.filter((attempt) => attempt.attempt_index > 1).length;
@@ -2151,12 +2262,15 @@ async function recomputeCanaryAggregates(prisma: PrismaClient, runDbId: string) 
       attempt.provider === "openai" &&
       ["live_provider", "live_provider_failure"].includes(attempt.provenance_type) &&
       !["reserved", "pre_dispatch_failed", "cancelled_before_dispatch"].includes(attempt.lifecycle_status) &&
-      attempt.provider_acknowledged_request_count > 0
+      attempt.network_request_attempt_count > 0
     );
     await prisma.operationalLiveCanaryStep.update({
       where: { id: stepId },
       data: {
-        provider_request_count: stepProviderAttempts.length,
+        provider_request_count: stepProviderAttempts.reduce(
+          (sum, attempt) => sum + attempt.network_request_attempt_count,
+          0
+        ),
         estimated_cost_usd: new Prisma.Decimal(
           stepProviderAttempts.reduce((sum, attempt) => sum + decimalToNumber(attempt.estimated_cost_usd), 0)
         )
@@ -2167,14 +2281,14 @@ async function recomputeCanaryAggregates(prisma: PrismaClient, runDbId: string) 
   await prisma.operationalLiveCanaryRun.update({
     where: { id: runDbId },
     data: {
-      provider_request_count: providerAttempts.length,
+      provider_request_count: providerRequestCount,
       retry_count: retryCount,
       estimated_cost_usd: new Prisma.Decimal(Number(estimatedCost.toFixed(6)))
     }
   });
 
   return {
-    provider_request_count: providerAttempts.length,
+    provider_request_count: providerRequestCount,
     retry_count: retryCount,
     estimated_cost_usd: Number(estimatedCost.toFixed(6))
   };
@@ -2203,6 +2317,10 @@ async function successfulTransportProbeExists(prisma: PrismaClient) {
     attempt.adapter_version &&
     attempt.lifecycle_status === "finalized_success" &&
     attempt.provenance_type === "live_provider" &&
+    attempt.transport_outcome === "live_provider_success" &&
+    attempt.raw_output_outcome === "valid" &&
+    attempt.effective_system_outcome === "provider_output_used" &&
+    !attempt.fallback_reason &&
     attempt.usage_status === "usage_verified" &&
     attempt.cost_status === "usage_verified" &&
     attempt.fetch_invoked &&
@@ -2363,7 +2481,8 @@ async function dispatchOperationalLiveCanaryStep(input: {
         typed_failure_reason: typedFailureReason,
         transport_objective_satisfied: false
       },
-      warnings: ["Transport probe failed before provider dispatch; fallback is not a completed transport."]
+      warnings: ["Transport probe failed before provider dispatch; fallback is not a completed transport."],
+      prismaClient: input.prisma
     });
     await input.prisma.operationalLiveCanaryStep.update({
       where: { id: input.step.id },
@@ -2590,7 +2709,8 @@ async function dispatchOperationalLiveCanaryStep(input: {
         total_tokens: agentCall?.total_tokens ?? null
       }
     },
-    warnings: succeeded ? [] : ["Operational live canary step did not produce a usable effective result."]
+    warnings: succeeded ? [] : ["Operational live canary step did not produce a usable effective result."],
+    prismaClient: input.prisma
   });
   await markDispatchStage(input.prisma, dispatchAttempt.id, "effective_result_persisted");
   const dispatchBoundaryState = await input.prisma.operationalLiveCanaryDispatchAttempt.findUnique({
@@ -3254,12 +3374,25 @@ export async function runOperationalLiveCanaryTransportProbe(input: {
 
     const dispatch = await dispatchOperationalLiveCanaryStep({ prisma, run, step, manifest });
     const aggregates = await recomputeCanaryAggregates(prisma, run.id);
+    const finalizedProbeAttempt = await prisma.operationalLiveCanaryDispatchAttempt.findFirst({
+      where: { run_db_id: run.id },
+      orderBy: { attempt_index: "asc" }
+    });
+    const finalizedObjective = finalizedProbeAttempt
+      ? transportObjectiveFromAttempt(finalizedProbeAttempt)
+      : null;
     const succeeded =
       dispatch.succeeded &&
-      dispatch.providerRequestCount === 1 &&
-      dispatch.lifecycleStatus === "finalized_success" &&
-      dispatch.usageStatus === "usage_verified" &&
-      dispatch.costStatus === "usage_verified";
+      finalizedProbeAttempt?.network_request_attempt_count === 1 &&
+      finalizedProbeAttempt?.provider_acknowledged_request_count === 1 &&
+      finalizedProbeAttempt?.provider_response_id !== null &&
+      finalizedProbeAttempt?.transport_outcome === "live_provider_success" &&
+      finalizedProbeAttempt?.raw_output_outcome === "valid" &&
+      finalizedProbeAttempt?.effective_system_outcome === "provider_output_used" &&
+      finalizedProbeAttempt?.fallback_reason === null &&
+      finalizedProbeAttempt?.usage_status === "usage_verified" &&
+      finalizedProbeAttempt?.cost_status === "usage_verified" &&
+      finalizedObjective?.passed === true;
     await prisma.operationalLiveCanaryRun.update({
       where: { id: run.id },
       data: {
@@ -3297,12 +3430,27 @@ export async function runOperationalLiveCanaryTransportProbe(input: {
       provider_acknowledged_request_count: persistedProviderAcknowledgedCount,
       provider_request_count: persisted.provider_request_count,
       estimated_cost_usd: decimalToNumber(persisted.estimated_cost_usd),
-      usage_status: dispatch.usageStatus,
-      cost_status: dispatch.costStatus,
-      lifecycle_status: dispatch.lifecycleStatus,
-      provenance_type: dispatch.provenanceType,
-      failure_stage: "failureStage" in dispatch ? dispatch.failureStage : null,
-      typed_failure_reason: "typedFailureReason" in dispatch ? dispatch.typedFailureReason : null,
+      request_id_present: Boolean(finalizedProbeAttempt?.provider_request_id),
+      response_id_present: Boolean(finalizedProbeAttempt?.provider_response_id),
+      response_body_received: Boolean(finalizedProbeAttempt?.response_body_received),
+      usage_status: finalizedProbeAttempt?.usage_status ?? dispatch.usageStatus,
+      input_tokens: finalizedProbeAttempt?.input_tokens ?? null,
+      cached_input_tokens: finalizedProbeAttempt?.cached_input_tokens ?? null,
+      output_tokens: finalizedProbeAttempt?.output_tokens ?? null,
+      reasoning_tokens: finalizedProbeAttempt?.reasoning_tokens ?? null,
+      total_tokens: finalizedProbeAttempt?.total_tokens ?? null,
+      cost_status: finalizedProbeAttempt?.cost_status ?? dispatch.costStatus,
+      reconciled_cost_usd: decimalToNumber(finalizedProbeAttempt?.estimated_cost_usd),
+      transport_outcome: finalizedProbeAttempt?.transport_outcome ?? null,
+      raw_output_outcome: finalizedProbeAttempt?.raw_output_outcome ?? null,
+      effective_system_outcome: finalizedProbeAttempt?.effective_system_outcome ?? null,
+      fallback_applied: finalizedProbeAttempt?.effective_system_outcome === "deterministic_fallback_used",
+      fallback_reason: finalizedProbeAttempt?.fallback_reason ?? null,
+      transport_objective_passed: finalizedObjective?.passed === true,
+      lifecycle_status: finalizedProbeAttempt?.lifecycle_status ?? dispatch.lifecycleStatus,
+      provenance_type: finalizedProbeAttempt?.provenance_type ?? dispatch.provenanceType,
+      failure_stage: finalizedProbeAttempt?.failure_stage ?? ("failureStage" in dispatch ? dispatch.failureStage : null),
+      typed_failure_reason: finalizedProbeAttempt?.typed_failure_reason ?? ("typedFailureReason" in dispatch ? dispatch.typedFailureReason : null),
       note:
         "One-call transport probe uses a synthetic Response Collection invocation and remains isolated from classroom workflows."
     };
@@ -3669,6 +3817,10 @@ function transportObjectiveFromAttempt(attempt: {
   provenance_type: string;
   usage_status: string;
   cost_status?: string | null;
+  transport_outcome?: string | null;
+  raw_output_outcome?: string | null;
+  effective_system_outcome?: string | null;
+  fallback_reason?: string | null;
   network_dispatch_started?: boolean | null;
   transport_adapter_entered?: boolean | null;
   request_serialization_completed?: boolean | null;
@@ -3680,9 +3832,6 @@ function transportObjectiveFromAttempt(attempt: {
   provider_response_id: string | null;
 }) {
   const persisted = objectValue(attempt.transport_objective_json);
-  if (persisted) {
-    return persisted;
-  }
   const dispatchStarted = Boolean(attempt.fetch_invoked ?? attempt.network_dispatch_started);
   const responseReceived = Boolean(
     attempt.response_headers_received ||
@@ -3691,8 +3840,20 @@ function transportObjectiveFromAttempt(attempt: {
       attempt.provider_response_id
   );
   const usageVerified = attempt.usage_status === "usage_verified" || attempt.usage_status === "verified";
-  const effectiveUsable = attempt.lifecycle_status === "finalized_success" && attempt.provenance_type === "live_provider";
-  return {
+  const transportOutcome =
+    attempt.transport_outcome ??
+    (responseReceived ? "live_provider_success" : dispatchStarted ? "unknown" : "no_dispatch");
+  const rawOutputOutcome = attempt.raw_output_outcome ?? (usageVerified ? "valid" : "unknown");
+  const effectiveSystemOutcome =
+    attempt.effective_system_outcome ??
+    (attempt.lifecycle_status === "finalized_success" && attempt.provenance_type === "live_provider"
+      ? "provider_output_used"
+      : "unusable");
+  const effectiveUsable =
+    attempt.lifecycle_status === "finalized_success" &&
+    attempt.provenance_type === "live_provider" &&
+    effectiveSystemOutcome === "provider_output_used";
+  const computed = {
     exactly_one_dispatch_required: true,
     dispatch_started: dispatchStarted,
     transport_adapter_entered: Boolean(attempt.transport_adapter_entered),
@@ -3701,12 +3862,25 @@ function transportObjectiveFromAttempt(attempt: {
     response_headers_received: Boolean(attempt.response_headers_received),
     response_body_received: Boolean(attempt.response_body_received),
     response_received: responseReceived,
+    transport_outcome: transportOutcome,
+    raw_output_outcome: rawOutputOutcome,
+    effective_system_outcome: effectiveSystemOutcome,
     usage_verified: usageVerified,
     accounting_complete: Boolean(attempt.accounting_complete),
     cost_status: attempt.cost_status ?? "unknown",
+    fallback_reason: attempt.fallback_reason ?? null,
     effective_result_usable: effectiveUsable,
-    passed: dispatchStarted && responseReceived && usageVerified && effectiveUsable
+    passed:
+      dispatchStarted &&
+      responseReceived &&
+      usageVerified &&
+      effectiveUsable &&
+      transportOutcome === "live_provider_success" &&
+      rawOutputOutcome === "valid" &&
+      effectiveSystemOutcome === "provider_output_used" &&
+      !attempt.fallback_reason
   };
+  return persisted ? { ...computed, ...persisted, passed: computed.passed } : computed;
 }
 
 function hasUsableEffectiveResult(step: {
@@ -3883,6 +4057,12 @@ export async function reconcileOperationalLiveCanaryRun(runPublicId: string) {
         network_request_attempt_count: attempt.network_request_attempt_count,
         provider_acknowledged_request_count: attempt.provider_acknowledged_request_count,
         accounting_complete: attempt.accounting_complete,
+        transport_outcome: attempt.transport_outcome,
+        raw_output_outcome: attempt.raw_output_outcome,
+        effective_system_outcome: attempt.effective_system_outcome,
+        fallback_reason: attempt.fallback_reason,
+        response_status: attempt.response_status,
+        usage_source_paths: attempt.usage_source_paths_json,
         usage_status: attempt.usage_status,
         cost_status: attempt.cost_status,
         provider_request_id_present: Boolean(attempt.provider_request_id),
@@ -3997,6 +4177,282 @@ export async function forensicsOperationalLiveCanaryRun(runPublicId: string) {
       classifications_are_evidence_based: true,
       unknown_legacy_provenance_is_not_counted_as_verified_paid_dispatch: true
     }
+  };
+}
+
+function summarizeAgentCallForResponseAudit(agentCall: {
+  id: string;
+  provider: string;
+  provider_response_id: string | null;
+  provider_request_id: string | null;
+  client_request_id: string | null;
+  call_status: string;
+  output_validated: boolean;
+  validation_error: string | null;
+  error_category: string | null;
+  raw_output: unknown;
+  output_payload: unknown;
+  token_usage: unknown;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  estimated_cost: Prisma.Decimal | null;
+} | null) {
+  if (!agentCall) {
+    return {
+      exists: false,
+      relation_status: "record_unavailable"
+    };
+  }
+  const normalized = agentCall.raw_output
+    ? normalizeOpenAIResponsesResult({
+        sdkResponse: agentCall.raw_output,
+        providerRequestId: agentCall.provider_request_id,
+        responseBodyReceived: true,
+        modelSnapshot: OPERATIONAL_LIVE_CANARY_MODEL
+      })
+    : null;
+  return {
+    exists: true,
+    provider: agentCall.provider,
+    request_id_present: Boolean(agentCall.provider_request_id),
+    response_id_present: Boolean(agentCall.provider_response_id),
+    call_status: agentCall.call_status,
+    raw_output_persisted: Boolean(agentCall.raw_output),
+    sanitized_provider_response_snapshot_exists: Boolean(agentCall.raw_output),
+    complete_provider_response_object_persisted: false,
+    complete_provider_response_note:
+      "Agent calls store a sanitized reduced provider audit snapshot, not the complete SDK object.",
+    output_payload_exists: Boolean(agentCall.output_payload),
+    output_validated: agentCall.output_validated,
+    validation_error_present: Boolean(agentCall.validation_error),
+    error_category: agentCall.error_category,
+    token_usage_present: Boolean(agentCall.token_usage),
+    raw_output_hash: agentCall.raw_output ? hashJson(agentCall.raw_output) : null,
+    parsed_output_hash: agentCall.output_payload ? hashJson(agentCall.output_payload) : null,
+    usage_fields: {
+      input_tokens: agentCall.input_tokens,
+      output_tokens: agentCall.output_tokens,
+      total_tokens: agentCall.total_tokens,
+      estimated_cost: decimalToNumber(agentCall.estimated_cost)
+    },
+    normalizer: normalized
+      ? {
+          transport: normalized.transport,
+          raw_output: {
+            exists: normalized.rawOutput.exists,
+            output_text_exists: Boolean(normalized.rawOutput.outputText),
+            output_text_path: normalized.rawOutput.outputTextPath,
+            parsed_output_exists: normalized.rawOutput.parsedOutput !== null,
+            parsed_output_path: normalized.rawOutput.parsedOutputPath,
+            refusal_exists: Boolean(normalized.rawOutput.refusal),
+            provider_error_exists: Boolean(normalized.rawOutput.providerError),
+            response_status: normalized.rawOutput.responseStatus,
+            incomplete_details_present: Boolean(normalized.rawOutput.incompleteDetails),
+            outcome: normalized.rawOutput.outcome,
+            raw_response_hash: normalized.rawOutput.rawResponseHash
+          },
+          usage: normalized.usage,
+          outcomes: normalized.outcomes,
+          sanitized_response_metadata: normalized.sanitizedResponseMetadata
+        }
+      : null
+  };
+}
+
+async function findResponseAuditRecords(runPublicId: string) {
+  const canaryPrisma = createCanaryPrismaClient();
+  const defaultPrisma = new PrismaClient();
+  try {
+    const run = await canaryPrisma.operationalLiveCanaryRun.findUnique({
+      where: { run_public_id: runPublicId },
+      include: {
+        steps: {
+          orderBy: { step_order: "asc" },
+          include: { dispatch_attempts: { orderBy: { attempt_index: "asc" } } }
+        },
+        dispatch_attempts: { orderBy: [{ created_at: "asc" }, { attempt_index: "asc" }] }
+      }
+    });
+    if (!run) {
+      throw new Error(`Operational live canary run not found: ${runPublicId}`);
+    }
+    const step = run.steps[0] ?? null;
+    const invocationKey = step
+      ? `operational-live-canary:${run.run_public_id}:${step.logical_invocation_key}`
+      : null;
+    const canaryAgentCall = invocationKey
+      ? await canaryPrisma.agentCall.findUnique({ where: { agent_invocation_key: invocationKey } })
+      : null;
+    const defaultAgentCall = invocationKey
+      ? await defaultPrisma.agentCall.findUnique({ where: { agent_invocation_key: invocationKey } })
+      : null;
+    const canaryEffective = step?.effective_result_public_id
+      ? await canaryPrisma.operationalAgentEffectiveResult.findUnique({
+          where: { public_id: step.effective_result_public_id }
+        })
+      : null;
+    const defaultEffective = step?.effective_result_public_id
+      ? await defaultPrisma.operationalAgentEffectiveResult.findUnique({
+          where: { public_id: step.effective_result_public_id }
+        })
+      : null;
+    return {
+      run,
+      step,
+      invocationKey,
+      canaryAgentCall,
+      defaultAgentCall,
+      canaryEffective,
+      defaultEffective
+    };
+  } finally {
+    await canaryPrisma.$disconnect();
+    await defaultPrisma.$disconnect();
+  }
+}
+
+export async function auditOperationalLiveCanaryResponse(runPublicId: string) {
+  const records = await findResponseAuditRecords(runPublicId);
+  const attempt = records.run.dispatch_attempts[0] ?? records.step?.dispatch_attempts[0] ?? null;
+  const selectedAgentCall = records.canaryAgentCall ?? records.defaultAgentCall;
+  const selectedEffective = records.canaryEffective ?? records.defaultEffective;
+  const agentSummary = summarizeAgentCallForResponseAudit(selectedAgentCall);
+  const normalized = selectedAgentCall?.raw_output
+    ? normalizeOpenAIResponsesResult({
+        sdkResponse: selectedAgentCall.raw_output,
+        providerRequestId: selectedAgentCall.provider_request_id,
+        responseBodyReceived: true,
+        modelSnapshot: records.run.model_snapshot
+      })
+    : null;
+
+  return {
+    label: "operational live canary response audit",
+    run_public_id: runPublicId,
+    read_only: true,
+    no_provider_call_made: true,
+    transport_identity: {
+      provider: attempt?.provider ?? selectedAgentCall?.provider ?? null,
+      transport: attempt?.transport ?? null,
+      sdk_version: createOpenAITransportEnvironmentReport().openai_sdk_package_version,
+      adapter_version: attempt?.adapter_version ?? null,
+      model_snapshot: records.run.model_snapshot,
+      request_id_present: Boolean(attempt?.provider_request_id ?? selectedAgentCall?.provider_request_id),
+      response_id_present: Boolean(attempt?.provider_response_id ?? selectedAgentCall?.provider_response_id),
+      http_acknowledgement_state: {
+        fetch_invoked: Boolean(attempt?.fetch_invoked),
+        response_headers_received: Boolean(attempt?.response_headers_received),
+        response_body_received: Boolean(attempt?.response_body_received),
+        network_request_attempt_count: attempt?.network_request_attempt_count ?? 0,
+        provider_acknowledged_request_count: attempt?.provider_acknowledged_request_count ?? 0
+      },
+      response_status: attempt?.response_status ?? normalized?.rawOutput.responseStatus ?? null,
+      response_status_details: attempt?.response_status_details_json ?? normalized?.rawOutput.incompleteDetails ?? null
+    },
+    relation_integrity: {
+      step_agent_call_public_id: records.step?.agent_call_public_id ?? null,
+      step_effective_result_public_id: records.step?.effective_result_public_id ?? null,
+      dispatch_agent_call_link_present: Boolean(attempt?.agent_call_db_id),
+      canary_agent_call_found_by_invocation_key: Boolean(records.canaryAgentCall),
+      default_db_agent_call_found_by_invocation_key: Boolean(records.defaultAgentCall),
+      canary_effective_result_found: Boolean(records.canaryEffective),
+      default_db_effective_result_found: Boolean(records.defaultEffective),
+      historical_cross_database_split_detected: Boolean(records.defaultAgentCall && !records.canaryAgentCall)
+    },
+    raw_response_persistence: {
+      complete_provider_response_object_persisted: false,
+      sanitized_provider_response_snapshot_exists: agentSummary.raw_output_persisted === true,
+      response_output_exists: normalized?.rawOutput.exists ?? false,
+      output_text_exists: Boolean(normalized?.rawOutput.outputText),
+      parsed_structured_output_exists: normalized?.rawOutput.parsedOutput !== null,
+      output_refusal_exists: Boolean(normalized?.rawOutput.refusal),
+      provider_error_exists: Boolean(normalized?.rawOutput.providerError),
+      response_usage_exists_in_persisted_raw_response: normalized?.usage.sourcePaths.includes("usage") ?? false,
+      usage_found_paths: normalized?.usage.sourcePaths ?? [],
+      parser_attempted_paths: normalized?.usage.attemptedPaths ?? null,
+      raw_response_transformed_before_usage_extraction: true,
+      usage_dropped_by_serializer_or_dto:
+        Boolean(normalized?.usage.sourcePaths.includes("usage")) && attempt?.usage_status === "usage_missing_after_response"
+    },
+    usage_fields: normalized?.usage ?? null,
+    raw_output_processing: {
+      provider_success_status: normalized?.transport.acknowledged ?? false,
+      structured_output_parse_status: selectedAgentCall?.output_payload ? "parsed" : "unavailable",
+      parsed_output_exists: Boolean(selectedAgentCall?.output_payload),
+      zod_validation_status: selectedAgentCall?.output_validated ? "pass" : selectedAgentCall ? "not_passed_or_unavailable" : "unavailable",
+      semantic_validation_status: selectedEffective?.raw_semantic_status ?? null,
+      safety_validation_status: selectedEffective?.raw_safety_status ?? null,
+      validation_issue: selectedAgentCall?.validation_error ?? null,
+      raw_output_hash: selectedAgentCall?.raw_output ? hashJson(selectedAgentCall.raw_output) : null,
+      parsed_output_hash: selectedAgentCall?.output_payload ? hashJson(selectedAgentCall.output_payload) : null
+    },
+    fallback: {
+      fallback_applied: selectedEffective?.fallback_applied ?? attempt?.effective_system_outcome === "deterministic_fallback_used",
+      fallback_reason: attempt?.fallback_reason ??
+        (selectedEffective?.fallback_applied ? "historical_effective_result_fallback_reason_unavailable" : null),
+      stage_that_requested_fallback: attempt?.failure_stage ?? null,
+      caused_by: {
+        missing_usage: attempt?.usage_status === "usage_missing_after_response",
+        schema_parsing: selectedAgentCall?.error_category === "schema_validation",
+        schema_validation: selectedEffective?.raw_output_status === "semantic_validation_failed",
+        semantic_validation: selectedEffective?.raw_semantic_status === "fail",
+        safety_validation: selectedEffective?.raw_safety_status === "fail",
+        provider_status: normalized?.rawOutput.responseStatus ?? null,
+        operational_canonicalization: selectedEffective?.canonicalization_applied ?? false,
+        another_exact_cause: attempt?.fallback_reason ?? null
+      },
+      fallback_version: selectedEffective?.fallback_version ?? null,
+      effective_result_hash: selectedEffective?.effective_result_hash ?? null
+    },
+    agent_call: agentSummary,
+    dispatch_summary: attempt
+      ? {
+          dispatch_public_id: attempt.dispatch_public_id,
+          lifecycle_status: attempt.lifecycle_status,
+          usage_status: attempt.usage_status,
+          cost_status: attempt.cost_status,
+          accounting_complete: attempt.accounting_complete,
+          transport_outcome: attempt.transport_outcome,
+          raw_output_outcome: attempt.raw_output_outcome,
+          effective_system_outcome: attempt.effective_system_outcome,
+          fallback_reason: attempt.fallback_reason,
+          persisted_provider_request_count: records.run.provider_request_count,
+          derived_network_request_attempt_count: attempt.network_request_attempt_count,
+          derived_provider_acknowledged_request_count: attempt.provider_acknowledged_request_count
+        }
+      : null
+  };
+}
+
+export async function replayOperationalLiveCanaryResponse(runPublicId: string) {
+  const audit = await auditOperationalLiveCanaryResponse(runPublicId);
+  return {
+    label: "operational live canary response replay",
+    run_public_id: runPublicId,
+    read_only: true,
+    mutated: false,
+    no_provider_call_made: true,
+    replay_source:
+      audit.raw_response_persistence.sanitized_provider_response_snapshot_exists
+        ? "persisted_sanitized_provider_response_snapshot"
+        : "unavailable",
+    complete_raw_response_available: audit.raw_response_persistence.complete_provider_response_object_persisted,
+    normalizer_result: audit.agent_call.exists ? audit.agent_call.normalizer : null,
+    expected_accounting: {
+      usage_status: audit.usage_fields?.status ?? "unavailable",
+      input_tokens: audit.usage_fields?.inputTokens ?? null,
+      cached_input_tokens: audit.usage_fields?.cachedInputTokens ?? null,
+      output_tokens: audit.usage_fields?.outputTokens ?? null,
+      reasoning_tokens: audit.usage_fields?.reasoningTokens ?? null,
+      total_tokens: audit.usage_fields?.totalTokens ?? null,
+      calculated_cost_usd: audit.usage_fields?.calculatedCostUsd ?? null,
+      pricing_registry_version: audit.usage_fields?.pricingRegistryVersion ?? null
+    },
+    expected_outcomes: audit.agent_call.exists
+      ? audit.agent_call.normalizer?.outcomes ?? null
+      : null,
+    historical_dispatch_unchanged: true
   };
 }
 
@@ -4120,6 +4576,12 @@ export async function inspectOperationalLiveCanaryRun(runPublicId: string) {
         network_request_attempt_count: attempt.network_request_attempt_count,
         provider_acknowledged_request_count: attempt.provider_acknowledged_request_count,
         accounting_complete: attempt.accounting_complete,
+        transport_outcome: attempt.transport_outcome,
+        raw_output_outcome: attempt.raw_output_outcome,
+        effective_system_outcome: attempt.effective_system_outcome,
+        fallback_reason: attempt.fallback_reason,
+        response_status: attempt.response_status,
+        usage_source_paths: attempt.usage_source_paths_json,
         usage_status: attempt.usage_status,
         cost_status: attempt.cost_status,
         normalized_failure: attempt.normalized_failure_json
@@ -4165,7 +4627,7 @@ export async function inspectOperationalLiveCanaryRun(runPublicId: string) {
     recovery_status: run.recovery_status,
     execution_lifecycle_version: run.execution_lifecycle_version,
     provider_request_count_zero: run.provider_request_count === 0,
-    paid_request_occurred: run.provider_request_count > 0,
+    paid_request_occurred: reconciliation.network_request_attempt_count > 0,
     safe_to_resume: reconciliation.safe_to_resume,
     safe_to_resume_reasons: reconciliation.safe_to_resume_reasons,
     fresh_run_required_after_fix:
@@ -4252,11 +4714,19 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
   const allFailedByCanaryContext =
     terminalZeroProviderExecutionFailure &&
     typedBlockedReasons.every((reason) => reason === "canary_context_invalid");
-  const requestWithinLimit = run.provider_request_count <= OPERATIONAL_LIVE_CANARY_MAX_PROVIDER_REQUESTS;
+  const derivedProviderRequestCount = reconciliation.network_request_attempt_count;
+  const derivedPaidRequestOccurred = derivedProviderRequestCount > 0;
+  const requestWithinLimit = derivedProviderRequestCount <= OPERATIONAL_LIVE_CANARY_MAX_PROVIDER_REQUESTS;
   const costWithinLimit = decimalToNumber(run.estimated_cost_usd) <= OPERATIONAL_LIVE_CANARY_BUDGET_LIMIT_USD;
   const allAgentsCovered = Object.values(agentCounts(run.steps)).every((value) => value.planned > 0);
   const transportObjectives = run.dispatch_attempts.map(transportObjectiveFromAttempt);
-  const objectiveCount = (key: string) => transportObjectives.filter((objective) => objective[key] === true).length;
+  type TransportObjectiveKey = keyof (typeof transportObjectives)[number];
+  const objectiveCount = (key: TransportObjectiveKey) =>
+    transportObjectives.filter((objective) => objective[key] === true).length;
+  const transportOutcomeCounts = countByType(run.dispatch_attempts.map((attempt) => attempt.transport_outcome));
+  const rawOutputOutcomeCounts = countByType(run.dispatch_attempts.map((attempt) => attempt.raw_output_outcome));
+  const effectiveSystemOutcomeCounts = countByType(run.dispatch_attempts.map((attempt) => attempt.effective_system_outcome));
+  const fallbackReasonCounts = countByType(run.dispatch_attempts.map((attempt) => attempt.fallback_reason));
   const transportObjective = {
     exactly_one_dispatch_required: run.planned_logical_invocations === 1,
     dispatch_started: objectiveCount("dispatch_started"),
@@ -4326,6 +4796,7 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
       reasoning_effort: run.reasoning_effort,
       planned_logical_invocations: run.planned_logical_invocations,
       provider_request_count: run.provider_request_count,
+      derived_provider_request_count: derivedProviderRequestCount,
       retry_count: run.retry_count,
       estimated_cost_usd: decimalToNumber(run.estimated_cost_usd),
       budget_limit_usd: decimalToNumber(run.budget_limit_usd)
@@ -4358,6 +4829,7 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
       provider_acknowledged_request_count: reconciliation.provider_acknowledged_request_count,
       verified_provider_request_count: reconciliation.verified_provider_request_count,
       run_provider_request_count: run.provider_request_count,
+      derived_provider_request_count: derivedProviderRequestCount,
       usage_counts: reconciliation.usage_counts,
       cost_status_counts: reconciliation.cost_status_counts,
       lifecycle_counts: reconciliation.lifecycle_counts,
@@ -4368,6 +4840,24 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
       transport_objective: transportObjective,
       mismatches: reconciliation.mismatches
     },
+    transport_execution: {
+      network_request_attempt_count: reconciliation.network_request_attempt_count,
+      provider_acknowledged_request_count: reconciliation.provider_acknowledged_request_count,
+      request_id_present_count: run.dispatch_attempts.filter((attempt) => Boolean(attempt.provider_request_id)).length,
+      response_id_present_count: run.dispatch_attempts.filter((attempt) => Boolean(attempt.provider_response_id)).length,
+      response_body_received_count: run.dispatch_attempts.filter((attempt) => attempt.response_body_received).length,
+      transport_outcome_counts: transportOutcomeCounts,
+      transport_objective_satisfied: transportObjective.passed
+    },
+    raw_output_validation: {
+      raw_output_outcome_counts: rawOutputOutcomeCounts,
+      raw_structured_output_exists_count: run.dispatch_attempts.filter((attempt) =>
+        ["valid", "schema_invalid", "semantic_invalid", "safety_invalid"].includes(attempt.raw_output_outcome ?? "")
+      ).length,
+      raw_schema_pass_count: run.dispatch_attempts.filter((attempt) => attempt.raw_output_outcome === "valid").length,
+      raw_semantic_pass_count: run.dispatch_attempts.filter((attempt) => attempt.raw_output_outcome === "valid").length,
+      raw_safety_pass_count: run.dispatch_attempts.filter((attempt) => attempt.raw_output_outcome === "valid").length
+    },
     effective_execution: {
       completed_steps: completedSteps,
       failed_steps: failedSteps,
@@ -4375,7 +4865,20 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
       running_steps: runningSteps,
       effective_student_facing_failure_count: effectiveFailureCount,
       effective_workflow_failure_count: effectiveFailureCount,
-      classification_counts: reconciliation.classification_counts
+      classification_counts: reconciliation.classification_counts,
+      effective_system_outcome_counts: effectiveSystemOutcomeCounts,
+      fallback_reason_counts: fallbackReasonCounts
+    },
+    accounting: {
+      usage_counts: reconciliation.usage_counts,
+      cost_status_counts: reconciliation.cost_status_counts,
+      verified_total_tokens: reconciliation.verified_total_tokens,
+      verified_estimated_cost_usd: reconciliation.verified_estimated_cost_usd,
+      accounting_verified: accountingVerified,
+      run_provider_request_count: run.provider_request_count,
+      derived_provider_request_count: derivedProviderRequestCount,
+      derived_network_request_attempt_count: reconciliation.network_request_attempt_count,
+      derived_provider_acknowledged_request_count: reconciliation.provider_acknowledged_request_count
     },
     integrity: {
       execution_lifecycle_version: "phase8c-execution-integrity-v1",
@@ -4406,7 +4909,8 @@ export async function createOperationalLiveCanaryReport(runPublicId: string) {
       failed_run_classification: {
         status: run.status,
         provider_request_count: run.provider_request_count,
-        paid_request_occurred: run.provider_request_count > 0,
+        derived_provider_request_count: derivedProviderRequestCount,
+        paid_request_occurred: derivedPaidRequestOccurred,
         safe_to_resume: reconciliation.safe_to_resume,
         fresh_run_required_after_fix:
           run.status === "failed" &&

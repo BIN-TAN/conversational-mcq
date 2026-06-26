@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
@@ -36,6 +36,7 @@ export type PersistOperationalEffectiveResultInput = {
   effective_output: unknown;
   effective_actions?: unknown;
   warnings?: string[];
+  prismaClient?: PrismaClient;
 };
 
 function prismaJson(value: unknown) {
@@ -45,6 +46,7 @@ function prismaJson(value: unknown) {
 export async function persistOperationalEffectiveResult(
   input: PersistOperationalEffectiveResultInput
 ) {
+  const db = input.prismaClient ?? prisma;
   const manifest = readApprovedOperationalAgentConfig();
   const effectiveResultHash = stableHash({
     agent_name: input.agent_name,
@@ -56,7 +58,7 @@ export async function persistOperationalEffectiveResult(
     effective_output: input.effective_output,
     effective_actions: input.effective_actions ?? {}
   });
-  const existing = await prisma.operationalAgentEffectiveResult.findUnique({
+  const existing = await db.operationalAgentEffectiveResult.findUnique({
     where: {
       invocation_key_effective_result_version: {
         invocation_key: input.invocation_key,
@@ -69,7 +71,7 @@ export async function persistOperationalEffectiveResult(
     return existing;
   }
 
-  return prisma.operationalAgentEffectiveResult.create({
+  return db.operationalAgentEffectiveResult.create({
     data: {
       public_id: generatePublicId("operational_effective_result"),
       agent_call_db_id: input.agent_call_db_id ?? null,

@@ -625,7 +625,7 @@ Phase 7E1 adds normalized evaluation tables that are separate from classroom wor
 - `run_mode` is `mock`, `imported_output`, or `live_provider`.
 - Phase 7E2A implements a guarded `live_provider` canary for synthetic cases only.
 - `provider=mock` rows may store `EVAL_TARGET_MODEL` as future target metadata, not as a live provider call.
-- live canary rows store exact model snapshot, reasoning effort, planned item count, provider request count, pricing registry version, budget limit, estimated cost, case manifest hash, run config hash, canary gate status, and a reproducibility manifest.
+- live canary rows store exact model snapshot, reasoning effort, planned item count, provider request counts, pricing registry version, budget limit, estimated cost, case manifest hash, run config hash, canary gate status, and a reproducibility manifest.
 - full pilot rows additionally store `evaluation_phase`, approved canary public ID, pilot manifest version/hash, agent configuration hash, and ordering algorithm version.
 
 `eval_run_items` stores one output per case repetition:
@@ -633,6 +633,7 @@ Phase 7E1 adds normalized evaluation tables that are separate from classroom wor
 - `run_item_public_id` is the teacher-facing item identifier.
 - schema validation, semantic validation, safety validation, latency, token metadata, raw output, and parsed output are captured for review.
 - live canary items additionally store idempotency key, run order, max output tokens, prompt/schema versions, provider response/request IDs, client request ID, retry count, error category, token fields, estimated cost, and started/completed timestamps.
+- live canary dispatch attempts additionally store sanitized response metadata, usage source paths, response status details, separate transport/raw/effective outcomes, and a stable fallback reason. Historical rows are preserved; corrected diagnostics derive actual request counts from immutable dispatch attempts instead of rewriting old run counters.
 - full pilot items additionally store `evaluation_stratum`, `paired_case_key`, and `case_hash` for internal-holdout/replication analysis and paired repetition stability.
 - `error_category=structured_output_schema_incompatible` records a local provider-facing schema construction failure. Such rows have no provider response ID, raw output, or token usage because no provider request was dispatched.
 - Eval outputs do not create `agent_calls`, `student_profiles`, `formative_decisions`, `followup_rounds`, `item_verification_runs`, sessions, item responses, or workflow jobs.

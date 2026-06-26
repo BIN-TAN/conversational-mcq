@@ -70,10 +70,16 @@ does not authorize classroom live calls.
 
 A successful probe must also prove the transport objective: exactly one live
 dispatch attempt, OpenAI Responses transport selected, actual fetch invocation,
-response headers/body received, provider request/response IDs persisted, usage
-verified, cost persisted, and a usable effective result. Deterministic
-fallback, mock provider output, missing request IDs, unverified usage, or
+response headers/body received, provider request/response IDs persisted,
+`transport_outcome=live_provider_success`, raw schema, semantic, and safety
+validation passed, usage verified from the raw SDK response, cost persisted, a
+usable effective result, and no fallback. Deterministic fallback, mock provider
+output, missing request IDs, unverified usage, or
 `cost_unverified_after_dispatch` never satisfy the full-canary gate.
+
+The probe report separates transport execution, raw-output validation,
+effective execution, and accounting. A safe deterministic fallback is useful
+operational evidence, but it does not pass the one-call transport objective.
 
 ## Failure Diagnosis
 

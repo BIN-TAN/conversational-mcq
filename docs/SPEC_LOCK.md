@@ -1043,10 +1043,15 @@ Phase 6A.5 must not implement:
   paid only with explicit confirmation, and must remain isolated from classroom
   workflows.
 - A successful transport probe requires one verified OpenAI Responses dispatch,
-  actual fetch invocation, provider request/response IDs, verified usage,
-  persisted cost, and a usable effective result. Deterministic fallback, mock
-  output, missing transport evidence, unverified usage, or
+  actual fetch invocation, provider request/response IDs,
+  `transport_outcome=live_provider_success`, raw schema, semantic, and safety
+  validation pass, verified usage, persisted cost, a usable effective result,
+  and no fallback. Deterministic fallback, mock output, missing transport evidence, unverified usage, or
   `cost_unverified_after_dispatch` cannot satisfy this gate.
+- Phase 8C post-response diagnostics separate transport, raw-output,
+  effective-system, and accounting outcomes. Provider usage and cost remain
+  attached to an acknowledged live response even when the effective system uses
+  a deterministic fallback.
 - Transport accounting must distinguish dispatch-attempt rows, actual network
   fetch attempts, and provider-acknowledged requests. For new rows,
   `network_dispatch_started` means fetch invocation, not merely provider-wrapper

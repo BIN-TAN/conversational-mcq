@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Prisma } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import type { z } from "zod";
 import { prisma } from "@/lib/db";
 import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
@@ -92,6 +92,7 @@ export type ExecuteAgentInput<TAgentName extends AgentNameType> = {
   force_new_invocation?: boolean;
   metadata?: Record<string, string>;
   model_config_override?: AgentModelConfig;
+  prismaClient?: PrismaClient;
 };
 
 function sleep(ms: number) {
@@ -112,6 +113,17 @@ function usageNumbers(result: StructuredAgentResult<unknown>) {
     output_tokens: result.usage?.output_tokens,
     total_tokens: result.usage?.total_tokens,
     token_usage: result.usage ? prismaJson(result.usage.raw ?? result.usage) : undefined
+  };
+}
+
+function providerEvidenceUpdate(result: StructuredAgentResult<unknown>) {
+  return {
+    provider: result.provider,
+    provider_response_id: result.provider_response_id,
+    provider_request_id: result.provider_request_id,
+    raw_output: prismaJson(redactForAudit(result.raw_output)),
+    latency_ms: result.latency_ms,
+    ...usageNumbers(result)
   };
 }
 
@@ -148,6 +160,7 @@ function usageWindowEnd(result?: LlmUsageGuardResult | null) {
 export async function executeAgent<TAgentName extends AgentNameType>(
   input: ExecuteAgentInput<TAgentName>
 ): Promise<AgentExecutionResult<AgentOutputByName[TAgentName]>> {
+  const db = input.prismaClient ?? prisma;
   const agentName = AgentName.parse(input.agent_name);
   const inputSchema = agentInputSchemas[agentName] as unknown as z.ZodType<
     AgentInputByName[TAgentName]
@@ -178,7 +191,7 @@ export async function executeAgent<TAgentName extends AgentNameType>(
     input.agent_invocation_key ?? `agent-${agentName}-${randomUUID()}`;
 
   if (!input.force_new_invocation) {
-    const existing = await prisma.agentCall.findUnique({
+    const existing = await db.agentCall.findUnique({
       where: { agent_invocation_key: agentInvocationKey }
     });
 
@@ -225,7 +238,7 @@ export async function executeAgent<TAgentName extends AgentNameType>(
       : null;
 
   if (usageGuardResult && !usageGuardResult.allowed) {
-    const blockedCall = await prisma.agentCall.create({
+    const blockedCall = await db.agentCall.create({
       data: {
         id: randomUUID(),
         assessment_session_db_id: input.assessment_session_db_id ?? null,
@@ -273,7 +286,7 @@ export async function executeAgent<TAgentName extends AgentNameType>(
   }
 
   const provider = createLlmProvider();
-  const agentCall = await prisma.agentCall.create({
+  const agentCall = await db.agentCall.create({
     data: {
       id: randomUUID(),
       assessment_session_db_id: input.assessment_session_db_id ?? null,
@@ -330,6 +343,10 @@ export async function executeAgent<TAgentName extends AgentNameType>(
         }
       });
       lastProviderResult = providerResult;
+      await db.agentCall.update({
+        where: { id: agentCall.id },
+        data: providerEvidenceUpdate(providerResult)
+      });
 
       if (
         providerResult.status === "failed" &&
@@ -356,19 +373,14 @@ export async function executeAgent<TAgentName extends AgentNameType>(
           }
 
           const message = validationMessage(parsedOutput.error);
-          await prisma.agentCall.update({
+          await db.agentCall.update({
             where: { id: agentCall.id },
             data: {
-              provider: providerResult.provider,
-              provider_response_id: providerResult.provider_response_id,
-              provider_request_id: providerResult.provider_request_id,
-              raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
               validation_error: message,
               output_validated: false,
               retry_count: retryCount,
               call_status: "invalid_output",
               error_category: "schema_validation",
-              latency_ms: providerResult.latency_ms,
               completed_at: new Date(),
               ...usageNumbers(providerResult)
             }
@@ -383,18 +395,13 @@ export async function executeAgent<TAgentName extends AgentNameType>(
           };
         }
 
-        await prisma.agentCall.update({
+        await db.agentCall.update({
           where: { id: agentCall.id },
           data: {
-            provider: providerResult.provider,
-            provider_response_id: providerResult.provider_response_id,
-            provider_request_id: providerResult.provider_request_id,
-            raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
             output_payload: prismaJson(parsedOutput.data),
             output_validated: true,
             retry_count: retryCount,
             call_status: "succeeded",
-            latency_ms: providerResult.latency_ms,
             completed_at: new Date(),
             ...usageNumbers(providerResult)
           }
@@ -412,19 +419,14 @@ export async function executeAgent<TAgentName extends AgentNameType>(
       }
 
       if (providerResult.status === "refused") {
-        await prisma.agentCall.update({
+        await db.agentCall.update({
           where: { id: agentCall.id },
           data: {
-            provider: providerResult.provider,
-            provider_response_id: providerResult.provider_response_id,
-            provider_request_id: providerResult.provider_request_id,
-            raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
             refusal_text: providerResult.refusal ?? "Provider refused the request.",
             output_validated: false,
             retry_count: retryCount,
             call_status: "failed",
             error_category: "provider_refusal",
-            latency_ms: providerResult.latency_ms,
             completed_at: new Date(),
             ...usageNumbers(providerResult)
           }
@@ -440,19 +442,14 @@ export async function executeAgent<TAgentName extends AgentNameType>(
       }
 
       if (providerResult.status === "incomplete") {
-        await prisma.agentCall.update({
+        await db.agentCall.update({
           where: { id: agentCall.id },
           data: {
-            provider: providerResult.provider,
-            provider_response_id: providerResult.provider_response_id,
-            provider_request_id: providerResult.provider_request_id,
-            raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
             incomplete_reason: providerResult.incomplete_reason ?? "incomplete",
             output_validated: false,
             retry_count: retryCount,
             call_status: "failed",
             error_category: "incomplete",
-            latency_ms: providerResult.latency_ms,
             completed_at: new Date(),
             ...usageNumbers(providerResult)
           }
@@ -473,19 +470,14 @@ export async function executeAgent<TAgentName extends AgentNameType>(
           message: "Provider request failed.",
           retryable: false
         } satisfies SanitizedAgentError);
-      await prisma.agentCall.update({
+      await db.agentCall.update({
         where: { id: agentCall.id },
         data: {
-          provider: providerResult.provider,
-          provider_response_id: providerResult.provider_response_id,
-          provider_request_id: providerResult.provider_request_id,
-          raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
           output_validated: false,
           retry_count: retryCount,
           call_status: "failed",
           error_category: error.category,
           validation_error: error.message,
-          latency_ms: providerResult.latency_ms,
           completed_at: new Date(),
           ...usageNumbers(providerResult)
         }
@@ -501,7 +493,7 @@ export async function executeAgent<TAgentName extends AgentNameType>(
     }
   } catch (error) {
     const sanitized = toFailure(error);
-    await prisma.agentCall.update({
+    await db.agentCall.update({
       where: { id: agentCall.id },
       data: {
         output_validated: false,

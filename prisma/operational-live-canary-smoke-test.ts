@@ -1,5 +1,5 @@
 import { parse } from "csv-parse/sync";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import http from "node:http";
 import { Prisma } from "@prisma/client";
@@ -24,11 +24,13 @@ import {
   operationalLiveCanaryDatabaseName,
   reconcileOperationalLiveCanaryRun,
   recoverOperationalLiveCanaryRun,
+  replayOperationalLiveCanaryResponse,
   runOperationalLiveCanary,
   runOperationalLiveCanaryTransportProbe,
   validateOperationalLiveCanaryManifest
 } from "../src/lib/services/operational-live-canary/service";
 import { normalizeOpenAITransportError } from "../src/lib/llm/openai-transport-diagnostics";
+import { normalizeOpenAIResponsesResult } from "../src/lib/llm/openai-responses-normalizer";
 import { OpenAIResponsesProvider } from "../src/lib/llm/providers/openai-responses-provider";
 import { agentOutputSchemas } from "../src/lib/agents/contracts";
 import { activeOperationalConfigHash } from "../src/lib/agents/operational/approved-config";
@@ -91,6 +93,14 @@ type SuiteName =
   | "cost-uncertainty"
   | "cli-ledger-consistency"
   | "transport-environment"
+  | "response-normalization"
+  | "usage-extraction"
+  | "provider-effective-separation"
+  | "fallback-reason"
+  | "response-replay"
+  | "agent-call-linkage"
+  | "aggregate-reconciliation"
+  | "cli-final-state"
   | "report-consistency"
   | "execution-path"
   | "dependency"
@@ -1640,6 +1650,285 @@ async function transportEnvironmentSmoke() {
   });
 }
 
+function sdkResponseFixture(overrides: Record<string, unknown> = {}) {
+  const output = responseCollectionOutput();
+  return {
+    id: "resp_fixture_123",
+    object: "response",
+    created_at: 1,
+    status: "completed",
+    model: "gpt-5.4-mini-2026-03-17",
+    output: [{
+      id: "msg_fixture_123",
+      type: "message",
+      status: "completed",
+      role: "assistant",
+      content: [{
+        type: "output_text",
+        text: JSON.stringify(output),
+        annotations: [],
+        parsed: output
+      }]
+    }],
+    output_parsed: output,
+    usage: {
+      input_tokens: 100,
+      output_tokens: 40,
+      total_tokens: 140,
+      input_tokens_details: { cached_tokens: 10 },
+      output_tokens_details: { reasoning_tokens: 12 }
+    },
+    ...overrides
+  };
+}
+
+async function responseNormalizationSmoke() {
+  const normalized = normalizeOpenAIResponsesResult({
+    sdkResponse: sdkResponseFixture(),
+    providerRequestId: "req_fixture",
+    responseBodyReceived: true,
+    modelSnapshot: "gpt-5.4-mini-2026-03-17"
+  });
+  assert(normalized.transport.responseId === "resp_fixture_123", "Response ID should normalize.");
+  assert(normalized.transport.requestId === "req_fixture", "Request ID should normalize separately.");
+  assert(normalized.transport.acknowledged, "Successful response should be acknowledged.");
+  assert(normalized.rawOutput.outputTextPath === "output.0.content.0.text", "Output text path should be captured.");
+  assert(normalized.rawOutput.parsedOutputPath === "output_parsed", "Parsed output path should be captured.");
+  assert(normalized.rawOutput.outcome === "valid", "Successful structured output should be raw-valid.");
+  assert(normalized.usage.status === "usage_verified", "Complete usage should verify.");
+  assert(normalized.usage.inputTokens === 100, "Input tokens should extract.");
+  assert(normalized.usage.outputTokens === 40, "Output tokens should extract.");
+  assert(normalized.usage.totalTokens === 140, "Total tokens should extract.");
+  assert(normalized.usage.calculatedCostUsd !== null, "Cost should calculate from pricing registry.");
+}
+
+async function usageExtractionSmoke() {
+  const normalized = normalizeOpenAIResponsesResult({
+    sdkResponse: sdkResponseFixture({
+      usage: {
+        input_tokens: 200,
+        output_tokens: 60,
+        total_tokens: 260,
+        input_tokens_details: { cached_tokens: 25 },
+        output_tokens_details: { reasoning_tokens: 30 }
+      }
+    }),
+    providerRequestId: "req_usage",
+    responseBodyReceived: true,
+    modelSnapshot: "gpt-5.4-mini-2026-03-17"
+  });
+  assert(normalized.usage.cachedInputTokens === 25, "Cached input tokens should extract from cached_tokens.");
+  assert(normalized.usage.reasoningTokens === 30, "Reasoning tokens should extract from output token details.");
+  assert(normalized.usage.sourcePaths.includes("usage.input_tokens_details.cached_tokens"), "Cached token path missing.");
+  assert(normalized.usage.sourcePaths.includes("usage.output_tokens_details.reasoning_tokens"), "Reasoning token path missing.");
+
+  const missing = normalizeOpenAIResponsesResult({
+    sdkResponse: sdkResponseFixture({ usage: undefined }),
+    providerRequestId: "req_missing_usage",
+    responseBodyReceived: true,
+    modelSnapshot: "gpt-5.4-mini-2026-03-17"
+  });
+  assert(missing.usage.status === "usage_missing_after_response", "Missing usage should remain missing.");
+
+  const malformed = normalizeOpenAIResponsesResult({
+    sdkResponse: sdkResponseFixture({ usage: { input_tokens: 2, output_tokens: 3, total_tokens: 99 } }),
+    providerRequestId: "req_malformed_usage",
+    responseBodyReceived: true,
+    modelSnapshot: "gpt-5.4-mini-2026-03-17"
+  });
+  assert(malformed.usage.status === "usage_malformed", "Inconsistent total tokens should be malformed.");
+}
+
+async function providerEffectiveSeparationSmoke() {
+  await ensureDatabaseReady();
+  await withSmokeCanaryDatabase(async () => {
+    const prisma = createCanaryPrismaClient();
+    try {
+      const run = await createCanaryRunSkeleton({ status: "running", runPublicId: `olcr_sep_${Date.now()}`, prisma });
+      const step = run.steps[0];
+      await prisma.operationalLiveCanaryDispatchAttempt.create({
+        data: {
+          dispatch_public_id: "olcd_sep_smoke",
+          run_db_id: run.id,
+          step_db_id: step.id,
+          logical_invocation_key: step.logical_invocation_key,
+          attempt_index: 1,
+          dispatch_key: `sep:${run.run_public_id}:${step.step_public_id}`,
+          provider: "openai",
+          transport: "openai_responses",
+          adapter_version: "openai-responses-adapter-v2",
+          network_dispatch_expected: true,
+          network_dispatch_started: true,
+          transport_adapter_entered: true,
+          request_serialization_completed: true,
+          fetch_invoked: true,
+          response_headers_received: true,
+          response_body_received: true,
+          network_request_attempt_count: 1,
+          provider_acknowledged_request_count: 1,
+          accounting_complete: true,
+          model_snapshot: "gpt-5.4-mini-2026-03-17",
+          reasoning_effort: "low",
+          execution_path: "smoke",
+          provenance_type: "live_provider",
+          lifecycle_status: "finalized_success",
+          client_dispatch_id: `client_sep_${Date.now()}`,
+          dispatch_started_at: new Date(),
+          response_received_at: new Date(),
+          usage_verified_at: new Date(),
+          finalized_at: new Date(),
+          provider_request_id: "req_sep",
+          provider_response_id: "resp_sep",
+          input_tokens: 100,
+          output_tokens: 40,
+          total_tokens: 140,
+          estimated_cost_usd: new Prisma.Decimal(0.000255),
+          usage_status: "usage_verified",
+          cost_status: "usage_verified",
+          transport_outcome: "live_provider_success",
+          raw_output_outcome: "schema_invalid",
+          effective_system_outcome: "deterministic_fallback_used",
+          fallback_reason: "provider_output_schema_invalid"
+        }
+      });
+      const reconciliation = await reconcileOperationalLiveCanaryRun(run.run_public_id);
+      const objective = reconciliation.steps[0].dispatches[0].transport_objective;
+      assert(objective.transport_outcome === "live_provider_success", "Transport success should remain separate.");
+      assert(objective.raw_output_outcome === "schema_invalid", "Raw schema failure should be preserved.");
+      assert(objective.effective_system_outcome === "deterministic_fallback_used", "Effective fallback should be separate.");
+      assert(objective.passed === false, "Fallback should not pass transport objective.");
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+}
+
+async function fallbackReasonSmoke() {
+  const cases = [
+    [
+      "valid",
+      sdkResponseFixture(),
+      "valid",
+      null
+    ],
+    [
+      "missing",
+      { id: "resp_missing", status: "completed", usage: sdkResponseFixture().usage },
+      "missing",
+      "provider_output_missing"
+    ],
+    [
+      "refused",
+      sdkResponseFixture({
+        output: [{ type: "message", content: [{ type: "refusal", refusal: "I cannot comply." }] }]
+      }),
+      "refused",
+      "provider_output_refused"
+    ],
+    [
+      "incomplete",
+      sdkResponseFixture({ status: "incomplete", incomplete_details: { reason: "max_output_tokens" } }),
+      "incomplete",
+      "provider_output_incomplete"
+    ]
+  ] as const;
+  for (const [label, sdkResponse, expectedOutcome, expectedReason] of cases) {
+    const normalized = normalizeOpenAIResponsesResult({
+      sdkResponse,
+      providerRequestId: "req_fallback",
+      responseBodyReceived: true,
+      modelSnapshot: "gpt-5.4-mini-2026-03-17"
+    });
+    const derivedReason = normalized.outcomes.rawOutputOutcome === "valid"
+      ? null
+      : `provider_output_${normalized.outcomes.rawOutputOutcome}`;
+    assert(normalized.transport.acknowledged, `${label} fixture should be acknowledged.`);
+    assert(normalized.outcomes.rawOutputOutcome === expectedOutcome, `${label} raw-output outcome mismatch.`);
+    assert(derivedReason === expectedReason, `${label} fallback reason should be stable.`);
+  }
+}
+
+async function responseReplaySmoke() {
+  await ensureDatabaseReady();
+  await withSmokeCanaryDatabase(async () => {
+    const prisma = createCanaryPrismaClient();
+    try {
+      const run = await createCanaryRunSkeleton({ status: "failed", runPublicId: `olcr_replay_${Date.now()}`, prisma });
+      const step = run.steps[0];
+      const invocationKey = `operational-live-canary:${run.run_public_id}:${step.logical_invocation_key}`;
+      const agent = await prisma.agentCall.create({
+        data: {
+          id: randomUUID(),
+          agent_name: step.agent_name,
+          agent_version: "smoke",
+          model_name: "gpt-5.4-mini-2026-03-17",
+          provider: "openai",
+          provider_response_id: "resp_replay",
+          provider_request_id: "req_replay",
+          client_request_id: "agent_req_replay",
+          agent_invocation_key: invocationKey,
+          prompt_version: "response-collection-v5",
+          schema_version: "response-collection-output-v3",
+          input_payload: {},
+          raw_output: sdkResponseFixture({ id: "resp_replay" }) as Prisma.InputJsonValue,
+          output_payload: responseCollectionOutput() as Prisma.InputJsonValue,
+          output_validated: true,
+          call_status: "succeeded",
+          input_tokens: 100,
+          output_tokens: 40,
+          total_tokens: 140,
+          token_usage: (sdkResponseFixture().usage ?? {}) as Prisma.InputJsonValue,
+          live_call_allowed: true
+        }
+      });
+      await prisma.operationalLiveCanaryDispatchAttempt.create({
+        data: {
+          dispatch_public_id: "olcd_replay_smoke",
+          run_db_id: run.id,
+          step_db_id: step.id,
+          agent_call_db_id: agent.id,
+          logical_invocation_key: step.logical_invocation_key,
+          attempt_index: 1,
+          dispatch_key: `replay:${run.run_public_id}:${step.step_public_id}`,
+          provider: "openai",
+          transport: "openai_responses",
+          adapter_version: "openai-responses-adapter-v2",
+          network_dispatch_expected: true,
+          network_dispatch_started: true,
+          fetch_invoked: true,
+          response_headers_received: true,
+          response_body_received: true,
+          network_request_attempt_count: 1,
+          provider_acknowledged_request_count: 1,
+          model_snapshot: "gpt-5.4-mini-2026-03-17",
+          reasoning_effort: "low",
+          execution_path: "smoke",
+          provenance_type: "live_provider",
+          lifecycle_status: "finalized_success",
+          client_dispatch_id: `client_replay_${Date.now()}`,
+          provider_request_id: "req_replay",
+          provider_response_id: "resp_replay",
+          usage_status: "usage_verified",
+          cost_status: "usage_verified",
+          accounting_complete: true
+        }
+      });
+      await prisma.operationalLiveCanaryStep.update({
+        where: { id: step.id },
+        data: { agent_call_public_id: "agent_call_replay", effective_result_public_id: null }
+      });
+      const before = await reconcileOperationalLiveCanaryRun(run.run_public_id);
+      const replay = await replayOperationalLiveCanaryResponse(run.run_public_id);
+      const after = await reconcileOperationalLiveCanaryRun(run.run_public_id);
+      assert(replay.mutated === false, "Replay must not mutate data.");
+      assert(replay.expected_accounting.usage_status === "usage_verified", "Replay should recover verified usage.");
+      assert(JSON.stringify(before) === JSON.stringify(after), "Replay should be read-only.");
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+}
+
 async function dryRunSmoke() {
   runCommand("npx", ["tsx", "prisma/operational-live-canary-db.ts", "prepare"], {
     timeoutMs: 120_000
@@ -1724,6 +2013,24 @@ async function main() {
     await cliLedgerConsistencySmoke();
   } else if (suite === "transport-environment") {
     await transportEnvironmentSmoke();
+  } else if (suite === "response-normalization") {
+    await responseNormalizationSmoke();
+  } else if (suite === "usage-extraction") {
+    await usageExtractionSmoke();
+  } else if (suite === "provider-effective-separation") {
+    await providerEffectiveSeparationSmoke();
+  } else if (suite === "fallback-reason") {
+    await fallbackReasonSmoke();
+  } else if (suite === "response-replay") {
+    await responseReplaySmoke();
+  } else if (suite === "agent-call-linkage") {
+    await responseReplaySmoke();
+  } else if (suite === "aggregate-reconciliation") {
+    await requestAccountingSmoke();
+    await providerEffectiveSeparationSmoke();
+  } else if (suite === "cli-final-state") {
+    await cliLedgerConsistencySmoke();
+    await providerEffectiveSeparationSmoke();
   } else if (suite === "report-consistency") {
     await reportConsistencySmoke();
   } else if (suite === "execution-path") {

@@ -1231,10 +1231,15 @@ descriptor without making a provider request. Diagnosis is read-only and
 reports unrecoverable historical errors without inventing a cause.
 
 Transport accounting separates dispatch rows, actual fetch attempts, and
-provider-acknowledged requests. New rows set `network_dispatch_started` only at
-the actual fetch boundary. If fetch is invoked but usage is not captured, the
-run is marked `cost_unverified_after_dispatch` and is not safe to resume
-automatically.
+provider-acknowledged requests. Corrected diagnostics treat provider request
+count as actual network attempts and show preserved historical counters
+separately when they differ. New rows set `network_dispatch_started` only at the
+actual fetch boundary. If fetch is invoked but usage is not captured, the run is
+marked `cost_unverified_after_dispatch` and is not safe to resume automatically.
+Successful Responses API results are normalized before raw validation or
+fallback handling so request IDs, response IDs, status, usage source paths,
+token counts, pricing, raw-output outcome, effective-system outcome, and
+fallback reason remain separate.
 
 Reset-heavy smoke tests use `conversational_mcq_live_canary_smoke_e2e` and do
 not reset the historical `_live_canary_e2e` database.
@@ -1264,6 +1269,8 @@ npm run operational:live-canary:inspect -- --run <run_public_id>
 npm run operational:live-canary:report -- --run <run_public_id>
 npm run operational:live-canary:forensics -- --run <run_public_id>
 npm run operational:live-canary:reconcile -- --run <run_public_id>
+npm run operational:live-canary:response-audit -- --run <run_public_id>
+npm run operational:live-canary:response-replay -- --run <run_public_id>
 npm run operational:live-canary:review-export -- --run <run_public_id>
 ```
 

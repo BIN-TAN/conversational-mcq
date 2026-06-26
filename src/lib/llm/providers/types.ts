@@ -1,6 +1,13 @@
 import type { z } from "zod";
 import type { AgentName } from "@/lib/agents/names";
 import type { AgentModelConfig } from "@/lib/llm/config";
+import type {
+  OpenAIResponsesEffectiveOutcome,
+  OpenAIResponsesFallbackReason,
+  OpenAIResponsesRawOutputOutcome,
+  OpenAIResponsesTransportOutcome,
+  normalizeOpenAIResponsesResult
+} from "@/lib/llm/openai-responses-normalizer";
 
 export type SanitizedAgentError = {
   category:
@@ -101,6 +108,16 @@ export type OpenAITransportTelemetry = OpenAITransportMilestone & {
   http_status?: number;
   retry_after_ms?: number | null;
   normalized_error?: SanitizedOpenAITransportError;
+  response_status?: string | null;
+  incomplete_details?: unknown;
+  normalized_response?: ReturnType<typeof normalizeOpenAIResponsesResult>;
+  transport_outcome?: OpenAIResponsesTransportOutcome;
+  raw_output_outcome?: OpenAIResponsesRawOutputOutcome;
+  effective_system_outcome?: OpenAIResponsesEffectiveOutcome;
+  fallback_reason?: OpenAIResponsesFallbackReason | null;
+  usage_status?: string;
+  usage_source_paths?: string[];
+  raw_response_hash?: string;
 };
 
 export type StructuredAgentRequest<TInput, TOutput> = {
