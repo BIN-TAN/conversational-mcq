@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { StructuredAgentResult } from "./types";
 
 export type ProviderAuditMetadata = {
@@ -39,12 +40,57 @@ function rawOutputResponseId(result: StructuredAgentResult<unknown>) {
   return undefined;
 }
 
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "null";
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stableJson(entry)).join(",")}]`;
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`);
+
+  return `{${entries.join(",")}}`;
+}
+
+function rawOutputHasProviderResponseEvidence(value: unknown) {
+  const raw = record(value);
+
+  if (!raw) {
+    return false;
+  }
+
+  return [
+    "id",
+    "status",
+    "output",
+    "output_parsed",
+    "incomplete_details",
+    "error",
+    "usage"
+  ].some((key) => key in raw);
+}
+
+function rawOutputEvidenceHash(result: StructuredAgentResult<unknown>) {
+  if (result.provider !== "openai" || !rawOutputHasProviderResponseEvidence(result.raw_output)) {
+    return undefined;
+  }
+
+  return createHash("sha256")
+    .update(stableJson(result.raw_output))
+    .digest("hex");
+}
+
 function responseEvidenceHash(result: StructuredAgentResult<unknown>) {
   const normalized = record(result.transport_telemetry?.normalized_response);
   const rawOutput = record(normalized?.rawOutput);
   const hash =
     nonEmptyString(result.transport_telemetry?.raw_response_hash) ??
-    nonEmptyString(rawOutput?.rawResponseHash);
+    nonEmptyString(rawOutput?.rawResponseHash) ??
+    rawOutputEvidenceHash(result);
 
   return hash ? `openai_response_hash:${hash}` : undefined;
 }

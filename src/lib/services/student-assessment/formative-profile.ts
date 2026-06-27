@@ -130,6 +130,23 @@ function prismaJson(value: unknown) {
   return toPrismaJson(value) ?? Prisma.JsonNull;
 }
 
+export function chatNativeProviderAuditUpdate(
+  providerResult: StructuredAgentResult<unknown>
+) {
+  return {
+    provider: providerResult.provider,
+    ...providerAuditMetadata(providerResult),
+    raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
+    latency_ms: providerResult.latency_ms,
+    input_tokens: providerResult.usage?.input_tokens,
+    output_tokens: providerResult.usage?.output_tokens,
+    total_tokens: providerResult.usage?.total_tokens,
+    token_usage: providerResult.usage
+      ? prismaJson(providerResult.usage.raw ?? providerResult.usage)
+      : undefined
+  };
+}
+
 function jsonRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -574,8 +591,6 @@ async function callProviderOrMock(input: {
       schema_version: CHAT_NATIVE_PROFILE_SCHEMA_VERSION
     }
   });
-  const auditMetadata = providerAuditMetadata(providerResult);
-
   if (providerResult.status === "completed") {
     const parsed = ChatNativeFormativeProfileOutputSchema.safeParse(providerResult.parsed_output);
     const validation = parsed.success
@@ -586,17 +601,10 @@ async function callProviderOrMock(input: {
       await prisma.agentCall.update({
         where: { id: agentCall.id },
         data: {
-          provider: providerResult.provider,
-          ...auditMetadata,
-          raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
+          ...chatNativeProviderAuditUpdate(providerResult),
           output_payload: prismaJson(parsed.data),
           output_validated: true,
           call_status: "succeeded",
-          latency_ms: providerResult.latency_ms,
-          input_tokens: providerResult.usage?.input_tokens,
-          output_tokens: providerResult.usage?.output_tokens,
-          total_tokens: providerResult.usage?.total_tokens,
-          token_usage: providerResult.usage ? prismaJson(providerResult.usage.raw ?? providerResult.usage) : undefined,
           completed_at: new Date()
         }
       });
@@ -615,9 +623,7 @@ async function callProviderOrMock(input: {
   await prisma.agentCall.update({
     where: { id: agentCall.id },
     data: {
-      provider: providerResult.provider,
-      ...auditMetadata,
-      raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
+      ...chatNativeProviderAuditUpdate(providerResult),
       output_payload: prismaJson(fallbackOutput),
       output_validated: false,
       validation_error:
@@ -627,11 +633,6 @@ async function callProviderOrMock(input: {
       call_status: providerResult.status === "completed" ? "invalid_output" : "failed",
       error_category:
         providerResult.status === "completed" ? "schema_validation" : providerResult.error?.category,
-      latency_ms: providerResult.latency_ms,
-      input_tokens: providerResult.usage?.input_tokens,
-      output_tokens: providerResult.usage?.output_tokens,
-      total_tokens: providerResult.usage?.total_tokens,
-      token_usage: providerResult.usage ? prismaJson(providerResult.usage.raw ?? providerResult.usage) : undefined,
       completed_at: new Date()
     }
   });
@@ -838,8 +839,6 @@ async function callTargetedFeedbackProviderOrMock(input: {
       schema_version: CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION
     }
   });
-  const auditMetadata = providerAuditMetadata(providerResult);
-
   if (providerResult.status === "completed") {
     const parsed = ChatNativeTargetedFeedbackOutputSchema.safeParse(providerResult.parsed_output);
     const validation = parsed.success
@@ -850,17 +849,10 @@ async function callTargetedFeedbackProviderOrMock(input: {
       await prisma.agentCall.update({
         where: { id: agentCall.id },
         data: {
-          provider: providerResult.provider,
-          ...auditMetadata,
-          raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
+          ...chatNativeProviderAuditUpdate(providerResult),
           output_payload: prismaJson(parsed.data),
           output_validated: true,
           call_status: "succeeded",
-          latency_ms: providerResult.latency_ms,
-          input_tokens: providerResult.usage?.input_tokens,
-          output_tokens: providerResult.usage?.output_tokens,
-          total_tokens: providerResult.usage?.total_tokens,
-          token_usage: providerResult.usage ? prismaJson(providerResult.usage.raw ?? providerResult.usage) : undefined,
           completed_at: new Date()
         }
       });
@@ -879,9 +871,7 @@ async function callTargetedFeedbackProviderOrMock(input: {
   await prisma.agentCall.update({
     where: { id: agentCall.id },
     data: {
-      provider: providerResult.provider,
-      ...auditMetadata,
-      raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
+      ...chatNativeProviderAuditUpdate(providerResult),
       output_payload: prismaJson(fallbackOutput),
       output_validated: false,
       validation_error:
@@ -891,11 +881,6 @@ async function callTargetedFeedbackProviderOrMock(input: {
       call_status: providerResult.status === "completed" ? "invalid_output" : "failed",
       error_category:
         providerResult.status === "completed" ? "schema_validation" : providerResult.error?.category,
-      latency_ms: providerResult.latency_ms,
-      input_tokens: providerResult.usage?.input_tokens,
-      output_tokens: providerResult.usage?.output_tokens,
-      total_tokens: providerResult.usage?.total_tokens,
-      token_usage: providerResult.usage ? prismaJson(providerResult.usage.raw ?? providerResult.usage) : undefined,
       completed_at: new Date()
     }
   });

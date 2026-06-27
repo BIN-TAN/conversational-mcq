@@ -50,6 +50,53 @@ function loadedEnvFileNames() {
   return envLoadResult.loadedEnvFiles.map((file) => file.path);
 }
 
+type LiveAuditCall = {
+  id: string;
+  agent_name: string;
+  schema_version: string;
+  provider: string;
+  model_name: string;
+  live_call_allowed: boolean;
+  output_payload: unknown;
+  output_validated: boolean;
+  validation_error: string | null;
+  call_status: string;
+  provider_request_id: string | null;
+  provider_response_id: string | null;
+  client_request_id: string | null;
+  prompt_version: string;
+  raw_output?: unknown;
+  token_usage?: unknown;
+  created_at: Date;
+  completed_at: Date | null;
+};
+
+function objectKeys(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? Object.keys(value).sort()
+    : [];
+}
+
+function sanitizedAuditSummary(call: LiveAuditCall) {
+  return {
+    agent_call_id: call.id,
+    agent_name: call.agent_name,
+    schema_version: call.schema_version,
+    provider: call.provider,
+    call_status: call.call_status,
+    live_call_allowed: call.live_call_allowed,
+    provider_request_id_present: Boolean(call.provider_request_id),
+    provider_response_id_present: Boolean(call.provider_response_id),
+    client_request_id_present: Boolean(call.client_request_id),
+    output_validated: call.output_validated,
+    validation_error_present: Boolean(call.validation_error),
+    raw_output_keys: objectKeys(call.raw_output),
+    token_usage_keys: objectKeys(call.token_usage),
+    created_at: call.created_at.toISOString(),
+    completed_at: call.completed_at?.toISOString() ?? null
+  };
+}
+
 function liveSmokeReadiness() {
   const missingDatabaseOrSession = REQUIRED_DATABASE_ENV.filter((name) => !envPresent(name));
   const missingProvider = REQUIRED_PROVIDER_ENV.filter((name) => !envPresent(name));
@@ -123,20 +170,9 @@ function liveSmokeReadiness() {
 
 function assertLiveAgentCallIsAudited(input: {
   label: string;
-  call: {
-    provider: string;
-    model_name: string;
-    live_call_allowed: boolean;
-    output_payload: unknown;
-    output_validated: boolean;
-    validation_error: string | null;
-    call_status: string;
-    provider_request_id: string | null;
-    provider_response_id: string | null;
-    prompt_version: string;
-    schema_version: string;
-  };
+  call: LiveAuditCall;
   schema: typeof ChatNativeFormativeProfileOutputSchema | typeof ChatNativeTargetedFeedbackOutputSchema;
+  audit_context: Array<ReturnType<typeof sanitizedAuditSummary>>;
 }) {
   assert(input.call.provider === "openai", `${input.label}: expected OpenAI provider audit.`);
   assert(input.call.live_call_allowed === true, `${input.label}: live_call_allowed was not stored.`);
@@ -145,7 +181,14 @@ function assertLiveAgentCallIsAudited(input: {
   assert(input.call.schema_version.trim().length > 0, `${input.label}: schema version was not stored.`);
   assert(
     Boolean(input.call.provider_request_id || input.call.provider_response_id),
-    `${input.label}: provider request/response ID metadata was not stored.`
+    `${input.label}: provider request/response ID metadata was not stored.\n${JSON.stringify(
+      {
+        checked_call: sanitizedAuditSummary(input.call),
+        relevant_agent_calls: input.audit_context
+      },
+      null,
+      2
+    )}`
   );
   assert(
     input.schema.safeParse(input.call.output_payload).success,
@@ -279,30 +322,47 @@ async function main() {
       where: { session_public_id: started.session.session_public_id },
       select: { id: true }
     });
-    const profileCall = await prisma.agentCall.findFirstOrThrow({
+    const auditCalls = await prisma.agentCall.findMany({
       where: {
         assessment_session_db_id: session.id,
-        agent_name: "formative_value_and_planning_agent",
-        schema_version: "chat-native-formative-profile-output-v1"
-      }
+        OR: [
+          {
+            agent_name: "formative_value_and_planning_agent",
+            schema_version: "chat-native-formative-profile-output-v1"
+          },
+          {
+            agent_name: "followup_agent",
+            schema_version: "chat-native-targeted-feedback-output-v1"
+          }
+        ]
+      },
+      orderBy: [{ created_at: "asc" }]
     });
-    const targetedCall = await prisma.agentCall.findFirstOrThrow({
-      where: {
-        assessment_session_db_id: session.id,
-        agent_name: "followup_agent",
-        schema_version: "chat-native-targeted-feedback-output-v1"
-      }
-    });
+    const auditContext = auditCalls.map((call) => sanitizedAuditSummary(call));
+    const profileCall = auditCalls.find(
+      (call) =>
+        call.agent_name === "formative_value_and_planning_agent" &&
+        call.schema_version === "chat-native-formative-profile-output-v1"
+    );
+    const targetedCall = auditCalls.find(
+      (call) =>
+        call.agent_name === "followup_agent" &&
+        call.schema_version === "chat-native-targeted-feedback-output-v1"
+    );
+    assert(profileCall, `Missing formative profile agent call.\n${JSON.stringify(auditContext, null, 2)}`);
+    assert(targetedCall, `Missing targeted feedback agent call.\n${JSON.stringify(auditContext, null, 2)}`);
 
     assertLiveAgentCallIsAudited({
       label: "formative profile",
       call: profileCall,
-      schema: ChatNativeFormativeProfileOutputSchema
+      schema: ChatNativeFormativeProfileOutputSchema,
+      audit_context: auditContext
     });
     assertLiveAgentCallIsAudited({
       label: "targeted feedback",
       call: targetedCall,
-      schema: ChatNativeTargetedFeedbackOutputSchema
+      schema: ChatNativeTargetedFeedbackOutputSchema,
+      audit_context: auditContext
     });
 
     const transcript = await getStudentSafeTranscript({
