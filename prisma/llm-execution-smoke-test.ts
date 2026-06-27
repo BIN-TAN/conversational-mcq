@@ -1,6 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 import { executeAgent } from "../src/lib/agents/execute-agent";
 import { agentNames } from "../src/lib/agents/names";
+import { providerAuditMetadata } from "../src/lib/llm/providers/audit-metadata";
+import type { StructuredAgentResult } from "../src/lib/llm/providers/types";
 import { fixtureInputForAgent } from "./llm-fixtures";
 
 const prisma = new PrismaClient();
@@ -48,6 +50,35 @@ async function assertNoWorkflowSideEffects(before: {
 async function main() {
   const prefix = `llm_execution_smoke_${Date.now()}`;
   await cleanup(prefix);
+
+  const syntheticMetadataResult = {
+    provider: "openai",
+    client_request_id: "synthetic_client_request",
+    status: "completed",
+    parsed_output: {},
+    raw_output: { status: "completed", usage: {} },
+    latency_ms: 1,
+    transport_telemetry: {
+      provider: "openai",
+      transport: "openai_responses",
+      adapter_version: "synthetic",
+      client_request_id: "synthetic_client_request",
+      model_name: "synthetic-model",
+      base_url_host: "api.openai.com",
+      base_url_approved: true,
+      transport_adapter_entered: true,
+      request_serialization_completed: true,
+      fetch_invoked: true,
+      response_headers_received: true,
+      response_body_received: true,
+      raw_response_hash: "abc123"
+    }
+  } satisfies StructuredAgentResult<Record<string, never>>;
+  assert(
+    providerAuditMetadata(syntheticMetadataResult).provider_response_id ===
+      "openai_response_hash:abc123",
+    "Provider audit metadata should preserve stable OpenAI response evidence when direct IDs are unavailable."
+  );
 
   const before = {
     profiles: await prisma.studentProfile.count(),

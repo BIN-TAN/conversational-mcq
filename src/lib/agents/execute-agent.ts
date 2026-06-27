@@ -22,6 +22,7 @@ import {
   type AgentModelConfig
 } from "@/lib/llm/config";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
+import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import type {
   OpenAITransportTelemetry,
   SanitizedAgentError,
@@ -119,8 +120,7 @@ function usageNumbers(result: StructuredAgentResult<unknown>) {
 function providerEvidenceUpdate(result: StructuredAgentResult<unknown>) {
   return {
     provider: result.provider,
-    provider_response_id: result.provider_response_id,
-    provider_request_id: result.provider_request_id,
+    ...providerAuditMetadata(result),
     raw_output: prismaJson(redactForAudit(result.raw_output)),
     latency_ms: result.latency_ms,
     ...usageNumbers(result)
@@ -411,8 +411,7 @@ export async function executeAgent<TAgentName extends AgentNameType>(
           status: "succeeded",
           output: parsedOutput.data,
           agent_call_id: agentCall.id,
-          provider_response_id: providerResult.provider_response_id,
-          provider_request_id: providerResult.provider_request_id,
+          ...providerAuditMetadata(providerResult),
           transport_telemetry: providerResult.transport_telemetry,
           retry_count: retryCount
         };

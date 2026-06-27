@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { FormativeValueSchema } from "@/lib/domain/enums";
 import { getLlmRuntimeConfig, resolveAgentModelConfig } from "@/lib/llm/config";
+import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { StructuredAgentResult } from "@/lib/llm/providers/types";
 import { assertNoProhibitedProviderInput, redactForAudit } from "@/lib/agents/redaction";
@@ -573,6 +574,7 @@ async function callProviderOrMock(input: {
       schema_version: CHAT_NATIVE_PROFILE_SCHEMA_VERSION
     }
   });
+  const auditMetadata = providerAuditMetadata(providerResult);
 
   if (providerResult.status === "completed") {
     const parsed = ChatNativeFormativeProfileOutputSchema.safeParse(providerResult.parsed_output);
@@ -585,8 +587,7 @@ async function callProviderOrMock(input: {
         where: { id: agentCall.id },
         data: {
           provider: providerResult.provider,
-          provider_response_id: providerResult.provider_response_id,
-          provider_request_id: providerResult.provider_request_id,
+          ...auditMetadata,
           raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
           output_payload: prismaJson(parsed.data),
           output_validated: true,
@@ -615,8 +616,7 @@ async function callProviderOrMock(input: {
     where: { id: agentCall.id },
     data: {
       provider: providerResult.provider,
-      provider_response_id: providerResult.provider_response_id,
-      provider_request_id: providerResult.provider_request_id,
+      ...auditMetadata,
       raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
       output_payload: prismaJson(fallbackOutput),
       output_validated: false,
@@ -838,6 +838,7 @@ async function callTargetedFeedbackProviderOrMock(input: {
       schema_version: CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION
     }
   });
+  const auditMetadata = providerAuditMetadata(providerResult);
 
   if (providerResult.status === "completed") {
     const parsed = ChatNativeTargetedFeedbackOutputSchema.safeParse(providerResult.parsed_output);
@@ -850,8 +851,7 @@ async function callTargetedFeedbackProviderOrMock(input: {
         where: { id: agentCall.id },
         data: {
           provider: providerResult.provider,
-          provider_response_id: providerResult.provider_response_id,
-          provider_request_id: providerResult.provider_request_id,
+          ...auditMetadata,
           raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
           output_payload: prismaJson(parsed.data),
           output_validated: true,
@@ -880,8 +880,7 @@ async function callTargetedFeedbackProviderOrMock(input: {
     where: { id: agentCall.id },
     data: {
       provider: providerResult.provider,
-      provider_response_id: providerResult.provider_response_id,
-      provider_request_id: providerResult.provider_request_id,
+      ...auditMetadata,
       raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
       output_payload: prismaJson(fallbackOutput),
       output_validated: false,
