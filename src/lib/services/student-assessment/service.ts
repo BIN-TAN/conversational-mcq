@@ -190,6 +190,52 @@ function optionLabels(item: Pick<Item, "options">): string[] {
     .filter((label): label is string => Boolean(label));
 }
 
+function safeOptionEntries(value: unknown): Array<{ label: string; text: string }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const record = entry as Record<string, unknown>;
+      const label = typeof record.label === "string" ? record.label : "";
+      const text = typeof record.text === "string" ? record.text : "";
+
+      if (!label || !text) {
+        return null;
+      }
+
+      return { label, text };
+    })
+    .filter((entry): entry is { label: string; text: string } => Boolean(entry));
+}
+
+function initialItemAgentMessage(item: Pick<Item, "item_order" | "item_stem" | "options">): string {
+  const options = safeOptionEntries(item.options)
+    .map((option) => `${option.label}. ${option.text}`)
+    .join("\n");
+
+  return [
+    `Question ${item.item_order} of 3`,
+    "",
+    item.item_stem,
+    "",
+    options,
+    "",
+    "What is your answer?"
+  ]
+    .filter((part) => part !== "")
+    .join("\n");
+}
+
+const INITIAL_ADMIN_AGENT_NAME = "deterministic_initial_administration";
+const PACKAGE_REVIEW_MESSAGE =
+  "I have your three responses. You can review them or continue to feedback.";
+
 function normalizeTemptingOptionEvidence(value: unknown): TemptingOptionEvidence | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -1275,6 +1321,21 @@ export async function startConceptUnitInitialAdministration(input: {
     payload: { item_public_id: includedItems[0]?.item_public_id },
     occurred_at: now
   });
+  if (includedItems[0]) {
+    await logInitialAgentPrompt({
+      session_db_id: session.id,
+      concept_unit_session_db_id: conceptUnitSession.id,
+      item_db_id: includedItems[0].id,
+      phase: "initial_item_administration",
+      prompt_type: "item_presented",
+      message_text: initialItemAgentMessage(includedItems[0]),
+      structured_payload: {
+        item_public_id: includedItems[0].item_public_id,
+        item_order: includedItems[0].item_order
+      },
+      occurred_at: now
+    });
+  }
 
   return getStudentSessionState(input);
 }
@@ -1521,6 +1582,52 @@ async function logStudentTurnAndEvent(input: {
   });
 }
 
+async function logInitialAgentPrompt(input: {
+  session_db_id: string;
+  concept_unit_session_db_id: string;
+  item_db_id?: string;
+  phase: AssessmentPhase;
+  prompt_type:
+    | "item_presented"
+    | "request_reasoning"
+    | "request_confidence"
+    | "request_tempting_option"
+    | "request_tempting_reason"
+    | "package_review";
+  message_text: string;
+  structured_payload?: Record<string, unknown>;
+  occurred_at?: Date;
+}) {
+  const now = input.occurred_at ?? new Date();
+  const payload = {
+    source: INITIAL_ADMIN_AGENT_NAME,
+    prompt_type: input.prompt_type,
+    ...(input.structured_payload ?? {})
+  };
+
+  await logProcessEvent({
+    assessment_session_db_id: input.session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    item_db_id: input.item_db_id,
+    event_type: "agent_message_shown",
+    event_category: "initial_administration",
+    event_source: "backend",
+    payload,
+    occurred_at: now
+  });
+  await logConversationTurn({
+    assessment_session_db_id: input.session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    item_db_id: input.item_db_id,
+    phase: input.phase,
+    actor_type: "agent",
+    agent_name: INITIAL_ADMIN_AGENT_NAME,
+    message_text: input.message_text,
+    structured_payload: payload,
+    created_at: now
+  });
+}
+
 export async function recordSelectedOption(input: {
   student_user_db_id: string;
   session_public_id: string;
@@ -1583,6 +1690,45 @@ export async function recordSelectedOption(input: {
           item_public_id: context.item.item_public_id,
           selected_option: data.selected_option,
           revised: selectedChanged
+        }
+      });
+      await logProcessEvent({
+        assessment_session_db_id: context.session.id,
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id,
+        event_type: "option_clicked",
+        event_category: "initial_administration",
+        event_source: "frontend",
+        payload: {
+          item_public_id: context.item.item_public_id,
+          selected_option: data.selected_option,
+          revised: selectedChanged
+        }
+      });
+      if (selectedChanged) {
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          event_type: "answer_changed",
+          event_category: "initial_administration",
+          event_source: "frontend",
+          payload: {
+            item_public_id: context.item.item_public_id,
+            selected_option: data.selected_option
+          }
+        });
+      }
+      await logInitialAgentPrompt({
+        session_db_id: context.session.id,
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id,
+        phase: context.session.current_phase,
+        prompt_type: "request_reasoning",
+        message_text: `What is your reason for choosing ${data.selected_option}?`,
+        structured_payload: {
+          item_public_id: context.item.item_public_id,
+          selected_option: data.selected_option
         }
       });
 
@@ -1649,6 +1795,30 @@ export async function recordReasoning(input: {
           revised: hadReasoning
         }
       });
+      await logProcessEvent({
+        assessment_session_db_id: context.session.id,
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id,
+        event_type: "reasoning_submitted",
+        event_category: "initial_administration",
+        event_source: "frontend",
+        payload: {
+          item_public_id: context.item.item_public_id,
+          revised: hadReasoning,
+          reasoning_length: data.reasoning_text.trim().length
+        }
+      });
+      await logInitialAgentPrompt({
+        session_db_id: context.session.id,
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id,
+        phase: context.session.current_phase,
+        prompt_type: "request_confidence",
+        message_text: "How confident are you: Low, Medium, or High?",
+        structured_payload: {
+          item_public_id: context.item.item_public_id
+        }
+      });
 
       return {
         action_status: "saved",
@@ -1712,6 +1882,31 @@ export async function recordConfidence(input: {
           item_public_id: context.item.item_public_id,
           confidence_rating: data.confidence_rating,
           revised: confidenceChanged
+        }
+      });
+      await logProcessEvent({
+        assessment_session_db_id: context.session.id,
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id,
+        event_type: "confidence_clicked",
+        event_category: "initial_administration",
+        event_source: "frontend",
+        payload: {
+          item_public_id: context.item.item_public_id,
+          confidence_rating: data.confidence_rating,
+          revised: confidenceChanged
+        }
+      });
+      await logInitialAgentPrompt({
+        session_db_id: context.session.id,
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id,
+        phase: context.session.current_phase,
+        prompt_type: "request_tempting_option",
+        message_text:
+          "Was another option tempting? If yes, which one, and what made it tempting? You can also say No.",
+        structured_payload: {
+          item_public_id: context.item.item_public_id
         }
       });
 
@@ -1829,6 +2024,21 @@ export async function recordTemptingOption(input: {
         message_text: messageText,
         structured_payload: structuredPayload
       });
+      if (temptingOptionReason) {
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          event_type: "tempting_option_reason_submitted",
+          event_category: "initial_administration",
+          event_source: "frontend",
+          payload: {
+            item_public_id: context.item.item_public_id,
+            tempting_option: temptingOption,
+            tempting_option_reason_length: temptingOptionReason.length
+          }
+        });
+      }
 
       const itemComplete = noTemptingOption || Boolean(temptingOptionReason);
       const response = await getOrCreateItemResponse({
@@ -1882,7 +2092,13 @@ export async function recordTemptingOption(input: {
       if (itemComplete && nextState.current_item) {
         const nextItem = await prisma.item.findUnique({
           where: { item_public_id: nextState.current_item.item_public_id },
-          select: { id: true, item_public_id: true }
+          select: {
+            id: true,
+            item_public_id: true,
+            item_order: true,
+            item_stem: true,
+            options: true
+          }
         });
 
         if (nextItem) {
@@ -1895,7 +2111,53 @@ export async function recordTemptingOption(input: {
             event_source: "backend",
             payload: { item_public_id: nextItem.item_public_id }
           });
+          await logInitialAgentPrompt({
+            session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: nextItem.id,
+            phase: context.session.current_phase,
+            prompt_type: "item_presented",
+            message_text: initialItemAgentMessage(nextItem),
+            structured_payload: {
+              item_public_id: nextItem.item_public_id,
+              item_order: nextItem.item_order
+            }
+          });
         }
+      } else if (!itemComplete && nextState.assessment_state === "AWAIT_TEMPTING_REASON") {
+        await logInitialAgentPrompt({
+          session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          phase: context.session.current_phase,
+          prompt_type: "request_tempting_reason",
+          message_text: "What made that option seem tempting?",
+          structured_payload: {
+            item_public_id: context.item.item_public_id,
+            tempting_option: temptingOption
+          }
+        });
+      } else if (itemComplete && nextState.assessment_state === "PACKAGE_REVIEW") {
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          event_type: "package_review_opened",
+          event_category: "initial_administration",
+          event_source: "backend",
+          payload: {
+            concept_unit_public_id: nextState.current_concept_unit?.concept_unit_public_id ?? null
+          }
+        });
+        await logInitialAgentPrompt({
+          session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          phase: context.session.current_phase,
+          prompt_type: "package_review",
+          message_text: PACKAGE_REVIEW_MESSAGE,
+          structured_payload: {
+            concept_unit_public_id: nextState.current_concept_unit?.concept_unit_public_id ?? null
+          }
+        });
       }
 
       const result = {
@@ -2538,6 +2800,10 @@ function studentTranscriptInteractionType(input: {
     return input.actor_type === "agent" ? "followup_assistant" : "followup_student";
   }
 
+  if (input.actor_type && input.actor_type !== "student") {
+    return "agent_message";
+  }
+
   if (input.message_text) {
     return "reasoning";
   }
@@ -2576,7 +2842,8 @@ export async function getStudentSafeTranscript(input: {
           }
         },
         { agent_name: "response_collection_agent" },
-        { agent_name: "deterministic_response_collection_fallback" }
+        { agent_name: "deterministic_response_collection_fallback" },
+        { agent_name: INITIAL_ADMIN_AGENT_NAME }
       ]
     },
     orderBy: [{ created_at: "asc" }],

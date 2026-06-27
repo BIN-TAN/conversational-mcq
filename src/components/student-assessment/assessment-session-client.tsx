@@ -117,6 +117,45 @@ function ChatBubble({ entry }: { entry: StudentTranscriptEntry }) {
   );
 }
 
+function shouldHideActiveAgentTranscriptEntry(entry: StudentTranscriptEntry, state: StudentSessionState) {
+  if (entry.actor !== "assistant") {
+    return false;
+  }
+
+  const currentItemPublicId = state.current_item?.item_public_id ?? null;
+  const sameCurrentItem = Boolean(currentItemPublicId && entry.item_public_id === currentItemPublicId);
+  const text = entry.message_text;
+
+  if (
+    (state.assessment_state === "ITEM_PRESENTED" || state.assessment_state === "AWAIT_ANSWER") &&
+    sameCurrentItem
+  ) {
+    return text.startsWith(`Question ${state.current_item?.item_order ?? ""} of 3`);
+  }
+
+  if (state.assessment_state === "AWAIT_REASON" && sameCurrentItem) {
+    return text.startsWith("What is your reason for choosing");
+  }
+
+  if (state.assessment_state === "AWAIT_CONFIDENCE" && sameCurrentItem) {
+    return text.startsWith("How confident are you");
+  }
+
+  if (state.assessment_state === "AWAIT_TEMPTING_OPTION" && sameCurrentItem) {
+    return text.startsWith("Was another option tempting?");
+  }
+
+  if (state.assessment_state === "AWAIT_TEMPTING_REASON" && sameCurrentItem) {
+    return text.startsWith("What made that option seem tempting?");
+  }
+
+  if (state.assessment_state === "PACKAGE_REVIEW") {
+    return text.startsWith("I have your three responses.");
+  }
+
+  return false;
+}
+
 function AgentMessage({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex justify-start">
@@ -1165,6 +1204,9 @@ export function AssessmentSessionClient({
     onRequestProgression: handleRequestProgression,
     onProgressionChoice: handleProgressionChoice
   });
+  const visibleTranscript = transcript.filter(
+    (entry) => !shouldHideActiveAgentTranscriptEntry(entry, state)
+  );
 
   return (
     <div className="mx-auto flex min-h-[calc(100vh-7rem)] w-full max-w-5xl flex-col px-4 py-6 sm:px-6 lg:px-8">
@@ -1222,7 +1264,7 @@ export function AssessmentSessionClient({
           </button>
         ) : null}
         <div className="mt-4 flex flex-1 flex-col gap-4" data-testid="chat-transcript">
-          {transcript.map((entry) => (
+          {visibleTranscript.map((entry) => (
             <ChatBubble entry={entry} key={`${entry.created_at}-${entry.actor}-${entry.message_text}`} />
           ))}
           {activePrompt}
