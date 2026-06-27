@@ -260,15 +260,19 @@ async function main() {
       where: {
         assessment_session_db_id: session.id,
         agent_name: "followup_agent",
-        schema_version: "chat-native-targeted-feedback-output-v1"
+        schema_version: "chat-native-formative-activity-evaluation-output-v1"
       }
     });
     const targetedOutput = ChatNativeTargetedFeedbackOutputSchema.safeParse(targetedCall.output_payload);
     assert(targetedOutput.success, "Targeted feedback output did not validate.");
     assert(
-      targetedOutput.data.revision_prompt !==
+      targetedOutput.data.formative_activity_evaluation.student_facing_next_prompt !==
         "Please revise your answer, reasoning, or confidence based on this feedback.",
       "Revision prompt used the prohibited generic sentence."
+    );
+    assert(
+      targetedOutput.data.formative_activity_evaluation.next_action === "ask_revision",
+      "Expected partial formative response to request revision."
     );
 
     let transcript = await getStudentSafeTranscript({
@@ -325,6 +329,9 @@ async function main() {
 
     for (const expected of [
       "followup_response_submitted",
+      "formative_activity_evaluated",
+      "learning_profile_updated",
+      "engagement_profile_updated",
       "targeted_feedback_shown",
       "revision_requested",
       "revision_submitted",

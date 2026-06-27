@@ -45,6 +45,13 @@ export const TargetedFeedbackNextExpectedActionSchema = z.enum([
   "revise_confidence",
   "choose_next_step"
 ]);
+export const FormativeActivityNextActionSchema = z.enum([
+  "confirm_and_next_choice",
+  "ask_revision",
+  "provide_scaffold",
+  "clarify_question",
+  "offer_transfer"
+]);
 
 export const ChatNativeFormativeProfileOutputSchema = z.object({
   provisional_learning_state: z.string().trim().min(1).max(600),
@@ -64,24 +71,55 @@ export type ChatNativeFormativeProfileOutput = z.infer<
   typeof ChatNativeFormativeProfileOutputSchema
 >;
 
-export const ChatNativeTargetedFeedbackOutputSchema = z.object({
-  student_facing_feedback: z.string().trim().min(1).max(550),
-  revision_prompt: z.string().trim().min(1).max(260),
-  next_expected_action: TargetedFeedbackNextExpectedActionSchema
+export const ChatNativeFormativeActivityEvaluationOutputSchema = z.object({
+  learning_profile: z.object({
+    concept_mastery: z.enum(["strong", "partial", "weak", "unclear"]),
+    main_concept_understood: z.array(z.string().trim().min(1).max(220)).max(6),
+    remaining_issue: z.array(z.string().trim().min(1).max(220)).max(6),
+    misconception_evidence: z.array(z.string().trim().min(1).max(220)).max(6),
+    reasoning_quality: z.enum([
+      "sound",
+      "partially_correct",
+      "vague",
+      "misconception_based",
+      "off_topic"
+    ]),
+    confidence_calibration: z.enum(["aligned", "overconfident", "underconfident", "unknown"]),
+    transfer_readiness: z.enum(["ready", "not_ready", "unclear"])
+  }).strict(),
+  engagement_profile: z.object({
+    response_completeness: z.enum(["complete", "partial", "missing"]),
+    help_seeking: z.enum(["none", "clarification_requested", "answer_requested", "off_topic"]),
+    revision_effort: z.enum(["strong", "adequate", "minimal", "not_observed"]),
+    engagement_level: z.enum(["active", "passive", "disengaged", "unclear"])
+  }).strict(),
+  formative_activity_evaluation: z.object({
+    activity_was_appropriate: z.boolean(),
+    activity_fit_reason: z.string().trim().min(1).max(500),
+    student_response_evaluation: z.string().trim().min(1).max(700),
+    next_action: FormativeActivityNextActionSchema,
+    student_facing_feedback: z.string().trim().min(1).max(700),
+    student_facing_next_prompt: z.string().trim().min(1).max(420)
+  }).strict()
 }).strict();
 
-export type ChatNativeTargetedFeedbackOutput = z.infer<
-  typeof ChatNativeTargetedFeedbackOutputSchema
+export type ChatNativeFormativeActivityEvaluationOutput = z.infer<
+  typeof ChatNativeFormativeActivityEvaluationOutputSchema
 >;
+
+export const ChatNativeTargetedFeedbackOutputSchema =
+  ChatNativeFormativeActivityEvaluationOutputSchema;
+
+export type ChatNativeTargetedFeedbackOutput = ChatNativeFormativeActivityEvaluationOutput;
 
 const CHAT_NATIVE_PROFILE_AGENT_NAME = "formative_value_and_planning_agent";
 const CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_NAME = "followup_agent";
 const CHAT_NATIVE_PROFILE_AGENT_VERSION = "chat-native-phase5-v1";
 const CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_VERSION = "chat-native-phase6-v1";
 const CHAT_NATIVE_PROFILE_PROMPT_VERSION = "chat-native-formative-profile-v1";
-const CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_VERSION = "chat-native-targeted-feedback-v1";
+const CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_VERSION = "chat-native-formative-activity-evaluation-v1";
 const CHAT_NATIVE_PROFILE_SCHEMA_VERSION = "chat-native-formative-profile-output-v1";
-const CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION = "chat-native-targeted-feedback-output-v1";
+const CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION = "chat-native-formative-activity-evaluation-output-v1";
 const CHAT_NATIVE_PROFILE_INSTRUCTIONS = `
 You are supporting a chat-native formative MCQ assessment after a protected three-item initial package.
 
@@ -99,18 +137,27 @@ Use the required JSON schema only.
 const CHAT_NATIVE_TARGETED_FEEDBACK_INSTRUCTIONS = `
 You are supporting a chat-native formative MCQ assessment after the student has answered one matched formative activity.
 
-Produce brief targeted feedback and exactly one natural revision prompt.
+Evaluate the student's formative response, update a provisional learning and engagement profile, and decide the next action.
 The application owns all state transitions and persistence.
 
 Student-facing text must:
 - acknowledge a relevant part of the student's response;
-- clarify the single main distinction;
+- clarify the single main distinction when needed;
 - avoid long lectures;
-- ask for exactly one revision task;
+- ask for exactly one next prompt when a revision, clarification, or scaffold is needed;
 - avoid the sentence "Please revise your answer, reasoning, or confidence based on this feedback.";
 - avoid internal labels such as response profile, formative need, metadata, structured output, agent call, system prompt, or answer key;
 - not dump the full answer key;
 - not restart the answer/reason/confidence/tempting-option cycle.
+
+Use conservative next actions:
+- confirm_and_next_choice only when the response is adequate;
+- ask_revision when the response is partially correct;
+- provide_scaffold when the response is confused or missing;
+- clarify_question when the student asks a procedural or conceptual clarification question;
+- offer_transfer only when the response is strong enough for transfer.
+
+For the IRT discrimination case, if the student says the ICC is sharper when discrimination is higher and theta remains the person's location, confirm that the ICC sharpness idea is mostly right. Refine that discrimination affects slope, item information, and precision; theta remains the person's location on the latent trait scale; and the meaning of theta remains comparable across linked forms. Do not imply that item location necessarily stays the same unless item difficulty/location is explicitly being discussed.
 
 Use the required JSON schema only.
 `;
@@ -405,13 +452,158 @@ function deterministicMockOutput(): ChatNativeFormativeProfileOutput {
   };
 }
 
-function deterministicTargetedFeedbackOutput(): ChatNativeTargetedFeedbackOutput {
+function baseEngagementProfile(input?: Partial<ChatNativeTargetedFeedbackOutput["engagement_profile"]>) {
   return {
-    student_facing_feedback:
-      "You are close. The key distinction is that item difficulty describes the item, while theta describes the person’s location on the latent trait scale. A harder item set does not automatically mean the same student’s theta should become lower when forms are properly linked.",
-    revision_prompt:
-      "Now restate the difference between item difficulty and person ability in your own words.",
-    next_expected_action: "revise_explanation"
+    response_completeness: input?.response_completeness ?? "partial",
+    help_seeking: input?.help_seeking ?? "none",
+    revision_effort: input?.revision_effort ?? "not_observed",
+    engagement_level: input?.engagement_level ?? "active"
+  } satisfies ChatNativeTargetedFeedbackOutput["engagement_profile"];
+}
+
+function deterministicTargetedFeedbackOutput(message = ""): ChatNativeTargetedFeedbackOutput {
+  const lower = message.toLowerCase();
+  const asksQuestion =
+    lower.includes("?") ||
+    /\b(can you|what does|what do you mean|explain|clarify|i don't understand)\b/.test(lower);
+  const asksForAnswer = /\b(answer|correct answer|what is correct|tell me which)\b/.test(lower);
+  const confused = /\b(confused|not sure|no idea|i don't know|idk|guess|lost)\b/.test(lower);
+  const offTopic = /\b(lunch|weather|movie|game|unrelated)\b/.test(lower);
+  const mentionsDiscrimination =
+    /\b(discrimination|slope|steeper|sharper|icc|information|precision)\b/.test(lower);
+  const anchorsTheta = /\b(theta|person|latent trait|ability)\b/.test(lower);
+  const saysComparable =
+    /\b(comparable|linked|same scale|location|meaning|stays|remain|stable)\b/.test(lower);
+
+  if (asksQuestion && !mentionsDiscrimination) {
+    return {
+      learning_profile: {
+        concept_mastery: "unclear",
+        main_concept_understood: [],
+        remaining_issue: ["The student asked for clarification before attempting the activity."],
+        misconception_evidence: [],
+        reasoning_quality: "vague",
+        confidence_calibration: "unknown",
+        transfer_readiness: "unclear"
+      },
+      engagement_profile: baseEngagementProfile({
+        response_completeness: "partial",
+        help_seeking: asksForAnswer ? "answer_requested" : "clarification_requested",
+        engagement_level: "active"
+      }),
+      formative_activity_evaluation: {
+        activity_was_appropriate: true,
+        activity_fit_reason:
+          "The activity is still appropriate, but the student needs simpler wording before responding.",
+        student_response_evaluation:
+          "The student asked for clarification rather than giving enough evidence to evaluate the concept.",
+        next_action: "clarify_question",
+        student_facing_feedback:
+          "Sure. Theta describes the person's location on the latent trait scale. Item parameters describe how an item behaves on that scale.",
+        student_facing_next_prompt:
+          "Try the activity again in simpler words: which part describes the person, and which part describes the item?"
+      }
+    };
+  }
+
+  if (confused || offTopic || message.trim().length < 20) {
+    return {
+      learning_profile: {
+        concept_mastery: "weak",
+        main_concept_understood: [],
+        remaining_issue: ["The response does not yet distinguish theta from item parameters."],
+        misconception_evidence: offTopic ? ["The response was off topic."] : [],
+        reasoning_quality: offTopic ? "off_topic" : "vague",
+        confidence_calibration: "unknown",
+        transfer_readiness: "not_ready"
+      },
+      engagement_profile: baseEngagementProfile({
+        response_completeness: message.trim().length < 20 ? "missing" : "partial",
+        help_seeking: offTopic ? "off_topic" : "clarification_requested",
+        engagement_level: offTopic ? "disengaged" : "passive"
+      }),
+      formative_activity_evaluation: {
+        activity_was_appropriate: true,
+        activity_fit_reason:
+          "The activity targets the right distinction, but the student needs one scaffold before revising.",
+        student_response_evaluation:
+          "The response does not yet provide enough conceptual evidence.",
+        next_action: "provide_scaffold",
+        student_facing_feedback:
+          "Let's build the idea one step at a time. In IRT, one part describes the person and one part describes the item.",
+        student_facing_next_prompt:
+          "Which term describes the person on the latent trait scale: theta or item difficulty?"
+      }
+    };
+  }
+
+  if (mentionsDiscrimination && anchorsTheta && saysComparable) {
+    return {
+      learning_profile: {
+        concept_mastery: "strong",
+        main_concept_understood: [
+          "Higher discrimination makes the item characteristic curve steeper.",
+          "Theta remains the person's location on the latent trait scale.",
+          "Theta remains comparable across properly linked forms."
+        ],
+        remaining_issue: [
+          "Avoid implying that item location necessarily stays fixed unless item difficulty is being discussed."
+        ],
+        misconception_evidence: [],
+        reasoning_quality: "sound",
+        confidence_calibration: "aligned",
+        transfer_readiness: "ready"
+      },
+      engagement_profile: baseEngagementProfile({
+        response_completeness: "complete",
+        engagement_level: "active"
+      }),
+      formative_activity_evaluation: {
+        activity_was_appropriate: true,
+        activity_fit_reason:
+          "The activity elicited evidence about discrimination, item information, and theta comparability.",
+        student_response_evaluation:
+          "The response is strong and only needs a small language refinement about item location.",
+        next_action: "confirm_and_next_choice",
+        student_facing_feedback:
+          "That is mostly right. Higher discrimination makes the item curve steeper and can increase information or precision near the item location. Theta is still the person's location on the latent trait scale, so its meaning remains comparable across linked forms. Be careful not to say the item location itself stays the same unless item difficulty is the part being discussed.",
+        student_facing_next_prompt:
+          "Choose one: A. Move to the next concept. B. Try another question on the same idea."
+      }
+    };
+  }
+
+  return {
+    learning_profile: {
+      concept_mastery: "partial",
+      main_concept_understood: [
+        "Theta is associated with the person.",
+        "Item difficulty or other item parameters are associated with items."
+      ],
+      remaining_issue: [
+        "The response needs to connect the distinction to comparable theta estimates across linked forms."
+      ],
+      misconception_evidence: [],
+      reasoning_quality: "partially_correct",
+      confidence_calibration: "unknown",
+      transfer_readiness: "not_ready"
+    },
+    engagement_profile: baseEngagementProfile({
+      response_completeness: "partial",
+      engagement_level: "active"
+    }),
+    formative_activity_evaluation: {
+      activity_was_appropriate: true,
+      activity_fit_reason:
+        "The activity is appropriate because the response gives partial evidence about the core distinction.",
+      student_response_evaluation:
+        "The response is partly correct but needs a clearer link between item parameters and comparable theta estimates.",
+      next_action: "ask_revision",
+      student_facing_feedback:
+        "You have the person-versus-item distinction started. Now make the comparison more precise: item difficulty or discrimination describes item behavior, while theta describes the person's location on the linked latent trait scale.",
+      student_facing_next_prompt:
+        "Revise in one or two sentences: why should theta remain comparable across properly linked forms even when item parameters differ?"
+    }
   };
 }
 
@@ -420,7 +612,7 @@ function studentFacingText(output: ChatNativeFormativeProfileOutput) {
 }
 
 function targetedFeedbackStudentFacingText(output: ChatNativeTargetedFeedbackOutput) {
-  return `${output.student_facing_feedback}\n\n${output.revision_prompt}`;
+  return `${output.formative_activity_evaluation.student_facing_feedback}\n\n${output.formative_activity_evaluation.student_facing_next_prompt}`;
 }
 
 function validateStudentFacingOutput(input: {
@@ -482,7 +674,11 @@ function validateTargetedFeedbackOutput(input: {
   const issues: string[] = [];
   const visibleText = targetedFeedbackStudentFacingText(input.output);
   const lower = visibleText.toLowerCase();
+  const nextPrompt = input.output.formative_activity_evaluation.student_facing_next_prompt;
+  const nextPromptLower = nextPrompt.toLowerCase();
   const forbiddenTerms = [
+    "learning profile",
+    "engagement profile",
     "response profile",
     "formative need",
     "metadata",
@@ -509,19 +705,24 @@ function validateTargetedFeedbackOutput(input: {
     issues.push("targeted feedback is too long for chat");
   }
 
-  const revisionPrompt = input.output.revision_prompt.toLowerCase();
-  const taskStarts = (revisionPrompt.match(/\b(now|tell me|give|update|restate|revise)\b/g) ?? []).length;
+  const taskStarts = (
+    nextPromptLower.match(/\b(now|tell me|give|update|restate|revise|try|which)\b/g) ?? []
+  ).length;
+  const questionCount = (nextPrompt.match(/\?/g) ?? []).length;
 
-  if (taskStarts > 3 || revisionPrompt.includes(" and then ")) {
-    issues.push("revision prompt appears to ask for more than one task");
+  if (questionCount > 1 || taskStarts > 3 || nextPromptLower.includes(" and then ")) {
+    issues.push("next prompt appears to ask for more than one task");
   }
 
   if (/what is your answer|how confident|was another option tempting/i.test(visibleText)) {
     issues.push("targeted feedback restarts the protected initial item cycle");
   }
 
-  if (input.output.next_expected_action === "choose_next_step") {
-    issues.push("Phase 6 feedback must ask for a revision before next choice");
+  if (
+    input.output.formative_activity_evaluation.next_action === "confirm_and_next_choice" &&
+    input.output.learning_profile.transfer_readiness === "not_ready"
+  ) {
+    issues.push("next choice cannot be offered when transfer readiness is not_ready");
   }
 
   const uniqueCorrectOptions = [...new Set(input.correct_options)];
@@ -538,6 +739,165 @@ function validateTargetedFeedbackOutput(input: {
   }
 
   return { ok: issues.length === 0, issues };
+}
+
+function nextActionIsReadyForChoice(output: ChatNativeTargetedFeedbackOutput) {
+  return (
+    output.formative_activity_evaluation.next_action === "confirm_and_next_choice" ||
+    output.formative_activity_evaluation.next_action === "offer_transfer"
+  );
+}
+
+function promptMessageTypeFor(output: ChatNativeTargetedFeedbackOutput) {
+  switch (output.formative_activity_evaluation.next_action) {
+    case "provide_scaffold":
+      return "scaffold_prompt";
+    case "clarify_question":
+      return "clarification_prompt";
+    case "ask_revision":
+      return "revision_prompt";
+    case "confirm_and_next_choice":
+    case "offer_transfer":
+      return "next_choice_ready";
+  }
+}
+
+function profileEnumsForActivityEvaluation(output: ChatNativeTargetedFeedbackOutput) {
+  const hasMisconceptionEvidence = output.learning_profile.misconception_evidence.length > 0;
+
+  const abilityProfile =
+    output.learning_profile.concept_mastery === "strong"
+      ? output.learning_profile.transfer_readiness === "ready"
+        ? "robust_transfer_ready_understanding"
+        : "mostly_correct_understanding"
+      : output.learning_profile.concept_mastery === "partial"
+        ? "partial_understanding"
+        : hasMisconceptionEvidence
+          ? "misconception_based_understanding"
+          : "fragmented_or_limited_understanding";
+
+  const engagementProfile =
+    output.engagement_profile.engagement_level === "active"
+      ? "productive_engagement"
+      : output.engagement_profile.engagement_level === "passive"
+        ? "variable_engagement"
+        : output.engagement_profile.engagement_level === "disengaged"
+          ? "low_engagement"
+          : "insufficient_process_evidence";
+
+  const integratedDiagnosticProfile =
+    output.learning_profile.concept_mastery === "strong" &&
+    output.learning_profile.transfer_readiness === "ready"
+      ? "robust_understanding_ready_for_transfer"
+      : hasMisconceptionEvidence
+        ? "misconception_with_sufficient_engagement"
+        : output.learning_profile.concept_mastery === "partial"
+          ? "developing_understanding_with_productive_engagement"
+          : "conflicting_evidence_needs_clarification";
+
+  const confidenceAlignment =
+    output.learning_profile.confidence_calibration === "aligned"
+      ? "well_calibrated"
+      : output.learning_profile.confidence_calibration === "overconfident"
+        ? "overconfident"
+        : output.learning_profile.confidence_calibration === "underconfident"
+          ? "underconfident"
+          : "insufficient_evidence";
+
+  const evidenceSufficiency =
+    output.engagement_profile.response_completeness === "complete"
+      ? "strong"
+      : output.engagement_profile.response_completeness === "partial"
+        ? "adequate"
+        : "limited";
+
+  return {
+    ability_profile: abilityProfile,
+    engagement_profile: engagementProfile,
+    integrated_diagnostic_profile: integratedDiagnosticProfile,
+    confidence_alignment: confidenceAlignment,
+    evidence_sufficiency: evidenceSufficiency
+  } as const;
+}
+
+function activityResponseMessageFromProviderInput(value: unknown) {
+  const record = jsonRecord(value);
+  const activityResponse = jsonRecord(record.student_formative_activity_response);
+  return stringValue(activityResponse, "message_text") ?? "";
+}
+
+async function persistFormativeActivityEvaluationProfile(input: {
+  concept_unit_session_db_id: string;
+  agent_call_id: string;
+  output: ChatNativeTargetedFeedbackOutput;
+  validation_status: string;
+  validation_issues: string[];
+}) {
+  const existing = await prisma.studentProfile.findFirst({
+    where: {
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      profile_type: "updated",
+      based_on_agent_call_db_id: input.agent_call_id
+    },
+    orderBy: [{ created_at: "desc" }]
+  });
+
+  if (existing) {
+    await prisma.conceptUnitSession.update({
+      where: { id: input.concept_unit_session_db_id },
+      data: { latest_student_profile_db_id: existing.id }
+    });
+    return existing;
+  }
+
+  const enums = profileEnumsForActivityEvaluation(input.output);
+  const evaluation = input.output.formative_activity_evaluation;
+  const profile = await prisma.studentProfile.create({
+    data: {
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      profile_type: "updated",
+      ability_profile: enums.ability_profile,
+      ability_pattern_flags: prismaJson(input.output.learning_profile),
+      engagement_profile: enums.engagement_profile,
+      engagement_pattern_flags: prismaJson(input.output.engagement_profile),
+      integrated_diagnostic_profile: enums.integrated_diagnostic_profile,
+      integrated_profile_confidence: input.output.learning_profile.concept_mastery === "strong" ? "high" : "medium",
+      integrated_profile_rationale: evaluation.student_response_evaluation,
+      evidence_sufficiency: enums.evidence_sufficiency,
+      confidence_alignment: enums.confidence_alignment,
+      independence_interpretability: "not_applicable",
+      misconception_indicators: prismaJson(input.output.learning_profile.misconception_evidence),
+      item_level_evidence: prismaJson({
+        formative_activity_evaluation: evaluation,
+        validation_status: input.validation_status,
+        validation_issues: input.validation_issues
+      }),
+      reasoning_quality_summary: evaluation.student_response_evaluation,
+      engagement_summary: [
+        `Response completeness: ${input.output.engagement_profile.response_completeness}.`,
+        `Help seeking: ${input.output.engagement_profile.help_seeking}.`,
+        `Engagement level: ${input.output.engagement_profile.engagement_level}.`
+      ].join(" "),
+      process_interpretation_cautions: prismaJson([
+        "Process data are contextual evidence, not misconduct evidence.",
+        "This profile update is based on the student's formative activity response."
+      ]),
+      profile_confidence: input.output.learning_profile.concept_mastery === "strong" ? "high" : "medium",
+      rationale: evaluation.activity_fit_reason,
+      recommended_next_evidence: prismaJson({
+        next_action: evaluation.next_action,
+        student_facing_next_prompt: evaluation.student_facing_next_prompt
+      }),
+      based_on_agent_call_db_id: input.agent_call_id
+    }
+  });
+
+  await prisma.conceptUnitSession.update({
+    where: { id: input.concept_unit_session_db_id },
+    data: { latest_student_profile_db_id: profile.id }
+  });
+
+  return profile;
 }
 
 function formativeValueFor(output: ChatNativeFormativeProfileOutput) {
@@ -889,7 +1249,8 @@ async function callTargetedFeedbackProviderOrMock(input: {
   });
 
   if (!liveCallAllowed) {
-    const output = deterministicTargetedFeedbackOutput();
+    const activityResponseMessage = activityResponseMessageFromProviderInput(input.provider_input);
+    const output = deterministicTargetedFeedbackOutput(activityResponseMessage);
     const validation = validateTargetedFeedbackOutput({
       output,
       correct_options: input.correct_options
@@ -913,7 +1274,7 @@ async function callTargetedFeedbackProviderOrMock(input: {
 
     return {
       agent_call_id: agentCall.id,
-      output: validation.ok ? output : deterministicTargetedFeedbackOutput(),
+      output: validation.ok ? output : deterministicTargetedFeedbackOutput(activityResponseMessage),
       validation_status: validation.ok ? "validated" : "fallback_after_validation_failure",
       validation_issues: validation.issues,
       provider_result: null as StructuredAgentResult<ChatNativeTargetedFeedbackOutput> | null
@@ -966,7 +1327,9 @@ async function callTargetedFeedbackProviderOrMock(input: {
     }
   }
 
-  const fallbackOutput = deterministicTargetedFeedbackOutput();
+  const fallbackOutput = deterministicTargetedFeedbackOutput(
+    activityResponseMessageFromProviderInput(input.provider_input)
+  );
   await prisma.agentCall.update({
     where: { id: agentCall.id },
     data: {
@@ -975,10 +1338,10 @@ async function callTargetedFeedbackProviderOrMock(input: {
       output_validated: false,
       validation_error:
         providerResult.status === "completed"
-          ? "Provider output failed Phase 6 student-facing validation; deterministic fallback used."
+          ? "Provider output failed Phase 12 student-facing validation; deterministic fallback used."
           : providerFailureValidationMessage({
               providerResult,
-              phaseLabel: "Phase 6 targeted feedback"
+              phaseLabel: "Phase 12 formative activity evaluation"
             }),
       call_status: providerResult.status === "completed" ? "invalid_output" : "failed",
       error_category:
@@ -1031,7 +1394,7 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
   }
 
   const providerInput = {
-    task: "chat_native_phase6_targeted_feedback_and_revision",
+    task: "chat_native_phase12_formative_activity_evaluation",
     response_package: safePackageForProvider(responsePackage.payload),
     formative_profile: safeProfileForProvider(profile),
     formative_decision: safeDecisionForProvider(decision),
@@ -1041,8 +1404,10 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
     },
     constraints: {
       app_controls_state_transitions: true,
-      one_brief_feedback_only: true,
-      one_revision_task_only: true,
+      evaluate_activity_before_next_choice: true,
+      update_learning_and_engagement_profiles: true,
+      one_student_facing_next_prompt_only: true,
+      next_choice_only_when_ready: true,
       no_full_answer_key_dump: true,
       no_internal_labels_in_student_text: true,
       do_not_restart_initial_cycle: true
@@ -1093,6 +1458,16 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
   }
 
   const now = new Date();
+  const updatedProfile = await persistFormativeActivityEvaluationProfile({
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    agent_call_id: feedbackResult.agent_call_id,
+    output: feedbackResult.output,
+    validation_status: feedbackResult.validation_status,
+    validation_issues: feedbackResult.validation_issues
+  });
+  const readyForNextChoice = nextActionIsReadyForChoice(feedbackResult.output);
+  const promptMessageType = promptMessageTypeFor(feedbackResult.output);
+  const nextAction = feedbackResult.output.formative_activity_evaluation.next_action;
 
   await prisma.$transaction(async (tx) => {
     const alreadyCreated = await tx.conversationTurn.findFirst({
@@ -1115,43 +1490,72 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
         phase: "followup_active",
         actor_type: "agent",
         agent_name: TARGETED_FEEDBACK_AGENT_NAME,
-        message_text: feedbackResult.output.student_facing_feedback,
+        message_text: feedbackResult.output.formative_activity_evaluation.student_facing_feedback,
         structured_payload: prismaJson({
           source: TARGETED_FEEDBACK_AGENT_NAME,
           message_type: "targeted_feedback",
-          next_expected_action: feedbackResult.output.next_expected_action,
+          next_action: nextAction,
           based_on_agent_call_id: feedbackResult.agent_call_id,
+          updated_student_profile_db_id: updatedProfile.id,
           validation_status: feedbackResult.validation_status,
           validation_issues: feedbackResult.validation_issues
         }),
         created_at: now
       }
     });
-    await tx.conversationTurn.create({
-      data: {
-        assessment_session_db_id: input.assessment_session_db_id,
-        concept_unit_session_db_id: input.concept_unit_session_db_id,
-        followup_round_db_id: input.followup_round_db_id,
-        phase: "followup_active",
-        actor_type: "agent",
-        agent_name: TARGETED_FEEDBACK_AGENT_NAME,
-        message_text: feedbackResult.output.revision_prompt,
-        structured_payload: prismaJson({
-          source: TARGETED_FEEDBACK_AGENT_NAME,
-          message_type: "revision_prompt",
-          next_expected_action: feedbackResult.output.next_expected_action,
-          based_on_agent_call_id: feedbackResult.agent_call_id
-        }),
-        created_at: now
-      }
-    });
+
+    if (readyForNextChoice) {
+      await tx.followupRound.update({
+        where: { id: input.followup_round_db_id },
+        data: {
+          status: "stopped",
+          completed_at: now,
+          updated_student_profile_db_id: updatedProfile.id
+        }
+      });
+      await tx.conceptUnitSession.update({
+        where: { id: input.concept_unit_session_db_id },
+        data: {
+          status: "followup_completed",
+          followup_status: "stopped",
+          followup_completed_at: now,
+          latest_student_profile_db_id: updatedProfile.id
+        }
+      });
+    } else {
+      await tx.conversationTurn.create({
+        data: {
+          assessment_session_db_id: input.assessment_session_db_id,
+          concept_unit_session_db_id: input.concept_unit_session_db_id,
+          followup_round_db_id: input.followup_round_db_id,
+          phase: "followup_active",
+          actor_type: "agent",
+          agent_name: TARGETED_FEEDBACK_AGENT_NAME,
+          message_text: feedbackResult.output.formative_activity_evaluation.student_facing_next_prompt,
+          structured_payload: prismaJson({
+            source: TARGETED_FEEDBACK_AGENT_NAME,
+            message_type: promptMessageType,
+            next_action: nextAction,
+            based_on_agent_call_id: feedbackResult.agent_call_id,
+            updated_student_profile_db_id: updatedProfile.id
+          }),
+          created_at: now
+        }
+      });
+    }
   });
 
   await updateAssessmentSessionPhase({
     assessment_session_db_id: input.assessment_session_db_id,
-    to_phase: "followup_active",
-    reason: "chat_native_targeted_feedback_ready",
-    payload: { agent_call_id: feedbackResult.agent_call_id }
+    to_phase: readyForNextChoice ? "followup_stopped" : "followup_active",
+    reason: readyForNextChoice
+      ? "chat_native_formative_activity_ready_for_next_choice"
+      : "chat_native_formative_activity_revision_needed",
+    payload: {
+      agent_call_id: feedbackResult.agent_call_id,
+      updated_student_profile_db_id: updatedProfile.id,
+      next_action: nextAction
+    }
   });
   await logProcessEvent({
     assessment_session_db_id: input.assessment_session_db_id,
@@ -1161,6 +1565,21 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
     event_source: "backend",
     payload: {
       agent_call_id: feedbackResult.agent_call_id,
+      validation_status: feedbackResult.validation_status,
+      next_action: nextAction
+    },
+    occurred_at: now
+  });
+  await logProcessEvent({
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    event_type: "formative_activity_evaluated",
+    event_category: "formative_activity_evaluation",
+    event_source: "backend",
+    payload: {
+      agent_call_id: feedbackResult.agent_call_id,
+      updated_student_profile_db_id: updatedProfile.id,
+      next_action: nextAction,
       validation_status: feedbackResult.validation_status
     },
     occurred_at: now
@@ -1168,19 +1587,81 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
   await logProcessEvent({
     assessment_session_db_id: input.assessment_session_db_id,
     concept_unit_session_db_id: input.concept_unit_session_db_id,
-    event_type: "revision_requested",
-    event_category: "revision",
+    event_type: "learning_profile_updated",
+    event_category: "formative_activity_evaluation",
     event_source: "backend",
     payload: {
       agent_call_id: feedbackResult.agent_call_id,
-      next_expected_action: feedbackResult.output.next_expected_action
+      updated_student_profile_db_id: updatedProfile.id,
+      learning_profile: feedbackResult.output.learning_profile
+    },
+    occurred_at: now
+  });
+  await logProcessEvent({
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    event_type: "engagement_profile_updated",
+    event_category: "formative_activity_evaluation",
+    event_source: "backend",
+    payload: {
+      agent_call_id: feedbackResult.agent_call_id,
+      updated_student_profile_db_id: updatedProfile.id,
+      engagement_profile: feedbackResult.output.engagement_profile
     },
     occurred_at: now
   });
 
+  if (!readyForNextChoice) {
+    await logProcessEvent({
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      event_type: "revision_requested",
+      event_category: nextAction === "provide_scaffold" ? "scaffold" : "revision",
+      event_source: "backend",
+      payload: {
+        agent_call_id: feedbackResult.agent_call_id,
+        next_action: nextAction,
+        prompt_message_type: promptMessageType
+      },
+      occurred_at: now
+    });
+  }
+
+  if (nextAction === "provide_scaffold") {
+    await logProcessEvent({
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      event_type: "scaffold_prompt_shown",
+      event_category: "scaffold",
+      event_source: "backend",
+      payload: {
+        agent_call_id: feedbackResult.agent_call_id,
+        updated_student_profile_db_id: updatedProfile.id
+      },
+      occurred_at: now
+    });
+  }
+
+  if (readyForNextChoice) {
+    await logProcessEvent({
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      event_type: "next_choice_shown",
+      event_category: "next_choice",
+      event_source: "backend",
+      payload: {
+        agent_call_id: feedbackResult.agent_call_id,
+        next_action: nextAction,
+        options: ["move_to_next_concept", "try_another_question_same_idea"]
+      },
+      occurred_at: now
+    });
+  }
+
   return {
     status: "created" as const,
-    agent_call_id: feedbackResult.agent_call_id
+    agent_call_id: feedbackResult.agent_call_id,
+    next_action: nextAction
   };
 }
 

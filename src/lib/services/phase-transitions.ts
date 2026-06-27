@@ -38,7 +38,13 @@ const phaseTransitions: Record<AssessmentPhase, AssessmentPhase[]> = {
   profiling_pending: ["profiling_completed", "student_exited", "needs_review"],
   profiling_completed: ["planning_pending", "student_exited", "needs_review"],
   planning_pending: ["planning_completed", "student_exited", "needs_review"],
-  planning_completed: ["followup_active", "between_concept_units", "student_exited", "needs_review"],
+  planning_completed: [
+    "followup_active",
+    "followup_stopped",
+    "between_concept_units",
+    "student_exited",
+    "needs_review"
+  ],
   followup_active: [
     "followup_profile_update_pending",
     "followup_stopped",

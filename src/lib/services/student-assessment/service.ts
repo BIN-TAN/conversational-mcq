@@ -1029,6 +1029,15 @@ function conversationPayloadMessageType(value: unknown) {
   return typeof type === "string" ? type : null;
 }
 
+function conversationPromptRequiresStudentResponse(value: unknown) {
+  const messageType = conversationPayloadMessageType(value);
+  return (
+    messageType === "revision_prompt" ||
+    messageType === "scaffold_prompt" ||
+    messageType === "clarification_prompt"
+  );
+}
+
 async function getChatNativeRoundState(followupRoundDbId: string) {
   const turns = await prisma.conversationTurn.findMany({
     where: { followup_round_db_id: followupRoundDbId },
@@ -1048,7 +1057,7 @@ async function getChatNativeRoundState(followupRoundDbId: string) {
       (turn) =>
         turn.actor_type === "agent" &&
         conversationPayloadSource(turn.structured_payload) === "chat_native_targeted_feedback" &&
-        conversationPayloadMessageType(turn.structured_payload) === "revision_prompt"
+        conversationPromptRequiresStudentResponse(turn.structured_payload)
     ),
     has_revision_response: turns.some(
       (turn) =>
@@ -3510,7 +3519,9 @@ function studentTranscriptInteractionType(input: {
   const messageType = conversationPayloadMessageType(input.structured_payload);
 
   if (input.phase === "followup_active" && source === "chat_native_targeted_feedback") {
-    return messageType === "revision_prompt" ? "revision_prompt" : "targeted_feedback";
+    return conversationPromptRequiresStudentResponse(input.structured_payload)
+      ? "revision_prompt"
+      : "targeted_feedback";
   }
 
   if (input.phase === "followup_active" && source === "chat_native_revision") {

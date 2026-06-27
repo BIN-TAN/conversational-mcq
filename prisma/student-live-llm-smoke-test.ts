@@ -213,17 +213,22 @@ async function main() {
         "Theta is the person estimate on the linked scale. Difficulty describes where an item is located.",
       client_message_id: `${prefix}_activity`
     });
-    assert(activity.state.assessment_state === "REVISION", "Expected revision after live targeted feedback.");
+    assert(
+      activity.state.assessment_state === "REVISION" || activity.state.assessment_state === "NEXT_CHOICE",
+      "Expected revision or next choice after live formative activity evaluation."
+    );
     assertStudentVisibleTextIsSafe(activity.state);
 
-    const revision = await submitRevisionResponse({
-      student_user_db_id: student.id,
-      session_public_id: started.session.session_public_id,
-      message:
-        "Theta is about the student on the latent trait scale; item difficulty is about the item.",
-      client_message_id: `${prefix}_revision`
-    });
-    assert(revision.state.assessment_state === "NEXT_CHOICE", "Expected next choice after revision.");
+    if (activity.state.assessment_state === "REVISION") {
+      const revision = await submitRevisionResponse({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        message:
+          "Theta is about the student on the latent trait scale; item difficulty is about the item.",
+        client_message_id: `${prefix}_revision`
+      });
+      assert(revision.state.assessment_state === "NEXT_CHOICE", "Expected next choice after revision.");
+    }
 
     const choice = await submitNextChoice({
       student_user_db_id: student.id,
@@ -247,7 +252,7 @@ async function main() {
           },
           {
             agent_name: "followup_agent",
-            schema_version: "chat-native-targeted-feedback-output-v1"
+            schema_version: "chat-native-formative-activity-evaluation-output-v1"
           }
         ]
       },
@@ -262,7 +267,7 @@ async function main() {
     const targetedCall = auditCalls.find(
       (call) =>
         call.agent_name === "followup_agent" &&
-        call.schema_version === "chat-native-targeted-feedback-output-v1"
+        call.schema_version === "chat-native-formative-activity-evaluation-output-v1"
     );
     assert(profileCall, `Missing formative profile agent call.\n${JSON.stringify(auditContext, null, 2)}`);
     assert(targetedCall, `Missing targeted feedback agent call.\n${JSON.stringify(auditContext, null, 2)}`);

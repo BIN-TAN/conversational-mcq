@@ -272,6 +272,9 @@ async function runScenario(input: {
       "llm_profile_received",
       "formative_activity_shown",
       "followup_response_submitted",
+      "formative_activity_evaluated",
+      "learning_profile_updated",
+      "engagement_profile_updated",
       "targeted_feedback_shown",
       "revision_submitted",
       "next_choice_shown",
@@ -305,7 +308,7 @@ async function runScenario(input: {
         where: {
           assessment_session_db_id: session.id,
           agent_name: "followup_agent",
-          schema_version: "chat-native-targeted-feedback-output-v1"
+          schema_version: "chat-native-formative-activity-evaluation-output-v1"
         }
       })
     ]);
