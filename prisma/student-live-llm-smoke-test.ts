@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { loadEnvConfig } from "@next/env";
 import { PrismaClient } from "@prisma/client";
-import { resolveAgentModelConfig, getLlmRuntimeConfig } from "../src/lib/llm/config";
+import {
+  LlmConfigurationError,
+  getLlmRuntimeConfig,
+  resolveAgentModelConfig
+} from "../src/lib/llm/config";
 import {
   ChatNativeFormativeProfileOutputSchema,
   ChatNativeTargetedFeedbackOutputSchema
@@ -26,7 +31,95 @@ import {
   createSmokeStudent
 } from "./student-mvp-smoke-helpers";
 
+const envLoadResult = loadEnvConfig(process.cwd());
 const prisma = new PrismaClient();
+const REQUIRED_DATABASE_ENV = ["DATABASE_URL", "SESSION_SECRET"] as const;
+const REQUIRED_PROVIDER_ENV = [
+  "LLM_PROVIDER",
+  "LLM_LIVE_CALLS_ENABLED",
+  "OPENAI_API_KEY",
+  "OPENAI_MODEL_PLANNING",
+  "OPENAI_MODEL_FOLLOWUP"
+] as const;
+
+function envPresent(name: string) {
+  return typeof process.env[name] === "string" && process.env[name]?.trim().length > 0;
+}
+
+function loadedEnvFileNames() {
+  return envLoadResult.loadedEnvFiles.map((file) => file.path);
+}
+
+function liveSmokeReadiness() {
+  const missingDatabaseOrSession = REQUIRED_DATABASE_ENV.filter((name) => !envPresent(name));
+  const missingProvider = REQUIRED_PROVIDER_ENV.filter((name) => !envPresent(name));
+  const providerConfigIssues: string[] = [];
+  const warnings: string[] = [];
+
+  if (envPresent("LLM_PROVIDER") && process.env.LLM_PROVIDER !== "openai") {
+    providerConfigIssues.push("LLM_PROVIDER");
+  }
+
+  if (envPresent("LLM_LIVE_CALLS_ENABLED") && process.env.LLM_LIVE_CALLS_ENABLED !== "true") {
+    providerConfigIssues.push("LLM_LIVE_CALLS_ENABLED");
+  }
+
+  const categories: string[] = [];
+
+  if (loadedEnvFileNames().length === 0) {
+    warnings.push("local_env_files_not_loaded");
+  }
+
+  if (missingDatabaseOrSession.length > 0) {
+    categories.push("database_session_config_missing");
+  }
+
+  if (missingProvider.length > 0 || providerConfigIssues.length > 0) {
+    categories.push("openai_provider_config_missing");
+  }
+
+  if (categories.length > 0) {
+    return {
+      ready: false as const,
+      categories,
+      missing_database_or_session_variables: missingDatabaseOrSession,
+      missing_provider_variables: missingProvider,
+      invalid_provider_variable_names: providerConfigIssues,
+      warnings,
+      env_files_loaded: loadedEnvFileNames()
+    };
+  }
+
+  try {
+    const runtime = getLlmRuntimeConfig();
+    const profileModel = resolveAgentModelConfig("formative_value_and_planning_agent");
+    const feedbackModel = resolveAgentModelConfig("followup_agent");
+
+    return {
+      ready: true as const,
+      categories: ["ready"],
+      env_files_loaded: loadedEnvFileNames(),
+      provider: runtime.provider,
+      live_calls_enabled: runtime.live_calls_enabled,
+      openai_key_configured: runtime.openai_key_configured,
+      profile_model_configured: Boolean(profileModel.model_name),
+      feedback_model_configured: Boolean(feedbackModel.model_name),
+      warnings
+    };
+  } catch (error) {
+    return {
+      ready: false as const,
+      categories: ["openai_provider_config_missing"],
+      missing_database_or_session_variables: [] as string[],
+      missing_provider_variables: [] as string[],
+      invalid_provider_variable_names: [] as string[],
+      warnings,
+      env_files_loaded: loadedEnvFileNames(),
+      configuration_error_code:
+        error instanceof LlmConfigurationError ? error.code : "environment_validation_failed"
+    };
+  }
+}
 
 function assertLiveAgentCallIsAudited(input: {
   label: string;
@@ -74,28 +167,14 @@ function assertLiveAgentCallIsAudited(input: {
   }
 }
 
-function requireLiveSmokeConfiguration() {
-  const runtime = getLlmRuntimeConfig();
-  assert(runtime.provider === "openai", "RUN_LIVE_LLM_SMOKE=1 requires LLM_PROVIDER=openai.");
-  assert(runtime.live_calls_enabled, "RUN_LIVE_LLM_SMOKE=1 requires LLM_LIVE_CALLS_ENABLED=true.");
-  assert(runtime.openai_key_configured, "RUN_LIVE_LLM_SMOKE=1 requires OPENAI_API_KEY.");
-  const profileModel = resolveAgentModelConfig("formative_value_and_planning_agent");
-  const feedbackModel = resolveAgentModelConfig("followup_agent");
-
-  return {
-    provider: runtime.provider,
-    live_calls_enabled: runtime.live_calls_enabled,
-    profile_model_configured: Boolean(profileModel.model_name),
-    feedback_model_configured: Boolean(feedbackModel.model_name)
-  };
-}
-
 async function main() {
   if (process.env.RUN_LIVE_LLM_SMOKE !== "1") {
     console.log(
       JSON.stringify(
         {
           status: "skipped",
+          diagnostic_category: "live_smoke_intentionally_skipped",
+          env_files_loaded: loadedEnvFileNames(),
           reason:
             "RUN_LIVE_LLM_SMOKE is not 1. No OpenAI call was made. Set it explicitly to run this paid live-readiness smoke."
         },
@@ -108,7 +187,24 @@ async function main() {
 
   process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "true";
   process.env.OPERATIONAL_AGENT_MODE = "disabled";
-  const readiness = requireLiveSmokeConfiguration();
+  const readiness = liveSmokeReadiness();
+
+  if (!readiness.ready) {
+    console.log(
+      JSON.stringify(
+        {
+          status: "not_ready",
+          message:
+            "RUN_LIVE_LLM_SMOKE=1 was set, but required live-smoke configuration is missing or invalid. No OpenAI call was made.",
+          readiness
+        },
+        null,
+        2
+      )
+    );
+    process.exitCode = 1;
+    return;
+  }
 
   await ensureDemoStudentAssessment(prisma);
 

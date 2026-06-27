@@ -55,25 +55,48 @@ The export is for local development and audit checks only. It is not student-fac
 
 ## Opt-In Live LLM Smoke
 
-Live LLM readiness is intentionally opt-in. The script exits without a provider call unless this flag is set:
+Live LLM readiness is intentionally opt-in. The script loads local Next.js env files with `@next/env`, then exits without a provider call unless this flag is set:
 
 ```bash
 RUN_LIVE_LLM_SMOKE=1
 ```
 
-When explicitly enabled, configure live calls server-side before running:
+Required variable names:
+
+```text
+DATABASE_URL
+SESSION_SECRET
+RUN_LIVE_LLM_SMOKE
+LLM_PROVIDER
+LLM_LIVE_CALLS_ENABLED
+OPENAI_API_KEY
+OPENAI_MODEL_PLANNING
+OPENAI_MODEL_FOLLOWUP
+```
+
+Keep secrets in ignored local env files such as `.env.local`, or in a secure shell environment. Do not commit `.env`, `.env.local`, credential files, or generated evidence files.
+
+The default check is safe and should report a skipped result:
+
+```bash
+npm run student:live-llm-smoke
+```
+
+When explicitly enabled, configure live calls server-side before running. Use placeholders in documentation and real values only in ignored local env files or the shell:
 
 ```bash
 RUN_LIVE_LLM_SMOKE=1 \
 LLM_PROVIDER=openai \
 LLM_LIVE_CALLS_ENABLED=true \
 OPENAI_API_KEY=<set locally, never commit> \
-OPENAI_MODEL_PLANNING=<model configured by the operator> \
-OPENAI_MODEL_FOLLOWUP=<model configured by the operator> \
+OPENAI_MODEL_PLANNING=<model> \
+OPENAI_MODEL_FOLLOWUP=<model> \
 npm run student:live-llm-smoke
 ```
 
 Do not paste API keys into chat. Do not commit `.env`, `.env.local`, or credential files.
+
+If `RUN_LIVE_LLM_SMOKE=1` is set but required configuration is missing, the script prints only missing or invalid variable names. It never prints variable values.
 
 The live smoke verifies that the response package reaches the provider path, structured outputs are schema-shaped, unsafe or invalid outputs are blocked or replaced with deterministic fallback, student-visible text remains safe, and `agent_calls` stores provider metadata plus validation status.
 
