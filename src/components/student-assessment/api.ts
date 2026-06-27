@@ -224,6 +224,25 @@ export function saveConfidence(input: {
   );
 }
 
+export function saveTemptingOption(input: {
+  sessionPublicId: string;
+  itemPublicId: string;
+  temptingOption?: string | null;
+  temptingOptionReason?: string | null;
+  noTemptingOption?: boolean;
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/items/${input.itemPublicId}/tempting-option`,
+    {
+      tempting_option: input.temptingOption ?? null,
+      tempting_option_reason: input.temptingOptionReason ?? null,
+      no_tempting_option: Boolean(input.noTemptingOption),
+      client_action_id: newClientActionId("tempting-option")
+    },
+    (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
+  );
+}
+
 export async function submitItem(input: {
   sessionPublicId: string;
   itemPublicId: string;

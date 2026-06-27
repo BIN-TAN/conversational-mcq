@@ -20,6 +20,11 @@ import { enqueueInitialProfilingJobIfAutomatic } from "@/lib/workflow/automation
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 import { getStudentProgressionStateBySessionDbId } from "@/lib/services/concept-progression/progression";
 import {
+  assertChatNativeActionAllowed,
+  type ChatNativeAssessmentAction,
+  type ChatNativeAssessmentState
+} from "@/lib/student-assessment/state-machine";
+import {
   assertStudentPayloadIsSafe,
   serializeStudentAssessment,
   serializeStudentConceptUnit,
@@ -38,8 +43,12 @@ export const InitialAdministrationStep = z.enum([
   "present_item",
   "request_reasoning",
   "request_confidence",
+  "request_tempting_option",
+  "request_tempting_reason",
   "missing_evidence_repair",
   "item_complete",
+  "package_review",
+  "package_analysis",
   "initial_concept_unit_complete",
   "awaiting_profiling",
   "automatic_profiling_pending",
@@ -54,6 +63,11 @@ export const InitialAdministrationStep = z.enum([
 
 type InitialAdministrationStep = z.infer<typeof InitialAdministrationStep>;
 type MissingField = "answer" | "reasoning" | "confidence";
+type TemptingOptionEvidence = {
+  no_tempting_option: boolean;
+  tempting_option: string | null;
+  tempting_option_reason: string | null;
+};
 
 const optionActionSchema = z.object({
   selected_option: z.string().trim().min(1).max(16),
@@ -67,6 +81,13 @@ const reasoningActionSchema = z.object({
 
 const confidenceActionSchema = z.object({
   confidence_rating: ConfidenceLevelSchema,
+  client_action_id: z.string().trim().min(1).max(120).optional()
+}).strict();
+
+const temptingOptionActionSchema = z.object({
+  tempting_option: z.string().trim().min(1).max(16).nullable().optional(),
+  tempting_option_reason: z.string().trim().max(MAX_REASONING_LENGTH).nullable().optional(),
+  no_tempting_option: z.boolean().default(false),
   client_action_id: z.string().trim().min(1).max(120).optional()
 }).strict();
 
@@ -167,6 +188,89 @@ function optionLabels(item: Pick<Item, "options">): string[] {
       return typeof label === "string" ? label : null;
     })
     .filter((label): label is string => Boolean(label));
+}
+
+function normalizeTemptingOptionEvidence(value: unknown): TemptingOptionEvidence | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const payload = value as Record<string, unknown>;
+
+  if (payload.source !== "initial_tempting_option") {
+    return null;
+  }
+
+  const noTemptingOption = payload.no_tempting_option === true;
+  const temptingOption =
+    typeof payload.tempting_option === "string" && payload.tempting_option.trim()
+      ? payload.tempting_option.trim()
+      : null;
+  const temptingOptionReason =
+    typeof payload.tempting_option_reason === "string" && payload.tempting_option_reason.trim()
+      ? payload.tempting_option_reason.trim()
+      : null;
+
+  if (!noTemptingOption && !temptingOption) {
+    return null;
+  }
+
+  return {
+    no_tempting_option: noTemptingOption,
+    tempting_option: noTemptingOption ? null : temptingOption,
+    tempting_option_reason: noTemptingOption ? null : temptingOptionReason
+  };
+}
+
+async function getLatestTemptingOptionEvidence(input: {
+  concept_unit_session_db_id: string;
+  item_db_id: string;
+}): Promise<TemptingOptionEvidence | null> {
+  const turns = await prisma.conversationTurn.findMany({
+    where: {
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      item_db_id: input.item_db_id,
+      actor_type: "student"
+    },
+    orderBy: [{ created_at: "desc" }],
+    select: { structured_payload: true },
+    take: 10
+  });
+
+  for (const turn of turns) {
+    const evidence = normalizeTemptingOptionEvidence(turn.structured_payload);
+
+    if (evidence) {
+      return evidence;
+    }
+  }
+
+  return null;
+}
+
+function assertActionAllowedForState(input: {
+  assessment_state: ChatNativeAssessmentState;
+  action: ChatNativeAssessmentAction;
+  item_public_id?: string;
+}) {
+  const allowed = assertChatNativeActionAllowed({
+    state: input.assessment_state,
+    action: input.action
+  });
+
+  if (!allowed.ok) {
+    throw new StudentAssessmentServiceError(
+      "invalid_phase_for_action",
+      "This action is not allowed in the current assessment state.",
+      409,
+      {
+        assessment_state: input.assessment_state,
+        attempted_action: input.action,
+        allowed_actions: allowed.allowed_actions,
+        item_public_id: input.item_public_id
+      }
+    );
+  }
 }
 
 function itemSnapshot(item: Item) {
@@ -865,6 +969,14 @@ export async function getStudentSessionState(input: {
       : firstIncompleteItem ?? null;
   const currentResponse = currentItem ? responsesByItemId.get(currentItem.id) ?? null : null;
   const missingEvidence = responseMissingFields(currentResponse);
+  const temptingOptionEvidence =
+    currentItem && conceptUnitSession
+      ? await getLatestTemptingOptionEvidence({
+          concept_unit_session_db_id: conceptUnitSession.id,
+          item_db_id: currentItem.id
+        })
+      : null;
+  let assessmentState: ChatNativeAssessmentState = "SESSION_START";
   let nextStep: InitialAdministrationStep = "concept_unit_intro";
   const automaticJobs =
     session.workflow_mode_snapshot === "automatic"
@@ -888,55 +1000,87 @@ export async function getStudentSessionState(input: {
       : false;
 
   if (effectivePhase === "session_completed") {
+    assessmentState = "SESSION_COMPLETE";
     nextStep = "session_completed";
   } else if (effectivePhase === "followup_active") {
+    assessmentState = "FOLLOWUP_RESPONSE";
     nextStep = "followup_active";
   } else if (
     effectivePhase === "followup_profile_update_pending" ||
     effectivePhase === "followup_planning_update_pending"
   ) {
+    assessmentState = "TARGETED_FEEDBACK";
     nextStep = "followup_updating";
   } else if (effectivePhase === "followup_stopped") {
+    assessmentState = "NEXT_CHOICE";
     nextStep = "followup_stopped";
   } else if (automaticWorkflowFailed) {
+    assessmentState = "PACKAGE_ANALYSIS";
     nextStep = "automatic_workflow_failed";
   } else if (
     automaticAgentIntegrationReady &&
     (effectivePhase === "profiling_pending" || effectivePhase === "initial_concept_unit_completed")
   ) {
+    assessmentState = "PACKAGE_ANALYSIS";
     nextStep = "automatic_profiling_pending";
   } else if (
     automaticAgentIntegrationReady &&
     (effectivePhase === "profiling_completed" || effectivePhase === "planning_pending")
   ) {
+    assessmentState = "PACKAGE_ANALYSIS";
     nextStep = "automatic_planning_pending";
   } else if (
     automaticAgentIntegrationReady &&
     effectivePhase === "planning_completed"
   ) {
+    assessmentState = "FORMATIVE_ACTIVITY";
     nextStep = "automatic_followup_opening_pending";
   } else if (
     effectivePhase === "profiling_pending" ||
     effectivePhase === "initial_concept_unit_completed" ||
     conceptUnitSession?.initial_completed_at
   ) {
+    assessmentState = "PACKAGE_ANALYSIS";
     nextStep = "awaiting_profiling";
   } else if (effectivePhase === "concept_unit_intro" || !conceptUnitSession) {
+    assessmentState = "SESSION_START";
     nextStep = "concept_unit_intro";
   } else if (effectivePhase === "missing_evidence_repair") {
+    assessmentState = missingEvidence.includes("answer")
+      ? "AWAIT_ANSWER"
+      : missingEvidence.includes("reasoning")
+        ? "AWAIT_REASON"
+        : missingEvidence.includes("confidence")
+          ? "AWAIT_CONFIDENCE"
+          : "ITEM_COMPLETE";
     nextStep = "missing_evidence_repair";
   } else if (!currentItem && completedItemCount === items.length && items.length > 0) {
-    nextStep = "initial_concept_unit_complete";
+    assessmentState = "PACKAGE_REVIEW";
+    nextStep = "package_review";
   } else if (!currentResponse || !currentResponse.selected_option) {
+    assessmentState = "AWAIT_ANSWER";
     nextStep = "present_item";
   } else if (
     !currentResponse.skipped_reasoning &&
     (!currentResponse.reasoning_text || currentResponse.reasoning_text.trim().length === 0)
   ) {
+    assessmentState = "AWAIT_REASON";
     nextStep = "request_reasoning";
   } else if (!currentResponse.skipped_confidence && !currentResponse.confidence_rating) {
+    assessmentState = "AWAIT_CONFIDENCE";
     nextStep = "request_confidence";
+  } else if (!temptingOptionEvidence) {
+    assessmentState = "AWAIT_TEMPTING_OPTION";
+    nextStep = "request_tempting_option";
+  } else if (
+    !temptingOptionEvidence.no_tempting_option &&
+    temptingOptionEvidence.tempting_option &&
+    !temptingOptionEvidence.tempting_option_reason
+  ) {
+    assessmentState = "AWAIT_TEMPTING_REASON";
+    nextStep = "request_tempting_reason";
   } else {
+    assessmentState = "ITEM_COMPLETE";
     nextStep = "item_complete";
   }
 
@@ -979,6 +1123,7 @@ export async function getStudentSessionState(input: {
     session_status: session.status,
     current_phase: session.current_phase,
     effective_phase: effectivePhase,
+    assessment_state: assessmentState,
     assessment: serializeStudentAssessment(session.assessment),
     progress: {
       concept_unit_index: conceptUnitIndex >= 0 ? conceptUnitIndex + 1 : 0,
@@ -1279,6 +1424,39 @@ async function getActionContext(input: {
   return { session, conceptUnitSession, item };
 }
 
+async function assertCurrentItemActionState(input: {
+  student_user_db_id: string;
+  session_public_id: string;
+  item_public_id: string;
+  action: ChatNativeAssessmentAction;
+}) {
+  const state = await getStudentSessionState({
+    student_user_db_id: input.student_user_db_id,
+    session_public_id: input.session_public_id
+  });
+
+  if (state.current_item?.item_public_id !== input.item_public_id) {
+    throw new StudentAssessmentServiceError(
+      "invalid_phase_for_action",
+      "The requested item is not the current item for this assessment state.",
+      409,
+      {
+        assessment_state: state.assessment_state,
+        current_item_public_id: state.current_item?.item_public_id ?? null,
+        requested_item_public_id: input.item_public_id
+      }
+    );
+  }
+
+  assertActionAllowedForState({
+    assessment_state: state.assessment_state,
+    action: input.action,
+    item_public_id: input.item_public_id
+  });
+
+  return state;
+}
+
 async function getOrCreateItemResponse(input: {
   concept_unit_session_db_id: string;
   item: Item;
@@ -1358,6 +1536,12 @@ export async function recordSelectedOption(input: {
     action_type: "option",
     request_payload: data,
     run: async () => {
+      await assertCurrentItemActionState({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: input.session_public_id,
+        item_public_id: input.item_public_id,
+        action: "record_answer"
+      });
       const labels = optionLabels(context.item);
 
       if (!labels.includes(data.selected_option)) {
@@ -1428,6 +1612,12 @@ export async function recordReasoning(input: {
     action_type: "reasoning",
     request_payload: data,
     run: async () => {
+      await assertCurrentItemActionState({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: input.session_public_id,
+        item_public_id: input.item_public_id,
+        action: "record_reasoning"
+      });
       const response = await getOrCreateItemResponse({
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item: context.item
@@ -1486,6 +1676,12 @@ export async function recordConfidence(input: {
     action_type: "confidence",
     request_payload: data,
     run: async () => {
+      await assertCurrentItemActionState({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: input.session_public_id,
+        item_public_id: input.item_public_id,
+        action: "record_confidence"
+      });
       const response = await getOrCreateItemResponse({
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item: context.item
@@ -1530,6 +1726,188 @@ export async function recordConfidence(input: {
   });
 }
 
+export async function recordTemptingOption(input: {
+  student_user_db_id: string;
+  session_public_id: string;
+  item_public_id: string;
+  data: unknown;
+}) {
+  const data = temptingOptionActionSchema.parse(input.data);
+  const context = await getActionContext(input);
+
+  return withActionIdempotency({
+    assessment_session_db_id: context.session.id,
+    client_action_id: data.client_action_id,
+    action_type: "tempting_option",
+    request_payload: data,
+    run: async () => {
+      const state = await getStudentSessionState({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: input.session_public_id
+      });
+      const action =
+        state.assessment_state === "AWAIT_TEMPTING_REASON"
+          ? "record_tempting_reason"
+          : "record_tempting_option";
+
+      if (state.current_item?.item_public_id !== input.item_public_id) {
+        throw new StudentAssessmentServiceError(
+          "invalid_phase_for_action",
+          "The requested item is not the current item for this assessment state.",
+          409,
+          {
+            assessment_state: state.assessment_state,
+            current_item_public_id: state.current_item?.item_public_id ?? null,
+            requested_item_public_id: input.item_public_id
+          }
+        );
+      }
+      assertActionAllowedForState({
+        assessment_state: state.assessment_state,
+        action,
+        item_public_id: input.item_public_id
+      });
+
+      const previousEvidence = await getLatestTemptingOptionEvidence({
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id
+      });
+      const labels = optionLabels(context.item);
+      const noTemptingOption = data.no_tempting_option === true;
+      const temptingOption = noTemptingOption
+        ? null
+        : data.tempting_option?.trim() || previousEvidence?.tempting_option || null;
+      const temptingOptionReason = noTemptingOption
+        ? null
+        : data.tempting_option_reason?.trim() || null;
+
+      if (!noTemptingOption && !temptingOption) {
+        throw new StudentAssessmentServiceError(
+          "validation_failed",
+          "Select the tempting option, or choose no tempting option.",
+          400
+        );
+      }
+
+      if (temptingOption && !labels.includes(temptingOption)) {
+        throw new StudentAssessmentServiceError(
+          "invalid_option",
+          "Tempting option does not exist for this item.",
+          400,
+          { item_public_id: context.item.item_public_id }
+        );
+      }
+
+      if (state.assessment_state === "AWAIT_TEMPTING_REASON" && !temptingOptionReason) {
+        throw new StudentAssessmentServiceError(
+          "validation_failed",
+          "Explain what made the tempting option seem plausible.",
+          400
+        );
+      }
+
+      const now = new Date();
+      const structuredPayload = {
+        source: "initial_tempting_option",
+        item_public_id: context.item.item_public_id,
+        no_tempting_option: noTemptingOption,
+        tempting_option: temptingOption,
+        tempting_option_reason: temptingOptionReason
+      };
+      const messageText = noTemptingOption
+        ? "No other option was tempting."
+        : temptingOptionReason
+          ? `Option ${temptingOption} was tempting because ${temptingOptionReason}`
+          : `Option ${temptingOption} was tempting.`;
+
+      await logStudentTurnAndEvent({
+        session_db_id: context.session.id,
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id,
+        phase: context.session.current_phase,
+        event_type: "tempting_option_submitted",
+        message_text: messageText,
+        structured_payload: structuredPayload
+      });
+
+      const itemComplete = noTemptingOption || Boolean(temptingOptionReason);
+      const response = await getOrCreateItemResponse({
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item: context.item
+      });
+
+      if (itemComplete) {
+        await prisma.itemResponse.update({
+          where: { id: response.id },
+          data: {
+            item_submitted_at: now,
+            item_response_time_ms: response.item_started_at
+              ? Math.max(0, now.getTime() - response.item_started_at.getTime())
+              : undefined,
+            client_submission_id: data.client_action_id ?? response.client_submission_id
+          }
+        });
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          event_type: "item_completed",
+          event_category: "initial_administration",
+          event_source: "backend",
+          payload: { item_public_id: context.item.item_public_id },
+          occurred_at: now
+        });
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          event_type: "item_submitted",
+          event_category: "initial_administration",
+          event_source: "backend",
+          payload: { item_public_id: context.item.item_public_id },
+          occurred_at: now
+        });
+      }
+
+      await prisma.assessmentSession.update({
+        where: { id: context.session.id },
+        data: { last_activity_at: now }
+      });
+
+      const nextState = await getStudentSessionState({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: input.session_public_id
+      });
+
+      if (itemComplete && nextState.current_item) {
+        const nextItem = await prisma.item.findUnique({
+          where: { item_public_id: nextState.current_item.item_public_id },
+          select: { id: true, item_public_id: true }
+        });
+
+        if (nextItem) {
+          await logProcessEvent({
+            assessment_session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: nextItem.id,
+            event_type: "item_presented",
+            event_category: "initial_administration",
+            event_source: "backend",
+            payload: { item_public_id: nextItem.item_public_id }
+          });
+        }
+      }
+
+      const result = {
+        action_status: itemComplete ? "item_completed" : "tempting_option_saved",
+        state: nextState
+      };
+      assertStudentPayloadIsSafe(result);
+      return result;
+    }
+  });
+}
+
 export async function submitItemResponse(input: {
   student_user_db_id: string;
   session_public_id: string;
@@ -1545,6 +1923,12 @@ export async function submitItemResponse(input: {
     action_type: "submit",
     request_payload: data,
     run: async () => {
+      await assertCurrentItemActionState({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: input.session_public_id,
+        item_public_id: input.item_public_id,
+        action: "complete_item"
+      });
       const response = await getOrCreateItemResponse({
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item: context.item
@@ -1836,6 +2220,12 @@ export async function completeInitialConceptUnitAdministration(input: {
     );
   }
 
+  const currentState = await getStudentSessionState(input);
+  assertActionAllowedForState({
+    assessment_state: currentState.assessment_state,
+    action: "submit_package"
+  });
+
   const now = new Date();
   await prisma.conceptUnitSession.update({
     where: { id: conceptUnitSession.id },
@@ -1855,6 +2245,17 @@ export async function completeInitialConceptUnitAdministration(input: {
   await updateAssessmentSessionPhase({
     assessment_session_db_id: session.id,
     to_phase: "initial_concept_unit_completed"
+  });
+  await logProcessEvent({
+    assessment_session_db_id: session.id,
+    concept_unit_session_db_id: conceptUnitSession.id,
+    event_type: "package_submitted",
+    event_category: "initial_administration",
+    event_source: "backend",
+    payload: {
+      concept_unit_public_id: session.current_concept_unit.concept_unit_public_id
+    },
+    occurred_at: now
   });
   await updateAssessmentSessionPhase({
     assessment_session_db_id: session.id,

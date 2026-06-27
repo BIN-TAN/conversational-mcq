@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ChatNativeAssessmentStateSchema } from "@/lib/student-assessment/state-machine";
 
 export const MissingEvidenceFieldSchema = z.enum(["answer", "reasoning", "confidence"]);
 export type MissingEvidenceField = z.infer<typeof MissingEvidenceFieldSchema>;
@@ -74,6 +75,7 @@ export const StudentSessionStateSchema = z.object({
   session_status: z.string(),
   current_phase: z.string(),
   effective_phase: z.string(),
+  assessment_state: ChatNativeAssessmentStateSchema,
   assessment: StudentAssessmentSummarySchema,
   progress: z.object({
     concept_unit_index: z.number(),
@@ -87,8 +89,12 @@ export const StudentSessionStateSchema = z.object({
     "present_item",
     "request_reasoning",
     "request_confidence",
+    "request_tempting_option",
+    "request_tempting_reason",
     "missing_evidence_repair",
     "item_complete",
+    "package_review",
+    "package_analysis",
     "initial_concept_unit_complete",
     "awaiting_profiling",
     "automatic_profiling_pending",
@@ -151,9 +157,13 @@ export const StudentConversationFrameSchema = z.object({
     "present_item",
     "request_reasoning",
     "request_confidence",
+    "request_tempting_option",
+    "request_tempting_reason",
     "missing_evidence_repair",
     "confirm_skip",
     "item_completed",
+    "package_review",
+    "package_analysis",
     "concept_unit_completed",
     "awaiting_profiling",
     "automatic_processing",

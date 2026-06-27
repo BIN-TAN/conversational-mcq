@@ -163,6 +163,21 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
                 interaction_type: "request_confidence",
                 allowed_actions: ["select_confidence", "skip_confidence"]
               }
+            : state.next_step === "request_tempting_option"
+              ? {
+                  ...base,
+                  assistant_message:
+                    "Was another option tempting? If yes, which one, and what made it tempting? You can also say No.",
+                  interaction_type: "request_tempting_option",
+                  allowed_actions: ["record_tempting_option"]
+                }
+              : state.next_step === "request_tempting_reason"
+                ? {
+                    ...base,
+                    assistant_message: "What made that option seem tempting?",
+                    interaction_type: "request_tempting_reason",
+                    allowed_actions: ["record_tempting_reason"]
+                  }
             : state.next_step === "missing_evidence_repair"
               ? {
                   ...base,
@@ -174,10 +189,27 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
                 ? {
                     ...base,
                     assistant_message:
-                      "You can review this response before submitting it.",
+                      "Thanks. I have what I need for this question.",
                     interaction_type: "item_completed",
-                    allowed_actions: ["submit_item", "review_responses"]
+                    allowed_actions: ["review_responses"]
                   }
+                : state.next_step === "package_review"
+                  ? {
+                      ...base,
+                      assistant_message:
+                        "You can review the three responses as one package before the next step is prepared.",
+                      interaction_type: "package_review",
+                      allowed_actions: ["complete_initial_concept_unit", "review_responses"]
+                    }
+                  : state.next_step === "package_analysis"
+                    ? {
+                        ...base,
+                        assistant_message:
+                          "Thanks. I’m using your response package to prepare the next step.",
+                        interaction_type: "package_analysis",
+                        allowed_actions: ["review_responses", "save_exit"],
+                        can_continue: false
+                      }
                 : state.next_step === "initial_concept_unit_complete"
                   ? {
                       ...base,

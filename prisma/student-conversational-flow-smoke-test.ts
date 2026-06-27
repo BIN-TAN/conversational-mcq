@@ -10,9 +10,9 @@ import {
   recordConfidence,
   recordReasoning,
   recordSelectedOption,
+  recordTemptingOption,
   startConceptUnitInitialAdministration,
-  startOrResumeStudentAssessmentSession,
-  submitItemResponse
+  startOrResumeStudentAssessmentSession
 } from "../src/lib/services/student-assessment/service";
 import { buildStudentConversationFrame } from "../src/lib/student-assessment-ui/presenter";
 import {
@@ -66,9 +66,6 @@ async function assertStudentComponentShape() {
     "utf8"
   );
 
-  assert(source.includes("continue-after-option"), "Option step Continue control is missing.");
-  assert(source.includes("continue-after-reasoning"), "Reasoning step Continue control is missing.");
-  assert(source.includes("continue-after-confidence"), "Confidence step Continue control is missing.");
   assert(source.includes("current-answer-summary"), "Current answer summary is missing.");
   assert(source.includes("Response record"), "Response record panel is missing.");
   assert(source.includes("lg:grid-cols-[minmax(0,1fr)_340px]"), "Desktop chat plus response-record layout is missing.");
@@ -184,22 +181,35 @@ async function main() {
       })
     ).state;
     frame = buildStudentConversationFrame(state);
-    assert(frame.interaction_type === "item_completed", "Confidence should advance to review before submit.");
+    assert(
+      frame.interaction_type === "request_tempting_option",
+      "Confidence should advance to tempting-option evidence."
+    );
     assert(state.current_item?.existing_confidence_rating === "medium", "Confidence did not persist.");
 
-    const submitActionId = `${userId}_submit_once`;
-    await submitItemResponse({
+    const temptingActionId = `${userId}_tempting_once`;
+    const temptingOption = item.options.find((option) => option.label !== selectedOption)?.label;
+    assert(temptingOption, "Demo item needs a second option for tempting-option evidence.");
+    await recordTemptingOption({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
       item_public_id: item.item_public_id,
-      data: { client_action_id: submitActionId }
+      data: {
+        tempting_option: temptingOption,
+        tempting_option_reason: "It used similar wording to the evidence.",
+        client_action_id: temptingActionId
+      }
     });
     state = (
-      await submitItemResponse({
+      await recordTemptingOption({
         student_user_db_id: student.id,
         session_public_id: started.session.session_public_id,
         item_public_id: item.item_public_id,
-        data: { client_action_id: submitActionId }
+        data: {
+          tempting_option: temptingOption,
+          tempting_option_reason: "It used similar wording to the evidence.",
+          client_action_id: temptingActionId
+        }
       })
     ).state;
 
@@ -217,7 +227,7 @@ async function main() {
         }
       }
     });
-    assert(itemResponses.length === 1, "Repeated submit created duplicate item responses.");
+    assert(itemResponses.length === 1, "Repeated tempting-option save created duplicate item responses.");
     assert(itemResponses[0]?.item_submitted_at, "Item was not submitted.");
 
     const teacherReview = await getTeacherReviewItemResponses(started.session.session_public_id);
