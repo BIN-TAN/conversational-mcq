@@ -252,7 +252,17 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
       );
     }
 
-    return existing;
+    return prisma.assessment.update({
+      where: { id: existing.id },
+      data: {
+        title: "IRT Theta Invariance and Item Parameters",
+        description:
+          "Fixed MVP assessment for theta invariance, item difficulty, and item discrimination.",
+        workflow_mode: "automatic",
+        release_at: null,
+        close_at: null
+      }
+    });
   }
 
   const assessment = await prisma.assessment.upsert({
@@ -262,7 +272,9 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
       description:
         "Fixed MVP assessment for theta invariance, item difficulty, and item discrimination.",
       status: "published",
-      workflow_mode: "manual_review",
+      workflow_mode: "automatic",
+      release_at: null,
+      close_at: null,
       created_by_user_db_id: teacher.id
     },
     create: {
@@ -271,7 +283,9 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
       description:
         "Fixed MVP assessment for theta invariance, item difficulty, and item discrimination.",
       status: "published",
-      workflow_mode: "manual_review",
+      workflow_mode: "automatic",
+      release_at: null,
+      close_at: null,
       created_by_user_db_id: teacher.id
     }
   });
