@@ -305,15 +305,6 @@ async function main() {
     );
     assertStudentVisibleTextIsSafe(transcript);
 
-    const choiceB = await submitNextChoice({
-      student_user_db_id: student.id,
-      session_public_id: started.session.session_public_id,
-      choice: "try_another",
-      client_action_id: `${prefix}_next_choice_b`
-    });
-    assert(choiceB.choice_status === "transfer_placeholder", "Choice B should use transfer placeholder.");
-    assert(choiceB.state.assessment_state === "NEXT_CHOICE", "Choice B should keep the session stable.");
-
     const choiceA = await submitNextChoice({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
@@ -343,8 +334,8 @@ async function main() {
       assert((eventCounts[expected] ?? 0) > 0, `Missing process event ${expected}.`);
     }
     assert(
-      (eventCounts.next_choice_selected ?? 0) === 2,
-      "Expected two next_choice_selected events for B placeholder and A completion."
+      (eventCounts.next_choice_selected ?? 0) === 1,
+      "Expected one next_choice_selected event for A completion."
     );
 
     const round = await prisma.followupRound.findFirstOrThrow({

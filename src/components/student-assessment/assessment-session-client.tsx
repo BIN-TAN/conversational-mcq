@@ -76,12 +76,15 @@ function displayTranscriptText(entry: StudentTranscriptEntry) {
     return entry.message_text;
   }
 
-  if (entry.interaction_type === "option_selected") {
+  if (entry.interaction_type === "option_selected" || entry.interaction_type === "transfer_option_selected") {
     const selected = entry.message_text.match(/^Selected option\s+(.+)\.$/i)?.[1]?.trim();
     return selected || entry.message_text;
   }
 
-  if (entry.interaction_type === "confidence_selected") {
+  if (
+    entry.interaction_type === "confidence_selected" ||
+    entry.interaction_type === "transfer_confidence_selected"
+  ) {
     const selected = entry.message_text.match(/^Selected\s+(.+)\s+confidence\.$/i)?.[1]?.trim();
     return selected ? selected.charAt(0).toUpperCase() + selected.slice(1).toLowerCase() : entry.message_text;
   }
@@ -134,6 +137,10 @@ function shouldHideActiveAgentTranscriptEntry(entry: StudentTranscriptEntry, sta
     sameCurrentItem
   ) {
     return text.startsWith(`Question ${state.current_item?.item_order ?? ""} of 3`);
+  }
+
+  if (state.assessment_state === "TRANSFER_ITEM" && sameCurrentItem) {
+    return text.startsWith("Additional question");
   }
 
   if (state.assessment_state === "AWAIT_REASON" && sameCurrentItem) {
@@ -209,16 +216,18 @@ function OptionChip({
 function AgentItemMessage({
   item,
   disabled,
+  isTransferItem = false,
   onSelect
 }: {
   item: StudentSafeItem;
   disabled: boolean;
+  isTransferItem?: boolean;
   onSelect: (label: string) => void;
 }) {
   return (
     <AgentMessage>
       <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-        Question {item.item_order} of 3
+        {isTransferItem ? "Additional question" : `Question ${item.item_order} of 3`}
       </p>
       <p className="mt-2 whitespace-pre-wrap text-base leading-7 text-ink">{item.item_stem}</p>
       <div className="mt-4 grid gap-2">
@@ -760,8 +769,20 @@ function activeItemPrompt(input: {
     );
   }
 
-  if ((state.assessment_state === "ITEM_PRESENTED" || state.assessment_state === "AWAIT_ANSWER") && item) {
-    return <AgentItemMessage disabled={isBusy} item={item} onSelect={input.onSelectOption} />;
+  if (
+    (state.assessment_state === "ITEM_PRESENTED" ||
+      state.assessment_state === "AWAIT_ANSWER" ||
+      state.assessment_state === "TRANSFER_ITEM") &&
+    item
+  ) {
+    return (
+      <AgentItemMessage
+        disabled={isBusy}
+        isTransferItem={state.assessment_state === "TRANSFER_ITEM" || state.next_step === "transfer_item"}
+        item={item}
+        onSelect={input.onSelectOption}
+      />
+    );
   }
 
   if (state.assessment_state === "AWAIT_REASON" && item) {

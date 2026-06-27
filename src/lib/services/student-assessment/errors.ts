@@ -17,6 +17,7 @@ export type StudentAssessmentErrorCode =
   | "concept_no_longer_current"
   | "item_not_in_current_concept_unit"
   | "item_not_included_in_published_set"
+  | "transfer_item_unavailable"
   | "invalid_option"
   | "missing_evidence_repair_required"
   | "missing_evidence_confirmation_required"

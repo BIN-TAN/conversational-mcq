@@ -60,7 +60,7 @@ const allowedActionsByState: Record<ChatNativeAssessmentState, ChatNativeAssessm
   TARGETED_FEEDBACK: ["show_targeted_feedback"],
   REVISION: ["submit_revision"],
   NEXT_CHOICE: ["select_next_choice"],
-  TRANSFER_ITEM: ["present_transfer_item"],
+  TRANSFER_ITEM: ["present_transfer_item", "record_answer"],
   SESSION_COMPLETE: []
 };
 

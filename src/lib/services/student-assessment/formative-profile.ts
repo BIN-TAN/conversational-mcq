@@ -121,10 +121,9 @@ const CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_HASH = createHash("sha256")
   .digest("hex");
 const FORMATIVE_ACTIVITY_AGENT_NAME = "chat_native_formative_activity";
 const TARGETED_FEEDBACK_AGENT_NAME = "chat_native_targeted_feedback";
+const TRANSFER_ITEM_AGENT_NAME = "deterministic_transfer_item";
 const MAX_FORMATIVE_RESPONSE_CHARS = 5000;
 const MAX_REVISION_CHARS = 5000;
-const TRANSFER_PLACEHOLDER_MESSAGE =
-  "Another question on the same idea will be available in the next step of this pilot.";
 
 function prismaJson(value: unknown) {
   return toPrismaJson(value) ?? Prisma.JsonNull;
@@ -143,6 +142,59 @@ function stringValue(record: Record<string, unknown>, key: string): string | nul
 
 function arrayValue(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+function itemRoleFromRules(value: unknown): string | null {
+  const rules = jsonRecord(value);
+  const role = rules.item_role;
+  return typeof role === "string" && role.trim() ? role.trim() : null;
+}
+
+function safeOptionEntries(value: unknown): Array<{ label: string; text: string }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const record = jsonRecord(entry);
+      const label = stringValue(record, "label");
+      const text = stringValue(record, "text");
+
+      return label && text ? { label, text } : null;
+    })
+    .filter((entry): entry is { label: string; text: string } => Boolean(entry));
+}
+
+function transferItemAgentMessage(item: { item_stem: string; options: unknown }) {
+  const options = safeOptionEntries(item.options)
+    .map((option) => `${option.label}. ${option.text}`)
+    .join("\n");
+
+  return [
+    "Additional question",
+    "",
+    item.item_stem,
+    "",
+    options,
+    "",
+    "What is your answer?"
+  ]
+    .filter((part) => part !== "")
+    .join("\n");
+}
+
+async function findTransferItemForConceptUnit(conceptUnitDbId: string) {
+  const candidates = await prisma.item.findMany({
+    where: {
+      concept_unit_db_id: conceptUnitDbId,
+      included_in_published_set: false,
+      status: { not: "archived" }
+    },
+    orderBy: [{ item_order: "asc" }, { created_at: "asc" }]
+  });
+
+  return candidates.find((item) => itemRoleFromRules(item.administration_rules) === "transfer") ?? null;
 }
 
 function safePackageForProvider(payload: unknown) {
@@ -1915,23 +1967,84 @@ export async function submitChatNativeNextChoice(input: {
   });
 
   if (input.choice === "try_another") {
-    await logConversationTurn({
-      assessment_session_db_id: session.id,
-      concept_unit_session_db_id: conceptUnitSession?.id,
-      phase: "followup_stopped",
-      actor_type: "agent",
-      agent_name: TARGETED_FEEDBACK_AGENT_NAME,
-      message_text: TRANSFER_PLACEHOLDER_MESSAGE,
-      structured_payload: {
-        source: "chat_native_next_choice",
-        message_type: "transfer_placeholder"
-      },
-      created_at: now
+    if (!session.current_concept_unit_db_id || !conceptUnitSession) {
+      throw new StudentAssessmentServiceError(
+        "concept_unit_not_current",
+        "Current concept-unit session was not found.",
+        409
+      );
+    }
+
+    const transferItem = await findTransferItemForConceptUnit(session.current_concept_unit_db_id);
+
+    if (!transferItem) {
+      throw new StudentAssessmentServiceError(
+        "transfer_item_unavailable",
+        "No transfer item is available for this concept unit.",
+        409
+      );
+    }
+
+    const alreadyPresented = await prisma.processEvent.count({
+      where: {
+        assessment_session_db_id: session.id,
+        concept_unit_session_db_id: conceptUnitSession.id,
+        item_db_id: transferItem.id,
+        event_type: "transfer_item_presented"
+      }
     });
 
+    if (alreadyPresented === 0) {
+      await logProcessEvent({
+        assessment_session_db_id: session.id,
+        concept_unit_session_db_id: conceptUnitSession.id,
+        item_db_id: transferItem.id,
+        event_type: "transfer_item_presented",
+        event_category: "transfer_item",
+        event_source: "backend",
+        payload: {
+          item_public_id: transferItem.item_public_id,
+          item_role: "transfer",
+          source_choice: "try_another"
+        },
+        occurred_at: now
+      });
+      await logProcessEvent({
+        assessment_session_db_id: session.id,
+        concept_unit_session_db_id: conceptUnitSession.id,
+        item_db_id: transferItem.id,
+        event_type: "agent_message_shown",
+        event_category: "transfer_item",
+        event_source: "backend",
+        payload: {
+          source: TRANSFER_ITEM_AGENT_NAME,
+          prompt_type: "item_presented",
+          item_public_id: transferItem.item_public_id,
+          item_role: "transfer"
+        },
+        occurred_at: now
+      });
+      await logConversationTurn({
+        assessment_session_db_id: session.id,
+        concept_unit_session_db_id: conceptUnitSession.id,
+        item_db_id: transferItem.id,
+        phase: "followup_stopped",
+        actor_type: "agent",
+        agent_name: TRANSFER_ITEM_AGENT_NAME,
+        message_text: transferItemAgentMessage(transferItem),
+        structured_payload: {
+          source: TRANSFER_ITEM_AGENT_NAME,
+          prompt_type: "item_presented",
+          item_public_id: transferItem.item_public_id,
+          item_role: "transfer"
+        },
+        created_at: now
+      });
+    }
+
     const response = {
-      choice_status: "transfer_placeholder",
-      message: TRANSFER_PLACEHOLDER_MESSAGE
+      choice_status: "transfer_item_started",
+      item_public_id: transferItem.item_public_id
     };
 
     await prisma.studentActionIdempotencyKey.update({

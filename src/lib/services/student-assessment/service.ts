@@ -59,6 +59,7 @@ export const InitialAdministrationStep = z.enum([
   "formative_activity",
   "formative_response_saved",
   "revision_requested",
+  "transfer_item",
   "automatic_profiling_pending",
   "automatic_planning_pending",
   "automatic_followup_opening_pending",
@@ -222,13 +223,35 @@ function safeOptionEntries(value: unknown): Array<{ label: string; text: string 
     .filter((entry): entry is { label: string; text: string } => Boolean(entry));
 }
 
-function initialItemAgentMessage(item: Pick<Item, "item_order" | "item_stem" | "options">): string {
+function itemRoleFromRules(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const role = (value as Record<string, unknown>).item_role;
+  return typeof role === "string" && role.trim() ? role.trim() : null;
+}
+
+function isTransferItemCandidate(
+  item: Pick<Item, "status" | "included_in_published_set" | "administration_rules">
+) {
+  return (
+    item.status !== "archived" &&
+    item.included_in_published_set === false &&
+    itemRoleFromRules(item.administration_rules) === "transfer"
+  );
+}
+
+function itemAgentMessage(
+  item: Pick<Item, "item_order" | "item_stem" | "options">,
+  questionLabel: string
+): string {
   const options = safeOptionEntries(item.options)
     .map((option) => `${option.label}. ${option.text}`)
     .join("\n");
 
   return [
-    `Question ${item.item_order} of 3`,
+    questionLabel,
     "",
     item.item_stem,
     "",
@@ -240,9 +263,16 @@ function initialItemAgentMessage(item: Pick<Item, "item_order" | "item_stem" | "
     .join("\n");
 }
 
+function initialItemAgentMessage(item: Pick<Item, "item_order" | "item_stem" | "options">): string {
+  return itemAgentMessage(item, `Question ${item.item_order} of 3`);
+}
+
 const INITIAL_ADMIN_AGENT_NAME = "deterministic_initial_administration";
+const TRANSFER_ITEM_AGENT_NAME = "deterministic_transfer_item";
 const PACKAGE_REVIEW_MESSAGE =
   "I have your three responses. You can review them or continue to feedback.";
+const TRANSFER_COMPLETION_MESSAGE =
+  "Thanks. Your response to the additional question has been recorded.";
 
 function normalizeTemptingOptionEvidence(value: unknown): TemptingOptionEvidence | null {
   if (!value || typeof value !== "object") {
@@ -251,7 +281,7 @@ function normalizeTemptingOptionEvidence(value: unknown): TemptingOptionEvidence
 
   const payload = value as Record<string, unknown>;
 
-  if (payload.source !== "initial_tempting_option") {
+  if (payload.source !== "initial_tempting_option" && payload.source !== "transfer_tempting_option") {
     return null;
   }
 
@@ -274,6 +304,44 @@ function normalizeTemptingOptionEvidence(value: unknown): TemptingOptionEvidence
     tempting_option: noTemptingOption ? null : temptingOption,
     tempting_option_reason: noTemptingOption ? null : temptingOptionReason
   };
+}
+
+async function findTransferItemForConceptUnit(conceptUnitDbId: string) {
+  const candidates = await prisma.item.findMany({
+    where: {
+      concept_unit_db_id: conceptUnitDbId,
+      included_in_published_set: false,
+      status: { not: "archived" }
+    },
+    orderBy: [{ item_order: "asc" }, { created_at: "asc" }]
+  });
+
+  return candidates.find(isTransferItemCandidate) ?? null;
+}
+
+async function transferItemWasPresented(input: {
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string;
+  item_db_id: string;
+}) {
+  const [eventCount, responseCount] = await Promise.all([
+    prisma.processEvent.count({
+      where: {
+        assessment_session_db_id: input.assessment_session_db_id,
+        concept_unit_session_db_id: input.concept_unit_session_db_id,
+        item_db_id: input.item_db_id,
+        event_type: "transfer_item_presented"
+      }
+    }),
+    prisma.itemResponse.count({
+      where: {
+        concept_unit_session_db_id: input.concept_unit_session_db_id,
+        item_db_id: input.item_db_id
+      }
+    })
+  ]);
+
+  return eventCount > 0 || responseCount > 0;
 }
 
 async function getLatestTemptingOptionEvidence(input: {
@@ -1049,23 +1117,38 @@ export async function getStudentSessionState(input: {
     (conceptUnitSession?.item_responses ?? []).map((response) => [response.item_db_id, response])
   );
   const items = currentConceptUnit?.items ?? [];
-  const completedItemCount = items.filter((item) =>
-    Boolean(responsesByItemId.get(item.id)?.item_submitted_at)
-  ).length;
-  const firstMissingRepairItem = items.find((item) => {
-    const response = responsesByItemId.get(item.id);
-    return response?.missing_evidence_repair_offered && !response.item_submitted_at;
-  });
-  const firstIncompleteItem = items.find((item) => {
-    const response = responsesByItemId.get(item.id);
-    return !response?.item_submitted_at;
-  });
   const effectivePhase =
     session.current_phase === "student_exited" && session.resume_phase
       ? session.resume_phase
       : session.current_phase;
-  const currentItem =
-    effectivePhase === "missing_evidence_repair"
+  const transferCandidate =
+    currentConceptUnit && conceptUnitSession && effectivePhase === "followup_stopped"
+      ? await findTransferItemForConceptUnit(currentConceptUnit.id)
+      : null;
+  const transferStarted =
+    transferCandidate && conceptUnitSession
+      ? await transferItemWasPresented({
+          assessment_session_db_id: session.id,
+          concept_unit_session_db_id: conceptUnitSession.id,
+          item_db_id: transferCandidate.id
+        })
+      : false;
+  const transferItem = transferStarted ? transferCandidate : null;
+  const activeItems = transferItem ? [transferItem] : items;
+  const completedItemCount = activeItems.filter((item) =>
+    Boolean(responsesByItemId.get(item.id)?.item_submitted_at)
+  ).length;
+  const firstMissingRepairItem = activeItems.find((item) => {
+    const response = responsesByItemId.get(item.id);
+    return response?.missing_evidence_repair_offered && !response.item_submitted_at;
+  });
+  const firstIncompleteItem = activeItems.find((item) => {
+    const response = responsesByItemId.get(item.id);
+    return !response?.item_submitted_at;
+  });
+  const currentItem = transferItem
+    ? firstIncompleteItem ?? transferItem
+    : effectivePhase === "missing_evidence_repair"
       ? firstMissingRepairItem ?? firstIncompleteItem ?? null
       : firstIncompleteItem ?? null;
   const currentResponse = currentItem ? responsesByItemId.get(currentItem.id) ?? null : null;
@@ -1123,6 +1206,36 @@ export async function getStudentSessionState(input: {
   if (effectivePhase === "session_completed") {
     assessmentState = "SESSION_COMPLETE";
     nextStep = "session_completed";
+  } else if (effectivePhase === "followup_stopped" && transferItem && currentItem) {
+    if (currentResponse?.item_submitted_at) {
+      assessmentState = "SESSION_COMPLETE";
+      nextStep = "session_completed";
+    } else if (!currentResponse || !currentResponse.selected_option) {
+      assessmentState = "TRANSFER_ITEM";
+      nextStep = "transfer_item";
+    } else if (
+      !currentResponse.skipped_reasoning &&
+      (!currentResponse.reasoning_text || currentResponse.reasoning_text.trim().length === 0)
+    ) {
+      assessmentState = "AWAIT_REASON";
+      nextStep = "request_reasoning";
+    } else if (!currentResponse.skipped_confidence && !currentResponse.confidence_rating) {
+      assessmentState = "AWAIT_CONFIDENCE";
+      nextStep = "request_confidence";
+    } else if (!temptingOptionEvidence) {
+      assessmentState = "AWAIT_TEMPTING_OPTION";
+      nextStep = "request_tempting_option";
+    } else if (
+      !temptingOptionEvidence.no_tempting_option &&
+      temptingOptionEvidence.tempting_option &&
+      !temptingOptionEvidence.tempting_option_reason
+    ) {
+      assessmentState = "AWAIT_TEMPTING_REASON";
+      nextStep = "request_tempting_reason";
+    } else {
+      assessmentState = "ITEM_COMPLETE";
+      nextStep = "item_complete";
+    }
   } else if (
     phaseFiveFormativeRound?.status === "active" &&
     phaseSixRoundState?.has_revision_prompt &&
@@ -1271,7 +1384,7 @@ export async function getStudentSessionState(input: {
       concept_unit_index: conceptUnitIndex >= 0 ? conceptUnitIndex + 1 : 0,
       concept_unit_count: publishedConceptUnits.length,
       completed_item_count: completedItemCount,
-      total_item_count: items.length
+      total_item_count: activeItems.length
     },
     current_concept_unit: currentConceptUnit
       ? serializeStudentConceptUnit(currentConceptUnit)
@@ -1533,7 +1646,19 @@ async function getActionContext(input: {
     );
   }
 
-  if (conceptUnitSession.initial_completed_at || conceptUnitSession.status === "initial_completed") {
+  const isTransferItem = isTransferItemCandidate(item);
+  const transferPresented = isTransferItem
+    ? await transferItemWasPresented({
+        assessment_session_db_id: session.id,
+        concept_unit_session_db_id: conceptUnitSession.id,
+        item_db_id: item.id
+      })
+    : false;
+
+  if (
+    !isTransferItem &&
+    (conceptUnitSession.initial_completed_at || conceptUnitSession.status === "initial_completed")
+  ) {
     throw new StudentAssessmentServiceError(
       "initial_response_locked_after_concept_completion",
       "Initial responses are locked after concept-unit completion.",
@@ -1541,7 +1666,16 @@ async function getActionContext(input: {
     );
   }
 
-  if (
+  if (isTransferItem) {
+    if (session.current_phase !== "followup_stopped" || !transferPresented) {
+      throw new StudentAssessmentServiceError(
+        "invalid_phase_for_action",
+        "The transfer item is not currently available.",
+        409,
+        { current_phase: session.current_phase }
+      );
+    }
+  } else if (
     session.current_phase !== "initial_item_administration" &&
     session.current_phase !== "missing_evidence_repair"
   ) {
@@ -1553,7 +1687,7 @@ async function getActionContext(input: {
     );
   }
 
-  if (item.status !== "published" || !item.included_in_published_set) {
+  if (!isTransferItem && (item.status !== "published" || !item.included_in_published_set)) {
     throw new StudentAssessmentServiceError(
       "item_not_included_in_published_set",
       "Item is not part of the published administration set.",
@@ -1561,40 +1695,42 @@ async function getActionContext(input: {
     );
   }
 
-  const orderedItems = await prisma.item.findMany({
-    where: {
-      concept_unit_db_id: session.current_concept_unit.id,
-      status: "published",
-      included_in_published_set: true
-    },
-    orderBy: [{ item_order: "asc" }, { created_at: "asc" }],
-    select: { id: true }
-  });
-  const responses = await prisma.itemResponse.findMany({
-    where: {
-      concept_unit_session_db_id: conceptUnitSession.id,
-      item_db_id: { in: orderedItems.map((orderedItem) => orderedItem.id) }
-    },
-    select: { item_db_id: true, item_submitted_at: true }
-  });
-  const responseByItemId = new Map(
-    responses.map((response) => [response.item_db_id, response])
-  );
-  const existingResponse = responseByItemId.get(item.id);
-  const nextIncomplete = orderedItems.find(
-    (orderedItem) => !responseByItemId.get(orderedItem.id)?.item_submitted_at
-  );
-
-  if (!existingResponse && nextIncomplete?.id !== item.id) {
-    throw new StudentAssessmentServiceError(
-      "item_not_in_current_concept_unit",
-      "The requested item is not the next allowed item.",
-      409,
-      { item_public_id: input.item_public_id }
+  if (!isTransferItem) {
+    const orderedItems = await prisma.item.findMany({
+      where: {
+        concept_unit_db_id: session.current_concept_unit.id,
+        status: "published",
+        included_in_published_set: true
+      },
+      orderBy: [{ item_order: "asc" }, { created_at: "asc" }],
+      select: { id: true }
+    });
+    const responses = await prisma.itemResponse.findMany({
+      where: {
+        concept_unit_session_db_id: conceptUnitSession.id,
+        item_db_id: { in: orderedItems.map((orderedItem) => orderedItem.id) }
+      },
+      select: { item_db_id: true, item_submitted_at: true }
+    });
+    const responseByItemId = new Map(
+      responses.map((response) => [response.item_db_id, response])
     );
+    const existingResponse = responseByItemId.get(item.id);
+    const nextIncomplete = orderedItems.find(
+      (orderedItem) => !responseByItemId.get(orderedItem.id)?.item_submitted_at
+    );
+
+    if (!existingResponse && nextIncomplete?.id !== item.id) {
+      throw new StudentAssessmentServiceError(
+        "item_not_in_current_concept_unit",
+        "The requested item is not the next allowed item.",
+        409,
+        { item_public_id: input.item_public_id }
+      );
+    }
   }
 
-  return { session, conceptUnitSession, item };
+  return { session, conceptUnitSession, item, isTransferItem };
 }
 
 async function assertCurrentItemActionState(input: {
@@ -1708,11 +1844,14 @@ async function logInitialAgentPrompt(input: {
     | "package_review";
   message_text: string;
   structured_payload?: Record<string, unknown>;
+  event_category?: string;
+  agent_name?: string;
   occurred_at?: Date;
 }) {
   const now = input.occurred_at ?? new Date();
+  const agentName = input.agent_name ?? INITIAL_ADMIN_AGENT_NAME;
   const payload = {
-    source: INITIAL_ADMIN_AGENT_NAME,
+    source: agentName,
     prompt_type: input.prompt_type,
     ...(input.structured_payload ?? {})
   };
@@ -1722,7 +1861,7 @@ async function logInitialAgentPrompt(input: {
     concept_unit_session_db_id: input.concept_unit_session_db_id,
     item_db_id: input.item_db_id,
     event_type: "agent_message_shown",
-    event_category: "initial_administration",
+    event_category: input.event_category ?? "initial_administration",
     event_source: "backend",
     payload,
     occurred_at: now
@@ -1733,7 +1872,7 @@ async function logInitialAgentPrompt(input: {
     item_db_id: input.item_db_id,
     phase: input.phase,
     actor_type: "agent",
-    agent_name: INITIAL_ADMIN_AGENT_NAME,
+    agent_name: agentName,
     message_text: input.message_text,
     structured_payload: payload,
     created_at: now
@@ -1797,11 +1936,14 @@ export async function recordSelectedOption(input: {
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id,
         phase: context.session.current_phase,
-        event_type: "option_selected",
+        event_type: context.isTransferItem ? "transfer_answer_selected" : "option_selected",
+        event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
         structured_payload: {
+          source: context.isTransferItem ? "transfer_answer" : "initial_answer",
           item_public_id: context.item.item_public_id,
           selected_option: data.selected_option,
-          revised: selectedChanged
+          revised: selectedChanged,
+          item_context: context.isTransferItem ? "transfer" : "initial"
         }
       });
       await logProcessEvent({
@@ -1809,25 +1951,27 @@ export async function recordSelectedOption(input: {
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id,
         event_type: "option_clicked",
-        event_category: "initial_administration",
+        event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
         event_source: "frontend",
         payload: {
           item_public_id: context.item.item_public_id,
           selected_option: data.selected_option,
-          revised: selectedChanged
+          revised: selectedChanged,
+          item_context: context.isTransferItem ? "transfer" : "initial"
         }
       });
       if (selectedChanged) {
         await logProcessEvent({
-          assessment_session_db_id: context.session.id,
-          concept_unit_session_db_id: context.conceptUnitSession.id,
-          item_db_id: context.item.id,
-          event_type: "answer_changed",
-          event_category: "initial_administration",
+        assessment_session_db_id: context.session.id,
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id,
+        event_type: "answer_changed",
+          event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
           event_source: "frontend",
           payload: {
             item_public_id: context.item.item_public_id,
-            selected_option: data.selected_option
+            selected_option: data.selected_option,
+            item_context: context.isTransferItem ? "transfer" : "initial"
           }
         });
       }
@@ -1840,8 +1984,11 @@ export async function recordSelectedOption(input: {
         message_text: `What is your reason for choosing ${data.selected_option}?`,
         structured_payload: {
           item_public_id: context.item.item_public_id,
-          selected_option: data.selected_option
-        }
+          selected_option: data.selected_option,
+          item_context: context.isTransferItem ? "transfer" : "initial"
+        },
+        event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+        agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
       });
 
       return {
@@ -1900,11 +2047,18 @@ export async function recordReasoning(input: {
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id,
         phase: context.session.current_phase,
-        event_type: hadReasoning ? "reasoning_revised" : "reasoning_entered",
+        event_type: context.isTransferItem
+          ? "transfer_reasoning_submitted"
+          : hadReasoning
+            ? "reasoning_revised"
+            : "reasoning_entered",
+        event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
         message_text: data.reasoning_text,
         structured_payload: {
+          source: context.isTransferItem ? "transfer_reasoning" : "initial_reasoning",
           item_public_id: context.item.item_public_id,
-          revised: hadReasoning
+          revised: hadReasoning,
+          item_context: context.isTransferItem ? "transfer" : "initial"
         }
       });
       await logProcessEvent({
@@ -1912,12 +2066,13 @@ export async function recordReasoning(input: {
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id,
         event_type: "reasoning_submitted",
-        event_category: "initial_administration",
+        event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
         event_source: "frontend",
         payload: {
           item_public_id: context.item.item_public_id,
           revised: hadReasoning,
-          reasoning_length: data.reasoning_text.trim().length
+          reasoning_length: data.reasoning_text.trim().length,
+          item_context: context.isTransferItem ? "transfer" : "initial"
         }
       });
       await logInitialAgentPrompt({
@@ -1928,8 +2083,11 @@ export async function recordReasoning(input: {
         prompt_type: "request_confidence",
         message_text: "How confident are you: Low, Medium, or High?",
         structured_payload: {
-          item_public_id: context.item.item_public_id
-        }
+          item_public_id: context.item.item_public_id,
+          item_context: context.isTransferItem ? "transfer" : "initial"
+        },
+        event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+        agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
       });
 
       return {
@@ -1990,23 +2148,43 @@ export async function recordConfidence(input: {
         item_db_id: context.item.id,
         phase: context.session.current_phase,
         event_type: "confidence_selected",
+        event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
         structured_payload: {
+          source: context.isTransferItem ? "transfer_confidence" : "initial_confidence",
           item_public_id: context.item.item_public_id,
           confidence_rating: data.confidence_rating,
-          revised: confidenceChanged
+          revised: confidenceChanged,
+          item_context: context.isTransferItem ? "transfer" : "initial"
         }
       });
+      if (context.isTransferItem) {
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          event_type: "transfer_confidence_clicked",
+          event_category: "transfer_item",
+          event_source: "frontend",
+          payload: {
+            item_public_id: context.item.item_public_id,
+            confidence_rating: data.confidence_rating,
+            revised: confidenceChanged,
+            item_context: "transfer"
+          }
+        });
+      }
       await logProcessEvent({
         assessment_session_db_id: context.session.id,
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id,
         event_type: "confidence_clicked",
-        event_category: "initial_administration",
+        event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
         event_source: "frontend",
         payload: {
           item_public_id: context.item.item_public_id,
           confidence_rating: data.confidence_rating,
-          revised: confidenceChanged
+          revised: confidenceChanged,
+          item_context: context.isTransferItem ? "transfer" : "initial"
         }
       });
       await logInitialAgentPrompt({
@@ -2018,8 +2196,11 @@ export async function recordConfidence(input: {
         message_text:
           "Was another option tempting? If yes, which one, and what made it tempting? You can also say No.",
         structured_payload: {
-          item_public_id: context.item.item_public_id
-        }
+          item_public_id: context.item.item_public_id,
+          item_context: context.isTransferItem ? "transfer" : "initial"
+        },
+        event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+        agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
       });
 
       return {
@@ -2115,11 +2296,12 @@ export async function recordTemptingOption(input: {
 
       const now = new Date();
       const structuredPayload = {
-        source: "initial_tempting_option",
+        source: context.isTransferItem ? "transfer_tempting_option" : "initial_tempting_option",
         item_public_id: context.item.item_public_id,
         no_tempting_option: noTemptingOption,
         tempting_option: temptingOption,
-        tempting_option_reason: temptingOptionReason
+        tempting_option_reason: temptingOptionReason,
+        item_context: context.isTransferItem ? "transfer" : "initial"
       };
       const messageText = noTemptingOption
         ? "No other option was tempting."
@@ -2132,7 +2314,10 @@ export async function recordTemptingOption(input: {
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id,
         phase: context.session.current_phase,
-        event_type: "tempting_option_submitted",
+        event_type: context.isTransferItem
+          ? "transfer_tempting_option_submitted"
+          : "tempting_option_submitted",
+        event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
         message_text: messageText,
         structured_payload: structuredPayload
       });
@@ -2141,13 +2326,16 @@ export async function recordTemptingOption(input: {
           assessment_session_db_id: context.session.id,
           concept_unit_session_db_id: context.conceptUnitSession.id,
           item_db_id: context.item.id,
-          event_type: "tempting_option_reason_submitted",
-          event_category: "initial_administration",
+          event_type: context.isTransferItem
+            ? "transfer_tempting_option_reason_submitted"
+            : "tempting_option_reason_submitted",
+          event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
           event_source: "frontend",
           payload: {
             item_public_id: context.item.item_public_id,
             tempting_option: temptingOption,
-            tempting_option_reason_length: temptingOptionReason.length
+            tempting_option_reason_length: temptingOptionReason.length,
+            item_context: context.isTransferItem ? "transfer" : "initial"
           }
         });
       }
@@ -2173,10 +2361,13 @@ export async function recordTemptingOption(input: {
           assessment_session_db_id: context.session.id,
           concept_unit_session_db_id: context.conceptUnitSession.id,
           item_db_id: context.item.id,
-          event_type: "item_completed",
-          event_category: "initial_administration",
+          event_type: context.isTransferItem ? "transfer_item_completed" : "item_completed",
+          event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
           event_source: "backend",
-          payload: { item_public_id: context.item.item_public_id },
+          payload: {
+            item_public_id: context.item.item_public_id,
+            item_context: context.isTransferItem ? "transfer" : "initial"
+          },
           occurred_at: now
         });
         await logProcessEvent({
@@ -2184,9 +2375,12 @@ export async function recordTemptingOption(input: {
           concept_unit_session_db_id: context.conceptUnitSession.id,
           item_db_id: context.item.id,
           event_type: "item_submitted",
-          event_category: "initial_administration",
+          event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
           event_source: "backend",
-          payload: { item_public_id: context.item.item_public_id },
+          payload: {
+            item_public_id: context.item.item_public_id,
+            item_context: context.isTransferItem ? "transfer" : "initial"
+          },
           occurred_at: now
         });
       }
@@ -2196,12 +2390,57 @@ export async function recordTemptingOption(input: {
         data: { last_activity_at: now }
       });
 
+      if (context.isTransferItem && itemComplete) {
+        await logConversationTurn({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          phase: "followup_stopped",
+          actor_type: "agent",
+          agent_name: TRANSFER_ITEM_AGENT_NAME,
+          message_text: TRANSFER_COMPLETION_MESSAGE,
+          structured_payload: {
+            source: TRANSFER_ITEM_AGENT_NAME,
+            message_type: "transfer_item_completion",
+            item_public_id: context.item.item_public_id
+          },
+          created_at: now
+        });
+        await prisma.conceptUnitSession.update({
+          where: { id: context.conceptUnitSession.id },
+          data: { status: "completed" }
+        });
+        await updateAssessmentSessionPhase({
+          assessment_session_db_id: context.session.id,
+          to_phase: "between_concept_units",
+          reason: "chat_native_transfer_item_completed"
+        });
+        await updateAssessmentSessionPhase({
+          assessment_session_db_id: context.session.id,
+          to_phase: "session_completed",
+          reason: "chat_native_phase7_transfer_completion"
+        });
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          event_type: "session_completed",
+          event_category: "session",
+          event_source: "backend",
+          payload: {
+            reason: "transfer_item_completed",
+            item_public_id: context.item.item_public_id
+          },
+          occurred_at: now
+        });
+      }
+
       const nextState = await getStudentSessionState({
         student_user_db_id: input.student_user_db_id,
         session_public_id: input.session_public_id
       });
 
-      if (itemComplete && nextState.current_item) {
+      if (!context.isTransferItem && itemComplete && nextState.current_item) {
         const nextItem = await prisma.item.findUnique({
           where: { item_public_id: nextState.current_item.item_public_id },
           select: {
@@ -2246,10 +2485,13 @@ export async function recordTemptingOption(input: {
           message_text: "What made that option seem tempting?",
           structured_payload: {
             item_public_id: context.item.item_public_id,
-            tempting_option: temptingOption
-          }
+            tempting_option: temptingOption,
+            item_context: context.isTransferItem ? "transfer" : "initial"
+          },
+          event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+          agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
         });
-      } else if (itemComplete && nextState.assessment_state === "PACKAGE_REVIEW") {
+      } else if (!context.isTransferItem && itemComplete && nextState.assessment_state === "PACKAGE_REVIEW") {
         await logProcessEvent({
           assessment_session_db_id: context.session.id,
           concept_unit_session_db_id: context.conceptUnitSession.id,
@@ -2997,6 +3239,28 @@ function studentTranscriptInteractionType(input: {
 
   if (input.phase === "followup_active" && source === "chat_native_revision") {
     return "revision_response";
+  }
+
+  if (source === TRANSFER_ITEM_AGENT_NAME) {
+    return messageType === "transfer_item_completion"
+      ? "transfer_item_completed"
+      : "transfer_item";
+  }
+
+  if (source === "transfer_answer") {
+    return "transfer_option_selected";
+  }
+
+  if (source === "transfer_reasoning") {
+    return "transfer_reasoning";
+  }
+
+  if (source === "transfer_confidence") {
+    return "transfer_confidence_selected";
+  }
+
+  if (source === "transfer_tempting_option") {
+    return "transfer_tempting_option";
   }
 
   if (input.phase === "followup_stopped" && source === "chat_native_next_choice") {

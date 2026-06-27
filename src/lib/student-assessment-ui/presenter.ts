@@ -166,6 +166,14 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
             allowed_actions: ["send_revision_response", "save_exit"],
             can_review_responses: true
           }
+      : state.next_step === "transfer_item" || state.assessment_state === "TRANSFER_ITEM"
+        ? {
+            ...base,
+            assistant_message: "Try this additional question using the same answer, reason, confidence, and tempting-option steps.",
+            interaction_type: "transfer_item",
+            allowed_actions: ["select_option", "save_exit"],
+            can_review_responses: true
+          }
       : state.assessment_state === "NEXT_CHOICE"
         ? {
             ...base,
