@@ -61,15 +61,24 @@ async function assertStudentComponentShape() {
     path.join(process.cwd(), "src/components/student-assessment/assessment-session-client.tsx"),
     "utf8"
   );
+  const privateStagingSource = await readFile(
+    path.join(process.cwd(), "prisma/private-staging.ts"),
+    "utf8"
+  );
 
   assert(source.includes("continue-after-option"), "Option step Continue control is missing.");
   assert(source.includes("continue-after-reasoning"), "Reasoning step Continue control is missing.");
   assert(source.includes("continue-after-confidence"), "Confidence step Continue control is missing.");
   assert(source.includes("current-answer-summary"), "Current answer summary is missing.");
+  assert(source.includes("Response record"), "Response record panel is missing.");
+  assert(source.includes("lg:grid-cols-[minmax(0,1fr)_340px]"), "Desktop chat plus response-record layout is missing.");
+  assert(source.includes("Press Enter to send; Shift+Enter adds a new line."), "Follow-up Enter-to-send help is missing.");
   assert(!source.includes("function ReviewPanel"), "Old review panel function should not be present.");
   assert(!source.includes("Review responses"), "Old survey-style review heading should not be present.");
   assert(!source.includes("Editable before completion"), "Old review-panel editing copy should not be present.");
-  assert(!source.includes("lg:grid-cols-[minmax(0,1fr)_340px]"), "Student page should not use the old two-column answer layout.");
+  assert(!source.includes("Send a message"), "Initial item collection should not show a generic Send a message box.");
+  assert(!privateStagingSource.includes("select the option best supported by the evidence statement"), "Private staging item placeholder text remains.");
+  assert(privateStagingSource.includes("Evidence:\\n"), "Private staging items should include visible evidence statements.");
 }
 
 async function main() {

@@ -29,11 +29,11 @@ When follow-up is active, the student sees a ChatGPT-style conversation area wit
 - chronological student and assistant follow-up turns
 - a free-text message box
 - Send
-- Stop follow-up
-- Review responses
+- Finish follow-up
+- Response record
 - Save and exit
 
-The UI does not send keystrokes. It sends only an intentional submitted message with a client idempotency key.
+The UI does not send keystrokes. It sends only an intentional submitted message with a client idempotency key. Enter sends and Shift+Enter inserts a newline.
 
 The UI does not show profile labels, formative labels, evidence-sufficiency labels, independence labels, correctness, correct answers, model names, prompt details, or teacher-only diagnostic metadata.
 
@@ -58,7 +58,7 @@ Students may stop the active follow-up round. Stopping:
 
 Phase 6D1 does not automatically start the next concept unit after stop.
 
-In Phase 6D2B, if the current active round contains unprocessed substantive evidence, Stop follow-up enqueues a final profile/planning update first. A successful final update activates the final updated profile and decision, closes the round, and does not create a new round. If the final update fails, the previous active profile and decision remain authoritative, the round closes, and teacher review is flagged.
+In Phase 6D2B, if the current active round contains unprocessed substantive evidence, Finish follow-up enqueues a final profile/planning update first. A successful final update activates the final updated profile and decision, closes the round, and does not create a new round. If the final update fails, the previous active profile and decision remain authoritative, the round closes, and teacher review is flagged.
 
 ## Save, Exit, Resume
 

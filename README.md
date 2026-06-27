@@ -1341,6 +1341,8 @@ The app binds to `http://127.0.0.1:3200`. Seeded local-only credentials are:
 
 The private staging database must end in `_private_staging`. Roster import
 preview and commit are blocked while `PRIVATE_STAGING_MODE=true`; use only the
-synthetic accounts. The student assessment page uses a centered, one-step
-conversation flow rather than a right-side answer panel. See
+synthetic accounts. The student assessment page uses a chat-style, one-turn-at-a-time
+conversation column with a read-only response record panel. Initial item delivery
+is deterministic from persisted item content; no model generates item stems,
+options, or answer keys during initial administration. See
 `docs/PRIVATE_STAGING_WALKTHROUGH.md`.

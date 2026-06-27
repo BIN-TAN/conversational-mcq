@@ -1,6 +1,6 @@
 # Student Initial Administration UI
 
-Phase 4B implements the protected student-facing platform for initial concept-unit administration. Phase 6D1 extends the same student session page with first-round follow-up conversation after planning completes. Phase 7C adds an initial-administration free-text composer whose submitted messages are handled by the Response Collection Agent or deterministic fallback. The student UI does not call OpenAI directly, fabricate profiles, expose profile/planning labels, add teacher session review, or create CSV export.
+Phase 4B implements the protected student-facing platform for initial concept-unit administration. Phase 6D1 extends the same student session page with first-round follow-up conversation after planning completes. Phase 7C added backend Response Collection Agent handling for submitted initial-administration free-text messages, but Phase 8D keeps the browser item flow scripted and one-turn-at-a-time: option buttons, one reasoning textarea, confidence controls, and a submit review. The student UI does not call OpenAI directly, fabricate profiles, expose profile/planning labels, add teacher session review, or create CSV export.
 
 ## Routes
 
@@ -69,7 +69,7 @@ Option selection uses buttons with option label and text. Selecting or revising 
 
 Reasoning uses free text only when reasoning is relevant. The UI sends reasoning only when the student saves it. It does not send keystrokes, score reasoning, classify reasoning, summarize reasoning, or critique reasoning.
 
-Phase 7C also keeps an open initial chat composer during active initial-administration item states. Students may use it to provide or revise reasoning, ask procedural questions, express uncertainty, request help, request skipping, or ask to save and exit. The backend preserves the full submitted message in the transcript, may save verified exact reasoning segments, and returns only student-safe assistant text and updated state.
+Phase 8D removes the generic initial chat composer from normal option/reasoning/confidence stages so the required reasoning box is the only obvious textarea. Existing backend initial-message endpoints remain available for controlled workflows, but the private-staging student page does not present a second message box during item collection.
 
 Natural language cannot officially select an option or confidence. Text such as `I choose C` or `I am highly confident` is preserved in the transcript but requires the student to use the option buttons or confidence controls.
 
@@ -87,19 +87,17 @@ Explicit skip actions are deliberate clicks:
 
 Skip copy explains that the system will have less evidence. The UI does not invent responses, shame the student, or mark skipped evidence as visibly incorrect.
 
-## Review And Revision
+## Response Record, Review, And Revision
 
-The Review Responses panel shows only student-safe fields:
+The student page shows a read-only Response record side panel on desktop and a collapsible Response record on mobile. It shows only student-safe fields:
 
 - item number
-- item stem
 - selected option
 - reasoning
 - confidence
-- submitted/incomplete state
-- missing fields
+- saved/submitted state
 
-Before concept-unit completion, students can revise option, reasoning, and confidence through the same backend APIs. After completion, review is read-only and attempted edits are rejected by the backend with `initial_response_locked_after_concept_completion`.
+The full pre-submit review summary appears only after answer, reasoning, and confidence are saved. Before concept-unit completion, students can revise option, reasoning, and confidence through the same backend APIs. After completion, review is read-only and attempted edits are rejected by the backend with `initial_response_locked_after_concept_completion`.
 
 ## Save, Exit, Resume, Refresh
 
@@ -135,7 +133,7 @@ These are technical defaults, not psychological thresholds. The UI does not log 
 
 ## Awaiting Analysis
 
-After initial concept-unit completion, the UI shows a neutral awaiting-analysis state. It does not fabricate ability, engagement, integrated diagnostic, evidence-sufficiency, confidence-alignment, formative-value, or follow-up content.
+After initial concept-unit completion, the UI shows a neutral preparing-follow-up state. It does not fabricate ability, engagement, integrated diagnostic, evidence-sufficiency, confidence-alignment, formative-value, or follow-up content.
 
 In Phase 6D2A automatic sessions, the same student page may show neutral asynchronous workflow states:
 
@@ -146,25 +144,25 @@ In Phase 6D2A automatic sessions, the same student page may show neutral asynchr
 
 These states do not show workflow job names, provider names, model names, token or cost details, profile labels, formative values, correctness, or internal error details.
 
-After Phase 6B profiling completes, the same student-safe interaction state shows:
+After Phase 6B profiling completes, the same student-safe interaction state shows neutral preparing copy such as:
 
 ```text
-Your initial responses have been reviewed. The system is preparing the next support step.
+Thanks. I’m using your responses to prepare the next step.
 ```
 
 While Phase 6C planning is running or queued, the student-safe state may show:
 
 ```text
-The next support step is being prepared. Your progress has been saved.
+Preparing follow-up. Your responses are saved.
 ```
 
 After Phase 6C planning completes and before the teacher starts follow-up, the student-safe state may show:
 
 ```text
-A support plan has been prepared. Interactive follow-up is not available yet in this prototype.
+The next follow-up is almost ready.
 ```
 
-After Phase 6D1 follow-up starts, the student-safe state shows an active open-ended conversation area. Students can send submitted free-text messages, review locked initial responses, save and exit, or stop the follow-up round. After stopping, the state shows neutral stopped copy and disables further sends for that round.
+After Phase 6D1 follow-up starts, the student-safe state shows an active open-ended conversation area with a short explanation of the activity. Enter sends a message and Shift+Enter inserts a newline. Students can send submitted free-text messages, review locked initial responses, save and exit, or finish the follow-up round. After stopping, the state shows neutral stopped copy and disables further sends for that round.
 
 In Phase 6D2B, when meaningful follow-up evidence triggers backend profile/planning updating, the student-safe state uses `followup_updating`. The composer is disabled and the UI shows neutral saved-progress copy:
 
@@ -176,13 +174,7 @@ Students may still save/exit, review locked responses, or request stop while the
 
 The student UI still does not show profile labels, evidence sufficiency, independence interpretability, correctness, diagnostic rationale, formative value, action plans, target evidence, success criteria, answer keys, hidden prompts, or teacher-only diagnostic metadata.
 
-## Phase 7C Initial Chat Safety
-
-The initial chat composer shows a reminder:
-
-```text
-Use the answer buttons to select an option and the confidence buttons to report confidence.
-```
+## Phase 7C Initial Message Safety
 
 Student-safe responses may include assistant text, current interaction state, current student-safe item, saved reasoning, selected option, confidence, missing evidence, allowed controls, and a generic fallback indicator. They do not include recognized intent labels, process-event labels, agent-call IDs, provider names, model names, prompt versions, validation details, profiles, formative values, answer keys, correctness, teacher metadata, or internal UUIDs.
 

@@ -7,34 +7,34 @@ import { StudentConversationFrameSchema } from "./types";
 
 function awaitingAnalysisMessage(phase: string) {
   if (phase === "profiling_completed") {
-    return "Your initial responses have been reviewed. The system is preparing the next support step.";
+    return "Thanks. I’m using your responses to prepare the next step.";
   }
 
   if (phase === "planning_pending") {
-    return "The next support step is being prepared. Your progress has been saved.";
+    return "Preparing follow-up. Your responses are saved.";
   }
 
   if (phase === "planning_completed") {
-    return "A support plan has been prepared. Interactive follow-up is not available yet in this prototype.";
+    return "The next follow-up is almost ready.";
   }
 
-  return "The initial questions are complete. The system is preparing the next step.";
+  return "Thanks. I’m using your responses to prepare the next step.";
 }
 
 function automaticWorkflowMessage(nextStep: StudentSessionState["next_step"]) {
   if (nextStep === "automatic_profiling_pending") {
-    return "Your initial responses have been saved. The system is reviewing them to prepare the next step. You may leave and return later.";
+    return "Thanks. I’m using your responses to prepare the next step.";
   }
 
   if (nextStep === "automatic_planning_pending") {
-    return "The system is preparing the next support step. Your progress has been saved.";
+    return "Preparing follow-up. Your responses are saved.";
   }
 
   if (nextStep === "automatic_followup_opening_pending") {
-    return "Your follow-up conversation is being prepared. You may leave and return later.";
+    return "Preparing follow-up. This usually takes a short moment.";
   }
 
-  return "The system is having trouble preparing the next step. Your progress has been saved, and you can return later.";
+  return "I’m having trouble preparing the next step. Your responses are saved, and you can return later.";
 }
 
 function fieldLabel(field: MissingEvidenceField) {
@@ -86,7 +86,7 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
           ...base,
           assistant_message:
             state.progression?.neutral_message ??
-            "Continue the follow-up conversation in your own words. Your initial responses are locked and saved.",
+            "Let’s do a short follow-up about your reasoning. Try to explain your thinking in your own words.",
           interaction_type: "followup_active",
           allowed_actions: [
             "send_followup_message",
@@ -132,18 +132,18 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
               allowed_actions: ["review_responses", "save_exit"],
               can_continue: false
             }
-        : state.next_step === "concept_unit_intro"
+      : state.next_step === "concept_unit_intro"
       ? {
           ...base,
           assistant_message:
-            "This first part is designed to understand your current thinking. Please answer using your current understanding. I will not provide hints or explanations during these initial questions. After the initial questions, the system will provide follow-up support.",
+            "Let’s start with a few short questions. Answer using your current thinking. I won’t give hints or explanations during this first part.",
           interaction_type: "concept_unit_intro",
           allowed_actions: ["begin_concept_unit"]
         }
       : state.next_step === "present_item"
         ? {
             ...base,
-            assistant_message: `Question ${questionNumber} of ${state.progress.total_item_count}. Choose the option that best matches your current understanding.`,
+            assistant_message: `Question ${questionNumber} of ${state.progress.total_item_count}. Choose the option that best fits the evidence.`,
             interaction_type: "present_item",
             allowed_actions: ["select_option", "skip_item"]
           }
@@ -151,7 +151,7 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
           ? {
               ...base,
               assistant_message:
-                "Please explain your thinking in your own words. A short explanation is fine if that reflects your current thinking.",
+                "Tell me why you chose that answer. A short explanation is fine.",
               interaction_type: "request_reasoning",
               allowed_actions: ["save_reasoning", "skip_reasoning"]
             }
@@ -159,7 +159,7 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
             ? {
                 ...base,
                 assistant_message:
-                  "How confident do you feel about this response right now?",
+                  "How confident are you?",
                 interaction_type: "request_confidence",
                 allowed_actions: ["select_confidence", "skip_confidence"]
               }
@@ -174,14 +174,14 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
                 ? {
                     ...base,
                     assistant_message:
-                      "Your response for this question is saved. You can review it or continue to the next step.",
+                      "You can review this response before submitting it.",
                     interaction_type: "item_completed",
                     allowed_actions: ["submit_item", "review_responses"]
                   }
                 : state.next_step === "initial_concept_unit_complete"
                   ? {
                       ...base,
-                      assistant_message: `The initial questions for ${conceptTitle} are complete. Submit this section when you are ready.`,
+                      assistant_message: `You’ve answered the initial questions for ${conceptTitle}. Submit your responses when you’re ready.`,
                       interaction_type: "concept_unit_completed",
                       allowed_actions: ["complete_initial_concept_unit", "review_responses"]
                     }

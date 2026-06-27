@@ -1090,10 +1090,15 @@ Phase 6A.5 must not implement:
   content in a database ending in `_private_staging`.
 - The app must bind to `127.0.0.1`; Phase 8D must not deploy publicly.
 - `PRIVATE_STAGING_MODE=true` blocks roster import preview and commit APIs.
-- The student private-staging assessment UX is conversation-first: a centered
-  single column, one active item, one active input step, visible selected
-  option/confidence state, visible save state, and no right-side answer-entry
-  panel.
+- The student private-staging assessment UX is conversation-first: a main
+  chat column with agent turns on the left, student turns/actions on the right,
+  one active item, one active input step, visible selected option/confidence
+  state, visible save state, and a read-only response record panel. The record
+  panel must not become the primary input surface.
+- Initial item delivery remains deterministic and scripted from persisted item
+  content. The UI may show local system/agent-style prompts, but no model may
+  generate item stems, options, answer keys, or the initial option/reasoning/
+  confidence sequence.
 - Phase 8D must not modify prompts, provider-facing schemas, validators,
   approved manifests, completed canary evidence, or classroom operational
   records.

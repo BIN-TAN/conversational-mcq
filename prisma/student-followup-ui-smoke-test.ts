@@ -68,7 +68,7 @@ async function main() {
     let frame = buildStudentConversationFrame(state);
     assert(frame.interaction_type === "followup_active", "Presenter should render followup_active frame.");
     assert(
-      frame.assistant_message.includes("Continue the follow-up conversation"),
+      frame.assistant_message.includes("short follow-up"),
       "Presenter should show neutral follow-up conversation text."
     );
     assertNoStudentProfileOrPlanningLabels(frame, "Student follow-up frame");

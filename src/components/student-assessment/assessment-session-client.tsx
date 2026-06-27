@@ -10,8 +10,7 @@ import {
   Loader2,
   LogOut,
   MessageSquareText,
-  Send,
-  Square
+  Send
 } from "lucide-react";
 import { buildSkipConfirmationFrame, buildStudentConversationFrame } from "@/lib/student-assessment-ui/presenter";
 import type {
@@ -36,7 +35,6 @@ import {
   saveConfidence,
   saveOption,
   saveReasoning,
-  sendInitialMessage,
   sendFollowupMessage,
   requestProgression,
   startAssessmentSession,
@@ -165,7 +163,7 @@ function ErrorNotice({ error }: { error: StructuredStudentApiError | null }) {
   );
 }
 
-function AssistantBubble({ frame }: { frame: StudentConversationFrame }) {
+function AssistantBubble({ message }: { message: string }) {
   return (
     <div className="flex justify-start">
       <div className="max-w-3xl rounded-lg rounded-bl-sm border border-line bg-white p-4 shadow-soft">
@@ -173,7 +171,7 @@ function AssistantBubble({ frame }: { frame: StudentConversationFrame }) {
           <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent">
             <MessageSquareText className="h-4 w-4" aria-hidden="true" />
           </div>
-          <p className="text-sm leading-6 text-ink">{frame.assistant_message}</p>
+          <p className="text-sm leading-6 text-ink">{message}</p>
         </div>
       </div>
     </div>
@@ -386,28 +384,139 @@ function CurrentAnswerSummary({
   const reasoning = reasoningDraft.trim() || item.existing_reasoning_text || "";
   const confidence = item.existing_confidence_rating;
 
-  if (!selectedOption && !reasoning && !confidence) {
+  if (!selectedOption || !reasoning || !confidence) {
     return null;
   }
 
   return (
     <section className="rounded-lg border border-line bg-white p-4" data-testid="current-answer-summary">
-      <h2 className="text-sm font-semibold text-ink">Your current answer</h2>
+      <h2 className="text-sm font-semibold text-ink">Ready to submit</h2>
+      <p className="mt-1 text-sm text-muted">You can make changes before submitting.</p>
       <dl className="mt-3 grid gap-3 text-sm">
         <div>
           <dt className="font-semibold text-muted">Answer</dt>
-          <dd className="mt-1 text-ink">{selectedOption ? `Option ${selectedOption}` : "Not chosen yet"}</dd>
+          <dd className="mt-1 text-ink">Option {selectedOption}</dd>
         </div>
         <div>
           <dt className="font-semibold text-muted">Reasoning</dt>
-          <dd className="mt-1 whitespace-pre-wrap text-ink">{reasoning || "Not added yet"}</dd>
+          <dd className="mt-1 whitespace-pre-wrap text-ink">{reasoning}</dd>
         </div>
         <div>
           <dt className="font-semibold text-muted">Confidence</dt>
-          <dd className="mt-1 text-ink">{confidence ? confidenceLabel(confidence) : "Not selected yet"}</dd>
+          <dd className="mt-1 text-ink">{confidenceLabel(confidence)}</dd>
         </div>
       </dl>
     </section>
+  );
+}
+
+function ResponseRecordContent({
+  currentItem,
+  error,
+  isBusy,
+  review,
+  statusMessage
+}: {
+  currentItem: StudentSafeItem | null;
+  error: StructuredStudentApiError | null;
+  isBusy: boolean;
+  review: StudentReviewResponse | null;
+  statusMessage: string;
+}) {
+  const reviewCurrentItem = review?.items.find((item) => item.is_current) ?? null;
+  const item = currentItem ?? reviewCurrentItem;
+  const savedItems = review?.items.filter((entry) => entry.submission_state === "submitted") ?? [];
+  const answerComplete = Boolean(item?.existing_selected_option);
+  const reasoningComplete = Boolean(item?.existing_reasoning_text?.trim());
+  const confidenceComplete = Boolean(item?.existing_confidence_rating);
+  const readyToSubmit = answerComplete && reasoningComplete && confidenceComplete;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-ink">Response record</h2>
+        <p className="mt-1 text-sm leading-6 text-muted">Your work is saved as you go.</p>
+      </div>
+
+      <div className="rounded-lg border border-line bg-white p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Current question</p>
+        <p className="mt-1 text-sm font-semibold text-ink">
+          {item ? `Question ${item.item_order}` : "No active question"}
+        </p>
+        <dl className="mt-3 space-y-3 text-sm">
+          <div>
+            <dt className="font-semibold text-muted">Answer</dt>
+            <dd className="mt-1 text-ink">
+              {item?.existing_selected_option ? `Option ${item.existing_selected_option}` : "Not chosen yet"}
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-muted">Reasoning</dt>
+            <dd className="mt-1 whitespace-pre-wrap text-ink">
+              {item?.existing_reasoning_text?.trim() ? item.existing_reasoning_text : "Not saved yet"}
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-muted">Confidence</dt>
+            <dd className="mt-1 text-ink">
+              {item?.existing_confidence_rating ? confidenceLabel(item.existing_confidence_rating) : "Not selected yet"}
+            </dd>
+          </div>
+        </dl>
+        {readyToSubmit ? (
+          <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
+            Ready to submit.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="rounded-lg border border-line bg-white p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Save status</p>
+        <p className="mt-1 text-sm text-ink">
+          {isBusy
+            ? "Saving..."
+            : error
+              ? "Needs retry."
+              : statusMessage
+                ? statusMessage
+                : "Saved responses will appear here."}
+        </p>
+      </div>
+
+      {savedItems.length > 0 ? (
+        <div className="rounded-lg border border-line bg-white p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Submitted</p>
+          <div className="mt-2 space-y-2">
+            {savedItems.map((entry) => (
+              <p className="text-sm text-ink" key={entry.item_public_id}>
+                Question {entry.item_order}: {entry.existing_selected_option ? `Option ${entry.existing_selected_option}` : "Saved"}
+              </p>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MobileResponseRecord(props: Parameters<typeof ResponseRecordContent>[0]) {
+  return (
+    <details className="rounded-lg border border-line bg-[#fbfcfa] p-4 lg:hidden">
+      <summary className="cursor-pointer text-sm font-semibold text-ink">Response record</summary>
+      <div className="mt-4">
+        <ResponseRecordContent {...props} />
+      </div>
+    </details>
+  );
+}
+
+function DesktopResponseRecord(props: Parameters<typeof ResponseRecordContent>[0]) {
+  return (
+    <aside className="hidden lg:block">
+      <div className="sticky top-4 rounded-lg border border-line bg-[#fbfcfa] p-4">
+        <ResponseRecordContent {...props} />
+      </div>
+    </aside>
   );
 }
 
@@ -463,7 +572,6 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [reasoningDraft, setReasoningDraft] = useState("");
-  const [initialChatDraft, setInitialChatDraft] = useState("");
   const [followupDraft, setFollowupDraft] = useState("");
   const [skipConfirmation, setSkipConfirmation] = useState<MissingEvidenceField[] | null>(null);
   const [manualStage, setManualStage] = useState<InitialFlowStage | null>(null);
@@ -471,6 +579,8 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
   const [optimisticConfidence, setOptimisticConfidence] = useState<Record<string, ConfidenceRating>>({});
   const [failedAction, setFailedAction] = useState<FailedAction | null>(null);
   const reasoningInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const followupInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const conversationEndRef = useRef<HTMLDivElement | null>(null);
 
   const frame = useMemo(() => {
     if (skipConfirmation) {
@@ -545,6 +655,22 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
     setManualStage(null);
     setFailedAction(null);
   }, [state?.current_item?.item_public_id]);
+
+  useEffect(() => {
+    conversationEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [
+    transcript.length,
+    state?.current_item?.item_public_id,
+    state?.next_step,
+    manualStage,
+    statusMessage
+  ]);
+
+  useEffect(() => {
+    if (state?.next_step === "followup_active") {
+      window.setTimeout(() => followupInputRef.current?.focus(), 0);
+    }
+  }, [state?.next_step, transcript.length]);
 
   async function runAction(
     action: () => Promise<StudentSessionState>,
@@ -772,7 +898,7 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
           sessionPublicId,
           conceptUnitPublicId: state.current_concept_unit?.concept_unit_public_id ?? ""
         }),
-      "Initial questions submitted."
+      "Preparing follow-up..."
     );
   }
 
@@ -858,54 +984,8 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
     }
   }
 
-  async function handleSendInitialMessage() {
-    const trimmed = initialChatDraft.trim();
-
-    if (!trimmed) {
-      setError({
-        code: "validation_failed",
-        message: "Enter a message before sending.",
-        status: 400
-      });
-      return;
-    }
-
-    const maxChars = state?.initial_chat.message_max_chars ?? 6000;
-
-    if (trimmed.length > maxChars) {
-      setError({
-        code: "validation_failed",
-        message: "The message is too long.",
-        details: { max_chars: maxChars },
-        status: 400
-      });
-      return;
-    }
-
-    setError(null);
-    setStatusMessage("");
-    setIsBusy(true);
-
-    try {
-      const result = await sendInitialMessage({
-        sessionPublicId,
-        message: trimmed,
-        clientMessageId: newClientActionId("initial-message")
-      });
-
-      setState(result.state);
-      setInitialChatDraft("");
-      setStatusMessage(result.reasoning_saved ? "Message sent. Reasoning saved." : "Message sent.");
-      await refreshSecondaryData();
-    } catch (caught) {
-      setError(caught as StructuredStudentApiError);
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
   async function handleStopFollowup() {
-    if (!window.confirm("Stop this follow-up round? Your conversation will be saved.")) {
+    if (!window.confirm("Finish this follow-up round? Your conversation will be saved.")) {
       return;
     }
 
@@ -918,7 +998,7 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
       const nextState = await fetchSessionState(sessionPublicId);
 
       setState(nextState);
-      setStatusMessage("Follow-up stopped.");
+      setStatusMessage("Follow-up finished.");
       await refreshSecondaryData();
     } catch (caught) {
       setError(caught as StructuredStudentApiError);
@@ -1039,21 +1119,35 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
           state.progress.total_item_count
         )} of ${state.progress.total_item_count}`
       : "Questions pending";
+  const pageTitle =
+    state.next_step === "followup_active" ||
+    state.next_step === "followup_updating" ||
+    state.next_step === "followup_stopped"
+      ? "Follow-up conversation"
+      : state.next_step === "session_completed"
+        ? "Assessment complete"
+        : "Let’s work through a short question.";
+  const displayAssistantMessage =
+    displayStage === "option_selection" && state.next_step === "request_reasoning"
+      ? "Answer saved. Continue when you’re ready to explain your thinking."
+      : displayStage === "confidence_prompt" && state.next_step === "item_complete"
+        ? "Confidence saved. Continue when you’re ready to review this response."
+        : frame.assistant_message;
 
   return (
     <main className="min-h-screen bg-surface">
-      <div className="mx-auto flex min-h-screen max-w-4xl flex-col px-4 py-4 md:px-6">
+      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 md:px-6">
         <header className="flex flex-col gap-3 border-b border-line pb-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-semibold uppercase tracking-wide text-accent">
-              {state.assessment.title}
+              Student assessment
             </p>
             <h1 className="mt-1 text-2xl font-semibold text-ink">
-              {state.current_concept_unit?.title ?? "Initial questions"}
+              {pageTitle}
             </h1>
             <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
               <span>
-                Concept {state.progress.concept_unit_index || 1} of{" "}
+                Part {state.progress.concept_unit_index || 1} of{" "}
                 {Math.max(state.progress.concept_unit_count, 1)}
               </span>
               <span aria-hidden="true">/</span>
@@ -1076,13 +1170,22 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 py-4">
+        <div className="grid min-h-0 flex-1 gap-4 py-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="lg:hidden">
+            <MobileResponseRecord
+              currentItem={visibleCurrentItem}
+              error={error}
+              isBusy={isBusy}
+              review={review}
+              statusMessage={statusMessage}
+            />
+          </div>
           <section className="flex min-h-[68vh] flex-col rounded-lg border border-line bg-[#eef3ef]">
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
               {transcript.map((entry) => (
                 <StudentBubble entry={entry} key={`${entry.created_at}-${entry.message_text}`} />
               ))}
-              <AssistantBubble frame={frame} />
+              <AssistantBubble message={displayAssistantMessage} />
               {visibleCurrentItem && displayStage !== "followup_active" ? <ItemPrompt item={visibleCurrentItem} /> : null}
               <div className="rounded-lg border border-line bg-surface p-4">
                 <ErrorNotice error={error} />
@@ -1099,15 +1202,14 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
                     currentItem={visibleCurrentItem}
                     displayStage={displayStage}
                     frame={frame}
+                    followupInputRef={followupInputRef}
                     isBusy={isBusy}
                     locked={locked}
                     followupDraft={followupDraft}
-                    initialChatDraft={initialChatDraft}
                     reasoningDraft={reasoningDraft}
                     reasoningInputRef={reasoningInputRef}
                     state={state}
                     setFollowupDraft={setFollowupDraft}
-                    setInitialChatDraft={setInitialChatDraft}
                     setReasoningDraft={setReasoningDraft}
                     onBegin={() => void handleBegin()}
                     onCompleteConceptUnit={() => void handleCompleteConceptUnit()}
@@ -1124,7 +1226,6 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
                     onSkipEvidence={(item, field) => void handleSkipEvidence(item, field)}
                     onSkipItem={(item) => void handleSkipItem(item)}
                     onSubmit={(item) => void handleSubmit(item)}
-                    onSendInitialMessage={() => void handleSendInitialMessage()}
                     onSendFollowup={() => void handleSendFollowup()}
                     onShowSkipConfirmation={(fields) => setSkipConfirmation(fields)}
                     onStopFollowup={() => void handleStopFollowup()}
@@ -1135,13 +1236,11 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
                   />
                 </div>
               </div>
-              {displayStage === "review_before_submit" ? null : (
-                <CurrentAnswerSummary item={visibleCurrentItem} reasoningDraft={reasoningDraft} />
-              )}
               <SavedResponseList
                 currentItemPublicId={visibleCurrentItem?.item_public_id ?? null}
                 review={review}
               />
+              <div ref={conversationEndRef} />
             </div>
             {state.next_step === "followup_active" ||
             state.next_step === "followup_updating" ||
@@ -1151,64 +1250,16 @@ export function AssessmentSessionClient({ sessionPublicId }: { sessionPublicId: 
               </div>
             )}
           </section>
+          <DesktopResponseRecord
+            currentItem={visibleCurrentItem}
+            error={error}
+            isBusy={isBusy}
+            review={review}
+            statusMessage={statusMessage}
+          />
         </div>
       </div>
     </main>
-  );
-}
-
-function InitialChatComposer({
-  disabled,
-  draft,
-  maxChars,
-  onChange,
-  onSend
-}: {
-  disabled: boolean;
-  draft: string;
-  maxChars: number;
-  onChange: (value: string) => void;
-  onSend: () => void;
-}) {
-  return (
-    <details className="rounded-lg border border-line bg-white p-3">
-      <summary className="cursor-pointer text-sm font-semibold text-ink">
-        Send a message
-      </summary>
-      <div className="mt-3">
-      <textarea
-        className="mt-2 min-h-24 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-slate-50 disabled:opacity-70"
-        data-testid="initial-chat-message-input"
-        disabled={disabled}
-        maxLength={maxChars}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-            event.preventDefault();
-            onSend();
-          }
-        }}
-        placeholder="Write your reasoning or ask a procedural question..."
-        value={draft}
-      />
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-muted">
-          Use the option buttons to choose an answer and the confidence buttons to report
-          confidence. {draft.length} / {maxChars}
-        </p>
-        <button
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
-          data-testid="send-initial-chat-message"
-          disabled={disabled || !draft.trim()}
-          onClick={onSend}
-          type="button"
-        >
-          {disabled ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}
-          Send
-        </button>
-      </div>
-      </div>
-    </details>
   );
 }
 
@@ -1216,15 +1267,14 @@ function InteractionControls({
   currentItem,
   displayStage,
   frame,
+  followupInputRef,
   isBusy,
   locked,
   followupDraft,
-  initialChatDraft,
   reasoningDraft,
   reasoningInputRef,
   state,
   setFollowupDraft,
-  setInitialChatDraft,
   setReasoningDraft,
   onBegin,
   onCompleteConceptUnit,
@@ -1239,7 +1289,6 @@ function InteractionControls({
   onProgressionChoice,
   onSaveExit,
   onShowSkipConfirmation,
-  onSendInitialMessage,
   onSendFollowup,
   onSkipConfirmationCancel,
   onSkipEvidence,
@@ -1250,15 +1299,14 @@ function InteractionControls({
   currentItem: StudentSafeItem | null;
   displayStage: InitialFlowStage;
   frame: StudentConversationFrame;
+  followupInputRef: RefObject<HTMLTextAreaElement | null>;
   isBusy: boolean;
   locked: boolean;
   followupDraft: string;
-  initialChatDraft: string;
   reasoningDraft: string;
   reasoningInputRef: RefObject<HTMLTextAreaElement | null>;
   state: StudentSessionState;
   setFollowupDraft: (value: string) => void;
-  setInitialChatDraft: (value: string) => void;
   setReasoningDraft: (value: string) => void;
   onBegin: () => void;
   onCompleteConceptUnit: () => void;
@@ -1278,7 +1326,6 @@ function InteractionControls({
       | "complete_assessment"
   ) => void;
   onSaveExit: () => void;
-  onSendInitialMessage: () => void;
   onSendFollowup: () => void;
   onShowSkipConfirmation: (fields: MissingEvidenceField[]) => void;
   onSkipConfirmationCancel: () => void;
@@ -1294,22 +1341,27 @@ function InteractionControls({
 
     return (
       <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Follow-up conversation · initial responses locked
-        </p>
+        <div className="rounded-lg border border-line bg-white p-3">
+          <p className="text-sm font-semibold text-ink">Let’s do a short follow-up about your reasoning.</p>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            Try to explain your thinking in your own words. Your initial responses are saved and locked.
+          </p>
+        </div>
         <textarea
+          ref={followupInputRef}
           className="min-h-28 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:opacity-60"
+          aria-label="Follow-up message"
           data-testid="followup-message-input"
           disabled={isBusy || !state.followup?.can_send}
           maxLength={maxChars}
           onChange={(event) => setFollowupDraft(event.target.value)}
           onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+            if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               onSendFollowup();
             }
           }}
-          placeholder="Write your follow-up response..."
+          placeholder="Write your response. Press Enter to send; Shift+Enter adds a new line."
           value={followupDraft}
         />
         {progression?.available ? (
@@ -1401,8 +1453,8 @@ function InteractionControls({
               onClick={onStopFollowup}
               type="button"
             >
-              <Square className="h-4 w-4" aria-hidden="true" />
-              Stop follow-up
+              <Check className="h-4 w-4" aria-hidden="true" />
+              Finish follow-up
             </button>
             <button
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
@@ -1449,8 +1501,8 @@ function InteractionControls({
           onClick={onStopFollowup}
           type="button"
         >
-          <Square className="h-4 w-4" aria-hidden="true" />
-          Stop follow-up
+          <Check className="h-4 w-4" aria-hidden="true" />
+          Finish follow-up
         </button>
       </div>
     );
@@ -1513,16 +1565,6 @@ function InteractionControls({
 
     return <p className="text-sm text-muted">No action is needed right now.</p>;
   }
-
-  const initialComposer = (
-    <InitialChatComposer
-      disabled={isBusy || locked}
-      draft={initialChatDraft}
-      maxChars={state.initial_chat.message_max_chars}
-      onChange={setInitialChatDraft}
-      onSend={onSendInitialMessage}
-    />
-  );
 
   if (displayStage === "option_selection") {
     const hasSelectedOption = Boolean(currentItem.existing_selected_option);
@@ -1602,7 +1644,6 @@ function InteractionControls({
             Skip reasoning
           </button>
         </div>
-        {initialComposer}
       </div>
     );
   }
@@ -1702,7 +1743,6 @@ function InteractionControls({
             Continue without it
           </button>
         </div>
-        {initialComposer}
       </div>
     );
   }
@@ -1719,7 +1759,7 @@ function InteractionControls({
           type="button"
         >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          Submit and continue
+          Submit your responses
         </button>
         <button
           className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
@@ -1728,7 +1768,7 @@ function InteractionControls({
           onClick={onEditCurrentAnswer}
           type="button"
         >
-          Edit answer
+          Make a change
         </button>
       </div>
     );

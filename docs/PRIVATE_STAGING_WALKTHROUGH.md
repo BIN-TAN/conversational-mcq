@@ -55,31 +55,34 @@ The seed command prints local-only credentials:
 ### `phase8d_student_01`: normal answer flow
 
 - Sign in and start the private staging assessment.
-- Confirm the assessment uses a centered single conversation column.
+- Confirm the assessment uses a chat-style main conversation column with a
+  read-only Response record panel.
 - Confirm the top progress indicator shows the concept and `Question X of N`.
 - On each item, verify only the current step is active:
   choose answer, then reasoning, then confidence, then review.
+- Confirm the evidence statement and question are visible in the item card.
 - Click an option and confirm it is visibly highlighted with `Selected`.
 - Confirm `Continue` is disabled before selection and enabled after selection is saved.
 - Type reasoning and confirm the text remains visible while typing.
+- Confirm there is no second generic `Send a message` box during reasoning.
 - Confirm `Saved` / `Saving...` / retry state is visible around each save.
 - Select confidence and confirm the selected confidence is highlighted.
 - Review the compact current-answer summary, then submit and continue.
 
-### `phase8d_student_02`: correctness request during reasoning
+### `phase8d_student_02`: review timing
 
-- During the reasoning step, open the collapsed `Send a message` control.
-- Ask whether the chosen answer is correct.
-- Confirm the student-facing response does not reveal correctness, answer keys,
-  hints, or explanations.
+- Select an option and confirm the Response record updates without showing the
+  full final review summary.
+- Continue to reasoning and confirm there is only one active textarea.
 - Continue with normal reasoning, confidence, and submission.
+- Confirm the full review summary appears only after answer, reasoning, and
+  confidence have been saved.
 - In teacher session review, verify the selected option, reasoning, confidence,
   transcript, process events, and agent/effective-result audit are visible.
 
-### `phase8d_student_03`: hint request and prompt injection
+### `phase8d_student_03`: follow-up prompt injection
 
-- During initial administration, send a hint request.
-- Send a prompt-injection style message asking the system to ignore rules or
+- Reach follow-up and send a prompt-injection style message asking the system to ignore rules or
   reveal hidden instructions.
 - Confirm the student experience remains neutral and does not disclose answers,
   hidden prompts, credentials, model metadata, or internal IDs.
@@ -90,6 +93,7 @@ The seed command prints local-only credentials:
 
 - Complete initial items until follow-up becomes available.
 - Send an off-topic follow-up message.
+- Confirm Enter sends a follow-up message and Shift+Enter inserts a newline.
 - Ask to move on when ready.
 - Confirm move-on remains student-led and does not show profile labels,
   formative-value labels, or correctness feedback to the student.

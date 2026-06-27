@@ -268,25 +268,139 @@ function itemPublicId(conceptIndex: number, itemOrder: number) {
   return `${NAMESPACE}_item_${conceptIndex}_${itemOrder}`;
 }
 
+const PRIVATE_STAGING_CONCEPTS = [
+  {
+    title: "Using evidence to support claims",
+    learning_objective: "Use evidence to choose and justify a supported claim.",
+    related_concept_description: "Generic evidence and claim relationship.",
+    items: [
+      {
+        stem:
+          "Evidence:\nA plant placed near a window grew taller and had greener leaves than a plant kept in a dark cabinet for the same number of days.\n\nQuestion:\nWhich claim is best supported by the evidence?",
+        options: [
+          { label: "A", text: "Light may have helped the plant grow." },
+          { label: "B", text: "The dark cabinet made the plant grow faster." },
+          { label: "C", text: "The two plants grew exactly the same way." },
+          { label: "D", text: "There is no evidence about plant growth." }
+        ],
+        expected_reasoning_patterns: ["Connects better plant growth to the plant receiving more light."],
+        possible_misconception_indicators: ["Treats absence of light as helpful despite the comparison."]
+      },
+      {
+        stem:
+          "Evidence:\nA student read for 20 minutes each day for two weeks. At the end of the two weeks, the student could summarize longer passages with fewer missed details.\n\nQuestion:\nWhich claim is best supported by the evidence?",
+        options: [
+          { label: "A", text: "Regular reading practice may have improved the student’s summaries." },
+          { label: "B", text: "The student stopped reading after two weeks." },
+          { label: "C", text: "Reading practice made the summaries worse." },
+          { label: "D", text: "The evidence is about math practice, not reading." }
+        ],
+        expected_reasoning_patterns: ["Connects repeated reading practice to improved summaries."],
+        possible_misconception_indicators: ["Ignores the before-and-after improvement."]
+      },
+      {
+        stem:
+          "Evidence:\nTwo identical cups of warm water were left on a table. One cup was covered with a lid, and one was left open. After 30 minutes, the covered cup was warmer.\n\nQuestion:\nWhich claim is best supported by the evidence?",
+        options: [
+          { label: "A", text: "The lid may have helped the water keep heat." },
+          { label: "B", text: "The open cup stayed warmer than the covered cup." },
+          { label: "C", text: "Both cups became hotter over time." },
+          { label: "D", text: "The lid changed the amount of water before the test began." }
+        ],
+        expected_reasoning_patterns: ["Uses the covered cup staying warmer as support for heat retention."],
+        possible_misconception_indicators: ["Reverses which cup stayed warmer."]
+      },
+      {
+        stem:
+          "Evidence:\nA class tried two study methods for vocabulary. Students who practiced with examples remembered more words than students who copied the word list once.\n\nQuestion:\nWhich claim is best supported by the evidence?",
+        options: [
+          { label: "A", text: "Practicing with examples may support vocabulary memory." },
+          { label: "B", text: "Copying the word list once helped students remember more words." },
+          { label: "C", text: "No students remembered any vocabulary words." },
+          { label: "D", text: "The evidence compares handwriting styles, not study methods." }
+        ],
+        expected_reasoning_patterns: ["Connects example practice to remembering more words."],
+        possible_misconception_indicators: ["Chooses the weaker study method despite the comparison."]
+      }
+    ]
+  },
+  {
+    title: "Comparing evidence across situations",
+    learning_objective: "Compare evidence across situations and select the strongest supported claim.",
+    related_concept_description: "Generic comparison of evidence across conditions.",
+    items: [
+      {
+        stem:
+          "Evidence:\nA bike with fully inflated tires rolled farther down the same ramp than a bike with partly flat tires.\n\nQuestion:\nWhich claim is best supported by the evidence?",
+        options: [
+          { label: "A", text: "Fully inflated tires may help the bike roll farther." },
+          { label: "B", text: "Partly flat tires made the bike roll farther." },
+          { label: "C", text: "Tire inflation had no visible relationship to distance." },
+          { label: "D", text: "The evidence shows the ramp was changed between trials." }
+        ],
+        expected_reasoning_patterns: ["Compares the two tire conditions and the distance rolled."],
+        possible_misconception_indicators: ["Ignores that the ramp was the same."]
+      },
+      {
+        stem:
+          "Evidence:\nA phone battery lasted 10 hours when the screen brightness was low and 6 hours when the screen brightness was high.\n\nQuestion:\nWhich claim is best supported by the evidence?",
+        options: [
+          { label: "A", text: "Lower screen brightness may help the battery last longer." },
+          { label: "B", text: "Higher screen brightness made the battery last longer." },
+          { label: "C", text: "Screen brightness was not changed." },
+          { label: "D", text: "The evidence shows the phone was not used." }
+        ],
+        expected_reasoning_patterns: ["Connects lower brightness to longer battery duration."],
+        possible_misconception_indicators: ["Reverses the direction of the battery evidence."]
+      },
+      {
+        stem:
+          "Evidence:\nA paper towel absorbed 12 milliliters of water. A cloth towel of the same size absorbed 25 milliliters of water.\n\nQuestion:\nWhich claim is best supported by the evidence?",
+        options: [
+          { label: "A", text: "The cloth towel absorbed more water than the paper towel." },
+          { label: "B", text: "The paper towel absorbed more water than the cloth towel." },
+          { label: "C", text: "Both towels absorbed exactly the same amount." },
+          { label: "D", text: "The evidence does not compare towel absorbency." }
+        ],
+        expected_reasoning_patterns: ["Uses the measured amounts to compare absorbency."],
+        possible_misconception_indicators: ["Misreads the larger measured amount."]
+      },
+      {
+        stem:
+          "Evidence:\nA soccer team completed more accurate passes after practicing short passing drills for three weeks. Their number of missed passes decreased during the same period.\n\nQuestion:\nWhich claim is best supported by the evidence?",
+        options: [
+          { label: "A", text: "Short passing drills may have helped the team pass more accurately." },
+          { label: "B", text: "The team missed more passes after practicing." },
+          { label: "C", text: "The evidence is about shooting practice, not passing." },
+          { label: "D", text: "Practice made the team stop playing soccer." }
+        ],
+        expected_reasoning_patterns: ["Connects short passing drills to more accurate passes and fewer missed passes."],
+        possible_misconception_indicators: ["Ignores the decrease in missed passes."]
+      }
+    ]
+  }
+] as const;
+
 function itemSeed(conceptIndex: number, itemOrder: number) {
+  const item = PRIVATE_STAGING_CONCEPTS[conceptIndex - 1]?.items[itemOrder - 1];
+
+  if (!item) {
+    throw new Error(`Missing private staging item seed for concept ${conceptIndex}, item ${itemOrder}.`);
+  }
+
   return {
     item_public_id: itemPublicId(conceptIndex, itemOrder),
     item_order: itemOrder,
-    item_stem: `Private staging concept ${conceptIndex} item ${itemOrder}: select the option best supported by the evidence statement.`,
-    options: [
-      { label: "A", text: "The claim is directly supported by the evidence." },
-      { label: "B", text: "The evidence is related but not sufficient." },
-      { label: "C", text: "The evidence contradicts the claim." },
-      { label: "D", text: "The prompt contains no usable evidence." }
-    ],
+    item_stem: item.stem,
+    options: item.options,
     correct_option: "A",
     distractor_rationales: {
-      B: "B reflects partial attention to evidence without justification.",
-      C: "C reflects reversed interpretation.",
-      D: "D ignores the evidence statement."
+      B: "B conflicts with or overstates the evidence.",
+      C: "C misreads the comparison in the evidence.",
+      D: "D does not match what the evidence describes."
     },
-    expected_reasoning_patterns: ["Explains how the evidence supports the chosen option."],
-    possible_misconception_indicators: ["Treats related evidence as sufficient without explaining the link."],
+    expected_reasoning_patterns: item.expected_reasoning_patterns,
+    possible_misconception_indicators: item.possible_misconception_indicators,
     administration_rules: { no_feedback_during_initial_administration: true },
     included_in_published_set: true,
     status: "published" as const,
@@ -378,8 +492,8 @@ async function seedFixture(prisma: PrismaClient) {
   const assessment = await prisma.assessment.create({
     data: {
       assessment_public_id: ASSESSMENT_PUBLIC_ID,
-      title: "Phase 8D private staging guarded-live assessment",
-      description: "Synthetic-only assessment for local private-staging browser walkthrough.",
+      title: "Evidence reasoning practice",
+      description: "Synthetic-only practice assessment for local private-staging browser walkthrough.",
       status: "published",
       workflow_mode: "automatic",
       response_collection_mode: "llm_assisted",
@@ -390,13 +504,15 @@ async function seedFixture(prisma: PrismaClient) {
   });
 
   for (let conceptIndex = 1; conceptIndex <= 2; conceptIndex += 1) {
+    const conceptSeed = PRIVATE_STAGING_CONCEPTS[conceptIndex - 1];
+
     const concept = await prisma.conceptUnit.create({
       data: {
         concept_unit_public_id: CONCEPT_PUBLIC_IDS[conceptIndex - 1],
         assessment_db_id: assessment.id,
-        title: `Private staging concept ${conceptIndex}`,
-        learning_objective: "Use evidence to justify a selected answer.",
-        related_concept_description: "Generic evidence and claim relationship.",
+        title: conceptSeed.title,
+        learning_objective: conceptSeed.learning_objective,
+        related_concept_description: conceptSeed.related_concept_description,
         administration_rules: { no_feedback_during_initial_administration: true },
         order_index: conceptIndex,
         status: "published",
@@ -494,10 +610,10 @@ function walkthroughMarkdown() {
     "- [ ] Confirm `npm run staging:private:status` reports guarded-live mode and local-only URL.",
     "- [ ] Teacher login with the synthetic teacher account.",
     "- [ ] View classroom/student list and confirm only `phase8d_*` accounts are present.",
-    "- [ ] `phase8d_student_01`: complete the normal centered one-question flow; confirm option and confidence highlight, reasoning is visible while typing, saved state is shown, and only one item is active at a time.",
-    "- [ ] `phase8d_student_02`: during reasoning, open `Send a message` and ask if the answer is correct; confirm no correctness, answer key, hint, or explanation is revealed.",
-    "- [ ] `phase8d_student_03`: send a hint request and a prompt-injection style request; confirm neutral handling and no hidden prompt, credential, model metadata, or internal ID disclosure.",
-    "- [ ] `phase8d_student_04`: reach follow-up, send an off-topic message, and ask to move on; confirm move-on remains student-led and no profile/formative labels are shown to the student.",
+    "- [ ] `phase8d_student_01`: complete the chat-style one-question-at-a-time flow; confirm item evidence is visible, option and confidence highlight, reasoning has one active textarea, saved state is shown, and the response record is read-only.",
+    "- [ ] `phase8d_student_02`: complete an initial item and confirm the review summary appears only after answer, reasoning, and confidence are saved.",
+    "- [ ] `phase8d_student_03`: during follow-up, send an off-topic or prompt-injection style message; confirm neutral handling and no hidden prompt, credential, model metadata, or internal ID disclosure.",
+    "- [ ] `phase8d_student_04`: reach follow-up, press Enter to send a message, use Shift+Enter for a newline, and ask to move on; confirm move-on remains student-led and no profile/formative labels are shown to the student.",
     "- [ ] `phase8d_student_05`: select an option, type reasoning, save and exit, then resume; confirm the selected option and reasoning are preserved.",
     "- [ ] Teacher opens Student sessions and confirms selected option, reasoning, confidence, timestamps, transcript, process events, and agent/effective-result audit are visible.",
     "- [ ] Teacher generates a master CSV export and confirms no secrets, credential data, or internal UUIDs are visible.",
