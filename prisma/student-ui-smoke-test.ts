@@ -75,13 +75,22 @@ async function cleanupTempStudent(userDbId: string, sessionPublicIds: string[]) 
   await prisma.responsePackage.deleteMany({
     where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
   });
-  await prisma.agentCall.deleteMany({
-    where: { assessment_session_db_id: { in: sessionIds } }
-  });
   await prisma.processEvent.deleteMany({
     where: { assessment_session_db_id: { in: sessionIds } }
   });
   await prisma.conversationTurn.deleteMany({
+    where: { assessment_session_db_id: { in: sessionIds } }
+  });
+  await prisma.followupRound.deleteMany({
+    where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
+  });
+  await prisma.formativeDecision.deleteMany({
+    where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
+  });
+  await prisma.studentProfile.deleteMany({
+    where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
+  });
+  await prisma.agentCall.deleteMany({
     where: { assessment_session_db_id: { in: sessionIds } }
   });
   await prisma.itemResponse.deleteMany({
@@ -358,7 +367,7 @@ async function main() {
       })
     ).state;
     frame = buildStudentConversationFrame(state);
-    assert(frame.interaction_type === "awaiting_profiling", "Expected awaiting-profiling frame.");
+    assert(frame.interaction_type === "formative_activity", "Expected formative-activity frame.");
     assertNoForbiddenFields(frame);
 
     const review = await getStudentReviewResponses({

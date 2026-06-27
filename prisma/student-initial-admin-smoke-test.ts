@@ -432,8 +432,8 @@ async function main() {
       concept_unit_public_id: conceptUnit.concept_unit_public_id
     });
     assert(completed.completion_status === "completed", "Concept-unit completion did not complete.");
-    assert(completed.state.current_phase === "profiling_pending", "Session did not move to profiling_pending.");
-    assert(completed.state.next_step === "awaiting_profiling", "Completion should await profiling.");
+    assert(completed.state.current_phase === "planning_completed", "Session did not prepare the formative activity.");
+    assert(completed.state.next_step === "formative_activity", "Completion should show the formative activity.");
     const packageCount = await prisma.responsePackage.count({
       where: {
         concept_unit_session: {
@@ -519,6 +519,18 @@ async function main() {
         where: { assessment_session_db_id: { in: sessionIds } }
       });
       await prisma.conversationTurn.deleteMany({
+        where: { assessment_session_db_id: { in: sessionIds } }
+      });
+      await prisma.followupRound.deleteMany({
+        where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
+      });
+      await prisma.formativeDecision.deleteMany({
+        where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
+      });
+      await prisma.studentProfile.deleteMany({
+        where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
+      });
+      await prisma.agentCall.deleteMany({
         where: { assessment_session_db_id: { in: sessionIds } }
       });
       await prisma.itemResponse.deleteMany({

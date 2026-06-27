@@ -97,6 +97,8 @@ export const StudentSessionStateSchema = z.object({
     "package_analysis",
     "initial_concept_unit_complete",
     "awaiting_profiling",
+    "formative_activity",
+    "formative_response_saved",
     "automatic_profiling_pending",
     "automatic_planning_pending",
     "automatic_followup_opening_pending",
@@ -122,6 +124,17 @@ export const StudentSessionStateSchema = z.object({
       can_send: z.boolean(),
       can_stop: z.boolean(),
       can_save_exit: z.boolean(),
+      message_max_chars: z.number()
+    })
+    .nullable()
+    .optional(),
+  formative_activity: z
+    .object({
+      round_index: z.number(),
+      status: z.string(),
+      started_at: z.string().nullable(),
+      completed_at: z.string().nullable(),
+      can_send: z.boolean(),
       message_max_chars: z.number()
     })
     .nullable()
@@ -166,6 +179,8 @@ export const StudentConversationFrameSchema = z.object({
     "package_analysis",
     "concept_unit_completed",
     "awaiting_profiling",
+    "formative_activity",
+    "formative_response_saved",
     "automatic_processing",
     "automatic_failed",
     "followup_active",

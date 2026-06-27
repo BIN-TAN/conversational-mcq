@@ -310,6 +310,33 @@ export function sendFollowupMessage(input: {
   );
 }
 
+export function sendFormativeActivityResponse(input: {
+  sessionPublicId: string;
+  message: string;
+  clientMessageId?: string;
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/formative-activity/response`,
+    {
+      message: input.message,
+      client_message_id: input.clientMessageId ?? newClientActionId("formative-activity")
+    },
+    (value) => {
+      const result = value as {
+        message_status: string;
+        targeted_feedback_available: boolean;
+        state: unknown;
+      };
+
+      return {
+        message_status: result.message_status,
+        targeted_feedback_available: result.targeted_feedback_available,
+        state: StudentSessionStateSchema.parse(result.state)
+      };
+    }
+  );
+}
+
 export function sendInitialMessage(input: {
   sessionPublicId: string;
   message: string;

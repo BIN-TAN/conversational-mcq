@@ -62,9 +62,12 @@ async function cleanup(userDbId: string) {
   await prisma.workflowOverride.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.studentActionIdempotencyKey.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.responsePackage.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
-  await prisma.agentCall.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.processEvent.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.conversationTurn.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
+  await prisma.followupRound.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
+  await prisma.formativeDecision.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
+  await prisma.studentProfile.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
+  await prisma.agentCall.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.itemResponse.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
   await prisma.conceptUnitSession.deleteMany({ where: { id: { in: conceptUnitSessionIds } } });
   await prisma.assessmentSession.deleteMany({ where: { id: { in: sessionIds } } });
@@ -335,8 +338,8 @@ async function main() {
       session_public_id: started.session.session_public_id,
       concept_unit_public_id: thirdResult.state.current_concept_unit?.concept_unit_public_id ?? ""
     });
-    assert(completed.state.assessment_state === "PACKAGE_ANALYSIS", "Package submit should enter PACKAGE_ANALYSIS.");
-    assert(completed.state.current_phase === "profiling_pending", "Package submit should preserve existing profiling phase.");
+    assert(completed.state.assessment_state === "FORMATIVE_ACTIVITY", "Package submit should enter FORMATIVE_ACTIVITY.");
+    assert(completed.state.current_phase === "planning_completed", "Package submit should prepare the formative activity.");
 
     const temptingEvents = await prisma.processEvent.count({
       where: {

@@ -25,6 +25,7 @@ import {
   saveOption,
   saveReasoning,
   saveTemptingOption,
+  sendFormativeActivityResponse,
   sendFollowupMessage,
   startAssessmentSession,
   stopFollowup
@@ -594,6 +595,44 @@ function FollowupControls({
   );
 }
 
+function FormativeActivityControls({
+  state,
+  isBusy,
+  formativeActivityDraft,
+  setFormativeActivityDraft,
+  onSendFormativeActivityResponse
+}: {
+  state: StudentSessionState;
+  isBusy: boolean;
+  formativeActivityDraft: string;
+  setFormativeActivityDraft: (value: string) => void;
+  onSendFormativeActivityResponse: () => void;
+}) {
+  if (state.next_step === "formative_response_saved") {
+    return (
+      <AgentMessage>
+        <p className="font-medium text-ink">
+          Thanks. Your response is saved. Targeted feedback is not available yet in this prototype.
+        </p>
+      </AgentMessage>
+    );
+  }
+
+  return (
+    <TextComposer
+      disabled={isBusy || !state.formative_activity?.can_send}
+      label="Formative activity response"
+      maxLength={state.formative_activity?.message_max_chars ?? 5000}
+      onChange={setFormativeActivityDraft}
+      onSend={onSendFormativeActivityResponse}
+      placeholder="Write your response..."
+      sendTestId="send-formative-activity-response"
+      testId="formative-activity-response-input"
+      value={formativeActivityDraft}
+    />
+  );
+}
+
 function activeItemPrompt(input: {
   state: StudentSessionState;
   review: StudentReviewResponse | null;
@@ -601,9 +640,11 @@ function activeItemPrompt(input: {
   reasoningDraft: string;
   temptingReasonDraft: string;
   followupDraft: string;
+  formativeActivityDraft: string;
   setReasoningDraft: (value: string) => void;
   setTemptingReasonDraft: (value: string) => void;
   setFollowupDraft: (value: string) => void;
+  setFormativeActivityDraft: (value: string) => void;
   onBeginConceptUnit: () => void;
   onSelectOption: (label: string) => void;
   onSendReasoning: () => void;
@@ -612,6 +653,7 @@ function activeItemPrompt(input: {
   onNoTemptingOption: () => void;
   onSendTemptingReason: () => void;
   onContinuePackage: () => void;
+  onSendFormativeActivityResponse: () => void;
   onSendFollowup: () => void;
   onStopFollowup: () => void;
   onRequestProgression: () => void;
@@ -739,6 +781,21 @@ function activeItemPrompt(input: {
 
   if (
     state.assessment_state === "FORMATIVE_ACTIVITY" ||
+    state.next_step === "formative_activity" ||
+    state.next_step === "formative_response_saved"
+  ) {
+    return (
+      <FormativeActivityControls
+        formativeActivityDraft={input.formativeActivityDraft}
+        isBusy={isBusy}
+        onSendFormativeActivityResponse={input.onSendFormativeActivityResponse}
+        setFormativeActivityDraft={input.setFormativeActivityDraft}
+        state={state}
+      />
+    );
+  }
+
+  if (
     state.assessment_state === "FOLLOWUP_RESPONSE" ||
     state.assessment_state === "TARGETED_FEEDBACK" ||
     state.assessment_state === "REVISION" ||
@@ -798,6 +855,7 @@ export function AssessmentSessionClient({
   const [reasoningDraft, setReasoningDraft] = useState("");
   const [temptingReasonDraft, setTemptingReasonDraft] = useState("");
   const [followupDraft, setFollowupDraft] = useState("");
+  const [formativeActivityDraft, setFormativeActivityDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useStudentProcessEvents({
@@ -910,6 +968,12 @@ export function AssessmentSessionClient({
     setReasoningDraft("");
     setTemptingReasonDraft("");
   }, [state?.assessment_state, state?.current_item?.item_public_id]);
+
+  useEffect(() => {
+    if (state?.next_step !== "formative_activity") {
+      setFormativeActivityDraft("");
+    }
+  }, [state?.next_step]);
 
   const activeSessionPublicId = state?.session_public_id ?? resolvedInitialSessionPublicId;
   const currentItem = state?.current_item ?? null;
@@ -1085,6 +1149,46 @@ export function AssessmentSessionClient({
     }
   }
 
+  async function handleSendFormativeActivityResponse() {
+    const trimmed = formativeActivityDraft.trim();
+
+    if (!state || !trimmed) {
+      return;
+    }
+
+    const maxChars = state.formative_activity?.message_max_chars ?? 5000;
+
+    if (trimmed.length > maxChars) {
+      setError({
+        code: "message_too_long",
+        message: `Keep the message under ${maxChars} characters.`,
+        status: 400
+      });
+      return;
+    }
+
+    setIsBusy(true);
+    setError(null);
+    setFailedAction(null);
+
+    try {
+      const result = await sendFormativeActivityResponse({
+        sessionPublicId: state.session_public_id,
+        message: trimmed,
+        clientMessageId: newClientActionId("formative-activity")
+      });
+      setFormativeActivityDraft("");
+      setState(result.state);
+      await refreshSecondaryData(result.state.session_public_id);
+    } catch (errorValue) {
+      handleError(errorValue, "Send activity response", () => {
+        void handleSendFormativeActivityResponse();
+      });
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   function handleStopFollowup() {
     if (!state) {
       return;
@@ -1188,9 +1292,11 @@ export function AssessmentSessionClient({
     reasoningDraft,
     temptingReasonDraft,
     followupDraft,
+    formativeActivityDraft,
     setReasoningDraft,
     setTemptingReasonDraft,
     setFollowupDraft,
+    setFormativeActivityDraft,
     onBeginConceptUnit: handleBeginConceptUnit,
     onSelectOption: handleOption,
     onSendReasoning: handleReasoning,
@@ -1199,6 +1305,7 @@ export function AssessmentSessionClient({
     onNoTemptingOption: handleNoTemptingOption,
     onSendTemptingReason: handleTemptingReason,
     onContinuePackage: handleCompletePackage,
+    onSendFormativeActivityResponse: handleSendFormativeActivityResponse,
     onSendFollowup: handleSendFollowup,
     onStopFollowup: handleStopFollowup,
     onRequestProgression: handleRequestProgression,

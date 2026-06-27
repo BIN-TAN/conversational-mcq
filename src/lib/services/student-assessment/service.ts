@@ -16,9 +16,12 @@ import { logProcessEvent } from "@/lib/services/process-events";
 import { updateAssessmentSessionPhase, markSessionExited } from "@/lib/services/session-state";
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { INCLUDED_ITEM_RANGE } from "@/lib/services/content/governance";
-import { enqueueInitialProfilingJobIfAutomatic } from "@/lib/workflow/automation";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 import { getStudentProgressionStateBySessionDbId } from "@/lib/services/concept-progression/progression";
+import {
+  ensureChatNativeFormativeActivity,
+  submitChatNativeFormativeActivityResponse
+} from "@/lib/services/student-assessment/formative-profile";
 import {
   assertChatNativeActionAllowed,
   type ChatNativeAssessmentAction,
@@ -51,6 +54,8 @@ export const InitialAdministrationStep = z.enum([
   "package_analysis",
   "initial_concept_unit_complete",
   "awaiting_profiling",
+  "formative_activity",
+  "formative_response_saved",
   "automatic_profiling_pending",
   "automatic_planning_pending",
   "automatic_followup_opening_pending",
@@ -1044,6 +1049,22 @@ export async function getStudentSessionState(input: {
           checkDatabase: true
         })).allowed
       : false;
+  const phaseFiveFormativeRound =
+    conceptUnitSession && effectivePhase === "planning_completed"
+      ? await prisma.followupRound.findFirst({
+          where: {
+            concept_unit_session_db_id: conceptUnitSession.id,
+            status: { in: ["active", "completed"] }
+          },
+          orderBy: [{ round_index: "desc" }],
+          select: {
+            round_index: true,
+            status: true,
+            started_at: true,
+            completed_at: true
+          }
+        })
+      : null;
 
   if (effectivePhase === "session_completed") {
     assessmentState = "SESSION_COMPLETE";
@@ -1075,6 +1096,12 @@ export async function getStudentSessionState(input: {
   ) {
     assessmentState = "PACKAGE_ANALYSIS";
     nextStep = "automatic_planning_pending";
+  } else if (effectivePhase === "planning_completed" && phaseFiveFormativeRound?.status === "active") {
+    assessmentState = "FORMATIVE_ACTIVITY";
+    nextStep = "formative_activity";
+  } else if (effectivePhase === "planning_completed" && phaseFiveFormativeRound?.status === "completed") {
+    assessmentState = "FOLLOWUP_RESPONSE";
+    nextStep = "formative_response_saved";
   } else if (
     automaticAgentIntegrationReady &&
     effectivePhase === "planning_completed"
@@ -1135,16 +1162,24 @@ export async function getStudentSessionState(input: {
     : -1;
   const activeOrLatestFollowupRound =
     conceptUnitSession &&
-    [
+    ([
+      "planning_completed",
       "followup_active",
       "followup_profile_update_pending",
       "followup_planning_update_pending",
       "followup_stopped"
-    ].includes(effectivePhase)
+    ].includes(effectivePhase) ||
+      nextStep === "formative_activity" ||
+      nextStep === "formative_response_saved")
       ? await prisma.followupRound.findFirst({
           where: {
             concept_unit_session_db_id: conceptUnitSession.id,
-            status: effectivePhase === "followup_stopped" ? "stopped" : "active"
+            status:
+              effectivePhase === "followup_stopped"
+                ? "stopped"
+                : effectivePhase === "planning_completed"
+                  ? { in: ["active", "completed"] }
+                  : "active"
           },
           orderBy: [{ round_index: "desc" }],
           select: {
@@ -1194,8 +1229,11 @@ export async function getStudentSessionState(input: {
           status: activeOrLatestFollowupRound.status,
           started_at: activeOrLatestFollowupRound.started_at?.toISOString() ?? null,
           completed_at: activeOrLatestFollowupRound.completed_at?.toISOString() ?? null,
-          can_send: effectivePhase === "followup_active" && activeOrLatestFollowupRound.status === "active",
+          can_send:
+            (effectivePhase === "followup_active" || nextStep === "formative_activity") &&
+            activeOrLatestFollowupRound.status === "active",
           can_stop:
+            effectivePhase !== "planning_completed" &&
             [
               "followup_active",
               "followup_profile_update_pending",
@@ -1205,6 +1243,19 @@ export async function getStudentSessionState(input: {
           message_max_chars: followupConfig.message_max_chars
         }
       : null,
+    formative_activity:
+      effectivePhase === "planning_completed" && activeOrLatestFollowupRound
+        ? {
+            round_index: activeOrLatestFollowupRound.round_index,
+            status: activeOrLatestFollowupRound.status,
+            started_at: activeOrLatestFollowupRound.started_at?.toISOString() ?? null,
+            completed_at: activeOrLatestFollowupRound.completed_at?.toISOString() ?? null,
+            can_send:
+              nextStep === "formative_activity" &&
+              activeOrLatestFollowupRound.status === "active",
+            message_max_chars: followupConfig.message_max_chars
+          }
+        : null,
     progression
   };
 
@@ -2443,7 +2494,10 @@ export async function completeInitialConceptUnitAdministration(input: {
     if (!existingPackage) {
       await createResponsePackage({ concept_unit_session_db_id: conceptUnitSession.id });
     }
-    await enqueueInitialProfilingJobIfAutomatic(conceptUnitSession.id);
+    await ensureChatNativeFormativeActivity({
+      concept_unit_session_db_id: conceptUnitSession.id,
+      invocation_reason: "student_package_review_continue_replay"
+    });
 
     return {
       completion_status: "already_completed",
@@ -2535,13 +2589,40 @@ export async function completeInitialConceptUnitAdministration(input: {
   if (!existingPackage) {
     await createResponsePackage({ concept_unit_session_db_id: conceptUnitSession.id });
   }
-  await enqueueInitialProfilingJobIfAutomatic(conceptUnitSession.id);
+  await ensureChatNativeFormativeActivity({
+    concept_unit_session_db_id: conceptUnitSession.id,
+    invocation_reason: "student_package_review_continue"
+  });
 
   return {
     completion_status: "completed",
-    next_step: "awaiting_profiling",
+    next_step: "formative_activity",
     state: await getStudentSessionState(input)
   };
+}
+
+export async function submitFormativeActivityResponse(input: {
+  student_user_db_id: string;
+  session_public_id: string;
+  message: string;
+  client_message_id: string;
+}) {
+  const result = await submitChatNativeFormativeActivityResponse(input) as {
+    message_status: string;
+    targeted_feedback_available: boolean;
+  };
+  const state = await getStudentSessionState({
+    student_user_db_id: input.student_user_db_id,
+    session_public_id: input.session_public_id
+  });
+
+  const response = {
+    ...result,
+    state
+  };
+
+  assertStudentPayloadIsSafe(response);
+  return response;
 }
 
 export async function ingestFrontendProcessEvents(input: {
@@ -2796,6 +2877,10 @@ function studentTranscriptInteractionType(input: {
   message_text: string | null;
   structured_payload: unknown;
 }) {
+  if (input.phase === "planning_completed") {
+    return input.actor_type === "agent" ? "formative_activity" : "formative_activity_response";
+  }
+
   if (input.phase === "followup_active" || input.phase === "followup_stopped") {
     return input.actor_type === "agent" ? "followup_assistant" : "followup_student";
   }
@@ -2843,7 +2928,12 @@ export async function getStudentSafeTranscript(input: {
         },
         { agent_name: "response_collection_agent" },
         { agent_name: "deterministic_response_collection_fallback" },
-        { agent_name: INITIAL_ADMIN_AGENT_NAME }
+        { agent_name: INITIAL_ADMIN_AGENT_NAME },
+        { agent_name: "chat_native_formative_activity" },
+        {
+          actor_type: "student",
+          phase: "planning_completed"
+        }
       ]
     },
     orderBy: [{ created_at: "asc" }],

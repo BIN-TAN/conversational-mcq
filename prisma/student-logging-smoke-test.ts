@@ -45,9 +45,12 @@ async function cleanup(userDbId: string, sessionPublicIds: string[]) {
   await prisma.workflowOverride.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.studentActionIdempotencyKey.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.responsePackage.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
-  await prisma.agentCall.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.processEvent.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.conversationTurn.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
+  await prisma.followupRound.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
+  await prisma.formativeDecision.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
+  await prisma.studentProfile.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
+  await prisma.agentCall.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.itemResponse.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
   await prisma.conceptUnitSession.deleteMany({ where: { id: { in: conceptUnitSessionIds } } });
   await prisma.assessmentSession.deleteMany({ where: { id: { in: sessionIds } } });

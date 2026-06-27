@@ -132,6 +132,24 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
               allowed_actions: ["review_responses", "save_exit"],
               can_continue: false
             }
+      : state.next_step === "formative_activity"
+        ? {
+            ...base,
+            assistant_message: "Respond to the activity in the chat.",
+            interaction_type: "formative_activity",
+            allowed_actions: ["send_formative_activity_response", "save_exit"],
+            can_review_responses: true
+          }
+      : state.next_step === "formative_response_saved"
+        ? {
+            ...base,
+            assistant_message:
+              "Thanks. Your response is saved. Targeted feedback is not available yet in this prototype.",
+            interaction_type: "formative_response_saved",
+            allowed_actions: ["review_responses", "save_exit"],
+            can_review_responses: true,
+            can_continue: false
+          }
       : state.next_step === "concept_unit_intro"
       ? {
           ...base,
