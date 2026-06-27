@@ -11,7 +11,7 @@ function awaitingAnalysisMessage(phase: string) {
   }
 
   if (phase === "planning_pending") {
-    return "Preparing follow-up. Your responses are saved.";
+    return "Preparing follow-up. Your responses are recorded.";
   }
 
   if (phase === "planning_completed") {
@@ -27,14 +27,14 @@ function automaticWorkflowMessage(nextStep: StudentSessionState["next_step"]) {
   }
 
   if (nextStep === "automatic_planning_pending") {
-    return "Preparing follow-up. Your responses are saved.";
+    return "Preparing follow-up. Your responses are recorded.";
   }
 
   if (nextStep === "automatic_followup_opening_pending") {
     return "Preparing follow-up. This usually takes a short moment.";
   }
 
-  return "I’m having trouble preparing the next step. Your responses are saved, and you can return later.";
+  return "I’m having trouble preparing the next step. Your responses are recorded, and you can return later.";
 }
 
 function fieldLabel(field: MissingEvidenceField) {
@@ -74,7 +74,7 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
     state.next_step === "session_completed"
       ? {
           ...base,
-          assistant_message: "Your assessment is complete. Your responses and conversation have been saved.",
+          assistant_message: "Your assessment is complete. Your responses and conversation have been recorded.",
           interaction_type: "session_completed",
           allowed_actions: ["review_responses"],
           can_review_responses: true,
@@ -100,7 +100,7 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
         ? {
             ...base,
             assistant_message:
-              "I’m reviewing your latest response so the next step can be better matched to your current understanding. Your progress has been saved.",
+              "I’m reviewing your latest response so the next step can be better matched to your current understanding. Your progress is recorded.",
             interaction_type: "followup_updating",
             allowed_actions: ["review_responses", "save_exit", "stop_followup"],
             can_review_responses: true,
@@ -112,7 +112,7 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
             assistant_message:
               state.assessment_state === "NEXT_CHOICE"
                 ? "Choose one:\nA. Move to the next concept.\nB. Try another question on the same idea."
-                : "This follow-up round has been stopped. Your conversation has been saved.",
+                : "This follow-up round has been stopped. Your conversation is recorded.",
             interaction_type:
               state.assessment_state === "NEXT_CHOICE"
                 ? "progression_decision"
@@ -152,7 +152,7 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
         ? {
             ...base,
             assistant_message:
-              "Thanks. Your response is saved. Targeted feedback is not available yet in this prototype.",
+              "Thanks. Your response has been recorded. Targeted feedback is not available yet in this prototype.",
             interaction_type: "formative_response_saved",
             allowed_actions: ["review_responses", "save_exit"],
             can_review_responses: true,
@@ -264,7 +264,7 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
                 : state.next_step === "initial_concept_unit_complete"
                   ? {
                       ...base,
-                      assistant_message: `You’ve answered the initial questions for ${conceptTitle}. Submit your responses when you’re ready.`,
+                      assistant_message: `You’ve answered the initial questions for ${conceptTitle}. Continue when you’re ready to prepare the next step.`,
                       interaction_type: "concept_unit_completed",
                       allowed_actions: ["complete_initial_concept_unit", "review_responses"]
                     }

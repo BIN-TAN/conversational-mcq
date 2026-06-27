@@ -623,7 +623,7 @@ function FormativeActivityControls({
     return (
       <AgentMessage>
         <p className="font-medium text-ink">
-          Thanks. Your response is saved. Targeted feedback is not available yet in this prototype.
+          Thanks. Your response has been recorded. Targeted feedback is not available yet in this prototype.
         </p>
       </AgentMessage>
     );

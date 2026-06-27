@@ -100,4 +100,15 @@ If `RUN_LIVE_LLM_SMOKE=1` is set but required configuration is missing, the scri
 
 The live smoke verifies that the response package reaches the provider path, structured outputs are schema-shaped, unsafe or invalid outputs are blocked or replaced with deterministic fallback, student-visible text remains safe, and `agent_calls` stores provider metadata plus validation status.
 
+For pilot-readiness notes, record only status fields and pass/fail observations. After a successful manual live run, confirm:
+
+```text
+profile_call_status = succeeded
+profile_output_validated = true
+targeted_call_status = succeeded
+targeted_output_validated = true
+```
+
+Do not record API keys, raw provider payloads, raw model outputs, hidden prompts, answer keys, or full student text in pilot notes.
+
 The live smoke should not run in ordinary local verification or CI. The default development path remains mock/fallback.
