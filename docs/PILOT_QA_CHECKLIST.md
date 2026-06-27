@@ -75,7 +75,7 @@ targeted_output_validated = true
 - Student can log in and reach `/student/assessment`.
 - Student can start a session.
 - Question 1 of 3 appears as an agent chat bubble with stem and A/B/C/D options.
-- Clicking an answer chip creates a student chat bubble and advances to the reasoning prompt.
+- Clicking an answer option card creates a student chat bubble and advances to the reasoning prompt.
 - Reasoning is entered through the text composer.
 - Confidence appears as Low, Medium, and High chips.
 - Clicking confidence creates a student chat bubble and advances to the tempting-option prompt.
@@ -83,6 +83,7 @@ targeted_output_validated = true
 - Selecting A/B/C/D as a tempting option asks for why that option was tempting.
 - The same answer, reason, confidence, and tempting-option pattern works for all three initial items.
 - After the third item, the package-level review appears.
+- The student can edit a package-review response before continuing to feedback preparation.
 - The student can continue from package review to feedback preparation.
 - The formative activity appears as a chat interaction.
 - Targeted feedback appears after the formative response.
@@ -96,11 +97,12 @@ targeted_output_validated = true
 - Agent messages are visually aligned left.
 - Student messages are visually aligned right.
 - Item stems and options appear inside the agent message, not as a survey form.
-- Answer and confidence choices are chips.
+- Answer choices are clickable option cards, and confidence choices are chips.
 - There is no item-level submit button during initial administration.
 - There is no `Saved` status message during the initial item flow.
 - There is no `Continue` button after answer selection, confidence selection, or `No` tempting-option selection.
 - Previous choices appear as chat history rather than editable form fields, except at package-level review.
+- Package-level review includes an `Edit response` action for each initial item before feedback begins.
 
 ## Safety Checklist
 

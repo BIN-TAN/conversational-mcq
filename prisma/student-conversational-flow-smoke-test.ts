@@ -71,14 +71,30 @@ async function assertStudentComponentShape() {
 
   assert(source.includes("agent-chat-message"), "Agent chat message test hook is missing.");
   assert(source.includes("student-chat-message"), "Student chat message test hook is missing.");
-  assert(source.includes("chat-option-"), "Chat-native option chips are missing.");
+  assert(source.includes("chat-option-card-"), "Clickable option-card test hook is missing.");
   assert(source.includes("chat-confidence-"), "Chat-native confidence chips are missing.");
   assert(source.includes("chat-no-tempting"), "Chat-native no-tempting chip is missing.");
   assert(source.includes("continue-to-feedback"), "Package-level review continuation is missing.");
-  assert(source.includes("I have your three responses."), "Package review chat copy is missing.");
+  assert(
+    source.includes("I have your three responses. You can review or edit them before continuing to feedback."),
+    "Package review chat copy is missing."
+  );
+  assert(source.includes("Edit response"), "Package review edit action is missing.");
   assert(source.includes("Tempting option"), "Package review should display tempting-option evidence.");
   assert(source.includes("What made it tempting"), "Package review should display tempting-option reasoning.");
   assert(source.includes("Press Enter to send; Shift+Enter adds a new line."), "Follow-up Enter-to-send help is missing.");
+  const agentItemStart = source.indexOf("function AgentItemMessage");
+  const confidenceStart = source.indexOf("function ConfidenceMessage");
+  const agentItemSource =
+    agentItemStart >= 0 && confidenceStart > agentItemStart
+      ? source.slice(agentItemStart, confidenceStart)
+      : "";
+  assert(agentItemSource.includes("<button"), "Answer option cards should be buttons.");
+  assert(
+    agentItemSource.includes("type=\"button\""),
+    "Answer option cards should use native button keyboard behavior."
+  );
+  assert(!agentItemSource.includes("<OptionChip"), "Answer selection should not render separate option chips.");
   assert(!source.includes("SaveStateNotice"), "Saved status component should not be present.");
   assert(!source.includes("SavedResponseList"), "Saved response list should not be present.");
   assert(!source.includes("Response record"), "Response record panel should not be present.");

@@ -243,6 +243,31 @@ export function saveTemptingOption(input: {
   );
 }
 
+export function updatePackageReviewItem(input: {
+  sessionPublicId: string;
+  itemPublicId: string;
+  selectedOption: string;
+  reasoningText: string;
+  confidenceRating: ConfidenceRating;
+  noTemptingOption: boolean;
+  temptingOption?: string | null;
+  temptingOptionReason?: string | null;
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/items/${input.itemPublicId}/package-review-edit`,
+    {
+      selected_option: input.selectedOption,
+      reasoning_text: input.reasoningText,
+      confidence_rating: input.confidenceRating,
+      no_tempting_option: input.noTemptingOption,
+      tempting_option: input.temptingOption ?? null,
+      tempting_option_reason: input.temptingOptionReason ?? null,
+      client_action_id: newClientActionId("package-review-edit")
+    },
+    (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
+  );
+}
+
 export async function submitItem(input: {
   sessionPublicId: string;
   itemPublicId: string;

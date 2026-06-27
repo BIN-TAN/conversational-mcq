@@ -100,6 +100,16 @@ const temptingOptionActionSchema = z.object({
   client_action_id: z.string().trim().min(1).max(120).optional()
 }).strict();
 
+const packageReviewEditActionSchema = z.object({
+  selected_option: z.string().trim().min(1).max(16),
+  reasoning_text: z.string().trim().min(1).max(MAX_REASONING_LENGTH),
+  confidence_rating: ConfidenceLevelSchema,
+  tempting_option: z.string().trim().min(1).max(16).nullable().optional(),
+  tempting_option_reason: z.string().trim().max(MAX_REASONING_LENGTH).nullable().optional(),
+  no_tempting_option: z.boolean().default(false),
+  client_action_id: z.string().trim().min(1).max(120).optional()
+}).strict();
+
 const submitActionSchema = z.object({
   confirm_skip: z.boolean().default(false),
   skip_item: z.boolean().default(false),
@@ -270,7 +280,7 @@ function initialItemAgentMessage(item: Pick<Item, "item_order" | "item_stem" | "
 const INITIAL_ADMIN_AGENT_NAME = "deterministic_initial_administration";
 const TRANSFER_ITEM_AGENT_NAME = "deterministic_transfer_item";
 const PACKAGE_REVIEW_MESSAGE =
-  "I have your three responses. You can review them or continue to feedback.";
+  "I have your three responses. You can review or edit them before continuing to feedback.";
 const TRANSFER_COMPLETION_MESSAGE =
   "Thanks. Your response to the additional question has been recorded.";
 
@@ -281,7 +291,11 @@ function normalizeTemptingOptionEvidence(value: unknown): TemptingOptionEvidence
 
   const payload = value as Record<string, unknown>;
 
-  if (payload.source !== "initial_tempting_option" && payload.source !== "transfer_tempting_option") {
+  if (
+    payload.source !== "initial_tempting_option" &&
+    payload.source !== "transfer_tempting_option" &&
+    payload.source !== "package_review_tempting_option"
+  ) {
     return null;
   }
 
@@ -2518,6 +2532,268 @@ export async function recordTemptingOption(input: {
         action_status: itemComplete ? "item_completed" : "tempting_option_saved",
         state: nextState
       };
+      assertStudentPayloadIsSafe(result);
+      return result;
+    }
+  });
+}
+
+export async function updatePackageReviewItemResponse(input: {
+  student_user_db_id: string;
+  session_public_id: string;
+  item_public_id: string;
+  data: unknown;
+}) {
+  const data = packageReviewEditActionSchema.parse(input.data);
+  const context = await getActionContext(input);
+
+  return withActionIdempotency({
+    assessment_session_db_id: context.session.id,
+    client_action_id: data.client_action_id,
+    action_type: "package_review_edit",
+    request_payload: data,
+    run: async () => {
+      const state = await getStudentSessionState({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: input.session_public_id
+      });
+
+      if (state.assessment_state !== "PACKAGE_REVIEW") {
+        throw new StudentAssessmentServiceError(
+          "invalid_phase_for_action",
+          "Responses can be edited only during package review.",
+          409,
+          { assessment_state: state.assessment_state }
+        );
+      }
+
+      if (context.isTransferItem || !context.item.included_in_published_set) {
+        throw new StudentAssessmentServiceError(
+          "item_not_included_in_published_set",
+          "Only initial package responses can be edited here.",
+          409
+        );
+      }
+
+      const labels = optionLabels(context.item);
+      const noTemptingOption = data.no_tempting_option === true;
+      const temptingOption = noTemptingOption ? null : data.tempting_option?.trim() || null;
+      const temptingOptionReason = noTemptingOption
+        ? null
+        : data.tempting_option_reason?.trim() || null;
+
+      if (!labels.includes(data.selected_option)) {
+        throw new StudentAssessmentServiceError(
+          "invalid_option",
+          "Selected option does not exist for this item.",
+          400,
+          { item_public_id: context.item.item_public_id }
+        );
+      }
+
+      if (!noTemptingOption && !temptingOption) {
+        throw new StudentAssessmentServiceError(
+          "validation_failed",
+          "Select the tempting option, or choose no tempting option.",
+          400
+        );
+      }
+
+      if (temptingOption && !labels.includes(temptingOption)) {
+        throw new StudentAssessmentServiceError(
+          "invalid_option",
+          "Tempting option does not exist for this item.",
+          400,
+          { item_public_id: context.item.item_public_id }
+        );
+      }
+
+      if (!noTemptingOption && !temptingOptionReason) {
+        throw new StudentAssessmentServiceError(
+          "validation_failed",
+          "Explain what made the tempting option seem plausible.",
+          400
+        );
+      }
+
+      const response = await prisma.itemResponse.findUnique({
+        where: {
+          concept_unit_session_db_id_item_db_id: {
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id
+          }
+        }
+      });
+
+      if (!response?.item_submitted_at) {
+        throw new StudentAssessmentServiceError(
+          "invalid_phase_for_action",
+          "Only completed initial responses can be edited during package review.",
+          409
+        );
+      }
+
+      const previousTemptingEvidence = await getLatestTemptingOptionEvidence({
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id
+      });
+      const changedFields: string[] = [];
+      const reasoningText = data.reasoning_text.trim();
+
+      if (response.selected_option !== data.selected_option) {
+        changedFields.push("answer");
+      }
+
+      if ((response.reasoning_text ?? "") !== reasoningText) {
+        changedFields.push("reasoning");
+      }
+
+      if (response.confidence_rating !== data.confidence_rating) {
+        changedFields.push("confidence");
+      }
+
+      if (
+        (previousTemptingEvidence?.no_tempting_option ?? false) !== noTemptingOption ||
+        (previousTemptingEvidence?.tempting_option ?? null) !== temptingOption ||
+        (previousTemptingEvidence?.tempting_option_reason ?? null) !== temptingOptionReason
+      ) {
+        changedFields.push("tempting_option");
+      }
+
+      const now = new Date();
+      const structuredPayload = {
+        source: "package_review_tempting_option",
+        item_public_id: context.item.item_public_id,
+        selected_option: data.selected_option,
+        reasoning_length: reasoningText.length,
+        confidence_rating: data.confidence_rating,
+        no_tempting_option: noTemptingOption,
+        tempting_option: temptingOption,
+        tempting_option_reason: temptingOptionReason,
+        changed_fields: changedFields
+      };
+
+      await prisma.itemResponse.update({
+        where: { id: response.id },
+        data: {
+          selected_option: data.selected_option,
+          correctness: correctnessFor(data.selected_option, response.correct_option_snapshot),
+          reasoning_text: reasoningText,
+          confidence_rating: data.confidence_rating,
+          skipped_item: false,
+          skipped_reasoning: false,
+          skipped_confidence: false,
+          revision_count: changedFields.length > 0 ? { increment: 1 } : undefined,
+          client_submission_id: data.client_action_id ?? response.client_submission_id
+        }
+      });
+      await prisma.assessmentSession.update({
+        where: { id: context.session.id },
+        data: { last_activity_at: now }
+      });
+      await logConversationTurn({
+        assessment_session_db_id: context.session.id,
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id,
+        phase: context.session.current_phase,
+        actor_type: "student",
+        message_text: `Edited Question ${context.item.item_order} response.`,
+        structured_payload: structuredPayload,
+        created_at: now
+      });
+
+      if (changedFields.includes("answer")) {
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          event_type: "answer_changed",
+          event_category: "package_review",
+          event_source: "frontend",
+          payload: {
+            item_public_id: context.item.item_public_id,
+            selected_option: data.selected_option
+          },
+          occurred_at: now
+        });
+      }
+
+      if (changedFields.includes("reasoning")) {
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          event_type: "reasoning_revised",
+          event_category: "package_review",
+          event_source: "frontend",
+          payload: {
+            item_public_id: context.item.item_public_id,
+            reasoning_length: reasoningText.length
+          },
+          occurred_at: now
+        });
+      }
+
+      if (changedFields.includes("confidence")) {
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          event_type: "confidence_clicked",
+          event_category: "package_review",
+          event_source: "frontend",
+          payload: {
+            item_public_id: context.item.item_public_id,
+            confidence_rating: data.confidence_rating
+          },
+          occurred_at: now
+        });
+      }
+
+      if (changedFields.includes("tempting_option")) {
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          event_type: "tempting_option_submitted",
+          event_category: "package_review",
+          event_source: "frontend",
+          payload: {
+            item_public_id: context.item.item_public_id,
+            no_tempting_option: noTemptingOption,
+            tempting_option: temptingOption
+          },
+          occurred_at: now
+        });
+
+        if (temptingOptionReason) {
+          await logProcessEvent({
+            assessment_session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id,
+            event_type: "tempting_option_reason_submitted",
+            event_category: "package_review",
+            event_source: "frontend",
+            payload: {
+              item_public_id: context.item.item_public_id,
+              tempting_option: temptingOption,
+              tempting_option_reason_length: temptingOptionReason.length
+            },
+            occurred_at: now
+          });
+        }
+      }
+
+      const nextState = await getStudentSessionState({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: input.session_public_id
+      });
+      const result = {
+        edit_status: changedFields.length > 0 ? "updated" : "unchanged",
+        changed_fields: changedFields,
+        state: nextState
+      };
+
       assertStudentPayloadIsSafe(result);
       return result;
     }
