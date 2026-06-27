@@ -30,6 +30,10 @@ import {
   completeInitialItem,
   createSmokeStudent
 } from "./student-mvp-smoke-helpers";
+import {
+  assertLiveAgentCallIsAudited,
+  sanitizedAuditSummary
+} from "./student-live-llm-diagnostics";
 
 const envLoadResult = loadEnvConfig(process.cwd());
 const prisma = new PrismaClient();
@@ -48,53 +52,6 @@ function envPresent(name: string) {
 
 function loadedEnvFileNames() {
   return envLoadResult.loadedEnvFiles.map((file) => file.path);
-}
-
-type LiveAuditCall = {
-  id: string;
-  agent_name: string;
-  schema_version: string;
-  provider: string;
-  model_name: string;
-  live_call_allowed: boolean;
-  output_payload: unknown;
-  output_validated: boolean;
-  validation_error: string | null;
-  call_status: string;
-  provider_request_id: string | null;
-  provider_response_id: string | null;
-  client_request_id: string | null;
-  prompt_version: string;
-  raw_output?: unknown;
-  token_usage?: unknown;
-  created_at: Date;
-  completed_at: Date | null;
-};
-
-function objectKeys(value: unknown) {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? Object.keys(value).sort()
-    : [];
-}
-
-function sanitizedAuditSummary(call: LiveAuditCall) {
-  return {
-    agent_call_id: call.id,
-    agent_name: call.agent_name,
-    schema_version: call.schema_version,
-    provider: call.provider,
-    call_status: call.call_status,
-    live_call_allowed: call.live_call_allowed,
-    provider_request_id_present: Boolean(call.provider_request_id),
-    provider_response_id_present: Boolean(call.provider_response_id),
-    client_request_id_present: Boolean(call.client_request_id),
-    output_validated: call.output_validated,
-    validation_error_present: Boolean(call.validation_error),
-    raw_output_keys: objectKeys(call.raw_output),
-    token_usage_keys: objectKeys(call.token_usage),
-    created_at: call.created_at.toISOString(),
-    completed_at: call.completed_at?.toISOString() ?? null
-  };
 }
 
 function liveSmokeReadiness() {
@@ -165,48 +122,6 @@ function liveSmokeReadiness() {
       configuration_error_code:
         error instanceof LlmConfigurationError ? error.code : "environment_validation_failed"
     };
-  }
-}
-
-function assertLiveAgentCallIsAudited(input: {
-  label: string;
-  call: LiveAuditCall;
-  schema: typeof ChatNativeFormativeProfileOutputSchema | typeof ChatNativeTargetedFeedbackOutputSchema;
-  audit_context: Array<ReturnType<typeof sanitizedAuditSummary>>;
-}) {
-  assert(input.call.provider === "openai", `${input.label}: expected OpenAI provider audit.`);
-  assert(input.call.live_call_allowed === true, `${input.label}: live_call_allowed was not stored.`);
-  assert(input.call.model_name.trim().length > 0, `${input.label}: model name was not stored.`);
-  assert(input.call.prompt_version.trim().length > 0, `${input.label}: prompt version was not stored.`);
-  assert(input.call.schema_version.trim().length > 0, `${input.label}: schema version was not stored.`);
-  assert(
-    Boolean(input.call.provider_request_id || input.call.provider_response_id),
-    `${input.label}: provider request/response ID metadata was not stored.\n${JSON.stringify(
-      {
-        checked_call: sanitizedAuditSummary(input.call),
-        relevant_agent_calls: input.audit_context
-      },
-      null,
-      2
-    )}`
-  );
-  assert(
-    input.schema.safeParse(input.call.output_payload).success,
-    `${input.label}: stored output payload is not schema-shaped, including fallback output if used.`
-  );
-
-  if (input.call.output_validated) {
-    assert(input.call.call_status === "succeeded", `${input.label}: validated output should be succeeded.`);
-    assert(!input.call.validation_error, `${input.label}: validated output should not have validation_error.`);
-  } else {
-    assert(
-      Boolean(input.call.validation_error),
-      `${input.label}: unsafe or invalid output should store a validation error before fallback.`
-    );
-    assert(
-      input.call.call_status === "invalid_output" || input.call.call_status === "failed",
-      `${input.label}: invalid or unsafe output should not be audited as succeeded.`
-    );
   }
 }
 

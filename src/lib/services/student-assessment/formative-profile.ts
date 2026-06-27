@@ -133,10 +133,13 @@ function prismaJson(value: unknown) {
 export function chatNativeProviderAuditUpdate(
   providerResult: StructuredAgentResult<unknown>
 ) {
+  const rawOutput =
+    providerResult.raw_output ?? sanitizedProviderFailureAudit(providerResult);
+
   return {
     provider: providerResult.provider,
     ...providerAuditMetadata(providerResult),
-    raw_output: prismaJson(redactForAudit(providerResult.raw_output)),
+    raw_output: prismaJson(redactForAudit(rawOutput)),
     latency_ms: providerResult.latency_ms,
     input_tokens: providerResult.usage?.input_tokens,
     output_tokens: providerResult.usage?.output_tokens,
@@ -145,6 +148,99 @@ export function chatNativeProviderAuditUpdate(
       ? prismaJson(providerResult.usage.raw ?? providerResult.usage)
       : undefined
   };
+}
+
+function safeProviderErrorMessage(providerResult: StructuredAgentResult<unknown>) {
+  const error = providerResult.error;
+
+  if (!error) {
+    return null;
+  }
+
+  return error.category === "unexpected_provider_response"
+    ? "Unexpected provider error."
+    : error.message;
+}
+
+function sanitizedProviderFailureAudit(providerResult: StructuredAgentResult<unknown>) {
+  if (providerResult.status !== "failed") {
+    return undefined;
+  }
+
+  const telemetry = providerResult.transport_telemetry;
+  const normalized = telemetry?.normalized_error;
+
+  return {
+    provider_failure: {
+      provider: providerResult.provider,
+      status: providerResult.status,
+      error: {
+        category: providerResult.error?.category ?? null,
+        type: normalized?.error_type ?? normalized?.error_name ?? null,
+        code: normalized?.provider_error_code ?? null,
+        message: safeProviderErrorMessage(providerResult),
+        retryable: providerResult.error?.retryable ?? null
+      },
+      transport: {
+        provider: telemetry?.provider ?? providerResult.provider,
+        transport: telemetry?.transport ?? null,
+        adapter_version: telemetry?.adapter_version ?? null,
+        model_name: telemetry?.model_name ?? null,
+        base_url_host: telemetry?.base_url_host ?? null,
+        base_url_approved: telemetry?.base_url_approved ?? null,
+        http_status: normalized?.http_status ?? telemetry?.http_status ?? null,
+        typed_failure_reason: normalized?.typed_failure_reason ?? null,
+        provider_error_code: normalized?.provider_error_code ?? null,
+        provider_error_type: normalized?.provider_error_type ?? null,
+        provider_error_param: normalized?.provider_error_param ?? null,
+        network_category: normalized?.network_category ?? null,
+        retry_after_ms: normalized?.retry_after_ms ?? telemetry?.retry_after_ms ?? null,
+        has_http_response: normalized?.has_http_response ?? null,
+        before_request_serialization: normalized?.before_request_serialization ?? null,
+        request_serialization_completed: telemetry?.request_serialization_completed ?? null,
+        fetch_invoked: normalized?.fetch_invoked ?? telemetry?.fetch_invoked ?? null,
+        response_headers_received:
+          normalized?.response_headers_received ?? telemetry?.response_headers_received ?? null,
+        response_body_received:
+          normalized?.response_body_received ?? telemetry?.response_body_received ?? null
+      }
+    }
+  };
+}
+
+function providerFailureValidationMessage(input: {
+  providerResult: StructuredAgentResult<unknown>;
+  phaseLabel: string;
+}) {
+  const normalized = input.providerResult.transport_telemetry?.normalized_error;
+  const parts = [
+    `${input.phaseLabel} provider request failed before usable structured output; deterministic fallback used.`,
+    `category=${input.providerResult.error?.category ?? "unknown"}`,
+    `provider_status=${input.providerResult.status}`
+  ];
+
+  if (input.providerResult.error?.retryable !== undefined) {
+    parts.push(`retryable=${input.providerResult.error.retryable}`);
+  }
+
+  if (normalized?.typed_failure_reason) {
+    parts.push(`typed_failure_reason=${normalized.typed_failure_reason}`);
+  }
+
+  if (normalized?.http_status !== null && normalized?.http_status !== undefined) {
+    parts.push(`http_status=${normalized.http_status}`);
+  }
+
+  if (normalized?.provider_error_code) {
+    parts.push(`provider_error_code=${normalized.provider_error_code}`);
+  }
+
+  const message = safeProviderErrorMessage(input.providerResult);
+  if (message) {
+    parts.push(`message=${message}`);
+  }
+
+  return parts.join("; ");
 }
 
 function jsonRecord(value: unknown): Record<string, unknown> {
@@ -629,7 +725,10 @@ async function callProviderOrMock(input: {
       validation_error:
         providerResult.status === "completed"
           ? "Provider output failed Phase 5 student-facing validation; deterministic fallback used."
-          : `Provider result was ${providerResult.status}; deterministic fallback used.`,
+          : providerFailureValidationMessage({
+              providerResult,
+              phaseLabel: "Phase 5 formative profile"
+            }),
       call_status: providerResult.status === "completed" ? "invalid_output" : "failed",
       error_category:
         providerResult.status === "completed" ? "schema_validation" : providerResult.error?.category,
@@ -877,7 +976,10 @@ async function callTargetedFeedbackProviderOrMock(input: {
       validation_error:
         providerResult.status === "completed"
           ? "Provider output failed Phase 6 student-facing validation; deterministic fallback used."
-          : `Provider result was ${providerResult.status}; deterministic fallback used.`,
+          : providerFailureValidationMessage({
+              providerResult,
+              phaseLabel: "Phase 6 targeted feedback"
+            }),
       call_status: providerResult.status === "completed" ? "invalid_output" : "failed",
       error_category:
         providerResult.status === "completed" ? "schema_validation" : providerResult.error?.category,
