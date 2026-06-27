@@ -2,12 +2,13 @@ import { PrismaClient } from "@prisma/client";
 import { hashSecret } from "../src/lib/password";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
-export const demoAssessmentPublicId = "assessment_demo_phase4b";
-export const demoConceptUnitPublicId = "concept_demo_phase4b_initial";
+export const demoAssessmentPublicId = "assessment_mvp_irt_theta_invariance";
+export const demoConceptUnitPublicId = "concept_mvp_irt_theta_invariance";
 export const demoItemPublicIds = [
-  "item_demo_phase4b_1",
-  "item_demo_phase4b_2",
-  "item_demo_phase4b_3"
+  "item_mvp_irt_theta_invariance_anchor",
+  "item_mvp_irt_theta_invariance_diagnostic_contrast",
+  "item_mvp_irt_theta_invariance_parameter_extension",
+  "item_mvp_irt_theta_invariance_transfer"
 ] as const;
 
 const teacherUserId = "teacher_demo";
@@ -15,55 +16,181 @@ const teacherPassword = "teacher_demo_password";
 const studentUserId = "student_demo";
 const studentAccessCode = "student_demo_access_code";
 
-function demoItem(itemOrder: number) {
-  const labels = ["A", "B", "C"];
+type DemoItemSeed = {
+  item_public_id: string;
+  item_order: number;
+  item_role: string;
+  cognitive_demand: string;
+  difficulty: string;
+  item_stem: string;
+  options: Array<{ label: string; text: string }>;
+  correct_option: string;
+  distractor_rationales: Record<string, string>;
+  expected_reasoning_patterns: string[];
+  possible_misconception_indicators: string[];
+  included_in_published_set: boolean;
+};
 
-  return {
-    item_public_id: demoItemPublicIds[itemOrder - 1],
-    item_order: itemOrder,
+const mvpItemSeeds: DemoItemSeed[] = [
+  {
+    item_public_id: demoItemPublicIds[0],
+    item_order: 1,
+    item_role: "anchor",
+    cognitive_demand: "understanding",
+    difficulty: "easy",
     item_stem:
-      itemOrder === 1
-        ? "A plant is placed near a sunny window for several days. Which statement best explains why it grows toward the light?"
-        : itemOrder === 2
-          ? "A student solves 3(x + 2) = 21 and says x = 5. Which step best supports that result?"
-          : "A cup of hot tea cools on a table. Which statement best describes the direction of energy transfer?",
-    options: labels.map((label) => ({
-      label,
-      text:
-        label === "A"
-          ? itemOrder === 1
-            ? "The plant responds to light by growing more on the shaded side."
-            : itemOrder === 2
-              ? "Divide both sides by 3, then subtract 2 from both sides."
-              : "Energy transfers from the hotter tea to the cooler surrounding air."
-          : label === "B"
-            ? itemOrder === 1
-              ? "The plant moves because light pulls the stem directly."
-              : itemOrder === 2
-                ? "Subtract 2 first, then divide both sides by 3."
-                : "Energy transfers from the cooler air into the hotter tea."
-            : itemOrder === 1
-              ? "The plant grows randomly until it happens to face the window."
-              : itemOrder === 2
-                ? "Multiply both sides by 3, then add 2."
-                : "No energy transfers because the tea and air are both matter."
-    })),
-    correct_option: "A",
+      "A testing program develops two item sets to measure the same mathematics ability. Item Set 2 contains more difficult items than Item Set 1, but both item sets are calibrated under the same IRT model and placed on the same scale. A student takes both item sets on different occasions. If the model fits reasonably well and the forms are properly linked, should the student's estimated ability theta be expected to differ systematically across the two forms?",
+    options: [
+      { label: "A", text: "Yes, because harder item sets always produce lower theta estimates." },
+      { label: "B", text: "Yes, because item difficulty directly determines the student's ability level." },
+      { label: "C", text: "No, because theta is intended to represent the same latent ability across properly calibrated forms." },
+      { label: "D", text: "No, because item difficulty has no role in IRT scoring." }
+    ],
+    correct_option: "C",
     distractor_rationales: {
-      B: "This reflects a direct-pull interpretation rather than a growth response.",
-      C: "This reflects a random-change interpretation instead of a directional response."
+      A: "Harder item sets automatically lower person ability estimates.",
+      B: "Item difficulty directly determines the person's ability level.",
+      C: "Correct answer.",
+      D: "Item difficulty is irrelevant in IRT scoring."
     },
     expected_reasoning_patterns: [
-      "Explains the selected option using the relationship described in the item."
+      "When forms are properly linked or calibrated onto the same scale, theta is intended to estimate the same latent ability.",
+      "A harder item set may affect response probabilities and precision, but it should not systematically redefine the person's ability estimate."
     ],
     possible_misconception_indicators: [
-      "Chooses a distractor with reasoning that treats the process as direct pulling, reversed operation, or reversed transfer."
+      "Treats harder items as automatically lowering theta.",
+      "Treats item difficulty as directly determining person ability.",
+      "Claims item difficulty has no role in IRT scoring."
     ],
-    administration_rules: {
-      no_feedback_during_initial_administration: true,
-      fixture: "development_only"
+    included_in_published_set: true
+  },
+  {
+    item_public_id: demoItemPublicIds[1],
+    item_order: 2,
+    item_role: "diagnostic_contrast",
+    cognitive_demand: "application_and_analysis",
+    difficulty: "medium",
+    item_stem:
+      "John takes two 10-item quizzes in the same content domain. Both quizzes are designed and calibrated under a 2PL model. The average item difficulty on Quiz 1 is -0.5, while the average item difficulty on Quiz 2 is +1. A peer says: \"Quiz 2 is harder because the average difficulty is higher, so John's estimated theta will be lower on Quiz 2 than on Quiz 1.\" What is the main flaw in the peer's reasoning?",
+    options: [
+      { label: "A", text: "The peer assumes that item difficulty should be invariant across tests." },
+      { label: "B", text: "The peer confuses item difficulty b with person ability theta; theta is intended to be comparable across properly calibrated or linked forms." },
+      { label: "C", text: "The peer assumes that the discrimination parameter a is always equal to 1, which would make item difficulty irrelevant." },
+      { label: "D", text: "The peer assumes that the test with the higher average difficulty must provide less information for all students." }
+    ],
+    correct_option: "B",
+    distractor_rationales: {
+      A: "Misunderstands invariance by thinking item difficulty itself must remain the same across forms.",
+      B: "Correct answer.",
+      C: "Misattributes the issue to discrimination rather than the confusion between item difficulty and ability.",
+      D: "Confuses average difficulty with information in a broad, unsupported way."
     },
-    included_in_published_set: true,
+    expected_reasoning_patterns: [
+      "The flaw is confusing item difficulty, which describes item location, with theta, which describes the person's location on the latent trait scale.",
+      "Properly calibrated or linked forms are intended to make theta comparable across forms."
+    ],
+    possible_misconception_indicators: [
+      "Says item difficulty itself should be invariant across tests.",
+      "Attributes the peer's flaw to discrimination instead of the b/theta distinction.",
+      "Overgeneralizes average difficulty into information for every student."
+    ],
+    included_in_published_set: true
+  },
+  {
+    item_public_id: demoItemPublicIds[2],
+    item_order: 3,
+    item_role: "parameter_extension",
+    cognitive_demand: "higher_order_application",
+    difficulty: "hard",
+    item_stem:
+      "A psychometrician creates two versions of a spatial reasoning test to measure the same latent trait theta. Version 1 contains items with relatively low discrimination parameters, with average a around 0.5. Version 2 contains items with higher discrimination parameters, with average a around 2.0. Both versions are calibrated onto the same scale using a 2PL model, and the model fits the data reasonably well. What should be expected?",
+    options: [
+      { label: "A", text: "Examinees will receive higher theta estimates on Version 2 because highly discriminating items reward high-ability examinees more." },
+      { label: "B", text: "Examinees will receive lower theta estimates on Version 2 because highly discriminating items are harder." },
+      { label: "C", text: "Examinees' theta estimates should target the same latent ability across versions, but Version 2 may estimate theta with greater precision for examinees near the items' difficulty levels." },
+      { label: "D", text: "The two versions cannot be placed on the same scale because the item discrimination levels differ." }
+    ],
+    correct_option: "C",
+    distractor_rationales: {
+      A: "Confuses higher discrimination with systematically higher ability estimates.",
+      B: "Confuses discrimination with difficulty.",
+      C: "Correct answer.",
+      D: "Incorrectly assumes different discrimination levels prevent calibration onto a common scale."
+    },
+    expected_reasoning_patterns: [
+      "Discrimination affects how sharply an item differentiates examinees around its difficulty level and can affect precision or information.",
+      "Discrimination should not systematically change the latent trait being estimated when both versions are properly calibrated onto the same scale."
+    ],
+    possible_misconception_indicators: [
+      "Treats high discrimination as rewarding ability with higher theta.",
+      "Conflates discrimination and difficulty.",
+      "Claims different discrimination prevents common-scale calibration."
+    ],
+    included_in_published_set: true
+  },
+  {
+    item_public_id: demoItemPublicIds[3],
+    item_order: 4,
+    item_role: "transfer",
+    cognitive_demand: "transfer_application",
+    difficulty: "medium",
+    item_stem:
+      "Two students receive the same estimated theta = 0.5 on a linked IRT scale. Student A was tested with mostly easy items, and Student B was tested with mostly difficult items. Which interpretation is most appropriate?",
+    options: [
+      { label: "A", text: "Student B must have higher ability because difficult items were used." },
+      { label: "B", text: "Student A must have higher ability because easy items allow more correct answers." },
+      { label: "C", text: "The two theta estimates are intended to be comparable because they are on the same linked scale, although the precision of each estimate may differ." },
+      { label: "D", text: "The two theta estimates cannot be compared unless both students answered the exact same items." }
+    ],
+    correct_option: "C",
+    distractor_rationales: {
+      A: "Assumes exposure to difficult items directly implies higher ability.",
+      B: "Confuses number correct or ease of items with comparable theta estimates.",
+      C: "Correct answer.",
+      D: "Incorrectly assumes common items are the only way to compare estimates."
+    },
+    expected_reasoning_patterns: [
+      "The two theta estimates are intended to be comparable because they are on the same linked scale.",
+      "Precision may differ depending on item information and where the items are located relative to each student's theta."
+    ],
+    possible_misconception_indicators: [
+      "Infers ability from easy or difficult item exposure rather than linked theta.",
+      "Treats exact common items as necessary for comparing linked theta estimates."
+    ],
+    included_in_published_set: false
+  }
+];
+
+function demoItem(itemOrder: number) {
+  const seed = mvpItemSeeds[itemOrder - 1];
+
+  if (!seed) {
+    throw new Error(`Missing IRT MVP item seed for item order ${itemOrder}.`);
+  }
+
+  return {
+    item_public_id: seed.item_public_id,
+    item_order: seed.item_order,
+    item_stem: seed.item_stem,
+    options: seed.options,
+    correct_option: seed.correct_option,
+    distractor_rationales: seed.distractor_rationales,
+    expected_reasoning_patterns: seed.expected_reasoning_patterns,
+    possible_misconception_indicators: seed.possible_misconception_indicators,
+    administration_rules: {
+      item_set_name: "IRT Theta Invariance and Item Parameters",
+      domain: "Educational Measurement",
+      knowledge_component:
+        "Person ability theta is intended to be comparable across properly calibrated or linked forms. Item difficulty and discrimination affect response probabilities and precision, not the definition of the latent trait itself.",
+      misconception_cluster:
+        "Students may confuse item difficulty b or discrimination a with person ability theta.",
+      item_role: seed.item_role,
+      cognitive_demand: seed.cognitive_demand,
+      difficulty: seed.difficulty,
+      no_feedback_during_initial_administration: true,
+      fixture: "fixed_irt_mvp"
+    },
+    included_in_published_set: seed.included_in_published_set,
     status: "published" as const
   };
 }
@@ -131,16 +258,18 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
   const assessment = await prisma.assessment.upsert({
     where: { assessment_public_id: demoAssessmentPublicId },
     update: {
-      title: "Development Demo: Initial MCQ Conversation",
-      description: "Development-only assessment for testing the Phase 4B student interface.",
+      title: "IRT Theta Invariance and Item Parameters",
+      description:
+        "Fixed MVP assessment for theta invariance, item difficulty, and item discrimination.",
       status: "published",
       workflow_mode: "manual_review",
       created_by_user_db_id: teacher.id
     },
     create: {
       assessment_public_id: demoAssessmentPublicId,
-      title: "Development Demo: Initial MCQ Conversation",
-      description: "Development-only assessment for testing the Phase 4B student interface.",
+      title: "IRT Theta Invariance and Item Parameters",
+      description:
+        "Fixed MVP assessment for theta invariance, item difficulty, and item discrimination.",
       status: "published",
       workflow_mode: "manual_review",
       created_by_user_db_id: teacher.id
@@ -150,10 +279,17 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
     where: { concept_unit_public_id: demoConceptUnitPublicId },
     update: {
       assessment_db_id: assessment.id,
-      title: "Demo topic",
-      learning_objective: "Development fixture for initial response collection.",
-      related_concept_description: "Development-only concept boundary for browser testing.",
-      administration_rules: { fixture: "development_only" },
+      title: "Theta invariance across calibrated IRT forms",
+      learning_objective:
+        "Explain why theta is intended to represent comparable person ability across properly calibrated or linked forms while item difficulty and discrimination affect response probabilities and precision.",
+      related_concept_description:
+        "Person ability theta is intended to be comparable across properly calibrated or linked forms. Item difficulty b and discrimination a affect item response behavior and measurement precision, not the definition of the latent trait.",
+      administration_rules: {
+        fixture: "fixed_irt_mvp",
+        item_set_name: "IRT Theta Invariance and Item Parameters",
+        initial_item_count: 3,
+        transfer_item_count: 1
+      },
       order_index: 1,
       status: "published",
       version: 1
@@ -161,17 +297,24 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
     create: {
       concept_unit_public_id: demoConceptUnitPublicId,
       assessment_db_id: assessment.id,
-      title: "Demo topic",
-      learning_objective: "Development fixture for initial response collection.",
-      related_concept_description: "Development-only concept boundary for browser testing.",
-      administration_rules: { fixture: "development_only" },
+      title: "Theta invariance across calibrated IRT forms",
+      learning_objective:
+        "Explain why theta is intended to represent comparable person ability across properly calibrated or linked forms while item difficulty and discrimination affect response probabilities and precision.",
+      related_concept_description:
+        "Person ability theta is intended to be comparable across properly calibrated or linked forms. Item difficulty b and discrimination a affect item response behavior and measurement precision, not the definition of the latent trait.",
+      administration_rules: {
+        fixture: "fixed_irt_mvp",
+        item_set_name: "IRT Theta Invariance and Item Parameters",
+        initial_item_count: 3,
+        transfer_item_count: 1
+      },
       order_index: 1,
       status: "published",
       version: 1
     }
   });
 
-  for (const itemOrder of [1, 2, 3]) {
+  for (const itemOrder of [1, 2, 3, 4]) {
     const item = demoItem(itemOrder);
 
     await prisma.item.upsert({
@@ -186,7 +329,7 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
         expected_reasoning_patterns: item.expected_reasoning_patterns,
         possible_misconception_indicators: item.possible_misconception_indicators,
         administration_rules: item.administration_rules,
-        included_in_published_set: true,
+        included_in_published_set: item.included_in_published_set,
         status: "published",
         version: 1
       },
@@ -201,7 +344,7 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
         expected_reasoning_patterns: item.expected_reasoning_patterns,
         possible_misconception_indicators: item.possible_misconception_indicators,
         administration_rules: item.administration_rules,
-        included_in_published_set: true,
+        included_in_published_set: item.included_in_published_set,
         status: "published",
         version: 1
       }

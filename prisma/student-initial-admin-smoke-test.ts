@@ -15,6 +15,7 @@ import {
   recordConfidence,
   recordReasoning,
   recordSelectedOption,
+  recordTemptingOption,
   startConceptUnitInitialAdministration,
   startOrResumeStudentAssessmentSession,
   submitItemResponse
@@ -295,67 +296,68 @@ async function main() {
       item_public_id: items[0].item_public_id,
       data: { confidence_rating: "high", client_action_id: `${prefix}_item1_confidence` }
     });
-    const submittedFirst = await submitItemResponse({
+    await assertStudentError(
+      () =>
+        submitItemResponse({
+          student_user_db_id: student.id,
+          session_public_id: started.session.session_public_id,
+          item_public_id: items[0].item_public_id,
+          data: { client_action_id: `${prefix}_item1_submit_before_tempting` }
+        }),
+      "invalid_phase_for_action",
+      "Item-level submit should not bypass tempting-option evidence"
+    );
+    const completedFirst = await recordTemptingOption({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
       item_public_id: items[0].item_public_id,
-      data: { client_action_id: `${prefix}_item1_submit` }
+      data: { no_tempting_option: true, client_action_id: `${prefix}_item1_tempting_no` }
     });
-    assertNoForbiddenStudentFields(submittedFirst);
-    assert(submittedFirst.submission_status === "submitted", "Item 1 did not submit.");
+    assertNoForbiddenStudentFields(completedFirst);
+    assert(
+      completedFirst.state.current_item?.item_public_id === items[1].item_public_id,
+      "Completing item 1 should advance to item 2."
+    );
 
     const firstResponseAfterSubmit = await prisma.itemResponse.findFirstOrThrow({
       where: { item: { item_public_id: items[0].item_public_id } },
       select: { correctness: true, revision_count: true }
     });
     assert(firstResponseAfterSubmit.correctness === "correct", "Correctness was not calculated by the backend.");
+    assert(firstResponseAfterSubmit.revision_count === 0, "Completed item should not be revised in chat-native flow.");
 
     await recordSelectedOption({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
-      item_public_id: items[0].item_public_id,
-      data: { selected_option: "B", client_action_id: `${prefix}_item1_revision_option` }
+      item_public_id: items[1].item_public_id,
+      data: { selected_option: "A", client_action_id: `${prefix}_item2_option` }
     });
     await recordReasoning({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
-      item_public_id: items[0].item_public_id,
+      item_public_id: items[1].item_public_id,
       data: {
-        reasoning_text: "I changed my reasoning before concept completion.",
-        client_action_id: `${prefix}_item1_revision_reasoning`
+        reasoning_text: "The second item also supports A.",
+        client_action_id: `${prefix}_item2_reasoning`
       }
     });
-    const revisedFirstResponse = await prisma.itemResponse.findFirstOrThrow({
-      where: { item: { item_public_id: items[0].item_public_id } },
-      select: { correctness: true, revision_count: true }
-    });
-    assert(revisedFirstResponse.correctness === "incorrect", "Revised option did not update backend correctness.");
-    assert(revisedFirstResponse.revision_count >= 2, "Revision count did not increment.");
-
-    const missingRepair = await submitItemResponse({
+    await recordConfidence({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
       item_public_id: items[1].item_public_id,
-      data: { client_action_id: `${prefix}_item2_submit_missing` }
+      data: { confidence_rating: "low", client_action_id: `${prefix}_item2_confidence` }
     });
-    assertNoForbiddenStudentFields(missingRepair);
+    const completedSecond = await recordTemptingOption({
+      student_user_db_id: student.id,
+      session_public_id: started.session.session_public_id,
+      item_public_id: items[1].item_public_id,
+      data: { no_tempting_option: true, client_action_id: `${prefix}_item2_tempting_no` }
+    });
+    assertNoForbiddenStudentFields(completedSecond);
     assert(
-      missingRepair.submission_status === "missing_evidence_repair_required",
-      "Missing evidence repair was not required."
+      completedSecond.state.current_item?.item_public_id === items[2].item_public_id,
+      "Completing item 2 should advance to item 3."
     );
-    assert("missing_fields" in missingRepair, "Missing-evidence response did not include missing_fields.");
-    const missingFields = missingRepair.missing_fields;
-    assert(Array.isArray(missingFields), "missing_fields should be an array.");
-    assert(missingFields.includes("answer"), "Missing answer was not detected.");
-
-    const skipSecond = await submitItemResponse({
-      student_user_db_id: student.id,
-      session_public_id: started.session.session_public_id,
-      item_public_id: items[1].item_public_id,
-      data: { confirm_skip: true, client_action_id: `${prefix}_item2_confirm_skip` }
-    });
-    assertNoForbiddenStudentFields(skipSecond);
-    assert(skipSecond.submission_status === "submitted", "Explicit skip did not submit item 2.");
     const secondResponse = await prisma.itemResponse.findFirstOrThrow({
       where: { item: { item_public_id: items[1].item_public_id } },
       select: {
@@ -365,10 +367,10 @@ async function main() {
         skipped_confidence: true
       }
     });
-    assert(secondResponse.correctness === "unanswered", "Skipped item should be stored as unanswered.");
-    assert(secondResponse.skipped_item, "Skipped item flag was not stored.");
-    assert(secondResponse.skipped_reasoning, "Skipped reasoning flag was not stored.");
-    assert(secondResponse.skipped_confidence, "Skipped confidence flag was not stored.");
+    assert(secondResponse.correctness === "correct", "Item 2 backend correctness mismatch.");
+    assert(!secondResponse.skipped_item, "Item 2 should not be stored as skipped.");
+    assert(!secondResponse.skipped_reasoning, "Item 2 reasoning should not be skipped.");
+    assert(!secondResponse.skipped_confidence, "Item 2 confidence should not be skipped.");
 
     const acceptedEvents = await ingestFrontendProcessEvents({
       student_user_db_id: student.id,
@@ -417,11 +419,11 @@ async function main() {
       item_public_id: items[2].item_public_id,
       data: { confidence_rating: "medium", client_action_id: `${prefix}_item3_confidence` }
     });
-    await submitItemResponse({
+    await recordTemptingOption({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
       item_public_id: items[2].item_public_id,
-      data: { client_action_id: `${prefix}_item3_submit` }
+      data: { no_tempting_option: true, client_action_id: `${prefix}_item3_tempting_no` }
     });
 
     const completed = await completeInitialConceptUnitAdministration({

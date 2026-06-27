@@ -189,7 +189,10 @@ export type StudentConversationFrame = z.infer<typeof StudentConversationFrameSc
 export const StudentReviewItemSchema = StudentSafeItemSchema.extend({
   missing_fields: z.array(MissingEvidenceFieldSchema),
   can_edit: z.boolean(),
-  is_current: z.boolean()
+  is_current: z.boolean(),
+  no_tempting_option: z.boolean(),
+  tempting_option: z.string().nullable(),
+  tempting_option_reason: z.string().nullable()
 });
 export type StudentReviewItem = z.infer<typeof StudentReviewItemSchema>;
 

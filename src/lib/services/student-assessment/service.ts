@@ -2470,20 +2470,32 @@ export async function getStudentReviewResponses(input: {
     session.current_phase === "followup_stopped" ||
     session.current_phase === "session_completed";
   const currentState = await getStudentSessionState(input);
-  const result = {
-    session_public_id: session.session_public_id,
-    locked,
-    current_concept_unit: serializeStudentConceptUnit(session.current_concept_unit),
-    items: items.map((item) => {
+  const reviewItems = await Promise.all(
+    items.map(async (item) => {
       const response = responsesByItemId.get(item.id) ?? null;
+      const temptingOptionEvidence = conceptUnitSession
+        ? await getLatestTemptingOptionEvidence({
+            concept_unit_session_db_id: conceptUnitSession.id,
+            item_db_id: item.id
+          })
+        : null;
 
       return {
         ...serializeStudentSafeItem(item, response),
         missing_fields: responseMissingFields(response),
         can_edit: !locked,
-        is_current: currentState.current_item?.item_public_id === item.item_public_id
+        is_current: currentState.current_item?.item_public_id === item.item_public_id,
+        no_tempting_option: temptingOptionEvidence?.no_tempting_option ?? false,
+        tempting_option: temptingOptionEvidence?.tempting_option ?? null,
+        tempting_option_reason: temptingOptionEvidence?.tempting_option_reason ?? null
       };
     })
+  );
+  const result = {
+    session_public_id: session.session_public_id,
+    locked,
+    current_concept_unit: serializeStudentConceptUnit(session.current_concept_unit),
+    items: reviewItems
   };
 
   assertStudentPayloadIsSafe(result);

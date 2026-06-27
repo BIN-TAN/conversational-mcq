@@ -377,6 +377,22 @@ function PackageReviewMessage({
                       : "Not provided"}
                   </dd>
                 </div>
+                <div>
+                  <dt className="font-semibold text-ink">Tempting option</dt>
+                  <dd className="text-muted">
+                    {item.no_tempting_option
+                      ? "No"
+                      : item.tempting_option
+                        ? item.tempting_option
+                        : "Not provided"}
+                  </dd>
+                </div>
+                {!item.no_tempting_option && item.tempting_option_reason ? (
+                  <div>
+                    <dt className="font-semibold text-ink">What made it tempting</dt>
+                    <dd className="whitespace-pre-wrap text-muted">{item.tempting_option_reason}</dd>
+                  </div>
+                ) : null}
               </dl>
             </div>
           ))}

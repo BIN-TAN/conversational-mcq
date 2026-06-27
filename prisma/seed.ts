@@ -1,6 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 import { hashSecret } from "../src/lib/password";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
+import {
+  demoAssessmentPublicId,
+  ensureDemoStudentAssessment
+} from "./demo-student-assessment-fixture";
 
 const prisma = new PrismaClient();
 
@@ -57,9 +61,12 @@ async function main() {
     }
   });
 
+  await ensureDemoStudentAssessment(prisma);
+
   console.log("Seeded local development users:");
   console.log(`- teacher_researcher user_id: ${teacherUserId}`);
   console.log(`- student user_id: ${studentUserId}`);
+  console.log(`- fixed MVP assessment_public_id: ${demoAssessmentPublicId}`);
 }
 
 main()

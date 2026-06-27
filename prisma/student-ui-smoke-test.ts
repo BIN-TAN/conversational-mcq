@@ -17,6 +17,7 @@ import {
 import { StudentAssessmentServiceError } from "../src/lib/services/student-assessment/errors";
 import {
   demoAssessmentPublicId,
+  demoItemPublicIds,
   ensureDemoStudentAssessment
 } from "./demo-student-assessment-fixture";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
@@ -109,10 +110,59 @@ async function expectStudentError(action: () => Promise<unknown>, code: string) 
   throw new Error(`Expected ${code} error.`);
 }
 
+function itemRole(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const role = (value as Record<string, unknown>).item_role;
+  return typeof role === "string" ? role : null;
+}
+
 async function main() {
   process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "true";
 
   await ensureDemoStudentAssessment(prisma);
+  const fixedAssessment = await prisma.assessment.findUniqueOrThrow({
+    where: { assessment_public_id: demoAssessmentPublicId },
+    include: {
+      concept_units: {
+        include: {
+          items: { orderBy: [{ item_order: "asc" }, { created_at: "asc" }] }
+        }
+      }
+    }
+  });
+  assert(
+    fixedAssessment.title === "IRT Theta Invariance and Item Parameters",
+    "Fixed IRT MVP assessment title mismatch."
+  );
+  const fixedConceptUnit = fixedAssessment.concept_units[0];
+  assert(fixedConceptUnit, "Fixed IRT MVP concept unit is missing.");
+  assert(
+    fixedConceptUnit.title === "Theta invariance across calibrated IRT forms",
+    "Fixed IRT MVP concept-unit title mismatch."
+  );
+  assert(fixedConceptUnit.items.length === 4, "Fixed IRT MVP item set should contain 4 items.");
+  const initialItems = fixedConceptUnit.items.filter((item) => item.included_in_published_set);
+  const transferItems = fixedConceptUnit.items.filter(
+    (item) => itemRole(item.administration_rules) === "transfer"
+  );
+  assert(initialItems.length === 3, "Fixed IRT MVP should include 3 initial items.");
+  assert(transferItems.length === 1, "Fixed IRT MVP should include 1 transfer item.");
+  assert(
+    transferItems[0]?.item_public_id === demoItemPublicIds[3] &&
+      transferItems[0].included_in_published_set === false,
+    "Transfer item should be stored but excluded from the initial package."
+  );
+  assert(
+    fixedConceptUnit.items.every((item) => Array.isArray(item.options) && item.options.length === 4),
+    "Every fixed IRT MVP item should have A/B/C/D options."
+  );
+  assert(
+    fixedConceptUnit.items.every((item) => typeof item.correct_option === "string" && item.correct_option.length === 1),
+    "Every fixed IRT MVP item should store a correct option internally."
+  );
 
   const userId = `phase4b_ui_smoke_${Date.now()}_${randomUUID().slice(0, 8)}`;
   const accessCodeHash = await hashSecret("phase4b_ui_smoke_access_code");
@@ -142,6 +192,10 @@ async function main() {
     });
     sessionPublicIds.push(started.session.session_public_id);
     assertNoForbiddenFields(started);
+    assert(
+      started.state.current_concept_unit?.title === "Theta invariance across calibrated IRT forms",
+      "Student session did not start on the fixed IRT concept unit."
+    );
 
     let frame = buildStudentConversationFrame(started.state);
     assert(frame.interaction_type === "concept_unit_intro", "Expected concept unit intro frame.");
@@ -155,6 +209,12 @@ async function main() {
     assert(frame.interaction_type === "present_item", "Expected present item frame.");
     const item1 = state.current_item;
     assert(item1, "Item 1 was missing.");
+    assert(
+      item1.item_public_id === demoItemPublicIds[0] &&
+        item1.item_stem.includes("two item sets to measure the same mathematics ability"),
+      "First fixed IRT item was not presented first."
+    );
+    assertNoForbiddenFields(item1);
 
     state = (
       await recordSelectedOption({
@@ -205,6 +265,7 @@ async function main() {
 
     const item2 = state.current_item;
     assert(item2, "Item 2 was missing.");
+    assert(item2.item_public_id === demoItemPublicIds[1], "Second fixed IRT item was not presented second.");
     await recordSelectedOption({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
@@ -237,6 +298,7 @@ async function main() {
 
     const item3 = state.current_item;
     assert(item3, "Item 3 was missing.");
+    assert(item3.item_public_id === demoItemPublicIds[2], "Third fixed IRT item was not presented third.");
     await recordSelectedOption({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
@@ -286,6 +348,7 @@ async function main() {
     ).state;
     frame = buildStudentConversationFrame(state);
     assert(frame.interaction_type === "package_review", "Expected package review frame.");
+    assert(!state.current_item, "Transfer item should not appear during the initial package review.");
 
     state = (
       await completeInitialConceptUnitAdministration({
@@ -303,6 +366,18 @@ async function main() {
       session_public_id: started.session.session_public_id
     });
     assert(review.locked, "Review should be read-only after completion.");
+    assert(review.items.length === 3, "Package review should include only the 3 initial items.");
+    assert(
+      !review.items.some((item) => item.item_public_id === demoItemPublicIds[3]),
+      "Package review should not include the transfer item."
+    );
+    assert(review.items[0]?.no_tempting_option === true, "Review should show no tempting option for item 1.");
+    assert(review.items[1]?.no_tempting_option === true, "Review should show no tempting option for item 2.");
+    assert(
+      review.items[2]?.tempting_option === temptingOption &&
+        review.items[2]?.tempting_option_reason === "It used related wording from the item.",
+      "Review should show tempting-option evidence for item 3."
+    );
     assertNoForbiddenFields(review);
 
     const transcript = await getStudentSafeTranscript({

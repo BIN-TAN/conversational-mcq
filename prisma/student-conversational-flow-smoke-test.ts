@@ -73,6 +73,8 @@ async function assertStudentComponentShape() {
   assert(source.includes("chat-no-tempting"), "Chat-native no-tempting chip is missing.");
   assert(source.includes("continue-to-feedback"), "Package-level review continuation is missing.");
   assert(source.includes("I have your three responses."), "Package review chat copy is missing.");
+  assert(source.includes("Tempting option"), "Package review should display tempting-option evidence.");
+  assert(source.includes("What made it tempting"), "Package review should display tempting-option reasoning.");
   assert(source.includes("Press Enter to send; Shift+Enter adds a new line."), "Follow-up Enter-to-send help is missing.");
   assert(!source.includes("SaveStateNotice"), "Saved status component should not be present.");
   assert(!source.includes("SavedResponseList"), "Saved response list should not be present.");
