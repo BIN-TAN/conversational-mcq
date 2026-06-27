@@ -20,7 +20,9 @@ import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operationa
 import { getStudentProgressionStateBySessionDbId } from "@/lib/services/concept-progression/progression";
 import {
   ensureChatNativeFormativeActivity,
-  submitChatNativeFormativeActivityResponse
+  submitChatNativeFormativeActivityResponse,
+  submitChatNativeNextChoice,
+  submitChatNativeRevisionResponse
 } from "@/lib/services/student-assessment/formative-profile";
 import {
   assertChatNativeActionAllowed,
@@ -56,6 +58,7 @@ export const InitialAdministrationStep = z.enum([
   "awaiting_profiling",
   "formative_activity",
   "formative_response_saved",
+  "revision_requested",
   "automatic_profiling_pending",
   "automatic_planning_pending",
   "automatic_followup_opening_pending",
@@ -926,6 +929,53 @@ export async function startOrResumeStudentAssessmentSession(input: {
   throw lastError;
 }
 
+function conversationPayloadSource(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const source = (value as Record<string, unknown>).source;
+  return typeof source === "string" ? source : null;
+}
+
+function conversationPayloadMessageType(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const type = (value as Record<string, unknown>).message_type;
+  return typeof type === "string" ? type : null;
+}
+
+async function getChatNativeRoundState(followupRoundDbId: string) {
+  const turns = await prisma.conversationTurn.findMany({
+    where: { followup_round_db_id: followupRoundDbId },
+    select: {
+      actor_type: true,
+      structured_payload: true
+    }
+  });
+
+  return {
+    has_activity_response: turns.some(
+      (turn) =>
+        turn.actor_type === "student" &&
+        conversationPayloadSource(turn.structured_payload) === "chat_native_formative_activity_response"
+    ),
+    has_revision_prompt: turns.some(
+      (turn) =>
+        turn.actor_type === "agent" &&
+        conversationPayloadSource(turn.structured_payload) === "chat_native_targeted_feedback" &&
+        conversationPayloadMessageType(turn.structured_payload) === "revision_prompt"
+    ),
+    has_revision_response: turns.some(
+      (turn) =>
+        turn.actor_type === "student" &&
+        conversationPayloadSource(turn.structured_payload) === "chat_native_revision"
+    )
+  };
+}
+
 export async function getStudentSessionState(input: {
   student_user_db_id: string;
   session_public_id: string;
@@ -1050,14 +1100,15 @@ export async function getStudentSessionState(input: {
         })).allowed
       : false;
   const phaseFiveFormativeRound =
-    conceptUnitSession && effectivePhase === "planning_completed"
+    conceptUnitSession && ["planning_completed", "followup_active", "followup_stopped"].includes(effectivePhase)
       ? await prisma.followupRound.findFirst({
           where: {
             concept_unit_session_db_id: conceptUnitSession.id,
-            status: { in: ["active", "completed"] }
+            status: { in: ["active", "completed", "stopped"] }
           },
           orderBy: [{ round_index: "desc" }],
           select: {
+            id: true,
             round_index: true,
             status: true,
             started_at: true,
@@ -1065,10 +1116,20 @@ export async function getStudentSessionState(input: {
           }
         })
       : null;
+  const phaseSixRoundState = phaseFiveFormativeRound
+    ? await getChatNativeRoundState(phaseFiveFormativeRound.id)
+    : null;
 
   if (effectivePhase === "session_completed") {
     assessmentState = "SESSION_COMPLETE";
     nextStep = "session_completed";
+  } else if (
+    phaseFiveFormativeRound?.status === "active" &&
+    phaseSixRoundState?.has_revision_prompt &&
+    !phaseSixRoundState.has_revision_response
+  ) {
+    assessmentState = "REVISION";
+    nextStep = "revision_requested";
   } else if (effectivePhase === "followup_active") {
     assessmentState = "FOLLOWUP_RESPONSE";
     nextStep = "followup_active";
@@ -2625,6 +2686,52 @@ export async function submitFormativeActivityResponse(input: {
   return response;
 }
 
+export async function submitRevisionResponse(input: {
+  student_user_db_id: string;
+  session_public_id: string;
+  message: string;
+  client_message_id: string;
+}) {
+  const result = await submitChatNativeRevisionResponse(input) as {
+    revision_status: string;
+    next_choice_available: boolean;
+  };
+  const state = await getStudentSessionState({
+    student_user_db_id: input.student_user_db_id,
+    session_public_id: input.session_public_id
+  });
+  const response = {
+    ...result,
+    state
+  };
+
+  assertStudentPayloadIsSafe(response);
+  return response;
+}
+
+export async function submitNextChoice(input: {
+  student_user_db_id: string;
+  session_public_id: string;
+  choice: "move_next" | "try_another";
+  client_action_id: string;
+}) {
+  const result = await submitChatNativeNextChoice(input) as {
+    choice_status: string;
+    message?: string;
+  };
+  const state = await getStudentSessionState({
+    student_user_db_id: input.student_user_db_id,
+    session_public_id: input.session_public_id
+  });
+  const response = {
+    ...result,
+    state
+  };
+
+  assertStudentPayloadIsSafe(response);
+  return response;
+}
+
 export async function ingestFrontendProcessEvents(input: {
   student_user_db_id: string;
   session_public_id: string;
@@ -2879,6 +2986,21 @@ function studentTranscriptInteractionType(input: {
 }) {
   if (input.phase === "planning_completed") {
     return input.actor_type === "agent" ? "formative_activity" : "formative_activity_response";
+  }
+
+  const source = conversationPayloadSource(input.structured_payload);
+  const messageType = conversationPayloadMessageType(input.structured_payload);
+
+  if (input.phase === "followup_active" && source === "chat_native_targeted_feedback") {
+    return messageType === "revision_prompt" ? "revision_prompt" : "targeted_feedback";
+  }
+
+  if (input.phase === "followup_active" && source === "chat_native_revision") {
+    return "revision_response";
+  }
+
+  if (input.phase === "followup_stopped" && source === "chat_native_next_choice") {
+    return input.actor_type === "agent" ? "next_choice_placeholder" : "next_choice_selected";
   }
 
   if (input.phase === "followup_active" || input.phase === "followup_stopped") {

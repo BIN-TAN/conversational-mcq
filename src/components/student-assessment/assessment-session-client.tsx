@@ -25,8 +25,10 @@ import {
   saveOption,
   saveReasoning,
   saveTemptingOption,
+  selectNextChoice,
   sendFormativeActivityResponse,
   sendFollowupMessage,
+  sendRevisionResponse,
   startAssessmentSession,
   stopFollowup
 } from "./api";
@@ -633,6 +635,70 @@ function FormativeActivityControls({
   );
 }
 
+function RevisionControls({
+  state,
+  isBusy,
+  revisionDraft,
+  setRevisionDraft,
+  onSendRevision
+}: {
+  state: StudentSessionState;
+  isBusy: boolean;
+  revisionDraft: string;
+  setRevisionDraft: (value: string) => void;
+  onSendRevision: () => void;
+}) {
+  return (
+    <TextComposer
+      disabled={isBusy}
+      label="Revision"
+      maxLength={state.followup?.message_max_chars ?? 5000}
+      onChange={setRevisionDraft}
+      onSend={onSendRevision}
+      placeholder="Write your revision..."
+      sendTestId="send-revision-response"
+      testId="revision-response-input"
+      value={revisionDraft}
+    />
+  );
+}
+
+function NextChoiceControls({
+  isBusy,
+  onNextChoice
+}: {
+  isBusy: boolean;
+  onNextChoice: (choice: "move_next" | "try_another") => void;
+}) {
+  return (
+    <AgentMessage>
+      <p className="whitespace-pre-line font-medium text-ink">
+        Choose one:{"\n"}A. Move to the next concept.{"\n"}B. Try another question on the same idea.
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="next-choice-move-next"
+          disabled={isBusy}
+          onClick={() => onNextChoice("move_next")}
+          type="button"
+        >
+          A
+        </button>
+        <button
+          className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="next-choice-try-another"
+          disabled={isBusy}
+          onClick={() => onNextChoice("try_another")}
+          type="button"
+        >
+          B
+        </button>
+      </div>
+    </AgentMessage>
+  );
+}
+
 function activeItemPrompt(input: {
   state: StudentSessionState;
   review: StudentReviewResponse | null;
@@ -641,10 +707,12 @@ function activeItemPrompt(input: {
   temptingReasonDraft: string;
   followupDraft: string;
   formativeActivityDraft: string;
+  revisionDraft: string;
   setReasoningDraft: (value: string) => void;
   setTemptingReasonDraft: (value: string) => void;
   setFollowupDraft: (value: string) => void;
   setFormativeActivityDraft: (value: string) => void;
+  setRevisionDraft: (value: string) => void;
   onBeginConceptUnit: () => void;
   onSelectOption: (label: string) => void;
   onSendReasoning: () => void;
@@ -654,6 +722,8 @@ function activeItemPrompt(input: {
   onSendTemptingReason: () => void;
   onContinuePackage: () => void;
   onSendFormativeActivityResponse: () => void;
+  onSendRevision: () => void;
+  onNextChoice: (choice: "move_next" | "try_another") => void;
   onSendFollowup: () => void;
   onStopFollowup: () => void;
   onRequestProgression: () => void;
@@ -795,11 +865,30 @@ function activeItemPrompt(input: {
     );
   }
 
+  if (state.assessment_state === "REVISION" || state.next_step === "revision_requested") {
+    return (
+      <RevisionControls
+        isBusy={isBusy}
+        onSendRevision={input.onSendRevision}
+        revisionDraft={input.revisionDraft}
+        setRevisionDraft={input.setRevisionDraft}
+        state={state}
+      />
+    );
+  }
+
+  if (state.assessment_state === "NEXT_CHOICE") {
+    return (
+      <NextChoiceControls
+        isBusy={isBusy}
+        onNextChoice={input.onNextChoice}
+      />
+    );
+  }
+
   if (
     state.assessment_state === "FOLLOWUP_RESPONSE" ||
     state.assessment_state === "TARGETED_FEEDBACK" ||
-    state.assessment_state === "REVISION" ||
-    state.assessment_state === "NEXT_CHOICE" ||
     state.assessment_state === "TRANSFER_ITEM" ||
     state.next_step === "followup_active" ||
     state.next_step === "followup_updating" ||
@@ -856,6 +945,7 @@ export function AssessmentSessionClient({
   const [temptingReasonDraft, setTemptingReasonDraft] = useState("");
   const [followupDraft, setFollowupDraft] = useState("");
   const [formativeActivityDraft, setFormativeActivityDraft] = useState("");
+  const [revisionDraft, setRevisionDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useStudentProcessEvents({
@@ -974,6 +1064,12 @@ export function AssessmentSessionClient({
       setFormativeActivityDraft("");
     }
   }, [state?.next_step]);
+
+  useEffect(() => {
+    if (state?.assessment_state !== "REVISION") {
+      setRevisionDraft("");
+    }
+  }, [state?.assessment_state]);
 
   const activeSessionPublicId = state?.session_public_id ?? resolvedInitialSessionPublicId;
   const currentItem = state?.current_item ?? null;
@@ -1189,6 +1285,72 @@ export function AssessmentSessionClient({
     }
   }
 
+  async function handleSendRevision() {
+    const trimmed = revisionDraft.trim();
+
+    if (!state || !trimmed) {
+      return;
+    }
+
+    const maxChars = state.followup?.message_max_chars ?? 5000;
+
+    if (trimmed.length > maxChars) {
+      setError({
+        code: "message_too_long",
+        message: `Keep the revision under ${maxChars} characters.`,
+        status: 400
+      });
+      return;
+    }
+
+    setIsBusy(true);
+    setError(null);
+    setFailedAction(null);
+
+    try {
+      const result = await sendRevisionResponse({
+        sessionPublicId: state.session_public_id,
+        message: trimmed,
+        clientMessageId: newClientActionId("revision")
+      });
+      setRevisionDraft("");
+      setState(result.state);
+      await refreshSecondaryData(result.state.session_public_id);
+    } catch (errorValue) {
+      handleError(errorValue, "Send revision", () => {
+        void handleSendRevision();
+      });
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function handleNextChoice(choice: "move_next" | "try_another") {
+    if (!state) {
+      return;
+    }
+
+    setIsBusy(true);
+    setError(null);
+    setFailedAction(null);
+
+    try {
+      const result = await selectNextChoice({
+        sessionPublicId: state.session_public_id,
+        choice,
+        clientActionId: newClientActionId(`next-choice-${choice}`)
+      });
+      setState(result.state);
+      await refreshSecondaryData(result.state.session_public_id);
+    } catch (errorValue) {
+      handleError(errorValue, "Choose next step", () => {
+        void handleNextChoice(choice);
+      });
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   function handleStopFollowup() {
     if (!state) {
       return;
@@ -1293,10 +1455,12 @@ export function AssessmentSessionClient({
     temptingReasonDraft,
     followupDraft,
     formativeActivityDraft,
+    revisionDraft,
     setReasoningDraft,
     setTemptingReasonDraft,
     setFollowupDraft,
     setFormativeActivityDraft,
+    setRevisionDraft,
     onBeginConceptUnit: handleBeginConceptUnit,
     onSelectOption: handleOption,
     onSendReasoning: handleReasoning,
@@ -1306,6 +1470,8 @@ export function AssessmentSessionClient({
     onSendTemptingReason: handleTemptingReason,
     onContinuePackage: handleCompletePackage,
     onSendFormativeActivityResponse: handleSendFormativeActivityResponse,
+    onSendRevision: handleSendRevision,
+    onNextChoice: handleNextChoice,
     onSendFollowup: handleSendFollowup,
     onStopFollowup: handleStopFollowup,
     onRequestProgression: handleRequestProgression,

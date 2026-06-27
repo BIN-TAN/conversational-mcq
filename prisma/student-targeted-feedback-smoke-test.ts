@@ -10,22 +10,48 @@ import {
   recordTemptingOption,
   startConceptUnitInitialAdministration,
   startOrResumeStudentAssessmentSession,
-  submitFormativeActivityResponse
+  submitFormativeActivityResponse,
+  submitNextChoice,
+  submitRevisionResponse
 } from "../src/lib/services/student-assessment/service";
 import {
-  ChatNativeFormativeProfileOutputSchema
+  ChatNativeTargetedFeedbackOutputSchema
 } from "../src/lib/services/student-assessment/formative-profile";
 import {
   demoAssessmentPublicId,
   ensureDemoStudentAssessment
 } from "./demo-student-assessment-fixture";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
+import type { StudentSessionState } from "../src/lib/student-assessment-ui/types";
 
 const prisma = new PrismaClient();
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
+  }
+}
+
+function assertStudentVisibleTextIsSafe(value: unknown) {
+  const serialized = JSON.stringify(value).toLowerCase();
+  const forbidden = [
+    "response profile",
+    "formative need",
+    "metadata",
+    "answer key",
+    "system prompt",
+    "structured output",
+    "agent call",
+    "correct_option",
+    "correctness",
+    "ability_profile",
+    "engagement_profile",
+    "integrated_diagnostic_profile",
+    "formative_value"
+  ];
+
+  for (const term of forbidden) {
+    assert(!serialized.includes(term), `Student-visible payload leaked ${term}.`);
   }
 }
 
@@ -59,40 +85,18 @@ async function cleanup(userDbId: string, sessionPublicIds: string[]) {
   await prisma.user.deleteMany({ where: { id: userDbId } });
 }
 
-function assertStudentVisibleTextIsSafe(value: unknown) {
-  const serialized = JSON.stringify(value).toLowerCase();
-  const forbidden = [
-    "response profile",
-    "formative need",
-    "metadata",
-    "answer key",
-    "system prompt",
-    "structured output",
-    "ability_profile",
-    "engagement_profile",
-    "integrated_diagnostic_profile",
-    "formative_value",
-    "correct_option",
-    "correctness"
-  ];
-
-  for (const term of forbidden) {
-    assert(!serialized.includes(term), `Student-visible payload leaked ${term}.`);
-  }
-}
-
 async function completeItemFromState(input: {
   studentDbId: string;
   sessionPublicId: string;
   prefix: string;
-  state: Awaited<ReturnType<typeof startConceptUnitInitialAdministration>>;
+  state: StudentSessionState;
   itemIndex: number;
   withTemptingReason?: boolean;
 }) {
   const item = input.state.current_item;
   assert(item, `Expected item ${input.itemIndex}.`);
-  const option = item.options[0]?.label;
-  assert(option, `Item ${input.itemIndex} needs option A.`);
+  const selectedOption = item.options[0]?.label;
+  assert(selectedOption, `Item ${input.itemIndex} needs a selected option.`);
 
   let state = (
     await recordSelectedOption({
@@ -100,7 +104,7 @@ async function completeItemFromState(input: {
       session_public_id: input.sessionPublicId,
       item_public_id: item.item_public_id,
       data: {
-        selected_option: option,
+        selected_option: selectedOption,
         client_action_id: `${input.prefix}_item${input.itemIndex}_answer`
       }
     })
@@ -111,7 +115,7 @@ async function completeItemFromState(input: {
       session_public_id: input.sessionPublicId,
       item_public_id: item.item_public_id,
       data: {
-        reasoning_text: `My reason for item ${input.itemIndex} compares item information with theta.`,
+        reasoning_text: `Item ${input.itemIndex} reasoning compares theta with item difficulty.`,
         client_action_id: `${input.prefix}_item${input.itemIndex}_reason`
       }
     })
@@ -122,15 +126,14 @@ async function completeItemFromState(input: {
       session_public_id: input.sessionPublicId,
       item_public_id: item.item_public_id,
       data: {
-        confidence_rating: input.itemIndex === 2 ? "medium" : "high",
+        confidence_rating: input.itemIndex === 1 ? "medium" : "high",
         client_action_id: `${input.prefix}_item${input.itemIndex}_confidence`
       }
     })
   ).state;
 
   if (input.withTemptingReason) {
-    const temptingOption = item.options[1]?.label ?? item.options[0]?.label;
-    assert(temptingOption, `Item ${input.itemIndex} needs a tempting option.`);
+    const temptingOption = item.options[1]?.label ?? selectedOption;
     state = (
       await recordTemptingOption({
         student_user_db_id: input.studentDbId,
@@ -148,7 +151,7 @@ async function completeItemFromState(input: {
         session_public_id: input.sessionPublicId,
         item_public_id: item.item_public_id,
         data: {
-          tempting_option_reason: "It used similar language about the scale.",
+          tempting_option_reason: "The wording sounded close to the option I chose.",
           client_action_id: `${input.prefix}_item${input.itemIndex}_tempting_reason`
         }
       })
@@ -178,13 +181,13 @@ async function main() {
 
   await ensureDemoStudentAssessment(prisma);
 
-  const prefix = `phase5_formative_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const prefix = `phase6_targeted_${Date.now()}_${randomUUID().slice(0, 8)}`;
   const student = await prisma.user.create({
     data: {
       user_id: prefix,
       user_id_normalized: normalizeUserId(prefix),
       role: "student",
-      access_code_hash: await hashSecret("phase5_formative_access")
+      access_code_hash: await hashSecret("phase6_targeted_access")
     },
     select: { id: true }
   });
@@ -224,128 +227,133 @@ async function main() {
       state,
       itemIndex: 3
     });
-    assert(state.assessment_state === "PACKAGE_REVIEW", "Initial package did not enter review.");
+    assert(state.assessment_state === "PACKAGE_REVIEW", "Expected package review.");
 
     const completed = await completeInitialConceptUnitAdministration({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
       concept_unit_public_id: state.current_concept_unit?.concept_unit_public_id ?? ""
     });
+    assert(completed.state.assessment_state === "FORMATIVE_ACTIVITY", "Expected formative activity.");
 
-    assert(completed.state.assessment_state === "FORMATIVE_ACTIVITY", "Expected formative activity state.");
-    assert(completed.state.next_step === "formative_activity", "Expected formative activity next step.");
-    assert(completed.state.current_phase === "planning_completed", "Expected planning_completed phase.");
-    assert(completed.state.formative_activity?.can_send, "Formative activity should accept one response.");
-    assertStudentVisibleTextIsSafe(completed.state);
+    const activityResponse = await submitFormativeActivityResponse({
+      student_user_db_id: student.id,
+      session_public_id: started.session.session_public_id,
+      message:
+        "Difficulty is about the item and theta is about the person, so linked forms should keep the person scale stable.",
+      client_message_id: `${prefix}_activity_response`
+    });
+    assert(activityResponse.targeted_feedback_available === true, "Targeted feedback was not generated.");
+    assert(activityResponse.state.assessment_state === "REVISION", "Expected revision state.");
+    assert(activityResponse.state.next_step === "revision_requested", "Expected revision prompt.");
 
     const session = await prisma.assessmentSession.findUniqueOrThrow({
       where: { session_public_id: started.session.session_public_id },
-      select: { id: true }
+      select: { id: true, current_phase: true }
     });
+    assert(session.current_phase === "followup_active", "Session should wait for revision in followup_active.");
     const conceptUnitSession = await prisma.conceptUnitSession.findFirstOrThrow({
       where: { assessment_session_db_id: session.id },
       select: { id: true }
     });
-    const responsePackage = await prisma.responsePackage.findFirstOrThrow({
-      where: {
-        concept_unit_session_db_id: conceptUnitSession.id,
-        package_type: "initial_concept_unit_response_package"
-      }
-    });
-    const packagePayload = responsePackage.payload as Record<string, unknown>;
-    assert(Array.isArray(packagePayload.item_responses), "Response package lacks item responses.");
-    assert((packagePayload.item_responses as unknown[]).length === 3, "Response package should include three item responses.");
-
-    const agentCall = await prisma.agentCall.findFirstOrThrow({
+    const targetedCall = await prisma.agentCall.findFirstOrThrow({
       where: {
         assessment_session_db_id: session.id,
-        agent_name: "formative_value_and_planning_agent",
-        schema_version: "chat-native-formative-profile-output-v1"
+        agent_name: "followup_agent",
+        schema_version: "chat-native-targeted-feedback-output-v1"
       }
     });
-    assert(agentCall.provider === "mock", "Smoke test should use mock provider.");
-    assert(agentCall.live_call_allowed === false, "Smoke test must not allow live calls.");
-    const parsedOutput = ChatNativeFormativeProfileOutputSchema.safeParse(agentCall.output_payload);
-    assert(parsedOutput.success, "Stored formative profile output did not validate.");
-    assert(parsedOutput.data.next_expected_action === "respond_to_formative_activity", "Unexpected next expected action.");
+    const targetedOutput = ChatNativeTargetedFeedbackOutputSchema.safeParse(targetedCall.output_payload);
+    assert(targetedOutput.success, "Targeted feedback output did not validate.");
+    assert(
+      targetedOutput.data.revision_prompt !==
+        "Please revise your answer, reasoning, or confidence based on this feedback.",
+      "Revision prompt used the prohibited generic sentence."
+    );
 
-    const [profileCount, decisionCount, round] = await Promise.all([
-      prisma.studentProfile.count({ where: { concept_unit_session_db_id: conceptUnitSession.id } }),
-      prisma.formativeDecision.count({ where: { concept_unit_session_db_id: conceptUnitSession.id } }),
-      prisma.followupRound.findFirstOrThrow({
-        where: { concept_unit_session_db_id: conceptUnitSession.id },
-        orderBy: [{ round_index: "desc" }]
-      })
-    ]);
-    assert(profileCount === 1, "Expected one stored student profile.");
-    assert(decisionCount === 1, "Expected one stored formative decision.");
-    assert(round.status === "active", "Expected one active formative activity round.");
-
-    const transcript = await getStudentSafeTranscript({
+    let transcript = await getStudentSafeTranscript({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id
     });
     assert(
-      transcript.transcript.some((turn) => turn.interaction_type === "formative_activity"),
-      "Transcript does not include the formative activity."
+      transcript.transcript.some((turn) => turn.interaction_type === "targeted_feedback"),
+      "Transcript missing targeted feedback."
+    );
+    assert(
+      transcript.transcript.some((turn) => turn.interaction_type === "revision_prompt"),
+      "Transcript missing revision prompt."
     );
     assertStudentVisibleTextIsSafe(transcript);
 
-    const events = await prisma.processEvent.findMany({
+    const revision = await submitRevisionResponse({
+      student_user_db_id: student.id,
+      session_public_id: started.session.session_public_id,
+      message: "Item difficulty describes the item; theta describes the person on the latent trait scale.",
+      client_message_id: `${prefix}_revision_response`
+    });
+    assert(revision.revision_status === "saved", "Revision was not saved.");
+    assert(revision.next_choice_available === true, "Next choice should become available.");
+    assert(revision.state.assessment_state === "NEXT_CHOICE", "Expected next choice after revision.");
+
+    transcript = await getStudentSafeTranscript({
+      student_user_db_id: student.id,
+      session_public_id: started.session.session_public_id
+    });
+    assert(
+      transcript.transcript.some((turn) => turn.interaction_type === "revision_response"),
+      "Transcript missing student revision."
+    );
+    assertStudentVisibleTextIsSafe(transcript);
+
+    const choiceB = await submitNextChoice({
+      student_user_db_id: student.id,
+      session_public_id: started.session.session_public_id,
+      choice: "try_another",
+      client_action_id: `${prefix}_next_choice_b`
+    });
+    assert(choiceB.choice_status === "transfer_placeholder", "Choice B should use transfer placeholder.");
+    assert(choiceB.state.assessment_state === "NEXT_CHOICE", "Choice B should keep the session stable.");
+
+    const choiceA = await submitNextChoice({
+      student_user_db_id: student.id,
+      session_public_id: started.session.session_public_id,
+      choice: "move_next",
+      client_action_id: `${prefix}_next_choice_a`
+    });
+    assert(choiceA.choice_status === "session_completed", "Choice A should complete this MVP session.");
+    assert(choiceA.state.assessment_state === "SESSION_COMPLETE", "Expected completed session after choice A.");
+
+    const eventTypes = await prisma.processEvent.findMany({
       where: { assessment_session_db_id: session.id },
       select: { event_type: true }
     });
-    const eventTypes = new Set(events.map((event) => event.event_type));
-    for (const expected of [
-      "package_submitted",
-      "llm_profile_requested",
-      "llm_profile_received",
-      "formative_activity_shown"
-    ]) {
-      assert(eventTypes.has(expected), `Missing process event: ${expected}`);
-    }
+    const eventCounts = eventTypes.reduce<Record<string, number>>((counts, event) => {
+      counts[event.event_type] = (counts[event.event_type] ?? 0) + 1;
+      return counts;
+    }, {});
 
-    const agentCallCountBeforeResponse = await prisma.agentCall.count({
-      where: { assessment_session_db_id: session.id }
-    });
-    const response = await submitFormativeActivityResponse({
-      student_user_db_id: student.id,
-      session_public_id: started.session.session_public_id,
-      message: "Theta describes the person location, while difficulty describes the item location.",
-      client_message_id: `${prefix}_activity_response`
-    });
-    assert(response.message_status === "saved", "Formative response was not saved.");
-    assert(response.targeted_feedback_available === true, "Targeted feedback should become available.");
-    assert(response.state.assessment_state === "REVISION", "Expected revision state after formative response.");
-    assert(response.state.next_step === "revision_requested", "Expected revision request after feedback.");
-    const agentCallCountAfterResponse = await prisma.agentCall.count({
-      where: { assessment_session_db_id: session.id }
-    });
+    for (const expected of [
+      "followup_response_submitted",
+      "targeted_feedback_shown",
+      "revision_requested",
+      "revision_submitted",
+      "next_choice_shown",
+      "next_choice_selected"
+    ]) {
+      assert((eventCounts[expected] ?? 0) > 0, `Missing process event ${expected}.`);
+    }
     assert(
-      agentCallCountAfterResponse === agentCallCountBeforeResponse + 1,
-      "Submitting the activity response should create one targeted-feedback agent call."
+      (eventCounts.next_choice_selected ?? 0) === 2,
+      "Expected two next_choice_selected events for B placeholder and A completion."
     );
 
-    const submittedRound = await prisma.followupRound.findUniqueOrThrow({
-      where: { id: round.id }
+    const round = await prisma.followupRound.findFirstOrThrow({
+      where: { concept_unit_session_db_id: conceptUnitSession.id },
+      orderBy: [{ round_index: "desc" }]
     });
-    assert(submittedRound.status === "active", "Formative activity round should remain active while revision is pending.");
-    const followupEventCount = await prisma.processEvent.count({
-      where: {
-        assessment_session_db_id: session.id,
-        event_type: "followup_response_submitted"
-      }
-    });
-    assert(followupEventCount === 1, "Expected one followup_response_submitted event.");
-    const targetedFeedbackCount = await prisma.processEvent.count({
-      where: {
-        assessment_session_db_id: session.id,
-        event_type: "targeted_feedback_shown"
-      }
-    });
-    assert(targetedFeedbackCount === 1, "Expected one targeted_feedback_shown event.");
+    assert(round.status === "completed", "Round should be completed after revision.");
 
-    console.log("Phase 5 student formative profile smoke test passed. No OpenAI calls are made by this script.");
+    console.log("Phase 6 targeted feedback smoke test passed. No OpenAI calls are made by this script.");
   } finally {
     await cleanup(student.id, sessionPublicIds);
   }

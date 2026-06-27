@@ -20,6 +20,7 @@
     "student:conversational-flow-smoke": "tsx prisma/student-conversational-flow-smoke-test.ts",
     "student:logging-smoke": "tsx prisma/student-logging-smoke-test.ts",
     "student:formative-profile-smoke": "tsx prisma/student-formative-profile-smoke-test.ts",
+    "student:targeted-feedback-smoke": "tsx prisma/student-targeted-feedback-smoke-test.ts",
     "demo:student-assessment": "tsx prisma/demo-student-assessment.ts",
     "demo:student-assessment:cleanup": "tsx prisma/demo-student-assessment-cleanup.ts",
     "demo:roster": "tsx prisma/demo-roster.ts",

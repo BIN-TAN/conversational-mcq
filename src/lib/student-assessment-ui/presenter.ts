@@ -110,11 +110,19 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
         ? {
             ...base,
             assistant_message:
-              "This follow-up round has been stopped. Your conversation has been saved.",
-            interaction_type: "followup_stopped",
-            allowed_actions: ["review_responses"],
+              state.assessment_state === "NEXT_CHOICE"
+                ? "Choose one:\nA. Move to the next concept.\nB. Try another question on the same idea."
+                : "This follow-up round has been stopped. Your conversation has been saved.",
+            interaction_type:
+              state.assessment_state === "NEXT_CHOICE"
+                ? "progression_decision"
+                : "followup_stopped",
+            allowed_actions:
+              state.assessment_state === "NEXT_CHOICE"
+                ? ["select_next_choice"]
+                : ["review_responses"],
             can_review_responses: true,
-            can_continue: false
+            can_continue: state.assessment_state === "NEXT_CHOICE"
           }
         : [
               "automatic_profiling_pending",
@@ -149,6 +157,23 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
             allowed_actions: ["review_responses", "save_exit"],
             can_review_responses: true,
             can_continue: false
+          }
+      : state.next_step === "revision_requested"
+        ? {
+            ...base,
+            assistant_message: "Write your revision in the chat.",
+            interaction_type: "revision_requested",
+            allowed_actions: ["send_revision_response", "save_exit"],
+            can_review_responses: true
+          }
+      : state.assessment_state === "NEXT_CHOICE"
+        ? {
+            ...base,
+            assistant_message:
+              "Choose one:\nA. Move to the next concept.\nB. Try another question on the same idea.",
+            interaction_type: "progression_decision",
+            allowed_actions: ["select_next_choice"],
+            can_review_responses: true
           }
       : state.next_step === "concept_unit_intro"
       ? {

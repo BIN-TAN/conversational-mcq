@@ -337,6 +337,60 @@ export function sendFormativeActivityResponse(input: {
   );
 }
 
+export function sendRevisionResponse(input: {
+  sessionPublicId: string;
+  message: string;
+  clientMessageId?: string;
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/revision/response`,
+    {
+      message: input.message,
+      client_message_id: input.clientMessageId ?? newClientActionId("revision")
+    },
+    (value) => {
+      const result = value as {
+        revision_status: string;
+        next_choice_available: boolean;
+        state: unknown;
+      };
+
+      return {
+        revision_status: result.revision_status,
+        next_choice_available: result.next_choice_available,
+        state: StudentSessionStateSchema.parse(result.state)
+      };
+    }
+  );
+}
+
+export function selectNextChoice(input: {
+  sessionPublicId: string;
+  choice: "move_next" | "try_another";
+  clientActionId?: string;
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/next-choice`,
+    {
+      choice: input.choice,
+      client_action_id: input.clientActionId ?? newClientActionId(`next-choice-${input.choice}`)
+    },
+    (value) => {
+      const result = value as {
+        choice_status: string;
+        message?: string;
+        state: unknown;
+      };
+
+      return {
+        choice_status: result.choice_status,
+        message: result.message,
+        state: StudentSessionStateSchema.parse(result.state)
+      };
+    }
+  );
+}
+
 export function sendInitialMessage(input: {
   sessionPublicId: string;
   message: string;
