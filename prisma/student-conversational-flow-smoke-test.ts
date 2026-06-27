@@ -66,14 +66,25 @@ async function assertStudentComponentShape() {
     "utf8"
   );
 
-  assert(source.includes("current-answer-summary"), "Current answer summary is missing.");
-  assert(source.includes("Response record"), "Response record panel is missing.");
-  assert(source.includes("lg:grid-cols-[minmax(0,1fr)_340px]"), "Desktop chat plus response-record layout is missing.");
+  assert(source.includes("agent-chat-message"), "Agent chat message test hook is missing.");
+  assert(source.includes("student-chat-message"), "Student chat message test hook is missing.");
+  assert(source.includes("chat-option-"), "Chat-native option chips are missing.");
+  assert(source.includes("chat-confidence-"), "Chat-native confidence chips are missing.");
+  assert(source.includes("chat-no-tempting"), "Chat-native no-tempting chip is missing.");
+  assert(source.includes("continue-to-feedback"), "Package-level review continuation is missing.");
+  assert(source.includes("I have your three responses."), "Package review chat copy is missing.");
   assert(source.includes("Press Enter to send; Shift+Enter adds a new line."), "Follow-up Enter-to-send help is missing.");
+  assert(!source.includes("SaveStateNotice"), "Saved status component should not be present.");
+  assert(!source.includes("SavedResponseList"), "Saved response list should not be present.");
+  assert(!source.includes("Response record"), "Response record panel should not be present.");
+  assert(!source.includes("lg:grid-cols-[minmax(0,1fr)_340px]"), "Survey sidebar layout should not be present.");
+  assert(!source.includes("continue-after-option"), "Option selection should not require a Continue button.");
+  assert(!source.includes("continue-after-confidence"), "Confidence selection should not require a Continue button.");
+  assert(!source.includes("submit-item"), "Initial item-level submit button should not be present.");
   assert(!source.includes("function ReviewPanel"), "Old review panel function should not be present.");
   assert(!source.includes("Review responses"), "Old survey-style review heading should not be present.");
   assert(!source.includes("Editable before completion"), "Old review-panel editing copy should not be present.");
-  assert(!source.includes("Send a message"), "Initial item collection should not show a generic Send a message box.");
+  assert(!source.includes("Saved."), "Saved status message should not be present.");
   assert(!privateStagingSource.includes("select the option best supported by the evidence statement"), "Private staging item placeholder text remains.");
   assert(privateStagingSource.includes("Evidence:\\n"), "Private staging items should include visible evidence statements.");
 }

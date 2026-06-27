@@ -10,9 +10,9 @@ import {
   recordConfidence,
   recordReasoning,
   recordSelectedOption,
+  recordTemptingOption,
   startConceptUnitInitialAdministration,
-  startOrResumeStudentAssessmentSession,
-  submitItemResponse
+  startOrResumeStudentAssessmentSession
 } from "../src/lib/services/student-assessment/service";
 import { StudentAssessmentServiceError } from "../src/lib/services/student-assessment/errors";
 import {
@@ -190,48 +190,21 @@ async function main() {
       })
     ).state;
     frame = buildStudentConversationFrame(state);
-    assert(frame.interaction_type === "item_completed", "Expected item completed frame.");
-
+    assert(
+      frame.interaction_type === "request_tempting_option",
+      "Expected tempting-option evidence frame."
+    );
     state = (
-      await submitItemResponse({
+      await recordTemptingOption({
         student_user_db_id: student.id,
         session_public_id: started.session.session_public_id,
         item_public_id: item1.item_public_id,
-        data: { client_action_id: `${userId}_item1_submit` }
+        data: { no_tempting_option: true, client_action_id: `${userId}_item1_tempting_no` }
       })
     ).state;
 
-    await recordSelectedOption({
-      student_user_db_id: student.id,
-      session_public_id: started.session.session_public_id,
-      item_public_id: item1.item_public_id,
-      data: { selected_option: item1.options[1]?.label, client_action_id: `${userId}_item1_revise` }
-    });
-    await recordReasoning({
-      student_user_db_id: student.id,
-      session_public_id: started.session.session_public_id,
-      item_public_id: item1.item_public_id,
-      data: {
-        reasoning_text: "I revised this before the concept unit was completed.",
-        client_action_id: `${userId}_item1_reasoning_revise`
-      }
-    });
-
     const item2 = state.current_item;
     assert(item2, "Item 2 was missing.");
-    const repair = await submitItemResponse({
-      student_user_db_id: student.id,
-      session_public_id: started.session.session_public_id,
-      item_public_id: item2.item_public_id,
-      data: { client_action_id: `${userId}_item2_missing` }
-    });
-    assert(
-      repair.submission_status === "missing_evidence_repair_required",
-      "Missing evidence repair was not rendered by service state."
-    );
-    frame = buildStudentConversationFrame(repair.state);
-    assert(frame.interaction_type === "missing_evidence_repair", "Expected missing evidence frame.");
-
     await recordSelectedOption({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
@@ -254,36 +227,65 @@ async function main() {
       data: { confidence_rating: "low", client_action_id: `${userId}_item2_confidence` }
     });
     state = (
-      await submitItemResponse({
+      await recordTemptingOption({
         student_user_db_id: student.id,
         session_public_id: started.session.session_public_id,
         item_public_id: item2.item_public_id,
-        data: { client_action_id: `${userId}_item2_submit` }
+        data: { no_tempting_option: true, client_action_id: `${userId}_item2_tempting_no` }
       })
     ).state;
 
     const item3 = state.current_item;
     assert(item3, "Item 3 was missing.");
-    const repair2 = await submitItemResponse({
+    await recordSelectedOption({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
       item_public_id: item3.item_public_id,
-      data: { client_action_id: `${userId}_item3_missing` }
+      data: { selected_option: item3.options[0]?.label, client_action_id: `${userId}_item3_option` }
     });
-    assert(
-      repair2.submission_status === "missing_evidence_repair_required",
-      "Second missing evidence scenario did not trigger."
-    );
+    await recordReasoning({
+      student_user_db_id: student.id,
+      session_public_id: started.session.session_public_id,
+      item_public_id: item3.item_public_id,
+      data: {
+        reasoning_text: "I am completing the third chat-native response.",
+        client_action_id: `${userId}_item3_reasoning`
+      }
+    });
+    await recordConfidence({
+      student_user_db_id: student.id,
+      session_public_id: started.session.session_public_id,
+      item_public_id: item3.item_public_id,
+      data: { confidence_rating: "high", client_action_id: `${userId}_item3_confidence` }
+    });
+    const temptingOption = item3.options[1]?.label ?? item3.options[0]?.label;
+    assert(temptingOption, "Item 3 needs a tempting option.");
     state = (
-      await submitItemResponse({
+      await recordTemptingOption({
         student_user_db_id: student.id,
         session_public_id: started.session.session_public_id,
         item_public_id: item3.item_public_id,
-        data: { confirm_skip: true, client_action_id: `${userId}_item3_skip` }
+        data: {
+          tempting_option: temptingOption,
+          client_action_id: `${userId}_item3_tempting_option`
+        }
       })
     ).state;
     frame = buildStudentConversationFrame(state);
-    assert(frame.interaction_type === "concept_unit_completed", "Expected concept-unit completion frame.");
+    assert(frame.interaction_type === "request_tempting_reason", "Expected tempting reason frame.");
+    state = (
+      await recordTemptingOption({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        item_public_id: item3.item_public_id,
+        data: {
+          tempting_option_reason: "It used related wording from the item.",
+          client_action_id: `${userId}_item3_tempting_reason`
+        }
+      })
+    ).state;
+    frame = buildStudentConversationFrame(state);
+    assert(frame.interaction_type === "package_review", "Expected package review frame.");
 
     state = (
       await completeInitialConceptUnitAdministration({
