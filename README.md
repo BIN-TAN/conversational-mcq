@@ -94,6 +94,13 @@ npm run content:smoke
 npm run content:governance-smoke
 npm run student:initial-admin-smoke
 npm run student:ui-smoke
+npm run student:initial-chat-ui-smoke
+npm run student:conversational-flow-smoke
+npm run student:logging-smoke
+npm run student:formative-profile-smoke
+npm run student:targeted-feedback-smoke
+npm run student:transfer-item-smoke
+npm run student:mvp-e2e-smoke
 npm run teacher:review-smoke
 npm run summative:import-smoke
 npm run export:master-smoke
@@ -106,7 +113,6 @@ npm run llm:status-smoke
 npm run agent:response-collection-smoke
 npm run response-collection:fallback-smoke
 npm run response-collection:service-fallback-smoke
-npm run student:initial-chat-ui-smoke
 npm run response-collection:mode-smoke
 npm run agent:item-verification-smoke
 npm run content:verification-publish-smoke
@@ -149,6 +155,22 @@ npm run lint
 npm run build
 npm run dev
 ```
+
+Full chat-native MVP verification:
+
+```bash
+npm run student:mvp-e2e-smoke
+```
+
+This mock-provider smoke verifies the complete fixed IRT path for both student next-choice branches. It writes developer-only evidence snapshots to `.data/student-mvp-e2e-smoke/`, which is ignored by Git.
+
+The optional live LLM readiness smoke is intentionally skipped unless explicitly enabled:
+
+```bash
+npm run student:live-llm-smoke
+```
+
+To run it intentionally, configure server-side live LLM variables locally and set `RUN_LIVE_LLM_SMOKE=1`. Do not run this in ordinary CI or commit any API key. See `docs/MVP_E2E_READINESS.md`.
 
 Async workflow commands:
 

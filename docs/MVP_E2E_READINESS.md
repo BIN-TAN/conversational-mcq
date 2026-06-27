@@ -1,0 +1,80 @@
+# MVP End-to-End Readiness
+
+This note covers the fixed IRT chat-native MVP path:
+
+```text
+session start
+-> three protected initial items
+-> package review
+-> response package
+-> formative profile/activity
+-> targeted feedback
+-> revision
+-> next choice
+-> optional transfer item
+-> session complete
+```
+
+## Mock E2E Smoke
+
+Run the default full-path smoke with:
+
+```bash
+npm run student:mvp-e2e-smoke
+```
+
+The smoke uses synthetic accounts, the fixed IRT demo assessment, and the mock LLM provider. It verifies both:
+
+- Path A: the student chooses to move on after revision and the session completes without a transfer item.
+- Path B: the student chooses another question, completes the transfer item, and then the session completes.
+
+The smoke verifies that the initial response package contains exactly the three included initial items and excludes the transfer item. It also checks that protected initial-administration text does not reveal correctness, answer keys, hints, or internal profile labels.
+
+## Evidence Export
+
+The mock E2E smoke writes developer-only evidence snapshots under:
+
+```text
+.data/student-mvp-e2e-smoke/
+```
+
+These files are ignored by Git. Each snapshot includes:
+
+- session summary;
+- item responses;
+- transfer response when present;
+- conversation turns;
+- process events;
+- response package payload;
+- formative profile and decision records;
+- follow-up round records;
+- targeted feedback, revision, and next-choice turns;
+- LLM/mock agent-call audit records.
+
+The export is for local development and audit checks only. It is not student-facing UI and should not be committed.
+
+## Opt-In Live LLM Smoke
+
+Live LLM readiness is intentionally opt-in. The script exits without a provider call unless this flag is set:
+
+```bash
+RUN_LIVE_LLM_SMOKE=1
+```
+
+When explicitly enabled, configure live calls server-side before running:
+
+```bash
+RUN_LIVE_LLM_SMOKE=1 \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
+OPENAI_API_KEY=<set locally, never commit> \
+OPENAI_MODEL_PLANNING=<model configured by the operator> \
+OPENAI_MODEL_FOLLOWUP=<model configured by the operator> \
+npm run student:live-llm-smoke
+```
+
+Do not paste API keys into chat. Do not commit `.env`, `.env.local`, or credential files.
+
+The live smoke verifies that the response package reaches the provider path, structured outputs are schema-shaped, unsafe or invalid outputs are blocked or replaced with deterministic fallback, student-visible text remains safe, and `agent_calls` stores provider metadata plus validation status.
+
+The live smoke should not run in ordinary local verification or CI. The default development path remains mock/fallback.

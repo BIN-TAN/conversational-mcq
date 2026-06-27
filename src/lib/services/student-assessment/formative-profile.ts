@@ -2071,6 +2071,17 @@ export async function submitChatNativeNextChoice(input: {
     to_phase: "session_completed",
     reason: "chat_native_phase6_completion"
   });
+  await logProcessEvent({
+    assessment_session_db_id: session.id,
+    concept_unit_session_db_id: conceptUnitSession?.id,
+    event_type: "session_completed",
+    event_category: "session",
+    event_source: "backend",
+    payload: {
+      reason: "chat_native_next_choice_move_next"
+    },
+    occurred_at: now
+  });
 
   const response = {
     choice_status: "session_completed"
