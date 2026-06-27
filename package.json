@@ -30,6 +30,8 @@
     "student:live-llm-diagnostics-smoke": "tsx prisma/student-live-llm-diagnostics-smoke-test.ts",
     "demo:student-assessment": "tsx prisma/demo-student-assessment.ts",
     "demo:student-assessment:cleanup": "tsx prisma/demo-student-assessment-cleanup.ts",
+    "demo:reset-student-mvp": "tsx prisma/demo-reset-student-mvp.ts",
+    "demo:reset-student-mvp-smoke": "tsx prisma/demo-reset-student-mvp-smoke-test.ts",
     "demo:roster": "tsx prisma/demo-roster.ts",
     "demo:roster:cleanup": "tsx prisma/demo-roster-cleanup.ts",
     "demo:teacher-review": "tsx prisma/demo-teacher-review.ts",

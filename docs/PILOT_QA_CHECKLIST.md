@@ -48,6 +48,30 @@ npm run student:live-llm-smoke
 
 The last command should skip safely unless `RUN_LIVE_LLM_SMOKE=1` is explicitly set.
 
+## Fast Local Demo Reset
+
+The fixed IRT MVP currently uses one normal student attempt per assessment. For repeated local pilot walkthroughs with the synthetic `student_demo` account, reset only that student's fixed MVP attempt data:
+
+```bash
+cd "/Users/binbin/Documents/Conversational MCQ"
+npm run db:up
+npm run dev
+```
+
+In a separate terminal, run:
+
+```bash
+npm run demo:reset-student-mvp
+```
+
+Then refresh the student assessment dashboard:
+
+```text
+http://localhost:3000/student/assessment
+```
+
+If the fixed MVP fixture has not been created yet, run `npm run prisma:seed` once before the reset command. The reset command is developer-only and scoped to `student_demo` plus the fixed IRT MVP assessment; it does not delete other users, teacher data, item metadata, answer keys, or seed definitions.
+
 ## Manual Live Smoke
 
 Run this only after the operator has configured local secrets outside the repository:

@@ -15,78 +15,9 @@ import {
   startOrResumeStudentAssessmentSession
 } from "../src/lib/services/student-assessment/service";
 import { assertStudentPayloadIsSafe } from "../src/lib/services/student-assessment/serializers";
+import { resetStudentDemoFixedMvpAttempt } from "./demo-reset-student-mvp-helper";
 
 const prisma = new PrismaClient();
-
-async function cleanupStudentDemoFixedAssessmentSession(studentDbId: string) {
-  const sessions = await prisma.assessmentSession.findMany({
-    where: {
-      user_db_id: studentDbId,
-      assessment: { assessment_public_id: demoAssessmentPublicId }
-    },
-    select: { id: true }
-  });
-  const sessionIds = sessions.map((session) => session.id);
-  const conceptUnitSessions = await prisma.conceptUnitSession.findMany({
-    where: { assessment_session_db_id: { in: sessionIds } },
-    select: { id: true }
-  });
-  const conceptUnitSessionIds = conceptUnitSessions.map((session) => session.id);
-  const agentCalls = await prisma.agentCall.findMany({
-    where: { assessment_session_db_id: { in: sessionIds } },
-    select: { id: true }
-  });
-  const agentCallIds = agentCalls.map((call) => call.id);
-
-  await prisma.operationalAgentEffectiveResult.deleteMany({
-    where: { agent_call_db_id: { in: agentCallIds } }
-  });
-  await prisma.workflowJob.deleteMany({
-    where: { assessment_session_db_id: { in: sessionIds } }
-  });
-  await prisma.workflowOverride.deleteMany({
-    where: { assessment_session_db_id: { in: sessionIds } }
-  });
-  await prisma.studentActionIdempotencyKey.deleteMany({
-    where: { assessment_session_db_id: { in: sessionIds } }
-  });
-  await prisma.followupUpdateCycle.deleteMany({
-    where: { assessment_session_db_id: { in: sessionIds } }
-  });
-  await prisma.conceptProgressionRecord.deleteMany({
-    where: { assessment_session_db_id: { in: sessionIds } }
-  });
-  await prisma.responsePackage.deleteMany({
-    where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
-  });
-  await prisma.processEvent.deleteMany({
-    where: { assessment_session_db_id: { in: sessionIds } }
-  });
-  await prisma.conversationTurn.deleteMany({
-    where: { assessment_session_db_id: { in: sessionIds } }
-  });
-  await prisma.followupRound.deleteMany({
-    where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
-  });
-  await prisma.formativeDecision.deleteMany({
-    where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
-  });
-  await prisma.studentProfile.deleteMany({
-    where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
-  });
-  await prisma.agentCall.deleteMany({
-    where: { assessment_session_db_id: { in: sessionIds } }
-  });
-  await prisma.itemResponse.deleteMany({
-    where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
-  });
-  await prisma.conceptUnitSession.deleteMany({
-    where: { id: { in: conceptUnitSessionIds } }
-  });
-  await prisma.assessmentSession.deleteMany({
-    where: { id: { in: sessionIds } }
-  });
-}
 
 async function main() {
   process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "false";
@@ -103,7 +34,7 @@ async function main() {
   assert(student.role === "student", "student_demo must be a student account.");
   assert(student.account_status === "active", "student_demo must be active.");
 
-  await cleanupStudentDemoFixedAssessmentSession(student.id);
+  await resetStudentDemoFixedMvpAttempt(prisma);
 
   const fixedAssessment = await prisma.assessment.findUniqueOrThrow({
     where: { assessment_public_id: demoAssessmentPublicId },
@@ -187,7 +118,7 @@ async function main() {
     "Transfer item must not be shown during the initial package."
   );
 
-  await cleanupStudentDemoFixedAssessmentSession(student.id);
+  await resetStudentDemoFixedMvpAttempt(prisma);
 
   console.log(
     "Student dashboard availability smoke test passed. student_demo can start the fixed IRT MVP assessment, and no OpenAI calls were made."
