@@ -31,12 +31,12 @@ const TARGETED_SCHEMA_VERSION = "chat-native-formative-activity-evaluation-outpu
 type Scenario = {
   name: string;
   activityResponse: string;
-  expectedNextAction:
+  expectedNextAction?:
     | "confirm_and_next_choice"
     | "ask_revision"
     | "provide_scaffold"
     | "clarify_question";
-  expectedStateAfterActivity: "NEXT_CHOICE" | "REVISION";
+  expectedStateAfterActivity: "NEXT_CHOICE" | "REVISION" | "FORMATIVE_ACTIVITY";
   expectedEvent?: string;
 };
 
@@ -106,6 +106,30 @@ async function runScenario(scenario: Scenario) {
       where: { assessment_session_db_id: session.id },
       select: { id: true, latest_student_profile_db_id: true }
     });
+    const eventRowsBeforeRevision = await prisma.processEvent.findMany({
+      where: { assessment_session_db_id: session.id },
+      select: { event_type: true }
+    });
+    const countsBeforeRevision = eventCounts(eventRowsBeforeRevision);
+
+    if (scenario.expectedStateAfterActivity === "FORMATIVE_ACTIVITY") {
+      assert(
+        activity.targeted_feedback_available === false,
+        `${scenario.name}: clarification should not create targeted feedback.`
+      );
+      assert((countsBeforeRevision.response_quality_rejected ?? 0) > 0, `${scenario.name}: quality rejection missing.`);
+      assert((countsBeforeRevision.clarification_answered ?? 0) > 0, `${scenario.name}: clarification event missing.`);
+      const targetedCalls = await prisma.agentCall.count({
+        where: {
+          assessment_session_db_id: session.id,
+          agent_name: "followup_agent",
+          schema_version: TARGETED_SCHEMA_VERSION
+        }
+      });
+      assert(targetedCalls === 0, `${scenario.name}: targeted feedback call should not be created.`);
+      return;
+    }
+
     const targetedCall = await prisma.agentCall.findFirstOrThrow({
       where: {
         assessment_session_db_id: session.id,
@@ -131,11 +155,6 @@ async function runScenario(scenario: Scenario) {
     });
     assert(updatedProfile, `${scenario.name}: missing updated student profile.`);
 
-    const eventRowsBeforeRevision = await prisma.processEvent.findMany({
-      where: { assessment_session_db_id: session.id },
-      select: { event_type: true }
-    });
-    const countsBeforeRevision = eventCounts(eventRowsBeforeRevision);
     assertEventsPresent(countsBeforeRevision, [
       "followup_response_submitted",
       "formative_activity_evaluated",
@@ -211,9 +230,8 @@ async function main() {
     {
       name: "clarification",
       activityResponse:
-        "Can you clarify what theta means here?",
-      expectedNextAction: "clarify_question",
-      expectedStateAfterActivity: "REVISION"
+        "Can you clarify what I should write?",
+      expectedStateAfterActivity: "FORMATIVE_ACTIVITY"
     },
     {
       name: "confused",

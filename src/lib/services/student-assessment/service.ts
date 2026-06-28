@@ -25,6 +25,13 @@ import {
   submitChatNativeRevisionResponse
 } from "@/lib/services/student-assessment/formative-profile";
 import {
+  evaluateResponseQuality,
+  responseQualityAllowsAdvance,
+  responseQualityAuditPayload,
+  type ResponseQualityResult,
+  type ResponseQualityStage
+} from "@/lib/services/student-assessment/response-quality";
+import {
   assertChatNativeActionAllowed,
   type ChatNativeAssessmentAction,
   type ChatNativeAssessmentState
@@ -42,6 +49,8 @@ const DEFAULT_ATTEMPT_NUMBER = 1;
 const MAX_REASONING_LENGTH = 5000;
 const MAX_EVENT_BATCH_SIZE = 20;
 const MAX_EVENT_PAYLOAD_BYTES = 4000;
+const IDK_OPTION_LABEL = "E";
+const IDK_OPTION_TEXT = "I don't know yet.";
 
 export const InitialAdministrationStep = z.enum([
   "concept_unit_intro",
@@ -109,6 +118,25 @@ const packageReviewEditActionSchema = z.object({
   no_tempting_option: z.boolean().default(false),
   client_action_id: z.string().trim().min(1).max(120).optional()
 }).strict();
+
+const inFlowEditActionSchema = z.object({
+  selected_option: z.string().trim().min(1).max(16).optional(),
+  reasoning_text: z.string().trim().min(1).max(MAX_REASONING_LENGTH).optional(),
+  confidence_rating: ConfidenceLevelSchema.optional(),
+  tempting_option: z.string().trim().min(1).max(16).nullable().optional(),
+  tempting_option_reason: z.string().trim().max(MAX_REASONING_LENGTH).nullable().optional(),
+  no_tempting_option: z.boolean().optional(),
+  client_action_id: z.string().trim().min(1).max(120).optional()
+}).strict().refine((value) => {
+  return (
+    value.selected_option !== undefined ||
+    value.reasoning_text !== undefined ||
+    value.confidence_rating !== undefined ||
+    value.tempting_option !== undefined ||
+    value.tempting_option_reason !== undefined ||
+    value.no_tempting_option !== undefined
+  );
+}, "At least one response field must be edited.");
 
 const submitActionSchema = z.object({
   confirm_skip: z.boolean().default(false),
@@ -189,6 +217,10 @@ function correctnessFor(selectedOption: string | null, correctOption: string) {
     return "unanswered" as const;
   }
 
+  if (selectedOption === IDK_OPTION_LABEL) {
+    return "not_scored" as const;
+  }
+
   return selectedOption === correctOption ? ("correct" as const) : ("incorrect" as const);
 }
 
@@ -207,6 +239,10 @@ function optionLabels(item: Pick<Item, "options">): string[] {
       return typeof label === "string" ? label : null;
     })
     .filter((label): label is string => Boolean(label));
+}
+
+function answerOptionLabels(item: Pick<Item, "options">): string[] {
+  return [...optionLabels(item), IDK_OPTION_LABEL];
 }
 
 function safeOptionEntries(value: unknown): Array<{ label: string; text: string }> {
@@ -258,6 +294,7 @@ function itemAgentMessage(
 ): string {
   const options = safeOptionEntries(item.options)
     .map((option) => `${option.label}. ${option.text}`)
+    .concat(`${IDK_OPTION_LABEL}. ${IDK_OPTION_TEXT}`)
     .join("\n");
 
   return [
@@ -1395,6 +1432,13 @@ export async function getStudentSessionState(input: {
     assessment_db_id: session.assessment_db_id,
     current_concept_unit_db_id: currentConceptUnit?.id ?? null
   });
+  const currentTemptingOptionEvidence =
+    currentItem && conceptUnitSession
+      ? await getLatestTemptingOptionEvidence({
+          concept_unit_session_db_id: conceptUnitSession.id,
+          item_db_id: currentItem.id
+        })
+      : null;
   const result = {
     session: serializeStudentSessionSummary(session),
     session_public_id: session.session_public_id,
@@ -1413,7 +1457,9 @@ export async function getStudentSessionState(input: {
       ? serializeStudentConceptUnit(currentConceptUnit)
       : null,
     next_step: nextStep,
-    current_item: currentItem ? serializeStudentSafeItem(currentItem, currentResponse) : null,
+    current_item: currentItem
+      ? serializeStudentSafeItem(currentItem, currentResponse, currentTemptingOptionEvidence)
+      : null,
     missing_evidence: nextStep === "missing_evidence_repair" ? missingEvidence : [],
     can_exit: session.status !== "completed",
     can_resume: session.status !== "completed",
@@ -1902,6 +1948,119 @@ async function logInitialAgentPrompt(input: {
   });
 }
 
+async function logResponseQualityResult(input: {
+  session_db_id: string;
+  concept_unit_session_db_id: string;
+  item_db_id?: string;
+  phase: AssessmentPhase;
+  stage: ResponseQualityStage;
+  result: ResponseQualityResult;
+  text_length: number;
+  selected_option?: string | null;
+  event_category: string;
+  agent_name?: string;
+}) {
+  const now = new Date();
+  const payload = {
+    stage: input.stage,
+    item_context: input.event_category,
+    selected_option: input.selected_option ?? null,
+    text_length: input.text_length,
+    ...responseQualityAuditPayload(input.result)
+  };
+
+  await logProcessEvent({
+    assessment_session_db_id: input.session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    item_db_id: input.item_db_id,
+    event_type: "response_quality_checked",
+    event_category: "response_quality",
+    event_source: input.result.source === "llm" ? "agent" : "backend",
+    payload,
+    occurred_at: now
+  });
+
+  if (responseQualityAllowsAdvance(input.result.output)) {
+    return;
+  }
+
+  await logProcessEvent({
+    assessment_session_db_id: input.session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    item_db_id: input.item_db_id,
+    event_type: "response_quality_rejected",
+    event_category: "response_quality",
+    event_source: "backend",
+    payload,
+    occurred_at: now
+  });
+
+  const quality = input.result.output.response_quality;
+  const extraEvent =
+    quality === "content_question" || quality === "answer_request"
+      ? "content_question_deferred"
+      : quality === "clarification_question"
+        ? "clarification_answered"
+        : quality === "edit_request"
+          ? "edit_request_detected"
+          : null;
+
+  if (extraEvent) {
+    await logProcessEvent({
+      assessment_session_db_id: input.session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      item_db_id: input.item_db_id,
+      event_type: extraEvent,
+      event_category: "response_quality",
+      event_source: "backend",
+      payload,
+      occurred_at: now
+    });
+  }
+
+  await logConversationTurn({
+    assessment_session_db_id: input.session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    item_db_id: input.item_db_id,
+    phase: input.phase,
+    actor_type: "agent",
+    agent_name: input.agent_name ?? INITIAL_ADMIN_AGENT_NAME,
+    message_text: input.result.output.student_facing_message,
+    structured_payload: {
+      source: "response_quality_gate",
+      message_type: "repair_prompt",
+      stage: input.stage
+    },
+    created_at: now
+  });
+}
+
+async function logRejectedStudentText(input: {
+  session_db_id: string;
+  concept_unit_session_db_id: string;
+  item_db_id?: string;
+  followup_round_db_id?: string;
+  phase: AssessmentPhase;
+  message_text: string;
+  source: string;
+  client_id?: string;
+}) {
+  await logConversationTurn({
+    assessment_session_db_id: input.session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    item_db_id: input.item_db_id,
+    followup_round_db_id: input.followup_round_db_id,
+    phase: input.phase,
+    actor_type: "student",
+    message_text: input.message_text,
+    structured_payload: {
+      source: input.source,
+      client_message_id: input.client_id,
+      validation_status: "response_quality_rejected"
+    }
+  });
+}
+
 export async function recordSelectedOption(input: {
   student_user_db_id: string;
   session_public_id: string;
@@ -1923,7 +2082,7 @@ export async function recordSelectedOption(input: {
         item_public_id: input.item_public_id,
         action: "record_answer"
       });
-      const labels = optionLabels(context.item);
+      const labels = answerOptionLabels(context.item);
 
       if (!labels.includes(data.selected_option)) {
         throw new StudentAssessmentServiceError(
@@ -1969,6 +2128,22 @@ export async function recordSelectedOption(input: {
           item_context: context.isTransferItem ? "transfer" : "initial"
         }
       });
+      if (data.selected_option === IDK_OPTION_LABEL) {
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          event_type: "idk_selected",
+          event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+          event_source: "frontend",
+          payload: {
+            item_public_id: context.item.item_public_id,
+            selected_option: data.selected_option,
+            item_context: context.isTransferItem ? "transfer" : "initial",
+            interpretation: "explicit_uncertainty"
+          }
+        });
+      }
       await logProcessEvent({
         assessment_session_db_id: context.session.id,
         concept_unit_session_db_id: context.conceptUnitSession.id,
@@ -2004,7 +2179,10 @@ export async function recordSelectedOption(input: {
         item_db_id: context.item.id,
         phase: context.session.current_phase,
         prompt_type: "request_reasoning",
-        message_text: `What is your reason for choosing ${data.selected_option}?`,
+        message_text:
+          data.selected_option === IDK_OPTION_LABEL
+            ? "What makes this hard to decide?"
+            : `What is your reason for choosing ${data.selected_option}?`,
         structured_payload: {
           item_public_id: context.item.item_public_id,
           selected_option: data.selected_option,
@@ -2049,6 +2227,61 @@ export async function recordReasoning(input: {
       const response = await getOrCreateItemResponse({
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item: context.item
+      });
+      const qualityResult = await evaluateResponseQuality({
+        stage: context.isTransferItem ? "transfer_item_reasoning" : "initial_item_reasoning",
+        text: data.reasoning_text,
+        selected_option: response.selected_option,
+        item_public_id: context.item.item_public_id,
+        item_stem: context.item.item_stem
+      });
+
+      if (!responseQualityAllowsAdvance(qualityResult.output)) {
+        await logRejectedStudentText({
+          session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          phase: context.session.current_phase,
+          message_text: data.reasoning_text,
+          source: context.isTransferItem
+            ? "transfer_reasoning_quality_rejected"
+            : "initial_reasoning_quality_rejected",
+          client_id: data.client_action_id
+        });
+        await logResponseQualityResult({
+          session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          phase: context.session.current_phase,
+          stage: context.isTransferItem ? "transfer_item_reasoning" : "initial_item_reasoning",
+          result: qualityResult,
+          text_length: data.reasoning_text.trim().length,
+          selected_option: response.selected_option,
+          event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+          agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
+        });
+        const result = {
+          action_status: "response_quality_rejected",
+          state: await getStudentSessionState({
+            student_user_db_id: input.student_user_db_id,
+            session_public_id: input.session_public_id
+          })
+        };
+        assertStudentPayloadIsSafe(result);
+        return result;
+      }
+
+      await logResponseQualityResult({
+        session_db_id: context.session.id,
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id,
+        phase: context.session.current_phase,
+        stage: context.isTransferItem ? "transfer_item_reasoning" : "initial_item_reasoning",
+        result: qualityResult,
+        text_length: data.reasoning_text.trim().length,
+        selected_option: response.selected_option,
+        event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+        agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
       });
       const hadReasoning = Boolean(response.reasoning_text && response.reasoning_text.trim());
       const reasoningChanged = response.reasoning_text !== null && response.reasoning_text !== data.reasoning_text;
@@ -2104,7 +2337,10 @@ export async function recordReasoning(input: {
         item_db_id: context.item.id,
         phase: context.session.current_phase,
         prompt_type: "request_confidence",
-        message_text: "How confident are you: Low, Medium, or High?",
+        message_text:
+          response.selected_option === IDK_OPTION_LABEL
+            ? "How confident do you feel about this question right now: Low, Medium, or High?"
+            : "How confident are you: Low, Medium, or High?",
         structured_payload: {
           item_public_id: context.item.item_public_id,
           item_context: context.isTransferItem ? "transfer" : "initial"
@@ -2315,6 +2551,64 @@ export async function recordTemptingOption(input: {
           "Explain what made the tempting option seem plausible.",
           400
         );
+      }
+
+      if (temptingOptionReason) {
+        const qualityResult = await evaluateResponseQuality({
+          stage: context.isTransferItem ? "transfer_tempting_reason" : "initial_tempting_reason",
+          text: temptingOptionReason,
+          selected_option: temptingOption,
+          item_public_id: context.item.item_public_id,
+          item_stem: context.item.item_stem
+        });
+
+        if (!responseQualityAllowsAdvance(qualityResult.output)) {
+          await logRejectedStudentText({
+            session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id,
+            phase: context.session.current_phase,
+            message_text: temptingOptionReason,
+            source: context.isTransferItem
+              ? "transfer_tempting_reason_quality_rejected"
+              : "initial_tempting_reason_quality_rejected",
+            client_id: data.client_action_id
+          });
+          await logResponseQualityResult({
+            session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id,
+            phase: context.session.current_phase,
+            stage: context.isTransferItem ? "transfer_tempting_reason" : "initial_tempting_reason",
+            result: qualityResult,
+            text_length: temptingOptionReason.length,
+            selected_option: temptingOption,
+            event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+            agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
+          });
+          const result = {
+            action_status: "response_quality_rejected",
+            state: await getStudentSessionState({
+              student_user_db_id: input.student_user_db_id,
+              session_public_id: input.session_public_id
+            })
+          };
+          assertStudentPayloadIsSafe(result);
+          return result;
+        }
+
+        await logResponseQualityResult({
+          session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          phase: context.session.current_phase,
+          stage: context.isTransferItem ? "transfer_tempting_reason" : "initial_tempting_reason",
+          result: qualityResult,
+          text_length: temptingOptionReason.length,
+          selected_option: temptingOption,
+          event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+          agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
+        });
       }
 
       const now = new Date();
@@ -2585,13 +2879,14 @@ export async function updatePackageReviewItemResponse(input: {
       }
 
       const labels = optionLabels(context.item);
+      const answerLabels = answerOptionLabels(context.item);
       const noTemptingOption = data.no_tempting_option === true;
       const temptingOption = noTemptingOption ? null : data.tempting_option?.trim() || null;
       const temptingOptionReason = noTemptingOption
         ? null
         : data.tempting_option_reason?.trim() || null;
 
-      if (!labels.includes(data.selected_option)) {
+      if (!answerLabels.includes(data.selected_option)) {
         throw new StudentAssessmentServiceError(
           "invalid_option",
           "Selected option does not exist for this item.",
@@ -2803,6 +3098,291 @@ export async function updatePackageReviewItemResponse(input: {
         state: nextState
       };
 
+      assertStudentPayloadIsSafe(result);
+      return result;
+    }
+  });
+}
+
+export async function updateInFlowItemResponse(input: {
+  student_user_db_id: string;
+  session_public_id: string;
+  item_public_id: string;
+  data: unknown;
+}) {
+  const data = inFlowEditActionSchema.parse(input.data);
+  const context = await getActionContext(input);
+
+  return withActionIdempotency({
+    assessment_session_db_id: context.session.id,
+    client_action_id: data.client_action_id,
+    action_type: "in_flow_response_edit",
+    request_payload: data,
+    run: async () => {
+      const state = await getStudentSessionState({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: input.session_public_id
+      });
+
+      if (state.assessment_state === "PACKAGE_REVIEW" || state.assessment_state === "PACKAGE_ANALYSIS") {
+        throw new StudentAssessmentServiceError(
+          "invalid_phase_for_action",
+          "Use package review to edit completed package responses.",
+          409,
+          { assessment_state: state.assessment_state }
+        );
+      }
+
+      const response = await prisma.itemResponse.findUnique({
+        where: {
+          concept_unit_session_db_id_item_db_id: {
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id
+          }
+        }
+      });
+
+      if (!response) {
+        throw new StudentAssessmentServiceError(
+          "validation_failed",
+          "There is no submitted response to edit yet.",
+          400
+        );
+      }
+
+      const answerLabels = answerOptionLabels(context.item);
+      const temptingLabels = optionLabels(context.item);
+      const previousTemptingEvidence = await getLatestTemptingOptionEvidence({
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id
+      });
+      const changedFields: string[] = [];
+      const nextSelectedOption = data.selected_option ?? response.selected_option;
+      const nextReasoning =
+        data.reasoning_text !== undefined ? data.reasoning_text.trim() : response.reasoning_text;
+      const nextConfidence = data.confidence_rating ?? response.confidence_rating;
+      const nextNoTemptingOption =
+        data.no_tempting_option !== undefined
+          ? data.no_tempting_option
+          : (previousTemptingEvidence?.no_tempting_option ?? false);
+      const nextTemptingOption = nextNoTemptingOption
+        ? null
+        : data.tempting_option !== undefined
+          ? data.tempting_option?.trim() || null
+          : previousTemptingEvidence?.tempting_option ?? null;
+      const nextTemptingReason = nextNoTemptingOption
+        ? null
+        : data.tempting_option_reason !== undefined
+          ? data.tempting_option_reason?.trim() || null
+          : previousTemptingEvidence?.tempting_option_reason ?? null;
+
+      if (nextSelectedOption && !answerLabels.includes(nextSelectedOption)) {
+        throw new StudentAssessmentServiceError(
+          "invalid_option",
+          "Selected option does not exist for this item.",
+          400,
+          { item_public_id: context.item.item_public_id }
+        );
+      }
+
+      if (nextTemptingOption && !temptingLabels.includes(nextTemptingOption)) {
+        throw new StudentAssessmentServiceError(
+          "invalid_option",
+          "Tempting option does not exist for this item.",
+          400,
+          { item_public_id: context.item.item_public_id }
+        );
+      }
+
+      if (data.selected_option !== undefined && data.selected_option !== response.selected_option) {
+        changedFields.push("answer");
+      }
+
+      if (data.reasoning_text !== undefined && (response.reasoning_text ?? "") !== nextReasoning) {
+        changedFields.push("reasoning");
+      }
+
+      if (data.confidence_rating !== undefined && data.confidence_rating !== response.confidence_rating) {
+        changedFields.push("confidence");
+      }
+
+      if (
+        data.no_tempting_option !== undefined ||
+        data.tempting_option !== undefined ||
+        data.tempting_option_reason !== undefined
+      ) {
+        if (
+          (previousTemptingEvidence?.no_tempting_option ?? false) !== nextNoTemptingOption ||
+          (previousTemptingEvidence?.tempting_option ?? null) !== nextTemptingOption ||
+          (previousTemptingEvidence?.tempting_option_reason ?? null) !== nextTemptingReason
+        ) {
+          changedFields.push("tempting_option");
+        }
+      }
+
+      const now = new Date();
+      const structuredPayload = {
+        source: "student_response_in_flow_edit",
+        item_public_id: context.item.item_public_id,
+        item_context: context.isTransferItem ? "transfer" : "initial",
+        changed_fields: changedFields,
+        selected_option: nextSelectedOption,
+        reasoning_length: nextReasoning?.length ?? 0,
+        confidence_rating: nextConfidence,
+        no_tempting_option: nextNoTemptingOption,
+        tempting_option: nextTemptingOption,
+        tempting_option_reason: nextTemptingReason
+      };
+
+      await logProcessEvent({
+        assessment_session_db_id: context.session.id,
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id,
+        event_type: "student_response_edit_started",
+        event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+        event_source: "frontend",
+        payload: {
+          item_public_id: context.item.item_public_id,
+          requested_fields: Object.keys(data).filter((key) => key !== "client_action_id")
+        },
+        occurred_at: now
+      });
+
+      if (changedFields.length > 0) {
+        await prisma.itemResponse.update({
+          where: { id: response.id },
+          data: {
+            selected_option: nextSelectedOption,
+            correctness: correctnessFor(nextSelectedOption, response.correct_option_snapshot),
+            reasoning_text: nextReasoning,
+            confidence_rating: nextConfidence,
+            skipped_item: false,
+            skipped_reasoning: nextReasoning ? false : response.skipped_reasoning,
+            skipped_confidence: nextConfidence ? false : response.skipped_confidence,
+            revision_count: { increment: 1 },
+            client_submission_id: data.client_action_id ?? response.client_submission_id
+          }
+        });
+        await prisma.assessmentSession.update({
+          where: { id: context.session.id },
+          data: { last_activity_at: now }
+        });
+        await logConversationTurn({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          phase: context.session.current_phase,
+          actor_type: "student",
+          message_text: "Edited my response.",
+          structured_payload: structuredPayload,
+          created_at: now
+        });
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          event_type: "student_response_edit_submitted",
+          event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+          event_source: "frontend",
+          payload: structuredPayload,
+          occurred_at: now
+        });
+
+        if (changedFields.includes("answer")) {
+          await logProcessEvent({
+            assessment_session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id,
+            event_type: "answer_changed",
+            event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+            event_source: "frontend",
+            payload: structuredPayload,
+            occurred_at: now
+          });
+          if (nextSelectedOption === IDK_OPTION_LABEL) {
+            await logProcessEvent({
+              assessment_session_db_id: context.session.id,
+              concept_unit_session_db_id: context.conceptUnitSession.id,
+              item_db_id: context.item.id,
+              event_type: "idk_selected",
+              event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+              event_source: "frontend",
+              payload: { ...structuredPayload, interpretation: "explicit_uncertainty" },
+              occurred_at: now
+            });
+          }
+        }
+
+        if (changedFields.includes("reasoning")) {
+          await logProcessEvent({
+            assessment_session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id,
+            event_type: "reasoning_edited",
+            event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+            event_source: "frontend",
+            payload: structuredPayload,
+            occurred_at: now
+          });
+        }
+
+        if (changedFields.includes("confidence")) {
+          await logProcessEvent({
+            assessment_session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id,
+            event_type: "confidence_changed",
+            event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+            event_source: "frontend",
+            payload: structuredPayload,
+            occurred_at: now
+          });
+        }
+
+        if (changedFields.includes("tempting_option")) {
+          await logConversationTurn({
+            assessment_session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id,
+            phase: context.session.current_phase,
+            actor_type: "student",
+            message_text: nextNoTemptingOption
+              ? "No other option was tempting."
+              : nextTemptingReason
+                ? `Option ${nextTemptingOption} was tempting because ${nextTemptingReason}`
+                : `Option ${nextTemptingOption} was tempting.`,
+            structured_payload: {
+              source: context.isTransferItem ? "transfer_tempting_option" : "initial_tempting_option",
+              item_public_id: context.item.item_public_id,
+              no_tempting_option: nextNoTemptingOption,
+              tempting_option: nextTemptingOption,
+              tempting_option_reason: nextTemptingReason,
+              item_context: context.isTransferItem ? "transfer" : "initial"
+            },
+            created_at: now
+          });
+          await logProcessEvent({
+            assessment_session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id,
+            event_type: "tempting_option_changed",
+            event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
+            event_source: "frontend",
+            payload: structuredPayload,
+            occurred_at: now
+          });
+        }
+      }
+
+      const nextState = await getStudentSessionState({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: input.session_public_id
+      });
+      const result = {
+        edit_status: changedFields.length > 0 ? "updated" : "unchanged",
+        changed_fields: changedFields,
+        state: nextState
+      };
       assertStudentPayloadIsSafe(result);
       return result;
     }
@@ -3495,6 +4075,10 @@ function studentTranscriptMessage(input: {
   const payload = input.structured_payload as Record<string, unknown>;
 
   if (typeof payload.selected_option === "string") {
+    if (payload.selected_option === IDK_OPTION_LABEL) {
+      return "I don't know yet.";
+    }
+
     return `Selected option ${payload.selected_option}.`;
   }
 

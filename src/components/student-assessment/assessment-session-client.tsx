@@ -32,11 +32,14 @@ import {
   sendRevisionResponse,
   startAssessmentSession,
   stopFollowup,
+  updateInFlowItem,
   updatePackageReviewItem
 } from "./api";
 import { useStudentProcessEvents } from "./process-events";
 
 const MAX_REASONING_LENGTH = 5000;
+const IDK_OPTION_LABEL = "E";
+const IDK_OPTION_TEXT = "I don't know yet.";
 
 type FailedAction = {
   label: string;
@@ -45,6 +48,17 @@ type FailedAction = {
 
 type PackageReviewEditDraft = {
   itemPublicId: string;
+  selectedOption: string;
+  reasoningText: string;
+  confidenceRating: ConfidenceRating | "";
+  noTemptingOption: boolean;
+  temptingOption: string;
+  temptingOptionReason: string;
+};
+
+type InFlowEditField = "answer" | "reasoning" | "confidence" | "tempting";
+type InFlowEditDraft = {
+  field: InFlowEditField;
   selectedOption: string;
   reasoningText: string;
   confidenceRating: ConfidenceRating | "";
@@ -63,6 +77,32 @@ function confidenceLabel(confidence: ConfidenceRating) {
   }
 
   return "High";
+}
+
+function answerOptionsFor(item: StudentSafeItem) {
+  return [
+    ...item.options,
+    {
+      label: IDK_OPTION_LABEL,
+      text: IDK_OPTION_TEXT
+    }
+  ];
+}
+
+function displayAnswer(option: string | null | undefined) {
+  return option === IDK_OPTION_LABEL ? "I don't know yet" : option ?? "Not answered";
+}
+
+function buildInFlowEditDraft(item: StudentSafeItem, field: InFlowEditField): InFlowEditDraft {
+  return {
+    field,
+    selectedOption: item.existing_selected_option ?? "",
+    reasoningText: item.existing_reasoning_text ?? "",
+    confidenceRating: item.existing_confidence_rating ?? "",
+    noTemptingOption: item.no_tempting_option || !item.tempting_option,
+    temptingOption: item.tempting_option ?? "",
+    temptingOptionReason: item.tempting_option_reason ?? ""
+  };
 }
 
 function buildReviewEditDraft(item: StudentReviewItem): PackageReviewEditDraft {
@@ -118,7 +158,7 @@ function displayTranscriptText(entry: StudentTranscriptEntry) {
 
   if (entry.interaction_type === "option_selected" || entry.interaction_type === "transfer_option_selected") {
     const selected = entry.message_text.match(/^Selected option\s+(.+)\.$/i)?.[1]?.trim();
-    return selected || entry.message_text;
+    return selected === IDK_OPTION_LABEL ? "I don't know yet." : selected || entry.message_text;
   }
 
   if (
@@ -184,7 +224,8 @@ function shouldHideActiveAgentTranscriptEntry(entry: StudentTranscriptEntry, sta
   }
 
   if (state.assessment_state === "AWAIT_REASON" && sameCurrentItem) {
-    return text.startsWith("What is your reason for choosing");
+    return text.startsWith("What is your reason for choosing") ||
+      text.startsWith("What makes this hard to decide?");
   }
 
   if (state.assessment_state === "AWAIT_CONFIDENCE" && sameCurrentItem) {
@@ -271,7 +312,7 @@ function AgentItemMessage({
       </p>
       <p className="mt-2 whitespace-pre-wrap text-base leading-7 text-ink">{item.item_stem}</p>
       <div className="mt-4 grid gap-2">
-        {item.options.map((option) => {
+        {answerOptionsFor(item).map((option) => {
           const selected = item.existing_selected_option === option.label;
 
           return (
@@ -302,16 +343,22 @@ function AgentItemMessage({
 
 function ConfidenceMessage({
   disabled,
+  idkSelected = false,
   onSelect
 }: {
   disabled: boolean;
+  idkSelected?: boolean;
   onSelect: (confidence: ConfidenceRating) => void;
 }) {
   const levels: ConfidenceRating[] = ["low", "medium", "high"];
 
   return (
     <AgentMessage>
-      <p className="font-medium text-ink">How confident are you: Low, Medium, or High?</p>
+      <p className="font-medium text-ink">
+        {idkSelected
+          ? "How confident do you feel about this question right now: Low, Medium, or High?"
+          : "How confident are you: Low, Medium, or High?"}
+      </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {levels.map((level) => (
           <button
@@ -490,7 +537,7 @@ function PackageReviewMessage({
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted">Answer</p>
                       <div className="mt-2 grid gap-2">
-                        {item.options.map((option) => {
+                        {answerOptionsFor(item).map((option) => {
                           const selected = currentDraft.selectedOption === option.label;
 
                           return (
@@ -638,7 +685,7 @@ function PackageReviewMessage({
                   <dl className="mt-3 grid gap-2 text-sm">
                     <div>
                       <dt className="font-semibold text-ink">Answer</dt>
-                      <dd className="text-muted">{item.existing_selected_option ?? "Not answered"}</dd>
+                      <dd className="text-muted">{displayAnswer(item.existing_selected_option)}</dd>
                     </div>
                     <div>
                       <dt className="font-semibold text-ink">Reason</dt>
@@ -687,6 +734,214 @@ function PackageReviewMessage({
         Continue to feedback
       </button>
     </AgentMessage>
+  );
+}
+
+function InFlowEditPanel({
+  item,
+  draft,
+  isBusy,
+  onCancel,
+  onChange,
+  onSave,
+  onStart
+}: {
+  item: StudentSafeItem;
+  draft: InFlowEditDraft | null;
+  isBusy: boolean;
+  onCancel: () => void;
+  onChange: (draft: InFlowEditDraft) => void;
+  onSave: () => void;
+  onStart: (field: InFlowEditField) => void;
+}) {
+  const hasAnyResponse =
+    Boolean(item.existing_selected_option) ||
+    Boolean(item.existing_reasoning_text) ||
+    Boolean(item.existing_confidence_rating) ||
+    item.no_tempting_option ||
+    Boolean(item.tempting_option);
+
+  if (!hasAnyResponse) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-lg border border-line bg-white p-3 shadow-soft" data-testid="in-flow-edit-panel">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Edit latest response</p>
+      {!draft ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {item.existing_selected_option ? (
+            <button
+              className="rounded-md border border-line px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="in-flow-edit-answer"
+              disabled={isBusy}
+              onClick={() => onStart("answer")}
+              type="button"
+            >
+              Edit answer
+            </button>
+          ) : null}
+          {item.existing_reasoning_text ? (
+            <button
+              className="rounded-md border border-line px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="in-flow-edit-reasoning"
+              disabled={isBusy}
+              onClick={() => onStart("reasoning")}
+              type="button"
+            >
+              Edit reason
+            </button>
+          ) : null}
+          {item.existing_confidence_rating ? (
+            <button
+              className="rounded-md border border-line px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="in-flow-edit-confidence"
+              disabled={isBusy}
+              onClick={() => onStart("confidence")}
+              type="button"
+            >
+              Edit confidence
+            </button>
+          ) : null}
+          {item.no_tempting_option || item.tempting_option ? (
+            <button
+              className="rounded-md border border-line px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="in-flow-edit-tempting"
+              disabled={isBusy}
+              onClick={() => onStart("tempting")}
+              type="button"
+            >
+              Edit tempting option
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <div className="mt-3 grid gap-3 rounded-md border border-line bg-[#fbfcfa] p-3">
+          {draft.field === "answer" ? (
+            <div className="grid gap-2">
+              {answerOptionsFor(item).map((option) => (
+                <button
+                  aria-pressed={draft.selectedOption === option.label}
+                  className={
+                    draft.selectedOption === option.label
+                      ? "rounded-md border border-accent bg-accent-soft p-3 text-left ring-2 ring-accent-soft"
+                      : "rounded-md border border-line bg-white p-3 text-left hover:border-accent hover:bg-accent-soft"
+                  }
+                  data-testid={`in-flow-edit-answer-option-${option.label}`}
+                  disabled={isBusy}
+                  key={option.label}
+                  onClick={() => onChange({ ...draft, selectedOption: option.label })}
+                  type="button"
+                >
+                  <span className="text-sm leading-6">
+                    <span className="font-semibold">{option.label}.</span> {option.text}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {draft.field === "reasoning" ? (
+            <textarea
+              className="min-h-24 w-full resize-none rounded-md border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
+              data-testid="in-flow-edit-reasoning-input"
+              disabled={isBusy}
+              maxLength={MAX_REASONING_LENGTH}
+              onChange={(event) => onChange({ ...draft, reasoningText: event.target.value })}
+              value={draft.reasoningText}
+            />
+          ) : null}
+          {draft.field === "confidence" ? (
+            <div className="flex flex-wrap gap-2">
+              {(["low", "medium", "high"] as ConfidenceRating[]).map((level) => (
+                <button
+                  aria-pressed={draft.confidenceRating === level}
+                  className={
+                    draft.confidenceRating === level
+                      ? "rounded-full border border-accent bg-accent-soft px-4 py-2 text-sm font-semibold text-ink ring-2 ring-accent-soft"
+                      : "rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft"
+                  }
+                  data-testid={`in-flow-edit-confidence-${level}`}
+                  disabled={isBusy}
+                  key={level}
+                  onClick={() => onChange({ ...draft, confidenceRating: level })}
+                  type="button"
+                >
+                  {confidenceLabel(level)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {draft.field === "tempting" ? (
+            <div className="grid gap-3">
+              <div className="flex flex-wrap gap-2">
+                {item.options.map((option) => (
+                  <OptionChip
+                    disabled={isBusy}
+                    key={option.label}
+                    label={option.label}
+                    onSelect={() =>
+                      onChange({
+                        ...draft,
+                        noTemptingOption: false,
+                        temptingOption: option.label
+                      })
+                    }
+                    testId={`in-flow-edit-tempting-${option.label}`}
+                  />
+                ))}
+                <button
+                  className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                  data-testid="in-flow-edit-no-tempting"
+                  disabled={isBusy}
+                  onClick={() =>
+                    onChange({
+                      ...draft,
+                      noTemptingOption: true,
+                      temptingOption: "",
+                      temptingOptionReason: ""
+                    })
+                  }
+                  type="button"
+                >
+                  No
+                </button>
+              </div>
+              {!draft.noTemptingOption ? (
+                <textarea
+                  className="min-h-20 w-full resize-none rounded-md border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
+                  data-testid="in-flow-edit-tempting-reason-input"
+                  disabled={isBusy}
+                  maxLength={MAX_REASONING_LENGTH}
+                  onChange={(event) => onChange({ ...draft, temptingOptionReason: event.target.value })}
+                  placeholder="What made it tempting?"
+                  value={draft.temptingOptionReason}
+                />
+              ) : null}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="in-flow-edit-save"
+              disabled={isBusy}
+              onClick={onSave}
+              type="button"
+            >
+              Save edit
+            </button>
+            <button
+              className="rounded-md border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="in-flow-edit-cancel"
+              disabled={isBusy}
+              onClick={onCancel}
+              type="button"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -945,6 +1200,7 @@ function activeItemPrompt(input: {
   followupDraft: string;
   formativeActivityDraft: string;
   revisionDraft: string;
+  inFlowEditDraft: InFlowEditDraft | null;
   editingReviewItemId: string | null;
   reviewEditDraft: PackageReviewEditDraft | null;
   setReasoningDraft: (value: string) => void;
@@ -952,6 +1208,7 @@ function activeItemPrompt(input: {
   setFollowupDraft: (value: string) => void;
   setFormativeActivityDraft: (value: string) => void;
   setRevisionDraft: (value: string) => void;
+  setInFlowEditDraft: (value: InFlowEditDraft) => void;
   setReviewEditDraft: (value: PackageReviewEditDraft) => void;
   onBeginConceptUnit: () => void;
   onCancelReviewEdit: () => void;
@@ -961,6 +1218,9 @@ function activeItemPrompt(input: {
   onSelectTemptingOption: (label: string) => void;
   onNoTemptingOption: () => void;
   onSendTemptingReason: () => void;
+  onStartInFlowEdit: (field: InFlowEditField) => void;
+  onCancelInFlowEdit: () => void;
+  onSaveInFlowEdit: () => void;
   onContinuePackage: () => void;
   onSaveReviewEdit: () => void;
   onStartReviewEdit: (item: StudentReviewItem) => void;
@@ -980,6 +1240,18 @@ function activeItemPrompt(input: {
 }) {
   const { state, isBusy } = input;
   const item = state.current_item;
+  const inFlowEditPanel =
+    item && state.assessment_state !== "PACKAGE_REVIEW" && state.assessment_state !== "PACKAGE_ANALYSIS" ? (
+      <InFlowEditPanel
+        draft={input.inFlowEditDraft}
+        isBusy={isBusy}
+        item={item}
+        onCancel={input.onCancelInFlowEdit}
+        onChange={input.setInFlowEditDraft}
+        onSave={input.onSaveInFlowEdit}
+        onStart={input.onStartInFlowEdit}
+      />
+    ) : null;
 
   if (state.assessment_state === "SESSION_START") {
     return (
@@ -1024,7 +1296,9 @@ function activeItemPrompt(input: {
       <>
         <AgentMessage>
           <p className="font-medium text-ink">
-            What is your reason for choosing {item.existing_selected_option ?? "that option"}?
+            {item.existing_selected_option === IDK_OPTION_LABEL
+              ? "What makes this hard to decide?"
+              : `What is your reason for choosing ${item.existing_selected_option ?? "that option"}?`}
           </p>
         </AgentMessage>
         <TextComposer
@@ -1037,22 +1311,35 @@ function activeItemPrompt(input: {
           testId="reasoning-input"
           value={input.reasoningDraft}
         />
+        {inFlowEditPanel}
       </>
     );
   }
 
   if (state.assessment_state === "AWAIT_CONFIDENCE") {
-    return <ConfidenceMessage disabled={isBusy} onSelect={input.onSelectConfidence} />;
+    return (
+      <>
+        <ConfidenceMessage
+          disabled={isBusy}
+          idkSelected={item?.existing_selected_option === IDK_OPTION_LABEL}
+          onSelect={input.onSelectConfidence}
+        />
+        {inFlowEditPanel}
+      </>
+    );
   }
 
   if (state.assessment_state === "AWAIT_TEMPTING_OPTION" && item) {
     return (
-      <TemptingOptionMessage
-        disabled={isBusy}
-        item={item}
-        onNo={input.onNoTemptingOption}
-        onSelect={input.onSelectTemptingOption}
-      />
+      <>
+        <TemptingOptionMessage
+          disabled={isBusy}
+          item={item}
+          onNo={input.onNoTemptingOption}
+          onSelect={input.onSelectTemptingOption}
+        />
+        {inFlowEditPanel}
+      </>
     );
   }
 
@@ -1072,6 +1359,7 @@ function activeItemPrompt(input: {
           testId="tempting-reason-input"
           value={input.temptingReasonDraft}
         />
+        {inFlowEditPanel}
       </>
     );
   }
@@ -1207,6 +1495,7 @@ export function AssessmentSessionClient({
   const [followupDraft, setFollowupDraft] = useState("");
   const [formativeActivityDraft, setFormativeActivityDraft] = useState("");
   const [revisionDraft, setRevisionDraft] = useState("");
+  const [inFlowEditDraft, setInFlowEditDraft] = useState<InFlowEditDraft | null>(null);
   const [editingReviewItemId, setEditingReviewItemId] = useState<string | null>(null);
   const [reviewEditDraft, setReviewEditDraft] = useState<PackageReviewEditDraft | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -1320,6 +1609,7 @@ export function AssessmentSessionClient({
   useEffect(() => {
     setReasoningDraft("");
     setTemptingReasonDraft("");
+    setInFlowEditDraft(null);
   }, [state?.assessment_state, state?.current_item?.item_public_id]);
 
   useEffect(() => {
@@ -1440,6 +1730,71 @@ export function AssessmentSessionClient({
         temptingOptionReason: trimmed
       })
     );
+  }
+
+  function handleStartInFlowEdit(field: InFlowEditField) {
+    if (!state?.current_item) {
+      return;
+    }
+
+    setInFlowEditDraft(buildInFlowEditDraft(state.current_item, field));
+  }
+
+  function handleCancelInFlowEdit() {
+    setInFlowEditDraft(null);
+  }
+
+  function handleSaveInFlowEdit() {
+    if (!state?.current_item || !inFlowEditDraft) {
+      return;
+    }
+
+    const draft = inFlowEditDraft;
+
+    if (draft.field === "answer" && !draft.selectedOption) {
+      return;
+    }
+
+    if (draft.field === "reasoning" && !draft.reasoningText.trim()) {
+      return;
+    }
+
+    if (draft.field === "confidence" && !draft.confidenceRating) {
+      return;
+    }
+
+    if (draft.field === "tempting" && !draft.noTemptingOption && !draft.temptingOption) {
+      return;
+    }
+
+    void runAction("Save response edit", async () => {
+      const nextState = await updateInFlowItem({
+        sessionPublicId: state.session_public_id,
+        itemPublicId: state.current_item?.item_public_id ?? "",
+        selectedOption: draft.field === "answer" ? draft.selectedOption : undefined,
+        reasoningText: draft.field === "reasoning" ? draft.reasoningText.trim() : undefined,
+        confidenceRating:
+          draft.field === "confidence" && draft.confidenceRating
+            ? (draft.confidenceRating as ConfidenceRating)
+            : undefined,
+        noTemptingOption: draft.field === "tempting" ? draft.noTemptingOption : undefined,
+        temptingOption:
+          draft.field === "tempting"
+            ? draft.noTemptingOption
+              ? null
+              : draft.temptingOption
+            : undefined,
+        temptingOptionReason:
+          draft.field === "tempting"
+            ? draft.noTemptingOption
+              ? null
+              : draft.temptingOptionReason.trim()
+            : undefined
+      });
+
+      setInFlowEditDraft(null);
+      return nextState;
+    });
   }
 
   function handleCompletePackage() {
@@ -1762,6 +2117,7 @@ export function AssessmentSessionClient({
     followupDraft,
     formativeActivityDraft,
     revisionDraft,
+    inFlowEditDraft,
     editingReviewItemId,
     reviewEditDraft,
     setReasoningDraft,
@@ -1769,6 +2125,7 @@ export function AssessmentSessionClient({
     setFollowupDraft,
     setFormativeActivityDraft,
     setRevisionDraft,
+    setInFlowEditDraft,
     setReviewEditDraft,
     onBeginConceptUnit: handleBeginConceptUnit,
     onCancelReviewEdit: handleCancelReviewEdit,
@@ -1778,6 +2135,9 @@ export function AssessmentSessionClient({
     onSelectTemptingOption: handleTemptingOption,
     onNoTemptingOption: handleNoTemptingOption,
     onSendTemptingReason: handleTemptingReason,
+    onStartInFlowEdit: handleStartInFlowEdit,
+    onCancelInFlowEdit: handleCancelInFlowEdit,
+    onSaveInFlowEdit: handleSaveInFlowEdit,
     onContinuePackage: handleCompletePackage,
     onSaveReviewEdit: handleSaveReviewEdit,
     onStartReviewEdit: handleStartReviewEdit,

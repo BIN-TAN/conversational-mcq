@@ -24,6 +24,7 @@
     "student:formative-profile-smoke": "tsx prisma/student-formative-profile-smoke-test.ts",
     "student:formative-profile-audit-smoke": "tsx prisma/student-formative-profile-audit-metadata-smoke-test.ts",
     "student:formative-evaluation-smoke": "tsx prisma/student-formative-evaluation-smoke-test.ts",
+    "student:response-quality-smoke": "tsx prisma/student-response-quality-smoke-test.ts",
     "student:targeted-feedback-smoke": "tsx prisma/student-targeted-feedback-smoke-test.ts",
     "student:transfer-item-smoke": "tsx prisma/student-transfer-item-smoke-test.ts",
     "student:mvp-e2e-smoke": "tsx prisma/student-mvp-e2e-smoke-test.ts",

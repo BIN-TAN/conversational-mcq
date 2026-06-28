@@ -13,6 +13,13 @@ import { logConversationTurn } from "@/lib/services/conversation-turns";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
 import { createResponsePackage } from "@/lib/services/response-packages";
+import {
+  evaluateResponseQuality,
+  responseQualityAllowsAdvance,
+  responseQualityAuditPayload,
+  type ResponseQualityResult,
+  type ResponseQualityStage
+} from "@/lib/services/student-assessment/response-quality";
 import { StudentAssessmentServiceError } from "./errors";
 
 export const FormativeNeedSchema = z.enum([
@@ -170,6 +177,8 @@ const CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_HASH = createHash("sha256")
 const FORMATIVE_ACTIVITY_AGENT_NAME = "chat_native_formative_activity";
 const TARGETED_FEEDBACK_AGENT_NAME = "chat_native_targeted_feedback";
 const TRANSFER_ITEM_AGENT_NAME = "deterministic_transfer_item";
+const IDK_OPTION_LABEL = "E";
+const IDK_OPTION_TEXT = "I don't know yet.";
 const MAX_FORMATIVE_RESPONSE_CHARS = 5000;
 const MAX_REVISION_CHARS = 5000;
 
@@ -330,6 +339,7 @@ function safeOptionEntries(value: unknown): Array<{ label: string; text: string 
 function transferItemAgentMessage(item: { item_stem: string; options: unknown }) {
   const options = safeOptionEntries(item.options)
     .map((option) => `${option.label}. ${option.text}`)
+    .concat(`${IDK_OPTION_LABEL}. ${IDK_OPTION_TEXT}`)
     .join("\n");
 
   return [
@@ -613,6 +623,85 @@ function studentFacingText(output: ChatNativeFormativeProfileOutput) {
 
 function targetedFeedbackStudentFacingText(output: ChatNativeTargetedFeedbackOutput) {
   return `${output.formative_activity_evaluation.student_facing_feedback}\n\n${output.formative_activity_evaluation.student_facing_next_prompt}`;
+}
+
+async function logFormativeResponseQuality(input: {
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string;
+  followup_round_db_id: string;
+  phase: "planning_completed" | "followup_active";
+  stage: ResponseQualityStage;
+  result: ResponseQualityResult;
+  text_length: number;
+}) {
+  const now = new Date();
+  const payload = {
+    stage: input.stage,
+    text_length: input.text_length,
+    ...responseQualityAuditPayload(input.result)
+  };
+
+  await logProcessEvent({
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    event_type: "response_quality_checked",
+    event_category: "response_quality",
+    event_source: input.result.source === "llm" ? "agent" : "backend",
+    payload,
+    occurred_at: now
+  });
+
+  if (responseQualityAllowsAdvance(input.result.output)) {
+    return;
+  }
+
+  await logProcessEvent({
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    event_type: "response_quality_rejected",
+    event_category: "response_quality",
+    event_source: "backend",
+    payload,
+    occurred_at: now
+  });
+
+  const quality = input.result.output.response_quality;
+  const extraEvent =
+    quality === "clarification_question"
+      ? "clarification_answered"
+      : quality === "content_question" || quality === "answer_request"
+        ? "content_question_deferred"
+        : quality === "edit_request"
+          ? "edit_request_detected"
+          : null;
+
+  if (extraEvent) {
+    await logProcessEvent({
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      event_type: extraEvent,
+      event_category: "response_quality",
+      event_source: "backend",
+      payload,
+      occurred_at: now
+    });
+  }
+
+  await logConversationTurn({
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    followup_round_db_id: input.followup_round_db_id,
+    phase: input.phase,
+    actor_type: "agent",
+    agent_name: "chat_native_response_quality_gate",
+    message_text: input.result.output.student_facing_message,
+    structured_payload: prismaJson({
+      source: "response_quality_gate",
+      message_type: "repair_prompt",
+      stage: input.stage
+    }),
+    created_at: now
+  });
 }
 
 function validateStudentFacingOutput(input: {
@@ -2167,10 +2256,75 @@ export async function submitChatNativeFormativeActivityResponse(input: {
         action_type: "formative_activity_response",
         request_hash: createHash("sha256")
           .update(JSON.stringify({ session_public_id: input.session_public_id, message }))
-          .digest("hex")
+        .digest("hex")
       }
     });
   }
+
+  const qualityResult = await evaluateResponseQuality({
+    stage: "formative_activity_response",
+    text: message
+  });
+
+  if (!responseQualityAllowsAdvance(qualityResult.output)) {
+    await logConversationTurn({
+      assessment_session_db_id: session.id,
+      concept_unit_session_db_id: conceptUnitSession.id,
+      followup_round_db_id: round.id,
+      phase: "planning_completed",
+      actor_type: "student",
+      message_text: message,
+      structured_payload: {
+        source: "chat_native_formative_activity_response_quality_rejected",
+        client_message_id: input.client_message_id,
+        validation_status: "response_quality_rejected"
+      }
+    });
+    await logProcessEvent({
+      assessment_session_db_id: session.id,
+      concept_unit_session_db_id: conceptUnitSession.id,
+      event_type: "followup_response_submitted",
+      event_category: "formative_activity",
+      event_source: "frontend",
+      payload: {
+        source: "chat_native_formative_activity",
+        client_message_id: input.client_message_id,
+        response_length: message.length,
+        validation_status: "response_quality_rejected"
+      }
+    });
+    await logFormativeResponseQuality({
+      assessment_session_db_id: session.id,
+      concept_unit_session_db_id: conceptUnitSession.id,
+      followup_round_db_id: round.id,
+      phase: "planning_completed",
+      stage: "formative_activity_response",
+      result: qualityResult,
+      text_length: message.length
+    });
+
+    const response = {
+      message_status: "response_quality_rejected",
+      targeted_feedback_available: false
+    };
+
+    await prisma.studentActionIdempotencyKey.update({
+      where: idempotencyWhere,
+      data: { response_payload: prismaJson(response) }
+    });
+
+    return response;
+  }
+
+  await logFormativeResponseQuality({
+    assessment_session_db_id: session.id,
+    concept_unit_session_db_id: conceptUnitSession.id,
+    followup_round_db_id: round.id,
+    phase: "planning_completed",
+    stage: "formative_activity_response",
+    result: qualityResult,
+    text_length: message.length
+  });
 
   const responseTurn = await logConversationTurn({
     assessment_session_db_id: session.id,
@@ -2361,6 +2515,72 @@ export async function submitChatNativeRevisionResponse(input: {
   }
 
   const now = new Date();
+  const qualityResult = await evaluateResponseQuality({
+    stage: "revision_response",
+    text: message
+  });
+
+  if (!responseQualityAllowsAdvance(qualityResult.output)) {
+    await logConversationTurn({
+      assessment_session_db_id: session.id,
+      concept_unit_session_db_id: conceptUnitSession.id,
+      followup_round_db_id: round.id,
+      phase: "followup_active",
+      actor_type: "student",
+      message_text: message,
+      structured_payload: {
+        source: "chat_native_revision_quality_rejected",
+        client_message_id: input.client_message_id,
+        validation_status: "response_quality_rejected"
+      },
+      created_at: now
+    });
+    await logProcessEvent({
+      assessment_session_db_id: session.id,
+      concept_unit_session_db_id: conceptUnitSession.id,
+      event_type: "revision_submitted",
+      event_category: "revision",
+      event_source: "frontend",
+      payload: {
+        source: "chat_native_revision",
+        client_message_id: input.client_message_id,
+        response_length: message.length,
+        validation_status: "response_quality_rejected"
+      },
+      occurred_at: now
+    });
+    await logFormativeResponseQuality({
+      assessment_session_db_id: session.id,
+      concept_unit_session_db_id: conceptUnitSession.id,
+      followup_round_db_id: round.id,
+      phase: "followup_active",
+      stage: "revision_response",
+      result: qualityResult,
+      text_length: message.length
+    });
+
+    const response = {
+      revision_status: "response_quality_rejected",
+      next_choice_available: false
+    };
+
+    await prisma.studentActionIdempotencyKey.update({
+      where: idempotencyWhere,
+      data: { response_payload: prismaJson(response) }
+    });
+
+    return response;
+  }
+
+  await logFormativeResponseQuality({
+    assessment_session_db_id: session.id,
+    concept_unit_session_db_id: conceptUnitSession.id,
+    followup_round_db_id: round.id,
+    phase: "followup_active",
+    stage: "revision_response",
+    result: qualityResult,
+    text_length: message.length
+  });
 
   await logConversationTurn({
     assessment_session_db_id: session.id,

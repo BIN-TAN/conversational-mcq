@@ -78,6 +78,9 @@ export type StudentSafeItem = {
   existing_selected_option: string | null;
   existing_reasoning_text: string | null;
   existing_confidence_rating: ConfidenceLevel | null;
+  no_tempting_option: boolean;
+  tempting_option: string | null;
+  tempting_option_reason: string | null;
   submission_state: "not_started" | "draft" | "missing_evidence_repair" | "submitted";
 };
 
@@ -108,7 +111,12 @@ export function serializeStudentSafeItem(
     | "confidence_rating"
     | "item_submitted_at"
     | "missing_evidence_repair_offered"
-  > | null
+  > | null,
+  temptingOptionEvidence?: {
+    no_tempting_option: boolean;
+    tempting_option: string | null;
+    tempting_option_reason: string | null;
+  } | null
 ): StudentSafeItem {
   return {
     item_public_id: item.item_public_id,
@@ -119,6 +127,9 @@ export function serializeStudentSafeItem(
     existing_selected_option: response?.selected_option ?? null,
     existing_reasoning_text: response?.reasoning_text ?? null,
     existing_confidence_rating: response?.confidence_rating ?? null,
+    no_tempting_option: temptingOptionEvidence?.no_tempting_option ?? false,
+    tempting_option: temptingOptionEvidence?.tempting_option ?? null,
+    tempting_option_reason: temptingOptionEvidence?.tempting_option_reason ?? null,
     submission_state: itemSubmissionState(response)
   };
 }

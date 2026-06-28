@@ -268,6 +268,31 @@ export function updatePackageReviewItem(input: {
   );
 }
 
+export function updateInFlowItem(input: {
+  sessionPublicId: string;
+  itemPublicId: string;
+  selectedOption?: string;
+  reasoningText?: string;
+  confidenceRating?: ConfidenceRating;
+  noTemptingOption?: boolean;
+  temptingOption?: string | null;
+  temptingOptionReason?: string | null;
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/items/${input.itemPublicId}/edit`,
+    {
+      selected_option: input.selectedOption,
+      reasoning_text: input.reasoningText,
+      confidence_rating: input.confidenceRating,
+      no_tempting_option: input.noTemptingOption,
+      tempting_option: input.temptingOption,
+      tempting_option_reason: input.temptingOptionReason,
+      client_action_id: newClientActionId("in-flow-edit")
+    },
+    (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
+  );
+}
+
 export async function submitItem(input: {
   sessionPublicId: string;
   itemPublicId: string;

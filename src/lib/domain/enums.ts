@@ -249,7 +249,18 @@ export const processEventTypes = [
   "response_collection_agent_failed",
   "response_collection_fallback_used",
   "response_collection_reasoning_extracted",
-  "response_collection_reasoning_extraction_failed"
+  "response_collection_reasoning_extraction_failed",
+  "response_quality_checked",
+  "response_quality_rejected",
+  "clarification_answered",
+  "content_question_deferred",
+  "edit_request_detected",
+  "idk_selected",
+  "student_response_edit_started",
+  "student_response_edit_submitted",
+  "reasoning_edited",
+  "confidence_changed",
+  "tempting_option_changed"
 ] as const;
 export const ProcessEventTypeSchema = z.enum(processEventTypes);
 

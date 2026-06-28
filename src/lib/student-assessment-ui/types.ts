@@ -22,6 +22,9 @@ export const StudentSafeItemSchema = z.object({
   existing_selected_option: z.string().nullable(),
   existing_reasoning_text: z.string().nullable(),
   existing_confidence_rating: ConfidenceRatingSchema.nullable(),
+  no_tempting_option: z.boolean(),
+  tempting_option: z.string().nullable(),
+  tempting_option_reason: z.string().nullable(),
   submission_state: z.enum(["not_started", "draft", "missing_evidence_repair", "submitted"])
 });
 export type StudentSafeItem = z.infer<typeof StudentSafeItemSchema>;
@@ -208,10 +211,7 @@ export type StudentConversationFrame = z.infer<typeof StudentConversationFrameSc
 export const StudentReviewItemSchema = StudentSafeItemSchema.extend({
   missing_fields: z.array(MissingEvidenceFieldSchema),
   can_edit: z.boolean(),
-  is_current: z.boolean(),
-  no_tempting_option: z.boolean(),
-  tempting_option: z.string().nullable(),
-  tempting_option_reason: z.string().nullable()
+  is_current: z.boolean()
 });
 export type StudentReviewItem = z.infer<typeof StudentReviewItemSchema>;
 
