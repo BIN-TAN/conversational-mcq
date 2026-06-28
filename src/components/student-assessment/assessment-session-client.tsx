@@ -1191,6 +1191,49 @@ function NextChoiceControls({
   );
 }
 
+function LearningProfilePanel({
+  profile
+}: {
+  profile: StudentSessionState["learning_profile"] | null | undefined;
+}) {
+  if (!profile) {
+    return null;
+  }
+
+  const groups = [
+    { label: "Mostly understood", values: profile.mostly_understood },
+    { label: "Still developing", values: profile.still_developing },
+    { label: "Needs attention", values: profile.needs_attention }
+  ].filter((group) => group.values.length > 0);
+
+  if (groups.length === 0) {
+    return null;
+  }
+
+  return (
+    <aside
+      className="rounded-lg border border-line bg-white p-4 shadow-soft lg:sticky lg:top-4 lg:self-start"
+      data-testid="student-learning-profile-panel"
+    >
+      <h2 className="text-sm font-semibold text-ink">Current learning profile</h2>
+      <div className="mt-3 space-y-4">
+        {groups.map((group) => (
+          <section key={group.label}>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{group.label}</h3>
+            <ul className="mt-2 space-y-2 text-sm leading-5 text-ink">
+              {group.values.map((value) => (
+                <li className="rounded-md bg-[#f7f9f6] px-3 py-2" key={value}>
+                  {value}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
 function activeItemPrompt(input: {
   state: StudentSessionState;
   review: StudentReviewResponse | null;
@@ -2195,35 +2238,38 @@ export function AssessmentSessionClient({
         </div>
       </header>
 
-      <main className="flex flex-1 flex-col rounded-lg border border-line bg-[#f7f9f6] p-4 shadow-soft">
-        <ErrorNotice error={error} />
-        {failedAction ? (
-          <button
-            className="mt-3 w-fit rounded-md border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-accent"
-            data-testid="retry-save-action"
-            disabled={isBusy}
-            onClick={failedAction.retry}
-            type="button"
-          >
-            Retry {failedAction.label}
-          </button>
-        ) : null}
-        <div className="mt-4 flex flex-1 flex-col gap-4" data-testid="chat-transcript">
-          {visibleTranscript.map((entry) => (
-            <ChatBubble entry={entry} key={`${entry.created_at}-${entry.actor}-${entry.message_text}`} />
-          ))}
-          {activePrompt}
-          {isBusy ? (
-            <div className="flex justify-start">
-              <div className="rounded-full border border-line bg-white px-4 py-2 text-sm text-muted shadow-soft">
-                <Loader2 className="mr-2 inline h-4 w-4 animate-spin" aria-hidden="true" />
-                Working...
-              </div>
-            </div>
+      <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <main className="flex flex-1 flex-col rounded-lg border border-line bg-[#f7f9f6] p-4 shadow-soft">
+          <ErrorNotice error={error} />
+          {failedAction ? (
+            <button
+              className="mt-3 w-fit rounded-md border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-accent"
+              data-testid="retry-save-action"
+              disabled={isBusy}
+              onClick={failedAction.retry}
+              type="button"
+            >
+              Retry {failedAction.label}
+            </button>
           ) : null}
-          <div ref={scrollRef} />
-        </div>
-      </main>
+          <div className="mt-4 flex flex-1 flex-col gap-4" data-testid="chat-transcript">
+            {visibleTranscript.map((entry) => (
+              <ChatBubble entry={entry} key={`${entry.created_at}-${entry.actor}-${entry.message_text}`} />
+            ))}
+            {activePrompt}
+            {isBusy ? (
+              <div className="flex justify-start">
+                <div className="rounded-full border border-line bg-white px-4 py-2 text-sm text-muted shadow-soft">
+                  <Loader2 className="mr-2 inline h-4 w-4 animate-spin" aria-hidden="true" />
+                  Working...
+                </div>
+              </div>
+            ) : null}
+            <div ref={scrollRef} />
+          </div>
+        </main>
+        <LearningProfilePanel profile={state.learning_profile} />
+      </div>
       <p className="mt-3 text-xs leading-5 text-muted">
         During the first three questions, the assessment records your answer, reasoning,
         confidence, and tempting-option evidence without showing correctness feedback.

@@ -51,6 +51,8 @@ const MAX_EVENT_BATCH_SIZE = 20;
 const MAX_EVENT_PAYLOAD_BYTES = 4000;
 const IDK_OPTION_LABEL = "E";
 const IDK_OPTION_TEXT = "I don't know yet.";
+const REPEATED_INVALID_RESPONSE_PROMPT =
+  "I still cannot use that as a reason. Choose one:\nA. Try writing your reason again.\nB. Mark this as 'I don't know the reason yet.'";
 
 export const InitialAdministrationStep = z.enum([
   "concept_unit_intro",
@@ -183,6 +185,95 @@ function isUniqueOrSerializationConflict(error: unknown): boolean {
 
 function stableHash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function markUnknownChoiceRequested(text: string) {
+  const lower = text.trim().toLowerCase().replace(/\s+/g, " ");
+  return (
+    lower === "b" ||
+    lower === "b." ||
+    lower === "option b" ||
+    lower === "mark unknown" ||
+    lower === "mark this as i don't know" ||
+    lower === "i don't know the reason yet"
+  );
+}
+
+function responseQualityIsInsufficientKnowledge(result: ResponseQualityResult) {
+  return result.output.response_quality === "insufficient_knowledge";
+}
+
+function unknownEvidenceText(stage: ResponseQualityStage) {
+  if (stage === "initial_tempting_reason" || stage === "transfer_tempting_reason") {
+    return "I don't know why it was tempting yet.";
+  }
+
+  if (stage === "formative_activity_response" || stage === "revision_response") {
+    return "I don't know yet.";
+  }
+
+  return "I don't know the reason yet.";
+}
+
+function safeStringList(value: unknown, fallback: string[] = []) {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+    : fallback;
+}
+
+function studentSafeLearningProfile(input: {
+  profile: {
+    ability_pattern_flags: Prisma.JsonValue;
+    reasoning_quality_summary: string;
+    confidence_alignment: string;
+    evidence_sufficiency: string;
+    created_at: Date;
+  } | null;
+  decision: {
+    formative_action_plan: string;
+  } | null;
+}) {
+  if (!input.profile) {
+    return null;
+  }
+
+  const flags = recordValue(input.profile.ability_pattern_flags);
+  const mostlyUnderstood = safeStringList(flags.main_concept_understood);
+  const stillDeveloping = safeStringList(flags.remaining_issue);
+  const needsAttention = safeStringList(flags.misconception_evidence);
+
+  if (mostlyUnderstood.length === 0 && input.profile.evidence_sufficiency === "strong") {
+    mostlyUnderstood.push("You are connecting some of the main ideas in this concept.");
+  }
+
+  if (stillDeveloping.length === 0 && input.profile.reasoning_quality_summary) {
+    stillDeveloping.push(input.profile.reasoning_quality_summary);
+  }
+
+  if (
+    input.profile.confidence_alignment === "overconfident" ||
+    input.profile.confidence_alignment === "underconfident" ||
+    input.profile.confidence_alignment === "mixed"
+  ) {
+    needsAttention.push("Check how your confidence matches the explanation you can give.");
+  }
+
+  if (input.decision?.formative_action_plan && stillDeveloping.length < 3) {
+    stillDeveloping.push(input.decision.formative_action_plan);
+  }
+
+  return {
+    mostly_understood: mostlyUnderstood.slice(0, 3),
+    still_developing: stillDeveloping.slice(0, 3),
+    needs_attention: needsAttention.slice(0, 3),
+    updated_at: input.profile.created_at.toISOString()
+  };
 }
 
 function responseMissingFields(
@@ -665,25 +756,35 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       assessmentHasValidPublishedContent(tx, assessment.id)
     );
 
-    const existingSession = await prisma.assessmentSession.findUnique({
+    const sessions = await prisma.assessmentSession.findMany({
       where: {
-        user_db_id_assessment_db_id_attempt_number: {
-          user_db_id: input.student_user_db_id,
-          assessment_db_id: assessment.id,
-          attempt_number: DEFAULT_ATTEMPT_NUMBER
-        }
+        user_db_id: input.student_user_db_id,
+        assessment_db_id: assessment.id
       },
       select: {
         session_public_id: true,
         status: true,
         current_phase: true,
-        completed_at: true
-      }
+        completed_at: true,
+        attempt_number: true,
+        created_at: true
+      },
+      orderBy: [{ attempt_number: "desc" }, { created_at: "desc" }]
     });
+    const existingSession = sessions.find(
+      (session) =>
+        session.status !== "completed" &&
+        session.current_phase !== "session_completed" &&
+        !session.completed_at
+    ) ?? null;
+    const latestCompletedSession = sessions.find(
+      (session) =>
+        session.status === "completed" ||
+        session.current_phase === "session_completed" ||
+        Boolean(session.completed_at)
+    ) ?? null;
     const completed =
-      existingSession?.status === "completed" ||
-      existingSession?.current_phase === "session_completed" ||
-      Boolean(existingSession?.completed_at);
+      !existingSession && Boolean(latestCompletedSession);
     const computed = computeAssessmentAvailability({
       assessment,
       has_valid_content: hasValidContent,
@@ -711,7 +812,10 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
           : computed.availability_state,
       existing_session_public_id: existingSession?.session_public_id ?? null,
       existing_session_status: existingSession?.status ?? null,
-      can_start: computed.can_start_new_session && !manualReviewNewStartBlocked,
+      existing_attempt_number: existingSession?.attempt_number ?? latestCompletedSession?.attempt_number ?? null,
+      latest_completed_session_public_id: latestCompletedSession?.session_public_id ?? null,
+      latest_completed_attempt_number: latestCompletedSession?.attempt_number ?? null,
+      can_start: computed.availability_state === "open" && !manualReviewNewStartBlocked,
       can_resume: Boolean(existingSession && !completed && computed.can_resume_existing_session)
     });
   }
@@ -725,6 +829,7 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
 export async function startOrResumeStudentAssessmentSession(input: {
   student_user_db_id: string;
   assessment_public_id: string;
+  new_attempt?: boolean;
 }) {
   await assertActiveStudentAccount(input.student_user_db_id);
   let lastError: unknown = null;
@@ -753,13 +858,10 @@ export async function startOrResumeStudentAssessmentSession(input: {
           }
 
           const now = new Date();
-          const existing = await tx.assessmentSession.findUnique({
+          const sessions = await tx.assessmentSession.findMany({
             where: {
-              user_db_id_assessment_db_id_attempt_number: {
-                user_db_id: input.student_user_db_id,
-                assessment_db_id: assessment.id,
-                attempt_number: DEFAULT_ATTEMPT_NUMBER
-              }
+              user_db_id: input.student_user_db_id,
+              assessment_db_id: assessment.id
             },
             select: {
               id: true,
@@ -768,24 +870,21 @@ export async function startOrResumeStudentAssessmentSession(input: {
               current_phase: true,
               resume_phase: true,
               completed_at: true,
-              current_concept_unit_db_id: true
-            }
+              current_concept_unit_db_id: true,
+              attempt_number: true
+            },
+            orderBy: [{ attempt_number: "desc" }, { created_at: "desc" }]
           });
+          const existing = input.new_attempt
+            ? null
+            : sessions.find(
+                (session) =>
+                  session.status !== "completed" &&
+                  session.current_phase !== "session_completed" &&
+                  !session.completed_at
+              ) ?? null;
 
           if (existing) {
-            if (
-              existing.status === "completed" ||
-              existing.current_phase === "session_completed" ||
-              existing.completed_at
-            ) {
-              throw new StudentAssessmentServiceError(
-                "assessment_already_completed",
-                "This assessment attempt is already completed.",
-                409,
-                { session_public_id: existing.session_public_id }
-              );
-            }
-
             const conceptUnits = existing.current_concept_unit_db_id
               ? []
               : await validPublishedConceptUnits(tx, assessment.id);
@@ -946,7 +1045,8 @@ export async function startOrResumeStudentAssessmentSession(input: {
               session_public_id: generatePublicId("session"),
               user_db_id: input.student_user_db_id,
               assessment_db_id: assessment.id,
-              attempt_number: DEFAULT_ATTEMPT_NUMBER,
+              attempt_number:
+                Math.max(DEFAULT_ATTEMPT_NUMBER - 1, ...sessions.map((session) => session.attempt_number)) + 1,
               status: "active",
               current_phase: "concept_unit_intro",
               workflow_mode_snapshot: assessment.workflow_mode,
@@ -1080,9 +1180,27 @@ async function getChatNativeRoundState(followupRoundDbId: string) {
     where: { followup_round_db_id: followupRoundDbId },
     select: {
       actor_type: true,
-      structured_payload: true
-    }
+      structured_payload: true,
+      created_at: true
+    },
+    orderBy: [{ created_at: "asc" }]
   });
+  const promptTurns = turns.filter(
+    (turn) =>
+      turn.actor_type === "agent" &&
+      conversationPayloadSource(turn.structured_payload) === "chat_native_targeted_feedback" &&
+      conversationPromptRequiresStudentResponse(turn.structured_payload)
+  );
+  const responseTurns = turns.filter(
+    (turn) =>
+      turn.actor_type === "student" &&
+      (conversationPayloadSource(turn.structured_payload) === "chat_native_revision" ||
+        conversationPayloadSource(turn.structured_payload) === "chat_native_formative_activity_response")
+  );
+  const latestPromptAt = promptTurns.at(-1)?.created_at.getTime() ?? null;
+  const latestResponseAt = responseTurns.at(-1)?.created_at.getTime() ?? null;
+  const pendingPromptResponse =
+    latestPromptAt !== null && (latestResponseAt === null || latestResponseAt < latestPromptAt);
 
   return {
     has_activity_response: turns.some(
@@ -1090,12 +1208,7 @@ async function getChatNativeRoundState(followupRoundDbId: string) {
         turn.actor_type === "student" &&
         conversationPayloadSource(turn.structured_payload) === "chat_native_formative_activity_response"
     ),
-    has_revision_prompt: turns.some(
-      (turn) =>
-        turn.actor_type === "agent" &&
-        conversationPayloadSource(turn.structured_payload) === "chat_native_targeted_feedback" &&
-        conversationPromptRequiresStudentResponse(turn.structured_payload)
-    ),
+    has_revision_prompt: pendingPromptResponse,
     has_revision_response: turns.some(
       (turn) =>
         turn.actor_type === "student" &&
@@ -1432,6 +1545,28 @@ export async function getStudentSessionState(input: {
     assessment_db_id: session.assessment_db_id,
     current_concept_unit_db_id: currentConceptUnit?.id ?? null
   });
+  const latestStudentProfile = conceptUnitSession
+    ? await prisma.studentProfile.findFirst({
+        where: { concept_unit_session_db_id: conceptUnitSession.id },
+        orderBy: [{ created_at: "desc" }],
+        select: {
+          ability_pattern_flags: true,
+          reasoning_quality_summary: true,
+          confidence_alignment: true,
+          evidence_sufficiency: true,
+          created_at: true
+        }
+      })
+    : null;
+  const latestFormativeDecision = conceptUnitSession
+    ? await prisma.formativeDecision.findFirst({
+        where: { concept_unit_session_db_id: conceptUnitSession.id },
+        orderBy: [{ created_at: "desc" }],
+        select: {
+          formative_action_plan: true
+        }
+      })
+    : null;
   const currentTemptingOptionEvidence =
     currentItem && conceptUnitSession
       ? await getLatestTemptingOptionEvidence({
@@ -1499,7 +1634,11 @@ export async function getStudentSessionState(input: {
             message_max_chars: followupConfig.message_max_chars
           }
         : null,
-    progression
+    progression,
+    learning_profile: studentSafeLearningProfile({
+      profile: latestStudentProfile,
+      decision: latestFormativeDecision
+    })
   };
 
   assertStudentPayloadIsSafe(result);
@@ -1959,6 +2098,7 @@ async function logResponseQualityResult(input: {
   selected_option?: string | null;
   event_category: string;
   agent_name?: string;
+  student_facing_message_override?: string;
 }) {
   const now = new Date();
   const payload = {
@@ -1979,6 +2119,19 @@ async function logResponseQualityResult(input: {
     payload,
     occurred_at: now
   });
+
+  if (responseQualityIsInsufficientKnowledge(input.result)) {
+    await logProcessEvent({
+      assessment_session_db_id: input.session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      item_db_id: input.item_db_id,
+      event_type: "insufficient_knowledge_marked",
+      event_category: "response_quality",
+      event_source: "backend",
+      payload,
+      occurred_at: now
+    });
+  }
 
   if (responseQualityAllowsAdvance(input.result.output)) {
     return;
@@ -2025,13 +2178,57 @@ async function logResponseQualityResult(input: {
     phase: input.phase,
     actor_type: "agent",
     agent_name: input.agent_name ?? INITIAL_ADMIN_AGENT_NAME,
-    message_text: input.result.output.student_facing_message,
+    message_text: input.student_facing_message_override ?? input.result.output.student_facing_message,
     structured_payload: {
       source: "response_quality_gate",
       message_type: "repair_prompt",
-      stage: input.stage
+      stage: input.stage,
+      repeated_invalid_response: Boolean(input.student_facing_message_override)
     },
     created_at: now
+  });
+}
+
+async function countPriorRejectedOpenTextAttempts(input: {
+  session_db_id: string;
+  concept_unit_session_db_id: string;
+  item_db_id?: string;
+  stage: ResponseQualityStage;
+}) {
+  const events = await prisma.processEvent.findMany({
+    where: {
+      assessment_session_db_id: input.session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      item_db_id: input.item_db_id,
+      event_type: "response_quality_rejected",
+      event_category: "response_quality"
+    },
+    select: { payload: true },
+    orderBy: [{ occurred_at: "desc" }, { created_at: "desc" }],
+    take: 20
+  });
+
+  return events.filter((event) => recordValue(event.payload).stage === input.stage).length;
+}
+
+async function logRepeatedInvalidResponse(input: {
+  session_db_id: string;
+  concept_unit_session_db_id: string;
+  item_db_id?: string;
+  stage: ResponseQualityStage;
+  attempt_count: number;
+}) {
+  await logProcessEvent({
+    assessment_session_db_id: input.session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    item_db_id: input.item_db_id,
+    event_type: "repeated_invalid_response",
+    event_category: "response_quality",
+    event_source: "backend",
+    payload: {
+      stage: input.stage,
+      attempt_count: input.attempt_count
+    }
   });
 }
 
@@ -2228,15 +2425,29 @@ export async function recordReasoning(input: {
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item: context.item
       });
+      const qualityStage: ResponseQualityStage = context.isTransferItem
+        ? "transfer_item_reasoning"
+        : "initial_item_reasoning";
+      const priorRejectedAttempts = await countPriorRejectedOpenTextAttempts({
+        session_db_id: context.session.id,
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id,
+        stage: qualityStage
+      });
+      const reasoningText =
+        priorRejectedAttempts > 0 && markUnknownChoiceRequested(data.reasoning_text)
+          ? unknownEvidenceText(qualityStage)
+          : data.reasoning_text;
       const qualityResult = await evaluateResponseQuality({
-        stage: context.isTransferItem ? "transfer_item_reasoning" : "initial_item_reasoning",
-        text: data.reasoning_text,
+        stage: qualityStage,
+        text: reasoningText,
         selected_option: response.selected_option,
         item_public_id: context.item.item_public_id,
         item_stem: context.item.item_stem
       });
 
       if (!responseQualityAllowsAdvance(qualityResult.output)) {
+        const repeatedAttemptCount = priorRejectedAttempts + 1;
         await logRejectedStudentText({
           session_db_id: context.session.id,
           concept_unit_session_db_id: context.conceptUnitSession.id,
@@ -2258,8 +2469,19 @@ export async function recordReasoning(input: {
           text_length: data.reasoning_text.trim().length,
           selected_option: response.selected_option,
           event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
-          agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
+          agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME,
+          student_facing_message_override:
+            repeatedAttemptCount >= 2 ? REPEATED_INVALID_RESPONSE_PROMPT : undefined
         });
+        if (repeatedAttemptCount >= 2) {
+          await logRepeatedInvalidResponse({
+            session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id,
+            stage: qualityStage,
+            attempt_count: repeatedAttemptCount
+          });
+        }
         const result = {
           action_status: "response_quality_rejected",
           state: await getStudentSessionState({
@@ -2278,18 +2500,18 @@ export async function recordReasoning(input: {
         phase: context.session.current_phase,
         stage: context.isTransferItem ? "transfer_item_reasoning" : "initial_item_reasoning",
         result: qualityResult,
-        text_length: data.reasoning_text.trim().length,
+        text_length: reasoningText.trim().length,
         selected_option: response.selected_option,
         event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
         agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
       });
       const hadReasoning = Boolean(response.reasoning_text && response.reasoning_text.trim());
-      const reasoningChanged = response.reasoning_text !== null && response.reasoning_text !== data.reasoning_text;
+      const reasoningChanged = response.reasoning_text !== null && response.reasoning_text !== reasoningText;
 
       await prisma.itemResponse.update({
         where: { id: response.id },
         data: {
-          reasoning_text: data.reasoning_text,
+          reasoning_text: reasoningText,
           skipped_reasoning: false,
           revision_count: reasoningChanged ? { increment: 1 } : undefined
         }
@@ -2309,12 +2531,13 @@ export async function recordReasoning(input: {
             ? "reasoning_revised"
             : "reasoning_entered",
         event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
-        message_text: data.reasoning_text,
+        message_text: reasoningText,
         structured_payload: {
           source: context.isTransferItem ? "transfer_reasoning" : "initial_reasoning",
           item_public_id: context.item.item_public_id,
           revised: hadReasoning,
-          item_context: context.isTransferItem ? "transfer" : "initial"
+          item_context: context.isTransferItem ? "transfer" : "initial",
+          response_quality: qualityResult.output.response_quality
         }
       });
       await logProcessEvent({
@@ -2327,8 +2550,9 @@ export async function recordReasoning(input: {
         payload: {
           item_public_id: context.item.item_public_id,
           revised: hadReasoning,
-          reasoning_length: data.reasoning_text.trim().length,
-          item_context: context.isTransferItem ? "transfer" : "initial"
+          reasoning_length: reasoningText.trim().length,
+          item_context: context.isTransferItem ? "transfer" : "initial",
+          response_quality: qualityResult.output.response_quality
         }
       });
       await logInitialAgentPrompt({
@@ -2524,9 +2748,22 @@ export async function recordTemptingOption(input: {
       const temptingOption = noTemptingOption
         ? null
         : data.tempting_option?.trim() || previousEvidence?.tempting_option || null;
-      const temptingOptionReason = noTemptingOption
+      const initialTemptingOptionReason = noTemptingOption
         ? null
         : data.tempting_option_reason?.trim() || null;
+      const qualityStage: ResponseQualityStage = context.isTransferItem
+        ? "transfer_tempting_reason"
+        : "initial_tempting_reason";
+      const priorRejectedAttempts = await countPriorRejectedOpenTextAttempts({
+        session_db_id: context.session.id,
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item_db_id: context.item.id,
+        stage: qualityStage
+      });
+      const temptingOptionReason =
+        initialTemptingOptionReason && priorRejectedAttempts > 0 && markUnknownChoiceRequested(initialTemptingOptionReason)
+          ? unknownEvidenceText(qualityStage)
+          : initialTemptingOptionReason;
 
       if (!noTemptingOption && !temptingOption) {
         throw new StudentAssessmentServiceError(
@@ -2555,7 +2792,7 @@ export async function recordTemptingOption(input: {
 
       if (temptingOptionReason) {
         const qualityResult = await evaluateResponseQuality({
-          stage: context.isTransferItem ? "transfer_tempting_reason" : "initial_tempting_reason",
+          stage: qualityStage,
           text: temptingOptionReason,
           selected_option: temptingOption,
           item_public_id: context.item.item_public_id,
@@ -2563,6 +2800,7 @@ export async function recordTemptingOption(input: {
         });
 
         if (!responseQualityAllowsAdvance(qualityResult.output)) {
+          const repeatedAttemptCount = priorRejectedAttempts + 1;
           await logRejectedStudentText({
             session_db_id: context.session.id,
             concept_unit_session_db_id: context.conceptUnitSession.id,
@@ -2584,8 +2822,19 @@ export async function recordTemptingOption(input: {
             text_length: temptingOptionReason.length,
             selected_option: temptingOption,
             event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
-            agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
+            agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME,
+            student_facing_message_override:
+              repeatedAttemptCount >= 2 ? REPEATED_INVALID_RESPONSE_PROMPT : undefined
           });
+          if (repeatedAttemptCount >= 2) {
+            await logRepeatedInvalidResponse({
+              session_db_id: context.session.id,
+              concept_unit_session_db_id: context.conceptUnitSession.id,
+              item_db_id: context.item.id,
+              stage: qualityStage,
+              attempt_count: repeatedAttemptCount
+            });
+          }
           const result = {
             action_status: "response_quality_rejected",
             state: await getStudentSessionState({

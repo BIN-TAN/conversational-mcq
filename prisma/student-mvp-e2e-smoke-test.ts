@@ -105,6 +105,14 @@ async function runScenario(input: {
       assessment_public_id: demoAssessmentPublicId
     });
     sessionPublicIds.push(started.session.session_public_id);
+    const resumed = await startOrResumeStudentAssessmentSession({
+      student_user_db_id: student.id,
+      assessment_public_id: demoAssessmentPublicId
+    });
+    assert(
+      resumed.session.session_public_id === started.session.session_public_id,
+      `${input.scenario}: active attempt should resume by default.`
+    );
 
     let state = await startConceptUnitInitialAdministration({
       student_user_db_id: student.id,
@@ -171,7 +179,7 @@ async function runScenario(input: {
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
       message:
-        "Item difficulty describes item location; theta describes the student on the latent trait scale.",
+        "Theta describes the student on the linked latent trait scale, while item parameters describe item behavior.",
       client_message_id: `${prefix}_revision`
     });
     assert(revision.state.assessment_state === "NEXT_CHOICE", `${input.scenario}: expected next choice.`);
@@ -360,6 +368,20 @@ async function runScenario(input: {
       scenario: input.scenario,
       sessionPublicId: started.session.session_public_id
     });
+    const newAttempt = await startOrResumeStudentAssessmentSession({
+      student_user_db_id: student.id,
+      assessment_public_id: demoAssessmentPublicId,
+      new_attempt: true
+    });
+    sessionPublicIds.push(newAttempt.session.session_public_id);
+    assert(
+      newAttempt.session.session_public_id !== started.session.session_public_id,
+      `${input.scenario}: completed attempt should not be overwritten.`
+    );
+    assert(
+      newAttempt.session.attempt_number > started.session.attempt_number,
+      `${input.scenario}: new attempt should increment attempt number.`
+    );
 
     return {
       scenario: input.scenario,

@@ -292,7 +292,7 @@ async function main() {
     const revision = await submitRevisionResponse({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
-      message: "Item difficulty describes the item; theta describes the person on the latent trait scale.",
+      message: "Theta describes the person on the linked latent trait scale, while item parameters describe item behavior.",
       client_message_id: `${prefix}_revision_response`
     });
     assert(revision.revision_status === "saved", "Revision was not saved.");
@@ -349,7 +349,10 @@ async function main() {
       where: { concept_unit_session_db_id: conceptUnitSession.id },
       orderBy: [{ round_index: "desc" }]
     });
-    assert(round.status === "completed", "Round should be completed after revision.");
+    assert(
+      round.status === "stopped" || round.status === "completed",
+      "Round should be ready for next choice after revision."
+    );
 
     console.log("Phase 6 targeted feedback smoke test passed. No OpenAI calls are made by this script.");
   } finally {

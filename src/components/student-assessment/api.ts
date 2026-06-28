@@ -139,11 +139,12 @@ export function fetchAvailableAssessments(): Promise<AvailableAssessmentsRespons
 }
 
 export function startAssessmentSession(
-  assessmentPublicId: string
+  assessmentPublicId: string,
+  options?: { newAttempt?: boolean }
 ): Promise<StartSessionResponse> {
   return post(
     `/api/student/assessments/${assessmentPublicId}/sessions/start`,
-    {},
+    options?.newAttempt ? { new_attempt: true } : {},
     (value) => StartSessionResponseSchema.parse(value)
   );
 }

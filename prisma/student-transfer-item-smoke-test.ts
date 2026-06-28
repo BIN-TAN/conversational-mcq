@@ -216,7 +216,7 @@ async function main() {
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
       message:
-        "Item difficulty describes an item; theta describes the student on the latent trait scale.",
+        "Theta describes the student on the linked latent trait scale, while item parameters describe item behavior.",
       client_message_id: `${prefix}_revision`
     });
     assert(revision.state.assessment_state === "NEXT_CHOICE", "Expected next choice after revision.");
@@ -308,12 +308,28 @@ async function main() {
         session_public_id: started.session.session_public_id,
         item_public_id: transferItem.item_public_id,
         data: {
-          tempting_option_reason: "It sounded plausible because it mentioned the item difficulty mix.",
-          client_action_id: `${prefix}_transfer_tempting_reason`
+          tempting_option_reason: "asdf",
+          client_action_id: `${prefix}_transfer_bad_tempting_reason`
         }
       })
     ).state;
-    assert(state.assessment_state === "SESSION_COMPLETE", "Transfer completion should complete the session.");
+    assert(
+      state.assessment_state === "AWAIT_TEMPTING_REASON",
+      "Bad transfer tempting-option reason should not complete the session."
+    );
+
+    state = (
+      await recordTemptingOption({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        item_public_id: transferItem.item_public_id,
+        data: {
+          tempting_option_reason: "B",
+          client_action_id: `${prefix}_transfer_unknown_tempting_reason`
+        }
+      })
+    ).state;
+    assert(state.assessment_state === "SESSION_COMPLETE", "Unknown transfer tempting reason should complete the session.");
 
     const session = await prisma.assessmentSession.findUniqueOrThrow({
       where: { session_public_id: started.session.session_public_id },
@@ -391,6 +407,11 @@ async function main() {
     ]) {
       assert((eventCounts[expected] ?? 0) > 0, `Missing transfer process event ${expected}.`);
     }
+    assert((eventCounts.response_quality_rejected ?? 0) > 0, "Bad transfer tempting reason should be rejected.");
+    assert(
+      (eventCounts.insufficient_knowledge_marked ?? 0) > 0,
+      "Unknown transfer tempting reason should be logged."
+    );
 
     const transcript = await getStudentSafeTranscript({
       student_user_db_id: student.id,

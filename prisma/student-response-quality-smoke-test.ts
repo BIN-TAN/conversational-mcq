@@ -49,6 +49,7 @@ async function assertStudentComponentQualityShape() {
   assert(agentItemSource.includes("<button"), "Answer option cards should be buttons.");
   assert(!agentItemSource.includes("<OptionChip"), "Answer selection should not render separate A-D chips.");
   assert(source.includes("in-flow-edit-panel"), "In-flow edit affordance is missing.");
+  assert(source.includes("Current learning profile"), "Student-safe learning profile panel is missing.");
   assert(!source.includes("submit-item"), "Initial item-level submit should not return.");
 }
 
@@ -141,19 +142,29 @@ async function main() {
     });
     assert(!response.reasoning_text, "Rejected reasoning should not be stored on item_responses.");
 
-    const usableReasoning = "It is hard to decide because the choices use similar theta and item parameter language.";
     state = (
       await recordReasoning({
         student_user_db_id: student.id,
         session_public_id: started.session.session_public_id,
         item_public_id: firstItem.item_public_id,
         data: {
-          reasoning_text: usableReasoning,
-          client_action_id: `${prefix}_usable_reason`
+          reasoning_text: "B",
+          client_action_id: `${prefix}_mark_unknown_reason`
         }
       })
     ).state;
-    assert(state.assessment_state === "AWAIT_CONFIDENCE", "Usable reasoning should advance.");
+    assert(state.assessment_state === "AWAIT_CONFIDENCE", "Marking unknown reasoning should advance.");
+    response = await prisma.itemResponse.findFirstOrThrow({
+      where: {
+        item: { item_public_id: firstItem.item_public_id },
+        concept_unit_session: { assessment_session: { session_public_id: started.session.session_public_id } }
+      },
+      select: { correctness: true, reasoning_text: true }
+    });
+    assert(
+      response.reasoning_text === "I don't know the reason yet.",
+      "Unknown reasoning choice should be stored explicitly."
+    );
 
     const editedReasoning =
       "It is hard because I can tell theta belongs to the person, but the item parameter wording is still close.";
@@ -253,6 +264,8 @@ async function main() {
     assert((counts.idk_selected ?? 0) > 0, "idk_selected event missing.");
     assert((counts.response_quality_checked ?? 0) >= 4, "response_quality_checked events missing.");
     assert((counts.response_quality_rejected ?? 0) >= 3, "response_quality_rejected events missing.");
+    assert((counts.repeated_invalid_response ?? 0) > 0, "Repeated invalid response event missing.");
+    assert((counts.insufficient_knowledge_marked ?? 0) > 0, "Insufficient knowledge event missing.");
     assert((counts.student_response_edit_submitted ?? 0) > 0, "In-flow edit event missing.");
     assert((counts.reasoning_edited ?? 0) > 0, "Reasoning edit event missing.");
     assert((counts.clarification_answered ?? 0) > 0, "Clarification event missing.");

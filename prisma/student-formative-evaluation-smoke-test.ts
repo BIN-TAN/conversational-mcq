@@ -97,6 +97,13 @@ async function runScenario(scenario: Scenario) {
       `${scenario.name}: expected ${scenario.expectedStateAfterActivity} after formative activity; got ${activity.state.assessment_state}.`
     );
     assertStudentVisibleTextIsSafe(activity.state);
+    if (scenario.expectedStateAfterActivity !== "FORMATIVE_ACTIVITY") {
+      assert(activity.state.learning_profile, `${scenario.name}: learning profile should be visible after evaluation.`);
+      assert(
+        JSON.stringify(activity.state.learning_profile).toLowerCase().includes("engagement") === false,
+        `${scenario.name}: student learning profile should not expose engagement labels.`
+      );
+    }
 
     const session = await prisma.assessmentSession.findUniqueOrThrow({
       where: { session_public_id: sessionPublicId },
@@ -205,6 +212,52 @@ async function runScenario(scenario: Scenario) {
   }
 }
 
+async function runMaxLoopGuardScenario() {
+  const prefix = `phase14_max_loop_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const { student, sessionPublicIds, sessionPublicId } = await startScenario(prefix);
+
+  try {
+    for (const [index, message] of ["weather", "pizza", "movie"].entries()) {
+      const response = await submitFormativeActivityResponse({
+        student_user_db_id: student.id,
+        session_public_id: sessionPublicId,
+        message,
+        client_message_id: `${prefix}_invalid_${index}`
+      });
+
+      if (index < 2) {
+        assert(
+          response.state.assessment_state === "FORMATIVE_ACTIVITY",
+          "Max-loop scenario should stay on formative activity before the guard."
+        );
+      } else {
+        assert(
+          response.state.assessment_state === "NEXT_CHOICE",
+          "Third unusable formative response should trigger the max-loop next choice."
+        );
+      }
+    }
+
+    const session = await prisma.assessmentSession.findUniqueOrThrow({
+      where: { session_public_id: sessionPublicId },
+      select: { id: true }
+    });
+    const events = await prisma.processEvent.findMany({
+      where: { assessment_session_db_id: session.id },
+      select: { event_type: true }
+    });
+    const counts = eventCounts(events);
+    assert((counts.repeated_invalid_response ?? 0) > 0, "Max-loop scenario missing repeated invalid event.");
+    assert((counts.formative_loop_guard_triggered ?? 0) > 0, "Max-loop guard event missing.");
+  } finally {
+    await cleanupSmokeStudentSessions({
+      prisma,
+      userDbId: student.id,
+      sessionPublicIds
+    });
+  }
+}
+
 async function main() {
   process.env.LLM_PROVIDER = "mock";
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
@@ -246,6 +299,7 @@ async function main() {
   for (const scenario of scenarios) {
     await runScenario(scenario);
   }
+  await runMaxLoopGuardScenario();
 
   console.log("Phase 12 formative activity evaluation smoke test passed. No OpenAI calls are made by this script.");
 }

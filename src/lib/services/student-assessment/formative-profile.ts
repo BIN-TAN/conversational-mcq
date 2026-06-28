@@ -181,6 +181,11 @@ const IDK_OPTION_LABEL = "E";
 const IDK_OPTION_TEXT = "I don't know yet.";
 const MAX_FORMATIVE_RESPONSE_CHARS = 5000;
 const MAX_REVISION_CHARS = 5000;
+const MAX_FORMATIVE_REPAIR_TURNS = 3;
+const REPEATED_INVALID_RESPONSE_PROMPT =
+  "I still cannot use that as a reason. Choose one:\nA. Try writing your reason again.\nB. Mark this as 'I don't know the reason yet.'";
+const MAX_LOOP_GUARD_MESSAGE =
+  "This concept may need more practice. You can try another question on the same idea or move on for now.";
 
 function prismaJson(value: unknown) {
   return toPrismaJson(value) ?? Prisma.JsonNull;
@@ -303,6 +308,26 @@ function jsonRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function markUnknownChoiceRequested(text: string) {
+  const lower = text.trim().toLowerCase().replace(/\s+/g, " ");
+  return (
+    lower === "b" ||
+    lower === "b." ||
+    lower === "option b" ||
+    lower === "mark unknown" ||
+    lower === "mark this as i don't know" ||
+    lower === "i don't know the reason yet"
+  );
+}
+
+function responseQualityIsInsufficientKnowledge(result: ResponseQualityResult) {
+  return result.output.response_quality === "insufficient_knowledge";
+}
+
+function unknownEvidenceText(stage: ResponseQualityStage) {
+  return stage === "revision_response" ? "I don't know the reason yet." : "I don't know yet.";
 }
 
 function stringValue(record: Record<string, unknown>, key: string): string | null {
@@ -481,6 +506,8 @@ function deterministicTargetedFeedbackOutput(message = ""): ChatNativeTargetedFe
   const offTopic = /\b(lunch|weather|movie|game|unrelated)\b/.test(lower);
   const mentionsDiscrimination =
     /\b(discrimination|slope|steeper|sharper|icc|information|precision)\b/.test(lower);
+  const mentionsItemParameters =
+    /\b(item parameter|item parameters|difficulty|item behavior|item behaves)\b/.test(lower);
   const anchorsTheta = /\b(theta|person|latent trait|ability)\b/.test(lower);
   const saysComparable =
     /\b(comparable|linked|same scale|location|meaning|stays|remain|stable)\b/.test(lower);
@@ -547,7 +574,11 @@ function deterministicTargetedFeedbackOutput(message = ""): ChatNativeTargetedFe
     };
   }
 
-  if (mentionsDiscrimination && anchorsTheta && saysComparable) {
+  if (
+    (mentionsDiscrimination || (mentionsItemParameters && /\b(item behavior|item behaves)\b/.test(lower))) &&
+    anchorsTheta &&
+    saysComparable
+  ) {
     return {
       learning_profile: {
         concept_mastery: "strong",
@@ -633,6 +664,7 @@ async function logFormativeResponseQuality(input: {
   stage: ResponseQualityStage;
   result: ResponseQualityResult;
   text_length: number;
+  student_facing_message_override?: string;
 }) {
   const now = new Date();
   const payload = {
@@ -650,6 +682,18 @@ async function logFormativeResponseQuality(input: {
     payload,
     occurred_at: now
   });
+
+  if (responseQualityIsInsufficientKnowledge(input.result)) {
+    await logProcessEvent({
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      event_type: "insufficient_knowledge_marked",
+      event_category: "response_quality",
+      event_source: "backend",
+      payload,
+      occurred_at: now
+    });
+  }
 
   if (responseQualityAllowsAdvance(input.result.output)) {
     return;
@@ -694,13 +738,149 @@ async function logFormativeResponseQuality(input: {
     phase: input.phase,
     actor_type: "agent",
     agent_name: "chat_native_response_quality_gate",
-    message_text: input.result.output.student_facing_message,
+    message_text: input.student_facing_message_override ?? input.result.output.student_facing_message,
     structured_payload: prismaJson({
       source: "response_quality_gate",
       message_type: "repair_prompt",
-      stage: input.stage
+      stage: input.stage,
+      repeated_invalid_response: Boolean(input.student_facing_message_override)
     }),
     created_at: now
+  });
+}
+
+async function countPriorFormativeRejectedAttempts(input: {
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string;
+  stage: ResponseQualityStage;
+}) {
+  const events = await prisma.processEvent.findMany({
+    where: {
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      event_type: "response_quality_rejected",
+      event_category: "response_quality"
+    },
+    select: { payload: true },
+    orderBy: [{ occurred_at: "desc" }, { created_at: "desc" }],
+    take: 20
+  });
+
+  return events.filter((event) => jsonRecord(event.payload).stage === input.stage).length;
+}
+
+async function logRepeatedFormativeInvalidResponse(input: {
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string;
+  stage: ResponseQualityStage;
+  attempt_count: number;
+}) {
+  await logProcessEvent({
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    event_type: "repeated_invalid_response",
+    event_category: "response_quality",
+    event_source: "backend",
+    payload: {
+      stage: input.stage,
+      attempt_count: input.attempt_count
+    }
+  });
+}
+
+async function stopFollowupForMaxLoopGuard(input: {
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string;
+  followup_round_db_id: string;
+  stage: ResponseQualityStage;
+  attempt_count: number;
+}) {
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    const existingPrompt = await tx.conversationTurn.findFirst({
+      where: {
+        followup_round_db_id: input.followup_round_db_id,
+        actor_type: "agent",
+        structured_payload: {
+          path: ["source"],
+          equals: "chat_native_formative_loop_guard"
+        }
+      },
+      select: { id: true }
+    });
+
+    if (!existingPrompt) {
+      await tx.conversationTurn.create({
+        data: {
+          assessment_session_db_id: input.assessment_session_db_id,
+          concept_unit_session_db_id: input.concept_unit_session_db_id,
+          followup_round_db_id: input.followup_round_db_id,
+          phase: "followup_active",
+          actor_type: "agent",
+          agent_name: "chat_native_formative_loop_guard",
+          message_text: MAX_LOOP_GUARD_MESSAGE,
+          structured_payload: prismaJson({
+            source: "chat_native_formative_loop_guard",
+            message_type: "max_loop_guard",
+            stage: input.stage,
+            attempt_count: input.attempt_count
+          }),
+          created_at: now
+        }
+      });
+    }
+
+    await tx.followupRound.update({
+      where: { id: input.followup_round_db_id },
+      data: {
+        status: "stopped",
+        completed_at: now
+      }
+    });
+    await tx.conceptUnitSession.update({
+      where: { id: input.concept_unit_session_db_id },
+      data: {
+        status: "followup_completed",
+        followup_status: "stopped",
+        followup_completed_at: now
+      }
+    });
+  });
+
+  await updateAssessmentSessionPhase({
+    assessment_session_db_id: input.assessment_session_db_id,
+    to_phase: "followup_stopped",
+    reason: "chat_native_formative_loop_guard",
+    payload: {
+      stage: input.stage,
+      attempt_count: input.attempt_count
+    }
+  });
+  await logProcessEvent({
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    event_type: "formative_loop_guard_triggered",
+    event_category: "formative_loop",
+    event_source: "backend",
+    payload: {
+      stage: input.stage,
+      attempt_count: input.attempt_count,
+      max_attempts: MAX_FORMATIVE_REPAIR_TURNS
+    },
+    occurred_at: now
+  });
+  await logProcessEvent({
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    event_type: "next_choice_shown",
+    event_category: "next_choice",
+    event_source: "backend",
+    payload: {
+      reason: "max_formative_repair_turns",
+      options: ["move_to_next_concept", "try_another_question_same_idea"]
+    },
+    occurred_at: now
   });
 }
 
@@ -1252,31 +1432,6 @@ function safeDecisionForProvider(decision: {
   };
 }
 
-async function latestStudentTurnForRound(input: {
-  followup_round_db_id: string;
-  source: string;
-}) {
-  const turns = await prisma.conversationTurn.findMany({
-    where: {
-      followup_round_db_id: input.followup_round_db_id,
-      actor_type: "student"
-    },
-    orderBy: [{ created_at: "desc" }],
-    select: {
-      id: true,
-      message_text: true,
-      structured_payload: true,
-      created_at: true
-    },
-    take: 20
-  });
-
-  return turns.find((turn) => {
-    const payload = jsonRecord(turn.structured_payload);
-    return payload.source === input.source;
-  }) ?? null;
-}
-
 async function targetedFeedbackAlreadyShown(roundDbId: string) {
   const turn = await prisma.conversationTurn.findFirst({
     where: {
@@ -1453,9 +1608,15 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
   concept_unit_session_db_id: string;
   followup_round_db_id: string;
   activity_response_turn_db_id: string;
+  trigger_kind?: "activity_response" | "revision_response";
 }) {
-  if (await targetedFeedbackAlreadyShown(input.followup_round_db_id)) {
-    return { status: "already_created" as const };
+  const triggerKind = input.trigger_kind ?? "activity_response";
+
+  if (
+    triggerKind === "activity_response" &&
+    (await targetedFeedbackAlreadyShown(input.followup_round_db_id))
+  ) {
+    return { status: "already_created" as const, next_action: null };
   }
 
   const [responsePackage, profile, decision, activityResponseTurn] = await Promise.all([
@@ -1562,7 +1723,11 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
     const alreadyCreated = await tx.conversationTurn.findFirst({
       where: {
         followup_round_db_id: input.followup_round_db_id,
-        agent_name: TARGETED_FEEDBACK_AGENT_NAME
+        agent_name: TARGETED_FEEDBACK_AGENT_NAME,
+        structured_payload: {
+          path: ["based_on_agent_call_id"],
+          equals: feedbackResult.agent_call_id
+        }
       },
       select: { id: true }
     });
@@ -2261,19 +2426,30 @@ export async function submitChatNativeFormativeActivityResponse(input: {
     });
   }
 
+  const qualityStage: ResponseQualityStage = "formative_activity_response";
+  const priorRejectedAttempts = await countPriorFormativeRejectedAttempts({
+    assessment_session_db_id: session.id,
+    concept_unit_session_db_id: conceptUnitSession.id,
+    stage: qualityStage
+  });
+  const submittedMessage =
+    priorRejectedAttempts > 0 && markUnknownChoiceRequested(message)
+      ? unknownEvidenceText(qualityStage)
+      : message;
   const qualityResult = await evaluateResponseQuality({
     stage: "formative_activity_response",
-    text: message
+    text: submittedMessage
   });
 
   if (!responseQualityAllowsAdvance(qualityResult.output)) {
+    const repeatedAttemptCount = priorRejectedAttempts + 1;
     await logConversationTurn({
       assessment_session_db_id: session.id,
       concept_unit_session_db_id: conceptUnitSession.id,
       followup_round_db_id: round.id,
       phase: "planning_completed",
       actor_type: "student",
-      message_text: message,
+      message_text: submittedMessage,
       structured_payload: {
         source: "chat_native_formative_activity_response_quality_rejected",
         client_message_id: input.client_message_id,
@@ -2289,7 +2465,7 @@ export async function submitChatNativeFormativeActivityResponse(input: {
       payload: {
         source: "chat_native_formative_activity",
         client_message_id: input.client_message_id,
-        response_length: message.length,
+        response_length: submittedMessage.length,
         validation_status: "response_quality_rejected"
       }
     });
@@ -2300,12 +2476,33 @@ export async function submitChatNativeFormativeActivityResponse(input: {
       phase: "planning_completed",
       stage: "formative_activity_response",
       result: qualityResult,
-      text_length: message.length
+      text_length: submittedMessage.length,
+      student_facing_message_override:
+        repeatedAttemptCount >= 2 ? REPEATED_INVALID_RESPONSE_PROMPT : undefined
     });
+    if (repeatedAttemptCount >= 2) {
+      await logRepeatedFormativeInvalidResponse({
+        assessment_session_db_id: session.id,
+        concept_unit_session_db_id: conceptUnitSession.id,
+        stage: qualityStage,
+        attempt_count: repeatedAttemptCount
+      });
+    }
+
+    if (repeatedAttemptCount >= MAX_FORMATIVE_REPAIR_TURNS) {
+      await stopFollowupForMaxLoopGuard({
+        assessment_session_db_id: session.id,
+        concept_unit_session_db_id: conceptUnitSession.id,
+        followup_round_db_id: round.id,
+        stage: qualityStage,
+        attempt_count: repeatedAttemptCount
+      });
+    }
 
     const response = {
       message_status: "response_quality_rejected",
-      targeted_feedback_available: false
+      targeted_feedback_available: false,
+      next_choice_available: repeatedAttemptCount >= MAX_FORMATIVE_REPAIR_TURNS
     };
 
     await prisma.studentActionIdempotencyKey.update({
@@ -2323,7 +2520,7 @@ export async function submitChatNativeFormativeActivityResponse(input: {
     phase: "planning_completed",
     stage: "formative_activity_response",
     result: qualityResult,
-    text_length: message.length
+    text_length: submittedMessage.length
   });
 
   const responseTurn = await logConversationTurn({
@@ -2332,10 +2529,11 @@ export async function submitChatNativeFormativeActivityResponse(input: {
     followup_round_db_id: round.id,
     phase: "planning_completed",
     actor_type: "student",
-    message_text: message,
+    message_text: submittedMessage,
     structured_payload: {
       source: "chat_native_formative_activity_response",
-      client_message_id: input.client_message_id
+      client_message_id: input.client_message_id,
+      response_quality: qualityResult.output.response_quality
     }
   });
   await logProcessEvent({
@@ -2347,7 +2545,8 @@ export async function submitChatNativeFormativeActivityResponse(input: {
     payload: {
       source: "chat_native_formative_activity",
       client_message_id: input.client_message_id,
-      response_length: message.length
+      response_length: submittedMessage.length,
+      response_quality: qualityResult.output.response_quality
     }
   });
   const feedback = await ensureTargetedFeedbackAndRevisionPrompt({
@@ -2488,19 +2687,6 @@ export async function submitChatNativeRevisionResponse(input: {
     );
   }
 
-  const existingRevision = await latestStudentTurnForRound({
-    followup_round_db_id: round.id,
-    source: "chat_native_revision"
-  });
-
-  if (existingRevision) {
-    throw new StudentAssessmentServiceError(
-      "conflict",
-      "A revision has already been submitted for this activity.",
-      409
-    );
-  }
-
   if (!existingKey) {
     await prisma.studentActionIdempotencyKey.create({
       data: {
@@ -2515,19 +2701,30 @@ export async function submitChatNativeRevisionResponse(input: {
   }
 
   const now = new Date();
+  const qualityStage: ResponseQualityStage = "revision_response";
+  const priorRejectedAttempts = await countPriorFormativeRejectedAttempts({
+    assessment_session_db_id: session.id,
+    concept_unit_session_db_id: conceptUnitSession.id,
+    stage: qualityStage
+  });
+  const submittedMessage =
+    priorRejectedAttempts > 0 && markUnknownChoiceRequested(message)
+      ? unknownEvidenceText(qualityStage)
+      : message;
   const qualityResult = await evaluateResponseQuality({
     stage: "revision_response",
-    text: message
+    text: submittedMessage
   });
 
   if (!responseQualityAllowsAdvance(qualityResult.output)) {
+    const repeatedAttemptCount = priorRejectedAttempts + 1;
     await logConversationTurn({
       assessment_session_db_id: session.id,
       concept_unit_session_db_id: conceptUnitSession.id,
       followup_round_db_id: round.id,
       phase: "followup_active",
       actor_type: "student",
-      message_text: message,
+      message_text: submittedMessage,
       structured_payload: {
         source: "chat_native_revision_quality_rejected",
         client_message_id: input.client_message_id,
@@ -2544,7 +2741,7 @@ export async function submitChatNativeRevisionResponse(input: {
       payload: {
         source: "chat_native_revision",
         client_message_id: input.client_message_id,
-        response_length: message.length,
+        response_length: submittedMessage.length,
         validation_status: "response_quality_rejected"
       },
       occurred_at: now
@@ -2556,12 +2753,32 @@ export async function submitChatNativeRevisionResponse(input: {
       phase: "followup_active",
       stage: "revision_response",
       result: qualityResult,
-      text_length: message.length
+      text_length: submittedMessage.length,
+      student_facing_message_override:
+        repeatedAttemptCount >= 2 ? REPEATED_INVALID_RESPONSE_PROMPT : undefined
     });
+    if (repeatedAttemptCount >= 2) {
+      await logRepeatedFormativeInvalidResponse({
+        assessment_session_db_id: session.id,
+        concept_unit_session_db_id: conceptUnitSession.id,
+        stage: qualityStage,
+        attempt_count: repeatedAttemptCount
+      });
+    }
+
+    if (repeatedAttemptCount >= MAX_FORMATIVE_REPAIR_TURNS) {
+      await stopFollowupForMaxLoopGuard({
+        assessment_session_db_id: session.id,
+        concept_unit_session_db_id: conceptUnitSession.id,
+        followup_round_db_id: round.id,
+        stage: qualityStage,
+        attempt_count: repeatedAttemptCount
+      });
+    }
 
     const response = {
       revision_status: "response_quality_rejected",
-      next_choice_available: false
+      next_choice_available: repeatedAttemptCount >= MAX_FORMATIVE_REPAIR_TURNS
     };
 
     await prisma.studentActionIdempotencyKey.update({
@@ -2579,19 +2796,20 @@ export async function submitChatNativeRevisionResponse(input: {
     phase: "followup_active",
     stage: "revision_response",
     result: qualityResult,
-    text_length: message.length
+    text_length: submittedMessage.length
   });
 
-  await logConversationTurn({
+  const revisionTurn = await logConversationTurn({
     assessment_session_db_id: session.id,
     concept_unit_session_db_id: conceptUnitSession.id,
     followup_round_db_id: round.id,
     phase: "followup_active",
     actor_type: "student",
-    message_text: message,
+    message_text: submittedMessage,
     structured_payload: {
       source: "chat_native_revision",
-      client_message_id: input.client_message_id
+      client_message_id: input.client_message_id,
+      response_quality: qualityResult.output.response_quality
     },
     created_at: now
   });
@@ -2604,45 +2822,24 @@ export async function submitChatNativeRevisionResponse(input: {
     payload: {
       source: "chat_native_revision",
       client_message_id: input.client_message_id,
-      response_length: message.length
-    },
-    occurred_at: now
-  });
-  await prisma.followupRound.update({
-    where: { id: round.id },
-    data: {
-      status: "completed",
-      completed_at: now
-    }
-  });
-  await prisma.conceptUnitSession.update({
-    where: { id: conceptUnitSession.id },
-    data: {
-      status: "followup_completed",
-      followup_status: "completed",
-      followup_completed_at: now
-    }
-  });
-  await updateAssessmentSessionPhase({
-    assessment_session_db_id: session.id,
-    to_phase: "followup_stopped",
-    reason: "chat_native_revision_submitted"
-  });
-  await logProcessEvent({
-    assessment_session_db_id: session.id,
-    concept_unit_session_db_id: conceptUnitSession.id,
-    event_type: "next_choice_shown",
-    event_category: "next_choice",
-    event_source: "backend",
-    payload: {
-      options: ["move_to_next_concept", "try_another_question_same_idea"]
+      response_length: submittedMessage.length,
+      response_quality: qualityResult.output.response_quality
     },
     occurred_at: now
   });
 
+  const feedback = await ensureTargetedFeedbackAndRevisionPrompt({
+    assessment_session_db_id: session.id,
+    concept_unit_session_db_id: conceptUnitSession.id,
+    followup_round_db_id: round.id,
+    activity_response_turn_db_id: revisionTurn.id,
+    trigger_kind: "revision_response"
+  });
+
   const response = {
     revision_status: "saved",
-    next_choice_available: true
+    next_choice_available: feedback.next_action === "confirm_and_next_choice" || feedback.next_action === "offer_transfer",
+    targeted_feedback_status: feedback.status
   };
 
   await prisma.studentActionIdempotencyKey.update({

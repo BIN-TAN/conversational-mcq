@@ -45,6 +45,9 @@ export const AvailableAssessmentSchema = StudentAssessmentSummarySchema.extend({
   student_safe_availability_message: z.string(),
   existing_session_public_id: z.string().nullable(),
   existing_session_status: z.string().nullable(),
+  existing_attempt_number: z.number().nullable().optional(),
+  latest_completed_session_public_id: z.string().nullable().optional(),
+  latest_completed_attempt_number: z.number().nullable().optional(),
   can_start: z.boolean(),
   can_resume: z.boolean()
 });
@@ -72,6 +75,14 @@ export const StudentProgressionSchema = z.object({
   processing: z.boolean()
 });
 export type StudentProgression = z.infer<typeof StudentProgressionSchema>;
+
+export const StudentLearningProfileSchema = z.object({
+  mostly_understood: z.array(z.string()),
+  still_developing: z.array(z.string()),
+  needs_attention: z.array(z.string()),
+  updated_at: z.string()
+});
+export type StudentLearningProfile = z.infer<typeof StudentLearningProfileSchema>;
 
 export const StudentSessionStateSchema = z.object({
   session_public_id: z.string(),
@@ -145,6 +156,7 @@ export const StudentSessionStateSchema = z.object({
     .nullable()
     .optional(),
   progression: StudentProgressionSchema.nullable().optional(),
+  learning_profile: StudentLearningProfileSchema.nullable().optional(),
   session: z
     .object({
       session_public_id: z.string(),

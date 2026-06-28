@@ -6,6 +6,7 @@ import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 
 export const ResponseQualitySchema = z.enum([
   "adequate",
+  "insufficient_knowledge",
   "incomplete",
   "too_short",
   "off_topic",
@@ -91,6 +92,15 @@ const CONTENT_DEFER_MESSAGE =
   "I can address that after the three questions. For now, please give your best answer and reasoning.";
 const FORMATIVE_REPAIR_MESSAGE =
   "I could not use that response for the activity. Please answer the current question in your own words.";
+const UNKNOWN_REASON_PATTERNS = [
+  /\bi\s*(do not|don't|dont)\s+know\b/,
+  /\bi\s*(do not|don't|dont)\s+know\s+(the\s+)?reason\b/,
+  /\bnot\s+sure\s+why\b/,
+  /\bi\s+cannot\s+explain\b/,
+  /\bi\s+can't\s+explain\b/,
+  /\bidk\b/,
+  /\bno\s+idea\b/
+];
 
 function normalized(text: string) {
   return text.trim().replace(/\s+/g, " ");
@@ -129,6 +139,10 @@ function isProceduralQuestion(lower: string) {
 
 function isOffTopic(lower: string) {
   return /\b(lunch|weather|movie|game|sports|song|pizza|vacation|unrelated|joke)\b/.test(lower);
+}
+
+function isInsufficientKnowledgeStatement(lower: string) {
+  return UNKNOWN_REASON_PATTERNS.some((pattern) => pattern.test(lower));
 }
 
 function isGibberish(text: string) {
@@ -211,7 +225,11 @@ export function deterministicResponseQuality(input: {
   let reasoningSignal: z.infer<typeof ResponseQualityReasoningSignalSchema> = "usable";
   let engagementSignal: z.infer<typeof ResponseQualityEngagementSignalSchema> = "active";
 
-  if (isEditRequest(lower)) {
+  if (isInsufficientKnowledgeStatement(lower)) {
+    quality = "insufficient_knowledge";
+    reasoningSignal = "weak_but_usable";
+    engagementSignal = "confused";
+  } else if (isEditRequest(lower)) {
     quality = "edit_request";
     reasoningSignal = "not_applicable";
   } else if (asksForAnswer(lower)) {
@@ -244,7 +262,10 @@ export function deterministicResponseQuality(input: {
     engagementSignal = "passive";
   }
 
-  const shouldAdvance = quality === "adequate" || reasoningSignal === "weak_but_usable";
+  const shouldAdvance =
+    quality === "adequate" ||
+    quality === "insufficient_knowledge" ||
+    reasoningSignal === "weak_but_usable";
   const nextExpectedAction: z.infer<typeof ResponseQualityNextActionSchema> = shouldAdvance
     ? "continue"
     : quality === "content_question" || quality === "answer_request"
@@ -385,7 +406,9 @@ export async function evaluateResponseQuality(input: {
 export function responseQualityAllowsAdvance(output: ResponseQualityOutput) {
   return (
     output.should_advance &&
-    (output.response_quality === "adequate" || output.reasoning_signal === "weak_but_usable")
+    (output.response_quality === "adequate" ||
+      output.response_quality === "insufficient_knowledge" ||
+      output.reasoning_signal === "weak_but_usable")
   );
 }
 

@@ -13,12 +13,16 @@ import type {
 } from "@/lib/student-assessment-ui/types";
 
 function availabilityLabel(assessment: AvailableAssessment) {
-  if (assessment.availability_status === "completed") {
-    return "Completed";
-  }
-
   if (assessment.can_resume) {
     return "Resume available";
+  }
+
+  if (assessment.availability_status === "completed" && assessment.can_start) {
+    return "New attempt available";
+  }
+
+  if (assessment.availability_status === "completed") {
+    return "Completed";
   }
 
   if (assessment.can_start) {
@@ -37,7 +41,7 @@ function availabilityLabel(assessment: AvailableAssessment) {
 }
 
 function statusClass(assessment: AvailableAssessment) {
-  if (assessment.availability_status === "completed") {
+  if (assessment.availability_status === "completed" && !assessment.can_start) {
     return "border-slate-200 bg-slate-100 text-slate-700";
   }
 
@@ -86,12 +90,12 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleStart(assessment: AvailableAssessment) {
+  async function handleStart(assessment: AvailableAssessment, options?: { newAttempt?: boolean }) {
     setPendingAssessment(assessment.assessment_public_id);
     setError(null);
 
     try {
-      const result = await startAssessmentSession(assessment.assessment_public_id);
+      const result = await startAssessmentSession(assessment.assessment_public_id, options);
       startTransition(() => {
         router.push(`/student/assessment/${result.session.session_public_id}`);
       });
@@ -170,7 +174,9 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
             {assessments.map((assessment) => {
               const isBusy =
                 pendingAssessment === assessment.assessment_public_id || isPending;
-              const canOpen = assessment.can_resume && assessment.existing_session_public_id;
+              const canOpen = Boolean(assessment.can_resume && assessment.existing_session_public_id);
+              const startLabel =
+                canOpen || assessment.latest_completed_attempt_number ? "Start new attempt" : "Start assessment";
 
               return (
                 <article
@@ -194,7 +200,13 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                       ) : null}
                       {assessment.existing_session_status ? (
                         <p className="mt-3 text-xs uppercase tracking-wide text-muted">
-                          Session status: {assessment.existing_session_status}
+                          Current attempt {assessment.existing_attempt_number ?? ""} status:{" "}
+                          {assessment.existing_session_status}
+                        </p>
+                      ) : null}
+                      {!assessment.existing_session_status && assessment.latest_completed_attempt_number ? (
+                        <p className="mt-3 text-xs uppercase tracking-wide text-muted">
+                          Latest completed attempt: {assessment.latest_completed_attempt_number}
                         </p>
                       ) : null}
                       <p className="mt-3 text-sm leading-6 text-muted">
@@ -207,7 +219,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                           className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
                           data-testid={`start-assessment-${assessment.assessment_public_id}`}
                           disabled={isBusy}
-                          onClick={() => void handleStart(assessment)}
+                          onClick={() => void handleStart(assessment, { newAttempt: canOpen })}
                           type="button"
                         >
                           {isBusy ? (
@@ -215,7 +227,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                           ) : (
                             <Play className="h-4 w-4" aria-hidden="true" />
                           )}
-                          Start
+                          {startLabel}
                         </button>
                       ) : null}
                       {canOpen ? (
@@ -227,7 +239,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                           type="button"
                         >
                           <Play className="h-4 w-4" aria-hidden="true" />
-                          Resume
+                          Resume attempt
                         </button>
                       ) : null}
                       {!assessment.can_start && !canOpen ? (

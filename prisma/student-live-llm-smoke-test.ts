@@ -224,7 +224,7 @@ async function main() {
         student_user_db_id: student.id,
         session_public_id: started.session.session_public_id,
         message:
-          "Theta is about the student on the latent trait scale; item difficulty is about the item.",
+          "Theta is about the student on the linked latent trait scale, while item parameters describe item behavior.",
         client_message_id: `${prefix}_revision`
       });
       assert(revision.state.assessment_state === "NEXT_CHOICE", "Expected next choice after revision.");
