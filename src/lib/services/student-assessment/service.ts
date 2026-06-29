@@ -72,6 +72,26 @@ function repeatedInvalidOverride(input: {
     : undefined;
 }
 
+function itemAdminTutorInvocationKey(input: {
+  session_db_id: string;
+  item_db_id: string;
+  stage: ResponseQualityStage;
+  client_action_id?: string;
+  text: string;
+}) {
+  const basis = input.client_action_id
+    ? input.client_action_id
+    : createHash("sha256").update(input.text).digest("hex").slice(0, 16);
+
+  return [
+    "item_admin_tutor",
+    input.session_db_id,
+    input.item_db_id,
+    input.stage,
+    basis
+  ].join(":");
+}
+
 export const InitialAdministrationStep = z.enum([
   "concept_unit_intro",
   "present_item",
@@ -2241,7 +2261,9 @@ async function logResponseQualityResult(input: {
           should_advance: input.tutor_result.should_advance,
           next_expected_action: input.tutor_result.next_expected_action,
           deferred_concern_summary: input.tutor_result.deferred_concern_summary,
-          safety_validated: input.tutor_result.safety_validated
+          safety_validated: input.tutor_result.safety_validated,
+          agent_call_id: input.tutor_result.agent_call_id ?? null,
+          live_status: input.tutor_result.live_status
         }
       : undefined,
     ...responseQualityAuditPayload(input.result)
@@ -2331,7 +2353,9 @@ async function logResponseQualityResult(input: {
             message_classification: input.tutor_result.message_classification,
             response_quality: input.tutor_result.response_quality,
             next_expected_action: input.tutor_result.next_expected_action,
-            deferred_concern_summary: input.tutor_result.deferred_concern_summary
+            deferred_concern_summary: input.tutor_result.deferred_concern_summary,
+            agent_call_id: input.tutor_result.agent_call_id ?? null,
+            live_status: input.tutor_result.live_status
           }
         : undefined
     },
@@ -2395,6 +2419,8 @@ async function logRejectedStudentText(input: {
   message_classification?: string;
   deferred_concern_summary?: string | null;
   tutor_version?: string;
+  item_admin_agent_call_id?: string;
+  item_admin_live_status?: string;
 }) {
   await logConversationTurn({
     assessment_session_db_id: input.session_db_id,
@@ -2411,7 +2437,9 @@ async function logRejectedStudentText(input: {
       response_quality: input.response_quality ?? null,
       message_classification: input.message_classification ?? null,
       deferred_concern_summary: input.deferred_concern_summary ?? null,
-      item_administration_tutor_version: input.tutor_version ?? null
+      item_administration_tutor_version: input.tutor_version ?? null,
+      item_admin_agent_call_id: input.item_admin_agent_call_id ?? null,
+      item_admin_live_status: input.item_admin_live_status ?? null
     }
   });
 }
@@ -2616,7 +2644,18 @@ export async function recordReasoning(input: {
         },
         stage: qualityStage,
         text: reasoningText,
-        item_stem: context.item.item_stem
+        item_stem: context.item.item_stem,
+        audit_context: {
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          agent_invocation_key: itemAdminTutorInvocationKey({
+            session_db_id: context.session.id,
+            item_db_id: context.item.id,
+            stage: qualityStage,
+            client_action_id: data.client_action_id,
+            text: reasoningText
+          })
+        }
       });
       const qualityResult = tutorResult.response_quality_result;
 
@@ -2635,7 +2674,9 @@ export async function recordReasoning(input: {
           response_quality: qualityResult.output.response_quality,
           message_classification: tutorResult.message_classification,
           deferred_concern_summary: tutorResult.deferred_concern_summary,
-          tutor_version: tutorResult.tutor_version
+          tutor_version: tutorResult.tutor_version,
+          item_admin_agent_call_id: tutorResult.agent_call_id,
+          item_admin_live_status: tutorResult.live_status
         });
         await logResponseQualityResult({
           session_db_id: context.session.id,
@@ -2723,7 +2764,9 @@ export async function recordReasoning(input: {
           response_quality: qualityResult.output.response_quality,
           message_classification: tutorResult.message_classification,
           deferred_concern_summary: tutorResult.deferred_concern_summary,
-          item_administration_tutor_version: tutorResult.tutor_version
+          item_administration_tutor_version: tutorResult.tutor_version,
+          item_admin_agent_call_id: tutorResult.agent_call_id ?? null,
+          item_admin_live_status: tutorResult.live_status
         }
       });
       await logProcessEvent({
@@ -2741,7 +2784,9 @@ export async function recordReasoning(input: {
           response_quality: qualityResult.output.response_quality,
           message_classification: tutorResult.message_classification,
           deferred_concern_summary: tutorResult.deferred_concern_summary,
-          item_administration_tutor_version: tutorResult.tutor_version
+          item_administration_tutor_version: tutorResult.tutor_version,
+          item_admin_agent_call_id: tutorResult.agent_call_id ?? null,
+          item_admin_live_status: tutorResult.live_status
         }
       });
       const confidencePrompt = buildInitialAdminPrompt({
@@ -3015,7 +3060,18 @@ export async function recordTemptingOption(input: {
           },
           stage: qualityStage,
           text: temptingOptionReason,
-          item_stem: context.item.item_stem
+          item_stem: context.item.item_stem,
+          audit_context: {
+            assessment_session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            agent_invocation_key: itemAdminTutorInvocationKey({
+              session_db_id: context.session.id,
+              item_db_id: context.item.id,
+              stage: qualityStage,
+              client_action_id: data.client_action_id,
+              text: temptingOptionReason
+            })
+          }
         });
         temptingReasonTutorResult = tutorResult;
         const qualityResult = tutorResult.response_quality_result;
@@ -3035,7 +3091,9 @@ export async function recordTemptingOption(input: {
             response_quality: qualityResult.output.response_quality,
             message_classification: tutorResult.message_classification,
             deferred_concern_summary: tutorResult.deferred_concern_summary,
-            tutor_version: tutorResult.tutor_version
+            tutor_version: tutorResult.tutor_version,
+            item_admin_agent_call_id: tutorResult.agent_call_id,
+            item_admin_live_status: tutorResult.live_status
           });
           await logResponseQualityResult({
             session_db_id: context.session.id,
@@ -3101,7 +3159,9 @@ export async function recordTemptingOption(input: {
         response_quality: temptingReasonTutorResult?.response_quality_result.output.response_quality ?? null,
         message_classification: temptingReasonTutorResult?.message_classification ?? null,
         deferred_concern_summary: temptingReasonTutorResult?.deferred_concern_summary ?? null,
-        item_administration_tutor_version: temptingReasonTutorResult?.tutor_version ?? null
+        item_administration_tutor_version: temptingReasonTutorResult?.tutor_version ?? null,
+        item_admin_agent_call_id: temptingReasonTutorResult?.agent_call_id ?? null,
+        item_admin_live_status: temptingReasonTutorResult?.live_status ?? null
       };
       const messageText = noTemptingOption
         ? "No other option was tempting."
@@ -3139,7 +3199,9 @@ export async function recordTemptingOption(input: {
             response_quality: temptingReasonTutorResult?.response_quality_result.output.response_quality ?? null,
             message_classification: temptingReasonTutorResult?.message_classification ?? null,
             deferred_concern_summary: temptingReasonTutorResult?.deferred_concern_summary ?? null,
-            item_administration_tutor_version: temptingReasonTutorResult?.tutor_version ?? null
+            item_administration_tutor_version: temptingReasonTutorResult?.tutor_version ?? null,
+            item_admin_agent_call_id: temptingReasonTutorResult?.agent_call_id ?? null,
+            item_admin_live_status: temptingReasonTutorResult?.live_status ?? null
           }
         });
       }

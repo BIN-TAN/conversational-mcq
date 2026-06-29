@@ -100,6 +100,28 @@ If `RUN_LIVE_LLM_SMOKE=1` is set but required configuration is missing, the scri
 
 The live smoke verifies that the response package reaches the provider path, structured outputs are schema-shaped, unsafe or invalid outputs are blocked or replaced with deterministic fallback, student-visible text remains safe, and `agent_calls` stores provider metadata plus validation status.
 
+## Opt-In Live Item Administration Tutor Smoke
+
+The Item Administration Tutor Agent has its own live gate. The default command must skip without a provider call:
+
+```bash
+npm run student:item-admin-live-smoke
+```
+
+To run it manually, configure live calls only in an ignored local env file or secure shell environment:
+
+```bash
+RUN_LIVE_ITEM_ADMIN_SMOKE=1 \
+ITEM_ADMIN_TUTOR_LIVE_ENABLED=true \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
+OPENAI_API_KEY=<set locally, never commit> \
+OPENAI_MODEL_ITEM_ADMIN=<model> \
+npm run student:item-admin-live-smoke
+```
+
+If `OPENAI_MODEL_ITEM_ADMIN` is not set, the smoke may use `OPENAI_MODEL_FOLLOWUP=<model>` as the server-side fallback model variable. The script prints only missing or invalid variable names, never secret values. It verifies that a content question such as “What is theta?” is classified as `content_question`, does not advance to confidence, stores a deferred concern, and that explicit uncertainty is accepted as low-information evidence.
+
 For pilot-readiness notes, record only status fields and pass/fail observations. After a successful manual live run, confirm:
 
 ```text

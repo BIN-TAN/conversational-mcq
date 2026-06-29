@@ -79,6 +79,23 @@ const scenarios: Scenario[] = [
     expected_nonadvancing_attempts: 1
   },
   {
+    name: "gibberish_twice_then_unknown",
+    first_reason_attempts: [
+      "zzzzzzzz",
+      "qwrtypsdf",
+      "I don't know the reason yet."
+    ],
+    expected_nonadvancing_attempts: 2
+  },
+  {
+    name: "accidental_incomplete_reasoning",
+    first_reason_attempts: [
+      "I think",
+      "I think theta is the person location, while difficulty is about the item."
+    ],
+    expected_nonadvancing_attempts: 1
+  },
+  {
     name: "answer_request",
     first_reason_attempts: [
       "Which option is the correct answer?",

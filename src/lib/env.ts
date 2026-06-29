@@ -59,6 +59,7 @@ const serverEnvSchema = z.object({
     .default("false")
     .transform((value) => value === "true"),
   OPENAI_MODEL_ITEM_VERIFICATION: z.string().optional(),
+  OPENAI_MODEL_ITEM_ADMIN: z.string().optional(),
   OPENAI_MODEL_RESPONSE_COLLECTION: z.string().optional(),
   OPENAI_MODEL_PROFILING: z.string().optional(),
   OPENAI_MODEL_PLANNING: z.string().optional(),
@@ -82,12 +83,14 @@ const serverEnvSchema = z.object({
   OPENAI_REASONING_EFFORT_PLANNING: optionalEnum(["none", "minimal", "low", "medium", "high"]),
   OPENAI_REASONING_EFFORT_FOLLOWUP: optionalEnum(["none", "minimal", "low", "medium", "high"]),
   OPENAI_MAX_OUTPUT_TOKENS_ITEM_VERIFICATION: optionalPositiveInt,
+  OPENAI_MAX_OUTPUT_TOKENS_ITEM_ADMIN: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_RESPONSE_COLLECTION: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_PROFILING: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_PLANNING: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP: optionalPositiveInt,
   OPENAI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
   OPENAI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  ITEM_ADMIN_TUTOR_LIVE_ENABLED: booleanWithDefault(false),
   COURSE_TIMEZONE: z
     .string()
     .default("America/Edmonton")

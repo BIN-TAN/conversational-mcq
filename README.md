@@ -172,6 +172,14 @@ npm run student:live-llm-smoke
 
 To run it intentionally, configure server-side live LLM variables locally and set `RUN_LIVE_LLM_SMOKE=1`. Do not run this in ordinary CI or commit any API key. See `docs/MVP_E2E_READINESS.md`.
 
+The optional live Item Administration Tutor smoke is also skipped by default:
+
+```bash
+npm run student:item-admin-live-smoke
+```
+
+To run it intentionally, configure `ITEM_ADMIN_TUTOR_LIVE_ENABLED=true`, live OpenAI provider settings, and `RUN_LIVE_ITEM_ADMIN_SMOKE=1` locally. It checks that content questions during initial administration are deferred without advancing and that explicit uncertainty advances as low-information evidence.
+
 Async workflow commands:
 
 ```bash
