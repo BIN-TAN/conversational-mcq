@@ -172,6 +172,10 @@ function displayTranscriptText(entry: StudentTranscriptEntry) {
   return entry.message_text;
 }
 
+function formatTranscriptTimestamp(value: string) {
+  return new Date(value).toLocaleString();
+}
+
 function ChatBubble({ entry }: { entry: StudentTranscriptEntry }) {
   const isAssistant = entry.actor === "assistant";
 
@@ -180,24 +184,16 @@ function ChatBubble({ entry }: { entry: StudentTranscriptEntry }) {
       <div
         className={
           isAssistant
-            ? "max-w-3xl rounded-lg rounded-bl-sm border border-line bg-white p-4 shadow-soft"
-            : "max-w-2xl rounded-lg rounded-br-sm bg-[#23312d] p-4 text-white"
+            ? "max-w-[86%] rounded-2xl rounded-bl-md border border-line bg-white px-4 py-3 shadow-sm sm:max-w-[78%]"
+            : "max-w-[72%] rounded-2xl rounded-br-md bg-[#23312d] px-3 py-2 text-white shadow-sm sm:max-w-[62%]"
         }
         data-testid={isAssistant ? "agent-chat-message" : "student-chat-message"}
+        title={formatTranscriptTimestamp(entry.created_at)}
       >
-        <div className={isAssistant ? "flex gap-3" : ""}>
-          {isAssistant ? (
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent">
-              <MessageSquareText className="h-4 w-4" aria-hidden="true" />
-            </div>
-          ) : null}
-          <div>
-            <p className="whitespace-pre-wrap text-sm leading-6">{displayTranscriptText(entry)}</p>
-            <p className={isAssistant ? "mt-2 text-xs text-muted" : "mt-2 text-xs text-white/70"}>
-              {new Date(entry.created_at).toLocaleString()}
-            </p>
-          </div>
-        </div>
+        <p className="whitespace-pre-wrap text-sm leading-6">{displayTranscriptText(entry)}</p>
+        <time className="sr-only" dateTime={entry.created_at}>
+          {formatTranscriptTimestamp(entry.created_at)}
+        </time>
       </div>
     </div>
   );
@@ -251,11 +247,11 @@ function AgentMessage({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex justify-start">
       <div
-        className="max-w-3xl rounded-lg rounded-bl-sm border border-line bg-white p-4 shadow-soft"
+        className="max-w-[92%] rounded-2xl rounded-bl-md border border-line bg-white px-4 py-3 shadow-sm sm:max-w-[82%]"
         data-testid="agent-chat-message"
       >
-        <div className="flex gap-3">
-          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent">
+        <div className="flex gap-2.5">
+          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
             <MessageSquareText className="h-4 w-4" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1 text-sm leading-6 text-ink">{children}</div>
@@ -310,8 +306,8 @@ function AgentItemMessage({
       <p className="text-xs font-semibold uppercase tracking-wide text-muted">
         {isTransferItem ? "Additional question" : `Question ${item.item_order} of 3`}
       </p>
-      <p className="mt-2 whitespace-pre-wrap text-base leading-7 text-ink">{item.item_stem}</p>
-      <div className="mt-4 grid gap-2">
+      <p className="mt-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-ink">{item.item_stem}</p>
+      <div className="mt-4 grid gap-1.5">
         {answerOptionsFor(item).map((option) => {
           const selected = item.existing_selected_option === option.label;
 
@@ -320,8 +316,8 @@ function AgentItemMessage({
               aria-pressed={selected}
               className={
                 selected
-                  ? "rounded-md border border-accent bg-accent-soft p-3 text-left ring-2 ring-accent-soft transition focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-70"
-                  : "rounded-md border border-line bg-[#fbfcfa] p-3 text-left transition hover:border-accent hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-70"
+                  ? "rounded-xl border border-accent bg-accent-soft px-3 py-2.5 text-left ring-2 ring-accent-soft transition focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-70"
+                  : "rounded-xl border border-line bg-[#fbfcfa] px-3 py-2.5 text-left transition hover:border-accent hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-70"
               }
               data-testid={`chat-option-card-${item.item_public_id}-${option.label}`}
               disabled={disabled}
@@ -336,7 +332,7 @@ function AgentItemMessage({
           );
         })}
       </div>
-      <p className="mt-4 font-medium text-ink">What is your answer?</p>
+      <p className="mt-3 font-medium text-ink">What is your answer?</p>
     </AgentMessage>
   );
 }
@@ -440,12 +436,12 @@ function TextComposer({
   onSend: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-white p-3 shadow-soft">
+    <div className="ml-auto w-full max-w-[82%] rounded-2xl rounded-br-md border border-line bg-white px-3 py-2.5 shadow-sm sm:max-w-[72%]">
       <label className="sr-only" htmlFor={testId}>
         {label}
       </label>
       <textarea
-        className="min-h-24 w-full resize-none rounded-md border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
+        className="min-h-20 w-full resize-none rounded-xl border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
         data-testid={testId}
         disabled={disabled}
         id={testId}
@@ -460,12 +456,12 @@ function TextComposer({
         placeholder={placeholder}
         value={value}
       />
-      <div className="mt-3 flex items-center justify-between gap-3">
+      <div className="mt-2 flex items-center justify-between gap-3">
         <p className="text-xs text-muted">
           Press Enter to send; Shift+Enter adds a new line. {value.length} / {maxLength}
         </p>
         <button
-          className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
           data-testid={sendTestId ?? `${testId}-send`}
           disabled={disabled || !value.trim()}
           onClick={onSend}
@@ -506,23 +502,63 @@ function PackageReviewMessage({
         I have your three responses. You can review or edit them before continuing to feedback.
       </p>
       {review ? (
-        <div className="mt-4 grid gap-3" data-testid="package-review-list">
+        <div className="mt-4 grid gap-2" data-testid="package-review-list">
           {review.items.map((item) => {
             const currentDraft = editingItemId === item.item_public_id ? editDraft : null;
             const isEditing = Boolean(currentDraft);
 
             return (
-              <div className="rounded-md border border-line bg-[#fbfcfa] p-3" key={item.item_public_id}>
+              <div className="rounded-xl border border-line bg-[#fbfcfa] px-3 py-2.5" key={item.item_public_id}>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                      Question {item.item_order}
-                    </p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">{item.item_stem}</p>
-                  </div>
+                  <details className="min-w-0 flex-1 group" open={isEditing}>
+                    <summary className="cursor-pointer list-none rounded-lg px-1 py-1 focus:outline-none focus:ring-2 focus:ring-accent-soft">
+                      <span className="block text-xs font-semibold uppercase tracking-wide text-muted">
+                        Question {item.item_order} response
+                      </span>
+                      <span className="mt-1 block text-sm leading-6 text-ink">
+                        Answer: {displayAnswer(item.existing_selected_option)}
+                        {item.existing_confidence_rating
+                          ? ` · Confidence: ${confidenceLabel(item.existing_confidence_rating)}`
+                          : ""}
+                      </span>
+                      <span className="mt-1 block text-xs font-medium text-accent group-open:hidden">
+                        Expand details
+                      </span>
+                      <span className="mt-1 hidden text-xs font-medium text-accent group-open:block">
+                        Hide details
+                      </span>
+                    </summary>
+                    <div className="mt-2 space-y-2 border-t border-line pt-3">
+                      <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{item.item_stem}</p>
+                      <dl className="grid gap-2 text-sm">
+                        <div>
+                          <dt className="font-semibold text-ink">Reason</dt>
+                          <dd className="whitespace-pre-wrap text-muted">
+                            {item.existing_reasoning_text ?? "No reason provided"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="font-semibold text-ink">Tempting option</dt>
+                          <dd className="text-muted">
+                            {item.no_tempting_option
+                              ? "No"
+                              : item.tempting_option
+                                ? item.tempting_option
+                                : "Not provided"}
+                          </dd>
+                        </div>
+                        {!item.no_tempting_option && item.tempting_option_reason ? (
+                          <div>
+                            <dt className="font-semibold text-ink">What made it tempting</dt>
+                            <dd className="whitespace-pre-wrap text-muted">{item.tempting_option_reason}</dd>
+                          </div>
+                        ) : null}
+                      </dl>
+                    </div>
+                  </details>
                   {item.can_edit && !isEditing ? (
                     <button
-                      className="w-fit rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink transition hover:border-accent hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                      className="w-fit rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-accent hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
                       data-testid={`package-review-edit-${item.item_public_id}`}
                       disabled={isBusy}
                       onClick={() => onStartEdit(item)}
@@ -533,7 +569,7 @@ function PackageReviewMessage({
                   ) : null}
                 </div>
                 {currentDraft ? (
-                  <div className="mt-4 grid gap-4 rounded-md border border-line bg-white p-3">
+                  <div className="mt-3 grid gap-3 rounded-xl border border-line bg-white p-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted">Answer</p>
                       <div className="mt-2 grid gap-2">
@@ -545,8 +581,8 @@ function PackageReviewMessage({
                               aria-pressed={selected}
                               className={
                                 selected
-                                  ? "rounded-md border border-accent bg-accent-soft p-3 text-left ring-2 ring-accent-soft transition focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-70"
-                                  : "rounded-md border border-line bg-[#fbfcfa] p-3 text-left transition hover:border-accent hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-70"
+                                  ? "rounded-xl border border-accent bg-accent-soft px-3 py-2.5 text-left ring-2 ring-accent-soft transition focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-70"
+                                  : "rounded-xl border border-line bg-[#fbfcfa] px-3 py-2.5 text-left transition hover:border-accent hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-70"
                               }
                               data-testid={`package-review-edit-option-${item.item_public_id}-${option.label}`}
                               disabled={isBusy}
@@ -570,7 +606,7 @@ function PackageReviewMessage({
                         Reason
                       </label>
                       <textarea
-                        className="mt-2 min-h-24 w-full resize-none rounded-md border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
+                        className="mt-2 min-h-20 w-full resize-none rounded-xl border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
                         data-testid={`package-review-edit-reasoning-${item.item_public_id}`}
                         disabled={isBusy}
                         id={`package-review-edit-reasoning-${item.item_public_id}`}
@@ -648,7 +684,7 @@ function PackageReviewMessage({
                           What made it tempting
                         </label>
                         <textarea
-                          className="mt-2 min-h-20 w-full resize-none rounded-md border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
+                          className="mt-2 min-h-20 w-full resize-none rounded-xl border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
                           data-testid={`package-review-edit-tempting-reason-${item.item_public_id}`}
                           disabled={isBusy}
                           id={`package-review-edit-tempting-reason-${item.item_public_id}`}
@@ -662,7 +698,7 @@ function PackageReviewMessage({
                     ) : null}
                     <div className="flex flex-wrap gap-2">
                       <button
-                        className="inline-flex items-center justify-center rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex items-center justify-center rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
                         data-testid={`package-review-save-${item.item_public_id}`}
                         disabled={isBusy || !reviewEditDraftIsComplete(currentDraft)}
                         onClick={onSaveEdit}
@@ -671,7 +707,7 @@ function PackageReviewMessage({
                         Save edits
                       </button>
                       <button
-                        className="inline-flex items-center justify-center rounded-md border border-line px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex items-center justify-center rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
                         data-testid={`package-review-cancel-${item.item_public_id}`}
                         disabled={isBusy}
                         onClick={onCancelEdit}
@@ -681,51 +717,14 @@ function PackageReviewMessage({
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <dl className="mt-3 grid gap-2 text-sm">
-                    <div>
-                      <dt className="font-semibold text-ink">Answer</dt>
-                      <dd className="text-muted">{displayAnswer(item.existing_selected_option)}</dd>
-                    </div>
-                    <div>
-                      <dt className="font-semibold text-ink">Reason</dt>
-                      <dd className="whitespace-pre-wrap text-muted">
-                        {item.existing_reasoning_text ?? "No reason provided"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="font-semibold text-ink">Confidence</dt>
-                      <dd className="text-muted">
-                        {item.existing_confidence_rating
-                          ? confidenceLabel(item.existing_confidence_rating)
-                          : "Not provided"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="font-semibold text-ink">Tempting option</dt>
-                      <dd className="text-muted">
-                        {item.no_tempting_option
-                          ? "No"
-                          : item.tempting_option
-                            ? item.tempting_option
-                            : "Not provided"}
-                      </dd>
-                    </div>
-                    {!item.no_tempting_option && item.tempting_option_reason ? (
-                      <div>
-                        <dt className="font-semibold text-ink">What made it tempting</dt>
-                        <dd className="whitespace-pre-wrap text-muted">{item.tempting_option_reason}</dd>
-                      </div>
-                    ) : null}
-                  </dl>
-                )}
+                ) : null}
               </div>
             );
           })}
         </div>
       ) : null}
       <button
-        className="mt-4 inline-flex items-center justify-center rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-4 inline-flex items-center justify-center rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
         data-testid="continue-to-feedback"
         disabled={isBusy || Boolean(editingItemId)}
         onClick={onContinue}
@@ -766,13 +765,14 @@ function InFlowEditPanel({
   }
 
   return (
-    <div className="rounded-lg border border-line bg-white p-3 shadow-soft" data-testid="in-flow-edit-panel">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Edit latest response</p>
+    <div className="flex justify-end" data-testid="in-flow-edit-panel">
+      <div className="max-w-[82%] rounded-2xl rounded-br-md border border-line bg-white px-3 py-2.5 text-sm shadow-sm sm:max-w-[72%]">
+      <p className="text-xs font-semibold text-muted">Edit latest response</p>
       {!draft ? (
         <div className="mt-2 flex flex-wrap gap-2">
           {item.existing_selected_option ? (
             <button
-              className="rounded-md border border-line px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="in-flow-edit-answer"
               disabled={isBusy}
               onClick={() => onStart("answer")}
@@ -783,7 +783,7 @@ function InFlowEditPanel({
           ) : null}
           {item.existing_reasoning_text ? (
             <button
-              className="rounded-md border border-line px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="in-flow-edit-reasoning"
               disabled={isBusy}
               onClick={() => onStart("reasoning")}
@@ -794,7 +794,7 @@ function InFlowEditPanel({
           ) : null}
           {item.existing_confidence_rating ? (
             <button
-              className="rounded-md border border-line px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="in-flow-edit-confidence"
               disabled={isBusy}
               onClick={() => onStart("confidence")}
@@ -805,7 +805,7 @@ function InFlowEditPanel({
           ) : null}
           {item.no_tempting_option || item.tempting_option ? (
             <button
-              className="rounded-md border border-line px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="in-flow-edit-tempting"
               disabled={isBusy}
               onClick={() => onStart("tempting")}
@@ -816,7 +816,7 @@ function InFlowEditPanel({
           ) : null}
         </div>
       ) : (
-        <div className="mt-3 grid gap-3 rounded-md border border-line bg-[#fbfcfa] p-3">
+        <div className="mt-3 grid gap-3">
           {draft.field === "answer" ? (
             <div className="grid gap-2">
               {answerOptionsFor(item).map((option) => (
@@ -824,8 +824,8 @@ function InFlowEditPanel({
                   aria-pressed={draft.selectedOption === option.label}
                   className={
                     draft.selectedOption === option.label
-                      ? "rounded-md border border-accent bg-accent-soft p-3 text-left ring-2 ring-accent-soft"
-                      : "rounded-md border border-line bg-white p-3 text-left hover:border-accent hover:bg-accent-soft"
+                      ? "rounded-xl border border-accent bg-accent-soft px-3 py-2.5 text-left ring-2 ring-accent-soft"
+                      : "rounded-xl border border-line bg-white px-3 py-2.5 text-left hover:border-accent hover:bg-accent-soft"
                   }
                   data-testid={`in-flow-edit-answer-option-${option.label}`}
                   disabled={isBusy}
@@ -842,7 +842,7 @@ function InFlowEditPanel({
           ) : null}
           {draft.field === "reasoning" ? (
             <textarea
-              className="min-h-24 w-full resize-none rounded-md border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
+              className="min-h-20 w-full resize-none rounded-xl border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
               data-testid="in-flow-edit-reasoning-input"
               disabled={isBusy}
               maxLength={MAX_REASONING_LENGTH}
@@ -908,7 +908,7 @@ function InFlowEditPanel({
               </div>
               {!draft.noTemptingOption ? (
                 <textarea
-                  className="min-h-20 w-full resize-none rounded-md border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
+                  className="min-h-20 w-full resize-none rounded-xl border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
                   data-testid="in-flow-edit-tempting-reason-input"
                   disabled={isBusy}
                   maxLength={MAX_REASONING_LENGTH}
@@ -921,7 +921,7 @@ function InFlowEditPanel({
           ) : null}
           <div className="flex flex-wrap gap-2">
             <button
-              className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="in-flow-edit-save"
               disabled={isBusy}
               onClick={onSave}
@@ -930,7 +930,7 @@ function InFlowEditPanel({
               Save edit
             </button>
             <button
-              className="rounded-md border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="in-flow-edit-cancel"
               disabled={isBusy}
               onClick={onCancel}
@@ -941,6 +941,7 @@ function InFlowEditPanel({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -1212,25 +1213,87 @@ function LearningProfilePanel({
 
   return (
     <aside
-      className="rounded-lg border border-line bg-white p-4 shadow-soft lg:sticky lg:top-4 lg:self-start"
+      className="lg:sticky lg:top-4 lg:self-start"
       data-testid="student-learning-profile-panel"
     >
-      <h2 className="text-sm font-semibold text-ink">Current learning profile</h2>
-      <div className="mt-3 space-y-4">
-        {groups.map((group) => (
-          <section key={group.label}>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{group.label}</h3>
-            <ul className="mt-2 space-y-2 text-sm leading-5 text-ink">
-              {group.values.map((value) => (
-                <li className="rounded-md bg-[#f7f9f6] px-3 py-2" key={value}>
-                  {value}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-      </div>
+      <details className="rounded-2xl border border-line bg-white/85 px-4 py-3 shadow-sm" open>
+        <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-accent-soft">
+          Current learning profile
+          <span className="ml-2 text-xs font-normal text-muted">(student-safe)</span>
+        </summary>
+        <div className="mt-3 space-y-3">
+          {groups.map((group) => (
+            <section key={group.label}>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{group.label}</h3>
+              <ul className="mt-2 space-y-2 text-sm leading-5 text-ink">
+                {group.values.map((value) => (
+                  <li className="rounded-xl bg-[#f7f9f6] px-3 py-2" key={value}>
+                    {value}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      </details>
     </aside>
+  );
+}
+
+function StudentAssessmentChatShell({
+  state,
+  isBusy,
+  onExit,
+  children
+}: {
+  state: StudentSessionState;
+  isBusy: boolean;
+  onExit: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="mx-auto flex min-h-[calc(100vh-7rem)] w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8"
+      data-testid="student-assessment-chat-shell"
+    >
+      <header className="mb-4 flex flex-col gap-3 border-b border-line/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+            {state.assessment.title}
+          </p>
+          <h1 className="mt-1 text-lg font-semibold text-ink">
+            {state.current_concept_unit?.title ?? "Assessment"}
+          </h1>
+          <p className="mt-1 text-xs text-muted" data-testid="student-flow-stage">
+            {state.assessment_state.replaceAll("_", " ").toLowerCase()}
+          </p>
+        </div>
+        <button
+          className="inline-flex w-fit items-center justify-center gap-2 rounded-full border border-line bg-white px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="save-exit"
+          disabled={isBusy || !state.can_exit}
+          onClick={onExit}
+          type="button"
+        >
+          <LogOut className="h-4 w-4" aria-hidden="true" />
+          Pause
+        </button>
+      </header>
+      {children}
+    </div>
+  );
+}
+
+function ChatTranscript({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="min-h-0 flex-1 rounded-[1.75rem] bg-[#f7f9f6] px-3 py-4 sm:px-5">
+      <div
+        className="mx-auto flex w-full max-w-3xl flex-col gap-3"
+        data-testid="chat-transcript"
+      >
+        {children}
+      </div>
+    </main>
   );
 }
 
@@ -1902,7 +1965,7 @@ export function AssessmentSessionClient({
       await exitSession(activeSessionPublicId);
       router.push("/student");
     } catch (errorValue) {
-      handleError(errorValue, "Save and exit", () => {
+      handleError(errorValue, "Pause assessment", () => {
         void handleExit();
       });
     } finally {
@@ -2197,53 +2260,17 @@ export function AssessmentSessionClient({
   );
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-7rem)] w-full max-w-5xl flex-col px-4 py-6 sm:px-6 lg:px-8">
-      <header className="mb-4 rounded-lg border border-line bg-white p-4 shadow-soft">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-              {state.assessment.title}
-            </p>
-            <h1 className="mt-1 text-xl font-semibold text-ink">
-              {state.current_concept_unit?.title ?? "Assessment"}
-            </h1>
-            <p className="mt-2 text-sm text-muted" data-testid="student-flow-stage">
-              {state.assessment_state.replaceAll("_", " ").toLowerCase()}
-            </p>
-          </div>
-          <button
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-line px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
-            data-testid="save-exit"
-            disabled={isBusy || !state.can_exit}
-            onClick={() => void handleExit()}
-            type="button"
-          >
-            <LogOut className="h-4 w-4" aria-hidden="true" />
-            Save and exit
-          </button>
-        </div>
-        <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#edf1ec]" aria-hidden="true">
-          <div
-            className="h-full rounded-full bg-accent"
-            style={{
-              width: `${Math.min(
-                100,
-                Math.max(
-                  0,
-                  (state.progress.completed_item_count / Math.max(1, state.progress.total_item_count)) * 100
-                )
-              )}%`
-            }}
-          />
-        </div>
-      </header>
-
+    <StudentAssessmentChatShell
+      isBusy={isBusy}
+      onExit={() => void handleExit()}
+      state={state}
+    >
       <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <main className="flex flex-1 flex-col rounded-lg border border-line bg-[#f7f9f6] p-4 shadow-soft">
+        <ChatTranscript>
           <ErrorNotice error={error} />
           {failedAction ? (
             <button
-              className="mt-3 w-fit rounded-md border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-accent"
+              className="w-fit rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-accent"
               data-testid="retry-save-action"
               disabled={isBusy}
               onClick={failedAction.retry}
@@ -2252,33 +2279,27 @@ export function AssessmentSessionClient({
               Retry {failedAction.label}
             </button>
           ) : null}
-          <div className="mt-4 flex flex-1 flex-col gap-4" data-testid="chat-transcript">
-            {visibleTranscript.map((entry) => (
-              <ChatBubble entry={entry} key={`${entry.created_at}-${entry.actor}-${entry.message_text}`} />
-            ))}
-            {activePrompt}
-            {isBusy ? (
-              <div className="flex justify-start">
-                <div className="rounded-full border border-line bg-white px-4 py-2 text-sm text-muted shadow-soft">
-                  <Loader2 className="mr-2 inline h-4 w-4 animate-spin" aria-hidden="true" />
-                  Working...
-                </div>
+          {visibleTranscript.map((entry) => (
+            <ChatBubble entry={entry} key={`${entry.created_at}-${entry.actor}-${entry.message_text}`} />
+          ))}
+          {activePrompt}
+          {isBusy ? (
+            <div className="flex justify-start">
+              <div className="rounded-full border border-line bg-white px-4 py-2 text-sm text-muted shadow-sm">
+                <Loader2 className="mr-2 inline h-4 w-4 animate-spin" aria-hidden="true" />
+                Working...
               </div>
-            ) : null}
-            <div ref={scrollRef} />
-          </div>
-        </main>
+            </div>
+          ) : null}
+          <div ref={scrollRef} />
+        </ChatTranscript>
         <LearningProfilePanel profile={state.learning_profile} />
       </div>
-      <p className="mt-3 text-xs leading-5 text-muted">
-        During the first three questions, the assessment records your answer, reasoning,
-        confidence, and tempting-option evidence without showing correctness feedback.
-      </p>
       {currentItem ? (
         <p className="sr-only" aria-live="polite">
           Current question {currentItem.item_order}
         </p>
       ) : null}
-    </div>
+    </StudentAssessmentChatShell>
   );
 }

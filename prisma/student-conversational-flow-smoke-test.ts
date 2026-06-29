@@ -71,15 +71,21 @@ async function assertStudentComponentShape() {
 
   assert(source.includes("agent-chat-message"), "Agent chat message test hook is missing.");
   assert(source.includes("student-chat-message"), "Student chat message test hook is missing.");
+  assert(source.includes("student-assessment-chat-shell"), "Chat shell test hook is missing.");
+  assert(source.includes("data-testid=\"chat-transcript\""), "Chat transcript test hook is missing.");
+  assert(source.includes("flex justify-start"), "Agent bubbles should be left aligned.");
+  assert(source.includes("flex justify-end"), "Student bubbles should be right aligned.");
   assert(source.includes("chat-option-card-"), "Clickable option-card test hook is missing.");
   assert(source.includes("chat-confidence-"), "Chat-native confidence chips are missing.");
   assert(source.includes("chat-no-tempting"), "Chat-native no-tempting chip is missing.");
+  assert(source.includes("I don't know yet."), "I don't know option row is missing.");
   assert(source.includes("continue-to-feedback"), "Package-level review continuation is missing.");
   assert(
     source.includes("I have your three responses. You can review or edit them before continuing to feedback."),
     "Package review chat copy is missing."
   );
   assert(source.includes("Edit response"), "Package review edit action is missing.");
+  assert(source.includes("Expand details"), "Package review should use collapsible response summaries.");
   assert(source.includes("Tempting option"), "Package review should display tempting-option evidence.");
   assert(source.includes("What made it tempting"), "Package review should display tempting-option reasoning.");
   assert(source.includes("Press Enter to send; Shift+Enter adds a new line."), "Follow-up Enter-to-send help is missing.");
@@ -106,6 +112,11 @@ async function assertStudentComponentShape() {
   assert(!source.includes("Review responses"), "Old survey-style review heading should not be present.");
   assert(!source.includes("Editable before completion"), "Old review-panel editing copy should not be present.");
   assert(!source.includes("Saved."), "Saved status message should not be present.");
+  assert(!source.includes("Save and exit"), "Survey-style save-and-exit wording should not be visible.");
+  assert(!source.includes("EDIT LATEST RESPONSE"), "Large edit-latest-response panel should not be present.");
+  assert(!source.includes("During the first three questions"), "Persistent survey disclaimer should not be present.");
+  assert(!source.includes("Submit your responses"), "Package review should not use submission-page copy.");
+  assert(source.includes("className=\"sr-only\" dateTime"), "Transcript timestamps should be hidden by default.");
   assert(!privateStagingSource.includes("select the option best supported by the evidence statement"), "Private staging item placeholder text remains.");
   assert(privateStagingSource.includes("Evidence:\\n"), "Private staging items should include visible evidence statements.");
 }
