@@ -279,7 +279,19 @@ async function main() {
         }
       })
     ).state;
-    assert(state.assessment_state === "AWAIT_CONFIDENCE", "Affect/uncertainty statement should advance as low-information evidence.");
+    assert(state.assessment_state === "AWAIT_REASON", "Pure affective confusion should be acknowledged without advancing.");
+    state = (
+      await recordReasoning({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        item_public_id: secondItem.item_public_id,
+        data: {
+          reasoning_text: "I don't know the reason yet.",
+          client_action_id: `${prefix}_item2_unknown_reasoning`
+        }
+      })
+    ).state;
+    assert(state.assessment_state === "AWAIT_CONFIDENCE", "Explicit unknown reasoning should advance as low-information evidence.");
     frame = buildStudentConversationFrame(state);
     assert(
       frame.assistant_message.includes("I'll record that you are unsure about the reason"),
@@ -327,7 +339,7 @@ async function main() {
     ).state;
     assert(state.assessment_state === "FORMATIVE_ACTIVITY", "Mock formative activity should be available.");
     assert(state.learning_profile, "Student learning profile should be available after package analysis.");
-    assert(state.learning_profile.current_focus.length > 0, "Learning profile should include current focus.");
+    assert(state.learning_profile.needs_more_work.length > 0, "Learning profile should include a needs-more-work description.");
     assert(
       !/\b(the student|they|their|engagement profile|formative need|metadata|structured output|agent call)\b/i.test(
         JSON.stringify(state.learning_profile)
@@ -339,12 +351,12 @@ async function main() {
       session_public_id: started.session.session_public_id
     });
     const postPackageText = postPackageTranscript.transcript.map((entry) => entry.message_text).join("\n");
-    assert(postPackageText.includes("Here is what I noticed from your three responses."), "Post-package summary missing.");
-    assert(postPackageText.includes("What you did well:"), "Post-package summary should include what went well.");
-    assert(postPackageText.includes("Still developing:"), "Post-package summary should include developing area.");
-    assert(postPackageText.includes("Reasoning detail:"), "Post-package summary should mention reasoning detail.");
-    assert(postPackageText.includes("Current focus:"), "Post-package summary should explain the next activity purpose.");
-    assert(postPackageText.includes("Earlier, you asked about"), "Deferred content question should be referenced after package completion.");
+    assert(/three responses|first three questions/i.test(postPackageText), "Post-package summary missing.");
+    assert(
+      !/\bWhat you did well:|Still developing:|Reasoning detail:|Current focus:/i.test(postPackageText),
+      "Post-package summary should not expose visible template headings."
+    );
+    assert(/theta/i.test(postPackageText), "Deferred content question should be referenced after package completion.");
     assertStudentVisibleTextIsSafe(postPackageTranscript);
 
     const offTopic = await submitChatNativeFormativeActivityResponse({

@@ -527,18 +527,35 @@ function deferredConcernsFromPackagePayload(payload: unknown): DeferredStudentCo
     const structured = jsonRecord(turn.structured_payload);
     const source = stringValue(structured, "source") ?? "";
     const quality = stringValue(structured, "response_quality");
+    const deferredSummary = stringValue(structured, "deferred_concern_summary");
     const text = stringValue(turn, "message_text") ?? "";
     const isInitialRejectedStudentTurn =
       turn.actor_type === "student" &&
       source.startsWith("initial_") &&
       structured.validation_status === "response_quality_rejected" &&
-      ["content_question", "answer_request", "clarification_question"].includes(quality ?? "");
+      (
+        ["content_question", "answer_request", "clarification_question"].includes(quality ?? "") ||
+        Boolean(deferredSummary)
+      );
 
     if (!isInitialRejectedStudentTurn) {
       continue;
     }
 
-    const concern = concernSummaryFromText(text, quality);
+    const concern = deferredSummary
+      ? {
+          concern_type:
+            quality === "answer_request"
+              ? "content_question"
+              : quality === "clarification_question"
+                ? "procedural_question"
+                : quality === "insufficient_knowledge"
+                  ? "uncertainty"
+                  : "content_question",
+          safe_summary: deferredSummary.replace(/\.$/, ""),
+          source_stage: null
+        } satisfies DeferredStudentConcern
+      : concernSummaryFromText(text, quality);
 
     if (concern && !seen.has(concern.safe_summary)) {
       concern.source_stage = stringValue(turn, "phase");
@@ -781,24 +798,59 @@ function reasoningDetailStatement(output: ChatNativeFormativeProfileOutput) {
   return `Your explanations gave useful evidence. ${alignment}`;
 }
 
+function variationIndex(output: ChatNativeFormativeProfileOutput) {
+  const basis = `${output.main_issue}|${output.student_facing_followup_prompt}|${output.student_facing_pattern_statement}`;
+  let total = 0;
+
+  for (const char of basis) {
+    total += char.charCodeAt(0);
+  }
+
+  return total % 3;
+}
+
+function concernSentence(concern: DeferredStudentConcern | undefined) {
+  if (!concern) {
+    return null;
+  }
+
+  if (/what theta means/i.test(concern.safe_summary)) {
+    return "Since you asked what theta means, we can now make that clearer: theta is the person's estimated location on the latent trait scale.";
+  }
+
+  if (/item parameters|difficulty|discrimination/i.test(concern.safe_summary)) {
+    return "Since you asked about item parameters, we can now connect that question to the difference between an item feature and a person's theta.";
+  }
+
+  if (concern.concern_type === "uncertainty") {
+    return "You also signaled uncertainty earlier, so the next step is meant to make the key distinction easier to explain.";
+  }
+
+  return `You also raised a question about ${concern.safe_summary}, and we can address that now that the three responses are complete.`;
+}
+
 function studentFacingPostPackageSummary(
   output: ChatNativeFormativeProfileOutput,
   deferredConcerns: DeferredStudentConcern[] = []
 ) {
   const concern = deferredConcerns[0];
-  const concernLine = concern
-    ? `Earlier, you asked about ${concern.safe_summary}. Now that the three-question set is complete, this next activity can address that in a focused way.`
-    : null;
-  const lines = [
-    "Here is what I noticed from your three responses.",
-    `What you did well: ${studentFacingPhrase(output.student_facing_pattern_statement)}`,
-    `Still developing: ${studentFacingPhrase(output.main_issue)}`,
-    `Reasoning detail: ${reasoningDetailStatement(output)}`,
-    concernLine,
-    `Current focus: ${nextActivityPurpose(output)}`
+  const openings = [
+    "I have enough from your three responses to choose a focused next step.",
+    "Your three responses give us a useful starting point for feedback.",
+    "Now that the first three questions are complete, we can work on the main idea that needs attention."
+  ];
+  const pattern = studentFacingPhrase(output.student_facing_pattern_statement);
+  const mainIssue = studentFacingPhrase(output.main_issue);
+  const sentences = [
+    openings[variationIndex(output)],
+    pattern,
+    `The part to strengthen is ${mainIssue.charAt(0).toLowerCase()}${mainIssue.slice(1)}`,
+    reasoningDetailStatement(output),
+    concernSentence(concern),
+    nextActivityPurpose(output)
   ].filter((line): line is string => Boolean(line));
 
-  return lines.join("\n\n");
+  return sentences.slice(0, 5).join(" ");
 }
 
 function studentFacingText(output: ChatNativeFormativeProfileOutput) {

@@ -1244,11 +1244,10 @@ function LearningProfilePanel({
   }
 
   const groups = [
-    { label: "Mostly understood", values: profile.mostly_understood },
-    { label: "Still developing", values: profile.still_developing },
-    { label: "Needs attention", values: profile.needs_attention },
-    { label: "Current focus", values: profile.current_focus }
-  ].filter((group) => group.values.length > 0);
+    { label: "Mostly understood", value: profile.mostly_understood },
+    { label: "Still developing", value: profile.still_developing },
+    { label: "Needs more work", value: profile.needs_more_work }
+  ].filter((group) => group.value.trim().length > 0);
 
   if (groups.length === 0) {
     return null;
@@ -1267,13 +1266,9 @@ function LearningProfilePanel({
           {groups.map((group) => (
             <section key={group.label}>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{group.label}</h3>
-              <ul className="mt-2 space-y-2 text-sm leading-5 text-ink">
-                {group.values.map((value) => (
-                  <li className="rounded-xl bg-[#f7f9f6] px-3 py-2" key={value}>
-                    {value}
-                  </li>
-                ))}
-              </ul>
+              <p className="mt-2 rounded-xl bg-[#f7f9f6] px-3 py-2 text-sm leading-5 text-ink">
+                {group.value}
+              </p>
             </section>
           ))}
         </div>

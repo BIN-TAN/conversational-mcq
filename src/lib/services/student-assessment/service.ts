@@ -25,12 +25,15 @@ import {
   submitChatNativeRevisionResponse
 } from "@/lib/services/student-assessment/formative-profile";
 import {
-  evaluateResponseQuality,
   responseQualityAllowsAdvance,
   responseQualityAuditPayload,
   type ResponseQualityResult,
   type ResponseQualityStage
 } from "@/lib/services/student-assessment/response-quality";
+import {
+  runItemAdministrationTutor,
+  type ItemAdministrationTutorResult
+} from "@/lib/services/student-assessment/item-administration-tutor";
 import {
   assertChatNativeActionAllowed,
   type ChatNativeAssessmentAction,
@@ -58,6 +61,16 @@ const MAX_EVENT_PAYLOAD_BYTES = 4000;
 const IDK_OPTION_LABEL = "E";
 const REPEATED_INVALID_RESPONSE_PROMPT =
   "I still cannot use that as a reason. Choose one:\nA. Try writing your reason again.\nB. Mark this as 'I don't know the reason yet.'";
+
+function repeatedInvalidOverride(input: {
+  attempt_count: number;
+  tutor_result: ItemAdministrationTutorResult;
+}) {
+  return input.attempt_count >= 2 &&
+    ["incomplete", "off_topic", "gibberish"].includes(input.tutor_result.message_classification)
+    ? REPEATED_INVALID_RESPONSE_PROMPT
+    : undefined;
+}
 
 export const InitialAdministrationStep = z.enum([
   "concept_unit_intro",
@@ -265,6 +278,17 @@ function studentFacingList(value: unknown) {
     .filter((entry): entry is string => Boolean(entry));
 }
 
+function firstShortStudentFacing(values: string[], fallback: string) {
+  const value = values.find((entry) => entry.trim().length > 0);
+
+  if (!value) {
+    return fallback;
+  }
+
+  const normalized = value.trim().replace(/\s+/g, " ");
+  return normalized.length > 150 ? `${normalized.slice(0, 147).trim()}...` : normalized;
+}
+
 function studentSafeLearningProfile(input: {
   profile: {
     ability_pattern_flags: Prisma.JsonValue;
@@ -287,8 +311,7 @@ function studentSafeLearningProfile(input: {
   const flags = recordValue(input.profile.ability_pattern_flags);
   const mostlyUnderstood = studentFacingList(flags.main_concept_understood);
   const stillDeveloping = studentFacingList(flags.remaining_issue);
-  const needsAttention = studentFacingList(flags.misconception_evidence);
-  const currentFocus: string[] = [];
+  const needsMoreWork = studentFacingList(flags.misconception_evidence);
 
   if (mostlyUnderstood.length === 0 && input.profile.evidence_sufficiency === "strong") {
     mostlyUnderstood.push("You are connecting some of the main ideas in this concept.");
@@ -320,14 +343,14 @@ function studentSafeLearningProfile(input: {
     input.profile.confidence_alignment === "underconfident" ||
     input.profile.confidence_alignment === "mixed"
   ) {
-    needsAttention.push("Check how your confidence matches the explanation you can give.");
+    needsMoreWork.push("Check how your confidence matches the explanation you can give.");
   }
 
   if (input.decision?.formative_action_plan && stillDeveloping.length < 3) {
     const focus = studentFacingPhrase(input.decision.formative_action_plan);
 
     if (focus) {
-      currentFocus.push(focus);
+      stillDeveloping.push(focus);
     }
   }
 
@@ -339,15 +362,23 @@ function studentSafeLearningProfile(input: {
     const reason = studentFacingPhrase(record.reason);
 
     if (reason) {
-      currentFocus.push(reason);
+      needsMoreWork.push(reason);
     }
   }
 
   return {
-    mostly_understood: mostlyUnderstood.slice(0, 3),
-    still_developing: stillDeveloping.slice(0, 3),
-    needs_attention: needsAttention.slice(0, 3),
-    current_focus: currentFocus.slice(0, 3),
+    mostly_understood: firstShortStudentFacing(
+      mostlyUnderstood,
+      "Not enough evidence yet."
+    ),
+    still_developing: firstShortStudentFacing(
+      stillDeveloping,
+      "Not enough evidence yet."
+    ),
+    needs_more_work: firstShortStudentFacing(
+      needsMoreWork,
+      "Not enough evidence yet."
+    ),
     updated_at: input.profile.created_at.toISOString()
   };
 }
@@ -2193,6 +2224,8 @@ async function logResponseQualityResult(input: {
   event_category: string;
   agent_name?: string;
   student_facing_message_override?: string;
+  force_rejected?: boolean;
+  tutor_result?: ItemAdministrationTutorResult;
 }) {
   const now = new Date();
   const payload = {
@@ -2200,6 +2233,17 @@ async function logResponseQualityResult(input: {
     item_context: input.event_category,
     selected_option: input.selected_option ?? null,
     text_length: input.text_length,
+    item_administration_tutor: input.tutor_result
+      ? {
+          tutor_version: input.tutor_result.tutor_version,
+          message_classification: input.tutor_result.message_classification,
+          response_quality: input.tutor_result.response_quality,
+          should_advance: input.tutor_result.should_advance,
+          next_expected_action: input.tutor_result.next_expected_action,
+          deferred_concern_summary: input.tutor_result.deferred_concern_summary,
+          safety_validated: input.tutor_result.safety_validated
+        }
+      : undefined,
     ...responseQualityAuditPayload(input.result)
   };
 
@@ -2227,7 +2271,7 @@ async function logResponseQualityResult(input: {
     });
   }
 
-  if (responseQualityAllowsAdvance(input.result.output)) {
+  if (!input.force_rejected && responseQualityAllowsAdvance(input.result.output)) {
     return;
   }
 
@@ -2272,12 +2316,24 @@ async function logResponseQualityResult(input: {
     phase: input.phase,
     actor_type: "agent",
     agent_name: input.agent_name ?? INITIAL_ADMIN_AGENT_NAME,
-    message_text: input.student_facing_message_override ?? input.result.output.student_facing_message,
+    message_text:
+      input.student_facing_message_override ??
+      input.tutor_result?.student_facing_message ??
+      input.result.output.student_facing_message,
     structured_payload: {
       source: "response_quality_gate",
       message_type: "repair_prompt",
       stage: input.stage,
-      repeated_invalid_response: Boolean(input.student_facing_message_override)
+      repeated_invalid_response: Boolean(input.student_facing_message_override),
+      item_administration_tutor: input.tutor_result
+        ? {
+            tutor_version: input.tutor_result.tutor_version,
+            message_classification: input.tutor_result.message_classification,
+            response_quality: input.tutor_result.response_quality,
+            next_expected_action: input.tutor_result.next_expected_action,
+            deferred_concern_summary: input.tutor_result.deferred_concern_summary
+          }
+        : undefined
     },
     created_at: now
   });
@@ -2336,6 +2392,9 @@ async function logRejectedStudentText(input: {
   source: string;
   client_id?: string;
   response_quality?: string;
+  message_classification?: string;
+  deferred_concern_summary?: string | null;
+  tutor_version?: string;
 }) {
   await logConversationTurn({
     assessment_session_db_id: input.session_db_id,
@@ -2349,7 +2408,10 @@ async function logRejectedStudentText(input: {
       source: input.source,
       client_message_id: input.client_id,
       validation_status: "response_quality_rejected",
-      response_quality: input.response_quality ?? null
+      response_quality: input.response_quality ?? null,
+      message_classification: input.message_classification ?? null,
+      deferred_concern_summary: input.deferred_concern_summary ?? null,
+      item_administration_tutor_version: input.tutor_version ?? null
     }
   });
 }
@@ -2540,15 +2602,25 @@ export async function recordReasoning(input: {
         priorRejectedAttempts > 0 && markUnknownChoiceRequested(data.reasoning_text)
           ? unknownEvidenceText(qualityStage)
           : data.reasoning_text;
-      const qualityResult = await evaluateResponseQuality({
+      const tutorResult = await runItemAdministrationTutor({
+        state_packet: {
+          assessment_state: context.isTransferItem ? "TRANSFER_ITEM" : "AWAIT_REASON",
+          item_public_id: context.item.item_public_id,
+          item_order: context.item.item_order,
+          item_role: context.isTransferItem ? "transfer" : "initial",
+          required_evidence_type: "reasoning",
+          selected_option: response.selected_option,
+          latest_student_message: reasoningText,
+          correctness_feedback_prohibited: true,
+          prior_uncertainty: response.skipped_reasoning || response.selected_option === IDK_OPTION_LABEL
+        },
         stage: qualityStage,
         text: reasoningText,
-        selected_option: response.selected_option,
-        item_public_id: context.item.item_public_id,
         item_stem: context.item.item_stem
       });
+      const qualityResult = tutorResult.response_quality_result;
 
-      if (!responseQualityAllowsAdvance(qualityResult.output)) {
+      if (!tutorResult.should_advance) {
         const repeatedAttemptCount = priorRejectedAttempts + 1;
         await logRejectedStudentText({
           session_db_id: context.session.id,
@@ -2560,7 +2632,10 @@ export async function recordReasoning(input: {
             ? "transfer_reasoning_quality_rejected"
             : "initial_reasoning_quality_rejected",
           client_id: data.client_action_id,
-          response_quality: qualityResult.output.response_quality
+          response_quality: qualityResult.output.response_quality,
+          message_classification: tutorResult.message_classification,
+          deferred_concern_summary: tutorResult.deferred_concern_summary,
+          tutor_version: tutorResult.tutor_version
         });
         await logResponseQualityResult({
           session_db_id: context.session.id,
@@ -2573,8 +2648,12 @@ export async function recordReasoning(input: {
           selected_option: response.selected_option,
           event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
           agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME,
-          student_facing_message_override:
-            repeatedAttemptCount >= 2 ? REPEATED_INVALID_RESPONSE_PROMPT : undefined
+          force_rejected: true,
+          tutor_result: tutorResult,
+          student_facing_message_override: repeatedInvalidOverride({
+            attempt_count: repeatedAttemptCount,
+            tutor_result: tutorResult
+          })
         });
         if (repeatedAttemptCount >= 2) {
           await logRepeatedInvalidResponse({
@@ -2606,7 +2685,8 @@ export async function recordReasoning(input: {
         text_length: reasoningText.trim().length,
         selected_option: response.selected_option,
         event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
-        agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
+        agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME,
+        tutor_result: tutorResult
       });
       const hadReasoning = Boolean(response.reasoning_text && response.reasoning_text.trim());
       const reasoningChanged = response.reasoning_text !== null && response.reasoning_text !== reasoningText;
@@ -2640,7 +2720,10 @@ export async function recordReasoning(input: {
           item_public_id: context.item.item_public_id,
           revised: hadReasoning,
           item_context: context.isTransferItem ? "transfer" : "initial",
-          response_quality: qualityResult.output.response_quality
+          response_quality: qualityResult.output.response_quality,
+          message_classification: tutorResult.message_classification,
+          deferred_concern_summary: tutorResult.deferred_concern_summary,
+          item_administration_tutor_version: tutorResult.tutor_version
         }
       });
       await logProcessEvent({
@@ -2655,7 +2738,10 @@ export async function recordReasoning(input: {
           revised: hadReasoning,
           reasoning_length: reasoningText.trim().length,
           item_context: context.isTransferItem ? "transfer" : "initial",
-          response_quality: qualityResult.output.response_quality
+          response_quality: qualityResult.output.response_quality,
+          message_classification: tutorResult.message_classification,
+          deferred_concern_summary: tutorResult.deferred_concern_summary,
+          item_administration_tutor_version: tutorResult.tutor_version
         }
       });
       const confidencePrompt = buildInitialAdminPrompt({
@@ -2667,6 +2753,7 @@ export async function recordReasoning(input: {
         selectedOption: response.selected_option,
         latestStudentResponse: reasoningText,
         indicatedUnknown:
+          tutorResult.message_classification === "insufficient_knowledge" ||
           responseQualityIsInsufficientKnowledge(qualityResult) ||
           studentIndicatedReasoningUncertainty(reasoningText)
       });
@@ -2911,16 +2998,29 @@ export async function recordTemptingOption(input: {
         );
       }
 
+      let temptingReasonTutorResult: ItemAdministrationTutorResult | null = null;
+
       if (temptingOptionReason) {
-        const qualityResult = await evaluateResponseQuality({
+        const tutorResult = await runItemAdministrationTutor({
+          state_packet: {
+            assessment_state: state.assessment_state,
+            item_public_id: context.item.item_public_id,
+            item_order: context.item.item_order,
+            item_role: context.isTransferItem ? "transfer" : "initial",
+            required_evidence_type: "tempting_reason",
+            selected_option: temptingOption,
+            latest_student_message: temptingOptionReason,
+            correctness_feedback_prohibited: true,
+            prior_uncertainty: false
+          },
           stage: qualityStage,
           text: temptingOptionReason,
-          selected_option: temptingOption,
-          item_public_id: context.item.item_public_id,
           item_stem: context.item.item_stem
         });
+        temptingReasonTutorResult = tutorResult;
+        const qualityResult = tutorResult.response_quality_result;
 
-        if (!responseQualityAllowsAdvance(qualityResult.output)) {
+        if (!tutorResult.should_advance) {
           const repeatedAttemptCount = priorRejectedAttempts + 1;
           await logRejectedStudentText({
             session_db_id: context.session.id,
@@ -2932,7 +3032,10 @@ export async function recordTemptingOption(input: {
               ? "transfer_tempting_reason_quality_rejected"
               : "initial_tempting_reason_quality_rejected",
             client_id: data.client_action_id,
-            response_quality: qualityResult.output.response_quality
+            response_quality: qualityResult.output.response_quality,
+            message_classification: tutorResult.message_classification,
+            deferred_concern_summary: tutorResult.deferred_concern_summary,
+            tutor_version: tutorResult.tutor_version
           });
           await logResponseQualityResult({
             session_db_id: context.session.id,
@@ -2945,8 +3048,12 @@ export async function recordTemptingOption(input: {
             selected_option: temptingOption,
             event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
             agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME,
-            student_facing_message_override:
-              repeatedAttemptCount >= 2 ? REPEATED_INVALID_RESPONSE_PROMPT : undefined
+            force_rejected: true,
+            tutor_result: tutorResult,
+            student_facing_message_override: repeatedInvalidOverride({
+              attempt_count: repeatedAttemptCount,
+              tutor_result: tutorResult
+            })
           });
           if (repeatedAttemptCount >= 2) {
             await logRepeatedInvalidResponse({
@@ -2978,7 +3085,8 @@ export async function recordTemptingOption(input: {
           text_length: temptingOptionReason.length,
           selected_option: temptingOption,
           event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
-          agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
+          agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME,
+          tutor_result: tutorResult
         });
       }
 
@@ -2989,7 +3097,11 @@ export async function recordTemptingOption(input: {
         no_tempting_option: noTemptingOption,
         tempting_option: temptingOption,
         tempting_option_reason: temptingOptionReason,
-        item_context: context.isTransferItem ? "transfer" : "initial"
+        item_context: context.isTransferItem ? "transfer" : "initial",
+        response_quality: temptingReasonTutorResult?.response_quality_result.output.response_quality ?? null,
+        message_classification: temptingReasonTutorResult?.message_classification ?? null,
+        deferred_concern_summary: temptingReasonTutorResult?.deferred_concern_summary ?? null,
+        item_administration_tutor_version: temptingReasonTutorResult?.tutor_version ?? null
       };
       const messageText = noTemptingOption
         ? "No other option was tempting."
@@ -3023,7 +3135,11 @@ export async function recordTemptingOption(input: {
             item_public_id: context.item.item_public_id,
             tempting_option: temptingOption,
             tempting_option_reason_length: temptingOptionReason.length,
-            item_context: context.isTransferItem ? "transfer" : "initial"
+            item_context: context.isTransferItem ? "transfer" : "initial",
+            response_quality: temptingReasonTutorResult?.response_quality_result.output.response_quality ?? null,
+            message_classification: temptingReasonTutorResult?.message_classification ?? null,
+            deferred_concern_summary: temptingReasonTutorResult?.deferred_concern_summary ?? null,
+            item_administration_tutor_version: temptingReasonTutorResult?.tutor_version ?? null
           }
         });
       }
