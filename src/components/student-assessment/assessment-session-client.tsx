@@ -44,6 +44,7 @@ import {
 const MAX_REASONING_LENGTH = 5000;
 const IDK_OPTION_LABEL = "E";
 const IDK_OPTION_TEXT = "I don't know yet.";
+const STUDENT_FACING_TUTOR_LABEL = "Assessment Tutor";
 
 type FailedAction = {
   label: string;
@@ -195,7 +196,7 @@ function ChatBubble({ entry }: { entry: StudentTranscriptEntry }) {
         title={formatTranscriptTimestamp(entry.created_at)}
       >
         <p className={isAssistant ? "mb-1 text-[0.68rem] font-semibold uppercase tracking-wide text-accent" : "mb-1 text-right text-[0.68rem] font-semibold uppercase tracking-wide text-white/65"}>
-          {isAssistant ? "Assessment Agent" : "You"}
+          {isAssistant ? STUDENT_FACING_TUTOR_LABEL : "You"}
         </p>
         <p className="whitespace-pre-wrap text-sm leading-6">{displayTranscriptText(entry)}</p>
         <time className="sr-only" dateTime={entry.created_at}>
@@ -265,7 +266,7 @@ function AgentMessage({ children }: { children: React.ReactNode }) {
           </div>
           <div className="min-w-0 flex-1 text-sm leading-6 text-ink">
             <p className="mb-1 text-[0.68rem] font-semibold uppercase tracking-wide text-accent">
-              Assessment Agent
+              {STUDENT_FACING_TUTOR_LABEL}
             </p>
             {children}
           </div>
@@ -1245,7 +1246,8 @@ function LearningProfilePanel({
   const groups = [
     { label: "Mostly understood", values: profile.mostly_understood },
     { label: "Still developing", values: profile.still_developing },
-    { label: "Needs attention", values: profile.needs_attention }
+    { label: "Needs attention", values: profile.needs_attention },
+    { label: "Current focus", values: profile.current_focus }
   ].filter((group) => group.values.length > 0);
 
   if (groups.length === 0) {
@@ -1260,7 +1262,6 @@ function LearningProfilePanel({
       <details className="rounded-2xl border border-line bg-white/85 px-4 py-3 shadow-sm" open>
         <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-accent-soft">
           Current learning profile
-          <span className="ml-2 text-xs font-normal text-muted">(student-safe)</span>
         </summary>
         <div className="mt-3 space-y-3">
           {groups.map((group) => (

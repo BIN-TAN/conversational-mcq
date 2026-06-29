@@ -80,6 +80,7 @@ export const StudentLearningProfileSchema = z.object({
   mostly_understood: z.array(z.string()),
   still_developing: z.array(z.string()),
   needs_attention: z.array(z.string()),
+  current_focus: z.array(z.string()),
   updated_at: z.string()
 });
 export type StudentLearningProfile = z.infer<typeof StudentLearningProfileSchema>;

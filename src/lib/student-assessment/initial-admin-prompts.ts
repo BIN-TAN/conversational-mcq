@@ -66,10 +66,10 @@ const ANSWER_PROMPTS = [
 ];
 
 const REASONING_PROMPTS = [
-  "What led you to choose {option}?",
-  "What part of the question points you toward {option}?",
-  "Give a brief reason for your choice.",
-  "One sentence is enough. Why did {option} seem best?"
+  "What led you to choose {option}? Please explain your reasoning with as much detail as you can.",
+  "Why did {option} seem best to you? Try to include detail about the idea or part of the question that shaped your choice.",
+  "Give your reason for choosing {option}. The more detail you provide, the more useful my feedback can be.",
+  "One or two sentences is enough, but include the detail that mattered most. Why did {option} seem best?"
 ];
 
 const TEMPTING_PROMPTS = [
@@ -176,7 +176,8 @@ export function buildInitialAdminPrompt(input: {
     promptVariant = `answer_${index + 1}`;
   } else if (input.kind === "reasoning_prompt") {
     if (selectedE) {
-      promptText = "What makes this hard to decide?";
+      promptText =
+        "That's okay. What makes this hard to decide? You do not need to invent a reason; this helps me understand what feedback may be useful later.";
       promptVariant = "reasoning_uncertainty";
     } else {
       const index = deterministicIndex(seed, REASONING_PROMPTS.length);
@@ -189,11 +190,11 @@ export function buildInitialAdminPrompt(input: {
   } else if (input.kind === "confidence_prompt") {
     if (selectedE) {
       promptText =
-        "Since you selected 'I don't know yet,' Low is a reasonable choice, but choose the confidence level that best matches how you feel right now.";
+        "Since you indicated uncertainty, Low is a reasonable confidence choice, but choose the level that best matches how you feel right now.";
       promptVariant = "confidence_selected_e";
     } else if (indicatedUnknown) {
       promptText =
-        "Since you said you are unsure about the reason, it is okay to choose Low. How confident do you feel right now?";
+        "That's okay. I'll record that you are unsure about the reason. Low is a reasonable confidence choice, but choose the level that best matches how you feel right now.";
       promptVariant = "confidence_reason_uncertain";
     } else {
       promptText = "How confident are you: Low, Medium, or High?";

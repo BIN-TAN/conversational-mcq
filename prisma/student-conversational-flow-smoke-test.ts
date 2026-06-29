@@ -77,7 +77,8 @@ async function assertStudentComponentShape() {
   assert(source.includes("student-chat-message"), "Student chat message test hook is missing.");
   assert(source.includes("student-assessment-chat-shell"), "Chat shell test hook is missing.");
   assert(source.includes("data-testid=\"chat-transcript\""), "Chat transcript test hook is missing.");
-  assert(source.includes("Assessment Agent"), "Assessment Agent label should be visible.");
+  assert(source.includes("Assessment Tutor"), "Assessment Tutor label should be visible.");
+  assert(!source.includes("Assessment Agent"), "Assessment Agent student-facing label should be replaced.");
   assert(source.includes("\"You\""), "Student bubble label should be visible.");
   assert(source.includes("flex justify-start"), "Agent bubbles should be left aligned.");
   assert(source.includes("flex justify-end"), "Student bubbles should be right aligned.");

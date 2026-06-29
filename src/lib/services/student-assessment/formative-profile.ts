@@ -140,6 +140,9 @@ The application owns state transitions and persistence.
 
 Student-facing text must:
 - be short and conversational;
+- speak directly to the student using you and your;
+- briefly name what the student did well, what still seems developing, whether more reasoning detail would help, and what the next activity is trying to support;
+- mention any deferred concern from the initial package only in safe summary form when it supports the next activity;
 - avoid internal labels such as response profile, formative need, metadata, structured output, system prompt, or answer key;
 - not dump the full answer key;
 - focus on one activity the student can answer next.
@@ -451,9 +454,116 @@ function safePackageForProvider(payload: unknown) {
           typeof response.total_item_time_ms === "number" ? response.total_item_time_ms : null
       };
     }),
+    deferred_student_concerns: deferredConcernsFromPackagePayload(payload),
     process_counts: record.process_counts,
     logging_limitations: record.logging_limitations
   };
+}
+
+type DeferredStudentConcern = {
+  concern_type: "content_question" | "procedural_question" | "uncertainty";
+  safe_summary: string;
+  source_stage: string | null;
+};
+
+function studentFacingPhrase(value: unknown) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().replace(/\s+/g, " ")
+    .replace(/\bThe student needs to\b/gi, "You may need to")
+    .replace(/\bThe student needs\b/gi, "You may need")
+    .replace(/\bThe student asked\b/gi, "You asked")
+    .replace(/\bThe student\b/gi, "You")
+    .replace(/\bstudents\b/gi, "you")
+    .replace(/\btheir\b/gi, "your")
+    .replace(/\bthey\b/gi, "you")
+    .replace(/\bthem\b/gi, "you")
+    .replace(/\blearner\b/gi, "you")
+    .replace(/\bexaminee\b/gi, "you")
+    .replace(/\bThe response\b/gi, "Your response")
+    .replace(/\bThe answers\b/gi, "Your answers")
+    .replace(/\bThe activity\b/gi, "This activity");
+}
+
+function concernSummaryFromText(text: string, quality: string | null): DeferredStudentConcern | null {
+  const lower = text.toLowerCase();
+  const concernType: DeferredStudentConcern["concern_type"] =
+    quality === "clarification_question"
+      ? "procedural_question"
+      : /\b(confused|hard|not sure|don't know|dont know|idk|lost|stuck)\b/.test(lower)
+        ? "uncertainty"
+        : "content_question";
+
+  let safeSummary = "how to think through the current idea";
+
+  if (/\b(theta|ability|latent trait)\b/.test(lower) && /\b(difficulty|discrimination|parameter|item)\b/.test(lower)) {
+    safeSummary = "how theta relates to item parameters";
+  } else if (/\b(theta|ability|latent trait)\b/.test(lower)) {
+    safeSummary = "what theta represents";
+  } else if (/\b(difficulty|discrimination|parameter|item)\b/.test(lower)) {
+    safeSummary = "how item parameters work";
+  } else if (/\bwhat happens next|next|after\b/.test(lower)) {
+    safeSummary = "what happens next";
+  } else if (concernType === "uncertainty") {
+    safeSummary = "that this felt confusing or hard to explain";
+  }
+
+  return {
+    concern_type: concernType,
+    safe_summary: safeSummary,
+    source_stage: null
+  };
+}
+
+function deferredConcernsFromPackagePayload(payload: unknown): DeferredStudentConcern[] {
+  const record = jsonRecord(payload);
+  const concerns: DeferredStudentConcern[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of arrayValue(record.conversation_turns)) {
+    const turn = jsonRecord(entry);
+    const structured = jsonRecord(turn.structured_payload);
+    const source = stringValue(structured, "source") ?? "";
+    const quality = stringValue(structured, "response_quality");
+    const text = stringValue(turn, "message_text") ?? "";
+    const isInitialRejectedStudentTurn =
+      turn.actor_type === "student" &&
+      source.startsWith("initial_") &&
+      structured.validation_status === "response_quality_rejected" &&
+      ["content_question", "answer_request", "clarification_question"].includes(quality ?? "");
+
+    if (!isInitialRejectedStudentTurn) {
+      continue;
+    }
+
+    const concern = concernSummaryFromText(text, quality);
+
+    if (concern && !seen.has(concern.safe_summary)) {
+      concern.source_stage = stringValue(turn, "phase");
+      concerns.push(concern);
+      seen.add(concern.safe_summary);
+    }
+  }
+
+  for (const entry of arrayValue(record.item_responses)) {
+    const response = jsonRecord(entry);
+    const reasoning = stringValue(response, "reasoning_text_final") ?? "";
+    const concern = concernSummaryFromText(reasoning, "insufficient_knowledge");
+
+    if (
+      /\b(confused|hard|not sure|don't know|dont know|idk|no idea|lost|stuck)\b/i.test(reasoning) &&
+      concern &&
+      !seen.has(concern.safe_summary)
+    ) {
+      concern.source_stage = "initial_item_reasoning";
+      concerns.push(concern);
+      seen.add(concern.safe_summary);
+    }
+  }
+
+  return concerns.slice(0, 3);
 }
 
 function correctOptionsFromPackage(payload: unknown) {
@@ -467,9 +577,9 @@ function correctOptionsFromPackage(payload: unknown) {
 function deterministicMockOutput(): ChatNativeFormativeProfileOutput {
   return {
     provisional_learning_state:
-      "The response package shows some useful understanding, but the distinction between item parameters and person ability still needs clarification.",
+      "Your response package shows some useful understanding, but the distinction between item parameters and person ability still needs clarification.",
     main_issue:
-      "The student needs to distinguish item difficulty from theta as a person-location estimate on the linked scale.",
+      "You may need to distinguish item difficulty from theta as a person-location estimate on the linked scale.",
     formative_need: "diagnosis_and_feedback",
     matched_activity: "key_distractor_contrast",
     evidence_used: [
@@ -479,9 +589,9 @@ function deterministicMockOutput(): ChatNativeFormativeProfileOutput {
     ],
     confidence_calibration_flag: true,
     answer_reasoning_alignment:
-      "The answers and explanations suggest partial alignment, but the b/theta distinction should be made more explicit.",
+      "Your answers and explanations suggest partial alignment, but the item-parameter/theta distinction should be made more explicit.",
     student_facing_pattern_statement:
-      "Your answers suggest that the main idea is partly in place, but the distinction between item difficulty and person ability needs more attention.",
+      "You seem to understand that theta should stay comparable across properly linked forms, and the item-parameter distinction still needs attention.",
     student_facing_followup_prompt:
       "Compare the idea of item difficulty with the idea of theta. Which one describes the item, and which one describes the person?",
     should_reveal_correct_answer: false,
@@ -650,8 +760,49 @@ function deterministicTargetedFeedbackOutput(message = ""): ChatNativeTargetedFe
   };
 }
 
+function nextActivityPurpose(output: ChatNativeFormativeProfileOutput) {
+  const combined = `${output.main_issue} ${output.student_facing_followup_prompt}`.toLowerCase();
+
+  if (/\b(theta|ability|latent trait)\b/.test(combined) && /\b(difficulty|discrimination|parameter|item)\b/.test(combined)) {
+    return "The next activity is meant to help you separate item parameters from theta as a person-location estimate.";
+  }
+
+  return `The next activity is meant to help with this focus: ${studentFacingPhrase(output.main_issue)}`;
+}
+
+function reasoningDetailStatement(output: ChatNativeFormativeProfileOutput) {
+  const alignment = studentFacingPhrase(output.answer_reasoning_alignment);
+  const lower = alignment.toLowerCase();
+
+  if (/\b(vague|more explicit|partial|not enough|needs?|detail)\b/.test(lower)) {
+    return "Your explanations were useful, and adding a little more detail about why an option fits or does not fit would help me give more precise feedback.";
+  }
+
+  return `Your explanations gave useful evidence. ${alignment}`;
+}
+
+function studentFacingPostPackageSummary(
+  output: ChatNativeFormativeProfileOutput,
+  deferredConcerns: DeferredStudentConcern[] = []
+) {
+  const concern = deferredConcerns[0];
+  const concernLine = concern
+    ? `Earlier, you asked about ${concern.safe_summary}. Now that the three-question set is complete, this next activity can address that in a focused way.`
+    : null;
+  const lines = [
+    "Here is what I noticed from your three responses.",
+    `What you did well: ${studentFacingPhrase(output.student_facing_pattern_statement)}`,
+    `Still developing: ${studentFacingPhrase(output.main_issue)}`,
+    `Reasoning detail: ${reasoningDetailStatement(output)}`,
+    concernLine,
+    `Current focus: ${nextActivityPurpose(output)}`
+  ].filter((line): line is string => Boolean(line));
+
+  return lines.join("\n\n");
+}
+
 function studentFacingText(output: ChatNativeFormativeProfileOutput) {
-  return `${output.student_facing_pattern_statement}\n\n${output.student_facing_followup_prompt}`;
+  return `${studentFacingPostPackageSummary(output)}\n\n${output.student_facing_followup_prompt}`;
 }
 
 function targetedFeedbackStudentFacingText(output: ChatNativeTargetedFeedbackOutput) {
@@ -1928,6 +2079,7 @@ async function persistProfileDecisionAndActivity(input: {
   output: ChatNativeFormativeProfileOutput;
   validation_status: string;
   validation_issues: string[];
+  deferred_student_concerns?: DeferredStudentConcern[];
 }) {
   const enums = profileEnumsFor(input.output);
   const formativeValue = formativeValueFor(input.output);
@@ -2042,6 +2194,11 @@ async function persistProfileDecisionAndActivity(input: {
       }
     });
 
+    const postPackageSummary = studentFacingPostPackageSummary(
+      input.output,
+      input.deferred_student_concerns ?? []
+    );
+
     await tx.conversationTurn.create({
       data: {
         assessment_session_db_id: input.assessment_session_db_id,
@@ -2050,10 +2207,12 @@ async function persistProfileDecisionAndActivity(input: {
         phase: "planning_completed",
         actor_type: "agent",
         agent_name: FORMATIVE_ACTIVITY_AGENT_NAME,
-        message_text: input.output.student_facing_pattern_statement,
+        message_text: postPackageSummary,
         structured_payload: prismaJson({
           source: FORMATIVE_ACTIVITY_AGENT_NAME,
           message_type: "pattern_statement",
+          summary_version: "student-facing-post-package-summary-v1",
+          deferred_student_concerns: input.deferred_student_concerns ?? [],
           validation_status: input.validation_status,
           validation_issues: input.validation_issues
         }),
@@ -2135,10 +2294,13 @@ export async function ensureChatNativeFormativeActivity(input: {
       package_type: "initial_concept_unit_response_package"
     });
   }
+  const safeResponsePackage = safePackageForProvider(responsePackage.payload);
+  const deferredStudentConcerns = deferredConcernsFromPackagePayload(responsePackage.payload);
 
   const providerInput = {
     task: "chat_native_phase5_formative_profile",
-    response_package: safePackageForProvider(responsePackage.payload),
+    response_package: safeResponsePackage,
+    deferred_student_concerns: deferredStudentConcerns,
     constraints: {
       app_controls_state_transitions: true,
       one_focused_activity_only: true,
@@ -2172,7 +2334,8 @@ export async function ensureChatNativeFormativeActivity(input: {
         agent_call_id: existingCall.id,
         output: parsed.data,
         validation_status: "validated_idempotent_replay",
-        validation_issues: []
+        validation_issues: [],
+        deferred_student_concerns: deferredStudentConcerns
       });
 
       if (conceptUnitSession.assessment_session.current_phase === "profiling_pending") {
@@ -2268,7 +2431,8 @@ export async function ensureChatNativeFormativeActivity(input: {
     agent_call_id: providerResult.agent_call_id,
     output: providerResult.output,
     validation_status: providerResult.validation_status,
-    validation_issues: providerResult.validation_issues
+    validation_issues: providerResult.validation_issues,
+    deferred_student_concerns: deferredStudentConcerns
   });
 
   const currentAfterPersist = await prisma.assessmentSession.findUniqueOrThrow({

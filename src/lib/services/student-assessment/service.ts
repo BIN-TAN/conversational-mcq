@@ -232,12 +232,48 @@ function safeStringList(value: unknown, fallback: string[] = []) {
     : fallback;
 }
 
+function studentFacingPhrase(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().replace(/\s+/g, " ");
+
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized
+    .replace(/\bThe student needs to\b/gi, "You may need to")
+    .replace(/\bThe student needs\b/gi, "You may need")
+    .replace(/\bThe student asked\b/gi, "You asked")
+    .replace(/\bThe student\b/gi, "You")
+    .replace(/\bstudents\b/gi, "you")
+    .replace(/\btheir\b/gi, "your")
+    .replace(/\bthey\b/gi, "you")
+    .replace(/\bthem\b/gi, "you")
+    .replace(/\blearner\b/gi, "you")
+    .replace(/\bexaminee\b/gi, "you")
+    .replace(/\bThe response\b/gi, "Your response")
+    .replace(/\bThe answers\b/gi, "Your answers")
+    .replace(/\bThe activity\b/gi, "This activity");
+}
+
+function studentFacingList(value: unknown) {
+  return safeStringList(value)
+    .map((entry) => studentFacingPhrase(entry))
+    .filter((entry): entry is string => Boolean(entry));
+}
+
 function studentSafeLearningProfile(input: {
   profile: {
     ability_pattern_flags: Prisma.JsonValue;
     reasoning_quality_summary: string;
     confidence_alignment: string;
     evidence_sufficiency: string;
+    integrated_profile_rationale?: string | null;
+    rationale?: string | null;
+    recommended_next_evidence?: Prisma.JsonValue;
     created_at: Date;
   } | null;
   decision: {
@@ -249,16 +285,34 @@ function studentSafeLearningProfile(input: {
   }
 
   const flags = recordValue(input.profile.ability_pattern_flags);
-  const mostlyUnderstood = safeStringList(flags.main_concept_understood);
-  const stillDeveloping = safeStringList(flags.remaining_issue);
-  const needsAttention = safeStringList(flags.misconception_evidence);
+  const mostlyUnderstood = studentFacingList(flags.main_concept_understood);
+  const stillDeveloping = studentFacingList(flags.remaining_issue);
+  const needsAttention = studentFacingList(flags.misconception_evidence);
+  const currentFocus: string[] = [];
 
   if (mostlyUnderstood.length === 0 && input.profile.evidence_sufficiency === "strong") {
     mostlyUnderstood.push("You are connecting some of the main ideas in this concept.");
   }
 
+  if (mostlyUnderstood.length === 0 && input.profile.integrated_profile_rationale) {
+    mostlyUnderstood.push(
+      studentFacingPhrase(input.profile.integrated_profile_rationale) ??
+        "You have some useful starting evidence in your responses."
+    );
+  }
+
   if (stillDeveloping.length === 0 && input.profile.reasoning_quality_summary) {
-    stillDeveloping.push(input.profile.reasoning_quality_summary);
+    stillDeveloping.push(
+      studentFacingPhrase(input.profile.reasoning_quality_summary) ??
+        "You may still be working on making your reasoning more explicit."
+    );
+  }
+
+  if (stillDeveloping.length === 0 && input.profile.rationale) {
+    stillDeveloping.push(
+      studentFacingPhrase(input.profile.rationale) ??
+        "You may still be working on the main distinction in this concept."
+    );
   }
 
   if (
@@ -270,13 +324,30 @@ function studentSafeLearningProfile(input: {
   }
 
   if (input.decision?.formative_action_plan && stillDeveloping.length < 3) {
-    stillDeveloping.push(input.decision.formative_action_plan);
+    const focus = studentFacingPhrase(input.decision.formative_action_plan);
+
+    if (focus) {
+      currentFocus.push(focus);
+    }
+  }
+
+  const recommendedEvidence = Array.isArray(input.profile.recommended_next_evidence)
+    ? input.profile.recommended_next_evidence
+    : [];
+  for (const entry of recommendedEvidence) {
+    const record = recordValue(entry);
+    const reason = studentFacingPhrase(record.reason);
+
+    if (reason) {
+      currentFocus.push(reason);
+    }
   }
 
   return {
     mostly_understood: mostlyUnderstood.slice(0, 3),
     still_developing: stillDeveloping.slice(0, 3),
     needs_attention: needsAttention.slice(0, 3),
+    current_focus: currentFocus.slice(0, 3),
     updated_at: input.profile.created_at.toISOString()
   };
 }
@@ -1566,6 +1637,9 @@ export async function getStudentSessionState(input: {
           reasoning_quality_summary: true,
           confidence_alignment: true,
           evidence_sufficiency: true,
+          integrated_profile_rationale: true,
+          rationale: true,
+          recommended_next_evidence: true,
           created_at: true
         }
       })
@@ -2261,6 +2335,7 @@ async function logRejectedStudentText(input: {
   message_text: string;
   source: string;
   client_id?: string;
+  response_quality?: string;
 }) {
   await logConversationTurn({
     assessment_session_db_id: input.session_db_id,
@@ -2273,7 +2348,8 @@ async function logRejectedStudentText(input: {
     structured_payload: {
       source: input.source,
       client_message_id: input.client_id,
-      validation_status: "response_quality_rejected"
+      validation_status: "response_quality_rejected",
+      response_quality: input.response_quality ?? null
     }
   });
 }
@@ -2483,7 +2559,8 @@ export async function recordReasoning(input: {
           source: context.isTransferItem
             ? "transfer_reasoning_quality_rejected"
             : "initial_reasoning_quality_rejected",
-          client_id: data.client_action_id
+          client_id: data.client_action_id,
+          response_quality: qualityResult.output.response_quality
         });
         await logResponseQualityResult({
           session_db_id: context.session.id,
@@ -2854,7 +2931,8 @@ export async function recordTemptingOption(input: {
             source: context.isTransferItem
               ? "transfer_tempting_reason_quality_rejected"
               : "initial_tempting_reason_quality_rejected",
-            client_id: data.client_action_id
+            client_id: data.client_action_id,
+            response_quality: qualityResult.output.response_quality
           });
           await logResponseQualityResult({
             session_db_id: context.session.id,

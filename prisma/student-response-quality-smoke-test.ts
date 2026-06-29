@@ -67,8 +67,20 @@ function assertInitialPromptVariation() {
   );
 
   assert(new Set(prompts).size > 1, "Mock initial prompt wording should vary across items.");
+  const reasoningPrompt = buildInitialAdminPrompt({
+    kind: "reasoning_prompt",
+    assessmentState: "AWAIT_REASON",
+    itemPublicId: "synthetic_item_reasoning",
+    itemOrder: 1,
+    itemRole: "initial",
+    selectedOption: "C"
+  }).prompt_text;
   assert(
-    prompts.every((prompt) => !/correct answer|answer key|structured output|agent call/i.test(prompt)),
+    /detail|more useful my feedback|explain your reasoning/i.test(reasoningPrompt),
+    "Reasoning prompt should invite detailed explanation."
+  );
+  assert(
+    [...prompts, reasoningPrompt].every((prompt) => !/correct answer|answer key|structured output|agent call/i.test(prompt)),
     "Initial prompts should not expose protected or internal language."
   );
 }
@@ -188,7 +200,7 @@ async function main() {
     );
     let frame = buildStudentConversationFrame(state);
     assert(
-      frame.assistant_message.includes("Since you selected 'I don't know yet,'"),
+      frame.assistant_message.includes("Since you indicated uncertainty"),
       "E selection should produce adapted confidence prompt."
     );
 
@@ -270,7 +282,7 @@ async function main() {
     assert(state.assessment_state === "AWAIT_CONFIDENCE", "Affect/uncertainty statement should advance as low-information evidence.");
     frame = buildStudentConversationFrame(state);
     assert(
-      frame.assistant_message.includes("Since you said you are unsure about the reason"),
+      frame.assistant_message.includes("I'll record that you are unsure about the reason"),
       "Uncertain reasoning should produce adapted confidence prompt."
     );
     state = (
@@ -314,6 +326,26 @@ async function main() {
       })
     ).state;
     assert(state.assessment_state === "FORMATIVE_ACTIVITY", "Mock formative activity should be available.");
+    assert(state.learning_profile, "Student learning profile should be available after package analysis.");
+    assert(state.learning_profile.current_focus.length > 0, "Learning profile should include current focus.");
+    assert(
+      !/\b(the student|they|their|engagement profile|formative need|metadata|structured output|agent call)\b/i.test(
+        JSON.stringify(state.learning_profile)
+      ),
+      "Learning profile should use direct student-facing wording without internal labels."
+    );
+    const postPackageTranscript = await getStudentSafeTranscript({
+      student_user_db_id: student.id,
+      session_public_id: started.session.session_public_id
+    });
+    const postPackageText = postPackageTranscript.transcript.map((entry) => entry.message_text).join("\n");
+    assert(postPackageText.includes("Here is what I noticed from your three responses."), "Post-package summary missing.");
+    assert(postPackageText.includes("What you did well:"), "Post-package summary should include what went well.");
+    assert(postPackageText.includes("Still developing:"), "Post-package summary should include developing area.");
+    assert(postPackageText.includes("Reasoning detail:"), "Post-package summary should mention reasoning detail.");
+    assert(postPackageText.includes("Current focus:"), "Post-package summary should explain the next activity purpose.");
+    assert(postPackageText.includes("Earlier, you asked about"), "Deferred content question should be referenced after package completion.");
+    assertStudentVisibleTextIsSafe(postPackageTranscript);
 
     const offTopic = await submitChatNativeFormativeActivityResponse({
       student_user_db_id: student.id,

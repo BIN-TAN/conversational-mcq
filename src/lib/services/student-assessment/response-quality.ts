@@ -89,7 +89,7 @@ export const RESPONSE_QUALITY_PROMPT_HASH = createHash("sha256")
   .digest("hex");
 
 const CONTENT_DEFER_MESSAGE =
-  "I can address that after the three questions. For now, please give your best answer and reasoning.";
+  "I can explain the concept after the three questions. For now, choose the option that seems best, or choose E if you do not know yet.";
 const FORMATIVE_REPAIR_MESSAGE =
   "I could not use that response for the activity. Please answer the current question in your own words.";
 const UNKNOWN_REASON_PATTERNS = [
@@ -196,7 +196,7 @@ function repairPrompt(input: {
 
   if (input.quality === "clarification_question") {
     return stageIsInitial(input.stage)
-      ? "Use your own words. Focus on what part of the question led you to your answer."
+      ? "You can write one or two sentences. Try to explain what led you to your answer."
       : "Use your own words for the activity. I am looking for your current thinking, not a perfect answer.";
   }
 
