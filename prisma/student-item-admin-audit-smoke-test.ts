@@ -30,7 +30,18 @@ import type {
 
 const prisma = new PrismaClient();
 
-const contentQuestionOutput: ItemAdministrationTutorOutput = {
+const validContentQuestionOutput: ItemAdministrationTutorOutput = {
+  message_classification: "content_question",
+  response_quality: "not_usable",
+  should_advance: false,
+  should_store_deferred_concern: true,
+  deferred_concern_summary: "Asked what theta means during item administration.",
+  student_facing_message:
+    "I can explain that after the three-question set. For now, give your best reason, or say 'I don't know the reason yet.'",
+  next_expected_action: "defer_content_question"
+};
+
+const canonicalizedContentQuestionOutput: ItemAdministrationTutorOutput = {
   message_classification: "content_question",
   response_quality: "low_information",
   should_advance: false,
@@ -236,7 +247,7 @@ async function main() {
         assert(state.assessment_state === "AWAIT_REASON", "Answer should advance to reasoning.");
 
         state = await withItemAdministrationTutorProviderForTest(
-          new SyntheticItemAdminProvider(contentQuestionOutput),
+          new SyntheticItemAdminProvider(validContentQuestionOutput),
           async () => (
             await recordReasoning({
               student_user_db_id: student.id,
@@ -244,7 +255,7 @@ async function main() {
               item_public_id: item.item_public_id,
               data: {
                 reasoning_text: "What is theta?",
-                client_action_id: `${prefix}_content_question`
+                client_action_id: `${prefix}_valid_content_question`
               }
             })
           ).state
@@ -254,6 +265,7 @@ async function main() {
         assert(liveAudit.call.provider === "openai", "Simulated live call should be audited as OpenAI.");
         assert(liveAudit.call.call_status === "succeeded", "Valid simulated live output should succeed.");
         assert(liveAudit.call.output_validated, "Valid simulated live output should validate.");
+        assert(!liveAudit.call.validation_error, "Valid simulated live output should not store validation error.");
         assert(liveAudit.call.live_call_allowed, "Live audit should store live_call_allowed=true.");
         assert(liveAudit.call.schema_version === ITEM_ADMINISTRATION_TUTOR_SCHEMA_VERSION, "Schema version mismatch.");
         assert(
@@ -268,6 +280,44 @@ async function main() {
         await assertTutorProcessEvidence({
           sessionPublicId: started.session.session_public_id,
           agentCallId: liveAudit.call.id,
+          expectedSource: "live_llm",
+          expectedClassification: "content_question"
+        });
+
+        state = await withItemAdministrationTutorProviderForTest(
+          new SyntheticItemAdminProvider(canonicalizedContentQuestionOutput),
+          async () => (
+            await recordReasoning({
+              student_user_db_id: student.id,
+              session_public_id: started.session.session_public_id,
+              item_public_id: item.item_public_id,
+              data: {
+                reasoning_text: "What is theta?",
+                client_action_id: `${prefix}_canonicalized_content_question`
+              }
+            })
+          ).state
+        );
+        assert(state.assessment_state === "AWAIT_REASON", "Canonicalized content question should not advance.");
+        const canonicalizedAudit = await latestTutorCall(started.session.session_public_id);
+        assert(canonicalizedAudit.call.provider === "openai", "Canonicalized simulated call should be audited as OpenAI.");
+        assert(
+          canonicalizedAudit.call.call_status === "succeeded",
+          "Canonicalized simulated live output should succeed."
+        );
+        assert(canonicalizedAudit.call.output_validated, "Canonicalized simulated live output should validate.");
+        assert(!canonicalizedAudit.call.validation_error, "Canonicalized live output should not store validation error.");
+        assert(
+          Boolean(canonicalizedAudit.call.provider_request_id || canonicalizedAudit.call.provider_response_id),
+          "Canonicalized live audit should persist provider metadata."
+        );
+        assert(
+          canonicalizedAudit.output.response_quality === "not_usable",
+          "Content-question live output needing canonicalization should persist not_usable."
+        );
+        await assertTutorProcessEvidence({
+          sessionPublicId: started.session.session_public_id,
+          agentCallId: canonicalizedAudit.call.id,
           expectedSource: "live_llm",
           expectedClassification: "content_question"
         });
