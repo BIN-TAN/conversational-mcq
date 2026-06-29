@@ -98,6 +98,10 @@ const UNKNOWN_REASON_PATTERNS = [
   /\bnot\s+sure\s+why\b/,
   /\bi\s+cannot\s+explain\b/,
   /\bi\s+can't\s+explain\b/,
+  /\bi(?:\s+am|'m)\s+(confused|lost|stuck|unsure)\b/,
+  /\bthis\s+is\s+(hard|confusing)\b/,
+  /\bi\s+(do not|don't|dont)\s+understand\s+(the\s+)?question\b/,
+  /\bi\s*(am|'m)\s+not\s+sure\s+what\s+to\s+write\b/,
   /\bidk\b/,
   /\bno\s+idea\b/
 ];

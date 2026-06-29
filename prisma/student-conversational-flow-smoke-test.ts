@@ -64,6 +64,10 @@ async function assertStudentComponentShape() {
     path.join(process.cwd(), "src/components/student-assessment/assessment-session-client.tsx"),
     "utf8"
   );
+  const promptSource = await readFile(
+    path.join(process.cwd(), "src/lib/student-assessment/initial-admin-prompts.ts"),
+    "utf8"
+  );
   const privateStagingSource = await readFile(
     path.join(process.cwd(), "prisma/private-staging.ts"),
     "utf8"
@@ -73,6 +77,8 @@ async function assertStudentComponentShape() {
   assert(source.includes("student-chat-message"), "Student chat message test hook is missing.");
   assert(source.includes("student-assessment-chat-shell"), "Chat shell test hook is missing.");
   assert(source.includes("data-testid=\"chat-transcript\""), "Chat transcript test hook is missing.");
+  assert(source.includes("Assessment Agent"), "Assessment Agent label should be visible.");
+  assert(source.includes("\"You\""), "Student bubble label should be visible.");
   assert(source.includes("flex justify-start"), "Agent bubbles should be left aligned.");
   assert(source.includes("flex justify-end"), "Student bubbles should be right aligned.");
   assert(source.includes("chat-option-card-"), "Clickable option-card test hook is missing.");
@@ -81,7 +87,7 @@ async function assertStudentComponentShape() {
   assert(source.includes("I don't know yet."), "I don't know option row is missing.");
   assert(source.includes("continue-to-feedback"), "Package-level review continuation is missing.");
   assert(
-    source.includes("I have your three responses. You can review or edit them before continuing to feedback."),
+    promptSource.includes("I have your three responses. You can review or edit them before continuing to feedback."),
     "Package review chat copy is missing."
   );
   assert(source.includes("Edit response"), "Package review edit action is missing.");
@@ -89,6 +95,10 @@ async function assertStudentComponentShape() {
   assert(source.includes("Tempting option"), "Package review should display tempting-option evidence.");
   assert(source.includes("What made it tempting"), "Package review should display tempting-option reasoning.");
   assert(source.includes("Press Enter to send; Shift+Enter adds a new line."), "Follow-up Enter-to-send help is missing.");
+  assert(source.includes("event.key === \"Enter\" && !event.shiftKey"), "Enter-to-send handler is missing.");
+  assert(source.includes("Shift+Enter adds a new line"), "Shift+Enter newline help is missing.");
+  assert(source.includes("shouldShowLearningProfile"), "Learning profile timing gate is missing.");
+  assert(source.includes("\"FORMATIVE_ACTIVITY\""), "Learning profile should be allowed after formative stage.");
   const agentItemStart = source.indexOf("function AgentItemMessage");
   const confidenceStart = source.indexOf("function ConfidenceMessage");
   const agentItemSource =

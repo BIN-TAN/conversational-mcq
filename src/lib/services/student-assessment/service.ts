@@ -37,6 +37,12 @@ import {
   type ChatNativeAssessmentState
 } from "@/lib/student-assessment/state-machine";
 import {
+  buildInitialAdminPrompt,
+  formatInitialAdminItemMessage,
+  promptAuditPayload,
+  studentIndicatedReasoningUncertainty
+} from "@/lib/student-assessment/initial-admin-prompts";
+import {
   assertStudentPayloadIsSafe,
   serializeStudentAssessment,
   serializeStudentConceptUnit,
@@ -50,7 +56,6 @@ const MAX_REASONING_LENGTH = 5000;
 const MAX_EVENT_BATCH_SIZE = 20;
 const MAX_EVENT_PAYLOAD_BYTES = 4000;
 const IDK_OPTION_LABEL = "E";
-const IDK_OPTION_TEXT = "I don't know yet.";
 const REPEATED_INVALID_RESPONSE_PROMPT =
   "I still cannot use that as a reason. Choose one:\nA. Try writing your reason again.\nB. Mark this as 'I don't know the reason yet.'";
 
@@ -380,35 +385,33 @@ function isTransferItemCandidate(
 }
 
 function itemAgentMessage(
-  item: Pick<Item, "item_order" | "item_stem" | "options">,
-  questionLabel: string
+  item: Pick<Item, "item_public_id" | "item_order" | "item_stem" | "options">,
+  questionLabel: string,
+  itemRole: "initial" | "transfer" = "initial"
 ): string {
-  const options = safeOptionEntries(item.options)
-    .map((option) => `${option.label}. ${option.text}`)
-    .concat(`${IDK_OPTION_LABEL}. ${IDK_OPTION_TEXT}`)
-    .join("\n");
-
-  return [
+  return formatInitialAdminItemMessage({
+    item: {
+      item_public_id: item.item_public_id,
+      item_order: item.item_order,
+      item_stem: item.item_stem,
+      options: safeOptionEntries(item.options)
+    },
     questionLabel,
-    "",
-    item.item_stem,
-    "",
-    options,
-    "",
-    "What is your answer?"
-  ]
-    .filter((part) => part !== "")
-    .join("\n");
+    itemRole
+  });
 }
 
-function initialItemAgentMessage(item: Pick<Item, "item_order" | "item_stem" | "options">): string {
+function initialItemAgentMessage(item: Pick<Item, "item_public_id" | "item_order" | "item_stem" | "options">): string {
   return itemAgentMessage(item, `Question ${item.item_order} of 3`);
 }
 
 const INITIAL_ADMIN_AGENT_NAME = "deterministic_initial_administration";
 const TRANSFER_ITEM_AGENT_NAME = "deterministic_transfer_item";
-const PACKAGE_REVIEW_MESSAGE =
-  "I have your three responses. You can review or edit them before continuing to feedback.";
+const PACKAGE_REVIEW_PROMPT = buildInitialAdminPrompt({
+  kind: "package_review_prompt",
+  assessmentState: "PACKAGE_REVIEW"
+});
+const PACKAGE_REVIEW_MESSAGE = PACKAGE_REVIEW_PROMPT.prompt_text;
 const TRANSFER_COMPLETION_MESSAGE =
   "Thanks. Your response to the additional question has been recorded.";
 
@@ -1166,6 +1169,15 @@ function conversationPayloadMessageType(value: unknown) {
   return typeof type === "string" ? type : null;
 }
 
+function conversationPayloadPromptType(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const type = (value as Record<string, unknown>).prompt_type;
+  return typeof type === "string" ? type : null;
+}
+
 function conversationPromptRequiresStudentResponse(value: unknown) {
   const messageType = conversationPayloadMessageType(value);
   return (
@@ -1755,6 +1767,13 @@ export async function startConceptUnitInitialAdministration(input: {
     occurred_at: now
   });
   if (includedItems[0]) {
+    const itemPrompt = buildInitialAdminPrompt({
+      kind: "answer_prompt",
+      assessmentState: "AWAIT_ANSWER",
+      itemPublicId: includedItems[0].item_public_id,
+      itemOrder: includedItems[0].item_order,
+      itemRole: "initial"
+    });
     await logInitialAgentPrompt({
       session_db_id: session.id,
       concept_unit_session_db_id: conceptUnitSession.id,
@@ -1764,7 +1783,8 @@ export async function startConceptUnitInitialAdministration(input: {
       message_text: initialItemAgentMessage(includedItems[0]),
       structured_payload: {
         item_public_id: includedItems[0].item_public_id,
-        item_order: includedItems[0].item_order
+        item_order: includedItems[0].item_order,
+        ...promptAuditPayload(itemPrompt)
       },
       occurred_at: now
     });
@@ -2370,20 +2390,26 @@ export async function recordSelectedOption(input: {
           }
         });
       }
+      const reasoningPrompt = buildInitialAdminPrompt({
+        kind: "reasoning_prompt",
+        assessmentState: "AWAIT_REASON",
+        itemPublicId: context.item.item_public_id,
+        itemOrder: context.item.item_order,
+        itemRole: context.isTransferItem ? "transfer" : "initial",
+        selectedOption: data.selected_option
+      });
       await logInitialAgentPrompt({
         session_db_id: context.session.id,
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id,
         phase: context.session.current_phase,
         prompt_type: "request_reasoning",
-        message_text:
-          data.selected_option === IDK_OPTION_LABEL
-            ? "What makes this hard to decide?"
-            : `What is your reason for choosing ${data.selected_option}?`,
+        message_text: reasoningPrompt.prompt_text,
         structured_payload: {
           item_public_id: context.item.item_public_id,
           selected_option: data.selected_option,
-          item_context: context.isTransferItem ? "transfer" : "initial"
+          item_context: context.isTransferItem ? "transfer" : "initial",
+          ...promptAuditPayload(reasoningPrompt)
         },
         event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
         agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
@@ -2555,19 +2581,29 @@ export async function recordReasoning(input: {
           response_quality: qualityResult.output.response_quality
         }
       });
+      const confidencePrompt = buildInitialAdminPrompt({
+        kind: "confidence_prompt",
+        assessmentState: "AWAIT_CONFIDENCE",
+        itemPublicId: context.item.item_public_id,
+        itemOrder: context.item.item_order,
+        itemRole: context.isTransferItem ? "transfer" : "initial",
+        selectedOption: response.selected_option,
+        latestStudentResponse: reasoningText,
+        indicatedUnknown:
+          responseQualityIsInsufficientKnowledge(qualityResult) ||
+          studentIndicatedReasoningUncertainty(reasoningText)
+      });
       await logInitialAgentPrompt({
         session_db_id: context.session.id,
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id,
         phase: context.session.current_phase,
         prompt_type: "request_confidence",
-        message_text:
-          response.selected_option === IDK_OPTION_LABEL
-            ? "How confident do you feel about this question right now: Low, Medium, or High?"
-            : "How confident are you: Low, Medium, or High?",
+        message_text: confidencePrompt.prompt_text,
         structured_payload: {
           item_public_id: context.item.item_public_id,
-          item_context: context.isTransferItem ? "transfer" : "initial"
+          item_context: context.isTransferItem ? "transfer" : "initial",
+          ...promptAuditPayload(confidencePrompt)
         },
         event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
         agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
@@ -2670,17 +2706,25 @@ export async function recordConfidence(input: {
           item_context: context.isTransferItem ? "transfer" : "initial"
         }
       });
+      const temptingPrompt = buildInitialAdminPrompt({
+        kind: "tempting_option_prompt",
+        assessmentState: "AWAIT_TEMPTING_OPTION",
+        itemPublicId: context.item.item_public_id,
+        itemOrder: context.item.item_order,
+        itemRole: context.isTransferItem ? "transfer" : "initial",
+        selectedOption: response.selected_option
+      });
       await logInitialAgentPrompt({
         session_db_id: context.session.id,
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id,
         phase: context.session.current_phase,
         prompt_type: "request_tempting_option",
-        message_text:
-          "Was another option tempting? If yes, which one, and what made it tempting? You can also say No.",
+        message_text: temptingPrompt.prompt_text,
         structured_payload: {
           item_public_id: context.item.item_public_id,
-          item_context: context.isTransferItem ? "transfer" : "initial"
+          item_context: context.isTransferItem ? "transfer" : "initial",
+          ...promptAuditPayload(temptingPrompt)
         },
         event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
         agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
@@ -3019,6 +3063,13 @@ export async function recordTemptingOption(input: {
         });
 
         if (nextItem) {
+          const nextItemPrompt = buildInitialAdminPrompt({
+            kind: "answer_prompt",
+            assessmentState: "AWAIT_ANSWER",
+            itemPublicId: nextItem.item_public_id,
+            itemOrder: nextItem.item_order,
+            itemRole: "initial"
+          });
           await logProcessEvent({
             assessment_session_db_id: context.session.id,
             concept_unit_session_db_id: context.conceptUnitSession.id,
@@ -3037,22 +3088,32 @@ export async function recordTemptingOption(input: {
             message_text: initialItemAgentMessage(nextItem),
             structured_payload: {
               item_public_id: nextItem.item_public_id,
-              item_order: nextItem.item_order
+              item_order: nextItem.item_order,
+              ...promptAuditPayload(nextItemPrompt)
             }
           });
         }
       } else if (!itemComplete && nextState.assessment_state === "AWAIT_TEMPTING_REASON") {
+        const temptingReasonPrompt = buildInitialAdminPrompt({
+          kind: "tempting_reason_prompt",
+          assessmentState: "AWAIT_TEMPTING_REASON",
+          itemPublicId: context.item.item_public_id,
+          itemOrder: context.item.item_order,
+          itemRole: context.isTransferItem ? "transfer" : "initial",
+          selectedOption: temptingOption
+        });
         await logInitialAgentPrompt({
           session_db_id: context.session.id,
           concept_unit_session_db_id: context.conceptUnitSession.id,
           item_db_id: context.item.id,
           phase: context.session.current_phase,
           prompt_type: "request_tempting_reason",
-          message_text: "What made that option seem tempting?",
+          message_text: temptingReasonPrompt.prompt_text,
           structured_payload: {
             item_public_id: context.item.item_public_id,
             tempting_option: temptingOption,
-            item_context: context.isTransferItem ? "transfer" : "initial"
+            item_context: context.isTransferItem ? "transfer" : "initial",
+            ...promptAuditPayload(temptingReasonPrompt)
           },
           event_category: context.isTransferItem ? "transfer_item" : "initial_administration",
           agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
@@ -3075,7 +3136,8 @@ export async function recordTemptingOption(input: {
           prompt_type: "package_review",
           message_text: PACKAGE_REVIEW_MESSAGE,
           structured_payload: {
-            concept_unit_public_id: nextState.current_concept_unit?.concept_unit_public_id ?? null
+            concept_unit_public_id: nextState.current_concept_unit?.concept_unit_public_id ?? null,
+            ...promptAuditPayload(PACKAGE_REVIEW_PROMPT)
           }
         });
       }
@@ -4350,6 +4412,7 @@ function studentTranscriptInteractionType(input: {
 
   const source = conversationPayloadSource(input.structured_payload);
   const messageType = conversationPayloadMessageType(input.structured_payload);
+  const promptType = conversationPayloadPromptType(input.structured_payload);
 
   if (input.phase === "followup_active" && source === "chat_native_targeted_feedback") {
     return conversationPromptRequiresStudentResponse(input.structured_payload)
@@ -4361,10 +4424,34 @@ function studentTranscriptInteractionType(input: {
     return "revision_response";
   }
 
-  if (source === TRANSFER_ITEM_AGENT_NAME) {
-    return messageType === "transfer_item_completion"
-      ? "transfer_item_completed"
-      : "transfer_item";
+  if (source === INITIAL_ADMIN_AGENT_NAME || source === TRANSFER_ITEM_AGENT_NAME) {
+    if (source === TRANSFER_ITEM_AGENT_NAME && messageType === "transfer_item_completion") {
+      return "transfer_item_completed";
+    }
+
+    if (promptType === "item_presented") {
+      return source === TRANSFER_ITEM_AGENT_NAME ? "transfer_item" : "present_item";
+    }
+
+    if (promptType === "request_reasoning") {
+      return source === TRANSFER_ITEM_AGENT_NAME ? "transfer_request_reasoning" : "request_reasoning";
+    }
+
+    if (promptType === "request_confidence") {
+      return source === TRANSFER_ITEM_AGENT_NAME ? "transfer_request_confidence" : "request_confidence";
+    }
+
+    if (promptType === "request_tempting_option") {
+      return source === TRANSFER_ITEM_AGENT_NAME ? "transfer_request_tempting_option" : "request_tempting_option";
+    }
+
+    if (promptType === "request_tempting_reason") {
+      return source === TRANSFER_ITEM_AGENT_NAME ? "transfer_request_tempting_reason" : "request_tempting_reason";
+    }
+
+    if (promptType === "package_review") {
+      return "package_review";
+    }
   }
 
   if (source === "transfer_answer") {

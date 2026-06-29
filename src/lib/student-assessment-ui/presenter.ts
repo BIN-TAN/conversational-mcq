@@ -4,6 +4,10 @@ import type {
   StudentSessionState
 } from "./types";
 import { StudentConversationFrameSchema } from "./types";
+import {
+  buildInitialAdminPrompt,
+  studentIndicatedReasoningUncertainty
+} from "@/lib/student-assessment/initial-admin-prompts";
 
 function awaitingAnalysisMessage(phase: string) {
   if (phase === "profiling_completed") {
@@ -59,10 +63,6 @@ function missingFieldList(fields: MissingEvidenceField[]) {
 
 export function buildStudentConversationFrame(state: StudentSessionState): StudentConversationFrame {
   const conceptTitle = state.current_concept_unit?.title ?? "this topic";
-  const questionNumber = Math.min(
-    state.progress.completed_item_count + 1,
-    Math.max(state.progress.total_item_count, 1)
-  );
   const base = {
     current_item: state.current_item,
     missing_fields: state.missing_evidence,
@@ -70,6 +70,13 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
     can_exit: state.can_exit,
     can_continue: true
   };
+  const selectedOption = state.current_item?.existing_selected_option ?? null;
+  const reasoningText = state.current_item?.existing_reasoning_text ?? null;
+  const itemPublicId = state.current_item?.item_public_id ?? null;
+  const itemOrder = state.current_item?.item_order ?? null;
+  const itemRole = state.assessment_state === "TRANSFER_ITEM" || state.next_step === "transfer_item"
+    ? "transfer"
+    : "initial";
   const frame: StudentConversationFrame =
     state.next_step === "session_completed"
       ? {
@@ -194,38 +201,70 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
       : state.next_step === "present_item"
         ? {
             ...base,
-            assistant_message: `Question ${questionNumber} of ${state.progress.total_item_count}. Choose the option that best fits the evidence.`,
+            assistant_message: buildInitialAdminPrompt({
+              kind: "answer_prompt",
+              assessmentState: "AWAIT_ANSWER",
+              itemPublicId,
+              itemOrder,
+              itemRole
+            }).prompt_text,
             interaction_type: "present_item",
             allowed_actions: ["select_option", "skip_item"]
           }
         : state.next_step === "request_reasoning"
           ? {
               ...base,
-              assistant_message:
-                "Tell me why you chose that answer. A short explanation is fine.",
+              assistant_message: buildInitialAdminPrompt({
+                kind: "reasoning_prompt",
+                assessmentState: "AWAIT_REASON",
+                itemPublicId,
+                itemOrder,
+                itemRole,
+                selectedOption
+              }).prompt_text,
               interaction_type: "request_reasoning",
               allowed_actions: ["save_reasoning", "skip_reasoning"]
             }
           : state.next_step === "request_confidence"
             ? {
                 ...base,
-                assistant_message:
-                  "How confident are you?",
+                assistant_message: buildInitialAdminPrompt({
+                  kind: "confidence_prompt",
+                  assessmentState: "AWAIT_CONFIDENCE",
+                  itemPublicId,
+                  itemOrder,
+                  itemRole,
+                  selectedOption,
+                  latestStudentResponse: reasoningText,
+                  indicatedUnknown: studentIndicatedReasoningUncertainty(reasoningText)
+                }).prompt_text,
                 interaction_type: "request_confidence",
                 allowed_actions: ["select_confidence", "skip_confidence"]
               }
             : state.next_step === "request_tempting_option"
               ? {
                   ...base,
-                  assistant_message:
-                    "Was another option tempting? If yes, which one, and what made it tempting? You can also say No.",
+                  assistant_message: buildInitialAdminPrompt({
+                    kind: "tempting_option_prompt",
+                    assessmentState: "AWAIT_TEMPTING_OPTION",
+                    itemPublicId,
+                    itemOrder,
+                    itemRole,
+                    selectedOption
+                  }).prompt_text,
                   interaction_type: "request_tempting_option",
                   allowed_actions: ["record_tempting_option"]
                 }
               : state.next_step === "request_tempting_reason"
                 ? {
                     ...base,
-                    assistant_message: "What made that option seem tempting?",
+                    assistant_message: buildInitialAdminPrompt({
+                      kind: "tempting_reason_prompt",
+                      assessmentState: "AWAIT_TEMPTING_REASON",
+                      itemPublicId,
+                      itemOrder,
+                      itemRole
+                    }).prompt_text,
                     interaction_type: "request_tempting_reason",
                     allowed_actions: ["record_tempting_reason"]
                   }
@@ -247,8 +286,10 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
                 : state.next_step === "package_review"
                   ? {
                       ...base,
-                      assistant_message:
-                        "You can review the three responses as one package before the next step is prepared.",
+                      assistant_message: buildInitialAdminPrompt({
+                        kind: "package_review_prompt",
+                        assessmentState: "PACKAGE_REVIEW"
+                      }).prompt_text,
                       interaction_type: "package_review",
                       allowed_actions: ["complete_initial_concept_unit", "review_responses"]
                     }

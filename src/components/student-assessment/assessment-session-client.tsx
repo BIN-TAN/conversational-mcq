@@ -36,6 +36,10 @@ import {
   updatePackageReviewItem
 } from "./api";
 import { useStudentProcessEvents } from "./process-events";
+import {
+  buildInitialAdminPrompt,
+  studentIndicatedReasoningUncertainty
+} from "@/lib/student-assessment/initial-admin-prompts";
 
 const MAX_REASONING_LENGTH = 5000;
 const IDK_OPTION_LABEL = "E";
@@ -190,6 +194,9 @@ function ChatBubble({ entry }: { entry: StudentTranscriptEntry }) {
         data-testid={isAssistant ? "agent-chat-message" : "student-chat-message"}
         title={formatTranscriptTimestamp(entry.created_at)}
       >
+        <p className={isAssistant ? "mb-1 text-[0.68rem] font-semibold uppercase tracking-wide text-accent" : "mb-1 text-right text-[0.68rem] font-semibold uppercase tracking-wide text-white/65"}>
+          {isAssistant ? "Assessment Agent" : "You"}
+        </p>
         <p className="whitespace-pre-wrap text-sm leading-6">{displayTranscriptText(entry)}</p>
         <time className="sr-only" dateTime={entry.created_at}>
           {formatTranscriptTimestamp(entry.created_at)}
@@ -206,38 +213,40 @@ function shouldHideActiveAgentTranscriptEntry(entry: StudentTranscriptEntry, sta
 
   const currentItemPublicId = state.current_item?.item_public_id ?? null;
   const sameCurrentItem = Boolean(currentItemPublicId && entry.item_public_id === currentItemPublicId);
-  const text = entry.message_text;
 
   if (
     (state.assessment_state === "ITEM_PRESENTED" || state.assessment_state === "AWAIT_ANSWER") &&
     sameCurrentItem
   ) {
-    return text.startsWith(`Question ${state.current_item?.item_order ?? ""} of 3`);
+    return entry.interaction_type === "present_item";
   }
 
   if (state.assessment_state === "TRANSFER_ITEM" && sameCurrentItem) {
-    return text.startsWith("Additional question");
+    return entry.interaction_type === "transfer_item";
   }
 
   if (state.assessment_state === "AWAIT_REASON" && sameCurrentItem) {
-    return text.startsWith("What is your reason for choosing") ||
-      text.startsWith("What makes this hard to decide?");
+    return entry.interaction_type === "request_reasoning" ||
+      entry.interaction_type === "transfer_request_reasoning";
   }
 
   if (state.assessment_state === "AWAIT_CONFIDENCE" && sameCurrentItem) {
-    return text.startsWith("How confident are you");
+    return entry.interaction_type === "request_confidence" ||
+      entry.interaction_type === "transfer_request_confidence";
   }
 
   if (state.assessment_state === "AWAIT_TEMPTING_OPTION" && sameCurrentItem) {
-    return text.startsWith("Was another option tempting?");
+    return entry.interaction_type === "request_tempting_option" ||
+      entry.interaction_type === "transfer_request_tempting_option";
   }
 
   if (state.assessment_state === "AWAIT_TEMPTING_REASON" && sameCurrentItem) {
-    return text.startsWith("What made that option seem tempting?");
+    return entry.interaction_type === "request_tempting_reason" ||
+      entry.interaction_type === "transfer_request_tempting_reason";
   }
 
   if (state.assessment_state === "PACKAGE_REVIEW") {
-    return text.startsWith("I have your three responses.");
+    return entry.interaction_type === "package_review";
   }
 
   return false;
@@ -254,7 +263,12 @@ function AgentMessage({ children }: { children: React.ReactNode }) {
           <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
             <MessageSquareText className="h-4 w-4" aria-hidden="true" />
           </div>
-          <div className="min-w-0 flex-1 text-sm leading-6 text-ink">{children}</div>
+          <div className="min-w-0 flex-1 text-sm leading-6 text-ink">
+            <p className="mb-1 text-[0.68rem] font-semibold uppercase tracking-wide text-accent">
+              Assessment Agent
+            </p>
+            {children}
+          </div>
         </div>
       </div>
     </div>
@@ -301,6 +315,14 @@ function AgentItemMessage({
   isTransferItem?: boolean;
   onSelect: (label: string) => void;
 }) {
+  const answerPrompt = buildInitialAdminPrompt({
+    kind: "answer_prompt",
+    assessmentState: isTransferItem ? "TRANSFER_ITEM" : "AWAIT_ANSWER",
+    itemPublicId: item.item_public_id,
+    itemOrder: item.item_order,
+    itemRole: isTransferItem ? "transfer" : "initial"
+  });
+
   return (
     <AgentMessage>
       <p className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -332,29 +354,37 @@ function AgentItemMessage({
           );
         })}
       </div>
-      <p className="mt-3 font-medium text-ink">What is your answer?</p>
+      <p className="mt-3 font-medium text-ink">{answerPrompt.prompt_text}</p>
     </AgentMessage>
   );
 }
 
 function ConfidenceMessage({
   disabled,
-  idkSelected = false,
+  item,
+  isTransferItem = false,
   onSelect
 }: {
   disabled: boolean;
-  idkSelected?: boolean;
+  item: StudentSafeItem | null;
+  isTransferItem?: boolean;
   onSelect: (confidence: ConfidenceRating) => void;
 }) {
   const levels: ConfidenceRating[] = ["low", "medium", "high"];
+  const confidencePrompt = buildInitialAdminPrompt({
+    kind: "confidence_prompt",
+    assessmentState: "AWAIT_CONFIDENCE",
+    itemPublicId: item?.item_public_id ?? null,
+    itemOrder: item?.item_order ?? null,
+    itemRole: isTransferItem ? "transfer" : "initial",
+    selectedOption: item?.existing_selected_option ?? null,
+    latestStudentResponse: item?.existing_reasoning_text ?? null,
+    indicatedUnknown: studentIndicatedReasoningUncertainty(item?.existing_reasoning_text)
+  });
 
   return (
     <AgentMessage>
-      <p className="font-medium text-ink">
-        {idkSelected
-          ? "How confident do you feel about this question right now: Low, Medium, or High?"
-          : "How confident are you: Low, Medium, or High?"}
-      </p>
+      <p className="font-medium text-ink">{confidencePrompt.prompt_text}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {levels.map((level) => (
           <button
@@ -376,20 +406,28 @@ function ConfidenceMessage({
 function TemptingOptionMessage({
   item,
   disabled,
+  isTransferItem = false,
   onNo,
   onSelect
 }: {
   item: StudentSafeItem;
   disabled: boolean;
+  isTransferItem?: boolean;
   onNo: () => void;
   onSelect: (label: string) => void;
 }) {
+  const temptingPrompt = buildInitialAdminPrompt({
+    kind: "tempting_option_prompt",
+    assessmentState: "AWAIT_TEMPTING_OPTION",
+    itemPublicId: item.item_public_id,
+    itemOrder: item.item_order,
+    selectedOption: item.existing_selected_option,
+    itemRole: isTransferItem ? "transfer" : "initial"
+  });
+
   return (
     <AgentMessage>
-      <p className="font-medium text-ink">
-        Was another option tempting? If yes, which one, and what made it tempting? You can also
-        say No.
-      </p>
+      <p className="font-medium text-ink">{temptingPrompt.prompt_text}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {item.options.map((option) => (
           <OptionChip
@@ -496,11 +534,14 @@ function PackageReviewMessage({
   onSaveEdit: () => void;
   onStartEdit: (item: StudentReviewItem) => void;
 }) {
+  const reviewPrompt = buildInitialAdminPrompt({
+    kind: "package_review_prompt",
+    assessmentState: "PACKAGE_REVIEW"
+  });
+
   return (
     <AgentMessage>
-      <p className="font-medium text-ink">
-        I have your three responses. You can review or edit them before continuing to feedback.
-      </p>
+      <p className="font-medium text-ink">{reviewPrompt.prompt_text}</p>
       {review ? (
         <div className="mt-4 grid gap-2" data-testid="package-review-list">
           {review.items.map((item) => {
@@ -1297,6 +1338,27 @@ function ChatTranscript({ children }: { children: React.ReactNode }) {
   );
 }
 
+function stateIsTransferItemFlow(state: StudentSessionState) {
+  return (
+    state.assessment_state === "TRANSFER_ITEM" ||
+    state.next_step === "transfer_item" ||
+    state.effective_phase === "followup_stopped" ||
+    state.current_phase === "followup_stopped"
+  );
+}
+
+function shouldShowLearningProfile(state: StudentSessionState) {
+  return [
+    "FORMATIVE_ACTIVITY",
+    "FOLLOWUP_RESPONSE",
+    "TARGETED_FEEDBACK",
+    "REVISION",
+    "NEXT_CHOICE",
+    "TRANSFER_ITEM",
+    "SESSION_COMPLETE"
+  ].includes(state.assessment_state);
+}
+
 function activeItemPrompt(input: {
   state: StudentSessionState;
   review: StudentReviewResponse | null;
@@ -1346,6 +1408,7 @@ function activeItemPrompt(input: {
 }) {
   const { state, isBusy } = input;
   const item = state.current_item;
+  const isTransferItem = stateIsTransferItemFlow(state);
   const inFlowEditPanel =
     item && state.assessment_state !== "PACKAGE_REVIEW" && state.assessment_state !== "PACKAGE_ANALYSIS" ? (
       <InFlowEditPanel
@@ -1390,7 +1453,7 @@ function activeItemPrompt(input: {
     return (
       <AgentItemMessage
         disabled={isBusy}
-        isTransferItem={state.assessment_state === "TRANSFER_ITEM" || state.next_step === "transfer_item"}
+        isTransferItem={isTransferItem}
         item={item}
         onSelect={input.onSelectOption}
       />
@@ -1398,14 +1461,19 @@ function activeItemPrompt(input: {
   }
 
   if (state.assessment_state === "AWAIT_REASON" && item) {
+    const reasoningPrompt = buildInitialAdminPrompt({
+      kind: "reasoning_prompt",
+      assessmentState: "AWAIT_REASON",
+      itemPublicId: item.item_public_id,
+      itemOrder: item.item_order,
+      itemRole: isTransferItem ? "transfer" : "initial",
+      selectedOption: item.existing_selected_option
+    });
+
     return (
       <>
         <AgentMessage>
-          <p className="font-medium text-ink">
-            {item.existing_selected_option === IDK_OPTION_LABEL
-              ? "What makes this hard to decide?"
-              : `What is your reason for choosing ${item.existing_selected_option ?? "that option"}?`}
-          </p>
+          <p className="font-medium text-ink">{reasoningPrompt.prompt_text}</p>
         </AgentMessage>
         <TextComposer
           disabled={isBusy}
@@ -1427,7 +1495,8 @@ function activeItemPrompt(input: {
       <>
         <ConfidenceMessage
           disabled={isBusy}
-          idkSelected={item?.existing_selected_option === IDK_OPTION_LABEL}
+          isTransferItem={isTransferItem}
+          item={item ?? null}
           onSelect={input.onSelectConfidence}
         />
         {inFlowEditPanel}
@@ -1440,6 +1509,7 @@ function activeItemPrompt(input: {
       <>
         <TemptingOptionMessage
           disabled={isBusy}
+          isTransferItem={isTransferItem}
           item={item}
           onNo={input.onNoTemptingOption}
           onSelect={input.onSelectTemptingOption}
@@ -1450,10 +1520,19 @@ function activeItemPrompt(input: {
   }
 
   if (state.assessment_state === "AWAIT_TEMPTING_REASON") {
+    const temptingReasonPrompt = buildInitialAdminPrompt({
+      kind: "tempting_reason_prompt",
+      assessmentState: "AWAIT_TEMPTING_REASON",
+      itemPublicId: item?.item_public_id ?? null,
+      itemOrder: item?.item_order ?? null,
+      itemRole: isTransferItem ? "transfer" : "initial",
+      selectedOption: item?.tempting_option ?? null
+    });
+
     return (
       <>
         <AgentMessage>
-          <p className="font-medium text-ink">What made that option seem tempting?</p>
+          <p className="font-medium text-ink">{temptingReasonPrompt.prompt_text}</p>
         </AgentMessage>
         <TextComposer
           disabled={isBusy}
@@ -2293,7 +2372,9 @@ export function AssessmentSessionClient({
           ) : null}
           <div ref={scrollRef} />
         </ChatTranscript>
-        <LearningProfilePanel profile={state.learning_profile} />
+        {shouldShowLearningProfile(state) ? (
+          <LearningProfilePanel profile={state.learning_profile} />
+        ) : null}
       </div>
       {currentItem ? (
         <p className="sr-only" aria-live="polite">

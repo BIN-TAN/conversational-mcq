@@ -20,6 +20,11 @@ import {
   type ResponseQualityResult,
   type ResponseQualityStage
 } from "@/lib/services/student-assessment/response-quality";
+import {
+  buildInitialAdminPrompt,
+  formatInitialAdminItemMessage,
+  promptAuditPayload
+} from "@/lib/student-assessment/initial-admin-prompts";
 import { StudentAssessmentServiceError } from "./errors";
 
 export const FormativeNeedSchema = z.enum([
@@ -177,8 +182,6 @@ const CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_HASH = createHash("sha256")
 const FORMATIVE_ACTIVITY_AGENT_NAME = "chat_native_formative_activity";
 const TARGETED_FEEDBACK_AGENT_NAME = "chat_native_targeted_feedback";
 const TRANSFER_ITEM_AGENT_NAME = "deterministic_transfer_item";
-const IDK_OPTION_LABEL = "E";
-const IDK_OPTION_TEXT = "I don't know yet.";
 const MAX_FORMATIVE_RESPONSE_CHARS = 5000;
 const MAX_REVISION_CHARS = 5000;
 const MAX_FORMATIVE_REPAIR_TURNS = 3;
@@ -361,23 +364,22 @@ function safeOptionEntries(value: unknown): Array<{ label: string; text: string 
     .filter((entry): entry is { label: string; text: string } => Boolean(entry));
 }
 
-function transferItemAgentMessage(item: { item_stem: string; options: unknown }) {
-  const options = safeOptionEntries(item.options)
-    .map((option) => `${option.label}. ${option.text}`)
-    .concat(`${IDK_OPTION_LABEL}. ${IDK_OPTION_TEXT}`)
-    .join("\n");
-
-  return [
-    "Additional question",
-    "",
-    item.item_stem,
-    "",
-    options,
-    "",
-    "What is your answer?"
-  ]
-    .filter((part) => part !== "")
-    .join("\n");
+function transferItemAgentMessage(item: {
+  item_public_id: string;
+  item_order: number;
+  item_stem: string;
+  options: unknown;
+}) {
+  return formatInitialAdminItemMessage({
+    item: {
+      item_public_id: item.item_public_id,
+      item_order: item.item_order,
+      item_stem: item.item_stem,
+      options: safeOptionEntries(item.options)
+    },
+    questionLabel: "Additional question",
+    itemRole: "transfer"
+  });
 }
 
 async function findTransferItemForConceptUnit(conceptUnitDbId: string) {
@@ -2979,6 +2981,13 @@ export async function submitChatNativeNextChoice(input: {
     });
 
     if (alreadyPresented === 0) {
+      const transferPrompt = buildInitialAdminPrompt({
+        kind: "answer_prompt",
+        assessmentState: "TRANSFER_ITEM",
+        itemPublicId: transferItem.item_public_id,
+        itemOrder: transferItem.item_order,
+        itemRole: "transfer"
+      });
       await logProcessEvent({
         assessment_session_db_id: session.id,
         concept_unit_session_db_id: conceptUnitSession.id,
@@ -3004,7 +3013,8 @@ export async function submitChatNativeNextChoice(input: {
           source: TRANSFER_ITEM_AGENT_NAME,
           prompt_type: "item_presented",
           item_public_id: transferItem.item_public_id,
-          item_role: "transfer"
+          item_role: "transfer",
+          ...promptAuditPayload(transferPrompt)
         },
         occurred_at: now
       });
@@ -3020,7 +3030,8 @@ export async function submitChatNativeNextChoice(input: {
           source: TRANSFER_ITEM_AGENT_NAME,
           prompt_type: "item_presented",
           item_public_id: transferItem.item_public_id,
-          item_role: "transfer"
+          item_role: "transfer",
+          ...promptAuditPayload(transferPrompt)
         },
         created_at: now
       });

@@ -29,6 +29,8 @@ import {
 import {
   submitChatNativeFormativeActivityResponse
 } from "../src/lib/services/student-assessment/formative-profile";
+import { buildStudentConversationFrame } from "../src/lib/student-assessment-ui/presenter";
+import { buildInitialAdminPrompt } from "../src/lib/student-assessment/initial-admin-prompts";
 
 const prisma = new PrismaClient();
 
@@ -53,6 +55,24 @@ async function assertStudentComponentQualityShape() {
   assert(!source.includes("submit-item"), "Initial item-level submit should not return.");
 }
 
+function assertInitialPromptVariation() {
+  const prompts = [1, 2, 3].map((itemOrder) =>
+    buildInitialAdminPrompt({
+      kind: "answer_prompt",
+      assessmentState: "AWAIT_ANSWER",
+      itemPublicId: `synthetic_item_${itemOrder}`,
+      itemOrder,
+      itemRole: "initial"
+    }).prompt_text
+  );
+
+  assert(new Set(prompts).size > 1, "Mock initial prompt wording should vary across items.");
+  assert(
+    prompts.every((prompt) => !/correct answer|answer key|structured output|agent call/i.test(prompt)),
+    "Initial prompts should not expose protected or internal language."
+  );
+}
+
 async function main() {
   process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "true";
   process.env.LLM_PROVIDER = "mock";
@@ -60,6 +80,7 @@ async function main() {
   process.env.OPERATIONAL_AGENT_MODE = "disabled";
 
   await assertStudentComponentQualityShape();
+  assertInitialPromptVariation();
   await ensureDemoStudentAssessment(prisma);
 
   const prefix = `phase13_quality_${Date.now()}_${randomUUID().slice(0, 8)}`;
@@ -165,6 +186,11 @@ async function main() {
       response.reasoning_text === "I don't know the reason yet.",
       "Unknown reasoning choice should be stored explicitly."
     );
+    let frame = buildStudentConversationFrame(state);
+    assert(
+      frame.assistant_message.includes("Since you selected 'I don't know yet,'"),
+      "E selection should produce adapted confidence prompt."
+    );
 
     const editedReasoning =
       "It is hard because I can tell theta belongs to the person, but the item parameter wording is still close.";
@@ -204,16 +230,80 @@ async function main() {
       })
     ).state;
 
-    for (let index = 2; index <= 3; index += 1) {
-      state = await completeInitialItem({
-        studentDbId: student.id,
-        sessionPublicId: started.session.session_public_id,
-        prefix,
-        state,
-        itemIndex: index,
-        withTemptingReason: index === 2
-      });
-    }
+    const secondItem = state.current_item;
+    assert(secondItem, "Expected second item after first uncertainty response.");
+    const secondSelectedOption = secondItem.options[0]?.label ?? "A";
+    state = (
+      await recordSelectedOption({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        item_public_id: secondItem.item_public_id,
+        data: {
+          selected_option: secondSelectedOption,
+          client_action_id: `${prefix}_item2_option`
+        }
+      })
+    ).state;
+    state = (
+      await recordReasoning({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        item_public_id: secondItem.item_public_id,
+        data: {
+          reasoning_text: "Can you explain theta before I answer?",
+          client_action_id: `${prefix}_item2_content_question`
+        }
+      })
+    ).state;
+    assert(state.assessment_state === "AWAIT_REASON", "Content question should be deferred without advancing.");
+    state = (
+      await recordReasoning({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        item_public_id: secondItem.item_public_id,
+        data: {
+          reasoning_text: "I'm confused.",
+          client_action_id: `${prefix}_item2_affect_reasoning`
+        }
+      })
+    ).state;
+    assert(state.assessment_state === "AWAIT_CONFIDENCE", "Affect/uncertainty statement should advance as low-information evidence.");
+    frame = buildStudentConversationFrame(state);
+    assert(
+      frame.assistant_message.includes("Since you said you are unsure about the reason"),
+      "Uncertain reasoning should produce adapted confidence prompt."
+    );
+    state = (
+      await recordConfidence({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        item_public_id: secondItem.item_public_id,
+        data: {
+          confidence_rating: "low",
+          client_action_id: `${prefix}_item2_confidence`
+        }
+      })
+    ).state;
+    state = (
+      await recordTemptingOption({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        item_public_id: secondItem.item_public_id,
+        data: {
+          no_tempting_option: true,
+          client_action_id: `${prefix}_item2_no_tempting`
+        }
+      })
+    ).state;
+
+    state = await completeInitialItem({
+      studentDbId: student.id,
+      sessionPublicId: started.session.session_public_id,
+      prefix,
+      state,
+      itemIndex: 3,
+      withTemptingReason: false
+    });
     assert(state.assessment_state === "PACKAGE_REVIEW", "Initial package should reach review.");
 
     state = (
