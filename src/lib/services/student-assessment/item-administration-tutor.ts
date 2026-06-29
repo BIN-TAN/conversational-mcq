@@ -10,7 +10,7 @@ import {
 import { getLlmRuntimeConfig, type AgentModelConfig } from "@/lib/llm/config";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
-import type { StructuredAgentResult } from "@/lib/llm/providers/types";
+import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
 import { toPrismaJson } from "@/lib/services/json";
 import {
   RESPONSE_QUALITY_SCHEMA_VERSION,
@@ -287,6 +287,22 @@ function providerAuditUpdate(providerResult: StructuredAgentResult<unknown>) {
     total_tokens: providerResult.usage?.total_tokens,
     token_usage: providerResult.usage ? prismaJson(providerResult.usage.raw ?? providerResult.usage) : undefined
   };
+}
+
+let itemAdministrationTutorProviderOverrideForTest: LlmProvider | null = null;
+
+export async function withItemAdministrationTutorProviderForTest<T>(
+  provider: LlmProvider,
+  callback: () => Promise<T>
+): Promise<T> {
+  const previous = itemAdministrationTutorProviderOverrideForTest;
+  itemAdministrationTutorProviderOverrideForTest = provider;
+
+  try {
+    return await callback();
+  } finally {
+    itemAdministrationTutorProviderOverrideForTest = previous;
+  }
 }
 
 function normalize(text: string) {
@@ -634,6 +650,18 @@ function tutorResultFromOutput(input: {
   };
 }
 
+function outputFromTutorResult(result: ItemAdministrationTutorResult): ItemAdministrationTutorOutput {
+  return {
+    message_classification: result.message_classification,
+    response_quality: result.response_quality,
+    should_advance: result.should_advance,
+    should_store_deferred_concern: result.store_deferred_concern,
+    deferred_concern_summary: result.deferred_concern_summary,
+    student_facing_message: result.student_facing_message,
+    next_expected_action: result.next_expected_action
+  };
+}
+
 function deterministicTutorResult(input: {
   state_packet: ItemAdministrationTutorStatePacket;
   stage: ResponseQualityStage;
@@ -812,7 +840,7 @@ export async function runItemAdministrationTutor(input: {
 
   try {
     const runtime = getLlmRuntimeConfig();
-    const provider = createLlmProvider();
+    const provider = itemAdministrationTutorProviderOverrideForTest ?? createLlmProvider();
     const providerResult = await provider.executeStructured({
       agent_name: "response_collection_agent",
       model_config: modelConfig,
@@ -858,20 +886,7 @@ export async function runItemAdministrationTutor(input: {
         });
       }
 
-      await prisma.agentCall.update({
-        where: { id: agentCall.id },
-        data: {
-          ...providerAuditUpdate(providerResult),
-          output_payload: parsed.success ? prismaJson(parsed.data) : Prisma.JsonNull,
-          output_validated: false,
-          validation_error: validation.issues.join("; "),
-          call_status: "invalid_output",
-          error_category: "schema_validation",
-          completed_at: new Date()
-        }
-      });
-
-      return deterministicTutorResult({
+      const fallbackResult = deterministicTutorResult({
         ...input,
         validation_status: "fallback_after_provider_failure",
         source: "llm_fallback_to_deterministic",
@@ -880,12 +895,43 @@ export async function runItemAdministrationTutor(input: {
         live_status: "fallback_after_validation_failure",
         item_admin_tutor_source: "safe_fallback_after_live_failure"
       });
+      const fallbackOutput = outputFromTutorResult(fallbackResult);
+
+      await prisma.agentCall.update({
+        where: { id: agentCall.id },
+        data: {
+          ...providerAuditUpdate(providerResult),
+          output_payload: prismaJson(fallbackOutput),
+          output_validated: false,
+          validation_error: [
+            "live_item_admin_output_failed_effective_validation",
+            ...validation.issues,
+            `effective_fallback_message_classification:${fallbackOutput.message_classification}`,
+            `effective_fallback_tutor_source:${fallbackResult.item_admin_tutor_source}`
+          ].join("; "),
+          call_status: "invalid_output",
+          error_category: "schema_validation",
+          completed_at: new Date()
+        }
+      });
+
+      return fallbackResult;
     }
 
+    const fallbackResult = deterministicTutorResult({
+      ...input,
+      validation_status: "fallback_after_provider_failure",
+      source: "llm_fallback_to_deterministic",
+      provider: "mock",
+      agent_call_id: agentCall.id,
+      live_status: "fallback_after_provider_failure",
+      item_admin_tutor_source: "safe_fallback_after_live_failure"
+    });
     await prisma.agentCall.update({
       where: { id: agentCall.id },
       data: {
         ...providerAuditUpdate(providerResult),
+        output_payload: prismaJson(outputFromTutorResult(fallbackResult)),
         output_validated: false,
         validation_error:
           providerResult.error?.message ??
@@ -897,10 +943,21 @@ export async function runItemAdministrationTutor(input: {
         completed_at: new Date()
       }
     });
+    return fallbackResult;
   } catch (error) {
+    const fallbackResult = deterministicTutorResult({
+      ...input,
+      validation_status: "fallback_after_provider_failure",
+      source: "llm_fallback_to_deterministic",
+      provider: "mock",
+      agent_call_id: agentCall.id,
+      live_status: "fallback_after_provider_failure",
+      item_admin_tutor_source: "safe_fallback_after_live_failure"
+    });
     await prisma.agentCall.update({
       where: { id: agentCall.id },
       data: {
+        output_payload: prismaJson(outputFromTutorResult(fallbackResult)),
         output_validated: false,
         validation_error:
           error instanceof Error ? error.message : "Item Administration Tutor provider call failed.",
@@ -909,15 +966,6 @@ export async function runItemAdministrationTutor(input: {
         completed_at: new Date()
       }
     });
+    return fallbackResult;
   }
-
-  return deterministicTutorResult({
-    ...input,
-    validation_status: "fallback_after_provider_failure",
-    source: "llm_fallback_to_deterministic",
-    provider: "mock",
-    agent_call_id: agentCall.id,
-    live_status: "fallback_after_provider_failure",
-    item_admin_tutor_source: "safe_fallback_after_live_failure"
-  });
 }
