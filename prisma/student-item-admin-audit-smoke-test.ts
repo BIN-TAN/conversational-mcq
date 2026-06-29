@@ -32,7 +32,7 @@ const prisma = new PrismaClient();
 
 const contentQuestionOutput: ItemAdministrationTutorOutput = {
   message_classification: "content_question",
-  response_quality: "not_usable",
+  response_quality: "low_information",
   should_advance: false,
   should_store_deferred_concern: true,
   deferred_concern_summary: "Asked what theta means during item administration.",
@@ -261,6 +261,10 @@ async function main() {
           "Simulated live audit should persist provider metadata."
         );
         assert(liveAudit.output.message_classification === "content_question", "Live output classification mismatch.");
+        assert(
+          liveAudit.output.response_quality === "not_usable",
+          "Content-question live output should be canonicalized to not_usable."
+        );
         await assertTutorProcessEvidence({
           sessionPublicId: started.session.session_public_id,
           agentCallId: liveAudit.call.id,

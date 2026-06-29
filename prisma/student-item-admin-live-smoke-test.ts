@@ -67,7 +67,15 @@ function liveItemAdminReadiness() {
   };
 }
 
-async function latestItemAdminCall(sessionPublicId: string, expectedClassification: string) {
+async function latestItemAdminCall(
+  sessionPublicId: string,
+  expectedClassification: string,
+  expected: {
+    response_quality?: string;
+    should_advance?: boolean;
+    deferred_concern_summary_present?: boolean;
+  } = {}
+) {
   const session = await prisma.assessmentSession.findUniqueOrThrow({
     where: { session_public_id: sessionPublicId },
     select: { id: true, current_phase: true, status: true }
@@ -154,6 +162,9 @@ async function latestItemAdminCall(sessionPublicId: string, expectedClassificati
       deferred_concern_summary_present: parsed.success ? Boolean(parsed.data.deferred_concern_summary) : null,
       output_validated: entry.output_validated,
       validation_error_present: Boolean(entry.validation_error),
+      validation_error_summary: entry.validation_error
+        ? entry.validation_error.split("; ").slice(0, 8)
+        : [],
       provider_request_id_present: Boolean(entry.provider_request_id),
       provider_response_id_present: Boolean(entry.provider_response_id),
       token_usage_present: Boolean(entry.token_usage),
@@ -262,24 +273,34 @@ async function latestItemAdminCall(sessionPublicId: string, expectedClassificati
   assert(call.live_call_allowed === true, "Item admin call should store live_call_allowed=true.");
   assert(call.schema_version === ITEM_ADMINISTRATION_TUTOR_SCHEMA_VERSION, "Item admin schema version mismatch.");
   assert(call.completed_at, "Item admin call should store completed_at.");
-
-  if (call.call_status === "succeeded") {
-    assert(call.output_validated === true, "Item admin output should be validated.");
-    assert(!call.validation_error, "Validated item admin output should not store validation_error.");
-  } else if (call.call_status === "invalid_output") {
-    assert(call.output_validated === false, "Fallback after invalid live output should not mark raw output validated.");
-    assert(call.validation_error, "Fallback after invalid live output should preserve validation_error.");
+  assert(
+    call.call_status === "succeeded",
+    `Item admin live smoke requires a validated live provider output; fallback cannot satisfy success.\n${JSON.stringify(diagnostics, null, 2)}`
+  );
+  assert(call.output_validated === true, "Item admin output should be validated.");
+  assert(!call.validation_error, "Validated item admin output should not store validation_error.");
+  assert(
+    matchingProcessEvidence.some(
+      (entry) => entry.agent_call_id === call.id && entry.item_admin_tutor_source === "live_llm"
+    ),
+    `Validated live item-admin turn should store process-event evidence with live_llm tutor source.\n${JSON.stringify(diagnostics, null, 2)}`
+  );
+  if (expected.response_quality) {
     assert(
-      matchingProcessEvidence.some(
-        (entry) =>
-          entry.agent_call_id === call.id &&
-          entry.item_admin_tutor_source === "safe_fallback_after_live_failure"
-      ),
-      `Fallback item-admin turn should store process-event evidence with safe_fallback_after_live_failure.\n${JSON.stringify(diagnostics, null, 2)}`
+      output.response_quality === expected.response_quality,
+      `Expected response_quality ${expected.response_quality}, got ${output.response_quality}.\n${JSON.stringify(diagnostics, null, 2)}`
     );
-  } else {
-    throw new Error(
-      `Item admin provider call failed before usable structured output; fallback cannot satisfy live smoke.\n${JSON.stringify(diagnostics, null, 2)}`
+  }
+  if (typeof expected.should_advance === "boolean") {
+    assert(
+      output.should_advance === expected.should_advance,
+      `Expected should_advance ${expected.should_advance}, got ${output.should_advance}.\n${JSON.stringify(diagnostics, null, 2)}`
+    );
+  }
+  if (typeof expected.deferred_concern_summary_present === "boolean") {
+    assert(
+      Boolean(output.deferred_concern_summary) === expected.deferred_concern_summary_present,
+      `Deferred concern presence mismatch.\n${JSON.stringify(diagnostics, null, 2)}`
     );
   }
 
@@ -295,10 +316,7 @@ async function latestItemAdminCall(sessionPublicId: string, expectedClassificati
     token_usage_present: Boolean(call.token_usage),
     call_status: call.call_status,
     output_validated: call.output_validated,
-    item_admin_tutor_source:
-      call.call_status === "succeeded"
-        ? "live_llm"
-        : "safe_fallback_after_live_failure"
+    item_admin_tutor_source: "live_llm"
   };
 }
 
@@ -392,7 +410,11 @@ async function main() {
       })
     ).state;
     assert(state.assessment_state === "AWAIT_REASON", "Content question should not advance to confidence.");
-    const contentCall = await latestItemAdminCall(started.session.session_public_id, "content_question");
+    const contentCall = await latestItemAdminCall(started.session.session_public_id, "content_question", {
+      response_quality: "not_usable",
+      should_advance: false,
+      deferred_concern_summary_present: true
+    });
     assert(contentCall.output.should_advance === false, "Content-question output must not advance.");
     assert(
       /after the three-question set/i.test(contentCall.output.student_facing_message),
@@ -411,7 +433,10 @@ async function main() {
       })
     ).state;
     assert(state.assessment_state === "AWAIT_CONFIDENCE", "Explicit uncertainty should advance to confidence.");
-    const unknownCall = await latestItemAdminCall(started.session.session_public_id, "insufficient_knowledge");
+    const unknownCall = await latestItemAdminCall(started.session.session_public_id, "insufficient_knowledge", {
+      response_quality: "low_information",
+      should_advance: true
+    });
     assert(unknownCall.output.response_quality === "low_information", "Unknown reason should be low-information evidence.");
     assert(unknownCall.output.should_advance === true, "Unknown reason should advance.");
 
