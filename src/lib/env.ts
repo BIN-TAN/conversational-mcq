@@ -90,6 +90,7 @@ const serverEnvSchema = z.object({
   OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP: optionalPositiveInt,
   OPENAI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
   OPENAI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  ITEM_ADMIN_TUTOR_MODE: z.enum(["auto", "mock", "live"]).default("auto"),
   ITEM_ADMIN_TUTOR_LIVE_ENABLED: booleanWithDefault(false),
   COURSE_TIMEZONE: z
     .string()

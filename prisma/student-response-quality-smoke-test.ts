@@ -6,7 +6,6 @@ import {
   assert,
   assertStudentVisibleTextIsSafe,
   cleanupSmokeStudentSessions,
-  completeInitialItem,
   createSmokeStudent,
   eventCounts
 } from "./student-mvp-smoke-helpers";
@@ -31,6 +30,7 @@ import {
 } from "../src/lib/services/student-assessment/formative-profile";
 import { buildStudentConversationFrame } from "../src/lib/student-assessment-ui/presenter";
 import { buildInitialAdminPrompt } from "../src/lib/student-assessment/initial-admin-prompts";
+import { resolveItemAdministrationTutorRuntimeMode } from "../src/lib/services/student-assessment/item-administration-tutor";
 
 const prisma = new PrismaClient();
 
@@ -85,14 +85,82 @@ function assertInitialPromptVariation() {
   );
 }
 
+function withTemporaryEnv(values: Record<string, string | undefined>, callback: () => void) {
+  const previous = Object.fromEntries(
+    Object.keys(values).map((key) => [key, process.env[key]])
+  );
+
+  try {
+    for (const [key, value] of Object.entries(values)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+
+    callback();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
+function assertItemAdminRuntimeModeResolution() {
+  withTemporaryEnv(
+    {
+      ITEM_ADMIN_TUTOR_MODE: "auto",
+      LLM_PROVIDER: "openai",
+      LLM_LIVE_CALLS_ENABLED: "true",
+      OPENAI_API_KEY: "test-item-admin-mode-resolution-key",
+      OPENAI_MODEL_ITEM_ADMIN: "gpt-test-item-admin",
+      OPENAI_MODEL_FOLLOWUP: ""
+    },
+    () => {
+      const mode = resolveItemAdministrationTutorRuntimeMode();
+      assert(mode.configured_mode === "auto", "Item admin mode should default through auto.");
+      assert(mode.resolved_source === "live_llm", "Auto mode should resolve live when live config is ready.");
+      assert(mode.live_config_ready, "Auto mode should report live config ready.");
+      assert(mode.model_name === "gpt-test-item-admin", "Item admin model should come from OPENAI_MODEL_ITEM_ADMIN.");
+    }
+  );
+
+  withTemporaryEnv(
+    {
+      ITEM_ADMIN_TUTOR_MODE: "mock",
+      LLM_PROVIDER: "openai",
+      LLM_LIVE_CALLS_ENABLED: "true",
+      OPENAI_API_KEY: "test-item-admin-mode-resolution-key",
+      OPENAI_MODEL_ITEM_ADMIN: "gpt-test-item-admin",
+      OPENAI_MODEL_FOLLOWUP: ""
+    },
+    () => {
+      const mode = resolveItemAdministrationTutorRuntimeMode();
+      assert(mode.configured_mode === "mock", "Mock mode should be explicit.");
+      assert(mode.resolved_source === "deterministic_mock", "Mock mode should force deterministic tutor.");
+      assert(
+        mode.blocking_reasons.includes("item_admin_tutor_mode_mock"),
+        "Mock mode should report that it forced deterministic behavior."
+      );
+    }
+  );
+}
+
 async function main() {
   process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "true";
   process.env.LLM_PROVIDER = "mock";
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
   process.env.OPERATIONAL_AGENT_MODE = "disabled";
+  process.env.ITEM_ADMIN_TUTOR_MODE = "mock";
 
   await assertStudentComponentQualityShape();
   assertInitialPromptVariation();
+  assertItemAdminRuntimeModeResolution();
   await ensureDemoStudentAssessment(prisma);
 
   const prefix = `phase13_quality_${Date.now()}_${randomUUID().slice(0, 8)}`;
@@ -117,6 +185,8 @@ async function main() {
     });
     const firstItem = state.current_item;
     assert(firstItem, "Expected first item.");
+    assert(state.assessment_state === "AWAIT_ANSWER", "Initial state should await the first answer.");
+    assert(!state.learning_profile, "Learning profile must be hidden during Q1 answer collection.");
 
     state = (
       await recordSelectedOption({
@@ -131,6 +201,7 @@ async function main() {
     ).state;
     assert(state.assessment_state === "AWAIT_REASON", "E selection should ask for reasoning.");
     assert(state.current_item?.existing_selected_option === "E", "E selection should persist.");
+    assert(!state.learning_profile, "Learning profile must be hidden during Q1 reasoning collection.");
 
     let response = await prisma.itemResponse.findFirstOrThrow({
       where: {
@@ -187,6 +258,7 @@ async function main() {
       })
     ).state;
     assert(state.assessment_state === "AWAIT_CONFIDENCE", "Marking unknown reasoning should advance.");
+    assert(!state.learning_profile, "Learning profile must be hidden during Q1 confidence collection.");
     response = await prisma.itemResponse.findFirstOrThrow({
       where: {
         item: { item_public_id: firstItem.item_public_id },
@@ -230,6 +302,7 @@ async function main() {
         }
       })
     ).state;
+    assert(!state.learning_profile, "Learning profile must be hidden during Q1 tempting-option collection.");
     state = (
       await recordTemptingOption({
         student_user_db_id: student.id,
@@ -244,6 +317,7 @@ async function main() {
 
     const secondItem = state.current_item;
     assert(secondItem, "Expected second item after first uncertainty response.");
+    assert(!state.learning_profile, "Learning profile must be hidden during Q2 answer collection.");
     const secondSelectedOption = secondItem.options[0]?.label ?? "A";
     state = (
       await recordSelectedOption({
@@ -268,6 +342,7 @@ async function main() {
       })
     ).state;
     assert(state.assessment_state === "AWAIT_REASON", "Content question should be deferred without advancing.");
+    assert(!state.learning_profile, "Learning profile must be hidden while Q2 content help is deferred.");
     state = (
       await recordReasoning({
         student_user_db_id: student.id,
@@ -292,6 +367,7 @@ async function main() {
       })
     ).state;
     assert(state.assessment_state === "AWAIT_CONFIDENCE", "Explicit unknown reasoning should advance as low-information evidence.");
+    assert(!state.learning_profile, "Learning profile must be hidden during Q2 confidence collection.");
     frame = buildStudentConversationFrame(state);
     assert(
       frame.assistant_message.includes("I'll record that you are unsure about the reason"),
@@ -320,15 +396,58 @@ async function main() {
       })
     ).state;
 
-    state = await completeInitialItem({
-      studentDbId: student.id,
-      sessionPublicId: started.session.session_public_id,
-      prefix,
-      state,
-      itemIndex: 3,
-      withTemptingReason: false
-    });
+    const thirdItem = state.current_item;
+    assert(thirdItem, "Expected third item after Q2.");
+    assert(!state.learning_profile, "Learning profile must be hidden during Q3 answer collection.");
+    state = (
+      await recordSelectedOption({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        item_public_id: thirdItem.item_public_id,
+        data: {
+          selected_option: thirdItem.options[0]?.label ?? "A",
+          client_action_id: `${prefix}_item3_option`
+        }
+      })
+    ).state;
+    assert(!state.learning_profile, "Learning profile must be hidden during Q3 reasoning collection.");
+    state = (
+      await recordReasoning({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        item_public_id: thirdItem.item_public_id,
+        data: {
+          reasoning_text: "Theta stays tied to the person estimate while item parameters describe item features.",
+          client_action_id: `${prefix}_item3_reasoning`
+        }
+      })
+    ).state;
+    assert(!state.learning_profile, "Learning profile must be hidden during Q3 confidence collection.");
+    state = (
+      await recordConfidence({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        item_public_id: thirdItem.item_public_id,
+        data: {
+          confidence_rating: "medium",
+          client_action_id: `${prefix}_item3_confidence`
+        }
+      })
+    ).state;
+    assert(!state.learning_profile, "Learning profile must be hidden during Q3 tempting-option collection.");
+    state = (
+      await recordTemptingOption({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        item_public_id: thirdItem.item_public_id,
+        data: {
+          no_tempting_option: true,
+          client_action_id: `${prefix}_item3_no_tempting`
+        }
+      })
+    ).state;
     assert(state.assessment_state === "PACKAGE_REVIEW", "Initial package should reach review.");
+    assert(!state.learning_profile, "Learning profile should not appear before package analysis creates one.");
 
     state = (
       await completeInitialConceptUnitAdministration({
@@ -339,6 +458,11 @@ async function main() {
     ).state;
     assert(state.assessment_state === "FORMATIVE_ACTIVITY", "Mock formative activity should be available.");
     assert(state.learning_profile, "Student learning profile should be available after package analysis.");
+    assert(
+      JSON.stringify(Object.keys(state.learning_profile).sort()) ===
+        JSON.stringify(["mostly_understood", "needs_more_work", "still_developing", "updated_at"].sort()),
+      "Learning profile should expose only the three student-facing categories plus timestamp."
+    );
     assert(state.learning_profile.needs_more_work.length > 0, "Learning profile should include a needs-more-work description.");
     assert(
       !/\b(the student|they|their|engagement profile|formative need|metadata|structured output|agent call)\b/i.test(
@@ -392,7 +516,7 @@ async function main() {
     });
     const events = await prisma.processEvent.findMany({
       where: { assessment_session_db_id: session.id },
-      select: { event_type: true }
+      select: { event_type: true, payload: true }
     });
     const counts = eventCounts(events);
     assert((counts.idk_selected ?? 0) > 0, "idk_selected event missing.");
@@ -403,6 +527,10 @@ async function main() {
     assert((counts.student_response_edit_submitted ?? 0) > 0, "In-flow edit event missing.");
     assert((counts.reasoning_edited ?? 0) > 0, "Reasoning edit event missing.");
     assert((counts.clarification_answered ?? 0) > 0, "Clarification event missing.");
+    assert(
+      JSON.stringify(events.map((event) => event.payload)).includes('"item_admin_tutor_source":"deterministic_mock"'),
+      "Item administration tutor source should be recorded in process-event evidence."
+    );
 
     const transcript = await getStudentSafeTranscript({
       student_user_db_id: student.id,

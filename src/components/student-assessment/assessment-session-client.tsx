@@ -1345,6 +1345,8 @@ function stateIsTransferItemFlow(state: StudentSessionState) {
 
 function shouldShowLearningProfile(state: StudentSessionState) {
   return [
+    "PACKAGE_REVIEW",
+    "PACKAGE_ANALYSIS",
     "FORMATIVE_ACTIVITY",
     "FOLLOWUP_RESPONSE",
     "TARGETED_FEEDBACK",

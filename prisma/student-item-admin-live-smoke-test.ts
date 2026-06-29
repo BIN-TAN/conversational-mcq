@@ -39,8 +39,8 @@ function liveItemAdminReadiness() {
   const missing = ["DATABASE_URL", "SESSION_SECRET", "OPENAI_API_KEY"].filter((name) => !envPresent(name));
   const invalid: string[] = [];
 
-  if (envPresent("ITEM_ADMIN_TUTOR_LIVE_ENABLED") && process.env.ITEM_ADMIN_TUTOR_LIVE_ENABLED !== "true") {
-    invalid.push("ITEM_ADMIN_TUTOR_LIVE_ENABLED");
+  if (envPresent("ITEM_ADMIN_TUTOR_MODE") && !["auto", "live"].includes(String(process.env.ITEM_ADMIN_TUTOR_MODE))) {
+    invalid.push("ITEM_ADMIN_TUTOR_MODE");
   }
 
   if (envPresent("LLM_PROVIDER") && process.env.LLM_PROVIDER !== "openai") {
@@ -59,7 +59,6 @@ function liveItemAdminReadiness() {
     ready:
       missing.length === 0 &&
       invalid.length === 0 &&
-      process.env.ITEM_ADMIN_TUTOR_LIVE_ENABLED === "true" &&
       process.env.LLM_PROVIDER === "openai" &&
       process.env.LLM_LIVE_CALLS_ENABLED === "true",
     missing_variables: missing,

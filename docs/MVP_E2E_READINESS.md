@@ -100,9 +100,22 @@ If `RUN_LIVE_LLM_SMOKE=1` is set but required configuration is missing, the scri
 
 The live smoke verifies that the response package reaches the provider path, structured outputs are schema-shaped, unsafe or invalid outputs are blocked or replaced with deterministic fallback, student-visible text remains safe, and `agent_calls` stores provider metadata plus validation status.
 
-## Opt-In Live Item Administration Tutor Smoke
+## Item Administration Tutor Runtime
 
-The Item Administration Tutor Agent has its own live gate. The default command must skip without a provider call:
+The Item Administration Tutor Agent defaults to `ITEM_ADMIN_TUTOR_MODE=auto`.
+
+In `auto` mode, normal browser/runtime traffic uses the live LLM path only when all server-side live configuration is present:
+
+```text
+LLM_PROVIDER=openai
+LLM_LIVE_CALLS_ENABLED=true
+OPENAI_API_KEY=<set locally, never commit>
+OPENAI_MODEL_ITEM_ADMIN=<model>
+```
+
+If `OPENAI_MODEL_ITEM_ADMIN` is blank, the runtime may fall back to `OPENAI_MODEL_FOLLOWUP=<model>`. If any live requirement is missing, disabled, or invalid, the tutor uses deterministic mock/fallback behavior and records the source in backend audit evidence. Set `ITEM_ADMIN_TUTOR_MODE=mock` to force deterministic behavior for local testing.
+
+The optional live Item Administration Tutor smoke must skip without a provider call by default:
 
 ```bash
 npm run student:item-admin-live-smoke
@@ -112,7 +125,7 @@ To run it manually, configure live calls only in an ignored local env file or se
 
 ```bash
 RUN_LIVE_ITEM_ADMIN_SMOKE=1 \
-ITEM_ADMIN_TUTOR_LIVE_ENABLED=true \
+ITEM_ADMIN_TUTOR_MODE=auto \
 LLM_PROVIDER=openai \
 LLM_LIVE_CALLS_ENABLED=true \
 OPENAI_API_KEY=<set locally, never commit> \

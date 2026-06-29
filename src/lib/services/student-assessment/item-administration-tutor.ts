@@ -116,6 +116,7 @@ export type ItemAdministrationTutorStatePacket = {
 
 export type ItemAdministrationTutorResult = {
   tutor_version: typeof ITEM_ADMINISTRATION_TUTOR_VERSION;
+  item_admin_tutor_source: "live_llm" | "deterministic_mock" | "fallback";
   response_quality_result: ResponseQualityResult;
   message_classification: ItemAdministrationTutorMessageClassification;
   response_quality: ItemAdministrationTutorResponseQuality;
@@ -127,6 +128,18 @@ export type ItemAdministrationTutorResult = {
   safety_validated: boolean;
   agent_call_id?: string;
   live_status: "deterministic" | "validated_live" | "fallback_after_provider_failure" | "fallback_after_validation_failure";
+};
+
+export type ItemAdministrationTutorRuntimeMode = {
+  configured_mode: "auto" | "mock" | "live";
+  resolved_source: "live_llm" | "deterministic_mock";
+  live_config_ready: boolean;
+  provider: "mock" | "openai" | "invalid";
+  live_calls_enabled: boolean;
+  openai_key_configured: boolean;
+  model_configured: boolean;
+  model_name: string | null;
+  blocking_reasons: string[];
 };
 
 const CONTENT_DEFER_MESSAGE =
@@ -174,19 +187,70 @@ function resolveItemAdminModelConfig(): AgentModelConfig | null {
   };
 }
 
-function itemAdminLiveEnabled() {
+export function resolveItemAdministrationTutorRuntimeMode(): ItemAdministrationTutorRuntimeMode {
   try {
     const env = getServerEnv();
+    const modelConfig = resolveItemAdminModelConfig();
+    const blockingReasons: string[] = [];
 
-    if (!env.ITEM_ADMIN_TUTOR_LIVE_ENABLED) {
-      return false;
+    if (env.LLM_PROVIDER !== "openai") {
+      blockingReasons.push("llm_provider_not_openai");
     }
 
-    const runtime = getLlmRuntimeConfig();
-    return runtime.provider === "openai" && runtime.live_calls_enabled && runtime.openai_key_configured;
-  } catch {
-    return false;
+    if (!env.LLM_LIVE_CALLS_ENABLED) {
+      blockingReasons.push("llm_live_calls_disabled");
+    }
+
+    if (!configured(env.OPENAI_API_KEY)) {
+      blockingReasons.push("openai_api_key_missing");
+    }
+
+    if (!modelConfig) {
+      blockingReasons.push("item_admin_model_missing");
+    }
+
+    const liveConfigReady = blockingReasons.length === 0;
+    const resolvedSource =
+      env.ITEM_ADMIN_TUTOR_MODE !== "mock" && liveConfigReady
+        ? "live_llm"
+        : "deterministic_mock";
+
+    if (env.ITEM_ADMIN_TUTOR_MODE === "mock") {
+      blockingReasons.unshift("item_admin_tutor_mode_mock");
+    }
+
+    return {
+      configured_mode: env.ITEM_ADMIN_TUTOR_MODE,
+      resolved_source: resolvedSource,
+      live_config_ready: liveConfigReady,
+      provider: env.LLM_PROVIDER,
+      live_calls_enabled: env.LLM_LIVE_CALLS_ENABLED,
+      openai_key_configured: configured(env.OPENAI_API_KEY),
+      model_configured: Boolean(modelConfig),
+      model_name: modelConfig?.model_name ?? null,
+      blocking_reasons: blockingReasons
+    };
+  } catch (error) {
+    const envMode = process.env.ITEM_ADMIN_TUTOR_MODE;
+
+    return {
+      configured_mode: envMode === "live" || envMode === "mock" ? envMode : "auto",
+      resolved_source: "deterministic_mock",
+      live_config_ready: false,
+      provider: "invalid",
+      live_calls_enabled: process.env.LLM_LIVE_CALLS_ENABLED === "true",
+      openai_key_configured: configured(process.env.OPENAI_API_KEY),
+      model_configured: configured(process.env.OPENAI_MODEL_ITEM_ADMIN) || configured(process.env.OPENAI_MODEL_FOLLOWUP),
+      model_name: process.env.OPENAI_MODEL_ITEM_ADMIN || process.env.OPENAI_MODEL_FOLLOWUP || null,
+      blocking_reasons: [
+        error instanceof Error ? `configuration_error:${error.message}` : "configuration_error"
+      ]
+    };
   }
+}
+
+function itemAdminLiveEnabled() {
+  return resolveItemAdministrationTutorRuntimeMode().resolved_source === "live_llm";
 }
 
 function providerAuditUpdate(providerResult: StructuredAgentResult<unknown>) {
@@ -521,6 +585,7 @@ function tutorResultFromOutput(input: {
   response_quality_result: ResponseQualityResult;
   agent_call_id?: string;
   live_status: ItemAdministrationTutorResult["live_status"];
+  item_admin_tutor_source: ItemAdministrationTutorResult["item_admin_tutor_source"];
 }): ItemAdministrationTutorResult {
   const fallbackSummary = summaryForDeferredConcern(
     input.response_quality_result.output.student_facing_message,
@@ -529,6 +594,7 @@ function tutorResultFromOutput(input: {
 
   return {
     tutor_version: ITEM_ADMINISTRATION_TUTOR_VERSION,
+    item_admin_tutor_source: input.item_admin_tutor_source,
     response_quality_result: input.response_quality_result,
     message_classification: input.output.message_classification,
     response_quality: input.output.response_quality,
@@ -554,6 +620,7 @@ function deterministicTutorResult(input: {
   provider?: ResponseQualityResult["provider"];
   agent_call_id?: string;
   live_status?: ItemAdministrationTutorResult["live_status"];
+  item_admin_tutor_source?: ItemAdministrationTutorResult["item_admin_tutor_source"];
 }): ItemAdministrationTutorResult {
   const qualityResult = deterministicResponseQualityResult({
     stage: input.stage,
@@ -577,6 +644,7 @@ function deterministicTutorResult(input: {
 
   return {
     tutor_version: ITEM_ADMINISTRATION_TUTOR_VERSION,
+    item_admin_tutor_source: input.item_admin_tutor_source ?? "deterministic_mock",
     response_quality_result: qualityResult,
     message_classification: classification,
     response_quality: responseQuality,
@@ -720,7 +788,8 @@ export async function runItemAdministrationTutor(input: {
           output: parsed.data,
           response_quality_result: qualityResult,
           agent_call_id: agentCall.id,
-          live_status: "validated_live"
+          live_status: "validated_live",
+          item_admin_tutor_source: "live_llm"
         });
       }
 
@@ -743,7 +812,8 @@ export async function runItemAdministrationTutor(input: {
         source: "llm_fallback_to_deterministic",
         provider: "mock",
         agent_call_id: agentCall.id,
-        live_status: "fallback_after_validation_failure"
+        live_status: "fallback_after_validation_failure",
+        item_admin_tutor_source: "fallback"
       });
     }
 
@@ -782,6 +852,7 @@ export async function runItemAdministrationTutor(input: {
     source: "llm_fallback_to_deterministic",
     provider: "mock",
     agent_call_id: agentCall.id,
-    live_status: "fallback_after_provider_failure"
+    live_status: "fallback_after_provider_failure",
+    item_admin_tutor_source: "fallback"
   });
 }
