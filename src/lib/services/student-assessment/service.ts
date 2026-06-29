@@ -309,6 +309,39 @@ function firstShortStudentFacing(values: string[], fallback: string) {
   return normalized.length > 150 ? `${normalized.slice(0, 147).trim()}...` : normalized;
 }
 
+type StudentLearningStatus = "Mostly understood" | "Still developing" | "Needs more work";
+
+function oneSentence(value: string) {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  const first = normalized.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim();
+  const sentence = first && first.length >= 20 ? first : normalized;
+
+  return sentence.length > 170 ? `${sentence.slice(0, 167).trim()}...` : sentence;
+}
+
+function nextFocusSentence(value: string) {
+  const phrase = oneSentence(value);
+  const cleaned = phrase
+    .replace(/^You may still be working on\s+/i, "keep working on ")
+    .replace(/^You may need to\s+/i, "")
+    .replace(/^You need to\s+/i, "")
+    .replace(/^You should\s+/i, "")
+    .replace(/^You can\s+/i, "")
+    .replace(/^Check\s+/i, "check ")
+    .replace(/^Avoid\s+/i, "avoid ")
+    .trim();
+
+  if (/^your next focus\b/i.test(cleaned)) {
+    return cleaned;
+  }
+
+  if (/^you\b/i.test(cleaned)) {
+    return "Your next focus is to make that idea clearer in your next response.";
+  }
+
+  return `Your next focus is to ${cleaned.charAt(0).toLowerCase()}${cleaned.slice(1)}`;
+}
+
 function studentSafeLearningProfile(input: {
   profile: {
     ability_pattern_flags: Prisma.JsonValue;
@@ -386,19 +419,42 @@ function studentSafeLearningProfile(input: {
     }
   }
 
+  const status: StudentLearningStatus =
+    needsMoreWork.length > 0
+      ? "Needs more work"
+      : stillDeveloping.length > 0
+        ? "Still developing"
+        : "Mostly understood";
+  const explanation =
+    status === "Needs more work"
+      ? firstShortStudentFacing(
+          needsMoreWork,
+          "You still need more evidence about the main idea in this concept."
+        )
+      : status === "Still developing"
+        ? firstShortStudentFacing(
+            stillDeveloping,
+            "You have started the main idea, but your explanation still needs more precision."
+          )
+        : firstShortStudentFacing(
+            mostlyUnderstood,
+            "You are connecting the main ideas in this concept."
+          );
+  const nextFocusSource =
+    status === "Mostly understood"
+      ? firstShortStudentFacing(
+          stillDeveloping.concat(needsMoreWork),
+          "apply the idea to a new question."
+        )
+      : firstShortStudentFacing(
+          stillDeveloping.concat(needsMoreWork, mostlyUnderstood),
+          "separate what belongs to the item from what belongs to the person."
+        );
+
   return {
-    mostly_understood: firstShortStudentFacing(
-      mostlyUnderstood,
-      "Not enough evidence yet."
-    ),
-    still_developing: firstShortStudentFacing(
-      stillDeveloping,
-      "Not enough evidence yet."
-    ),
-    needs_more_work: firstShortStudentFacing(
-      needsMoreWork,
-      "Not enough evidence yet."
-    ),
+    status,
+    explanation: oneSentence(explanation),
+    next_focus: nextFocusSentence(nextFocusSource),
     updated_at: input.profile.created_at.toISOString()
   };
 }

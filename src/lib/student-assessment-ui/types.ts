@@ -77,9 +77,9 @@ export const StudentProgressionSchema = z.object({
 export type StudentProgression = z.infer<typeof StudentProgressionSchema>;
 
 export const StudentLearningProfileSchema = z.object({
-  mostly_understood: z.string(),
-  still_developing: z.string(),
-  needs_more_work: z.string(),
+  status: z.enum(["Mostly understood", "Still developing", "Needs more work"]),
+  explanation: z.string(),
+  next_focus: z.string(),
   updated_at: z.string()
 });
 export type StudentLearningProfile = z.infer<typeof StudentLearningProfileSchema>;

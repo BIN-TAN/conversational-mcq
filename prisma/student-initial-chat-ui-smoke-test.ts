@@ -43,6 +43,7 @@ async function main() {
   const prefix = `phase7c_initial_chat_ui_${Date.now()}`;
   process.env.LLM_PROVIDER = "mock";
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
+  process.env.ITEM_ADMIN_TUTOR_MODE = "mock";
   process.env.ALLOW_MOCK_RESPONSE_COLLECTION_IN_STUDENT_WORKFLOW = "false";
   await cleanupResponseCollectionFixture(prisma, prefix);
 
@@ -98,4 +99,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

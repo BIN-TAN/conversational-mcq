@@ -119,7 +119,8 @@ function assertItemAdminRuntimeModeResolution() {
       LLM_LIVE_CALLS_ENABLED: "true",
       OPENAI_API_KEY: "test-item-admin-mode-resolution-key",
       OPENAI_MODEL_ITEM_ADMIN: "gpt-test-item-admin",
-      OPENAI_MODEL_FOLLOWUP: ""
+      OPENAI_MODEL_FOLLOWUP: "",
+      NODE_ENV: "development"
     },
     () => {
       const mode = resolveItemAdministrationTutorRuntimeMode();
@@ -132,12 +133,32 @@ function assertItemAdminRuntimeModeResolution() {
 
   withTemporaryEnv(
     {
+      ITEM_ADMIN_TUTOR_MODE: "auto",
+      LLM_PROVIDER: "mock",
+      LLM_LIVE_CALLS_ENABLED: "false",
+      OPENAI_API_KEY: "",
+      OPENAI_MODEL_ITEM_ADMIN: "",
+      OPENAI_MODEL_FOLLOWUP: "",
+      NODE_ENV: "development"
+    },
+    () => {
+      const mode = resolveItemAdministrationTutorRuntimeMode();
+      assert(
+        mode.resolved_source === "configuration_blocked",
+        "Development browser/runtime auto mode should not silently use mock when live config is missing."
+      );
+    }
+  );
+
+  withTemporaryEnv(
+    {
       ITEM_ADMIN_TUTOR_MODE: "mock",
       LLM_PROVIDER: "openai",
       LLM_LIVE_CALLS_ENABLED: "true",
       OPENAI_API_KEY: "test-item-admin-mode-resolution-key",
       OPENAI_MODEL_ITEM_ADMIN: "gpt-test-item-admin",
-      OPENAI_MODEL_FOLLOWUP: ""
+      OPENAI_MODEL_FOLLOWUP: "",
+      NODE_ENV: "development"
     },
     () => {
       const mode = resolveItemAdministrationTutorRuntimeMode();
@@ -460,10 +481,18 @@ async function main() {
     assert(state.learning_profile, "Student learning profile should be available after package analysis.");
     assert(
       JSON.stringify(Object.keys(state.learning_profile).sort()) ===
-        JSON.stringify(["mostly_understood", "needs_more_work", "still_developing", "updated_at"].sort()),
-      "Learning profile should expose only the three student-facing categories plus timestamp."
+        JSON.stringify(["explanation", "next_focus", "status", "updated_at"].sort()),
+      "Learning profile should expose only one status, explanation, next-focus, and timestamp."
     );
-    assert(state.learning_profile.needs_more_work.length > 0, "Learning profile should include a needs-more-work description.");
+    assert(
+      ["Mostly understood", "Still developing", "Needs more work"].includes(state.learning_profile.status),
+      "Learning profile should use an approved single status."
+    );
+    assert(state.learning_profile.explanation.length > 0, "Learning profile should include a short explanation.");
+    assert(
+      /^Your next focus\b/i.test(state.learning_profile.next_focus),
+      "Learning profile should include one student-facing next-focus statement."
+    );
     assert(
       !/\b(the student|they|their|engagement profile|formative need|metadata|structured output|agent call)\b/i.test(
         JSON.stringify(state.learning_profile)

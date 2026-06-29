@@ -17,6 +17,8 @@ This checklist supports a small local human usability pilot of the fixed IRT cha
 - Do not paste API keys into chat, documentation, commits, screenshots, or issue reports.
 - Confirm the fixed IRT MVP smoke tests pass before inviting a participant.
 - If a manual live smoke is needed, configure secrets only in an ignored local env file or secure shell environment.
+- For browser walkthroughs with live item administration, leave `ITEM_ADMIN_TUTOR_MODE=auto` and configure the server-side OpenAI provider, live-call flag, API key, and `OPENAI_MODEL_ITEM_ADMIN` or `OPENAI_MODEL_FOLLOWUP`.
+- For intentional local mock walkthroughs, set `ITEM_ADMIN_TUTOR_MODE=mock`; deterministic item administration is not the intended real student experience.
 - Record only status fields from live runs, not raw prompts, raw provider payloads, answer keys, or full student text.
 
 ## Local Run Commands
@@ -110,6 +112,7 @@ targeted_output_validated = true
 - The student can edit a package-review response before continuing to feedback preparation.
 - The student can continue from package review to feedback preparation.
 - The formative activity appears as a chat interaction.
+- The learning profile, when shown after package analysis begins, displays one current status only: `Mostly understood`, `Still developing`, or `Needs more work`, plus a short explanation and next-focus statement.
 - Targeted feedback appears after the formative response.
 - Revision can be entered naturally in the text composer.
 - Next choice appears after revision.
@@ -136,6 +139,7 @@ targeted_output_validated = true
 - Do not give hints, explanations, or content help before the package is complete.
 - Procedural clarification is allowed, but content help is deferred.
 - Student-facing UI must not show internal terms such as `response profile`, `formative need`, `metadata`, `structured output`, `agent call`, `system prompt`, or `answer key`.
+- Student-facing learning profile must not show all three status categories simultaneously.
 - Process data must be treated as participation and evidence context, not misconduct evidence.
 
 ## Data Logging Checklist
@@ -161,6 +165,7 @@ No logs, exports, screenshots, or notes should contain API keys, cookies, auth t
 - Whether save, exit, and resume were understandable.
 - Whether targeted feedback and revision felt clear.
 - Any student-facing error messages or stalled states.
+- For developer audit, whether process-event or conversation-turn payloads show `item_admin_tutor_source` as `live_llm`, `deterministic_mock`, `safe_fallback_after_live_failure`, or `configuration_blocked`.
 - Whether teacher review and exports show the expected synthetic records after the session.
 
 ## Known Limitations

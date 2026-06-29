@@ -1243,13 +1243,7 @@ function LearningProfilePanel({
     return null;
   }
 
-  const groups = [
-    { label: "Mostly understood", value: profile.mostly_understood },
-    { label: "Still developing", value: profile.still_developing },
-    { label: "Needs more work", value: profile.needs_more_work }
-  ].filter((group) => group.value.trim().length > 0);
-
-  if (groups.length === 0) {
+  if (!profile.explanation.trim() && !profile.next_focus.trim()) {
     return null;
   }
 
@@ -1262,15 +1256,10 @@ function LearningProfilePanel({
         <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-accent-soft">
           Current learning profile
         </summary>
-        <div className="mt-3 space-y-3">
-          {groups.map((group) => (
-            <section key={group.label}>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{group.label}</h3>
-              <p className="mt-2 rounded-xl bg-[#f7f9f6] px-3 py-2 text-sm leading-5 text-ink">
-                {group.value}
-              </p>
-            </section>
-          ))}
+        <div className="mt-3 rounded-xl bg-[#f7f9f6] px-3 py-3 text-sm leading-5 text-ink">
+          <h3 className="text-sm font-semibold text-ink">{profile.status}</h3>
+          <p className="mt-2">{profile.explanation}</p>
+          <p className="mt-2">{profile.next_focus}</p>
         </div>
       </details>
     </aside>

@@ -113,7 +113,18 @@ OPENAI_API_KEY=<set locally, never commit>
 OPENAI_MODEL_ITEM_ADMIN=<model>
 ```
 
-If `OPENAI_MODEL_ITEM_ADMIN` is blank, the runtime may fall back to `OPENAI_MODEL_FOLLOWUP=<model>`. If any live requirement is missing, disabled, or invalid, the tutor uses deterministic mock/fallback behavior and records the source in backend audit evidence. Set `ITEM_ADMIN_TUTOR_MODE=mock` to force deterministic behavior for local testing.
+If `OPENAI_MODEL_ITEM_ADMIN` is blank, the runtime may fall back to `OPENAI_MODEL_FOLLOWUP=<model>`. If any live requirement is missing, disabled, or invalid in browser/runtime auto mode, the open-text turn is blocked with a safe configuration message rather than silently using mock. Set `ITEM_ADMIN_TUTOR_MODE=mock` to force deterministic behavior for local testing or intentional local mock walkthroughs.
+
+Backend audit payloads record `item_admin_tutor_source` for open-text administration turns:
+
+```text
+live_llm
+deterministic_mock
+safe_fallback_after_live_failure
+configuration_blocked
+```
+
+These values are developer/teacher audit evidence only and are not shown in the student UI.
 
 The optional live Item Administration Tutor smoke must skip without a provider call by default:
 

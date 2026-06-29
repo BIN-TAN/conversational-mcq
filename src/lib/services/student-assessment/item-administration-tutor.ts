@@ -116,7 +116,11 @@ export type ItemAdministrationTutorStatePacket = {
 
 export type ItemAdministrationTutorResult = {
   tutor_version: typeof ITEM_ADMINISTRATION_TUTOR_VERSION;
-  item_admin_tutor_source: "live_llm" | "deterministic_mock" | "fallback";
+  item_admin_tutor_source:
+    | "live_llm"
+    | "deterministic_mock"
+    | "safe_fallback_after_live_failure"
+    | "configuration_blocked";
   response_quality_result: ResponseQualityResult;
   message_classification: ItemAdministrationTutorMessageClassification;
   response_quality: ItemAdministrationTutorResponseQuality;
@@ -127,12 +131,17 @@ export type ItemAdministrationTutorResult = {
   store_deferred_concern: boolean;
   safety_validated: boolean;
   agent_call_id?: string;
-  live_status: "deterministic" | "validated_live" | "fallback_after_provider_failure" | "fallback_after_validation_failure";
+  live_status:
+    | "deterministic"
+    | "validated_live"
+    | "fallback_after_provider_failure"
+    | "fallback_after_validation_failure"
+    | "configuration_blocked";
 };
 
 export type ItemAdministrationTutorRuntimeMode = {
   configured_mode: "auto" | "mock" | "live";
-  resolved_source: "live_llm" | "deterministic_mock";
+  resolved_source: "live_llm" | "deterministic_mock" | "configuration_blocked";
   live_config_ready: boolean;
   provider: "mock" | "openai" | "invalid";
   live_calls_enabled: boolean;
@@ -154,6 +163,10 @@ const INCOMPLETE_MESSAGE =
 const OFF_TOPIC_MESSAGE = "Let’s keep this focused on the current question. What is your reason for your choice?";
 const GIBBERISH_MESSAGE =
   "I could not read that as a response. Try your reason again, or say “I don’t know the reason yet.”";
+const LOCAL_CONFIGURATION_BLOCKED_MESSAGE =
+  "The live assessment tutor is not configured. Set ITEM_ADMIN_TUTOR_MODE=mock for local mock testing or configure live LLM settings.";
+const PRODUCTION_CONFIGURATION_BLOCKED_MESSAGE =
+  "The assessment tutor is not available right now. Please try again later.";
 
 const FORBIDDEN_STUDENT_TEXT = [
   /answer\s*key/i,
@@ -192,6 +205,8 @@ export function resolveItemAdministrationTutorRuntimeMode(): ItemAdministrationT
     const env = getServerEnv();
     const modelConfig = resolveItemAdminModelConfig();
     const blockingReasons: string[] = [];
+    const explicitMock = env.ITEM_ADMIN_TUTOR_MODE === "mock";
+    const testRuntime = env.NODE_ENV === "test";
 
     if (env.LLM_PROVIDER !== "openai") {
       blockingReasons.push("llm_provider_not_openai");
@@ -211,12 +226,18 @@ export function resolveItemAdministrationTutorRuntimeMode(): ItemAdministrationT
 
     const liveConfigReady = blockingReasons.length === 0;
     const resolvedSource =
-      env.ITEM_ADMIN_TUTOR_MODE !== "mock" && liveConfigReady
+      !explicitMock && liveConfigReady
         ? "live_llm"
-        : "deterministic_mock";
+        : explicitMock || testRuntime
+          ? "deterministic_mock"
+          : "configuration_blocked";
 
-    if (env.ITEM_ADMIN_TUTOR_MODE === "mock") {
+    if (explicitMock) {
       blockingReasons.unshift("item_admin_tutor_mode_mock");
+    }
+
+    if (testRuntime && !liveConfigReady && !explicitMock) {
+      blockingReasons.unshift("node_env_test_uses_deterministic_mock");
     }
 
     return {
@@ -235,7 +256,9 @@ export function resolveItemAdministrationTutorRuntimeMode(): ItemAdministrationT
 
     return {
       configured_mode: envMode === "live" || envMode === "mock" ? envMode : "auto",
-      resolved_source: "deterministic_mock",
+      resolved_source: envMode === "mock" || process.env.NODE_ENV === "test"
+        ? "deterministic_mock"
+        : "configuration_blocked",
       live_config_ready: false,
       provider: "invalid",
       live_calls_enabled: process.env.LLM_LIVE_CALLS_ENABLED === "true",
@@ -249,8 +272,8 @@ export function resolveItemAdministrationTutorRuntimeMode(): ItemAdministrationT
   }
 }
 
-function itemAdminLiveEnabled() {
-  return resolveItemAdministrationTutorRuntimeMode().resolved_source === "live_llm";
+function itemAdminDeterministicMockAllowed() {
+  return resolveItemAdministrationTutorRuntimeMode().resolved_source === "deterministic_mock";
 }
 
 function providerAuditUpdate(providerResult: StructuredAgentResult<unknown>) {
@@ -661,6 +684,43 @@ function deterministicTutorResult(input: {
   };
 }
 
+function configurationBlockedTutorResult(): ItemAdministrationTutorResult {
+  const message =
+    process.env.NODE_ENV === "production"
+      ? PRODUCTION_CONFIGURATION_BLOCKED_MESSAGE
+      : LOCAL_CONFIGURATION_BLOCKED_MESSAGE;
+  const qualityResult: ResponseQualityResult = {
+    output: {
+      response_quality: "incomplete",
+      should_advance: false,
+      engagement_signal: "unclear",
+      reasoning_signal: "not_usable",
+      student_facing_message: message,
+      next_expected_action: "stay_on_current_step"
+    },
+    source: "deterministic_mock",
+    validation_status: "deterministic",
+    provider: "mock",
+    prompt_hash: ITEM_ADMINISTRATION_TUTOR_PROMPT_HASH,
+    schema_version: RESPONSE_QUALITY_SCHEMA_VERSION
+  };
+
+  return {
+    tutor_version: ITEM_ADMINISTRATION_TUTOR_VERSION,
+    item_admin_tutor_source: "configuration_blocked",
+    response_quality_result: qualityResult,
+    message_classification: "incomplete",
+    response_quality: "not_usable",
+    should_advance: false,
+    next_expected_action: "continue_current_step",
+    student_facing_message: message,
+    deferred_concern_summary: null,
+    store_deferred_concern: false,
+    safety_validated: true,
+    live_status: "configuration_blocked"
+  } satisfies ItemAdministrationTutorResult;
+}
+
 export function buildItemAdministrationTutorStatePacket(input: ItemAdministrationTutorStatePacket) {
   return {
     tutor_version: ITEM_ADMINISTRATION_TUTOR_VERSION,
@@ -708,16 +768,21 @@ export async function runItemAdministrationTutor(input: {
     agent_invocation_key: string;
   };
 }) {
+  const runtimeMode = resolveItemAdministrationTutorRuntimeMode();
   const fallback = deterministicTutorResult(input);
 
-  if (!itemAdminLiveEnabled() || !input.audit_context) {
+  if (runtimeMode.resolved_source === "deterministic_mock" || (!input.audit_context && itemAdminDeterministicMockAllowed())) {
     return fallback;
+  }
+
+  if (runtimeMode.resolved_source === "configuration_blocked" || !input.audit_context) {
+    return configurationBlockedTutorResult();
   }
 
   const modelConfig = resolveItemAdminModelConfig();
 
   if (!modelConfig) {
-    return fallback;
+    return configurationBlockedTutorResult();
   }
 
   const startedAt = new Date();
@@ -813,7 +878,7 @@ export async function runItemAdministrationTutor(input: {
         provider: "mock",
         agent_call_id: agentCall.id,
         live_status: "fallback_after_validation_failure",
-        item_admin_tutor_source: "fallback"
+        item_admin_tutor_source: "safe_fallback_after_live_failure"
       });
     }
 
@@ -853,6 +918,6 @@ export async function runItemAdministrationTutor(input: {
     provider: "mock",
     agent_call_id: agentCall.id,
     live_status: "fallback_after_provider_failure",
-    item_admin_tutor_source: "fallback"
+    item_admin_tutor_source: "safe_fallback_after_live_failure"
   });
 }

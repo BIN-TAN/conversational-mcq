@@ -402,6 +402,7 @@ async function main() {
   process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "true";
   process.env.LLM_PROVIDER = "mock";
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
+  process.env.ITEM_ADMIN_TUTOR_MODE = "mock";
   process.env.OPERATIONAL_AGENT_MODE = "disabled";
 
   await ensureDemoStudentAssessment(prisma);

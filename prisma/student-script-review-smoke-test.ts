@@ -446,13 +446,37 @@ function reviewScenario(result: ScenarioResult, scenario: Scenario): ReviewIssue
     });
   } else {
     const profileKeys = Object.keys(result.learning_profile).sort();
-    const expectedKeys = ["mostly_understood", "needs_more_work", "still_developing", "updated_at"].sort();
+    const expectedKeys = ["explanation", "next_focus", "status", "updated_at"].sort();
     if (JSON.stringify(profileKeys) !== JSON.stringify(expectedKeys)) {
       issues.push({
         scenario: result.name,
         reviewer: "learning_profile",
         severity: "high",
         message: `Unexpected profile keys: ${profileKeys.join(", ")}.`
+      });
+    }
+    if (!["Mostly understood", "Still developing", "Needs more work"].includes(result.learning_profile.status)) {
+      issues.push({
+        scenario: result.name,
+        reviewer: "learning_profile",
+        severity: "high",
+        message: `Unexpected profile status: ${result.learning_profile.status}.`
+      });
+    }
+    if (!/^Your next focus\b/i.test(result.learning_profile.next_focus)) {
+      issues.push({
+        scenario: result.name,
+        reviewer: "learning_profile",
+        severity: "high",
+        message: "Profile next-focus statement is missing or not student-facing."
+      });
+    }
+    if (/mostly_understood|still_developing|needs_more_work/i.test(safeText(result.learning_profile))) {
+      issues.push({
+        scenario: result.name,
+        reviewer: "learning_profile",
+        severity: "high",
+        message: "Profile leaked old multi-category keys."
       });
     }
     if (safeText(result.learning_profile).includes("not enough evidence yet") && result.name === "concise_usable_reasoning") {
@@ -473,6 +497,7 @@ async function main() {
   process.env.LLM_PROVIDER = "mock";
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
   process.env.OPERATIONAL_AGENT_MODE = "disabled";
+  process.env.ITEM_ADMIN_TUTOR_MODE = "mock";
 
   await ensureDemoStudentAssessment(prisma);
   const prefix = `phase18_script_${Date.now()}_${randomUUID().slice(0, 8)}`;
