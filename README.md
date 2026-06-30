@@ -171,6 +171,7 @@ npm run student:conversational-flow-smoke
 npm run student:logging-smoke
 npm run student:formative-profile-smoke
 npm run student:ability-evidence-smoke
+npm run student:ability-evidence-review
 npm run student:targeted-feedback-smoke
 npm run student:transfer-item-smoke
 npm run student:mvp-e2e-smoke
@@ -244,6 +245,14 @@ npm run student:ability-evidence-smoke
 ```
 
 This no-live smoke builds `ability-evidence-packet-v1` from fixed IRT response-package evidence and deterministic reasoning rules. It does not create a final profile, does not call OpenAI, and does not render student-facing evidence. See `docs/ABILITY_PROFILING_DESIGN.md`.
+
+Ability evidence review artifact generation:
+
+```bash
+npm run student:ability-evidence-review
+```
+
+This no-live review command audits current item diagnostic metadata, creates a temporary deterministic sample session when no session is supplied, writes redacted review artifacts under `.data/ability-evidence-review/`, and prints a concise metadata/evidence summary.
 
 The optional live LLM readiness smoke is intentionally skipped unless explicitly enabled:
 

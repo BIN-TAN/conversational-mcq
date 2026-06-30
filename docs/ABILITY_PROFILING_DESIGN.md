@@ -154,3 +154,42 @@ npm run student:ability-evidence-smoke
 ```
 
 The smoke test is no-live. It verifies deterministic evidence combinations, optional calibration behavior, process-data confidence modifiers, student-safe projection safety, and response-package packet generation for the fixed IRT MVP.
+
+## Ability Evidence Packet Review
+
+Run the review command:
+
+```bash
+npm run student:ability-evidence-review
+```
+
+By default, the command:
+
+1. audits diagnostic metadata for current assessment items;
+2. creates a temporary deterministic fixed-MVP sample session;
+3. builds an internal ability evidence packet from the generated response package;
+4. writes redacted artifacts under `.data/ability-evidence-review/`;
+5. prints a concise JSON summary.
+
+To review an existing completed package, pass a session public ID:
+
+```bash
+npm run student:ability-evidence-review -- --session-public-id <session_public_id>
+```
+
+Generated artifacts:
+
+- `ability-evidence-review-<timestamp>.json`
+- `item-diagnostic-metadata-review-<timestamp>.json`
+
+These artifacts are intended for local design review and are ignored by Git. The ability review artifact includes item-level evidence summaries and the student-safe projection, but omits raw reasoning, raw item stems, correct option values, answer keys, distractor diagnostic text, raw misconception IDs in the student projection, raw process-event payloads, raw LLM output, and secrets.
+
+Metadata status meanings:
+
+- `complete`: concept, cognitive level, subskills, expected solution actions, internal correct option, and option-level diagnostic roles are present.
+- `usable_with_limitations`: enough data exist to generate an ability packet, but one or more important diagnostic fields are missing.
+- `insufficient`: concept, internal correct option, or option roles/diagnostic mapping are too incomplete for meaningful interpretation.
+
+Incomplete metadata does not block packet generation when the packet can still be interpreted cautiously. Missing subskills, expected solution actions, or distractor diagnostics are limitations because they reduce the defensibility of ability interpretation. Missing numeric difficulty or discrimination does not reduce status by itself because those fields are optional future calibration fields, not required v1 evidence.
+
+Use the review output to decide what teacher/researcher metadata should be filled before moving from evidence packets to stronger ability-profile inference. Engagement evidence should be designed separately; process data in this packet remains only an evidence-confidence modifier.

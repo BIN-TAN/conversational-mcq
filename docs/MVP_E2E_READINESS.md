@@ -65,6 +65,14 @@ The packet is a profiling foundation, not a student-facing profile and not a cal
 
 Do not expose the full packet to students. If a later phase renders the student-safe projection, it must continue to hide answer keys, correctness labels, distractor metadata, misconception IDs, raw reasoning, raw provider output, and internal evidence traces.
 
+For a redacted review artifact and item diagnostic metadata completeness report, run:
+
+```bash
+npm run student:ability-evidence-review
+```
+
+The command writes ignored artifacts under `.data/ability-evidence-review/`. The default artifacts are safe for design review because they omit raw item stems, raw reasoning, correct option values, answer keys, distractor diagnostic text, raw misconception IDs in the student projection, raw LLM output, and secrets. Metadata limitations should guide later researcher/teacher metadata cleanup before stronger ability inference.
+
 ## Opt-In Live LLM Smoke
 
 Live LLM readiness is intentionally opt-in. The script loads local Next.js env files with `@next/env`, then exits without a provider call unless this flag is set:

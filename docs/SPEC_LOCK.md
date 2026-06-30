@@ -81,6 +81,7 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - Numeric item difficulty and discrimination are optional future calibration fields. Missing calibrated values must not block packet generation, and teacher labels must not be treated as calibrated psychometric parameters.
 - Process data may modify confidence in ability evidence only. It must not directly determine ability, infer misconduct, infer GenAI use, or create engagement profiles in this phase.
 - Future LLM support may perform semantic evidence extraction from reasoning, but final ability categories must remain rule-aggregated and traceable rather than opaque LLM judgment.
+- Ability evidence review artifacts must remain local, ignored by Git, and redacted by default. They may include public item/session IDs and evidence counts, but not raw item stems, raw reasoning, correct option values, answer keys, distractor diagnostic text, raw misconception IDs in the student projection, raw process-event payloads, raw LLM output, or secrets.
 
 ## Phase 8A Guarded Operational Integration
 
