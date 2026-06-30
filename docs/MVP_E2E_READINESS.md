@@ -104,7 +104,7 @@ The live smoke verifies that the response package reaches the provider path, str
 
 The Item Administration Tutor Agent defaults to `ITEM_ADMIN_TUTOR_MODE=auto`.
 
-In `auto` mode, normal browser/runtime traffic uses the live LLM path only when all server-side live configuration is present:
+In `auto` mode, normal browser/runtime traffic uses the live LLM path only when all server-side live configuration is present and the configured credential authenticates successfully:
 
 ```text
 LLM_PROVIDER=openai
@@ -115,13 +115,17 @@ OPENAI_MODEL_ITEM_ADMIN=<model>
 
 `OPENAI_API_KEY_FILE=<path>` may be used instead of `OPENAI_API_KEY`; the recommended local path is `.data/secrets/openai_api_key`. If `OPENAI_MODEL_ITEM_ADMIN` is blank, the runtime may fall back to `OPENAI_MODEL_FOLLOWUP=<model>`.
 
-Run the no-network readiness check before a browser walkthrough:
+For local live testing, keep the real key in `.env.local` or the ignored credential file. `.env` should not contain real OpenAI keys. If both `.env` and `.env.local` contain different `OPENAI_API_KEY` fingerprints, readiness fails closed instead of choosing one silently. If both contain the same fingerprint, readiness reports a warning but can proceed if every other requirement passes.
+
+Run the readiness check before a browser walkthrough:
 
 ```bash
 npm run llm:readiness
 ```
 
-If any live requirement is missing, disabled, conflicting, public, or invalid in browser/runtime auto mode, student start/resume is disabled and open-text turns are blocked with a safe temporary-unavailable message rather than silently using mock. Set `ITEM_ADMIN_TUTOR_MODE=mock` and `ALLOW_LOCAL_MOCK_RUNTIME=true` only for intentional local mock walkthroughs. Smoke tests may also force deterministic mock without making provider calls.
+When live configuration is otherwise present, this command may perform a lightweight OpenAI model-metadata authentication check. It does not generate model output. It prints only safe diagnostics: provider, model names, key presence, key fingerprint prefix, auth status, auth check time, auth error code, auth cache status, env-file names, safe fingerprint prefixes, and reason codes. It never prints the key value.
+
+If any live requirement is missing, disabled, conflicting, public, invalid, or authentication cannot be confirmed in browser/runtime auto mode, student start/resume is disabled and open-text turns are blocked with a safe temporary-unavailable message rather than silently using mock. Set `ITEM_ADMIN_TUTOR_MODE=mock` and `ALLOW_LOCAL_MOCK_RUNTIME=true` only for intentional local mock walkthroughs. Smoke tests may also force deterministic mock without making provider calls.
 
 Backend audit payloads record `item_admin_tutor_source` for open-text administration turns:
 

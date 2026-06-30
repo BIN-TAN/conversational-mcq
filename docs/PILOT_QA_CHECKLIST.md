@@ -17,7 +17,9 @@ This checklist supports a small local human usability pilot of the fixed IRT cha
 - Do not paste API keys into chat, documentation, commits, screenshots, or issue reports.
 - Confirm the fixed IRT MVP smoke tests pass before inviting a participant.
 - If a manual live smoke is needed, configure secrets only in an ignored local env file or secure shell environment.
-- Run `npm run llm:readiness` before a browser walkthrough and confirm whether live item administration is ready or intentionally blocked.
+- Store real local OpenAI keys only in `.env.local`, an ignored credential file such as `.data/secrets/openai_api_key`, or a secure shell environment. `.env` should not contain real OpenAI keys.
+- Run `npm run llm:readiness` before a browser walkthrough and confirm whether live item administration is authenticated and ready, or intentionally blocked. This check may contact OpenAI for lightweight model metadata when live config is present, but it must not generate model output or print secrets.
+- If `.env` and `.env.local` both contain `OPENAI_API_KEY` with different safe fingerprints, readiness should fail closed. Remove or comment the duplicate key from `.env` and keep the live key in `.env.local`.
 - For browser walkthroughs with live item administration, leave `ITEM_ADMIN_TUTOR_MODE=auto` and configure the server-side OpenAI provider, live-call flag, credential, and `OPENAI_MODEL_ITEM_ADMIN` or `OPENAI_MODEL_FOLLOWUP`.
 - For intentional local mock walkthroughs, set `ITEM_ADMIN_TUTOR_MODE=mock` and `ALLOW_LOCAL_MOCK_RUNTIME=true`; deterministic item administration is not the intended real student experience.
 - Record only status fields from live runs, not raw prompts, raw provider payloads, answer keys, or full student text.

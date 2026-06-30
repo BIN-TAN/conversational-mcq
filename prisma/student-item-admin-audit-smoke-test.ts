@@ -19,6 +19,9 @@ import {
   type ItemAdministrationTutorOutput
 } from "../src/lib/services/student-assessment/item-administration-tutor";
 import {
+  withAssessmentTutorAuthCheckForTest
+} from "../src/lib/llm/assessment-tutor-readiness";
+import {
   demoAssessmentPublicId,
   ensureDemoStudentAssessment
 } from "./demo-student-assessment-fixture";
@@ -218,6 +221,15 @@ async function main() {
         OPENAI_MODEL_ITEM_ADMIN: "synthetic-item-admin-model"
       },
       async () => {
+        await withAssessmentTutorAuthCheckForTest(
+          async () => ({
+            auth_status: "valid",
+            auth_checked_at: new Date().toISOString(),
+            auth_check_error_code: null,
+            http_status: 200,
+            provider_request_id: "synthetic_auth_check"
+          }),
+          async () => {
         expectFailure(() => findMatchingCallOrThrow([], "content_question"));
 
         const started = await startOrResumeStudentAssessmentSession({
@@ -352,6 +364,8 @@ async function main() {
           expectedSource: "safe_block_after_live_failure",
           expectedClassification: "incomplete"
         });
+          }
+        );
       }
     );
 

@@ -1021,7 +1021,7 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
 
 export async function listAvailableAssessments(input: { student_user_db_id: string }) {
   await assertActiveStudentAccount(input.student_user_db_id);
-  const tutorRuntimeStatus = getAssessmentTutorRuntimeStatus();
+  const tutorRuntimeStatus = await getAssessmentTutorRuntimeStatus();
   const assessments = await prisma.assessment.findMany({
     where: { status: { in: ["published", "archived"] } },
     orderBy: [{ created_at: "desc" }],
@@ -1130,7 +1130,7 @@ export async function startOrResumeStudentAssessmentSession(input: {
   new_attempt?: boolean;
 }) {
   await assertActiveStudentAccount(input.student_user_db_id);
-  const tutorRuntimeStatus = getAssessmentTutorRuntimeStatus();
+  const tutorRuntimeStatus = await getAssessmentTutorRuntimeStatus();
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -2495,6 +2495,22 @@ async function logResponseQualityResult(input: {
 
   if (!input.force_rejected && responseQualityAllowsAdvance(input.result.output)) {
     return;
+  }
+
+  if (
+    input.tutor_result?.item_admin_tutor_source === "configuration_blocked" ||
+    input.tutor_result?.item_admin_tutor_source === "safe_block_after_live_failure"
+  ) {
+    await logProcessEvent({
+      assessment_session_db_id: input.session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      item_db_id: input.item_db_id,
+      event_type: "llm_runtime_blocked",
+      event_category: "response_quality",
+      event_source: "backend",
+      payload,
+      occurred_at: now
+    });
   }
 
   await logProcessEvent({

@@ -235,11 +235,11 @@ function resolveItemAdminModelConfig(): AgentModelConfig | null {
   };
 }
 
-export function resolveItemAdministrationTutorRuntimeMode(): ItemAdministrationTutorRuntimeMode {
+export async function resolveItemAdministrationTutorRuntimeMode(): Promise<ItemAdministrationTutorRuntimeMode> {
   try {
     const env = getServerEnv();
     const modelConfig = resolveItemAdminModelConfig();
-    const runtimeStatus = getAssessmentTutorRuntimeStatus();
+    const runtimeStatus = await getAssessmentTutorRuntimeStatus();
 
     return {
       configured_mode: env.ITEM_ADMIN_TUTOR_MODE,
@@ -254,7 +254,7 @@ export function resolveItemAdministrationTutorRuntimeMode(): ItemAdministrationT
     };
   } catch (error) {
     const envMode = process.env.ITEM_ADMIN_TUTOR_MODE;
-    const fallbackStatus = getAssessmentTutorRuntimeStatus();
+    const fallbackStatus = await getAssessmentTutorRuntimeStatus();
 
     return {
       configured_mode: envMode === "live" || envMode === "mock" ? envMode : "auto",
@@ -273,7 +273,7 @@ export function resolveItemAdministrationTutorRuntimeMode(): ItemAdministrationT
 }
 
 function itemAdminDeterministicMockAllowed() {
-  return resolveItemAdministrationTutorRuntimeMode().resolved_source === "deterministic_mock";
+  return resolveItemAdministrationTutorRuntimeMode().then((mode) => mode.resolved_source === "deterministic_mock");
 }
 
 function providerAuditUpdate(providerResult: StructuredAgentResult<unknown>) {
@@ -787,7 +787,7 @@ function deterministicTutorResult(input: {
   };
 }
 
-function configurationBlockedTutorResult(): ItemAdministrationTutorResult {
+function configurationBlockedTutorResult(tutorMode: ItemAdministrationTutorResult["tutor_mode"] = "auto"): ItemAdministrationTutorResult {
   const qualityResult: ResponseQualityResult = {
     output: {
       response_quality: "incomplete",
@@ -808,7 +808,7 @@ function configurationBlockedTutorResult(): ItemAdministrationTutorResult {
   return {
     tutor_version: ITEM_ADMINISTRATION_TUTOR_VERSION,
     item_admin_tutor_source: "configuration_blocked",
-    tutor_mode: resolveItemAdministrationTutorRuntimeMode().configured_mode,
+    tutor_mode: tutorMode,
     provider: "mock",
     model_name: null,
     validation_status: qualityResult.validation_status,
@@ -922,25 +922,25 @@ export async function runItemAdministrationTutor(input: {
     agent_invocation_key: string;
   };
 }) {
-  const runtimeMode = resolveItemAdministrationTutorRuntimeMode();
+  const runtimeMode = await resolveItemAdministrationTutorRuntimeMode();
   const fallback = deterministicTutorResult({
     ...input,
     tutor_mode: runtimeMode.configured_mode,
     fallback_reason: runtimeMode.resolved_source === "deterministic_mock" ? null : runtimeMode.blocking_reasons.join("; ")
   });
 
-  if (runtimeMode.resolved_source === "deterministic_mock" || (!input.audit_context && itemAdminDeterministicMockAllowed())) {
+  if (runtimeMode.resolved_source === "deterministic_mock" || (!input.audit_context && await itemAdminDeterministicMockAllowed())) {
     return fallback;
   }
 
   if (runtimeMode.resolved_source === "configuration_blocked" || !input.audit_context) {
-    return configurationBlockedTutorResult();
+    return configurationBlockedTutorResult(runtimeMode.configured_mode);
   }
 
   const modelConfig = resolveItemAdminModelConfig();
 
   if (!modelConfig) {
-    return configurationBlockedTutorResult();
+    return configurationBlockedTutorResult(runtimeMode.configured_mode);
   }
 
   const startedAt = new Date();

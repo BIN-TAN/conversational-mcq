@@ -35,13 +35,16 @@ If either command is missing, update your shell PATH according to your Node inst
 
 4. Replace `SESSION_SECRET` with a local random value of at least 32 characters.
 
-5. Leave OpenAI variables blank for normal local development. Mock mode is the default unless live calls are explicitly enabled server-side.
+5. Leave OpenAI variables blank for normal local development. Runtime item administration blocks safely unless live calls are explicitly enabled and authenticated server-side, or an explicit local mock walkthrough is enabled.
 
    For a future guarded-live synthetic canary, the API key may be supplied
    through `OPENAI_API_KEY` or `OPENAI_API_KEY_FILE`. The recommended local file
    path is `.data/secrets/openai_api_key`; `.data/` is ignored by Git and the
    file should be owner-readable only. Do not paste keys into chat, commit
-   keys, or enter keys in the browser.
+   keys, or enter keys in the browser. For local live testing, use `.env.local`
+   as the secret source of truth; `.env` should not contain real OpenAI keys.
+   If both `.env` and `.env.local` contain different OpenAI key fingerprints,
+   runtime readiness fails closed.
 
 6. `COURSE_TIMEZONE` defaults to `America/Edmonton`. Assessment release/close inputs use this IANA timezone while PostgreSQL stores UTC timestamps.
 
@@ -178,13 +181,15 @@ The optional live Item Administration Tutor smoke is also skipped by default:
 npm run student:item-admin-live-smoke
 ```
 
-At runtime, `ITEM_ADMIN_TUTOR_MODE=auto` uses the live Item Administration Tutor only when the server-side OpenAI provider, live-call flag, API key or credential file, and item-admin or follow-up model variable are configured. Check the current safe server-side status with:
+At runtime, `ITEM_ADMIN_TUTOR_MODE=auto` uses the live Item Administration Tutor only when the server-side OpenAI provider, live-call flag, API key or credential file, authenticated key/model access check, and item-admin or follow-up model variable are configured. Check the current safe server-side status with:
 
 ```bash
 npm run llm:readiness
 ```
 
-If live config is missing, invalid, or conflicting in browser/runtime auto mode, student start/resume is disabled and open-text turns are blocked with a safe temporary-unavailable message rather than silently using mock. Deterministic mock is limited to tests, smoke commands, or intentional local walkthroughs using `ITEM_ADMIN_TUTOR_MODE=mock` with `ALLOW_LOCAL_MOCK_RUNTIME=true`. To run the optional paid smoke intentionally, configure live OpenAI provider settings and `RUN_LIVE_ITEM_ADMIN_SMOKE=1` locally. It checks that content questions during initial administration are deferred without advancing and that explicit uncertainty advances as low-information evidence.
+`npm run llm:readiness` may perform a lightweight authenticated OpenAI model-metadata check when live config is otherwise present. It does not make a model generation request and prints only safe key fingerprints, model names, auth status, cache status, and reason codes. Authenticated readiness is cached briefly to avoid repeated checks.
+
+If live config is missing, unauthenticated, invalid, unknown, public, or conflicting in browser/runtime auto mode, student start/resume is disabled and open-text turns are blocked with a safe temporary-unavailable message rather than silently using mock. Deterministic mock is limited to tests, smoke commands, or intentional local walkthroughs using `ITEM_ADMIN_TUTOR_MODE=mock` with `ALLOW_LOCAL_MOCK_RUNTIME=true`. To run the optional paid smoke intentionally, configure live OpenAI provider settings and `RUN_LIVE_ITEM_ADMIN_SMOKE=1` locally. It checks that content questions during initial administration are deferred without advancing and that explicit uncertainty advances as low-information evidence.
 
 Async workflow commands:
 
@@ -781,6 +786,7 @@ npm run llm:redaction-smoke
 npm run llm:usage-smoke
 npm run llm:status-smoke
 npm run llm:readiness
+npm run llm:readiness-smoke
 ```
 
 Optional synthetic live connectivity check:

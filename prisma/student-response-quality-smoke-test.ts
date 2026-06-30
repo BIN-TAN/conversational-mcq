@@ -35,6 +35,9 @@ import {
 } from "../src/lib/student-assessment/initial-admin-prompts";
 import { resolveItemAdministrationTutorRuntimeMode } from "../src/lib/services/student-assessment/item-administration-tutor";
 import {
+  withAssessmentTutorAuthCheckForTest
+} from "../src/lib/llm/assessment-tutor-readiness";
+import {
   detectResponseLanguage,
   deterministicResponseQuality
 } from "../src/lib/services/student-assessment/response-quality";
@@ -146,7 +149,7 @@ function assertMultilingualResponseQuality() {
   assert(gibberish.response_quality === "gibberish", "Repeated Chinese character should be classified as gibberish.");
 }
 
-function withTemporaryEnv(values: Record<string, string | undefined>, callback: () => void) {
+async function withTemporaryEnv<T>(values: Record<string, string | undefined>, callback: () => Promise<T>) {
   const previous = Object.fromEntries(
     Object.keys(values).map((key) => [key, process.env[key]])
   );
@@ -160,7 +163,7 @@ function withTemporaryEnv(values: Record<string, string | undefined>, callback: 
       }
     }
 
-    callback();
+    return await callback();
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) {
@@ -172,28 +175,39 @@ function withTemporaryEnv(values: Record<string, string | undefined>, callback: 
   }
 }
 
-function assertItemAdminRuntimeModeResolution() {
-  withTemporaryEnv(
-    {
-      ITEM_ADMIN_TUTOR_MODE: "auto",
-      LLM_PROVIDER: "openai",
-      LLM_LIVE_CALLS_ENABLED: "true",
-      OPENAI_API_KEY: "sk-test-item-admin-mode-resolution-key-000000",
-      OPENAI_API_KEY_FILE: "",
-      OPENAI_MODEL_ITEM_ADMIN: "gpt-test-item-admin",
-      OPENAI_MODEL_FOLLOWUP: "",
-      NODE_ENV: "development"
-    },
-    () => {
-      const mode = resolveItemAdministrationTutorRuntimeMode();
-      assert(mode.configured_mode === "auto", "Item admin mode should default through auto.");
-      assert(mode.resolved_source === "live_llm", "Auto mode should resolve live when live config is ready.");
-      assert(mode.live_config_ready, "Auto mode should report live config ready.");
-      assert(mode.model_name === "gpt-test-item-admin", "Item admin model should come from OPENAI_MODEL_ITEM_ADMIN.");
+async function assertItemAdminRuntimeModeResolution() {
+  await withAssessmentTutorAuthCheckForTest(
+    async () => ({
+      auth_status: "valid",
+      auth_checked_at: new Date().toISOString(),
+      auth_check_error_code: null,
+      http_status: 200,
+      provider_request_id: "synthetic_auth_check"
+    }),
+    async () => {
+      await withTemporaryEnv(
+        {
+          ITEM_ADMIN_TUTOR_MODE: "auto",
+          LLM_PROVIDER: "openai",
+          LLM_LIVE_CALLS_ENABLED: "true",
+          OPENAI_API_KEY: "sk-test-item-admin-mode-resolution-key-000000",
+          OPENAI_API_KEY_FILE: "",
+          OPENAI_MODEL_ITEM_ADMIN: "gpt-test-item-admin",
+          OPENAI_MODEL_FOLLOWUP: "",
+          NODE_ENV: "development"
+        },
+        async () => {
+          const mode = await resolveItemAdministrationTutorRuntimeMode();
+          assert(mode.configured_mode === "auto", "Item admin mode should default through auto.");
+          assert(mode.resolved_source === "live_llm", "Auto mode should resolve live when live config is ready.");
+          assert(mode.live_config_ready, "Auto mode should report live config ready.");
+          assert(mode.model_name === "gpt-test-item-admin", "Item admin model should come from OPENAI_MODEL_ITEM_ADMIN.");
+        }
+      );
     }
   );
 
-  withTemporaryEnv(
+  await withTemporaryEnv(
     {
       ITEM_ADMIN_TUTOR_MODE: "auto",
       LLM_PROVIDER: "mock",
@@ -204,8 +218,8 @@ function assertItemAdminRuntimeModeResolution() {
       npm_lifecycle_event: "",
       NODE_ENV: "development"
     },
-    () => {
-      const mode = resolveItemAdministrationTutorRuntimeMode();
+    async () => {
+      const mode = await resolveItemAdministrationTutorRuntimeMode();
       assert(
         mode.resolved_source === "configuration_blocked",
         "Development browser/runtime auto mode should not silently use mock when live config is missing."
@@ -213,28 +227,162 @@ function assertItemAdminRuntimeModeResolution() {
     }
   );
 
-  withTemporaryEnv(
-    {
-      ITEM_ADMIN_TUTOR_MODE: "mock",
-      LLM_PROVIDER: "openai",
-      LLM_LIVE_CALLS_ENABLED: "true",
-      OPENAI_API_KEY: "sk-test-item-admin-mode-resolution-key-000000",
-      OPENAI_API_KEY_FILE: "",
-      OPENAI_MODEL_ITEM_ADMIN: "gpt-test-item-admin",
-      OPENAI_MODEL_FOLLOWUP: "",
-      ALLOW_LOCAL_MOCK_RUNTIME: "true",
-      NODE_ENV: "development"
-    },
-    () => {
-      const mode = resolveItemAdministrationTutorRuntimeMode();
-      assert(mode.configured_mode === "mock", "Mock mode should be explicit.");
-      assert(mode.resolved_source === "deterministic_mock", "Mock mode should force deterministic tutor.");
-      assert(
-        mode.blocking_reasons.includes("item_admin_tutor_mode_mock"),
-        "Mock mode should report that it forced deterministic behavior."
+  await withAssessmentTutorAuthCheckForTest(
+    async () => ({
+      auth_status: "valid",
+      auth_checked_at: new Date().toISOString(),
+      auth_check_error_code: null,
+      http_status: 200,
+      provider_request_id: "synthetic_auth_check"
+    }),
+    async () => {
+      await withTemporaryEnv(
+        {
+          ITEM_ADMIN_TUTOR_MODE: "mock",
+          LLM_PROVIDER: "openai",
+          LLM_LIVE_CALLS_ENABLED: "true",
+          OPENAI_API_KEY: "sk-test-item-admin-mode-resolution-key-000000",
+          OPENAI_API_KEY_FILE: "",
+          OPENAI_MODEL_ITEM_ADMIN: "gpt-test-item-admin",
+          OPENAI_MODEL_FOLLOWUP: "",
+          ALLOW_LOCAL_MOCK_RUNTIME: "true",
+          NODE_ENV: "development"
+        },
+        async () => {
+          const mode = await resolveItemAdministrationTutorRuntimeMode();
+          assert(mode.configured_mode === "mock", "Mock mode should be explicit.");
+          assert(mode.resolved_source === "deterministic_mock", "Mock mode should force deterministic tutor.");
+          assert(
+            mode.blocking_reasons.includes("item_admin_tutor_mode_mock"),
+            "Mock mode should report that it forced deterministic behavior."
+          );
+        }
       );
     }
   );
+}
+
+async function assertRuntimeBlocksOpenTextWhenReadinessFails() {
+  await ensureDemoStudentAssessment(prisma);
+
+  const prefix = `phase25b_runtime_block_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const student = await createSmokeStudent({
+    prisma,
+    prefix,
+    accessCode: `${prefix}_access`
+  });
+  const sessionPublicIds: string[] = [];
+
+  try {
+    let started: Awaited<ReturnType<typeof startOrResumeStudentAssessmentSession>>;
+    await withTemporaryEnv(
+      {
+        ITEM_ADMIN_TUTOR_MODE: "mock",
+        ALLOW_LOCAL_MOCK_RUNTIME: "true",
+        LLM_PROVIDER: "mock",
+        LLM_LIVE_CALLS_ENABLED: "false",
+        OPENAI_API_KEY: "",
+        OPENAI_API_KEY_FILE: "",
+        OPENAI_MODEL_ITEM_ADMIN: "",
+        OPENAI_MODEL_FOLLOWUP: "",
+        NODE_ENV: "development"
+      },
+      async () => {
+        started = await startOrResumeStudentAssessmentSession({
+          student_user_db_id: student.id,
+          assessment_public_id: demoAssessmentPublicId
+        });
+      }
+    );
+    sessionPublicIds.push(started!.session.session_public_id);
+
+    let state = await startConceptUnitInitialAdministration({
+      student_user_db_id: student.id,
+      session_public_id: started!.session.session_public_id,
+      concept_unit_public_id: started!.state.current_concept_unit?.concept_unit_public_id ?? ""
+    });
+    const item = state.current_item;
+    assert(item, "Expected current item for runtime-block smoke.");
+
+    state = (
+      await recordSelectedOption({
+        student_user_db_id: student.id,
+        session_public_id: started!.session.session_public_id,
+        item_public_id: item.item_public_id,
+        data: {
+          selected_option: item.options[0]?.label ?? "A",
+          client_action_id: `${prefix}_answer`
+        }
+      })
+    ).state;
+    assert(state.assessment_state === "AWAIT_REASON", "Runtime-block smoke should reach reasoning.");
+
+    await withAssessmentTutorAuthCheckForTest(
+      async () => ({
+        auth_status: "invalid",
+        auth_checked_at: new Date().toISOString(),
+        auth_check_error_code: "invalid_api_key",
+        http_status: 401,
+        provider_request_id: "synthetic_invalid_auth_check"
+      }),
+      async () => {
+        state = await withTemporaryEnv(
+          {
+            ITEM_ADMIN_TUTOR_MODE: "auto",
+            ALLOW_LOCAL_MOCK_RUNTIME: "false",
+            LLM_PROVIDER: "openai",
+            LLM_LIVE_CALLS_ENABLED: "true",
+            OPENAI_API_KEY: "sk-runtime-block-test-key-000000000000",
+            OPENAI_API_KEY_FILE: "",
+            OPENAI_MODEL_ITEM_ADMIN: "gpt-test-item-admin",
+            OPENAI_MODEL_FOLLOWUP: "",
+            NODE_ENV: "development",
+            npm_lifecycle_event: ""
+          },
+          async () => (
+            await recordReasoning({
+              student_user_db_id: student.id,
+              session_public_id: started!.session.session_public_id,
+              item_public_id: item.item_public_id,
+              data: {
+                reasoning_text: "This should not advance while live auth is invalid.",
+                client_action_id: `${prefix}_blocked_reason`
+              }
+            })
+          ).state
+        );
+      }
+    );
+
+    assert(state.assessment_state === "AWAIT_REASON", "Invalid live readiness must keep reasoning open.");
+    const response = await prisma.itemResponse.findFirstOrThrow({
+      where: {
+        item: { item_public_id: item.item_public_id },
+        concept_unit_session: { assessment_session: { session_public_id: started!.session.session_public_id } }
+      },
+      select: { reasoning_text: true }
+    });
+    assert(!response.reasoning_text, "Blocked live readiness must not store open-text evidence as valid reasoning.");
+
+    const events = await prisma.processEvent.findMany({
+      where: {
+        assessment_session: { session_public_id: started!.session.session_public_id }
+      },
+      select: { event_type: true, payload: true }
+    });
+    const counts = eventCounts(events);
+    assert((counts.llm_runtime_blocked ?? 0) > 0, "Runtime LLM block event should be logged.");
+    assert(
+      JSON.stringify(events.map((event) => event.payload)).includes('"item_admin_tutor_source":"configuration_blocked"'),
+      "Runtime block process event should record configuration_blocked tutor source."
+    );
+  } finally {
+    await cleanupSmokeStudentSessions({
+      prisma,
+      userDbId: student.id,
+      sessionPublicIds
+    });
+  }
 }
 
 async function main() {
@@ -247,7 +395,8 @@ async function main() {
   await assertStudentComponentQualityShape();
   assertInitialPromptVariation();
   assertMultilingualResponseQuality();
-  assertItemAdminRuntimeModeResolution();
+  await assertItemAdminRuntimeModeResolution();
+  await assertRuntimeBlocksOpenTextWhenReadinessFails();
   await ensureDemoStudentAssessment(prisma);
 
   const prefix = `phase13_quality_${Date.now()}_${randomUUID().slice(0, 8)}`;

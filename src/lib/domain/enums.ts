@@ -252,6 +252,7 @@ export const processEventTypes = [
   "response_collection_reasoning_extracted",
   "response_collection_reasoning_extraction_failed",
   "response_quality_checked",
+  "llm_runtime_blocked",
   "response_quality_rejected",
   "repeated_invalid_response",
   "insufficient_knowledge_marked",
