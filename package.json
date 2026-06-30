@@ -53,6 +53,7 @@
     "llm:redaction-smoke": "tsx prisma/llm-redaction-smoke-test.ts",
     "llm:usage-smoke": "tsx prisma/llm-usage-smoke-test.ts",
     "llm:status-smoke": "tsx prisma/llm-status-smoke-test.ts",
+    "llm:readiness": "tsx prisma/llm-readiness.ts",
     "llm:connectivity": "tsx prisma/llm-connectivity.ts",
     "agent:response-collection-smoke": "tsx prisma/agent-response-collection-smoke-test.ts",
     "response-collection:fallback-smoke": "tsx prisma/response-collection-fallback-smoke-test.ts",

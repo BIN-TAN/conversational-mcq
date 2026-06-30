@@ -23,6 +23,8 @@ async function main() {
   process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "false";
   process.env.LLM_PROVIDER = "mock";
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
+  process.env.ITEM_ADMIN_TUTOR_MODE = "mock";
+  process.env.ALLOW_LOCAL_MOCK_RUNTIME = "true";
   process.env.OPERATIONAL_AGENT_MODE = "disabled";
 
   await ensureDemoStudentAssessment(prisma);
@@ -35,6 +37,29 @@ async function main() {
   assert(student.account_status === "active", "student_demo must be active.");
 
   await resetStudentDemoFixedMvpAttempt(prisma);
+
+  process.env.ITEM_ADMIN_TUTOR_MODE = "auto";
+  process.env.ALLOW_LOCAL_MOCK_RUNTIME = "false";
+  const priorLifecycleEvent = process.env.npm_lifecycle_event;
+  process.env.npm_lifecycle_event = "";
+  const unavailable = await listAvailableAssessments({ student_user_db_id: student.id });
+  const unavailableFixedRow = unavailable.assessments.find(
+    (assessment) => assessment.assessment_public_id === demoAssessmentPublicId
+  );
+  assert(unavailableFixedRow, "Fixed IRT MVP row should remain visible when tutor runtime is blocked.");
+  assert(unavailableFixedRow.can_start === false, "Fixed IRT MVP start should be blocked without tutor runtime readiness.");
+  assert(
+    unavailableFixedRow.student_safe_availability_message ===
+      "This assessment is temporarily unavailable. Please try again later.",
+    "Blocked tutor runtime should show only the neutral temporary-unavailable message."
+  );
+  if (priorLifecycleEvent === undefined) {
+    delete process.env.npm_lifecycle_event;
+  } else {
+    process.env.npm_lifecycle_event = priorLifecycleEvent;
+  }
+  process.env.ITEM_ADMIN_TUTOR_MODE = "mock";
+  process.env.ALLOW_LOCAL_MOCK_RUNTIME = "true";
 
   const fixedAssessment = await prisma.assessment.findUniqueOrThrow({
     where: { assessment_public_id: demoAssessmentPublicId },

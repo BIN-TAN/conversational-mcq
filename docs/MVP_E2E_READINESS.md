@@ -113,14 +113,22 @@ OPENAI_API_KEY=<set locally, never commit>
 OPENAI_MODEL_ITEM_ADMIN=<model>
 ```
 
-If `OPENAI_MODEL_ITEM_ADMIN` is blank, the runtime may fall back to `OPENAI_MODEL_FOLLOWUP=<model>`. If any live requirement is missing, disabled, or invalid in browser/runtime auto mode, the open-text turn is blocked with a safe configuration message rather than silently using mock. Set `ITEM_ADMIN_TUTOR_MODE=mock` to force deterministic behavior for local testing or intentional local mock walkthroughs.
+`OPENAI_API_KEY_FILE=<path>` may be used instead of `OPENAI_API_KEY`; the recommended local path is `.data/secrets/openai_api_key`. If `OPENAI_MODEL_ITEM_ADMIN` is blank, the runtime may fall back to `OPENAI_MODEL_FOLLOWUP=<model>`.
+
+Run the no-network readiness check before a browser walkthrough:
+
+```bash
+npm run llm:readiness
+```
+
+If any live requirement is missing, disabled, conflicting, public, or invalid in browser/runtime auto mode, student start/resume is disabled and open-text turns are blocked with a safe temporary-unavailable message rather than silently using mock. Set `ITEM_ADMIN_TUTOR_MODE=mock` and `ALLOW_LOCAL_MOCK_RUNTIME=true` only for intentional local mock walkthroughs. Smoke tests may also force deterministic mock without making provider calls.
 
 Backend audit payloads record `item_admin_tutor_source` for open-text administration turns:
 
 ```text
 live_llm
 deterministic_mock
-safe_fallback_after_live_failure
+safe_block_after_live_failure
 configuration_blocked
 ```
 

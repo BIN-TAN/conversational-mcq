@@ -213,7 +213,8 @@ async function main() {
         ITEM_ADMIN_TUTOR_MODE: "live",
         LLM_PROVIDER: "openai",
         LLM_LIVE_CALLS_ENABLED: "true",
-        OPENAI_API_KEY: "synthetic-test-key-not-used",
+        OPENAI_API_KEY: "sk-synthetic-test-key-not-used-000000000000",
+        OPENAI_API_KEY_FILE: "",
         OPENAI_MODEL_ITEM_ADMIN: "synthetic-item-admin-model"
       },
       async () => {
@@ -342,14 +343,14 @@ async function main() {
         assert(!fallbackAudit.call.output_validated, "Invalid live output should not be marked validated.");
         assert(fallbackAudit.call.validation_error, "Invalid live output should preserve validation error.");
         assert(
-          fallbackAudit.output.message_classification === "content_question",
-          "Effective fallback output should classify content question."
+          fallbackAudit.output.message_classification === "incomplete",
+          "Invalid live output should persist a non-advancing blocked effective output."
         );
         await assertTutorProcessEvidence({
           sessionPublicId: started.session.session_public_id,
           agentCallId: fallbackAudit.call.id,
-          expectedSource: "safe_fallback_after_live_failure",
-          expectedClassification: "content_question"
+          expectedSource: "safe_block_after_live_failure",
+          expectedClassification: "incomplete"
         });
       }
     );

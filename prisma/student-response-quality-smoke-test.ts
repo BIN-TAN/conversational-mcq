@@ -87,6 +87,10 @@ function assertInitialPromptVariation() {
     "Reasoning prompt should invite detailed explanation."
   );
   assert(
+    !/Chinese|English, Chinese|mix of both|multilingual/i.test(reasoningPrompt),
+    "Default student-facing reasoning prompts should not advertise specific language choices."
+  );
+  assert(
     [...prompts, reasoningPrompt].every((prompt) => !/correct answer|answer key|structured output|agent call/i.test(prompt)),
     "Initial prompts should not expose protected or internal language."
   );
@@ -174,7 +178,8 @@ function assertItemAdminRuntimeModeResolution() {
       ITEM_ADMIN_TUTOR_MODE: "auto",
       LLM_PROVIDER: "openai",
       LLM_LIVE_CALLS_ENABLED: "true",
-      OPENAI_API_KEY: "test-item-admin-mode-resolution-key",
+      OPENAI_API_KEY: "sk-test-item-admin-mode-resolution-key-000000",
+      OPENAI_API_KEY_FILE: "",
       OPENAI_MODEL_ITEM_ADMIN: "gpt-test-item-admin",
       OPENAI_MODEL_FOLLOWUP: "",
       NODE_ENV: "development"
@@ -196,6 +201,7 @@ function assertItemAdminRuntimeModeResolution() {
       OPENAI_API_KEY: "",
       OPENAI_MODEL_ITEM_ADMIN: "",
       OPENAI_MODEL_FOLLOWUP: "",
+      npm_lifecycle_event: "",
       NODE_ENV: "development"
     },
     () => {
@@ -212,9 +218,11 @@ function assertItemAdminRuntimeModeResolution() {
       ITEM_ADMIN_TUTOR_MODE: "mock",
       LLM_PROVIDER: "openai",
       LLM_LIVE_CALLS_ENABLED: "true",
-      OPENAI_API_KEY: "test-item-admin-mode-resolution-key",
+      OPENAI_API_KEY: "sk-test-item-admin-mode-resolution-key-000000",
+      OPENAI_API_KEY_FILE: "",
       OPENAI_MODEL_ITEM_ADMIN: "gpt-test-item-admin",
       OPENAI_MODEL_FOLLOWUP: "",
+      ALLOW_LOCAL_MOCK_RUNTIME: "true",
       NODE_ENV: "development"
     },
     () => {

@@ -17,6 +17,7 @@ import { updateAssessmentSessionPhase, markSessionExited } from "@/lib/services/
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { INCLUDED_ITEM_RANGE } from "@/lib/services/content/governance";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
+import { getAssessmentTutorRuntimeStatus } from "@/lib/llm/assessment-tutor-readiness";
 import { getStudentProgressionStateBySessionDbId } from "@/lib/services/concept-progression/progression";
 import {
   ensureChatNativeFormativeActivity,
@@ -60,6 +61,8 @@ const MAX_REASONING_LENGTH = 5000;
 const MAX_EVENT_BATCH_SIZE = 20;
 const MAX_EVENT_PAYLOAD_BYTES = 4000;
 const IDK_OPTION_LABEL = "E";
+const ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE =
+  "This assessment is temporarily unavailable. Please try again later.";
 const REPEATED_INVALID_RESPONSE_PROMPT =
   "I still cannot use that as a reason. Choose one:\nA. Try writing your reason again.\nB. Mark this as 'I don't know the reason yet.'";
 
@@ -67,7 +70,9 @@ function repeatedInvalidOverride(input: {
   attempt_count: number;
   tutor_result: ItemAdministrationTutorResult;
 }) {
-  return input.attempt_count >= 2 &&
+  return input.tutor_result.item_admin_tutor_source !== "configuration_blocked" &&
+    input.tutor_result.item_admin_tutor_source !== "safe_block_after_live_failure" &&
+    input.attempt_count >= 2 &&
     ["incomplete", "off_topic", "gibberish"].includes(input.tutor_result.message_classification)
     ? REPEATED_INVALID_RESPONSE_PROMPT
     : undefined;
@@ -568,8 +573,8 @@ function validTemptingOptionLabels(
   ).map((option) => option.label);
 }
 
-function sameOptionTemptingMessage(selectedOption: string) {
-  return `You already chose ${selectedOption} as your answer. Was a different option tempting, or should I record that no other option was tempting? You can choose a different option, choose No, or edit your original answer if you meant to change it.`;
+function sameOptionTemptingMessage() {
+  return "You already chose that as your answer. Was a different option tempting, or should I record that no other option was tempting? You can choose a different option, choose No, or edit your original answer if you meant to change it.";
 }
 
 async function logSameOptionTemptingRejected(input: {
@@ -583,7 +588,7 @@ async function logSameOptionTemptingRejected(input: {
   item_context: "initial" | "transfer";
 }) {
   const now = new Date();
-  const message = sameOptionTemptingMessage(input.selected_option);
+  const message = sameOptionTemptingMessage();
   const payload = {
     source: "same_option_tempting_rejected",
     item_public_id: input.item_public_id,
@@ -1016,6 +1021,7 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
 
 export async function listAvailableAssessments(input: { student_user_db_id: string }) {
   await assertActiveStudentAccount(input.student_user_db_id);
+  const tutorRuntimeStatus = getAssessmentTutorRuntimeStatus();
   const assessments = await prisma.assessment.findMany({
     where: { status: { in: ["published", "archived"] } },
     orderBy: [{ created_at: "desc" }],
@@ -1075,9 +1081,12 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       assessment.workflow_mode === "manual_review" &&
       !existingSession &&
       !getServerEnv().ALLOW_MANUAL_REVIEW_STUDENT_STARTS;
-    const studentSafeAvailabilityMessage = manualReviewNewStartBlocked
-      ? "This assessment is not available for student starts yet."
-      : computed.student_safe_availability_message;
+    const studentSafeAvailabilityMessage = !tutorRuntimeStatus.ready
+      ? ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE
+      : manualReviewNewStartBlocked
+        ? "This assessment is not available for student starts yet."
+        : computed.student_safe_availability_message;
+    const tutorRuntimeBlocksOpen = !tutorRuntimeStatus.ready;
 
     availability.push({
       ...serializeStudentAssessment(assessment),
@@ -1096,8 +1105,16 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       existing_attempt_number: existingSession?.attempt_number ?? latestCompletedSession?.attempt_number ?? null,
       latest_completed_session_public_id: latestCompletedSession?.session_public_id ?? null,
       latest_completed_attempt_number: latestCompletedSession?.attempt_number ?? null,
-      can_start: computed.availability_state === "open" && !manualReviewNewStartBlocked,
-      can_resume: Boolean(existingSession && !completed && computed.can_resume_existing_session)
+      can_start:
+        computed.availability_state === "open" &&
+        !manualReviewNewStartBlocked &&
+        !tutorRuntimeBlocksOpen,
+      can_resume: Boolean(
+        existingSession &&
+        !completed &&
+        computed.can_resume_existing_session &&
+        !tutorRuntimeBlocksOpen
+      )
     });
   }
 
@@ -1113,6 +1130,7 @@ export async function startOrResumeStudentAssessmentSession(input: {
   new_attempt?: boolean;
 }) {
   await assertActiveStudentAccount(input.student_user_db_id);
+  const tutorRuntimeStatus = getAssessmentTutorRuntimeStatus();
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -1136,6 +1154,19 @@ export async function startOrResumeStudentAssessmentSession(input: {
 
           if (!assessment) {
             throw new StudentAssessmentServiceError("not_found", "Assessment was not found.", 404);
+          }
+
+          if (!tutorRuntimeStatus.ready) {
+            throw new StudentAssessmentServiceError(
+              "llm_not_ready",
+              ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE,
+              409,
+              {
+                assessment_public_id: assessment.assessment_public_id,
+                reason_codes: tutorRuntimeStatus.reason_codes,
+                runtime_source: tutorRuntimeStatus.runtime_source
+              }
+            );
           }
 
           const now = new Date();

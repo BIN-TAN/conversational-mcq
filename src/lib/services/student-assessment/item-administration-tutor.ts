@@ -8,6 +8,7 @@ import {
   redactForAudit
 } from "@/lib/agents/redaction";
 import { getLlmRuntimeConfig, type AgentModelConfig } from "@/lib/llm/config";
+import { getAssessmentTutorRuntimeStatus } from "@/lib/llm/assessment-tutor-readiness";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
@@ -149,7 +150,7 @@ export type ItemAdministrationTutorResult = {
   item_admin_tutor_source:
     | "live_llm"
     | "deterministic_mock"
-    | "safe_fallback_after_live_failure"
+    | "safe_block_after_live_failure"
     | "configuration_blocked";
   tutor_mode: ItemAdministrationTutorRuntimeMode["configured_mode"];
   provider: "mock" | "openai";
@@ -170,8 +171,8 @@ export type ItemAdministrationTutorResult = {
   live_status:
     | "deterministic"
     | "validated_live"
-    | "fallback_after_provider_failure"
-    | "fallback_after_validation_failure"
+    | "blocked_after_provider_failure"
+    | "blocked_after_validation_failure"
     | "configuration_blocked";
 };
 
@@ -199,10 +200,8 @@ const INCOMPLETE_MESSAGE =
 const OFF_TOPIC_MESSAGE = "Let’s keep this focused on the current question. What is your reason for your choice?";
 const GIBBERISH_MESSAGE =
   "I could not read that as a response. Try your reason again, or say “I don’t know the reason yet.”";
-const LOCAL_CONFIGURATION_BLOCKED_MESSAGE =
-  "The live assessment tutor is not configured. Set ITEM_ADMIN_TUTOR_MODE=mock for local mock testing or configure live LLM settings.";
-const PRODUCTION_CONFIGURATION_BLOCKED_MESSAGE =
-  "The assessment tutor is not available right now. Please try again later.";
+const TUTOR_TEMPORARILY_UNAVAILABLE_MESSAGE =
+  "The assessment tutor is temporarily unavailable. Your progress is saved. Please try again in a moment or pause and return later.";
 
 const FORBIDDEN_STUDENT_TEXT = [
   /answer\s*key/i,
@@ -240,61 +239,26 @@ export function resolveItemAdministrationTutorRuntimeMode(): ItemAdministrationT
   try {
     const env = getServerEnv();
     const modelConfig = resolveItemAdminModelConfig();
-    const blockingReasons: string[] = [];
-    const explicitMock = env.ITEM_ADMIN_TUTOR_MODE === "mock";
-    const testRuntime = env.NODE_ENV === "test";
-
-    if (env.LLM_PROVIDER !== "openai") {
-      blockingReasons.push("llm_provider_not_openai");
-    }
-
-    if (!env.LLM_LIVE_CALLS_ENABLED) {
-      blockingReasons.push("llm_live_calls_disabled");
-    }
-
-    if (!configured(env.OPENAI_API_KEY)) {
-      blockingReasons.push("openai_api_key_missing");
-    }
-
-    if (!modelConfig) {
-      blockingReasons.push("item_admin_model_missing");
-    }
-
-    const liveConfigReady = blockingReasons.length === 0;
-    const resolvedSource =
-      !explicitMock && liveConfigReady
-        ? "live_llm"
-        : explicitMock || testRuntime
-          ? "deterministic_mock"
-          : "configuration_blocked";
-
-    if (explicitMock) {
-      blockingReasons.unshift("item_admin_tutor_mode_mock");
-    }
-
-    if (testRuntime && !liveConfigReady && !explicitMock) {
-      blockingReasons.unshift("node_env_test_uses_deterministic_mock");
-    }
+    const runtimeStatus = getAssessmentTutorRuntimeStatus();
 
     return {
       configured_mode: env.ITEM_ADMIN_TUTOR_MODE,
-      resolved_source: resolvedSource,
-      live_config_ready: liveConfigReady,
+      resolved_source: runtimeStatus.runtime_source,
+      live_config_ready: runtimeStatus.runtime_source === "live_llm",
       provider: env.LLM_PROVIDER,
       live_calls_enabled: env.LLM_LIVE_CALLS_ENABLED,
-      openai_key_configured: configured(env.OPENAI_API_KEY),
+      openai_key_configured: runtimeStatus.key_present,
       model_configured: Boolean(modelConfig),
       model_name: modelConfig?.model_name ?? null,
-      blocking_reasons: blockingReasons
+      blocking_reasons: runtimeStatus.reason_codes
     };
   } catch (error) {
     const envMode = process.env.ITEM_ADMIN_TUTOR_MODE;
+    const fallbackStatus = getAssessmentTutorRuntimeStatus();
 
     return {
       configured_mode: envMode === "live" || envMode === "mock" ? envMode : "auto",
-      resolved_source: envMode === "mock" || process.env.NODE_ENV === "test"
-        ? "deterministic_mock"
-        : "configuration_blocked",
+      resolved_source: fallbackStatus.runtime_source,
       live_config_ready: false,
       provider: "invalid",
       live_calls_enabled: process.env.LLM_LIVE_CALLS_ENABLED === "true",
@@ -824,17 +788,13 @@ function deterministicTutorResult(input: {
 }
 
 function configurationBlockedTutorResult(): ItemAdministrationTutorResult {
-  const message =
-    process.env.NODE_ENV === "production"
-      ? PRODUCTION_CONFIGURATION_BLOCKED_MESSAGE
-      : LOCAL_CONFIGURATION_BLOCKED_MESSAGE;
   const qualityResult: ResponseQualityResult = {
     output: {
       response_quality: "incomplete",
       should_advance: false,
       engagement_signal: "unclear",
       reasoning_signal: "not_usable",
-      student_facing_message: message,
+      student_facing_message: TUTOR_TEMPORARILY_UNAVAILABLE_MESSAGE,
       next_expected_action: "stay_on_current_step"
     },
     source: "deterministic_mock",
@@ -859,12 +819,60 @@ function configurationBlockedTutorResult(): ItemAdministrationTutorResult {
     response_quality: "not_usable",
     should_advance: false,
     next_expected_action: "continue_current_step",
-    student_facing_message: message,
+    student_facing_message: TUTOR_TEMPORARILY_UNAVAILABLE_MESSAGE,
     deferred_concern_summary: null,
     store_deferred_concern: false,
     safety_validated: true,
     live_status: "configuration_blocked"
   } satisfies ItemAdministrationTutorResult;
+}
+
+function liveFailureBlockedTutorResult(input: {
+  agent_call_id: string;
+  tutor_mode: ItemAdministrationTutorResult["tutor_mode"];
+  model_name: string | null;
+  fallback_reason: string;
+  live_status: "blocked_after_provider_failure" | "blocked_after_validation_failure";
+  text: string;
+}): ItemAdministrationTutorResult {
+  const qualityResult: ResponseQualityResult = {
+    output: {
+      response_quality: "incomplete",
+      should_advance: false,
+      engagement_signal: "unclear",
+      reasoning_signal: "not_usable",
+      student_facing_message: TUTOR_TEMPORARILY_UNAVAILABLE_MESSAGE,
+      next_expected_action: "stay_on_current_step"
+    },
+    source: "llm_fallback_to_deterministic",
+    validation_status: "fallback_after_provider_failure",
+    provider: "openai",
+    prompt_hash: ITEM_ADMINISTRATION_TUTOR_PROMPT_HASH,
+    schema_version: RESPONSE_QUALITY_SCHEMA_VERSION,
+    detected_response_language: detectResponseLanguage(input.text)
+  };
+
+  return {
+    tutor_version: ITEM_ADMINISTRATION_TUTOR_VERSION,
+    item_admin_tutor_source: "safe_block_after_live_failure",
+    tutor_mode: input.tutor_mode,
+    provider: "openai",
+    model_name: input.model_name,
+    validation_status: qualityResult.validation_status,
+    fallback_reason: input.fallback_reason,
+    detected_response_language: qualityResult.detected_response_language,
+    response_quality_result: qualityResult,
+    message_classification: "incomplete",
+    response_quality: "not_usable",
+    should_advance: false,
+    next_expected_action: "continue_current_step",
+    student_facing_message: TUTOR_TEMPORARILY_UNAVAILABLE_MESSAGE,
+    deferred_concern_summary: null,
+    store_deferred_concern: false,
+    safety_validated: true,
+    agent_call_id: input.agent_call_id,
+    live_status: input.live_status
+  };
 }
 
 export function buildItemAdministrationTutorStatePacket(input: ItemAdministrationTutorStatePacket) {
@@ -1020,31 +1028,27 @@ export async function runItemAdministrationTutor(input: {
         });
       }
 
-      const fallbackResult = deterministicTutorResult({
-        ...input,
-        validation_status: "fallback_after_provider_failure",
-        source: "llm_fallback_to_deterministic",
-        provider: "mock",
+      const blockedResult = liveFailureBlockedTutorResult({
         agent_call_id: agentCall.id,
-        live_status: "fallback_after_validation_failure",
-        item_admin_tutor_source: "safe_fallback_after_live_failure",
         tutor_mode: runtimeMode.configured_mode,
         model_name: modelConfig.model_name,
-        fallback_reason: "live_item_admin_output_failed_effective_validation"
+        fallback_reason: "live_item_admin_output_failed_effective_validation",
+        live_status: "blocked_after_validation_failure",
+        text: input.text
       });
-      const fallbackOutput = outputFromTutorResult(fallbackResult);
+      const blockedOutput = outputFromTutorResult(blockedResult);
 
       await prisma.agentCall.update({
         where: { id: agentCall.id },
         data: {
           ...providerAuditUpdate(providerResult),
-          output_payload: prismaJson(fallbackOutput),
+          output_payload: prismaJson(blockedOutput),
           output_validated: false,
           validation_error: [
             "live_item_admin_output_failed_effective_validation",
             ...validation.issues,
-            `effective_fallback_message_classification:${fallbackOutput.message_classification}`,
-            `effective_fallback_tutor_source:${fallbackResult.item_admin_tutor_source}`
+            `effective_block_message_classification:${blockedOutput.message_classification}`,
+            `effective_block_tutor_source:${blockedResult.item_admin_tutor_source}`
           ].join("; "),
           call_status: "invalid_output",
           error_category: "schema_validation",
@@ -1052,26 +1056,22 @@ export async function runItemAdministrationTutor(input: {
         }
       });
 
-      return fallbackResult;
+      return blockedResult;
     }
 
-    const fallbackResult = deterministicTutorResult({
-      ...input,
-      validation_status: "fallback_after_provider_failure",
-      source: "llm_fallback_to_deterministic",
-      provider: "mock",
+    const blockedResult = liveFailureBlockedTutorResult({
       agent_call_id: agentCall.id,
-      live_status: "fallback_after_provider_failure",
-      item_admin_tutor_source: "safe_fallback_after_live_failure",
       tutor_mode: runtimeMode.configured_mode,
       model_name: modelConfig.model_name,
-      fallback_reason: providerResult.error?.category ?? providerResult.status
+      fallback_reason: providerResult.error?.category ?? providerResult.status,
+      live_status: "blocked_after_provider_failure",
+      text: input.text
     });
     await prisma.agentCall.update({
       where: { id: agentCall.id },
       data: {
         ...providerAuditUpdate(providerResult),
-        output_payload: prismaJson(outputFromTutorResult(fallbackResult)),
+        output_payload: prismaJson(outputFromTutorResult(blockedResult)),
         output_validated: false,
         validation_error:
           providerResult.error?.message ??
@@ -1083,24 +1083,20 @@ export async function runItemAdministrationTutor(input: {
         completed_at: new Date()
       }
     });
-    return fallbackResult;
+    return blockedResult;
   } catch (error) {
-    const fallbackResult = deterministicTutorResult({
-      ...input,
-      validation_status: "fallback_after_provider_failure",
-      source: "llm_fallback_to_deterministic",
-      provider: "mock",
+    const blockedResult = liveFailureBlockedTutorResult({
       agent_call_id: agentCall.id,
-      live_status: "fallback_after_provider_failure",
-      item_admin_tutor_source: "safe_fallback_after_live_failure",
       tutor_mode: runtimeMode.configured_mode,
       model_name: modelConfig.model_name,
-      fallback_reason: error instanceof Error ? "provider_exception" : "unknown_provider_exception"
+      fallback_reason: error instanceof Error ? "provider_exception" : "unknown_provider_exception",
+      live_status: "blocked_after_provider_failure",
+      text: input.text
     });
     await prisma.agentCall.update({
       where: { id: agentCall.id },
       data: {
-        output_payload: prismaJson(outputFromTutorResult(fallbackResult)),
+        output_payload: prismaJson(outputFromTutorResult(blockedResult)),
         output_validated: false,
         validation_error:
           error instanceof Error ? error.message : "Item Administration Tutor provider call failed.",
@@ -1109,6 +1105,6 @@ export async function runItemAdministrationTutor(input: {
         completed_at: new Date()
       }
     });
-    return fallbackResult;
+    return blockedResult;
   }
 }

@@ -66,9 +66,9 @@ const ANSWER_PROMPTS = [
 ];
 
 const REASONING_PROMPTS = [
-  "What led you to choose {option}? Please explain your reasoning with as much detail as you can. You can use English, Chinese, or a mix of both.",
-  "Why did {option} seem best to you? Try to include detail about the idea or part of the question that shaped your choice. English, Chinese, or both are okay.",
-  "Give your reason for choosing {option}. The more detail you provide, the more useful my feedback can be. You can explain in English, Chinese, or a mix.",
+  "What led you to choose {option}? Please explain your reasoning with as much detail as you can.",
+  "Why did {option} seem best to you? Try to include detail about the idea or part of the question that shaped your choice.",
+  "Give your reason for choosing {option}. The more detail you provide, the more useful my feedback can be.",
   "One or two sentences is enough, but include the detail that mattered most. Why did {option} seem best?"
 ];
 

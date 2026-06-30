@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
 import { getServerEnv } from "@/lib/env";
+import { resolveOpenAICredentialFromEnv } from "@/lib/llm/openai-credential-resolver";
 
 export const ReasoningEffort = z.enum(["none", "minimal", "low", "medium", "high"]);
 export const Verbosity = z.enum(["low", "medium", "high"]);
@@ -78,7 +79,8 @@ export function getLlmRuntimeConfig(): LlmRuntimeConfig {
   const env = getServerEnv();
   const provider = env.LLM_PROVIDER;
   const liveCallsEnabled = env.LLM_LIVE_CALLS_ENABLED;
-  const openaiKeyConfigured = configured(env.OPENAI_API_KEY);
+  const credentialResolution = resolveOpenAICredentialFromEnv();
+  const openaiKeyConfigured = credentialResolution.ok;
 
   if (liveCallsEnabled && provider !== "openai") {
     throw new LlmConfigurationError(
@@ -96,8 +98,11 @@ export function getLlmRuntimeConfig(): LlmRuntimeConfig {
 
   if ((provider === "openai" || liveCallsEnabled) && !openaiKeyConfigured) {
     throw new LlmConfigurationError(
-      "openai_key_missing",
-      "OPENAI_API_KEY is required only when live OpenAI calls are explicitly enabled."
+      credentialResolution.code,
+      "A valid server-side OpenAI credential is required only when live OpenAI calls are explicitly enabled.",
+      {
+        credential_source: credentialResolution.source
+      }
     );
   }
 

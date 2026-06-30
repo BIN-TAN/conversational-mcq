@@ -2034,7 +2034,7 @@ export function AssessmentSessionClient({
 
     try {
       await exitSession(activeSessionPublicId);
-      router.push("/student");
+      router.push("/student/assessment");
     } catch (errorValue) {
       handleError(errorValue, "Pause assessment", () => {
         void handleExit();

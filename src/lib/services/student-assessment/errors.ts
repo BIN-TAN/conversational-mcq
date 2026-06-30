@@ -4,6 +4,7 @@ export type StudentAssessmentErrorCode =
   | "assessment_not_published"
   | "assessment_not_released"
   | "assessment_closed_to_new_starts"
+  | "llm_not_ready"
   | "account_unavailable"
   | "assessment_manual_review_not_available"
   | "invalid_assessment_availability_window"

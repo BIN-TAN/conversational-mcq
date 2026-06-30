@@ -55,6 +55,16 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - The OpenAI API key must never be exposed to the browser or committed to source control.
 - Phase 6D2A automatic workflow jobs must respect the same server-side live-call gates and usage guards as manual agent triggers.
 
+## Chat-Native Runtime Item Administration
+
+- The current student MVP is a web-based, chat-native formative assessment flow. The app owns state transitions, persistence, validation, answer-key protection, and process-data logging.
+- Browser/runtime item administration uses the live Item Administration Tutor only when `ITEM_ADMIN_TUTOR_MODE=auto`, `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, a valid server-side OpenAI credential is available through `OPENAI_API_KEY` or `OPENAI_API_KEY_FILE`, and `OPENAI_MODEL_ITEM_ADMIN` or `OPENAI_MODEL_FOLLOWUP` is configured.
+- `npm run llm:readiness` is the no-network readiness check for this runtime path. It may report key presence, source class, fingerprint prefix, reason codes, model names, and conflict status, but never raw credential values.
+- If live readiness is missing, invalid, public, or conflicting in normal browser/runtime auto mode, student start/resume is blocked and open-text item-administration turns fail closed with a saved-progress unavailable message. The runtime must not silently substitute deterministic mock output as valid student evidence.
+- Deterministic/mock item administration is allowed only in `NODE_ENV=test`, smoke tests that explicitly force mock behavior, or intentional local mock walkthroughs with `ITEM_ADMIN_TUTOR_MODE=mock` and `ALLOW_LOCAL_MOCK_RUNTIME=true`.
+- Failed live item-administration provider output must keep the current assessment step, preserve progress, log `item_admin_tutor_source=safe_block_after_live_failure`, and avoid recording the failed response as valid evidence.
+- Student-facing prompts must not advertise specific language choices by default. Backend validation may still accept meaningful non-English or mixed-language responses.
+
 ## Phase 8A Guarded Operational Integration
 
 - `OPERATIONAL_AGENT_MODE` is the authoritative server-only operational mode. Valid values are `disabled`, `mock`, and `guarded_live`; the default is `disabled`.

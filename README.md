@@ -178,7 +178,13 @@ The optional live Item Administration Tutor smoke is also skipped by default:
 npm run student:item-admin-live-smoke
 ```
 
-At runtime, `ITEM_ADMIN_TUTOR_MODE=auto` uses the live Item Administration Tutor when the server-side OpenAI provider, live-call flag, API key, and item-admin or follow-up model variable are configured. If live config is missing in browser/runtime auto mode, the open-text turn is blocked with a safe local configuration message rather than silently using mock. Set `ITEM_ADMIN_TUTOR_MODE=mock` to force deterministic local testing. To run the optional paid smoke intentionally, configure live OpenAI provider settings and `RUN_LIVE_ITEM_ADMIN_SMOKE=1` locally. It checks that content questions during initial administration are deferred without advancing and that explicit uncertainty advances as low-information evidence.
+At runtime, `ITEM_ADMIN_TUTOR_MODE=auto` uses the live Item Administration Tutor only when the server-side OpenAI provider, live-call flag, API key or credential file, and item-admin or follow-up model variable are configured. Check the current safe server-side status with:
+
+```bash
+npm run llm:readiness
+```
+
+If live config is missing, invalid, or conflicting in browser/runtime auto mode, student start/resume is disabled and open-text turns are blocked with a safe temporary-unavailable message rather than silently using mock. Deterministic mock is limited to tests, smoke commands, or intentional local walkthroughs using `ITEM_ADMIN_TUTOR_MODE=mock` with `ALLOW_LOCAL_MOCK_RUNTIME=true`. To run the optional paid smoke intentionally, configure live OpenAI provider settings and `RUN_LIVE_ITEM_ADMIN_SMOKE=1` locally. It checks that content questions during initial administration are deferred without advancing and that explicit uncertainty advances as low-information evidence.
 
 Async workflow commands:
 
@@ -774,6 +780,7 @@ npm run llm:execution-smoke
 npm run llm:redaction-smoke
 npm run llm:usage-smoke
 npm run llm:status-smoke
+npm run llm:readiness
 ```
 
 Optional synthetic live connectivity check:

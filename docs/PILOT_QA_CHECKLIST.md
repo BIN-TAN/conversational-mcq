@@ -17,8 +17,9 @@ This checklist supports a small local human usability pilot of the fixed IRT cha
 - Do not paste API keys into chat, documentation, commits, screenshots, or issue reports.
 - Confirm the fixed IRT MVP smoke tests pass before inviting a participant.
 - If a manual live smoke is needed, configure secrets only in an ignored local env file or secure shell environment.
-- For browser walkthroughs with live item administration, leave `ITEM_ADMIN_TUTOR_MODE=auto` and configure the server-side OpenAI provider, live-call flag, API key, and `OPENAI_MODEL_ITEM_ADMIN` or `OPENAI_MODEL_FOLLOWUP`.
-- For intentional local mock walkthroughs, set `ITEM_ADMIN_TUTOR_MODE=mock`; deterministic item administration is not the intended real student experience.
+- Run `npm run llm:readiness` before a browser walkthrough and confirm whether live item administration is ready or intentionally blocked.
+- For browser walkthroughs with live item administration, leave `ITEM_ADMIN_TUTOR_MODE=auto` and configure the server-side OpenAI provider, live-call flag, credential, and `OPENAI_MODEL_ITEM_ADMIN` or `OPENAI_MODEL_FOLLOWUP`.
+- For intentional local mock walkthroughs, set `ITEM_ADMIN_TUTOR_MODE=mock` and `ALLOW_LOCAL_MOCK_RUNTIME=true`; deterministic item administration is not the intended real student experience.
 - Record only status fields from live runs, not raw prompts, raw provider payloads, answer keys, or full student text.
 
 ## Local Run Commands
@@ -165,7 +166,7 @@ No logs, exports, screenshots, or notes should contain API keys, cookies, auth t
 - Whether save, exit, and resume were understandable.
 - Whether targeted feedback and revision felt clear.
 - Any student-facing error messages or stalled states.
-- For developer audit, whether process-event or conversation-turn payloads show `item_admin_tutor_source` as `live_llm`, `deterministic_mock`, `safe_fallback_after_live_failure`, or `configuration_blocked`.
+- For developer audit, whether process-event or conversation-turn payloads show `item_admin_tutor_source` as `live_llm`, `deterministic_mock`, `safe_block_after_live_failure`, or `configuration_blocked`.
 - Whether teacher review and exports show the expected synthetic records after the session.
 
 ## Known Limitations

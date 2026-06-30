@@ -92,6 +92,7 @@ const serverEnvSchema = z.object({
   OPENAI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
   ITEM_ADMIN_TUTOR_MODE: z.enum(["auto", "mock", "live"]).default("auto"),
   ITEM_ADMIN_TUTOR_LIVE_ENABLED: booleanWithDefault(false),
+  ALLOW_LOCAL_MOCK_RUNTIME: booleanWithDefault(false),
   COURSE_TIMEZONE: z
     .string()
     .default("America/Edmonton")
