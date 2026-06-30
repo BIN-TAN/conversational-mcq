@@ -107,7 +107,7 @@ If an opt-in paid live smoke fails, the script must preserve diagnostic evidence
 - a sanitized JSON artifact is written under `.data/student-live-llm-smoke/failures/`;
 - generated artifacts remain ignored by Git and must not be committed.
 
-The failure output includes `diagnostic_artifact_path`, `session_public_id`, `agent_call_id`, `agent_name`, `schema_version`, and `validation_status` when available. The artifact stores only summaries: session state, agent-call statuses, validation issue paths, output payload keys, presence flags for raw output/provider metadata/token usage, process-event summary fields, and conversation-turn classifications. It must not include raw prompts, raw provider output values, full student response text, answer keys, distractor metadata, API keys, headers, or secrets.
+The failure output includes `diagnostic_artifact_path`, `session_public_id`, `agent_call_id`, `agent_name`, `schema_version`, and `validation_status` when available. The artifact stores only summaries: session state, agent-call statuses, validation issue paths, safe validation rule codes, safe blocked-pattern labels, issue counts, output payload keys, presence flags for raw output/provider metadata/token usage, process-event summary fields, and conversation-turn classifications. It must not include raw prompts, raw provider output values, full student response text, answer keys, distractor metadata, API keys, headers, or secrets.
 
 Use the sanitized diagnostic command after a failure:
 
@@ -203,7 +203,9 @@ For a retained failed `agent_calls` row, use the sanitized diagnostic command:
 npm run student:live-llm-audit-diagnose -- --agent-call-id <agent_call_id>
 ```
 
-The command prints only safe audit fields such as call status, schema version, validation issue paths, output payload keys, provider-metadata presence, and token-usage presence. It must not print prompts, raw model output, API keys, headers, or full student text.
+The command prints only safe audit fields such as call status, schema version, validation issue paths, validation rule codes, blocked-pattern labels, output payload keys, provider-metadata presence, and token-usage presence. It must not print prompts, raw model output, API keys, headers, or full student text.
+
+Student-facing validation diagnostics use safe rule codes such as `unsafe_student_facing_text`, `rigid_heading_detected`, `internal_label_detected`, `answer_key_leak_detected`, `correctness_label_detected`, `distractor_metadata_detected`, `invalid_learning_status`, `multiple_profile_statuses_detected`, and `missing_required_student_message`. Harmless rigid heading prefixes such as `What you did well:` or `Current focus:` may be removed before validation while preserving the sentence content. Internal labels, answer-key leakage, correctness labels, and distractor metadata remain blocking failures.
 
 Do not record API keys, raw provider payloads, raw model outputs, hidden prompts, answer keys, or full student text in pilot notes.
 

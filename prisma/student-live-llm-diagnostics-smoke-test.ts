@@ -134,12 +134,15 @@ function main() {
     call_status: "invalid_output",
     output_validated: false,
     validation_error: JSON.stringify({
-      category: "schema_validation",
+      category: "student_facing_validation",
+      issue_count: 1,
       issues: [
         {
-          path: "formative_need",
-          code: "invalid_enum_value",
-          message: "Invalid enum value."
+          field_path: "student_facing_text",
+          path: "student_facing_text",
+          rule_code: "unsafe_student_facing_text",
+          code: "unsafe_student_facing_text",
+          message: "student-facing text is too long for chat"
         }
       ]
     }),
@@ -158,8 +161,12 @@ function main() {
     "Invalid structured output should fail live smoke success criteria."
   );
   assert(
-    invalidOutputMessage.includes("formative_need"),
-    "Invalid structured output diagnostics should include validation issue paths."
+    invalidOutputMessage.includes("student_facing_text"),
+    "Invalid structured output diagnostics should include validation issue field paths."
+  );
+  assert(
+    invalidOutputMessage.includes("unsafe_student_facing_text"),
+    "Invalid structured output diagnostics should include validation issue rule codes."
   );
 
   const successfulMissingMetadataCall = baseCall({

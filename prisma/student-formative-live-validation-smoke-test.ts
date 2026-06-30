@@ -9,6 +9,7 @@ import {
   submitRevisionResponse
 } from "../src/lib/services/student-assessment/service";
 import {
+  canonicalizeStudentFacingLearningStatus,
   withChatNativeFormativeProviderForTest,
   type ChatNativeFormativeActivityEvaluationOutput,
   type ChatNativeFormativeProfileOutput
@@ -176,7 +177,14 @@ function simulatedLiveRuntimeEnv() {
 class SyntheticFormativeProvider implements LlmProvider {
   constructor(
     private readonly outputs: {
-      profile: "valid" | "invalid" | "canonicalizable";
+      profile:
+        | "valid"
+        | "invalid"
+        | "canonicalizable"
+        | "internal_label"
+        | "protected_content"
+        | "multiple_statuses"
+        | "long_text";
       targeted?: "valid" | "invalid" | "heading" | "iterative";
     }
   ) {}
@@ -221,13 +229,49 @@ class SyntheticFormativeProvider implements LlmProvider {
         };
       }
 
+      if (mode === "internal_label" && isProfile) {
+        return {
+          ...validProfileOutput,
+          student_facing_pattern_statement:
+            "Your response profile shows a formative_need label that should never be shown."
+        };
+      }
+
+      if (mode === "protected_content" && isProfile) {
+        return {
+          ...validProfileOutput,
+          student_facing_pattern_statement:
+            "The correct option and distractor rationale should stay hidden from you."
+        };
+      }
+
+      if (mode === "multiple_statuses" && isProfile) {
+        return {
+          ...validProfileOutput,
+          student_facing_pattern_statement:
+            "Mostly understood and Still developing are both visible profile statuses here."
+        };
+      }
+
+      if (mode === "long_text" && isProfile) {
+        return {
+          ...validProfileOutput,
+          main_issue:
+            "separate theta as a person estimate from item features with concise wording ".repeat(7),
+          student_facing_pattern_statement:
+            "Detailed starting point ".repeat(14).trim(),
+          student_facing_followup_prompt:
+            "Explain this distinction carefully ".repeat(18).trim()
+        };
+      }
+
       if (mode === "heading" && !isProfile) {
         return {
           ...validTargetedOutput,
           formative_activity_evaluation: {
             ...validTargetedOutput.formative_activity_evaluation,
             student_facing_feedback:
-              "What you did well: you named theta, but this visible heading should be rejected."
+              "What you did well: you named theta, but this visible heading should be removed."
           }
         };
       }
@@ -318,6 +362,103 @@ async function createPackageReviewSession(prefix: string) {
   });
 
   return { student, sessionPublicIds, ...result };
+}
+
+function validationRuleCodes(value: string | null) {
+  if (!value) {
+    return [] as string[];
+  }
+
+  const parsed = JSON.parse(value) as {
+    issues?: Array<{ rule_code?: string; code?: string }>;
+  };
+
+  return (parsed.issues ?? [])
+    .map((issue) => issue.rule_code ?? issue.code)
+    .filter((ruleCode): ruleCode is string => Boolean(ruleCode));
+}
+
+function validationFieldPaths(value: string | null) {
+  if (!value) {
+    return [] as string[];
+  }
+
+  const parsed = JSON.parse(value) as {
+    issues?: Array<{ field_path?: string; path?: string }>;
+  };
+
+  return (parsed.issues ?? [])
+    .map((issue) => issue.field_path ?? issue.path)
+    .filter((fieldPath): fieldPath is string => Boolean(fieldPath));
+}
+
+async function assertInvalidProfileModeBlocks(input: {
+  mode: "internal_label" | "protected_content" | "multiple_statuses" | "long_text";
+  expectedRuleCode: string;
+  expectedFieldPath: string;
+}) {
+  const prefix = `formative_${input.mode}_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const { student, sessionPublicIds, started, state } = await createPackageReviewSession(prefix);
+
+  try {
+    const errorMessage = await withTemporaryEnv(simulatedLiveRuntimeEnv(), async () =>
+      withChatNativeFormativeProviderForTest(
+        new SyntheticFormativeProvider({ profile: input.mode }),
+        async () => {
+          try {
+            await completeInitialConceptUnitAdministration({
+              student_user_db_id: student.id,
+              session_public_id: started.session.session_public_id,
+              concept_unit_public_id: state.current_concept_unit?.concept_unit_public_id ?? ""
+            });
+          } catch (error) {
+            return error instanceof Error ? error.message : String(error);
+          }
+
+          throw new Error(`${input.mode} profile output should block completion.`);
+        }
+      )
+    );
+    assert(errorMessage === tutorUnavailableMessage, `${input.mode}: invalid live profile should return safe unavailable message.`);
+
+    const session = await prisma.assessmentSession.findUniqueOrThrow({
+      where: { session_public_id: started.session.session_public_id },
+      select: { id: true }
+    });
+    const invalidCall = await prisma.agentCall.findFirstOrThrow({
+      where: {
+        assessment_session_db_id: session.id,
+        agent_name: "formative_value_and_planning_agent"
+      },
+      select: {
+        call_status: true,
+        output_validated: true,
+        validation_error: true
+      }
+    });
+    assert(invalidCall.call_status === "invalid_output", `${input.mode}: should be audited as invalid_output.`);
+    assert(invalidCall.output_validated === false, `${input.mode}: should not validate.`);
+    const ruleCodes = validationRuleCodes(invalidCall.validation_error);
+    const fieldPaths = validationFieldPaths(invalidCall.validation_error);
+    assert(
+      ruleCodes.includes(input.expectedRuleCode),
+      `${input.mode}: expected rule code ${input.expectedRuleCode}; got ${ruleCodes.join(", ")}.`
+    );
+    assert(
+      fieldPaths.includes(input.expectedFieldPath),
+      `${input.mode}: expected field path ${input.expectedFieldPath}; got ${fieldPaths.join(", ")}.`
+    );
+    assert(
+      !(invalidCall.validation_error ?? "").includes("response profile shows"),
+      `${input.mode}: validation diagnostics should not store raw blocked student-facing text.`
+    );
+  } finally {
+    await cleanupSmokeStudentSessions({
+      prisma,
+      userDbId: student.id,
+      sessionPublicIds
+    });
+  }
 }
 
 async function assertInvalidProfileBlocks() {
@@ -527,7 +668,7 @@ async function assertValidProfileAndTargetedFeedbackSucceed() {
   }
 }
 
-async function assertRigidTargetedFeedbackHeadingBlocks() {
+async function assertRigidTargetedFeedbackHeadingSanitizes() {
   const prefix = `formative_heading_targeted_${Date.now()}_${randomUUID().slice(0, 8)}`;
   const { student, sessionPublicIds, started, state } = await createPackageReviewSession(prefix);
 
@@ -543,22 +684,16 @@ async function assertRigidTargetedFeedbackHeadingBlocks() {
           });
           assert(completed.state.assessment_state === "FORMATIVE_ACTIVITY", "Valid profile should show activity before heading block.");
 
-          try {
-            await submitFormativeActivityResponse({
-              student_user_db_id: student.id,
-              session_public_id: started.session.session_public_id,
-              message: "Theta describes the person, while item difficulty describes the item.",
-              client_message_id: `${prefix}_activity_response`
-            });
-          } catch (error) {
-            assert(
-              error instanceof Error && error.message === tutorUnavailableMessage,
-              "Rigid heading targeted feedback should return the safe unavailable message."
-            );
-            return;
-          }
-
-          throw new Error("Rigid heading targeted feedback should block progression.");
+          const feedback = await submitFormativeActivityResponse({
+            student_user_db_id: student.id,
+            session_public_id: started.session.session_public_id,
+            message: "Theta describes the person, while item difficulty describes the item.",
+            client_message_id: `${prefix}_activity_response`
+          });
+          assert(
+            feedback.state.assessment_state === "REVISION",
+            "Harmless targeted feedback heading should sanitize and proceed."
+          );
         }
       )
     );
@@ -576,15 +711,20 @@ async function assertRigidTargetedFeedbackHeadingBlocks() {
       select: {
         call_status: true,
         output_validated: true,
-        validation_error: true
+        validation_error: true,
+        output_payload: true
       }
     });
-    assert(invalidCall.call_status === "invalid_output", "Heading targeted feedback should be invalid_output.");
-    assert(invalidCall.output_validated === false, "Heading targeted feedback should not validate.");
+    assert(invalidCall.call_status === "succeeded", "Sanitized heading targeted feedback should succeed.");
+    assert(invalidCall.output_validated === true, "Sanitized heading targeted feedback should validate.");
+    assert(invalidCall.validation_error === null, "Sanitized heading targeted feedback should not store a validation error.");
+    const payload = invalidCall.output_payload as {
+      formative_activity_evaluation?: { student_facing_feedback?: string };
+    };
     assert(
-      typeof invalidCall.validation_error === "string" &&
-        invalidCall.validation_error.includes("rigid visible heading"),
-      "Heading rejection should be diagnosed safely."
+      typeof payload.formative_activity_evaluation?.student_facing_feedback === "string" &&
+        !/^What you did well:/i.test(payload.formative_activity_evaluation.student_facing_feedback),
+      "Sanitized targeted feedback should remove the visible heading prefix."
     );
   } finally {
     await cleanupSmokeStudentSessions({
@@ -788,8 +928,36 @@ async function main() {
   await assertValidProfileAndTargetedFeedbackSucceed();
   await assertCanonicalizableProfileLabelsValidate();
   await assertInvalidProfileBlocks();
+  await assertInvalidProfileModeBlocks({
+    mode: "internal_label",
+    expectedRuleCode: "internal_label_detected",
+    expectedFieldPath: "student_facing_pattern_statement"
+  });
+  await assertInvalidProfileModeBlocks({
+    mode: "protected_content",
+    expectedRuleCode: "correctness_label_detected",
+    expectedFieldPath: "student_facing_pattern_statement"
+  });
+  await assertInvalidProfileModeBlocks({
+    mode: "multiple_statuses",
+    expectedRuleCode: "multiple_profile_statuses_detected",
+    expectedFieldPath: "student_learning_profile.status"
+  });
+  await assertInvalidProfileModeBlocks({
+    mode: "long_text",
+    expectedRuleCode: "unsafe_student_facing_text",
+    expectedFieldPath: "student_facing_text"
+  });
+  assert(
+    canonicalizeStudentFacingLearningStatus("Developing") === "Still developing",
+    "Developing should canonicalize to Still developing."
+  );
+  assert(
+    canonicalizeStudentFacingLearningStatus("Needs attention") === "Needs more work",
+    "Needs attention should canonicalize to Needs more work."
+  );
   await assertInvalidTargetedFeedbackBlocks();
-  await assertRigidTargetedFeedbackHeadingBlocks();
+  await assertRigidTargetedFeedbackHeadingSanitizes();
   await assertIterativeFormativeLoopReachesNextChoice();
 
   console.log("Student formative live-validation smoke passed. No OpenAI call was made.");

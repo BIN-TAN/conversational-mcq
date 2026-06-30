@@ -129,12 +129,15 @@ async function main() {
         output_payload: Prisma.JsonNull,
         output_validated: false,
         validation_error: JSON.stringify({
-          category: "schema_validation",
+          category: "student_facing_validation",
+          issue_count: 1,
           issues: [
             {
-              path: "formative_need",
-              code: "invalid_enum_value",
-              message: "Invalid enum value."
+              field_path: "student_facing_text",
+              path: "student_facing_text",
+              rule_code: "unsafe_student_facing_text",
+              code: "unsafe_student_facing_text",
+              message: "student-facing text is too long for chat"
             }
           ]
         }),
@@ -216,8 +219,12 @@ async function main() {
     assert(!artifactText.includes(rawSecret), "Failure artifact must not contain raw secret-like values.");
     assert(!artifactText.includes(rawStudentText), "Failure artifact must not contain raw student response text.");
     assert(
-      artifactText.includes("formative_need"),
+      artifactText.includes("student_facing_text"),
       "Failure artifact should preserve validation issue paths."
+    );
+    assert(
+      artifactText.includes("unsafe_student_facing_text"),
+      "Failure artifact should preserve validation rule codes."
     );
     assert(
       artifactText.includes("req_failure_artifact_smoke") === false,

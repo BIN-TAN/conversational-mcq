@@ -137,16 +137,20 @@ You are supporting a chat-native formative MCQ assessment after a protected thre
 
 Use the response package to produce exactly one short structured formative profile and one matched formative activity.
 The application owns state transitions and persistence.
+Return valid structured output only.
 
 Student-facing text must:
 - be short and conversational;
 - speak directly to the student using you and your;
+- use natural prose, not report headings or labeled sections;
 - briefly summarize the useful starting point, what still needs work, and what the next activity is trying to support;
 - mention any deferred concern from the initial package only in safe summary form when it supports the next activity;
-- avoid internal labels such as response profile, formative need, metadata, structured output, system prompt, or answer key;
-- avoid visible template headings such as "What you did well:", "Reasoning detail:", "Earlier:", "Current focus:", or "Still developing:";
-- not dump the full answer key;
+- avoid visible headings such as "What you did well:", "Reasoning detail:", "Earlier:", "Current focus:", or "Still developing:";
+- avoid internal labels such as response profile, formative need, engagement profile, metadata, structured output, agent call, system prompt, or answer key;
+- not include student-facing profile status labels; the application computes exactly one visible status: Mostly understood OR Still developing OR Needs more work;
+- not reveal answer keys, correctness, correct options, distractor rationale, or distractor metadata;
 - focus on one activity the student can answer next.
+- keep the post-package feedback concise enough for 3 to 5 short sentences.
 
 Use only these enum labels:
 - formative_need: diagnosis, feedback, scaffolding, confidence_calibration, scaffolding_and_feedback, diagnosis_and_feedback
@@ -168,11 +172,12 @@ Student-facing text must:
 - acknowledge a relevant part of the student's response;
 - clarify the single main distinction when needed;
 - avoid long lectures;
+- use natural prose, not report headings or labeled sections;
 - ask for exactly one next prompt when a revision, clarification, or scaffold is needed;
 - avoid the sentence "Please revise your answer, reasoning, or confidence based on this feedback.";
 - avoid internal labels such as response profile, formative need, metadata, structured output, agent call, system prompt, or answer key;
 - avoid visible template headings such as "What you did well:", "Reasoning detail:", "Earlier:", "Current focus:", or "Still developing:";
-- not dump the full answer key;
+- not reveal answer keys, correctness, correct options, distractor rationale, or distractor metadata;
 - not restart the answer/reason/confidence/tempting-option cycle.
 
 Use conservative next actions:
@@ -232,9 +237,50 @@ function safeValidationMessage(message: string) {
     .slice(0, 500);
 }
 
+type StudentFacingValidationRuleCode =
+  | "rigid_heading_detected"
+  | "internal_label_detected"
+  | "answer_key_leak_detected"
+  | "correctness_label_detected"
+  | "distractor_metadata_detected"
+  | "invalid_learning_status"
+  | "multiple_profile_statuses_detected"
+  | "missing_required_student_message"
+  | "unsafe_student_facing_text";
+
+type SafeValidationIssue = {
+  field_path: string;
+  path: string;
+  rule_code: string;
+  code?: string;
+  message: string;
+  blocked_pattern_label?: string;
+};
+
+function safeValidationIssue(input: {
+  field_path: string;
+  rule_code: StudentFacingValidationRuleCode | string;
+  message: string;
+  blocked_pattern_label?: string;
+  code?: string;
+}): SafeValidationIssue {
+  return {
+    field_path: input.field_path,
+    path: input.field_path,
+    rule_code: input.rule_code,
+    code: input.code ?? input.rule_code,
+    message: safeValidationMessage(input.message),
+    ...(input.blocked_pattern_label
+      ? { blocked_pattern_label: input.blocked_pattern_label }
+      : {})
+  };
+}
+
 function validationIssueSummaries(issues: z.ZodIssue[]) {
   return issues.map((issue) => ({
+    field_path: issue.path.join(".") || "<root>",
     path: issue.path.join(".") || "<root>",
+    rule_code: issue.code,
     code: issue.code,
     message: safeValidationMessage(issue.message)
   }));
@@ -242,12 +288,17 @@ function validationIssueSummaries(issues: z.ZodIssue[]) {
 
 function validationErrorSummary(input: {
   category: "schema_validation" | "student_facing_validation";
-  issues: string[] | ReturnType<typeof validationIssueSummaries>;
+  issues: SafeValidationIssue[];
 }) {
   return JSON.stringify({
     category: input.category,
+    issue_count: input.issues.length,
     issues: input.issues
   });
+}
+
+function validationIssueText(issue: SafeValidationIssue) {
+  return `${issue.field_path}: ${issue.rule_code}`;
 }
 
 function normalizeLabel(value: unknown) {
@@ -318,14 +369,57 @@ const TARGETED_NEXT_ACTION_ALIASES: Record<string, z.infer<typeof FormativeActiv
   "transfer": "offer_transfer"
 };
 
+const RIGID_VISIBLE_HEADINGS = [
+  { text: "What you did well", label: "what_you_did_well_heading" },
+  { text: "Still developing", label: "still_developing_heading" },
+  { text: "Reasoning detail", label: "reasoning_detail_heading" },
+  { text: "Earlier", label: "earlier_heading" },
+  { text: "Current focus", label: "current_focus_heading" }
+] as const;
 const RIGID_VISIBLE_HEADING_PATTERN =
   /\b(?:What you did well|Still developing|Reasoning detail|Earlier|Current focus)\s*:/i;
+const RIGID_VISIBLE_HEADING_PREFIX_PATTERN =
+  /(^|[\n.!?]\s+)(?:What you did well|Still developing|Reasoning detail|Earlier|Current focus)\s*:\s*/gi;
 
-function removeRigidVisibleHeadingPrefix(value: string) {
-  return value.replace(
-    /^\s*(?:What you did well|Still developing|Reasoning detail|Earlier|Current focus)\s*:\s*/i,
-    ""
-  );
+function headingLabelFor(value: string) {
+  for (const heading of RIGID_VISIBLE_HEADINGS) {
+    const pattern = new RegExp(
+      `\\b${heading.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:`,
+      "i"
+    );
+
+    if (pattern.test(value)) {
+      return heading.label;
+    }
+  }
+
+  return "rigid_heading";
+}
+
+function removeRigidVisibleHeadingPrefixes(value: string) {
+  return value
+    .replace(RIGID_VISIBLE_HEADING_PREFIX_PATTERN, "$1")
+    .replace(/^\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+type StudentFacingLearningStatus = "Mostly understood" | "Still developing" | "Needs more work";
+
+const STUDENT_LEARNING_STATUS_ALIASES: Record<string, StudentFacingLearningStatus> = {
+  "mostly understood": "Mostly understood",
+  "mostly understands": "Mostly understood",
+  "mostly understand": "Mostly understood",
+  "still developing": "Still developing",
+  "developing": "Still developing",
+  "needs more work": "Needs more work",
+  "needs attention": "Needs more work"
+};
+
+export function canonicalizeStudentFacingLearningStatus(
+  value: unknown
+): StudentFacingLearningStatus | null {
+  return STUDENT_LEARNING_STATUS_ALIASES[normalizeLabel(value) ?? ""] ?? null;
 }
 
 function canonicalizeFormativeProfileOutput(value: unknown) {
@@ -360,9 +454,25 @@ function canonicalizeFormativeProfileOutput(value: unknown) {
   output.next_expected_action = canonicalLabel(output.next_expected_action, NEXT_EXPECTED_ACTION_ALIASES);
 
   if (typeof output.student_facing_pattern_statement === "string") {
-    output.student_facing_pattern_statement = removeRigidVisibleHeadingPrefix(
+    output.student_facing_pattern_statement = removeRigidVisibleHeadingPrefixes(
       output.student_facing_pattern_statement
     );
+  }
+  if (typeof output.student_facing_followup_prompt === "string") {
+    output.student_facing_followup_prompt = removeRigidVisibleHeadingPrefixes(
+      output.student_facing_followup_prompt
+    );
+  }
+  const extraStudentProfile = jsonRecord(
+    output.student_facing_learning_profile ?? output.student_learning_profile
+  );
+  if (
+    typeof extraStudentProfile.status === "string" &&
+    canonicalizeStudentFacingLearningStatus(extraStudentProfile.status)
+  ) {
+    delete output.student_facing_learning_profile;
+    delete output.student_learning_profile;
+    usedAlias = true;
   }
 
   if (!usedAlias) {
@@ -404,7 +514,15 @@ function canonicalizeTargetedFeedbackOutput(value: unknown) {
       next_action: canonicalLabel(
         evaluation.next_action,
         TARGETED_NEXT_ACTION_ALIASES
-      )
+      ),
+      student_facing_feedback:
+        typeof evaluation.student_facing_feedback === "string"
+          ? removeRigidVisibleHeadingPrefixes(evaluation.student_facing_feedback)
+          : evaluation.student_facing_feedback,
+      student_facing_next_prompt:
+        typeof evaluation.student_facing_next_prompt === "string"
+          ? removeRigidVisibleHeadingPrefixes(evaluation.student_facing_next_prompt)
+          : evaluation.student_facing_next_prompt
     }
   };
 }
@@ -714,7 +832,7 @@ function studentFacingPhrase(value: unknown) {
     return "";
   }
 
-  return removeRigidVisibleHeadingPrefix(value).trim().replace(/\s+/g, " ")
+  return removeRigidVisibleHeadingPrefixes(value).trim().replace(/\s+/g, " ")
     .replace(/\bThe student needs to\b/gi, "You may need to")
     .replace(/\bThe student needs\b/gi, "You may need")
     .replace(/\bThe student asked\b/gi, "You asked")
@@ -728,6 +846,21 @@ function studentFacingPhrase(value: unknown) {
     .replace(/\bThe response\b/gi, "Your response")
     .replace(/\bThe answers\b/gi, "Your answers")
     .replace(/\bThe activity\b/gi, "This activity");
+}
+
+function compactStudentFacingPhrase(value: unknown, maxLength: number) {
+  const phrase = studentFacingPhrase(value);
+
+  if (phrase.length <= maxLength) {
+    return phrase;
+  }
+
+  const firstSentence = phrase.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim();
+  const candidate = firstSentence && firstSentence.length >= 20 ? firstSentence : phrase;
+
+  return candidate.length <= maxLength
+    ? candidate
+    : `${candidate.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
 }
 
 function concernSummaryFromText(text: string, quality: string | null): DeferredStudentConcern | null {
@@ -1082,8 +1215,8 @@ function studentFacingPostPackageSummary(
     "Your three responses give us a useful starting point for feedback.",
     "Now that the first three questions are complete, we can work on the main idea that needs attention."
   ];
-  const pattern = studentFacingPhrase(output.student_facing_pattern_statement);
-  const mainIssue = studentFacingPhrase(output.main_issue);
+  const pattern = compactStudentFacingPhrase(output.student_facing_pattern_statement, 220);
+  const mainIssue = compactStudentFacingPhrase(output.main_issue, 180);
   const sentences = [
     openings[variationIndex(output)],
     pattern,
@@ -1093,15 +1226,157 @@ function studentFacingPostPackageSummary(
     nextActivityPurpose(output)
   ].filter((line): line is string => Boolean(line));
 
-  return sentences.slice(0, 5).join(" ");
+  return sentences.slice(0, 4).join(" ");
 }
 
 function studentFacingText(output: ChatNativeFormativeProfileOutput) {
-  return `${studentFacingPostPackageSummary(output)}\n\n${output.student_facing_followup_prompt}`;
+  return `${studentFacingPostPackageSummary(output)}\n\n${compactStudentFacingPhrase(
+    output.student_facing_followup_prompt,
+    450
+  )}`;
 }
 
 function targetedFeedbackStudentFacingText(output: ChatNativeTargetedFeedbackOutput) {
   return `${output.formative_activity_evaluation.student_facing_feedback}\n\n${output.formative_activity_evaluation.student_facing_next_prompt}`;
+}
+
+const INTERNAL_STUDENT_FACING_LABELS = [
+  { term: "response profile", label: "response_profile_label" },
+  { term: "response_profile", label: "response_profile_label" },
+  { term: "formative need", label: "formative_need_label" },
+  { term: "formative_need", label: "formative_need_label" },
+  { term: "engagement profile", label: "engagement_profile_label" },
+  { term: "engagement_profile", label: "engagement_profile_label" },
+  { term: "learning profile", label: "learning_profile_label" },
+  { term: "learning_profile", label: "learning_profile_label" },
+  { term: "metadata", label: "metadata_label" },
+  { term: "structured output", label: "structured_output_label" },
+  { term: "structured_output", label: "structured_output_label" },
+  { term: "agent call", label: "agent_call_label" },
+  { term: "agent_call", label: "agent_call_label" },
+  { term: "llm decision", label: "llm_decision_label" },
+  { term: "llm_decision", label: "llm_decision_label" },
+  { term: "system prompt", label: "system_prompt_label" },
+  { term: "system_prompt", label: "system_prompt_label" }
+] as const;
+
+const STUDENT_FACING_STATUS_LABELS = [
+  "Mostly understood",
+  "Still developing",
+  "Needs more work"
+] as const;
+
+function exactWordPattern(value: string) {
+  return new RegExp(`\\b${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+}
+
+function addCommonStudentFacingTextIssues(input: {
+  issues: SafeValidationIssue[];
+  field_path: string;
+  text: string;
+  max_length?: number;
+}) {
+  const lower = input.text.toLowerCase();
+
+  for (const term of INTERNAL_STUDENT_FACING_LABELS) {
+    if (lower.includes(term.term)) {
+      input.issues.push(
+        safeValidationIssue({
+          field_path: input.field_path,
+          rule_code: "internal_label_detected",
+          blocked_pattern_label: term.label,
+          message: `student-facing text includes internal label ${term.label}`
+        })
+      );
+    }
+  }
+
+  if (RIGID_VISIBLE_HEADING_PATTERN.test(input.text)) {
+    input.issues.push(
+      safeValidationIssue({
+        field_path: input.field_path,
+        rule_code: "rigid_heading_detected",
+        blocked_pattern_label: headingLabelFor(input.text),
+        message: "student-facing text includes a rigid visible heading"
+      })
+    );
+  }
+
+  if (/\b(?:correct answer|correct option|answer key|right answer|wrong answer|correctness)\b/i.test(input.text)) {
+    input.issues.push(
+      safeValidationIssue({
+        field_path: input.field_path,
+        rule_code: "correctness_label_detected",
+        message: "student-facing text includes a correctness or answer-key label"
+      })
+    );
+  }
+
+  if (/\b(?:distractor rationale|distractor metadata|misconception indicator|misconception metadata)\b/i.test(input.text)) {
+    input.issues.push(
+      safeValidationIssue({
+        field_path: input.field_path,
+        rule_code: "distractor_metadata_detected",
+        message: "student-facing text includes distractor or misconception metadata labels"
+      })
+    );
+  }
+
+  if (input.max_length && input.text.length > input.max_length) {
+    input.issues.push(
+      safeValidationIssue({
+        field_path: input.field_path,
+        rule_code: "unsafe_student_facing_text",
+        message: "student-facing text is too long for chat"
+      })
+    );
+  }
+}
+
+function addMultipleStatusIssueIfPresent(input: {
+  issues: SafeValidationIssue[];
+  field_path: string;
+  text: string;
+}) {
+  const statuses = STUDENT_FACING_STATUS_LABELS.filter((status) =>
+    exactWordPattern(status).test(input.text)
+  );
+
+  if (statuses.length > 1) {
+    input.issues.push(
+      safeValidationIssue({
+        field_path: input.field_path,
+        rule_code: "multiple_profile_statuses_detected",
+        message: "student-facing text includes more than one learning-profile status label"
+      })
+    );
+  }
+}
+
+function addAnswerKeyLeakIssueIfPresent(input: {
+  issues: SafeValidationIssue[];
+  field_path: string;
+  text: string;
+  correct_options: string[];
+}) {
+  const uniqueCorrectOptions = [...new Set(input.correct_options)];
+  const mentionedCorrectOptions = uniqueCorrectOptions.filter((option) =>
+    exactWordPattern(option).test(input.text)
+  );
+
+  if (
+    uniqueCorrectOptions.length >= 3 &&
+    mentionedCorrectOptions.length >= uniqueCorrectOptions.length &&
+    /correct|answer/i.test(input.text)
+  ) {
+    input.issues.push(
+      safeValidationIssue({
+        field_path: input.field_path,
+        rule_code: "answer_key_leak_detected",
+        message: "student-facing text appears to reveal the full answer key"
+      })
+    );
+  }
 }
 
 async function logFormativeResponseQuality(input: {
@@ -1336,53 +1611,74 @@ function validateStudentFacingOutput(input: {
   output: ChatNativeFormativeProfileOutput;
   correct_options: string[];
 }) {
-  const issues: string[] = [];
+  const issues: SafeValidationIssue[] = [];
   const visibleText = studentFacingText(input.output);
-  const lower = visibleText.toLowerCase();
-  const forbiddenTerms = [
-    "response profile",
-    "formative need",
-    "metadata",
-    "answer key",
-    "system prompt",
-    "structured output",
-    "agent call",
-    "llm decision"
+  const studentFacingFields = [
+    {
+      field_path: "student_facing_pattern_statement",
+      text: input.output.student_facing_pattern_statement,
+      max_length: 350
+    },
+    {
+      field_path: "student_facing_followup_prompt",
+      text: input.output.student_facing_followup_prompt,
+      max_length: 650
+    },
+    {
+      field_path: "student_facing_text",
+      text: visibleText,
+      max_length: 1000
+    }
   ];
 
-  for (const term of forbiddenTerms) {
-    if (lower.includes(term)) {
-      issues.push(`student-facing text includes internal term: ${term}`);
+  for (const field of studentFacingFields) {
+    if (field.text.trim().length === 0) {
+      issues.push(
+        safeValidationIssue({
+          field_path: field.field_path,
+          rule_code: "missing_required_student_message",
+          message: "student-facing text is missing"
+        })
+      );
     }
+
+    addCommonStudentFacingTextIssues({
+      issues,
+      field_path: field.field_path,
+      text: field.text,
+      max_length: field.max_length
+    });
   }
 
   if (input.output.should_reveal_correct_answer) {
-    issues.push("should_reveal_correct_answer must remain false in Phase 5");
+    issues.push(
+      safeValidationIssue({
+        field_path: "should_reveal_correct_answer",
+        rule_code: "answer_key_leak_detected",
+        message: "should_reveal_correct_answer must remain false"
+      })
+    );
   }
-
-  if (visibleText.length > 1000) {
-    issues.push("student-facing text is too long for chat");
-  }
-
-  if (RIGID_VISIBLE_HEADING_PATTERN.test(visibleText)) {
-    issues.push("student-facing text includes rigid visible heading labels");
-  }
-
-  const uniqueCorrectOptions = [...new Set(input.correct_options)];
-  const mentionedCorrectOptions = uniqueCorrectOptions.filter((option) =>
-    new RegExp(`\\b${option.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(visibleText)
-  );
-
-  if (
-    uniqueCorrectOptions.length >= 3 &&
-    mentionedCorrectOptions.length >= uniqueCorrectOptions.length &&
-    /correct|answer/i.test(visibleText)
-  ) {
-    issues.push("student-facing text appears to reveal the full answer key");
-  }
+  addAnswerKeyLeakIssueIfPresent({
+    issues,
+    field_path: "student_facing_text",
+    text: visibleText,
+    correct_options: input.correct_options
+  });
+  addMultipleStatusIssueIfPresent({
+    issues,
+    field_path: "student_learning_profile.status",
+    text: visibleText
+  });
 
   if (input.output.next_expected_action !== "respond_to_formative_activity") {
-    issues.push("next_expected_action must be respond_to_formative_activity in Phase 5");
+    issues.push(
+      safeValidationIssue({
+        field_path: "next_expected_action",
+        rule_code: "unsafe_student_facing_text",
+        message: "next_expected_action must be respond_to_formative_activity"
+      })
+    );
   }
 
   return { ok: issues.length === 0, issues };
@@ -1392,42 +1688,58 @@ function validateTargetedFeedbackOutput(input: {
   output: ChatNativeTargetedFeedbackOutput;
   correct_options: string[];
 }) {
-  const issues: string[] = [];
+  const issues: SafeValidationIssue[] = [];
   const visibleText = targetedFeedbackStudentFacingText(input.output);
   const lower = visibleText.toLowerCase();
   const nextPrompt = input.output.formative_activity_evaluation.student_facing_next_prompt;
   const nextPromptLower = nextPrompt.toLowerCase();
-  const forbiddenTerms = [
-    "learning profile",
-    "engagement profile",
-    "response profile",
-    "formative need",
-    "metadata",
-    "answer key",
-    "system prompt",
-    "structured output",
-    "agent call",
-    "llm decision"
+  const studentFacingFields = [
+    {
+      field_path: "targeted_feedback_message",
+      text: input.output.formative_activity_evaluation.student_facing_feedback,
+      max_length: 700
+    },
+    {
+      field_path: "student_facing_next_prompt",
+      text: input.output.formative_activity_evaluation.student_facing_next_prompt,
+      max_length: 420
+    },
+    {
+      field_path: "targeted_feedback_text",
+      text: visibleText,
+      max_length: 900
+    }
   ];
 
-  for (const term of forbiddenTerms) {
-    if (lower.includes(term)) {
-      issues.push(`student-facing text includes internal term: ${term}`);
+  for (const field of studentFacingFields) {
+    if (field.text.trim().length === 0) {
+      issues.push(
+        safeValidationIssue({
+          field_path: field.field_path,
+          rule_code: "missing_required_student_message",
+          message: "student-facing text is missing"
+        })
+      );
     }
+
+    addCommonStudentFacingTextIssues({
+      issues,
+      field_path: field.field_path,
+      text: field.text,
+      max_length: field.max_length
+    });
   }
 
   if (
     lower.includes("please revise your answer, reasoning, or confidence based on this feedback")
   ) {
-    issues.push("revision prompt uses the prohibited generic revision sentence");
-  }
-
-  if (RIGID_VISIBLE_HEADING_PATTERN.test(visibleText)) {
-    issues.push("targeted feedback includes rigid visible heading labels");
-  }
-
-  if (visibleText.length > 900) {
-    issues.push("targeted feedback is too long for chat");
+    issues.push(
+      safeValidationIssue({
+        field_path: "targeted_feedback_message",
+        rule_code: "unsafe_student_facing_text",
+        message: "revision prompt uses the prohibited generic revision sentence"
+      })
+    );
   }
 
   const taskStarts = (
@@ -1436,32 +1748,49 @@ function validateTargetedFeedbackOutput(input: {
   const questionCount = (nextPrompt.match(/\?/g) ?? []).length;
 
   if (questionCount > 1 || taskStarts > 3 || nextPromptLower.includes(" and then ")) {
-    issues.push("next prompt appears to ask for more than one task");
+    issues.push(
+      safeValidationIssue({
+        field_path: "student_facing_next_prompt",
+        rule_code: "unsafe_student_facing_text",
+        message: "next prompt appears to ask for more than one task"
+      })
+    );
   }
 
   if (/what is your answer|how confident|was another option tempting/i.test(visibleText)) {
-    issues.push("targeted feedback restarts the protected initial item cycle");
+    issues.push(
+      safeValidationIssue({
+        field_path: "targeted_feedback_text",
+        rule_code: "unsafe_student_facing_text",
+        message: "targeted feedback restarts the protected initial item cycle"
+      })
+    );
   }
 
   if (
     input.output.formative_activity_evaluation.next_action === "confirm_and_next_choice" &&
     input.output.learning_profile.transfer_readiness === "not_ready"
   ) {
-    issues.push("next choice cannot be offered when transfer readiness is not_ready");
+    issues.push(
+      safeValidationIssue({
+        field_path: "formative_activity_evaluation.next_action",
+        rule_code: "unsafe_student_facing_text",
+        message: "next choice cannot be offered when transfer readiness is not_ready"
+      })
+    );
   }
 
-  const uniqueCorrectOptions = [...new Set(input.correct_options)];
-  const mentionedCorrectOptions = uniqueCorrectOptions.filter((option) =>
-    new RegExp(`\\b${option.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(visibleText)
-  );
-
-  if (
-    uniqueCorrectOptions.length >= 3 &&
-    mentionedCorrectOptions.length >= uniqueCorrectOptions.length &&
-    /correct|answer/i.test(visibleText)
-  ) {
-    issues.push("student-facing text appears to reveal the full answer key");
-  }
+  addAnswerKeyLeakIssueIfPresent({
+    issues,
+    field_path: "targeted_feedback_text",
+    text: visibleText,
+    correct_options: input.correct_options
+  });
+  addMultipleStatusIssueIfPresent({
+    issues,
+    field_path: "student_learning_profile.status",
+    text: visibleText
+  });
 
   return { ok: issues.length === 0, issues };
 }
@@ -1735,9 +2064,14 @@ async function callProviderOrMock(input: {
         raw_output: prismaJson({ provider: "mock", output }),
         output_payload: prismaJson(output),
         output_validated: validation.ok,
-        validation_error: validation.ok ? null : validation.issues.join("; "),
+        validation_error: validation.ok
+          ? null
+          : validationErrorSummary({
+              category: "student_facing_validation",
+              issues: validation.issues
+            }),
         call_status: validation.ok ? "succeeded" : "invalid_output",
-        error_category: validation.ok ? null : "schema_validation",
+        error_category: validation.ok ? null : "student_facing_validation",
         retry_count: 0,
         latency_ms: Math.max(0, Date.now() - startedAt.getTime()),
         token_usage: prismaJson({ mock: true }),
@@ -1749,7 +2083,7 @@ async function callProviderOrMock(input: {
       agent_call_id: agentCall.id,
       output: validation.ok ? output : deterministicMockOutput(),
       validation_status: validation.ok ? "validated" : "fallback_after_validation_failure",
-      validation_issues: validation.issues,
+      validation_issues: validation.issues.map(validationIssueText),
       provider_result: null as StructuredAgentResult<ChatNativeFormativeProfileOutput> | null
     };
   }
@@ -1772,8 +2106,12 @@ async function callProviderOrMock(input: {
       schema_version: CHAT_NATIVE_PROFILE_SCHEMA_VERSION
     }
   });
-  let validationIssues: string[] | ReturnType<typeof validationIssueSummaries> = [
-    "provider_output_not_student_safe_or_not_completed"
+  let validationIssues: SafeValidationIssue[] = [
+    safeValidationIssue({
+      field_path: "provider_output",
+      rule_code: "unsafe_student_facing_text",
+      message: "provider output was not completed or not student safe"
+    })
   ];
   let validationCategory: "schema_validation" | "student_facing_validation" = "schema_validation";
 
@@ -1828,7 +2166,7 @@ async function callProviderOrMock(input: {
             }),
       call_status: providerResult.status === "completed" ? "invalid_output" : "failed",
       error_category:
-        providerResult.status === "completed" ? "schema_validation" : providerResult.error?.category,
+        providerResult.status === "completed" ? validationCategory : providerResult.error?.category,
       completed_at: new Date()
     }
   });
@@ -1840,9 +2178,7 @@ async function callProviderOrMock(input: {
       providerResult.status === "completed"
         ? "blocked_after_validation_failure"
         : "blocked_after_provider_failure",
-    validation_issues: validationIssues.map((issue) =>
-      typeof issue === "string" ? issue : `${issue.path}: ${issue.message}`
-    ),
+    validation_issues: validationIssues.map(validationIssueText),
     provider_result: providerResult
   };
 }
@@ -1979,9 +2315,14 @@ async function callTargetedFeedbackProviderOrMock(input: {
         raw_output: prismaJson({ provider: "mock", output }),
         output_payload: prismaJson(output),
         output_validated: validation.ok,
-        validation_error: validation.ok ? null : validation.issues.join("; "),
+        validation_error: validation.ok
+          ? null
+          : validationErrorSummary({
+              category: "student_facing_validation",
+              issues: validation.issues
+            }),
         call_status: validation.ok ? "succeeded" : "invalid_output",
-        error_category: validation.ok ? null : "schema_validation",
+        error_category: validation.ok ? null : "student_facing_validation",
         retry_count: 0,
         latency_ms: Math.max(0, Date.now() - startedAt.getTime()),
         token_usage: prismaJson({ mock: true }),
@@ -1993,7 +2334,7 @@ async function callTargetedFeedbackProviderOrMock(input: {
       agent_call_id: agentCall.id,
       output: validation.ok ? output : deterministicTargetedFeedbackOutput(activityResponseMessage),
       validation_status: validation.ok ? "validated" : "fallback_after_validation_failure",
-      validation_issues: validation.issues,
+      validation_issues: validation.issues.map(validationIssueText),
       provider_result: null as StructuredAgentResult<ChatNativeTargetedFeedbackOutput> | null
     };
   }
@@ -2016,8 +2357,12 @@ async function callTargetedFeedbackProviderOrMock(input: {
       schema_version: CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION
     }
   });
-  let validationIssues: string[] | ReturnType<typeof validationIssueSummaries> = [
-    "provider_output_not_student_safe_or_not_completed"
+  let validationIssues: SafeValidationIssue[] = [
+    safeValidationIssue({
+      field_path: "provider_output",
+      rule_code: "unsafe_student_facing_text",
+      message: "provider output was not completed or not student safe"
+    })
   ];
   let validationCategory: "schema_validation" | "student_facing_validation" = "schema_validation";
 
@@ -2074,7 +2419,7 @@ async function callTargetedFeedbackProviderOrMock(input: {
             }),
       call_status: providerResult.status === "completed" ? "invalid_output" : "failed",
       error_category:
-        providerResult.status === "completed" ? "schema_validation" : providerResult.error?.category,
+        providerResult.status === "completed" ? validationCategory : providerResult.error?.category,
       completed_at: new Date()
     }
   });
@@ -2086,9 +2431,7 @@ async function callTargetedFeedbackProviderOrMock(input: {
       providerResult.status === "completed"
         ? "blocked_after_validation_failure"
         : "blocked_after_provider_failure",
-    validation_issues: validationIssues.map((issue) =>
-      typeof issue === "string" ? issue : `${issue.path}: ${issue.message}`
-    ),
+    validation_issues: validationIssues.map(validationIssueText),
     provider_result: providerResult
   };
 }

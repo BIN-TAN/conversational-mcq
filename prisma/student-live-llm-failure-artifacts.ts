@@ -56,7 +56,15 @@ function parseValidationError(value: string | null) {
       type: null,
       code: null,
       message: null,
-      issue_paths: [] as string[]
+      issue_count: 0,
+      issue_paths: [] as string[],
+      issue_details: [] as Array<{
+        field_path: string | null;
+        rule_code: string | null;
+        blocked_pattern_label: string | null;
+      }>,
+      rule_codes: [] as string[],
+      blocked_pattern_labels: [] as string[]
     };
   }
 
@@ -64,6 +72,32 @@ function parseValidationError(value: string | null) {
     const parsed = JSON.parse(value);
     const parsedRecord = record(parsed);
     const issues = Array.isArray(parsedRecord?.issues) ? parsedRecord.issues : [];
+    const issueDetails = issues
+      .map((issue) => {
+        if (typeof issue === "string") {
+          return legacyValidationIssueDetail(issue);
+        }
+
+        const issueRecord = record(issue);
+
+        if (!issueRecord) {
+          return null;
+        }
+
+        return {
+          field_path:
+            stringValue(issueRecord.field_path) ?? stringValue(issueRecord.path),
+          rule_code:
+            stringValue(issueRecord.rule_code) ?? stringValue(issueRecord.code),
+          blocked_pattern_label: stringValue(issueRecord.blocked_pattern_label)
+        };
+      })
+      .filter((issue): issue is {
+        field_path: string | null;
+        rule_code: string | null;
+        blocked_pattern_label: string | null;
+      } => Boolean(issue))
+      .slice(0, 30);
 
     return {
       present: true,
@@ -71,10 +105,22 @@ function parseValidationError(value: string | null) {
       type: stringValue(parsedRecord?.type),
       code: stringValue(parsedRecord?.code),
       message: safeDiagnosticText(stringValue(parsedRecord?.message)),
-      issue_paths: issues
-        .map((issue) => stringValue(record(issue)?.path))
-        .filter((issuePath): issuePath is string => Boolean(issuePath))
-        .slice(0, 30)
+      issue_count:
+        typeof parsedRecord?.issue_count === "number" ? parsedRecord.issue_count : issues.length,
+      issue_paths: issueDetails
+        .map((issue) => issue.field_path)
+        .filter((issuePath): issuePath is string => Boolean(issuePath)),
+      issue_details: issueDetails,
+      rule_codes: [...new Set(
+        issueDetails
+          .map((issue) => issue.rule_code)
+          .filter((ruleCode): ruleCode is string => Boolean(ruleCode))
+      )],
+      blocked_pattern_labels: [...new Set(
+        issueDetails
+          .map((issue) => issue.blocked_pattern_label)
+          .filter((label): label is string => Boolean(label))
+      )]
     };
   } catch {
     return {
@@ -83,9 +129,59 @@ function parseValidationError(value: string | null) {
       type: null,
       code: null,
       message: safeDiagnosticText(value),
-      issue_paths: [] as string[]
+      issue_count: 0,
+      issue_paths: [] as string[],
+      issue_details: [] as Array<{
+        field_path: string | null;
+        rule_code: string | null;
+        blocked_pattern_label: string | null;
+      }>,
+      rule_codes: [] as string[],
+      blocked_pattern_labels: [] as string[]
     };
   }
+}
+
+function legacyValidationIssueDetail(issue: string) {
+  const lower = issue.toLowerCase();
+
+  if (lower.includes("too long")) {
+    return {
+      field_path: "student_facing_text",
+      rule_code: "unsafe_student_facing_text",
+      blocked_pattern_label: null
+    };
+  }
+
+  if (lower.includes("rigid") || lower.includes("heading")) {
+    return {
+      field_path: "student_facing_text",
+      rule_code: "rigid_heading_detected",
+      blocked_pattern_label: "rigid_heading"
+    };
+  }
+
+  if (lower.includes("internal")) {
+    return {
+      field_path: "student_facing_text",
+      rule_code: "internal_label_detected",
+      blocked_pattern_label: "internal_label"
+    };
+  }
+
+  if (lower.includes("answer key")) {
+    return {
+      field_path: "student_facing_text",
+      rule_code: "answer_key_leak_detected",
+      blocked_pattern_label: null
+    };
+  }
+
+  return {
+    field_path: "student_facing_text",
+    rule_code: "unsafe_student_facing_text",
+    blocked_pattern_label: null
+  };
 }
 
 function validationStatusFromCall(call: {
@@ -259,6 +355,10 @@ export async function buildLiveLlmSmokeFailureArtifact(input: {
       validation_status: validationStatusFromCall(call),
       validation_error: parseValidationError(call.validation_error),
       validation_issue_paths: summary.validation_issue_paths,
+      validation_issue_count: summary.validation_issue_count,
+      validation_issue_details: summary.validation_issue_details,
+      validation_rule_codes: summary.validation_rule_codes,
+      validation_blocked_pattern_labels: summary.validation_blocked_pattern_labels,
       output_payload_keys: summary.output_payload_keys,
       student_visible_message_present: summary.student_visible_message_present,
       raw_output_present: summary.raw_output_exists,
