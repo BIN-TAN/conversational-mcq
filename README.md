@@ -173,7 +173,7 @@ The optional live LLM readiness smoke is intentionally skipped unless explicitly
 npm run student:live-llm-smoke
 ```
 
-To run it intentionally, configure server-side live LLM variables locally and set `RUN_LIVE_LLM_SMOKE=1`. Do not run this in ordinary CI or commit any API key. The smoke only passes when the formative profile and targeted feedback calls both succeed, validate, and persist provider metadata plus token usage. See `docs/MVP_E2E_READINESS.md`.
+To run it intentionally, configure server-side live LLM variables locally and set `RUN_LIVE_LLM_SMOKE=1`. Do not run this in ordinary CI or commit any API key. The smoke only passes when the formative profile and targeted feedback calls both succeed, validate, and persist provider metadata plus token usage. Failed live-smoke synthetic sessions are retained by default and a sanitized artifact is written under `.data/student-live-llm-smoke/failures/`; inspect failures with `npm run student:live-llm-audit-diagnose -- --agent-call-id <agent_call_id>`, `--session-public-id <session_public_id>`, `--latest-failure`, or `--artifact <path>`. After inspection, remove retained synthetic failures with `npm run student:live-llm-smoke:cleanup-failures`. See `docs/MVP_E2E_READINESS.md`.
 
 The optional live Item Administration Tutor smoke is also skipped by default:
 

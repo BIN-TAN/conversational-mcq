@@ -2211,7 +2211,7 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
       provider_status: feedbackResult.provider_result?.status ?? null
     });
     throw new StudentAssessmentServiceError(
-      "llm_not_ready",
+      "llm_targeted_feedback_validation_failed",
       ASSESSMENT_TUTOR_UNAVAILABLE_MESSAGE,
       409,
       {
@@ -2778,7 +2778,7 @@ export async function ensureChatNativeFormativeActivity(input: {
       provider_status: providerResult.provider_result?.status ?? null
     });
     throw new StudentAssessmentServiceError(
-      "llm_not_ready",
+      "llm_profile_validation_failed",
       ASSESSMENT_TUTOR_UNAVAILABLE_MESSAGE,
       409,
       {

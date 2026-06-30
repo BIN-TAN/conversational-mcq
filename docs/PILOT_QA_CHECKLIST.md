@@ -101,10 +101,24 @@ targeted_output_validated = true
 
 If the live smoke reports `invalid_output`, `failed`, or `output_validated = false` for the formative profile or targeted feedback call, stop the pilot-readiness check and use the sanitized diagnostics. The runtime should preserve student progress and show the temporary unavailable message rather than continuing with invalid live output.
 
-If the failure details include an `agent_call_id`, inspect only sanitized fields:
+Failed paid live-smoke runs retain the failed synthetic session by default and write a sanitized artifact under `.data/student-live-llm-smoke/failures/`. Do not commit generated artifacts. If the failure details include an `agent_call_id` or `session_public_id`, inspect only sanitized fields:
 
 ```bash
 npm run student:live-llm-audit-diagnose -- --agent-call-id <agent_call_id>
+npm run student:live-llm-audit-diagnose -- --session-public-id <session_public_id>
+npm run student:live-llm-audit-diagnose -- --latest-failure
+```
+
+If the DB row was manually cleaned up, use the `diagnostic_artifact_path` printed by the failed smoke:
+
+```bash
+npm run student:live-llm-audit-diagnose -- --artifact <diagnostic_artifact_path>
+```
+
+After inspection, clean up retained synthetic live-smoke data:
+
+```bash
+npm run student:live-llm-smoke:cleanup-failures
 ```
 
 ## Student Flow Checklist

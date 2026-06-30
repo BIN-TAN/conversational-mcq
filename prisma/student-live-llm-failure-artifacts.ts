@@ -1,0 +1,460 @@
+import { createHash } from "node:crypto";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import path from "node:path";
+import type { PrismaClient } from "@prisma/client";
+import { sanitizedAuditSummary, type LiveAuditCall } from "./student-live-llm-diagnostics";
+
+export const LIVE_LLM_FAILURE_ARTIFACT_VERSION = "student-live-llm-smoke-failure-v1";
+export const LIVE_LLM_FAILURE_ARTIFACT_DIR = path.join(
+  process.cwd(),
+  ".data",
+  "student-live-llm-smoke",
+  "failures"
+);
+
+type UnknownRecord = Record<string, unknown>;
+
+function record(value: unknown): UnknownRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as UnknownRecord)
+    : null;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function booleanValue(value: unknown) {
+  return typeof value === "boolean" ? value : null;
+}
+
+function safeDiagnosticText(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  return value
+    .replace(/sk-[A-Za-z0-9_-]{12,}/g, "[REDACTED_OPENAI_KEY]")
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]{12,}/gi, "Bearer [REDACTED_TOKEN]")
+    .replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, "[REDACTED_DATABASE_URL]")
+    .slice(0, 800);
+}
+
+function iso(value: Date | null | undefined) {
+  return value instanceof Date ? value.toISOString() : null;
+}
+
+function hashShape(value: unknown) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function parseValidationError(value: string | null) {
+  if (!value) {
+    return {
+      present: false,
+      category: null,
+      type: null,
+      code: null,
+      message: null,
+      issue_paths: [] as string[]
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    const parsedRecord = record(parsed);
+    const issues = Array.isArray(parsedRecord?.issues) ? parsedRecord.issues : [];
+
+    return {
+      present: true,
+      category: stringValue(parsedRecord?.category),
+      type: stringValue(parsedRecord?.type),
+      code: stringValue(parsedRecord?.code),
+      message: safeDiagnosticText(stringValue(parsedRecord?.message)),
+      issue_paths: issues
+        .map((issue) => stringValue(record(issue)?.path))
+        .filter((issuePath): issuePath is string => Boolean(issuePath))
+        .slice(0, 30)
+    };
+  } catch {
+    return {
+      present: true,
+      category: null,
+      type: null,
+      code: null,
+      message: safeDiagnosticText(value),
+      issue_paths: [] as string[]
+    };
+  }
+}
+
+function validationStatusFromCall(call: {
+  call_status: string;
+  output_validated: boolean;
+}) {
+  if (call.output_validated) {
+    return "validated";
+  }
+
+  if (call.call_status === "invalid_output") {
+    return "invalid_output";
+  }
+
+  if (call.call_status === "failed") {
+    return "provider_failed";
+  }
+
+  return call.call_status;
+}
+
+function structuredPayloadSummary(value: unknown) {
+  const payload = record(value);
+
+  return {
+    turn_type: stringValue(payload?.turn_type) ?? stringValue(payload?.message_type),
+    message_classification: stringValue(payload?.message_classification),
+    response_quality: stringValue(payload?.response_quality),
+    should_advance: booleanValue(payload?.should_advance),
+    agent_call_id: stringValue(payload?.agent_call_id) ?? stringValue(payload?.based_on_agent_call_id)
+  };
+}
+
+function processPayloadSummary(value: unknown) {
+  const payload = record(value);
+
+  return {
+    assessment_state: stringValue(payload?.assessment_state),
+    item_admin_tutor_source: stringValue(payload?.item_admin_tutor_source),
+    live_status: stringValue(payload?.live_status),
+    validation_status: stringValue(payload?.validation_status),
+    agent_call_id: stringValue(payload?.agent_call_id),
+    provider_status: stringValue(payload?.provider_status),
+    validation_issue_count:
+      typeof payload?.validation_issue_count === "number" ? payload.validation_issue_count : null
+  };
+}
+
+function assessmentStateFromResumeContext(value: unknown) {
+  const context = record(value);
+  return stringValue(context?.assessment_state);
+}
+
+function currentItemFromResumeContext(value: unknown) {
+  const context = record(value);
+  return stringValue(context?.current_item_public_id);
+}
+
+function errorSummary(error: unknown) {
+  const details = record(record(error)?.details);
+  const code = stringValue(record(error)?.code);
+
+  return {
+    name: error instanceof Error ? error.name : null,
+    code,
+    status: typeof record(error)?.status === "number" ? record(error)?.status : null,
+    message: safeDiagnosticText(error instanceof Error ? error.message : String(error)),
+    agent_call_id: stringValue(details?.agent_call_id),
+    validation_status: stringValue(details?.validation_status),
+    details_keys: details ? Object.keys(details).sort() : []
+  };
+}
+
+export async function buildLiveLlmSmokeFailureArtifact(input: {
+  prisma: PrismaClient;
+  sessionPublicId?: string | null;
+  stage?: string;
+  error?: unknown;
+}) {
+  const failure = errorSummary(input.error);
+  const session = input.sessionPublicId
+    ? await input.prisma.assessmentSession.findUnique({
+        where: { session_public_id: input.sessionPublicId },
+        select: {
+          id: true,
+          session_public_id: true,
+          status: true,
+          current_phase: true,
+          resume_context: true,
+          created_at: true,
+          started_at: true,
+          last_activity_at: true,
+          completed_at: true
+        }
+      })
+    : null;
+
+  const sessionDbId = session?.id ?? null;
+  const [latestItemResponse, agentCalls, processEvents, conversationTurns] = sessionDbId
+    ? await Promise.all([
+        input.prisma.itemResponse.findFirst({
+          where: {
+            concept_unit_session: { assessment_session_db_id: sessionDbId }
+          },
+          orderBy: [{ updated_at: "desc" }],
+          select: {
+            item: { select: { item_public_id: true } }
+          }
+        }),
+        input.prisma.agentCall.findMany({
+          where: { assessment_session_db_id: sessionDbId },
+          orderBy: [{ created_at: "asc" }],
+          select: {
+            id: true,
+            agent_name: true,
+            schema_version: true,
+            provider: true,
+            model_name: true,
+            live_call_allowed: true,
+            output_payload: true,
+            output_validated: true,
+            validation_error: true,
+            error_category: true,
+            call_status: true,
+            provider_request_id: true,
+            provider_response_id: true,
+            client_request_id: true,
+            prompt_version: true,
+            raw_output: true,
+            token_usage: true,
+            created_at: true,
+            completed_at: true
+          }
+        }),
+        input.prisma.processEvent.findMany({
+          where: { assessment_session_db_id: sessionDbId },
+          orderBy: [{ occurred_at: "asc" }],
+          select: {
+            event_type: true,
+            event_category: true,
+            event_source: true,
+            payload: true,
+            occurred_at: true,
+            created_at: true
+          }
+        }),
+        input.prisma.conversationTurn.findMany({
+          where: { assessment_session_db_id: sessionDbId },
+          orderBy: [{ created_at: "asc" }],
+          select: {
+            actor_type: true,
+            agent_name: true,
+            structured_payload: true,
+            created_at: true
+          }
+        })
+      ])
+    : [null, [], [], []] as const;
+
+  const agentCallSummaries = agentCalls.map((call) => {
+    const summary = sanitizedAuditSummary(call as LiveAuditCall);
+
+    return {
+      agent_call_id: summary.agent_call_id,
+      agent_name: summary.agent_name,
+      schema_version: summary.schema_version,
+      provider: summary.provider,
+      model_name: summary.model_name,
+      call_status: summary.call_status,
+      output_validated: summary.output_validated,
+      validation_status: validationStatusFromCall(call),
+      validation_error: parseValidationError(call.validation_error),
+      validation_issue_paths: summary.validation_issue_paths,
+      output_payload_keys: summary.output_payload_keys,
+      student_visible_message_present: summary.student_visible_message_present,
+      raw_output_present: summary.raw_output_exists,
+      provider_metadata_present: summary.provider_metadata_present,
+      token_usage_present: summary.token_usage_exists,
+      provider_error: {
+        category: summary.sanitized_error_category,
+        type: summary.sanitized_error_type,
+        code: summary.sanitized_error_code,
+        message: safeDiagnosticText(summary.sanitized_error_message),
+        http_status: summary.provider_http_status,
+        provider_error_code: summary.provider_error_code,
+        provider_error_type: summary.provider_error_type,
+        typed_failure_reason: summary.typed_failure_reason,
+        endpoint_host: summary.provider_endpoint_host
+      },
+      created_at: summary.created_at,
+      completed_at: summary.completed_at
+    };
+  });
+  const primaryAgentCall =
+    agentCallSummaries.find((call) => call.agent_call_id === failure.agent_call_id) ??
+    [...agentCallSummaries]
+      .reverse()
+      .find((call) => call.call_status === "invalid_output" || call.call_status === "failed") ??
+    null;
+
+  const artifact = {
+    artifact_type: "student_live_llm_smoke_failure",
+    artifact_version: LIVE_LLM_FAILURE_ARTIFACT_VERSION,
+    generated_at: new Date().toISOString(),
+    stage: input.stage ?? null,
+    failure,
+    session_summary: session
+      ? {
+          session_public_id: session.session_public_id,
+          session_status: session.status,
+          current_phase: session.current_phase,
+          assessment_state: assessmentStateFromResumeContext(session.resume_context),
+          current_item_id:
+            currentItemFromResumeContext(session.resume_context) ??
+            latestItemResponse?.item.item_public_id ??
+            null,
+          created_at: iso(session.created_at),
+          started_at: iso(session.started_at),
+          last_activity_at: iso(session.last_activity_at),
+          completed_at: iso(session.completed_at)
+        }
+      : null,
+    primary_agent_call: primaryAgentCall
+      ? {
+          agent_call_id: primaryAgentCall.agent_call_id,
+          agent_name: primaryAgentCall.agent_name,
+          schema_version: primaryAgentCall.schema_version,
+          validation_status: primaryAgentCall.validation_status,
+          call_status: primaryAgentCall.call_status
+        }
+      : null,
+    agent_calls: agentCallSummaries,
+    process_events: processEvents.map((event) => ({
+      event_type: event.event_type,
+      event_category: event.event_category,
+      event_source: event.event_source,
+      ...processPayloadSummary(event.payload),
+      occurred_at: iso(event.occurred_at),
+      created_at: iso(event.created_at)
+    })),
+    conversation_turns: conversationTurns.map((turn) => ({
+      actor_type: turn.actor_type,
+      agent_name: turn.agent_name,
+      ...structuredPayloadSummary(turn.structured_payload),
+      created_at: iso(turn.created_at)
+    }))
+  };
+
+  return {
+    artifact,
+    session_public_id: session?.session_public_id ?? null,
+    agent_call_id: primaryAgentCall?.agent_call_id ?? failure.agent_call_id ?? null,
+    agent_name: primaryAgentCall?.agent_name ?? null,
+    schema_version: primaryAgentCall?.schema_version ?? null,
+    validation_status: primaryAgentCall?.validation_status ?? failure.validation_status ?? null
+  };
+}
+
+export async function writeLiveLlmSmokeFailureArtifact(input: {
+  prisma: PrismaClient;
+  sessionPublicId?: string | null;
+  stage?: string;
+  error?: unknown;
+}) {
+  const built = await buildLiveLlmSmokeFailureArtifact(input);
+  await mkdir(LIVE_LLM_FAILURE_ARTIFACT_DIR, { recursive: true });
+  const safeSession = (built.session_public_id ?? "unknown_session").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const safeAgentCall = (built.agent_call_id ?? "unknown_call").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const filePath = path.join(
+    LIVE_LLM_FAILURE_ARTIFACT_DIR,
+    `${timestamp}-${safeSession}-${safeAgentCall}.json`
+  );
+
+  await writeFile(filePath, `${JSON.stringify(built.artifact, null, 2)}\n`, "utf8");
+
+  return {
+    ...built,
+    file_path: filePath,
+    artifact_hash: hashShape(built.artifact)
+  };
+}
+
+export async function readLiveLlmFailureArtifact(filePath: string) {
+  const text = await readFile(filePath, "utf8");
+  const parsed = JSON.parse(text) as unknown;
+  const parsedRecord = record(parsed);
+
+  if (parsedRecord?.artifact_type !== "student_live_llm_smoke_failure") {
+    throw new Error("The artifact is not a student live LLM smoke failure artifact.");
+  }
+
+  return parsedRecord;
+}
+
+async function listFailureArtifactFiles() {
+  try {
+    const entries = await readdir(LIVE_LLM_FAILURE_ARTIFACT_DIR);
+    const jsonFiles = entries.filter((entry) => entry.endsWith(".json"));
+    const files = await Promise.all(
+      jsonFiles.map(async (entry) => {
+        const filePath = path.join(LIVE_LLM_FAILURE_ARTIFACT_DIR, entry);
+        return { filePath, stats: await stat(filePath) };
+      })
+    );
+
+    return files.sort((a, b) => b.stats.mtimeMs - a.stats.mtimeMs);
+  } catch {
+    return [];
+  }
+}
+
+export async function findLatestLiveLlmFailureArtifact() {
+  const [latest] = await listFailureArtifactFiles();
+  return latest?.filePath ?? null;
+}
+
+export async function findLiveLlmFailureArtifact(input: {
+  agentCallId?: string | null;
+  sessionPublicId?: string | null;
+}) {
+  const files = await listFailureArtifactFiles();
+
+  for (const file of files) {
+    const artifact = await readLiveLlmFailureArtifact(file.filePath);
+    const artifactSession = record(artifact.session_summary);
+    const artifactPrimary = record(artifact.primary_agent_call);
+    const artifactCalls = Array.isArray(artifact.agent_calls) ? artifact.agent_calls : [];
+    const agentCallMatches = input.agentCallId
+      ? artifactPrimary?.agent_call_id === input.agentCallId ||
+        artifactCalls.some((call) => record(call)?.agent_call_id === input.agentCallId)
+      : false;
+    const sessionMatches = input.sessionPublicId
+      ? artifactSession?.session_public_id === input.sessionPublicId
+      : false;
+
+    if (agentCallMatches || sessionMatches) {
+      return file.filePath;
+    }
+  }
+
+  return null;
+}
+
+export function summarizeLiveLlmFailureArtifact(artifact: UnknownRecord, filePath: string) {
+  const session = record(artifact.session_summary);
+  const primary = record(artifact.primary_agent_call);
+
+  return {
+    status: "artifact_found",
+    diagnostic_artifact_path: filePath,
+    artifact_version: stringValue(artifact.artifact_version),
+    generated_at: stringValue(artifact.generated_at),
+    stage: stringValue(artifact.stage),
+    session_public_id: stringValue(session?.session_public_id),
+    session_status: stringValue(session?.session_status),
+    current_phase: stringValue(session?.current_phase),
+    assessment_state: stringValue(session?.assessment_state),
+    current_item_id: stringValue(session?.current_item_id),
+    agent_call_id: stringValue(primary?.agent_call_id),
+    agent_name: stringValue(primary?.agent_name),
+    schema_version: stringValue(primary?.schema_version),
+    validation_status: stringValue(primary?.validation_status),
+    call_status: stringValue(primary?.call_status),
+    agent_call_count: Array.isArray(artifact.agent_calls) ? artifact.agent_calls.length : 0,
+    process_event_count: Array.isArray(artifact.process_events) ? artifact.process_events.length : 0,
+    conversation_turn_count: Array.isArray(artifact.conversation_turns)
+      ? artifact.conversation_turns.length
+      : 0,
+    failure: record(artifact.failure)
+  };
+}

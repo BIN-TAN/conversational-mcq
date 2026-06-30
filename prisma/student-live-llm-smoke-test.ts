@@ -34,6 +34,7 @@ import {
   assertLiveAgentCallIsAudited,
   sanitizedAuditSummary
 } from "./student-live-llm-diagnostics";
+import { writeLiveLlmSmokeFailureArtifact } from "./student-live-llm-failure-artifacts";
 import type { StudentSessionState } from "../src/lib/student-assessment-ui/types";
 
 const envLoadResult = loadEnvConfig(process.cwd());
@@ -231,13 +232,17 @@ async function main() {
     accessCode: `${prefix}_access`
   });
   const sessionPublicIds: string[] = [];
+  let smokePassed = false;
+  let failureStage = "setup";
 
   try {
+    failureStage = "start_session";
     const started = await startOrResumeStudentAssessmentSession({
       student_user_db_id: student.id,
       assessment_public_id: demoAssessmentPublicId
     });
     sessionPublicIds.push(started.session.session_public_id);
+    failureStage = "initial_administration_start";
     let state = await startConceptUnitInitialAdministration({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
@@ -245,6 +250,7 @@ async function main() {
     });
 
     for (const itemIndex of [1, 2, 3]) {
+      failureStage = `initial_item_${itemIndex}`;
       state = await completeInitialItem({
         studentDbId: student.id,
         sessionPublicId: started.session.session_public_id,
@@ -256,6 +262,7 @@ async function main() {
     }
     assert(state.assessment_state === "PACKAGE_REVIEW", "Expected package review before live profile call.");
 
+    failureStage = "formative_profile";
     const completedInitial = await completeInitialConceptUnitAdministration({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
@@ -264,6 +271,7 @@ async function main() {
     assert(completedInitial.state.assessment_state === "FORMATIVE_ACTIVITY", "Expected formative activity.");
     assertStudentVisibleTextIsSafe(completedInitial.state);
 
+    failureStage = "targeted_feedback_loop";
     const nextChoiceState = await advanceFormativeLoopToNextChoice({
       studentDbId: student.id,
       sessionPublicId: started.session.session_public_id,
@@ -272,6 +280,7 @@ async function main() {
     });
     assert(nextChoiceState.assessment_state === "NEXT_CHOICE", "Expected next choice after formative loop.");
 
+    failureStage = "session_completion";
     const choice = await submitNextChoice({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
@@ -349,18 +358,51 @@ async function main() {
         2
       )
     );
-  } finally {
-    await cleanupSmokeStudentSessions({
+    smokePassed = true;
+  } catch (error) {
+    const diagnostic = await writeLiveLlmSmokeFailureArtifact({
       prisma,
-      userDbId: student.id,
-      sessionPublicIds
+      sessionPublicId: sessionPublicIds[0] ?? null,
+      stage: failureStage,
+      error
     });
+    console.error(
+      JSON.stringify(
+        {
+          status: "failed",
+          message:
+            "Opt-in live LLM smoke failed. The failed synthetic session was retained and a sanitized diagnostic artifact was written.",
+          diagnostic_artifact_path: diagnostic.file_path,
+          diagnostic_artifact_hash: diagnostic.artifact_hash,
+          session_public_id: diagnostic.session_public_id,
+          agent_call_id: diagnostic.agent_call_id,
+          agent_name: diagnostic.agent_name,
+          schema_version: diagnostic.schema_version,
+          validation_status: diagnostic.validation_status,
+          failure_stage: failureStage,
+          failed_synthetic_session_retained: true,
+          cleanup_note:
+            "Run the project cleanup command only after inspecting the retained failure evidence. Do not commit files under .data/."
+        },
+        null,
+        2
+      )
+    );
+    throw error;
+  } finally {
+    if (smokePassed) {
+      await cleanupSmokeStudentSessions({
+        prisma,
+        userDbId: student.id,
+        sessionPublicIds
+      });
+    }
   }
 }
 
 main()
   .catch((error) => {
-    console.error(error);
+    console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
   })
   .finally(async () => {

@@ -98,7 +98,35 @@ Do not paste API keys into chat. Do not commit `.env`, `.env.local`, or credenti
 
 If `RUN_LIVE_LLM_SMOKE=1` is set but required configuration is missing, the script prints only missing or invalid variable names. It never prints variable values.
 
-The live smoke verifies that the response package reaches the provider path, structured profile and targeted-feedback outputs validate, student-visible text remains safe, and `agent_calls` stores provider metadata plus token usage. A live profile or targeted-feedback call with `invalid_output`, `failed`, missing provider metadata, missing token usage, or `output_validated=false` is a live-smoke failure.
+The live smoke verifies that the response package reaches the provider path, structured profile and targeted-feedback outputs validate, student-visible text remains safe, and `agent_calls` stores provider metadata plus token usage. A live profile or targeted-feedback call with `invalid_output`, `failed`, missing provider metadata, missing token usage, deterministic fallback use, or `output_validated=false` is a live-smoke failure.
+
+If an opt-in paid live smoke fails, the script must preserve diagnostic evidence before any cleanup:
+
+- failed synthetic sessions are retained by default;
+- successful synthetic sessions are cleaned up normally;
+- a sanitized JSON artifact is written under `.data/student-live-llm-smoke/failures/`;
+- generated artifacts remain ignored by Git and must not be committed.
+
+The failure output includes `diagnostic_artifact_path`, `session_public_id`, `agent_call_id`, `agent_name`, `schema_version`, and `validation_status` when available. The artifact stores only summaries: session state, agent-call statuses, validation issue paths, output payload keys, presence flags for raw output/provider metadata/token usage, process-event summary fields, and conversation-turn classifications. It must not include raw prompts, raw provider output values, full student response text, answer keys, distractor metadata, API keys, headers, or secrets.
+
+Use the sanitized diagnostic command after a failure:
+
+```bash
+npm run student:live-llm-audit-diagnose -- --agent-call-id <agent_call_id>
+npm run student:live-llm-audit-diagnose -- --session-public-id <session_public_id>
+npm run student:live-llm-audit-diagnose -- --latest-failure
+npm run student:live-llm-audit-diagnose -- --artifact .data/student-live-llm-smoke/failures/<artifact>.json
+```
+
+The command inspects the retained DB row first when available and falls back to the sanitized artifact when cleanup or manual deletion has removed the row. If neither exists, it reports what it searched and where artifacts are expected.
+
+After the failure has been inspected, remove retained synthetic live-smoke users, sessions, and artifacts with:
+
+```bash
+npm run student:live-llm-smoke:cleanup-failures
+```
+
+To preserve artifacts while removing retained synthetic DB rows, pass `-- --keep-artifacts`.
 
 ## Item Administration Tutor Runtime
 
@@ -167,7 +195,7 @@ targeted_call_status = succeeded
 targeted_output_validated = true
 ```
 
-If either live formative output is invalid or unsafe, the runtime fails closed: the student's progress remains saved, no invalid formative activity or targeted feedback is shown, and the student sees the temporary unavailable message. Do not treat deterministic fallback output as a successful live formative result.
+If either live formative output is invalid or unsafe, the runtime fails closed: the student's progress remains saved, no invalid formative activity or targeted feedback is shown, and the student sees the temporary unavailable message. Developer-facing errors use precise codes such as `llm_profile_validation_failed` or `llm_targeted_feedback_validation_failed` while preserving the same student-safe message. Do not treat deterministic fallback output as a successful live formative result.
 
 For a retained failed `agent_calls` row, use the sanitized diagnostic command:
 
