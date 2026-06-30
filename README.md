@@ -172,6 +172,8 @@ npm run student:logging-smoke
 npm run student:formative-profile-smoke
 npm run student:ability-evidence-smoke
 npm run student:ability-evidence-review
+npm run student:engagement-evidence-smoke
+npm run student:engagement-evidence-review
 npm run student:targeted-feedback-smoke
 npm run student:transfer-item-smoke
 npm run student:mvp-e2e-smoke
@@ -253,6 +255,22 @@ npm run student:ability-evidence-review
 ```
 
 This no-live review command audits current item diagnostic metadata, creates a temporary deterministic sample session when no session is supplied, writes redacted review artifacts under `.data/ability-evidence-review/`, and prints a concise metadata/evidence summary.
+
+Engagement evidence packet verification:
+
+```bash
+npm run student:engagement-evidence-smoke
+```
+
+This no-live smoke builds `engagement-evidence-packet-v1` from fixed IRT response-package and process-event evidence. It does not create a final engagement profile, does not call OpenAI, does not infer misconduct, and does not render student-facing evidence. See `docs/ENGAGEMENT_PROFILING_DESIGN.md`.
+
+Engagement evidence review artifact generation:
+
+```bash
+npm run student:engagement-evidence-review
+```
+
+This no-live review command creates a temporary deterministic sample session when no session is supplied, writes a redacted engagement evidence artifact plus process-data inventory under `.data/engagement-evidence-review/`, and prints a concise summary. The artifacts contain bands, counts, safe labels, and interpretation cautions only.
 
 The optional live LLM readiness smoke is intentionally skipped unless explicitly enabled:
 

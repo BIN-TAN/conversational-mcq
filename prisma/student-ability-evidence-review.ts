@@ -7,6 +7,7 @@ import {
   buildItemAbilityEvidence,
   diagnosticMetadataForItem
 } from "../src/lib/services/student-assessment/ability-evidence";
+import { applyProvisionalItemDiagnosticMetadata } from "../src/lib/services/student-assessment/provisional-item-diagnostic-metadata";
 import {
   auditItemDiagnosticMetadata,
   auditCurrentItemDiagnosticMetadata,
@@ -244,6 +245,10 @@ function runReviewAssertions(input: {
 }
 
 async function main() {
+  configureNoLiveReviewRuntime();
+  await ensureDemoStudentAssessment(prisma);
+  await applyProvisionalItemDiagnosticMetadata(prisma);
+
   const requestedSessionPublicId = getArg("session-public-id");
   const metadataReview = await auditCurrentItemDiagnosticMetadata();
   const sample = requestedSessionPublicId ? null : await createSampleSession();

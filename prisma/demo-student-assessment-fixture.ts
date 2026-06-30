@@ -1,5 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import { hashSecret } from "../src/lib/password";
+import {
+  applyProvisionalItemDiagnosticMetadata,
+  mergeProvisionalDiagnosticMetadata
+} from "../src/lib/services/student-assessment/provisional-item-diagnostic-metadata";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 export const demoAssessmentPublicId = "assessment_mvp_irt_theta_invariance";
@@ -177,19 +181,22 @@ function demoItem(itemOrder: number) {
     distractor_rationales: seed.distractor_rationales,
     expected_reasoning_patterns: seed.expected_reasoning_patterns,
     possible_misconception_indicators: seed.possible_misconception_indicators,
-    administration_rules: {
-      item_set_name: "IRT Theta Invariance and Item Parameters",
-      domain: "Educational Measurement",
-      knowledge_component:
-        "Person ability theta is intended to be comparable across properly calibrated or linked forms. Item difficulty and discrimination affect response probabilities and precision, not the definition of the latent trait itself.",
-      misconception_cluster:
-        "Students may confuse item difficulty b or discrimination a with person ability theta.",
-      item_role: seed.item_role,
-      cognitive_demand: seed.cognitive_demand,
-      difficulty: seed.difficulty,
-      no_feedback_during_initial_administration: true,
-      fixture: "fixed_irt_mvp"
-    },
+    administration_rules: mergeProvisionalDiagnosticMetadata({
+      item_public_id: seed.item_public_id,
+      administration_rules: {
+        item_set_name: "IRT Theta Invariance and Item Parameters",
+        domain: "Educational Measurement",
+        knowledge_component:
+          "Person ability theta is intended to be comparable across properly calibrated or linked forms. Item difficulty and discrimination affect response probabilities and precision, not the definition of the latent trait itself.",
+        misconception_cluster:
+          "Students may confuse item difficulty b or discrimination a with person ability theta.",
+        item_role: seed.item_role,
+        cognitive_demand: seed.cognitive_demand,
+        difficulty: seed.difficulty,
+        no_feedback_during_initial_administration: true,
+        fixture: "fixed_irt_mvp"
+      }
+    }),
     included_in_published_set: seed.included_in_published_set,
     status: "published" as const
   };
@@ -252,7 +259,7 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
       );
     }
 
-    return prisma.assessment.update({
+    const updatedAssessment = await prisma.assessment.update({
       where: { id: existing.id },
       data: {
         title: "IRT Theta Invariance and Item Parameters",
@@ -263,6 +270,10 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
         close_at: null
       }
     });
+
+    await applyProvisionalItemDiagnosticMetadata(prisma);
+
+    return updatedAssessment;
   }
 
   const assessment = await prisma.assessment.upsert({
@@ -364,6 +375,8 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
       }
     });
   }
+
+  await applyProvisionalItemDiagnosticMetadata(prisma);
 
   return assessment;
 }

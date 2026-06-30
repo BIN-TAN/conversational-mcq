@@ -100,7 +100,14 @@ export async function aggregateProcessEventsByConceptUnitSession(
 
   return {
     event_count_by_type: eventCountByType,
-    page_switch_count: countEvents(eventCountByType, ["page_hidden", "page_visible"]),
+    page_switch_count: countEvents(eventCountByType, [
+      "page_hidden",
+      "page_visible",
+      "page_visibility_hidden",
+      "page_visibility_visible",
+      "window_blur",
+      "window_focus"
+    ]),
     long_pause_count: countEvents(eventCountByType, ["long_pause"]),
     invalid_help_request_count: countEvents(eventCountByType, ["invalid_help_request"]),
     prompt_injection_attempt_count: countEvents(eventCountByType, ["prompt_injection_attempt"]),

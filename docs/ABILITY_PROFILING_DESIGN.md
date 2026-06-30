@@ -49,7 +49,17 @@ The v1 metadata shape is:
 }
 ```
 
-The fixed IRT MVP currently has concept metadata, item roles, cognitive demand, teacher difficulty labels, distractor rationales, expected reasoning patterns, and possible misconception indicators. It does not yet have stable subskill tags or calibrated numeric item parameters. Missing optional calibration fields do not block packet generation; they become explicit evidence limitations.
+The fixed IRT MVP and teacher-review demo items now include provisional subskills, expected solution actions, option misconception maps, and option diagnostic notes in `administration_rules`.
+
+These fields are marked:
+
+```text
+metadata_source = llm_proposed_v1
+metadata_review_status = unreviewed
+metadata_provisional = true
+```
+
+They are useful for internal packet construction and design review, but they require researcher/teacher review before stronger claims. They are not calibrated numeric item parameters. Missing optional calibration fields do not block packet generation; they become explicit evidence limitations.
 
 ## Evidence Categories
 

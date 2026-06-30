@@ -195,6 +195,12 @@ const submitActionSchema = z.object({
 const frontendEventTypes = [
   "page_hidden",
   "page_visible",
+  "page_visibility_hidden",
+  "page_visibility_visible",
+  "window_blur",
+  "window_focus",
+  "paste_detected",
+  "typing_activity_summary",
   "long_pause",
   "inactivity_detected",
   "navigation_event",

@@ -113,6 +113,34 @@ function stringArray(value: unknown): string[] {
     : [];
 }
 
+function stringArrayRecord(value: unknown): Record<string, string[]> {
+  const input = record(value);
+  const output: Record<string, string[]> = {};
+
+  for (const [key, entry] of Object.entries(input)) {
+    const values = stringArray(entry);
+    if (values.length > 0) {
+      output[key.toUpperCase()] = values;
+    }
+  }
+
+  return output;
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  const input = record(value);
+  const output: Record<string, string> = {};
+
+  for (const [key, entry] of Object.entries(input)) {
+    const value = stringValue(entry);
+    if (value) {
+      output[key.toUpperCase()] = value;
+    }
+  }
+
+  return output;
+}
+
 function optionRows(value: unknown): Array<{ label: string }> {
   return Array.isArray(value)
     ? value
@@ -158,7 +186,11 @@ export function auditItemDiagnosticMetadata(input: {
   const correctOptionPresent = isScoredOption(correctOption) &&
     options.some((option) => option.label === correctOption);
   const distractorRationales = record(input.distractor_rationales);
-  const expectedActions = stringArray(input.expected_reasoning_patterns);
+  const explicitOptionMap = stringArrayRecord(rules.option_misconception_map);
+  const explicitOptionNotes = stringRecord(rules.option_diagnostic_notes);
+  const expectedActions = stringArray(rules.expected_solution_actions).length
+    ? stringArray(rules.expected_solution_actions)
+    : stringArray(input.expected_reasoning_patterns);
   const subskills = stringArray(rules.subskills);
   const conceptIdPresent = Boolean(stringValue(rules.concept_id) ?? input.concept_unit_public_id);
   const cognitiveLevelPresent = Boolean(stringValue(rules.cognitive_level) ?? stringValue(rules.cognitive_demand));
@@ -171,12 +203,23 @@ export function auditItemDiagnosticMetadata(input: {
   let distractorNoteCount = 0;
 
   for (const option of options) {
+    const explicitMap = explicitOptionMap[option.label];
+    const explicitNote = explicitOptionNotes[option.label];
+
+    if (explicitMap?.length) {
+      mappedOptionCount += 1;
+      if (option.label !== correctOption && explicitNote) {
+        distractorNoteCount += 1;
+      }
+      continue;
+    }
+
     if (correctOptionPresent && option.label === correctOption) {
       mappedOptionCount += 1;
       continue;
     }
 
-    if (stringValue(distractorRationales[option.label])) {
+    if (explicitNote || stringValue(distractorRationales[option.label])) {
       mappedOptionCount += 1;
       distractorNoteCount += 1;
       continue;

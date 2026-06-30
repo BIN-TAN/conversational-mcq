@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { hashSecret } from "../src/lib/password";
 import { createResponsePackage } from "../src/lib/services/response-packages";
+import { mergeProvisionalDiagnosticMetadata } from "../src/lib/services/student-assessment/provisional-item-diagnostic-metadata";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 export const teacherReviewAssessmentPublicId = "assessment_demo_teacher_review";
@@ -53,10 +54,13 @@ function demoItem(itemOrder: number) {
     possible_misconception_indicators: [
       "Selects a distractor with reasoning that reverses the relationship or uses an unrelated cue."
     ],
-    administration_rules: {
-      no_feedback_during_initial_administration: true,
-      fixture: "teacher_review_development_only"
-    },
+    administration_rules: mergeProvisionalDiagnosticMetadata({
+      item_public_id: teacherReviewItemPublicIds[itemOrder - 1],
+      administration_rules: {
+        no_feedback_during_initial_administration: true,
+        fixture: "teacher_review_development_only"
+      }
+    }),
     included_in_published_set: true,
     status: "published" as const,
     version: 1

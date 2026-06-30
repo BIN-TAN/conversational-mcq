@@ -73,6 +73,24 @@ npm run student:ability-evidence-review
 
 The command writes ignored artifacts under `.data/ability-evidence-review/`. The default artifacts are safe for design review because they omit raw item stems, raw reasoning, correct option values, answer keys, distractor diagnostic text, raw misconception IDs in the student projection, raw LLM output, and secrets. Metadata limitations should guide later researcher/teacher metadata cleanup before stronger ability inference.
 
+## Engagement Evidence Packet
+
+The fixed IRT MVP can also build an internal `engagement-evidence-packet-v1` from existing response-package and process-event evidence:
+
+```bash
+npm run student:engagement-evidence-smoke
+```
+
+The packet is a profiling foundation, not a misconduct finding, GenAI-use claim, motivation diagnosis, or student-facing profile. It uses response presence, reasoning length bands, timing bands, revisions, repair events, focus/visibility events, paste detection, typing activity summaries, pause/inactivity events, and uncertainty markers. Process data are contextual evidence about participation and evidence sufficiency; they do not directly determine ability.
+
+For a redacted review artifact and process-data inventory report, run:
+
+```bash
+npm run student:engagement-evidence-review
+```
+
+The command writes ignored artifacts under `.data/engagement-evidence-review/`. The default artifacts omit raw reasoning, raw process-event payloads, raw conversation turns, answer keys, correct options, distractor metadata, raw provider output, and secrets. The AI-assistance signal is a contextual flag only; it must not be used to state that a student cheated, used GenAI, or committed misconduct.
+
 ## Opt-In Live LLM Smoke
 
 Live LLM readiness is intentionally opt-in. The script loads local Next.js env files with `@next/env`, then exits without a provider call unless this flag is set:

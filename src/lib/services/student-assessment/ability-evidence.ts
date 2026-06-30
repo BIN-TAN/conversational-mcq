@@ -197,6 +197,34 @@ function stringArray(value: unknown): string[] {
     : [];
 }
 
+function stringArrayRecord(value: unknown): Record<string, string[]> {
+  const input = record(value);
+  const output: Record<string, string[]> = {};
+
+  for (const [key, entry] of Object.entries(input)) {
+    const values = stringArray(entry);
+    if (values.length > 0) {
+      output[key.toUpperCase()] = values;
+    }
+  }
+
+  return output;
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  const input = record(value);
+  const output: Record<string, string> = {};
+
+  for (const [key, entry] of Object.entries(input)) {
+    const normalized = stringValue(entry);
+    if (normalized) {
+      output[key.toUpperCase()] = normalized;
+    }
+  }
+
+  return output;
+}
+
 function optionRecord(value: unknown): Array<{ label: string; text: string }> {
   return Array.isArray(value)
     ? value
@@ -314,14 +342,28 @@ export function diagnosticMetadataForItem(input: {
 }): AbilityDiagnosticMetadataV1 {
   const rules = record(input.administration_rules);
   const distractorRationales = record(input.distractor_rationales);
+  const explicitOptionMap = stringArrayRecord(rules.option_misconception_map);
+  const explicitOptionNotes = stringRecord(rules.option_diagnostic_notes);
   const correctOption = scoredOptionLabel(input.correct_option) ?? "A";
   const options = optionRecord(input.options);
   const optionMap: Record<string, string[]> = {};
   const optionNotes: Record<string, string> = {};
 
   for (const option of options) {
+    const explicitMap = explicitOptionMap[option.label];
+    if (explicitMap?.length) {
+      optionMap[option.label] = explicitMap;
+      if (explicitOptionNotes[option.label]) {
+        optionNotes[option.label] = explicitOptionNotes[option.label];
+      }
+      continue;
+    }
+
     if (option.label === correctOption) {
       optionMap[option.label] = ["target_understanding"];
+      if (explicitOptionNotes[option.label]) {
+        optionNotes[option.label] = explicitOptionNotes[option.label];
+      }
       continue;
     }
 
@@ -337,7 +379,9 @@ export function diagnosticMetadataForItem(input: {
     }
   }
 
-  const expectedPatterns = stringArray(input.expected_reasoning_patterns);
+  const expectedPatterns = stringArray(rules.expected_solution_actions).length
+    ? stringArray(rules.expected_solution_actions)
+    : stringArray(input.expected_reasoning_patterns);
   const subskills = stringArray(rules.subskills);
 
   return AbilityDiagnosticMetadataV1Schema.parse({

@@ -1134,3 +1134,36 @@ Phase 6A.5 must not implement:
   `staging:private:preflight`, `staging:private:seed`,
   `staging:private:start`, `staging:private:status`,
   `staging:private:report`, and `staging:private:cleanup`.
+
+## Phase 27b Engagement Evidence Lock
+
+- Phase 27b adds provisional item diagnostic metadata for the current fixed MVP
+  and teacher-review demo items without changing stems, options, correct
+  answers, scoring, or student-facing content.
+- Provisional metadata is stored in item `administration_rules` with
+  `metadata_source=llm_proposed_v1`, `metadata_review_status=unreviewed`,
+  `metadata_provisional=true`, and the limitation
+  `Researcher/teacher review required before stronger claims.`
+- Provisional item metadata may support internal ability and engagement packet
+  construction, but it is not calibrated IRT metadata, not a theta precision
+  claim, and not a stable ability score.
+- Engagement evidence v1 is `engagement-evidence-packet-v1`. It is an internal
+  evidence-packet foundation, not a final engagement profile and not
+  student-facing UI.
+- Engagement evidence may use response presence, timing bands, reasoning length
+  bands, revisions, repair events, focus/visibility events, paste detection,
+  typing activity summaries, pause/inactivity events, and uncertainty markers.
+- Process data are contextual evidence about participation and evidence
+  sufficiency. They must not be used as direct ability evidence.
+- Process data must never be used to state that a student cheated, used GenAI,
+  or committed misconduct. AI-assistance signals are contextual and require
+  human interpretation before any stronger operational use.
+- Browser instrumentation may log `page_visibility_hidden`,
+  `page_visibility_visible`, `window_blur`, `window_focus`, `paste_detected`,
+  and `typing_activity_summary`, but it must not log typed text, pasted content,
+  answer keys, distractor metadata, raw prompts, API keys, cookies, or secrets.
+- Engagement review artifacts are ignored under
+  `.data/engagement-evidence-review/` and must contain only bands, counts,
+  public IDs, safe labels, and interpretation cautions.
+- Phase 27b does not implement profile integration, final ability inference,
+  teacher upload, new item content, live LLM calls, or schema migrations.
