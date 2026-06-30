@@ -26,6 +26,7 @@
     "student:logging-smoke": "tsx prisma/student-logging-smoke-test.ts",
     "student:formative-profile-smoke": "tsx prisma/student-formative-profile-smoke-test.ts",
     "student:formative-profile-audit-smoke": "tsx prisma/student-formative-profile-audit-metadata-smoke-test.ts",
+    "student:ability-evidence-smoke": "tsx prisma/student-ability-evidence-smoke-test.ts",
     "student:formative-evaluation-smoke": "tsx prisma/student-formative-evaluation-smoke-test.ts",
     "student:response-quality-smoke": "tsx prisma/student-response-quality-smoke-test.ts",
     "student:script-review-smoke": "tsx prisma/student-script-review-smoke-test.ts",

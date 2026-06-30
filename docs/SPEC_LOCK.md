@@ -72,6 +72,16 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - Deterministic formative fallback remains valid for mock, test, disabled, or explicit fallback paths, but it must not be counted as a successful live formative profile or targeted-feedback result.
 - Live formative output validation may canonicalize clearly equivalent labels or known field aliases before strict schema validation, but it must not accept unsafe, ambiguous, or student-visible internal labels. Harmless rigid visible heading prefixes such as "What you did well:", "Reasoning detail:", "Earlier:", "Current focus:", or "Still developing:" may be removed before validation while preserving the content. These headings must not appear in student-facing formative feedback after validation.
 
+## Ability Evidence Packet V1
+
+- `ability-evidence-packet-v1` is an internal evidence foundation for future ability profiling. It does not create a final student profile, does not implement engagement profiling, and does not change student-facing UI.
+- Ability evidence v1 is formative and provisional. It must not be described as calibrated theta, IRT precision, a stable ability score, or classroom validity evidence.
+- Main v1 evidence sources are response packages, item responses, conversation turns, process events, item metadata, distractor rationales, expected reasoning patterns, possible misconception indicators, confidence ratings, and tempting-option evidence.
+- Correctness is internal evidence only. Correct options, correctness labels, distractor metadata, misconception IDs, raw reasoning, and internal evidence traces must not be exposed to students.
+- Numeric item difficulty and discrimination are optional future calibration fields. Missing calibrated values must not block packet generation, and teacher labels must not be treated as calibrated psychometric parameters.
+- Process data may modify confidence in ability evidence only. It must not directly determine ability, infer misconduct, infer GenAI use, or create engagement profiles in this phase.
+- Future LLM support may perform semantic evidence extraction from reasoning, but final ability categories must remain rule-aggregated and traceable rather than opaque LLM judgment.
+
 ## Phase 8A Guarded Operational Integration
 
 - `OPERATIONAL_AGENT_MODE` is the authoritative server-only operational mode. Valid values are `disabled`, `mock`, and `guarded_live`; the default is `disabled`.

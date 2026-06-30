@@ -53,6 +53,18 @@ These files are ignored by Git. Each snapshot includes:
 
 The export is for local development and audit checks only. It is not student-facing UI and should not be committed.
 
+## Ability Evidence Packet
+
+The fixed IRT MVP can build an internal `ability-evidence-packet-v1` from the existing response package:
+
+```bash
+npm run student:ability-evidence-smoke
+```
+
+The packet is a profiling foundation, not a student-facing profile and not a calibrated theta estimate. It uses concept/item metadata, internal correctness evidence, distractor diagnostic notes, reasoning, confidence, tempting-option evidence, timings, and process-data confidence modifiers. Numeric item difficulty and discrimination are optional future calibration fields; missing values do not block packet generation.
+
+Do not expose the full packet to students. If a later phase renders the student-safe projection, it must continue to hide answer keys, correctness labels, distractor metadata, misconception IDs, raw reasoning, raw provider output, and internal evidence traces.
+
 ## Opt-In Live LLM Smoke
 
 Live LLM readiness is intentionally opt-in. The script loads local Next.js env files with `@next/env`, then exits without a provider call unless this flag is set:
