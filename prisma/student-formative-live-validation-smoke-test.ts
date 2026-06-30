@@ -15,6 +15,11 @@ import {
   type ChatNativeFormativeProfileOutput
 } from "../src/lib/services/student-assessment/formative-profile";
 import {
+  FORMATIVE_LOOP_GUARD_MESSAGE,
+  getFormativeLoopGuardDecision,
+  stopFollowupForFormativeLoopGuard
+} from "../src/lib/services/student-assessment/formative-loop-guard";
+import {
   demoAssessmentPublicId,
   ensureDemoStudentAssessment
 } from "./demo-student-assessment-fixture";
@@ -185,7 +190,7 @@ class SyntheticFormativeProvider implements LlmProvider {
         | "protected_content"
         | "multiple_statuses"
         | "long_text";
-      targeted?: "valid" | "invalid" | "heading" | "iterative";
+      targeted?: "valid" | "invalid" | "heading" | "iterative" | "endless_revision";
     }
   ) {}
 
@@ -285,6 +290,11 @@ class SyntheticFormativeProvider implements LlmProvider {
               ? "ask_revision"
               : "confirm_and_next_choice"
         );
+      }
+
+      if (mode === "endless_revision" && !isProfile) {
+        this.targetedCallCount += 1;
+        return targetedOutputForAction(this.targetedCallCount === 1 ? "provide_scaffold" : "ask_revision");
       }
 
       return isProfile
@@ -920,6 +930,186 @@ async function assertIterativeFormativeLoopReachesNextChoice() {
   }
 }
 
+async function assertFormativeLoopGuardStopsEndlessRevision() {
+  const prefix = `formative_loop_guard_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const { student, sessionPublicIds, started, state } = await createPackageReviewSession(prefix);
+
+  try {
+    await withTemporaryEnv(simulatedLiveRuntimeEnv(), async () =>
+      withChatNativeFormativeProviderForTest(
+        new SyntheticFormativeProvider({ profile: "valid", targeted: "endless_revision" }),
+        async () => {
+          const completed = await completeInitialConceptUnitAdministration({
+            student_user_db_id: student.id,
+            session_public_id: started.session.session_public_id,
+            concept_unit_public_id: state.current_concept_unit?.concept_unit_public_id ?? ""
+          });
+          assert(completed.state.assessment_state === "FORMATIVE_ACTIVITY", "Valid profile should show activity.");
+
+          const activity = await submitFormativeActivityResponse({
+            student_user_db_id: student.id,
+            session_public_id: started.session.session_public_id,
+            message: "Theta describes the person, while item parameters describe the item.",
+            client_message_id: `${prefix}_activity_response`
+          });
+          assert(activity.state.assessment_state === "REVISION", "Endless provider should first request revision.");
+
+          let current = activity.state;
+
+          for (const index of [1, 2, 3, 4]) {
+            const revision = await submitRevisionResponse({
+              student_user_db_id: student.id,
+              session_public_id: started.session.session_public_id,
+              message: `Revision ${index}: theta is the person estimate and item parameters describe item behavior.`,
+              client_message_id: `${prefix}_revision_${index}`
+            });
+            current = revision.state;
+          }
+
+          assert(current.assessment_state === "NEXT_CHOICE", "Loop guard should transition to next choice.");
+          assert(current.next_step === "followup_stopped", "Loop guard should use the stopped follow-up step.");
+          assert(current.followup?.status === "stopped", "Loop guard should stop the active follow-up round.");
+        }
+      )
+    );
+
+    const session = await prisma.assessmentSession.findUniqueOrThrow({
+      where: { session_public_id: started.session.session_public_id },
+      select: { id: true, current_phase: true }
+    });
+    const events = await prisma.processEvent.findMany({
+      where: {
+        assessment_session_db_id: session.id,
+        event_type: { in: ["formative_loop_guard_triggered", "formative_loop_terminal_choice_shown"] }
+      },
+      select: { event_type: true, payload: true }
+    });
+    const guardEvent = events.find((event) => event.event_type === "formative_loop_guard_triggered");
+    const terminalEvent = events.find((event) => event.event_type === "formative_loop_terminal_choice_shown");
+    const guardPayload = guardEvent?.payload as Record<string, unknown> | undefined;
+    const transcript = await prisma.conversationTurn.findMany({
+      where: {
+        assessment_session_db_id: session.id,
+        agent_name: "chat_native_formative_loop_guard"
+      },
+      select: { message_text: true, structured_payload: true }
+    });
+
+    assert(session.current_phase === "followup_stopped", "Guarded session should persist stopped phase for resume.");
+    assert(Boolean(guardEvent), "Loop guard should create formative_loop_guard_triggered.");
+    assert(Boolean(terminalEvent), "Loop guard should create formative_loop_terminal_choice_shown.");
+    assert(guardPayload?.reason_code === "max_formative_loop_turns", "Guard should report max-loop reason.");
+    assert(guardPayload?.assessment_state_after === "NEXT_CHOICE", "Guard payload should report next-choice state.");
+    assert(transcript.length === 1, "Guard should create one student-safe terminal message.");
+    assert(
+      transcript[0]?.message_text === FORMATIVE_LOOP_GUARD_MESSAGE,
+      "Guard terminal message should use the approved student-facing copy."
+    );
+    assert(
+      JSON.stringify(transcript).toLowerCase().includes("answer key") === false,
+      "Guard transcript must not expose answer-key language."
+    );
+    assert(
+      JSON.stringify(transcript).toLowerCase().includes("mastered") === false,
+      "Guard should not automatically claim mastery."
+    );
+  } finally {
+    await cleanupSmokeStudentSessions({
+      prisma,
+      userDbId: student.id,
+      sessionPublicIds
+    });
+  }
+}
+
+async function assertRepeatedFollowupGuardDecisionStopsRound() {
+  const prefix = `repeated_followup_guard_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const { student, sessionPublicIds, started, state } = await createPackageReviewSession(prefix);
+
+  try {
+    const completed = await withTemporaryEnv(simulatedLiveRuntimeEnv(), async () =>
+      withChatNativeFormativeProviderForTest(
+        new SyntheticFormativeProvider({ profile: "valid", targeted: "valid" }),
+        () =>
+          completeInitialConceptUnitAdministration({
+            student_user_db_id: student.id,
+            session_public_id: started.session.session_public_id,
+            concept_unit_public_id: state.current_concept_unit?.concept_unit_public_id ?? ""
+          })
+      )
+    );
+    assert(completed.state.assessment_state === "FORMATIVE_ACTIVITY", "Fixture should show formative activity.");
+
+    const session = await prisma.assessmentSession.findUniqueOrThrow({
+      where: { session_public_id: started.session.session_public_id },
+      select: { id: true, current_concept_unit_db_id: true }
+    });
+    const conceptUnitSession = await prisma.conceptUnitSession.findUniqueOrThrow({
+      where: {
+        assessment_session_db_id_concept_unit_db_id: {
+          assessment_session_db_id: session.id,
+          concept_unit_db_id: session.current_concept_unit_db_id ?? ""
+        }
+      },
+      select: { id: true }
+    });
+    const round = await prisma.followupRound.findFirstOrThrow({
+      where: { concept_unit_session_db_id: conceptUnitSession.id, status: "active" },
+      orderBy: [{ round_index: "desc" }],
+      select: { id: true }
+    });
+
+    await prisma.assessmentSession.update({
+      where: { id: session.id },
+      data: { current_phase: "followup_active" }
+    });
+
+    for (const index of [1, 2, 3]) {
+      await prisma.conversationTurn.create({
+        data: {
+          assessment_session_db_id: session.id,
+          concept_unit_session_db_id: conceptUnitSession.id,
+          followup_round_db_id: round.id,
+          phase: "followup_active",
+          actor_type: "student",
+          message_text: `Synthetic follow-up ${index}`,
+          structured_payload: { client_message_id: `${prefix}_followup_${index}` }
+        }
+      });
+    }
+
+    const decision = await getFormativeLoopGuardDecision({ followup_round_db_id: round.id });
+    assert(decision.triggered === true, "Repeated follow-up turns should trigger guard decision.");
+    assert(decision.reason_code === "repeated_followup_limit", "Repeated follow-up guard should use repeated limit reason.");
+
+    await stopFollowupForFormativeLoopGuard({
+      assessment_session_db_id: session.id,
+      concept_unit_session_db_id: conceptUnitSession.id,
+      followup_round_db_id: round.id,
+      stage: "followup_response",
+      assessment_state_before: "FOLLOWUP_RESPONSE",
+      reason_code: decision.reason_code,
+      loop_turn_count: decision.loop_turn_count,
+      repeated_followup_count: decision.repeated_followup_count,
+      latest_agent_call_id: null
+    });
+
+    const stoppedState = await getStudentSessionState({
+      student_user_db_id: student.id,
+      session_public_id: started.session.session_public_id
+    });
+
+    assert(stoppedState.assessment_state === "NEXT_CHOICE", "Repeated follow-up guard should produce next-choice state.");
+    assert(stoppedState.next_step === "followup_stopped", "Repeated follow-up guard should persist stopped next step.");
+  } finally {
+    await cleanupSmokeStudentSessions({
+      prisma,
+      userDbId: student.id,
+      sessionPublicIds
+    });
+  }
+}
+
 async function main() {
   process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "true";
   process.env.OPERATIONAL_AGENT_MODE = "disabled";
@@ -959,6 +1149,8 @@ async function main() {
   await assertInvalidTargetedFeedbackBlocks();
   await assertRigidTargetedFeedbackHeadingSanitizes();
   await assertIterativeFormativeLoopReachesNextChoice();
+  await assertFormativeLoopGuardStopsEndlessRevision();
+  await assertRepeatedFollowupGuardDecisionStopsRound();
 
   console.log("Student formative live-validation smoke passed. No OpenAI call was made.");
 }

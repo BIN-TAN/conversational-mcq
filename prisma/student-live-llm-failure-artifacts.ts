@@ -389,6 +389,7 @@ function safeErrorDetails(details: UnknownRecord | null) {
     refetch_succeeded:
       typeof details.refetch_succeeded === "boolean" ? details.refetch_succeeded : null,
     resulting_state_if_refetched: stringValue(details.resulting_state_if_refetched),
+    runtime_guard_status: stringValue(details.runtime_guard_status),
     loop_turns: typeof details.loop_turns === "number" ? details.loop_turns : null,
     loop_history: safeLoopHistory(details.loop_history)
   };

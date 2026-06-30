@@ -386,6 +386,7 @@ export async function advanceLiveSmokeFormativeLoop(input: {
       returned_payload_keys: lastNormalization?.returned_payload_keys ?? [],
       refetch_attempted: lastNormalization?.refetch_attempted ?? false,
       refetch_succeeded: lastNormalization?.refetch_succeeded ?? false,
+      runtime_guard_status: "not_triggered",
       loop_turns: maxTurns,
       loop_history: history
     }

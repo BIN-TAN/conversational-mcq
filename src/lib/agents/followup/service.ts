@@ -29,6 +29,10 @@ import {
   handleFollowupAssistantEvidence,
   requestStopFollowupWithPossibleFinalUpdate
 } from "@/lib/agents/followup-updates/service";
+import {
+  getFormativeLoopGuardDecision,
+  stopFollowupForFormativeLoopGuard
+} from "@/lib/services/student-assessment/formative-loop-guard";
 
 export class FollowupServiceError extends Error {
   code: string;
@@ -1081,12 +1085,30 @@ export async function submitStudentFollowupMessage(input: {
     assistant_turn_db_id: assistantTurn.id,
     output: agent.output
   });
+  const guardDecision = await getFormativeLoopGuardDecision({
+    followup_round_db_id: round.id
+  });
+
+  if (guardDecision.triggered) {
+    await stopFollowupForFormativeLoopGuard({
+      assessment_session_db_id: session.id,
+      concept_unit_session_db_id: conceptUnitSession.id,
+      followup_round_db_id: round.id,
+      stage: "followup_response",
+      assessment_state_before: "FOLLOWUP_RESPONSE",
+      reason_code: guardDecision.reason_code,
+      loop_turn_count: guardDecision.loop_turn_count,
+      repeated_followup_count: guardDecision.repeated_followup_count,
+      latest_agent_call_id: agent.agent_call_id ?? null
+    });
+  }
 
   const state = await serializeStudentFollowupStateByRound(round.id);
   const response = {
     message_status: "assistant_replied",
     assistant_message: agent.output.assistant_message,
-    state
+    state,
+    next_choice_available: guardDecision.triggered
   };
 
   await prisma.studentActionIdempotencyKey.update({

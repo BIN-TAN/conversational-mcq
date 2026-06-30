@@ -257,6 +257,7 @@ export const processEventTypes = [
   "repeated_invalid_response",
   "insufficient_knowledge_marked",
   "formative_loop_guard_triggered",
+  "formative_loop_terminal_choice_shown",
   "clarification_answered",
   "content_question_deferred",
   "edit_request_detected",

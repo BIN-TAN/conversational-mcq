@@ -25,6 +25,14 @@ import {
   formatInitialAdminItemMessage,
   promptAuditPayload
 } from "@/lib/student-assessment/initial-admin-prompts";
+import {
+  MAX_FORMATIVE_LOOP_ACTIONS,
+  MAX_FORMATIVE_REPAIR_TURNS,
+  MAX_REPEATED_FOLLOWUP_RESPONSES,
+  getFormativeLoopGuardCounts,
+  getFormativeLoopGuardDecision,
+  stopFollowupForFormativeLoopGuard
+} from "@/lib/services/student-assessment/formative-loop-guard";
 import { StudentAssessmentServiceError } from "./errors";
 
 export const FormativeNeedSchema = z.enum([
@@ -186,6 +194,8 @@ Use conservative next actions:
 - provide_scaffold when the response is confused or missing;
 - clarify_question when the student asks a procedural or conceptual clarification question;
 - offer_transfer only when the response is strong enough for transfer.
+- ask for another follow-up only within the application's small loop budget;
+- after repeated partial responses, give a concise bridge toward choosing the next step without claiming mastery.
 
 For the IRT discrimination case, if the student says the ICC is sharper when discrimination is higher and theta remains the person's location, confirm that the ICC sharpness idea is mostly right. Refine that discrimination affects slope, item information, and precision; theta remains the person's location on the latent trait scale; and the meaning of theta remains comparable across linked forms. Do not imply that item location necessarily stays the same unless item difficulty/location is explicitly being discussed.
 
@@ -202,13 +212,10 @@ const TARGETED_FEEDBACK_AGENT_NAME = "chat_native_targeted_feedback";
 const TRANSFER_ITEM_AGENT_NAME = "deterministic_transfer_item";
 const MAX_FORMATIVE_RESPONSE_CHARS = 5000;
 const MAX_REVISION_CHARS = 5000;
-const MAX_FORMATIVE_REPAIR_TURNS = 3;
 const ASSESSMENT_TUTOR_UNAVAILABLE_MESSAGE =
   "The assessment tutor is temporarily unavailable. Your progress is saved. Please try again in a moment or pause and return later.";
 const REPEATED_INVALID_RESPONSE_PROMPT =
   "I still cannot use that as a reason. Choose one:\nA. Try writing your reason again.\nB. Mark this as 'I don't know the reason yet.'";
-const MAX_LOOP_GUARD_MESSAGE =
-  "This concept may need more practice. You can try another question on the same idea or move on for now.";
 
 function prismaJson(value: unknown) {
   return toPrismaJson(value) ?? Prisma.JsonNull;
@@ -1511,102 +1518,6 @@ async function logRepeatedFormativeInvalidResponse(input: {
   });
 }
 
-async function stopFollowupForMaxLoopGuard(input: {
-  assessment_session_db_id: string;
-  concept_unit_session_db_id: string;
-  followup_round_db_id: string;
-  stage: ResponseQualityStage;
-  attempt_count: number;
-}) {
-  const now = new Date();
-
-  await prisma.$transaction(async (tx) => {
-    const existingPrompt = await tx.conversationTurn.findFirst({
-      where: {
-        followup_round_db_id: input.followup_round_db_id,
-        actor_type: "agent",
-        structured_payload: {
-          path: ["source"],
-          equals: "chat_native_formative_loop_guard"
-        }
-      },
-      select: { id: true }
-    });
-
-    if (!existingPrompt) {
-      await tx.conversationTurn.create({
-        data: {
-          assessment_session_db_id: input.assessment_session_db_id,
-          concept_unit_session_db_id: input.concept_unit_session_db_id,
-          followup_round_db_id: input.followup_round_db_id,
-          phase: "followup_active",
-          actor_type: "agent",
-          agent_name: "chat_native_formative_loop_guard",
-          message_text: MAX_LOOP_GUARD_MESSAGE,
-          structured_payload: prismaJson({
-            source: "chat_native_formative_loop_guard",
-            message_type: "max_loop_guard",
-            stage: input.stage,
-            attempt_count: input.attempt_count
-          }),
-          created_at: now
-        }
-      });
-    }
-
-    await tx.followupRound.update({
-      where: { id: input.followup_round_db_id },
-      data: {
-        status: "stopped",
-        completed_at: now
-      }
-    });
-    await tx.conceptUnitSession.update({
-      where: { id: input.concept_unit_session_db_id },
-      data: {
-        status: "followup_completed",
-        followup_status: "stopped",
-        followup_completed_at: now
-      }
-    });
-  });
-
-  await updateAssessmentSessionPhase({
-    assessment_session_db_id: input.assessment_session_db_id,
-    to_phase: "followup_stopped",
-    reason: "chat_native_formative_loop_guard",
-    payload: {
-      stage: input.stage,
-      attempt_count: input.attempt_count
-    }
-  });
-  await logProcessEvent({
-    assessment_session_db_id: input.assessment_session_db_id,
-    concept_unit_session_db_id: input.concept_unit_session_db_id,
-    event_type: "formative_loop_guard_triggered",
-    event_category: "formative_loop",
-    event_source: "backend",
-    payload: {
-      stage: input.stage,
-      attempt_count: input.attempt_count,
-      max_attempts: MAX_FORMATIVE_REPAIR_TURNS
-    },
-    occurred_at: now
-  });
-  await logProcessEvent({
-    assessment_session_db_id: input.assessment_session_db_id,
-    concept_unit_session_db_id: input.concept_unit_session_db_id,
-    event_type: "next_choice_shown",
-    event_category: "next_choice",
-    event_source: "backend",
-    payload: {
-      reason: "max_formative_repair_turns",
-      options: ["move_to_next_concept", "try_another_question_same_idea"]
-    },
-    occurred_at: now
-  });
-}
-
 function validateStudentFacingOutput(input: {
   output: ChatNativeFormativeProfileOutput;
   correct_options: string[];
@@ -2475,6 +2386,9 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
       409
     );
   }
+  const loopCountsBeforeEvaluation = await getFormativeLoopGuardCounts({
+    followup_round_db_id: input.followup_round_db_id
+  });
 
   const providerInput = {
     task: "chat_native_phase12_formative_activity_evaluation",
@@ -2493,7 +2407,16 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
       next_choice_only_when_ready: true,
       no_full_answer_key_dump: true,
       no_internal_labels_in_student_text: true,
-      do_not_restart_initial_cycle: true
+      do_not_restart_initial_cycle: true,
+      formative_loop_policy: {
+        app_enforces_terminal_guard: true,
+        max_formative_loop_actions: MAX_FORMATIVE_LOOP_ACTIONS,
+        max_repeated_followup_responses: MAX_REPEATED_FOLLOWUP_RESPONSES,
+        loop_turn_count_so_far: loopCountsBeforeEvaluation.loop_turn_count,
+        repeated_followup_count_so_far: loopCountsBeforeEvaluation.repeated_followup_count,
+        do_not_keep_asking_open_followup_indefinitely: true,
+        do_not_claim_mastery_when_guard_closes_loop: true
+      }
     }
   };
   assertNoProhibitedProviderInput(providerInput);
@@ -2575,6 +2498,18 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
   const readyForNextChoice = nextActionIsReadyForChoice(feedbackResult.output);
   const promptMessageType = promptMessageTypeFor(feedbackResult.output);
   const nextAction = feedbackResult.output.formative_activity_evaluation.next_action;
+  const guardDecision = readyForNextChoice
+    ? {
+        triggered: false as const,
+        reason_code: null,
+        loop_turn_count: loopCountsBeforeEvaluation.loop_turn_count,
+        repeated_followup_count: loopCountsBeforeEvaluation.repeated_followup_count,
+        targeted_feedback_evaluation_count:
+          loopCountsBeforeEvaluation.targeted_feedback_evaluation_count
+      }
+    : await getFormativeLoopGuardDecision({
+        followup_round_db_id: input.followup_round_db_id
+      });
 
   await prisma.$transaction(async (tx) => {
     const alreadyCreated = await tx.conversationTurn.findFirst({
@@ -2633,7 +2568,7 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
           latest_student_profile_db_id: updatedProfile.id
         }
       });
-    } else {
+    } else if (!guardDecision.triggered) {
       await tx.conversationTurn.create({
         data: {
           assessment_session_db_id: input.assessment_session_db_id,
@@ -2656,18 +2591,32 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
     }
   });
 
-  await updateAssessmentSessionPhase({
-    assessment_session_db_id: input.assessment_session_db_id,
-    to_phase: readyForNextChoice ? "followup_stopped" : "followup_active",
-    reason: readyForNextChoice
-      ? "chat_native_formative_activity_ready_for_next_choice"
-      : "chat_native_formative_activity_revision_needed",
-    payload: {
-      agent_call_id: feedbackResult.agent_call_id,
-      updated_student_profile_db_id: updatedProfile.id,
-      next_action: nextAction
-    }
-  });
+  if (guardDecision.triggered) {
+    await stopFollowupForFormativeLoopGuard({
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      followup_round_db_id: input.followup_round_db_id,
+      stage: triggerKind === "activity_response" ? "formative_activity_response" : "revision_response",
+      assessment_state_before: triggerKind === "activity_response" ? "FORMATIVE_ACTIVITY" : "REVISION",
+      reason_code: guardDecision.reason_code,
+      loop_turn_count: guardDecision.loop_turn_count,
+      repeated_followup_count: guardDecision.repeated_followup_count,
+      latest_agent_call_id: feedbackResult.agent_call_id
+    });
+  } else {
+    await updateAssessmentSessionPhase({
+      assessment_session_db_id: input.assessment_session_db_id,
+      to_phase: readyForNextChoice ? "followup_stopped" : "followup_active",
+      reason: readyForNextChoice
+        ? "chat_native_formative_activity_ready_for_next_choice"
+        : "chat_native_formative_activity_revision_needed",
+      payload: {
+        agent_call_id: feedbackResult.agent_call_id,
+        updated_student_profile_db_id: updatedProfile.id,
+        next_action: nextAction
+      }
+    });
+  }
   await logProcessEvent({
     assessment_session_db_id: input.assessment_session_db_id,
     concept_unit_session_db_id: input.concept_unit_session_db_id,
@@ -2722,7 +2671,7 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
     occurred_at: now
   });
 
-  if (!readyForNextChoice) {
+  if (!readyForNextChoice && !guardDecision.triggered) {
     await logProcessEvent({
       assessment_session_db_id: input.assessment_session_db_id,
       concept_unit_session_db_id: input.concept_unit_session_db_id,
@@ -2738,7 +2687,7 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
     });
   }
 
-  if (nextAction === "provide_scaffold") {
+  if (nextAction === "provide_scaffold" && !guardDecision.triggered) {
     await logProcessEvent({
       assessment_session_db_id: input.assessment_session_db_id,
       concept_unit_session_db_id: input.concept_unit_session_db_id,
@@ -2772,7 +2721,14 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
   return {
     status: "created" as const,
     agent_call_id: feedbackResult.agent_call_id,
-    next_action: nextAction
+    next_action: guardDecision.triggered ? "confirm_and_next_choice" as const : nextAction,
+    guard: guardDecision.triggered
+      ? {
+          reason_code: guardDecision.reason_code,
+          loop_turn_count: guardDecision.loop_turn_count,
+          repeated_followup_count: guardDecision.repeated_followup_count
+        }
+      : null
   };
 }
 
@@ -3384,12 +3340,16 @@ export async function submitChatNativeFormativeActivityResponse(input: {
     }
 
     if (repeatedAttemptCount >= MAX_FORMATIVE_REPAIR_TURNS) {
-      await stopFollowupForMaxLoopGuard({
+      await stopFollowupForFormativeLoopGuard({
         assessment_session_db_id: session.id,
         concept_unit_session_db_id: conceptUnitSession.id,
         followup_round_db_id: round.id,
         stage: qualityStage,
-        attempt_count: repeatedAttemptCount
+        assessment_state_before: "FORMATIVE_ACTIVITY",
+        reason_code: "max_formative_loop_turns",
+        loop_turn_count: repeatedAttemptCount,
+        repeated_followup_count: 0,
+        latest_agent_call_id: null
       });
     }
 
@@ -3661,12 +3621,16 @@ export async function submitChatNativeRevisionResponse(input: {
     }
 
     if (repeatedAttemptCount >= MAX_FORMATIVE_REPAIR_TURNS) {
-      await stopFollowupForMaxLoopGuard({
+      await stopFollowupForFormativeLoopGuard({
         assessment_session_db_id: session.id,
         concept_unit_session_db_id: conceptUnitSession.id,
         followup_round_db_id: round.id,
         stage: qualityStage,
-        attempt_count: repeatedAttemptCount
+        assessment_state_before: "REVISION",
+        reason_code: "max_formative_loop_turns",
+        loop_turn_count: repeatedAttemptCount,
+        repeated_followup_count: 0,
+        latest_agent_call_id: null
       });
     }
 

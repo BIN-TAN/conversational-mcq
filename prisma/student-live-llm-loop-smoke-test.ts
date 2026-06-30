@@ -263,6 +263,10 @@ async function runStuckLoopDiagnostics() {
     );
     assert(error.details.actual_state === "FOLLOWUP_RESPONSE", "Stuck loop should include actual state.");
     assert(
+      error.details.runtime_guard_status === "not_triggered",
+      "Stuck loop should report that no runtime guard terminal state was observed."
+    );
+    assert(
       Array.isArray(error.details.expected_states) &&
         error.details.expected_states.includes("NEXT_CHOICE"),
       "Stuck loop should include expected states."
