@@ -36,6 +36,51 @@ npm run prisma:seed
 npm run dev
 ```
 
+For ordinary daily local startup after setup has already been completed, use the one-click launcher instead of re-running migrations and seed data:
+
+```bash
+npm run app:local:start
+```
+
+or double-click:
+
+```text
+launchers/Start Conversational MCQ.command
+```
+
+The launcher starts PostgreSQL, runs authenticated server-side LLM readiness, starts Next.js in the background, waits for `http://localhost:3000/api/health`, and opens the browser only if readiness passes. It writes logs and PID files under:
+
+```text
+.data/local-runtime/next-dev.log
+.data/local-runtime/next-dev.pid
+```
+
+Stop the local app with:
+
+```bash
+npm run app:local:stop
+```
+
+or double-click:
+
+```text
+launchers/Stop Conversational MCQ.command
+```
+
+Check status with:
+
+```bash
+npm run app:local:status
+```
+
+or double-click:
+
+```text
+launchers/Status Conversational MCQ.command
+```
+
+The launcher does not silently use mock mode. If LLM readiness fails, it stops before opening the app and suggests `npm run llm:readiness`. Explicit mock walkthroughs require `ITEM_ADMIN_TUTOR_MODE=mock` and `ALLOW_LOCAL_MOCK_RUNTIME=true`.
+
 Run non-live verification:
 
 ```bash

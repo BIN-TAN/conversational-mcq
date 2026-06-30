@@ -210,3 +210,63 @@ Student-facing validation diagnostics use safe rule codes such as `unsafe_studen
 Do not record API keys, raw provider payloads, raw model outputs, hidden prompts, answer keys, or full student text in pilot notes.
 
 The live smoke should not run in ordinary local verification or CI. The default development path remains mock/fallback.
+
+## One-Click Local Launcher
+
+The one-click launcher is for daily local use after the full opt-in live LLM smoke has already passed as the backend gate. It does not run paid model-generation smoke tests.
+
+After the project has already been installed, migrated, and seeded, the daily local startup command is:
+
+```bash
+npm run app:local:start
+```
+
+The start command:
+
+1. checks that `node`, `npm`, and `docker` are available;
+2. starts the local PostgreSQL container with `docker compose up -d postgres`;
+3. runs `npm run llm:readiness`;
+4. refuses to open the app if authenticated live runtime readiness is not ready;
+5. starts the Next.js dev server in the background;
+6. writes logs to `.data/local-runtime/next-dev.log`;
+7. writes the launcher-managed PID to `.data/local-runtime/next-dev.pid`;
+8. waits for `http://localhost:3000/api/health`;
+9. opens `http://localhost:3000`.
+
+The readiness gate uses the same server-side readiness path documented above. It may perform a lightweight model-metadata authentication check when live configuration is present, but it must not make a model generation request. It prints no API key values. If readiness fails, the launcher prints:
+
+```text
+LLM readiness failed. The assessment cannot run in live runtime.
+```
+
+and suggests:
+
+```bash
+npm run llm:readiness
+```
+
+The local launcher must not silently switch to deterministic or mock runtime. Intentional local mock walkthroughs remain explicit:
+
+```bash
+ITEM_ADMIN_TUTOR_MODE=mock
+ALLOW_LOCAL_MOCK_RUNTIME=true
+npm run dev
+```
+
+Stop and status commands:
+
+```bash
+npm run app:local:stop
+npm run app:local:status
+```
+
+The stop command leaves PostgreSQL running unless `-- --postgres` is supplied. macOS `.command` launchers are in `launchers/` and provide the same start, stop, and status operations without typing the npm commands.
+
+Full setup after code or schema changes remains separate:
+
+```bash
+npm run db:up
+npm run prisma:generate
+npm run prisma:migrate
+npm run prisma:seed
+```

@@ -81,6 +81,75 @@ Seeded local development credentials:
 
 The seed stores only hashed credentials in PostgreSQL. Running it repeatedly updates the same demo users and does not create duplicates.
 
+### Daily Local Launcher
+
+This launcher phase assumes the full opt-in live LLM smoke has already passed as the backend readiness gate. The launcher does not run paid generation calls itself.
+
+After dependencies, migrations, and seed data are already in place, the normal local startup path is:
+
+```bash
+npm run app:local:start
+```
+
+The launcher starts the local PostgreSQL container, runs `npm run llm:readiness`, starts the Next.js dev server in the background, waits for `http://localhost:3000/api/health`, and opens `http://localhost:3000` in the browser. It writes runtime files under:
+
+```text
+.data/local-runtime/next-dev.log
+.data/local-runtime/next-dev.pid
+```
+
+Stop the launcher-managed Next.js process with:
+
+```bash
+npm run app:local:stop
+```
+
+PostgreSQL is left running by default. To stop it too:
+
+```bash
+npm run app:local:stop -- --postgres
+```
+
+Check local status with:
+
+```bash
+npm run app:local:status
+```
+
+macOS double-click launchers are available in `launchers/`:
+
+```text
+Start Conversational MCQ.command
+Stop Conversational MCQ.command
+Status Conversational MCQ.command
+```
+
+The start launcher is fail-closed for the real student-facing runtime. If authenticated server-side LLM readiness is not ready, it does not open the browser and prints:
+
+```text
+LLM readiness failed. The assessment cannot run in live runtime.
+```
+
+It never prints API key values and does not silently switch to mock mode. For an explicit local mock walkthrough, do not use the default start launcher; configure:
+
+```bash
+ITEM_ADMIN_TUTOR_MODE=mock
+ALLOW_LOCAL_MOCK_RUNTIME=true
+npm run dev
+```
+
+To create a true macOS app wrapper, open Automator, choose `Application`, add `Run Shell Script`, and paste:
+
+```bash
+cd "/Users/binbin/Documents/Conversational MCQ" && npm run app:local:start
+```
+
+Save it as `Conversational MCQ.app`. Create a separate stop app wrapper with:
+
+```bash
+cd "/Users/binbin/Documents/Conversational MCQ" && npm run app:local:stop
+```
+
 ### Run And Verify
 
 Full local setup verification command sequence:
