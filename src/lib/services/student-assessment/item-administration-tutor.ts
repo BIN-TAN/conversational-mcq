@@ -14,7 +14,9 @@ import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/typ
 import { toPrismaJson } from "@/lib/services/json";
 import {
   RESPONSE_QUALITY_SCHEMA_VERSION,
+  detectResponseLanguage,
   deterministicResponseQuality,
+  type DetectedResponseLanguage,
   type ResponseQualityResult,
   type ResponseQualityStage
 } from "@/lib/services/student-assessment/response-quality";
@@ -149,6 +151,12 @@ export type ItemAdministrationTutorResult = {
     | "deterministic_mock"
     | "safe_fallback_after_live_failure"
     | "configuration_blocked";
+  tutor_mode: ItemAdministrationTutorRuntimeMode["configured_mode"];
+  provider: "mock" | "openai";
+  model_name: string | null;
+  validation_status: ResponseQualityResult["validation_status"];
+  fallback_reason: string | null;
+  detected_response_language: DetectedResponseLanguage;
   response_quality_result: ResponseQualityResult;
   message_classification: ItemAdministrationTutorMessageClassification;
   response_quality: ItemAdministrationTutorResponseQuality;
@@ -520,7 +528,8 @@ function deterministicResponseQualityResult(input: {
     validation_status: input.validation_status ?? "deterministic",
     provider: input.provider ?? "mock",
     prompt_hash: ITEM_ADMINISTRATION_TUTOR_PROMPT_HASH,
-    schema_version: RESPONSE_QUALITY_SCHEMA_VERSION
+    schema_version: RESPONSE_QUALITY_SCHEMA_VERSION,
+    detected_response_language: detectResponseLanguage(input.text)
   };
 }
 
@@ -581,14 +590,18 @@ function responseQualityOutputFromTutorOutput(
   };
 }
 
-function responseQualityResultFromTutorOutput(output: ItemAdministrationTutorOutput): ResponseQualityResult {
+function responseQualityResultFromTutorOutput(
+  output: ItemAdministrationTutorOutput,
+  detectedResponseLanguage: DetectedResponseLanguage
+): ResponseQualityResult {
   return {
     output: responseQualityOutputFromTutorOutput(output),
     source: "llm",
     validation_status: "validated",
     provider: "openai",
     prompt_hash: ITEM_ADMINISTRATION_TUTOR_PROMPT_HASH,
-    schema_version: RESPONSE_QUALITY_SCHEMA_VERSION
+    schema_version: RESPONSE_QUALITY_SCHEMA_VERSION,
+    detected_response_language: detectedResponseLanguage
   };
 }
 
@@ -704,6 +717,10 @@ function tutorResultFromOutput(input: {
   agent_call_id?: string;
   live_status: ItemAdministrationTutorResult["live_status"];
   item_admin_tutor_source: ItemAdministrationTutorResult["item_admin_tutor_source"];
+  tutor_mode: ItemAdministrationTutorResult["tutor_mode"];
+  model_name?: string | null;
+  fallback_reason?: string | null;
+  detected_response_language: DetectedResponseLanguage;
 }): ItemAdministrationTutorResult {
   const fallbackSummary = summaryForDeferredConcern(
     input.response_quality_result.output.student_facing_message,
@@ -713,6 +730,12 @@ function tutorResultFromOutput(input: {
   return {
     tutor_version: ITEM_ADMINISTRATION_TUTOR_VERSION,
     item_admin_tutor_source: input.item_admin_tutor_source,
+    tutor_mode: input.tutor_mode,
+    provider: input.response_quality_result.provider,
+    model_name: input.model_name ?? null,
+    validation_status: input.response_quality_result.validation_status,
+    fallback_reason: input.fallback_reason ?? null,
+    detected_response_language: input.detected_response_language,
     response_quality_result: input.response_quality_result,
     message_classification: input.output.message_classification,
     response_quality: input.output.response_quality,
@@ -751,6 +774,9 @@ function deterministicTutorResult(input: {
   agent_call_id?: string;
   live_status?: ItemAdministrationTutorResult["live_status"];
   item_admin_tutor_source?: ItemAdministrationTutorResult["item_admin_tutor_source"];
+  tutor_mode?: ItemAdministrationTutorResult["tutor_mode"];
+  model_name?: string | null;
+  fallback_reason?: string | null;
 }): ItemAdministrationTutorResult {
   const qualityResult = deterministicResponseQualityResult({
     stage: input.stage,
@@ -775,6 +801,12 @@ function deterministicTutorResult(input: {
   return {
     tutor_version: ITEM_ADMINISTRATION_TUTOR_VERSION,
     item_admin_tutor_source: input.item_admin_tutor_source ?? "deterministic_mock",
+    tutor_mode: input.tutor_mode ?? "auto",
+    provider: qualityResult.provider,
+    model_name: input.model_name ?? null,
+    validation_status: qualityResult.validation_status,
+    fallback_reason: input.fallback_reason ?? null,
+    detected_response_language: qualityResult.detected_response_language,
     response_quality_result: qualityResult,
     message_classification: classification,
     response_quality: responseQuality,
@@ -809,12 +841,19 @@ function configurationBlockedTutorResult(): ItemAdministrationTutorResult {
     validation_status: "deterministic",
     provider: "mock",
     prompt_hash: ITEM_ADMINISTRATION_TUTOR_PROMPT_HASH,
-    schema_version: RESPONSE_QUALITY_SCHEMA_VERSION
+    schema_version: RESPONSE_QUALITY_SCHEMA_VERSION,
+    detected_response_language: "unclear"
   };
 
   return {
     tutor_version: ITEM_ADMINISTRATION_TUTOR_VERSION,
     item_admin_tutor_source: "configuration_blocked",
+    tutor_mode: resolveItemAdministrationTutorRuntimeMode().configured_mode,
+    provider: "mock",
+    model_name: null,
+    validation_status: qualityResult.validation_status,
+    fallback_reason: "configuration_blocked",
+    detected_response_language: qualityResult.detected_response_language,
     response_quality_result: qualityResult,
     message_classification: "incomplete",
     response_quality: "not_usable",
@@ -876,7 +915,11 @@ export async function runItemAdministrationTutor(input: {
   };
 }) {
   const runtimeMode = resolveItemAdministrationTutorRuntimeMode();
-  const fallback = deterministicTutorResult(input);
+  const fallback = deterministicTutorResult({
+    ...input,
+    tutor_mode: runtimeMode.configured_mode,
+    fallback_reason: runtimeMode.resolved_source === "deterministic_mock" ? null : runtimeMode.blocking_reasons.join("; ")
+  });
 
   if (runtimeMode.resolved_source === "deterministic_mock" || (!input.audit_context && itemAdminDeterministicMockAllowed())) {
     return fallback;
@@ -949,7 +992,10 @@ export async function runItemAdministrationTutor(input: {
       }
 
       if (canonicalOutput && validation.ok) {
-        const qualityResult = responseQualityResultFromTutorOutput(canonicalOutput);
+        const qualityResult = responseQualityResultFromTutorOutput(
+          canonicalOutput,
+          detectResponseLanguage(input.text)
+        );
         await prisma.agentCall.update({
           where: { id: agentCall.id },
           data: {
@@ -966,7 +1012,11 @@ export async function runItemAdministrationTutor(input: {
           response_quality_result: qualityResult,
           agent_call_id: agentCall.id,
           live_status: "validated_live",
-          item_admin_tutor_source: "live_llm"
+          item_admin_tutor_source: "live_llm",
+          tutor_mode: runtimeMode.configured_mode,
+          model_name: modelConfig.model_name,
+          fallback_reason: null,
+          detected_response_language: qualityResult.detected_response_language
         });
       }
 
@@ -977,7 +1027,10 @@ export async function runItemAdministrationTutor(input: {
         provider: "mock",
         agent_call_id: agentCall.id,
         live_status: "fallback_after_validation_failure",
-        item_admin_tutor_source: "safe_fallback_after_live_failure"
+        item_admin_tutor_source: "safe_fallback_after_live_failure",
+        tutor_mode: runtimeMode.configured_mode,
+        model_name: modelConfig.model_name,
+        fallback_reason: "live_item_admin_output_failed_effective_validation"
       });
       const fallbackOutput = outputFromTutorResult(fallbackResult);
 
@@ -1009,7 +1062,10 @@ export async function runItemAdministrationTutor(input: {
       provider: "mock",
       agent_call_id: agentCall.id,
       live_status: "fallback_after_provider_failure",
-      item_admin_tutor_source: "safe_fallback_after_live_failure"
+      item_admin_tutor_source: "safe_fallback_after_live_failure",
+      tutor_mode: runtimeMode.configured_mode,
+      model_name: modelConfig.model_name,
+      fallback_reason: providerResult.error?.category ?? providerResult.status
     });
     await prisma.agentCall.update({
       where: { id: agentCall.id },
@@ -1036,7 +1092,10 @@ export async function runItemAdministrationTutor(input: {
       provider: "mock",
       agent_call_id: agentCall.id,
       live_status: "fallback_after_provider_failure",
-      item_admin_tutor_source: "safe_fallback_after_live_failure"
+      item_admin_tutor_source: "safe_fallback_after_live_failure",
+      tutor_mode: runtimeMode.configured_mode,
+      model_name: modelConfig.model_name,
+      fallback_reason: error instanceof Error ? "provider_exception" : "unknown_provider_exception"
     });
     await prisma.agentCall.update({
       where: { id: agentCall.id },

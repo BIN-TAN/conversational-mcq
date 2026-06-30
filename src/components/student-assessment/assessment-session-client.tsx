@@ -38,7 +38,8 @@ import {
 import { useStudentProcessEvents } from "./process-events";
 import {
   buildInitialAdminPrompt,
-  studentIndicatedReasoningUncertainty
+  studentIndicatedReasoningUncertainty,
+  temptingOptionsForSelectedAnswer
 } from "@/lib/student-assessment/initial-admin-prompts";
 
 const MAX_REASONING_LENGTH = 5000;
@@ -92,6 +93,10 @@ function answerOptionsFor(item: StudentSafeItem) {
       text: IDK_OPTION_TEXT
     }
   ];
+}
+
+function temptingOptionsFor(item: Pick<StudentSafeItem, "options">, selectedOption: string | null | undefined) {
+  return temptingOptionsForSelectedAnswer(item, selectedOption);
 }
 
 function displayAnswer(option: string | null | undefined) {
@@ -430,7 +435,7 @@ function TemptingOptionMessage({
     <AgentMessage>
       <p className="font-medium text-ink">{temptingPrompt.prompt_text}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {item.options.map((option) => (
+        {temptingOptionsFor(item, item.existing_selected_option).map((option) => (
           <OptionChip
             disabled={disabled}
             key={option.label}
@@ -684,7 +689,7 @@ function PackageReviewMessage({
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted">Tempting option</p>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {item.options.map((option) => (
+                        {temptingOptionsFor(item, currentDraft.selectedOption).map((option) => (
                           <OptionChip
                             disabled={isBusy}
                             key={option.label}
@@ -916,7 +921,7 @@ function InFlowEditPanel({
           {draft.field === "tempting" ? (
             <div className="grid gap-3">
               <div className="flex flex-wrap gap-2">
-                {item.options.map((option) => (
+                {temptingOptionsFor(item, draft.selectedOption).map((option) => (
                   <OptionChip
                     disabled={isBusy}
                     key={option.label}

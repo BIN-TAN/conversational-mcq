@@ -43,7 +43,8 @@ import {
   buildInitialAdminPrompt,
   formatInitialAdminItemMessage,
   promptAuditPayload,
-  studentIndicatedReasoningUncertainty
+  studentIndicatedReasoningUncertainty,
+  temptingOptionsForSelectedAnswer
 } from "@/lib/student-assessment/initial-admin-prompts";
 import {
   assertStudentPayloadIsSafe,
@@ -550,6 +551,72 @@ function optionLabels(item: Pick<Item, "options">): string[] {
 
 function answerOptionLabels(item: Pick<Item, "options">): string[] {
   return [...optionLabels(item), IDK_OPTION_LABEL];
+}
+
+function normalizedOptionLabel(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.toUpperCase() : null;
+}
+
+function validTemptingOptionLabels(
+  item: Pick<Item, "options">,
+  selectedOption: string | null | undefined
+): string[] {
+  return temptingOptionsForSelectedAnswer(
+    { options: safeOptionEntries(item.options) },
+    selectedOption
+  ).map((option) => option.label);
+}
+
+function sameOptionTemptingMessage(selectedOption: string) {
+  return `You already chose ${selectedOption} as your answer. Was a different option tempting, or should I record that no other option was tempting? You can choose a different option, choose No, or edit your original answer if you meant to change it.`;
+}
+
+async function logSameOptionTemptingRejected(input: {
+  session_db_id: string;
+  concept_unit_session_db_id: string;
+  item_db_id: string;
+  phase: AssessmentPhase;
+  item_public_id: string;
+  selected_option: string;
+  attempted_tempting_option: string;
+  item_context: "initial" | "transfer";
+}) {
+  const now = new Date();
+  const message = sameOptionTemptingMessage(input.selected_option);
+  const payload = {
+    source: "same_option_tempting_rejected",
+    item_public_id: input.item_public_id,
+    selected_option: input.selected_option,
+    attempted_tempting_option: input.attempted_tempting_option,
+    item_context: input.item_context,
+    remediation_options: ["choose_different_option", "record_no", "edit_original_answer"]
+  };
+
+  await logProcessEvent({
+    assessment_session_db_id: input.session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    item_db_id: input.item_db_id,
+    event_type: "same_option_tempting_rejected",
+    event_category: input.item_context === "transfer" ? "transfer_item" : "initial_administration",
+    event_source: "backend",
+    payload,
+    occurred_at: now
+  });
+  await logConversationTurn({
+    assessment_session_db_id: input.session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    item_db_id: input.item_db_id,
+    phase: input.phase,
+    actor_type: "agent",
+    agent_name: input.item_context === "transfer" ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME,
+    message_text: message,
+    structured_payload: {
+      ...payload,
+      message_type: "same_option_tempting_rejected"
+    },
+    created_at: now
+  });
 }
 
 function safeOptionEntries(value: unknown): Array<{ label: string; text: string }> {
@@ -2359,7 +2426,13 @@ async function logResponseQualityResult(input: {
           safety_validated: input.tutor_result.safety_validated,
           agent_call_id: input.tutor_result.agent_call_id ?? null,
           live_status: input.tutor_result.live_status,
-          item_admin_tutor_source: input.tutor_result.item_admin_tutor_source
+          item_admin_tutor_source: input.tutor_result.item_admin_tutor_source,
+          tutor_mode: input.tutor_result.tutor_mode,
+          provider: input.tutor_result.provider,
+          model_name: input.tutor_result.model_name,
+          validation_status: input.tutor_result.validation_status,
+          fallback_reason: input.tutor_result.fallback_reason,
+          detected_response_language: input.tutor_result.detected_response_language
         }
       : undefined,
     ...responseQualityAuditPayload(input.result)
@@ -2452,7 +2525,13 @@ async function logResponseQualityResult(input: {
             deferred_concern_summary: input.tutor_result.deferred_concern_summary,
             agent_call_id: input.tutor_result.agent_call_id ?? null,
             live_status: input.tutor_result.live_status,
-            item_admin_tutor_source: input.tutor_result.item_admin_tutor_source
+            item_admin_tutor_source: input.tutor_result.item_admin_tutor_source,
+            tutor_mode: input.tutor_result.tutor_mode,
+            provider: input.tutor_result.provider,
+            model_name: input.tutor_result.model_name,
+            validation_status: input.tutor_result.validation_status,
+            fallback_reason: input.tutor_result.fallback_reason,
+            detected_response_language: input.tutor_result.detected_response_language
           }
         : undefined
     },
@@ -2519,6 +2598,12 @@ async function logRejectedStudentText(input: {
   item_admin_agent_call_id?: string;
   item_admin_live_status?: string;
   item_admin_tutor_source?: string;
+  item_admin_tutor_mode?: string;
+  item_admin_provider?: string;
+  item_admin_model_name?: string | null;
+  item_admin_validation_status?: string;
+  item_admin_fallback_reason?: string | null;
+  detected_response_language?: string;
 }) {
   await logConversationTurn({
     assessment_session_db_id: input.session_db_id,
@@ -2538,7 +2623,13 @@ async function logRejectedStudentText(input: {
       item_administration_tutor_version: input.tutor_version ?? null,
       item_admin_agent_call_id: input.item_admin_agent_call_id ?? null,
       item_admin_live_status: input.item_admin_live_status ?? null,
-      item_admin_tutor_source: input.item_admin_tutor_source ?? null
+      item_admin_tutor_source: input.item_admin_tutor_source ?? null,
+      item_admin_tutor_mode: input.item_admin_tutor_mode ?? null,
+      item_admin_provider: input.item_admin_provider ?? null,
+      item_admin_model_name: input.item_admin_model_name ?? null,
+      item_admin_validation_status: input.item_admin_validation_status ?? null,
+      item_admin_fallback_reason: input.item_admin_fallback_reason ?? null,
+      detected_response_language: input.detected_response_language ?? null
     }
   });
 }
@@ -2776,7 +2867,13 @@ export async function recordReasoning(input: {
           tutor_version: tutorResult.tutor_version,
           item_admin_agent_call_id: tutorResult.agent_call_id,
           item_admin_live_status: tutorResult.live_status,
-          item_admin_tutor_source: tutorResult.item_admin_tutor_source
+          item_admin_tutor_source: tutorResult.item_admin_tutor_source,
+          item_admin_tutor_mode: tutorResult.tutor_mode,
+          item_admin_provider: tutorResult.provider,
+          item_admin_model_name: tutorResult.model_name,
+          item_admin_validation_status: tutorResult.validation_status,
+          item_admin_fallback_reason: tutorResult.fallback_reason,
+          detected_response_language: tutorResult.detected_response_language
         });
         await logResponseQualityResult({
           session_db_id: context.session.id,
@@ -2867,7 +2964,13 @@ export async function recordReasoning(input: {
           item_administration_tutor_version: tutorResult.tutor_version,
           item_admin_agent_call_id: tutorResult.agent_call_id ?? null,
           item_admin_live_status: tutorResult.live_status,
-          item_admin_tutor_source: tutorResult.item_admin_tutor_source
+          item_admin_tutor_source: tutorResult.item_admin_tutor_source,
+          item_admin_tutor_mode: tutorResult.tutor_mode,
+          item_admin_provider: tutorResult.provider,
+          item_admin_model_name: tutorResult.model_name,
+          item_admin_validation_status: tutorResult.validation_status,
+          item_admin_fallback_reason: tutorResult.fallback_reason,
+          detected_response_language: tutorResult.detected_response_language
         }
       });
       await logProcessEvent({
@@ -2888,7 +2991,13 @@ export async function recordReasoning(input: {
           item_administration_tutor_version: tutorResult.tutor_version,
           item_admin_agent_call_id: tutorResult.agent_call_id ?? null,
           item_admin_live_status: tutorResult.live_status,
-          item_admin_tutor_source: tutorResult.item_admin_tutor_source
+          item_admin_tutor_source: tutorResult.item_admin_tutor_source,
+          item_admin_tutor_mode: tutorResult.tutor_mode,
+          item_admin_provider: tutorResult.provider,
+          item_admin_model_name: tutorResult.model_name,
+          item_admin_validation_status: tutorResult.validation_status,
+          item_admin_fallback_reason: tutorResult.fallback_reason,
+          detected_response_language: tutorResult.detected_response_language
         }
       });
       const confidencePrompt = buildInitialAdminPrompt({
@@ -3098,11 +3207,16 @@ export async function recordTemptingOption(input: {
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id
       });
-      const labels = optionLabels(context.item);
+      const response = await getOrCreateItemResponse({
+        concept_unit_session_db_id: context.conceptUnitSession.id,
+        item: context.item
+      });
+      const selectedAnswer = normalizedOptionLabel(response.selected_option);
+      const labels = validTemptingOptionLabels(context.item, selectedAnswer);
       const noTemptingOption = data.no_tempting_option === true;
       const temptingOption = noTemptingOption
         ? null
-        : data.tempting_option?.trim() || previousEvidence?.tempting_option || null;
+        : normalizedOptionLabel(data.tempting_option) || previousEvidence?.tempting_option || null;
       const initialTemptingOptionReason = noTemptingOption
         ? null
         : data.tempting_option_reason?.trim() || null;
@@ -3128,10 +3242,32 @@ export async function recordTemptingOption(input: {
         );
       }
 
+      if (temptingOption && selectedAnswer && temptingOption === selectedAnswer) {
+        await logSameOptionTemptingRejected({
+          session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          phase: context.session.current_phase,
+          item_public_id: context.item.item_public_id,
+          selected_option: selectedAnswer,
+          attempted_tempting_option: temptingOption,
+          item_context: context.isTransferItem ? "transfer" : "initial"
+        });
+        const result = {
+          action_status: "same_option_tempting_rejected",
+          state: await getStudentSessionState({
+            student_user_db_id: input.student_user_db_id,
+            session_public_id: input.session_public_id
+          })
+        };
+        assertStudentPayloadIsSafe(result);
+        return result;
+      }
+
       if (temptingOption && !labels.includes(temptingOption)) {
         throw new StudentAssessmentServiceError(
           "invalid_option",
-          "Tempting option does not exist for this item.",
+          "Tempting option must be a different A-D option, or choose no tempting option.",
           400,
           { item_public_id: context.item.item_public_id }
         );
@@ -3196,7 +3332,13 @@ export async function recordTemptingOption(input: {
             tutor_version: tutorResult.tutor_version,
             item_admin_agent_call_id: tutorResult.agent_call_id,
             item_admin_live_status: tutorResult.live_status,
-            item_admin_tutor_source: tutorResult.item_admin_tutor_source
+            item_admin_tutor_source: tutorResult.item_admin_tutor_source,
+            item_admin_tutor_mode: tutorResult.tutor_mode,
+            item_admin_provider: tutorResult.provider,
+            item_admin_model_name: tutorResult.model_name,
+            item_admin_validation_status: tutorResult.validation_status,
+            item_admin_fallback_reason: tutorResult.fallback_reason,
+            detected_response_language: tutorResult.detected_response_language
           });
           await logResponseQualityResult({
             session_db_id: context.session.id,
@@ -3265,7 +3407,13 @@ export async function recordTemptingOption(input: {
         item_administration_tutor_version: temptingReasonTutorResult?.tutor_version ?? null,
         item_admin_agent_call_id: temptingReasonTutorResult?.agent_call_id ?? null,
         item_admin_live_status: temptingReasonTutorResult?.live_status ?? null,
-        item_admin_tutor_source: temptingReasonTutorResult?.item_admin_tutor_source ?? null
+        item_admin_tutor_source: temptingReasonTutorResult?.item_admin_tutor_source ?? null,
+        item_admin_tutor_mode: temptingReasonTutorResult?.tutor_mode ?? null,
+        item_admin_provider: temptingReasonTutorResult?.provider ?? null,
+        item_admin_model_name: temptingReasonTutorResult?.model_name ?? null,
+        item_admin_validation_status: temptingReasonTutorResult?.validation_status ?? null,
+        item_admin_fallback_reason: temptingReasonTutorResult?.fallback_reason ?? null,
+        detected_response_language: temptingReasonTutorResult?.detected_response_language ?? null
       };
       const messageText = noTemptingOption
         ? "No other option was tempting."
@@ -3306,17 +3454,18 @@ export async function recordTemptingOption(input: {
             item_administration_tutor_version: temptingReasonTutorResult?.tutor_version ?? null,
             item_admin_agent_call_id: temptingReasonTutorResult?.agent_call_id ?? null,
             item_admin_live_status: temptingReasonTutorResult?.live_status ?? null,
-            item_admin_tutor_source: temptingReasonTutorResult?.item_admin_tutor_source ?? null
+            item_admin_tutor_source: temptingReasonTutorResult?.item_admin_tutor_source ?? null,
+            item_admin_tutor_mode: temptingReasonTutorResult?.tutor_mode ?? null,
+            item_admin_provider: temptingReasonTutorResult?.provider ?? null,
+            item_admin_model_name: temptingReasonTutorResult?.model_name ?? null,
+            item_admin_validation_status: temptingReasonTutorResult?.validation_status ?? null,
+            item_admin_fallback_reason: temptingReasonTutorResult?.fallback_reason ?? null,
+            detected_response_language: temptingReasonTutorResult?.detected_response_language ?? null
           }
         });
       }
 
       const itemComplete = noTemptingOption || Boolean(temptingOptionReason);
-      const response = await getOrCreateItemResponse({
-        concept_unit_session_db_id: context.conceptUnitSession.id,
-        item: context.item
-      });
-
       if (itemComplete) {
         await prisma.itemResponse.update({
           where: { id: response.id },
@@ -3550,15 +3699,16 @@ export async function updatePackageReviewItemResponse(input: {
         );
       }
 
-      const labels = optionLabels(context.item);
       const answerLabels = answerOptionLabels(context.item);
       const noTemptingOption = data.no_tempting_option === true;
-      const temptingOption = noTemptingOption ? null : data.tempting_option?.trim() || null;
+      const selectedOption = normalizedOptionLabel(data.selected_option) ?? data.selected_option;
+      const labels = validTemptingOptionLabels(context.item, selectedOption);
+      const temptingOption = noTemptingOption ? null : normalizedOptionLabel(data.tempting_option) || null;
       const temptingOptionReason = noTemptingOption
         ? null
         : data.tempting_option_reason?.trim() || null;
 
-      if (!answerLabels.includes(data.selected_option)) {
+      if (!answerLabels.includes(selectedOption)) {
         throw new StudentAssessmentServiceError(
           "invalid_option",
           "Selected option does not exist for this item.",
@@ -3578,7 +3728,7 @@ export async function updatePackageReviewItemResponse(input: {
       if (temptingOption && !labels.includes(temptingOption)) {
         throw new StudentAssessmentServiceError(
           "invalid_option",
-          "Tempting option does not exist for this item.",
+          "Tempting option must be a different A-D option, or choose no tempting option.",
           400,
           { item_public_id: context.item.item_public_id }
         );
@@ -3616,7 +3766,7 @@ export async function updatePackageReviewItemResponse(input: {
       const changedFields: string[] = [];
       const reasoningText = data.reasoning_text.trim();
 
-      if (response.selected_option !== data.selected_option) {
+      if (response.selected_option !== selectedOption) {
         changedFields.push("answer");
       }
 
@@ -3640,7 +3790,7 @@ export async function updatePackageReviewItemResponse(input: {
       const structuredPayload = {
         source: "package_review_tempting_option",
         item_public_id: context.item.item_public_id,
-        selected_option: data.selected_option,
+        selected_option: selectedOption,
         reasoning_length: reasoningText.length,
         confidence_rating: data.confidence_rating,
         no_tempting_option: noTemptingOption,
@@ -3652,8 +3802,8 @@ export async function updatePackageReviewItemResponse(input: {
       await prisma.itemResponse.update({
         where: { id: response.id },
         data: {
-          selected_option: data.selected_option,
-          correctness: correctnessFor(data.selected_option, response.correct_option_snapshot),
+          selected_option: selectedOption,
+          correctness: correctnessFor(selectedOption, response.correct_option_snapshot),
           reasoning_text: reasoningText,
           confidence_rating: data.confidence_rating,
           skipped_item: false,
@@ -3823,13 +3973,13 @@ export async function updateInFlowItemResponse(input: {
       }
 
       const answerLabels = answerOptionLabels(context.item);
-      const temptingLabels = optionLabels(context.item);
       const previousTemptingEvidence = await getLatestTemptingOptionEvidence({
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id
       });
       const changedFields: string[] = [];
-      const nextSelectedOption = data.selected_option ?? response.selected_option;
+      const nextSelectedOption = normalizedOptionLabel(data.selected_option) ?? response.selected_option;
+      const temptingLabels = validTemptingOptionLabels(context.item, nextSelectedOption);
       const nextReasoning =
         data.reasoning_text !== undefined ? data.reasoning_text.trim() : response.reasoning_text;
       const nextConfidence = data.confidence_rating ?? response.confidence_rating;
@@ -3840,7 +3990,7 @@ export async function updateInFlowItemResponse(input: {
       const nextTemptingOption = nextNoTemptingOption
         ? null
         : data.tempting_option !== undefined
-          ? data.tempting_option?.trim() || null
+          ? normalizedOptionLabel(data.tempting_option)
           : previousTemptingEvidence?.tempting_option ?? null;
       const nextTemptingReason = nextNoTemptingOption
         ? null
@@ -3860,7 +4010,7 @@ export async function updateInFlowItemResponse(input: {
       if (nextTemptingOption && !temptingLabels.includes(nextTemptingOption)) {
         throw new StudentAssessmentServiceError(
           "invalid_option",
-          "Tempting option does not exist for this item.",
+          "Tempting option must be a different A-D option, or choose no tempting option.",
           400,
           { item_public_id: context.item.item_public_id }
         );

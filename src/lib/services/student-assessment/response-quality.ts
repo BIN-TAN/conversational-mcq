@@ -63,21 +63,25 @@ export type ResponseQualityResult = {
   provider: "mock" | "openai";
   prompt_hash: string;
   schema_version: typeof RESPONSE_QUALITY_SCHEMA_VERSION;
+  detected_response_language: DetectedResponseLanguage;
 };
 
 export const RESPONSE_QUALITY_SCHEMA_VERSION = "chat-native-response-quality-v1";
 export const RESPONSE_QUALITY_PROMPT_VERSION = "chat-native-response-quality-v1";
+export type DetectedResponseLanguage = "english" | "chinese" | "mixed" | "unclear";
 
 const RESPONSE_QUALITY_INSTRUCTIONS = `
 Evaluate only whether the student's latest free-text response is usable for the current app-owned assessment step.
 The application owns state transitions. Do not provide correctness, hints, answer keys, distractor rationales, or internal labels.
 Return only the required JSON schema.
 
-Initial item rules:
-- adequate or weak but usable reasoning may advance;
-- too short, incomplete, off-topic, or gibberish responses should not advance;
-- content help or answer requests before the first three-item package should be deferred;
-- edit requests should be identified without changing state.
+	Initial item rules:
+	- adequate or weak but usable reasoning may advance;
+	- too short, incomplete, off-topic, or gibberish responses should not advance;
+	- content help or answer requests before the first three-item package should be deferred;
+	- edit requests should be identified without changing state.
+	- Students may reason in English, Chinese, or mixed English-Chinese. Do not classify meaningful multilingual text as gibberish solely because it is not English.
+	- If multilingual meaning is unclear, ask for clarification without requiring translation.
 
 Formative/revision rules:
 - unusable, off-topic, or gibberish text should not be praised and should not advance;
@@ -110,6 +114,25 @@ function normalized(text: string) {
   return text.trim().replace(/\s+/g, " ");
 }
 
+export function detectResponseLanguage(text: string): DetectedResponseLanguage {
+  const hasChinese = /[\u3400-\u9fff]/u.test(text);
+  const hasEnglish = /[A-Za-z]/.test(text);
+
+  if (hasChinese && hasEnglish) {
+    return "mixed";
+  }
+
+  if (hasChinese) {
+    return "chinese";
+  }
+
+  if (hasEnglish) {
+    return "english";
+  }
+
+  return "unclear";
+}
+
 function wordCount(text: string) {
   return normalized(text).split(" ").filter(Boolean).length;
 }
@@ -120,24 +143,30 @@ function isEditRequest(lower: string) {
 }
 
 function asksForAnswer(lower: string) {
-  return /\b(correct answer|what is correct|which one is right|tell me the answer|answer key)\b/.test(lower);
+  return /\b(correct answer|what is correct|which one is right|tell me the answer|answer key)\b/.test(lower) ||
+    /(正确答案|答案是什么|哪个.*(正确|对)|哪一个.*(正确|对))/.test(lower);
 }
 
 function asksQuestion(lower: string) {
-  return lower.includes("?") || /\b(can you|what does|how do i|what should i|explain|clarify)\b/.test(lower);
+  return lower.includes("?") ||
+    lower.includes("？") ||
+    /\b(can you|what does|how do i|what should i|explain|clarify)\b/.test(lower) ||
+    /(什么|怎么|如何|解释|可以|能不能)/.test(lower);
 }
 
 function isContentQuestion(lower: string) {
   return (
     asksForAnswer(lower) ||
     (asksQuestion(lower) &&
-      /\b(theta|ability|difficulty|discrimination|parameter|irt|icc|information|slope|correct|answer)\b/.test(lower))
+      (/\b(theta|ability|difficulty|discrimination|parameter|irt|icc|information|slope|correct|answer)\b/.test(lower) ||
+        /(能力|难度|区分度|参数|题目参数|项目参数|斜率|信息|正确|答案|量表|估计)/.test(lower)))
   );
 }
 
 function isProceduralQuestion(lower: string) {
   return asksQuestion(lower) &&
-    /\b(type|write|choose|click|select|do i need|how many|what should i do|format)\b/.test(lower) &&
+    (/\b(type|write|choose|click|select|do i need|how many|what should i do|format)\b/.test(lower) ||
+      /(可以写中文|写几句|怎么写|格式|选择|点击)/.test(lower)) &&
     !isContentQuestion(lower);
 }
 
@@ -146,14 +175,20 @@ function isOffTopic(lower: string) {
 }
 
 function isInsufficientKnowledgeStatement(lower: string) {
-  return UNKNOWN_REASON_PATTERNS.some((pattern) => pattern.test(lower));
+  return UNKNOWN_REASON_PATTERNS.some((pattern) => pattern.test(lower)) ||
+    /(不知道|不清楚|不确定|没想法|不会解释|没有理由)/.test(lower);
 }
 
 function isGibberish(text: string) {
   const lower = text.toLowerCase().trim();
   const compact = lower.replace(/[^a-z]/g, "");
+  const compactHan = text.replace(/[^\u3400-\u9fff]/gu, "");
 
   if (compact.length >= 4 && /^([a-z])\1{3,}$/.test(compact)) {
+    return true;
+  }
+
+  if (compactHan.length >= 4 && /^([\u3400-\u9fff])\1{3,}$/u.test(compactHan)) {
     return true;
   }
 
@@ -175,6 +210,10 @@ function isGibberish(text: string) {
 
   const vowelCount = (compact.match(/[aeiou]/g) ?? []).length;
   return compact.length >= 8 && vowelCount / Math.max(1, compact.length) < 0.15;
+}
+
+function hasMultilingualReasoningSignal(text: string) {
+  return /(theta|irt|item|parameter|ability|difficulty|discrimination|scale|estimate|person|题目|项目|参数|能力|难度|区分度|量表|估计|人|学生|因为|所以|表示|属于|不变|比较)/i.test(text);
 }
 
 function stageIsInitial(stage: ResponseQualityStage) {
@@ -224,7 +263,12 @@ export function deterministicResponseQuality(input: {
 }): ResponseQualityOutput {
   const text = normalized(input.text);
   const lower = text.toLowerCase();
+  const detectedLanguage = detectResponseLanguage(text);
   const words = wordCount(text);
+  const multilingualMeaningful =
+    (detectedLanguage === "chinese" || detectedLanguage === "mixed") &&
+    hasMultilingualReasoningSignal(text) &&
+    text.length >= 8;
   let quality: z.infer<typeof ResponseQualitySchema> = "adequate";
   let reasoningSignal: z.infer<typeof ResponseQualityReasoningSignalSchema> = "usable";
   let engagementSignal: z.infer<typeof ResponseQualityEngagementSignalSchema> = "active";
@@ -252,6 +296,10 @@ export function deterministicResponseQuality(input: {
     quality = "off_topic";
     reasoningSignal = "not_usable";
     engagementSignal = "disengaged";
+  } else if (multilingualMeaningful) {
+    quality = text.length >= 18 ? "adequate" : "incomplete";
+    reasoningSignal = text.length >= 18 ? "usable" : "weak_but_usable";
+    engagementSignal = "active";
   } else if (isGibberish(text)) {
     quality = "gibberish";
     reasoningSignal = "not_usable";
@@ -287,11 +335,16 @@ export function deterministicResponseQuality(input: {
     reasoning_signal: reasoningSignal,
     student_facing_message: shouldAdvance
       ? "Thanks."
-      : repairPrompt({
-          stage: input.stage,
-          selected_option: input.selected_option,
-          quality
-        }),
+      : detectedLanguage !== "english" &&
+          detectedLanguage !== "unclear" &&
+          quality !== "content_question" &&
+          quality !== "answer_request"
+        ? "I may not have understood that clearly. Could you explain it another way?"
+        : repairPrompt({
+            stage: input.stage,
+            selected_option: input.selected_option,
+            quality
+          }),
     next_expected_action: nextExpectedAction
   };
 }
@@ -344,6 +397,7 @@ export async function evaluateResponseQuality(input: {
   item_stem?: string | null;
 }): Promise<ResponseQualityResult> {
   const fallback = deterministicResponseQuality(input);
+  const detectedLanguage = detectResponseLanguage(input.text);
 
   try {
     const runtime = getLlmRuntimeConfig();
@@ -355,7 +409,8 @@ export async function evaluateResponseQuality(input: {
         validation_status: "deterministic",
         provider: "mock",
         prompt_hash: RESPONSE_QUALITY_PROMPT_HASH,
-        schema_version: RESPONSE_QUALITY_SCHEMA_VERSION
+        schema_version: RESPONSE_QUALITY_SCHEMA_VERSION,
+        detected_response_language: detectedLanguage
       };
     }
 
@@ -389,7 +444,8 @@ export async function evaluateResponseQuality(input: {
           validation_status: "validated",
           provider: providerResult.provider,
           prompt_hash: RESPONSE_QUALITY_PROMPT_HASH,
-          schema_version: RESPONSE_QUALITY_SCHEMA_VERSION
+          schema_version: RESPONSE_QUALITY_SCHEMA_VERSION,
+          detected_response_language: detectedLanguage
         };
       }
     }
@@ -403,7 +459,8 @@ export async function evaluateResponseQuality(input: {
     validation_status: "fallback_after_provider_failure",
     provider: "mock",
     prompt_hash: RESPONSE_QUALITY_PROMPT_HASH,
-    schema_version: RESPONSE_QUALITY_SCHEMA_VERSION
+    schema_version: RESPONSE_QUALITY_SCHEMA_VERSION,
+    detected_response_language: detectedLanguage
   };
 }
 
@@ -428,6 +485,7 @@ export function responseQualityAuditPayload(result: ResponseQualityResult): Reco
     source: result.source,
     provider: result.provider,
     prompt_hash: result.prompt_hash,
-    schema_version: result.schema_version
+    schema_version: result.schema_version,
+    detected_response_language: result.detected_response_language
   }) as Record<string, unknown>;
 }

@@ -29,8 +29,15 @@ import {
   submitChatNativeFormativeActivityResponse
 } from "../src/lib/services/student-assessment/formative-profile";
 import { buildStudentConversationFrame } from "../src/lib/student-assessment-ui/presenter";
-import { buildInitialAdminPrompt } from "../src/lib/student-assessment/initial-admin-prompts";
+import {
+  buildInitialAdminPrompt,
+  temptingOptionsForSelectedAnswer
+} from "../src/lib/student-assessment/initial-admin-prompts";
 import { resolveItemAdministrationTutorRuntimeMode } from "../src/lib/services/student-assessment/item-administration-tutor";
+import {
+  detectResponseLanguage,
+  deterministicResponseQuality
+} from "../src/lib/services/student-assessment/response-quality";
 
 const prisma = new PrismaClient();
 
@@ -83,6 +90,56 @@ function assertInitialPromptVariation() {
     [...prompts, reasoningPrompt].every((prompt) => !/correct answer|answer key|structured output|agent call/i.test(prompt)),
     "Initial prompts should not expose protected or internal language."
   );
+
+  const selectedDTemptingPrompt = buildInitialAdminPrompt({
+    kind: "tempting_option_prompt",
+    assessmentState: "AWAIT_TEMPTING_OPTION",
+    itemPublicId: "synthetic_item_tempting_d",
+    itemOrder: 1,
+    itemRole: "initial",
+    selectedOption: "D"
+  }).prompt_text;
+  assert(/different option/i.test(selectedDTemptingPrompt), "Tempting prompt should ask for a different option.");
+
+  const selectedETemptingPrompt = buildInitialAdminPrompt({
+    kind: "tempting_option_prompt",
+    assessmentState: "AWAIT_TEMPTING_OPTION",
+    itemPublicId: "synthetic_item_tempting_e",
+    itemOrder: 1,
+    itemRole: "initial",
+    selectedOption: "E"
+  }).prompt_text;
+  assert(/A-D option/.test(selectedETemptingPrompt), "E-selected tempting prompt should ask only about A-D options.");
+}
+
+function assertMultilingualResponseQuality() {
+  const chineseReason = deterministicResponseQuality({
+    stage: "initial_item_reasoning",
+    text: "我选择C，因为theta表示人的能力，题目参数属于题目。",
+    selected_option: "C"
+  });
+  assert(detectResponseLanguage("我选择C，因为theta表示人的能力。") === "mixed", "Mixed Chinese-English detection failed.");
+  assert(chineseReason.should_advance, "Meaningful Chinese or mixed reasoning should advance.");
+  assert(
+    chineseReason.response_quality === "adequate" || chineseReason.response_quality === "incomplete",
+    "Meaningful multilingual reasoning should not be treated as gibberish."
+  );
+
+  const contentQuestion = deterministicResponseQuality({
+    stage: "initial_item_reasoning",
+    text: "theta是什么？",
+    selected_option: "C"
+  });
+  assert(!contentQuestion.should_advance, "Chinese content question should not advance.");
+  assert(contentQuestion.response_quality === "content_question", "Chinese content question should be classified.");
+
+  const gibberish = deterministicResponseQuality({
+    stage: "initial_item_reasoning",
+    text: "啊啊啊啊",
+    selected_option: "C"
+  });
+  assert(!gibberish.should_advance, "Repeated non-English gibberish should not advance.");
+  assert(gibberish.response_quality === "gibberish", "Repeated Chinese character should be classified as gibberish.");
 }
 
 function withTemporaryEnv(values: Record<string, string | undefined>, callback: () => void) {
@@ -181,6 +238,7 @@ async function main() {
 
   await assertStudentComponentQualityShape();
   assertInitialPromptVariation();
+  assertMultilingualResponseQuality();
   assertItemAdminRuntimeModeResolution();
   await ensureDemoStudentAssessment(prisma);
 
@@ -208,6 +266,9 @@ async function main() {
     assert(firstItem, "Expected first item.");
     assert(state.assessment_state === "AWAIT_ANSWER", "Initial state should await the first answer.");
     assert(!state.learning_profile, "Learning profile must be hidden during Q1 answer collection.");
+    const temptingAfterE = temptingOptionsForSelectedAnswer(firstItem, "E").map((option) => option.label);
+    assert(!temptingAfterE.includes("E"), "E must never be offered as a tempting option.");
+    assert(temptingAfterE.length >= 2, "Selecting E should still allow plausible A-D tempting options.");
 
     state = (
       await recordSelectedOption({
@@ -405,6 +466,30 @@ async function main() {
         }
       })
     ).state;
+    const secondTemptingOptions = temptingOptionsForSelectedAnswer(
+      secondItem,
+      secondSelectedOption
+    ).map((option) => option.label);
+    assert(
+      !secondTemptingOptions.includes(secondSelectedOption),
+      "Tempting option choices should exclude the already selected answer."
+    );
+    assert(!secondTemptingOptions.includes("E"), "Tempting option choices should exclude E.");
+    state = (
+      await recordTemptingOption({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        item_public_id: secondItem.item_public_id,
+        data: {
+          tempting_option: secondSelectedOption,
+          client_action_id: `${prefix}_item2_same_tempting_rejected`
+        }
+      })
+    ).state;
+    assert(
+      state.assessment_state === "AWAIT_TEMPTING_OPTION",
+      "Selecting the same option as tempting should be rejected without advancing."
+    );
     state = (
       await recordTemptingOption({
         student_user_db_id: student.id,
@@ -553,12 +638,17 @@ async function main() {
     assert((counts.response_quality_rejected ?? 0) >= 3, "response_quality_rejected events missing.");
     assert((counts.repeated_invalid_response ?? 0) > 0, "Repeated invalid response event missing.");
     assert((counts.insufficient_knowledge_marked ?? 0) > 0, "Insufficient knowledge event missing.");
+    assert((counts.same_option_tempting_rejected ?? 0) > 0, "Same-option tempting rejection event missing.");
     assert((counts.student_response_edit_submitted ?? 0) > 0, "In-flow edit event missing.");
     assert((counts.reasoning_edited ?? 0) > 0, "Reasoning edit event missing.");
     assert((counts.clarification_answered ?? 0) > 0, "Clarification event missing.");
     assert(
       JSON.stringify(events.map((event) => event.payload)).includes('"item_admin_tutor_source":"deterministic_mock"'),
       "Item administration tutor source should be recorded in process-event evidence."
+    );
+    assert(
+      JSON.stringify(events.map((event) => event.payload)).includes('"detected_response_language"'),
+      "Detected response language should be recorded in response-quality audit evidence."
     );
 
     const transcript = await getStudentSafeTranscript({

@@ -151,6 +151,7 @@ export const processEventTypes = [
   "confidence_selected",
   "tempting_option_submitted",
   "tempting_option_reason_submitted",
+  "same_option_tempting_rejected",
   "item_completed",
   "package_review_opened",
   "package_submitted",

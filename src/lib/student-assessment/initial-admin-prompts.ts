@@ -66,17 +66,20 @@ const ANSWER_PROMPTS = [
 ];
 
 const REASONING_PROMPTS = [
-  "What led you to choose {option}? Please explain your reasoning with as much detail as you can.",
-  "Why did {option} seem best to you? Try to include detail about the idea or part of the question that shaped your choice.",
-  "Give your reason for choosing {option}. The more detail you provide, the more useful my feedback can be.",
+  "What led you to choose {option}? Please explain your reasoning with as much detail as you can. You can use English, Chinese, or a mix of both.",
+  "Why did {option} seem best to you? Try to include detail about the idea or part of the question that shaped your choice. English, Chinese, or both are okay.",
+  "Give your reason for choosing {option}. The more detail you provide, the more useful my feedback can be. You can explain in English, Chinese, or a mix.",
   "One or two sentences is enough, but include the detail that mattered most. Why did {option} seem best?"
 ];
 
 const TEMPTING_PROMPTS = [
-  "Was there another option you almost chose? If yes, which one, and why?",
-  "Did any other option seem plausible? You can name it, explain briefly, or say No.",
-  "Was another option tempting? What made it tempting?"
+  "Was a different option tempting? If yes, which one, and what made it tempting? You can also say No.",
+  "Was a different option tempting, or should I record that no other option was tempting?",
+  "Did a different option seem plausible? If yes, which one, and what made it seem possible? You can also say No."
 ];
+
+const IDK_TEMPTING_PROMPT =
+  "Did any A-D option seem plausible? If yes, which one, and what made it seem possible? You can also say No.";
 
 const TEMPTING_REASON_PROMPTS = [
   "What made that option seem tempting?",
@@ -201,9 +204,14 @@ export function buildInitialAdminPrompt(input: {
       promptVariant = "confidence_standard";
     }
   } else if (input.kind === "tempting_option_prompt") {
-    const index = deterministicIndex(seed, TEMPTING_PROMPTS.length);
-    promptText = TEMPTING_PROMPTS[index] ?? TEMPTING_PROMPTS[0];
-    promptVariant = `tempting_${index + 1}`;
+    if (selectedE) {
+      promptText = IDK_TEMPTING_PROMPT;
+      promptVariant = "tempting_selected_e";
+    } else {
+      const index = deterministicIndex(seed, TEMPTING_PROMPTS.length);
+      promptText = TEMPTING_PROMPTS[index] ?? TEMPTING_PROMPTS[0];
+      promptVariant = `tempting_${index + 1}`;
+    }
   } else if (input.kind === "tempting_reason_prompt") {
     const index = deterministicIndex(seed, TEMPTING_REASON_PROMPTS.length);
     promptText = TEMPTING_REASON_PROMPTS[index] ?? TEMPTING_REASON_PROMPTS[0];
@@ -279,6 +287,18 @@ export function answerOptionsWithUncertainty(item: PromptItem) {
       text: IDK_OPTION_TEXT
     }
   ];
+}
+
+export function temptingOptionsForSelectedAnswer(
+  item: Pick<PromptItem, "options">,
+  selectedOption: string | null | undefined
+) {
+  const selected = selectedOption?.trim().toUpperCase() ?? null;
+
+  return item.options.filter((option) => {
+    const label = option.label.trim().toUpperCase();
+    return label !== IDK_OPTION_LABEL && label !== selected;
+  });
 }
 
 export function formatInitialAdminItemMessage(input: {

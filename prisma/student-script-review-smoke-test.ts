@@ -147,6 +147,32 @@ const scenarios: Scenario[] = [
     expected_nonadvancing_attempts: 0
   },
   {
+    name: "multilingual_chinese_reasoning",
+    first_reason_attempts: ["我选择这个，因为theta表示人的能力，题目参数属于题目。"],
+    expected_nonadvancing_attempts: 0
+  },
+  {
+    name: "mixed_language_reasoning",
+    first_reason_attempts: ["Theta是人的能力位置，difficulty是题目参数，所以我选这个。"],
+    expected_nonadvancing_attempts: 0
+  },
+  {
+    name: "multilingual_content_question",
+    first_reason_attempts: [
+      "theta是什么？",
+      "我不知道原因。"
+    ],
+    expected_nonadvancing_attempts: 1
+  },
+  {
+    name: "non_english_gibberish_then_repair",
+    first_reason_attempts: [
+      "啊啊啊啊",
+      "我选择这个，因为theta表示人的能力，题目参数描述题目。"
+    ],
+    expected_nonadvancing_attempts: 1
+  },
+  {
     name: "tempting_reason_content_question",
     first_reason_attempts: ["The item parameter wording makes B sound plausible."],
     expected_nonadvancing_attempts: 0
