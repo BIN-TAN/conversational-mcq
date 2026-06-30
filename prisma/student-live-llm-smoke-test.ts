@@ -19,6 +19,7 @@ import {
   submitNextChoice,
   submitRevisionResponse
 } from "../src/lib/services/student-assessment/service";
+import { submitStudentFollowupMessage } from "../src/lib/agents/followup/service";
 import {
   demoAssessmentPublicId,
   ensureDemoStudentAssessment
@@ -35,7 +36,8 @@ import {
   sanitizedAuditSummary
 } from "./student-live-llm-diagnostics";
 import { writeLiveLlmSmokeFailureArtifact } from "./student-live-llm-failure-artifacts";
-import type { StudentSessionState } from "../src/lib/student-assessment-ui/types";
+import { advanceLiveSmokeFormativeLoop } from "./student-live-llm-loop";
+import { StudentSessionStateSchema } from "../src/lib/student-assessment-ui/types";
 
 const envLoadResult = loadEnvConfig(process.cwd());
 const prisma = new PrismaClient();
@@ -127,63 +129,6 @@ function liveSmokeReadiness() {
   }
 }
 
-async function advanceFormativeLoopToNextChoice(input: {
-  studentDbId: string;
-  sessionPublicId: string;
-  prefix: string;
-  state: StudentSessionState;
-}) {
-  let state = input.state;
-  const formativeMessages = [
-    "Theta is the person estimate on the linked scale. Difficulty describes where an item is located.",
-    "Theta belongs to the person, while difficulty and discrimination are item features that affect item behavior.",
-    "I don't know yet."
-  ];
-  const revisionMessages = [
-    "Theta is about the student on the linked latent trait scale, while item parameters describe item behavior.",
-    "The person's theta can be compared on the linked scale, and item parameters explain how each item functions.",
-    "I don't know the reason yet."
-  ];
-
-  for (let turnIndex = 0; turnIndex < 6; turnIndex += 1) {
-    if (state.assessment_state === "NEXT_CHOICE") {
-      return state;
-    }
-
-    if (state.assessment_state === "FORMATIVE_ACTIVITY") {
-      const response = await submitFormativeActivityResponse({
-        student_user_db_id: input.studentDbId,
-        session_public_id: input.sessionPublicId,
-        message: formativeMessages[Math.min(turnIndex, formativeMessages.length - 1)],
-        client_message_id: `${input.prefix}_activity_${turnIndex + 1}`
-      });
-      state = response.state;
-      assertStudentVisibleTextIsSafe(state);
-      continue;
-    }
-
-    if (
-      state.assessment_state === "REVISION" ||
-      state.assessment_state === "FOLLOWUP_RESPONSE" ||
-      state.assessment_state === "TARGETED_FEEDBACK"
-    ) {
-      const revision = await submitRevisionResponse({
-        student_user_db_id: input.studentDbId,
-        session_public_id: input.sessionPublicId,
-        message: revisionMessages[Math.min(turnIndex, revisionMessages.length - 1)],
-        client_message_id: `${input.prefix}_revision_${turnIndex + 1}`
-      });
-      state = revision.state;
-      assertStudentVisibleTextIsSafe(state);
-      continue;
-    }
-
-    throw new Error(`Unexpected formative loop state: ${state.assessment_state}.`);
-  }
-
-  throw new Error(`Expected next choice after formative loop, got ${state.assessment_state}.`);
-}
-
 async function main() {
   if (process.env.RUN_LIVE_LLM_SMOKE !== "1") {
     console.log(
@@ -272,12 +217,39 @@ async function main() {
     assertStudentVisibleTextIsSafe(completedInitial.state);
 
     failureStage = "targeted_feedback_loop";
-    const nextChoiceState = await advanceFormativeLoopToNextChoice({
-      studentDbId: student.id,
-      sessionPublicId: started.session.session_public_id,
+    const loopResult = await advanceLiveSmokeFormativeLoop({
       prefix,
-      state: completedInitial.state
+      state: completedInitial.state,
+      submit_formative_activity_response: async (submission) => {
+        const response = await submitFormativeActivityResponse({
+          student_user_db_id: student.id,
+          session_public_id: started.session.session_public_id,
+          message: submission.message,
+          client_message_id: submission.client_message_id
+        });
+        return response.state;
+      },
+      submit_followup_response: async (submission) => {
+        const response = await submitStudentFollowupMessage({
+          student_user_db_id: student.id,
+          session_public_id: started.session.session_public_id,
+          message: submission.message,
+          client_message_id: submission.client_message_id
+        });
+        return StudentSessionStateSchema.parse(response.state);
+      },
+      submit_revision_response: async (submission) => {
+        const response = await submitRevisionResponse({
+          student_user_db_id: student.id,
+          session_public_id: started.session.session_public_id,
+          message: submission.message,
+          client_message_id: submission.client_message_id
+        });
+        return response.state;
+      },
+      assert_student_visible_text_safe: assertStudentVisibleTextIsSafe
     });
+    const nextChoiceState = loopResult.state;
     assert(nextChoiceState.assessment_state === "NEXT_CHOICE", "Expected next choice after formative loop.");
 
     failureStage = "session_completion";
@@ -315,11 +287,12 @@ async function main() {
         call.agent_name === "formative_value_and_planning_agent" &&
         call.schema_version === "chat-native-formative-profile-output-v1"
     );
-    const targetedCall = auditCalls.find(
+    const targetedCalls = auditCalls.filter(
       (call) =>
         call.agent_name === "followup_agent" &&
         call.schema_version === "chat-native-formative-activity-evaluation-output-v1"
     );
+    const targetedCall = targetedCalls[0];
     assert(profileCall, `Missing formative profile agent call.\n${JSON.stringify(auditContext, null, 2)}`);
     assert(targetedCall, `Missing targeted feedback agent call.\n${JSON.stringify(auditContext, null, 2)}`);
 
@@ -329,12 +302,14 @@ async function main() {
       schema: ChatNativeFormativeProfileOutputSchema,
       audit_context: auditContext
     });
-    assertLiveAgentCallIsAudited({
-      label: "targeted feedback",
-      call: targetedCall,
-      schema: ChatNativeTargetedFeedbackOutputSchema,
-      audit_context: auditContext
-    });
+    for (const [index, call] of targetedCalls.entries()) {
+      assertLiveAgentCallIsAudited({
+        label: `targeted feedback ${index + 1}`,
+        call,
+        schema: ChatNativeTargetedFeedbackOutputSchema,
+        audit_context: auditContext
+      });
+    }
 
     const transcript = await getStudentSafeTranscript({
       student_user_db_id: student.id,

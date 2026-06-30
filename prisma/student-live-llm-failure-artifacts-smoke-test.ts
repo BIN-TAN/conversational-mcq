@@ -191,7 +191,25 @@ async function main() {
       409,
       {
         agent_call_id: agentCall.id,
-        validation_status: "blocked_after_validation_failure"
+        validation_status: "blocked_after_validation_failure",
+        failure_stage: "formative_loop_state_mismatch",
+        expected_states: ["NEXT_CHOICE"],
+        actual_state: "FOLLOWUP_RESPONSE",
+        last_action_attempted: "submit_followup_response",
+        allowed_actions: ["submit_followup_response"],
+        current_phase: "followup_active",
+        effective_phase: "followup_active",
+        next_step: "followup_active",
+        loop_turns: 6,
+        loop_history: [
+          {
+            turn_index: 0,
+            from_state: "FOLLOWUP_RESPONSE",
+            action: "submit_followup_response",
+            to_state: "FOLLOWUP_RESPONSE",
+            next_step: "followup_active"
+          }
+        ]
       }
     );
     const built = await buildLiveLlmSmokeFailureArtifact({
@@ -229,6 +247,18 @@ async function main() {
     assert(
       artifactText.includes("req_failure_artifact_smoke") === false,
       "Failure artifact should not expose provider request IDs."
+    );
+    assert(
+      artifactText.includes("\"actual_state\": \"FOLLOWUP_RESPONSE\""),
+      "Failure artifact should preserve safe actual-state details."
+    );
+    assert(
+      artifactText.includes("\"expected_states\""),
+      "Failure artifact should preserve safe expected-state details."
+    );
+    assert(
+      artifactText.includes("\"last_action_attempted\": \"submit_followup_response\""),
+      "Failure artifact should preserve the safe last attempted action."
     );
 
     const byAgentCall = await findLiveLlmFailureArtifact({ agentCallId: agentCall.id });

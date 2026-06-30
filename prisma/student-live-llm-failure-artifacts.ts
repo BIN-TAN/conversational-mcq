@@ -251,7 +251,68 @@ function errorSummary(error: unknown) {
     message: safeDiagnosticText(error instanceof Error ? error.message : String(error)),
     agent_call_id: stringValue(details?.agent_call_id),
     validation_status: stringValue(details?.validation_status),
-    details_keys: details ? Object.keys(details).sort() : []
+    details_keys: details ? Object.keys(details).sort() : [],
+    safe_details: safeErrorDetails(details)
+  };
+}
+
+function safeStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value
+        .map((entry) => safeDiagnosticText(entry))
+        .filter((entry): entry is string => Boolean(entry))
+        .slice(0, 20)
+    : [];
+}
+
+function safeLoopHistory(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const entryRecord = record(entry);
+
+      if (!entryRecord) {
+        return null;
+      }
+
+      return {
+        turn_index:
+          typeof entryRecord.turn_index === "number" ? entryRecord.turn_index : null,
+        from_state: stringValue(entryRecord.from_state),
+        action: stringValue(entryRecord.action),
+        to_state: stringValue(entryRecord.to_state),
+        next_step: stringValue(entryRecord.next_step)
+      };
+    })
+    .filter((entry): entry is {
+      turn_index: number | null;
+      from_state: string | null;
+      action: string | null;
+      to_state: string | null;
+      next_step: string | null;
+    } => Boolean(entry))
+    .slice(0, 12);
+}
+
+function safeErrorDetails(details: UnknownRecord | null) {
+  if (!details) {
+    return {};
+  }
+
+  return {
+    failure_stage: stringValue(details.failure_stage),
+    expected_states: safeStringArray(details.expected_states),
+    actual_state: stringValue(details.actual_state),
+    last_action_attempted: stringValue(details.last_action_attempted),
+    allowed_actions: safeStringArray(details.allowed_actions),
+    current_phase: stringValue(details.current_phase),
+    effective_phase: stringValue(details.effective_phase),
+    next_step: stringValue(details.next_step),
+    loop_turns: typeof details.loop_turns === "number" ? details.loop_turns : null,
+    loop_history: safeLoopHistory(details.loop_history)
   };
 }
 
