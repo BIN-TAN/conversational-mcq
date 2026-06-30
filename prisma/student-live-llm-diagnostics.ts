@@ -41,6 +41,21 @@ function objectKeys(value: unknown) {
   return record(value) ? Object.keys(value as Record<string, unknown>).sort() : [];
 }
 
+function hasStudentFacingMessage(value: unknown): boolean {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((entry) => hasStudentFacingMessage(entry));
+  }
+
+  return Object.entries(value as Record<string, unknown>).some(([key, entry]) =>
+    key.toLowerCase().includes("student_facing") ||
+    hasStudentFacingMessage(entry)
+  );
+}
+
 function safeDiagnosticText(value: string | null | undefined) {
   if (!value) {
     return null;
@@ -101,6 +116,8 @@ export function sanitizedAuditSummary(call: LiveAuditCall) {
     validation_error_present: Boolean(call.validation_error),
     validation_error_message: safeDiagnosticText(call.validation_error),
     validation_issue_paths: validationIssuePaths(call.validation_error),
+    output_payload_keys: objectKeys(call.output_payload),
+    student_visible_message_present: hasStudentFacingMessage(call.output_payload),
     error_category: call.error_category,
     sanitized_error_category: typeof error?.category === "string" ? error.category : null,
     sanitized_error_type: typeof error?.type === "string" ? error.type : null,

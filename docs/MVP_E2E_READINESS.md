@@ -169,6 +169,14 @@ targeted_output_validated = true
 
 If either live formative output is invalid or unsafe, the runtime fails closed: the student's progress remains saved, no invalid formative activity or targeted feedback is shown, and the student sees the temporary unavailable message. Do not treat deterministic fallback output as a successful live formative result.
 
+For a retained failed `agent_calls` row, use the sanitized diagnostic command:
+
+```bash
+npm run student:live-llm-audit-diagnose -- --agent-call-id <agent_call_id>
+```
+
+The command prints only safe audit fields such as call status, schema version, validation issue paths, output payload keys, provider-metadata presence, and token-usage presence. It must not print prompts, raw model output, API keys, headers, or full student text.
+
 Do not record API keys, raw provider payloads, raw model outputs, hidden prompts, answer keys, or full student text in pilot notes.
 
 The live smoke should not run in ordinary local verification or CI. The default development path remains mock/fallback.

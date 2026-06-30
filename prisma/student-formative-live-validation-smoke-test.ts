@@ -5,7 +5,8 @@ import {
   getStudentSessionState,
   startConceptUnitInitialAdministration,
   startOrResumeStudentAssessmentSession,
-  submitFormativeActivityResponse
+  submitFormativeActivityResponse,
+  submitRevisionResponse
 } from "../src/lib/services/student-assessment/service";
 import {
   withChatNativeFormativeProviderForTest,
@@ -86,6 +87,35 @@ const validTargetedOutput: ChatNativeFormativeActivityEvaluationOutput = {
   }
 };
 
+function targetedOutputForAction(
+  nextAction: ChatNativeFormativeActivityEvaluationOutput["formative_activity_evaluation"]["next_action"]
+): ChatNativeFormativeActivityEvaluationOutput {
+  const ready = nextAction === "confirm_and_next_choice" || nextAction === "offer_transfer";
+
+  return {
+    learning_profile: {
+      ...validTargetedOutput.learning_profile,
+      concept_mastery: ready ? "strong" : "partial",
+      transfer_readiness: ready ? "ready" : "not_ready"
+    },
+    engagement_profile: validTargetedOutput.engagement_profile,
+    formative_activity_evaluation: {
+      ...validTargetedOutput.formative_activity_evaluation,
+      next_action: nextAction,
+      student_facing_feedback:
+        nextAction === "confirm_and_next_choice"
+          ? "That revision now separates the person estimate from item features clearly enough to choose your next step."
+          : "You are moving toward the distinction. Add one clearer sentence about which part belongs to the item.",
+      student_facing_next_prompt:
+        nextAction === "provide_scaffold"
+          ? "Try one sentence using this frame: theta describes the person, while item parameters describe the item."
+          : nextAction === "ask_revision"
+            ? "Revise one more sentence to explain why theta can stay comparable across linked forms."
+            : "Choose whether to move on or try another question on the same idea."
+    }
+  };
+}
+
 function withTemporaryEnv<T>(values: Record<string, string | undefined>, callback: () => Promise<T>) {
   const previous = Object.fromEntries(
     Object.keys(values).map((key) => [key, process.env[key]])
@@ -146,27 +176,83 @@ function simulatedLiveRuntimeEnv() {
 class SyntheticFormativeProvider implements LlmProvider {
   constructor(
     private readonly outputs: {
-      profile: "valid" | "invalid";
-      targeted?: "valid" | "invalid";
+      profile: "valid" | "invalid" | "canonicalizable";
+      targeted?: "valid" | "invalid" | "heading" | "iterative";
     }
   ) {}
+
+  private targetedCallCount = 0;
 
   async executeStructured<TInput, TOutput>(
     request: StructuredAgentRequest<TInput, TOutput>
   ): Promise<StructuredAgentResult<TOutput>> {
     const isProfile = request.agent_name === "formative_value_and_planning_agent";
     const mode = isProfile ? this.outputs.profile : this.outputs.targeted ?? "valid";
-    const parsedOutput = mode === "valid"
-      ? (isProfile ? validProfileOutput : validTargetedOutput)
-      : (isProfile
-          ? {
-              provisional_learning_state: "Missing required fields in this synthetic invalid output."
+    const parsedOutput = (() => {
+      if (mode === "valid") {
+        return isProfile ? validProfileOutput : validTargetedOutput;
+      }
+
+      if (mode === "canonicalizable" && isProfile) {
+        return {
+          provisional_learning_profile:
+            "Still developing: You are separating person estimates from item features, but the contrast needs clearer wording.",
+          main_issue:
+            "Needs attention: make the item-versus-person distinction explicit.",
+          formative_need: "diagnostic feedback",
+          matched_activity: "distractor contrast",
+          evidence_used: [
+            "Three protected initial item responses",
+            "Reasoning text",
+            "Confidence evidence"
+          ],
+          confidence_calibration_flag: false,
+          answer_reasoning_alignment:
+            "The answer choices and reasoning are partly aligned.",
+          student_facing_profile_statement:
+            "Still developing: you have part of the theta idea in place.",
+          student_facing_next_prompt:
+            "Explain which value describes the person and which describes the item.",
+          should_reveal_correct_answer: false,
+          next_expected_action: "respond to activity",
+          student_facing_learning_profile: {
+            status: "Developing"
+          }
+        };
+      }
+
+      if (mode === "heading" && !isProfile) {
+        return {
+          ...validTargetedOutput,
+          formative_activity_evaluation: {
+            ...validTargetedOutput.formative_activity_evaluation,
+            student_facing_feedback:
+              "What you did well: you named theta, but this visible heading should be rejected."
+          }
+        };
+      }
+
+      if (mode === "iterative" && !isProfile) {
+        this.targetedCallCount += 1;
+        return targetedOutputForAction(
+          this.targetedCallCount === 1
+            ? "provide_scaffold"
+            : this.targetedCallCount === 2
+              ? "ask_revision"
+              : "confirm_and_next_choice"
+        );
+      }
+
+      return isProfile
+        ? {
+            provisional_learning_state: "Missing required fields in this synthetic invalid output."
+          }
+        : {
+            learning_profile: {
+              concept_mastery: "partial"
             }
-          : {
-              learning_profile: {
-                concept_mastery: "partial"
-              }
-            });
+          };
+    })();
 
     return {
       provider: "openai",
@@ -318,6 +404,64 @@ async function assertInvalidProfileBlocks() {
   }
 }
 
+async function assertCanonicalizableProfileLabelsValidate() {
+  const prefix = `formative_canonical_profile_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const { student, sessionPublicIds, started, state } = await createPackageReviewSession(prefix);
+
+  try {
+    const completed = await withTemporaryEnv(simulatedLiveRuntimeEnv(), async () =>
+      withChatNativeFormativeProviderForTest(
+        new SyntheticFormativeProvider({ profile: "canonicalizable", targeted: "valid" }),
+        async () => completeInitialConceptUnitAdministration({
+          student_user_db_id: student.id,
+          session_public_id: started.session.session_public_id,
+          concept_unit_public_id: state.current_concept_unit?.concept_unit_public_id ?? ""
+        })
+      )
+    );
+    assert(completed.state.assessment_state === "FORMATIVE_ACTIVITY", "Canonicalized live profile should show activity.");
+    assert(completed.state.learning_profile, "Canonicalized live profile should produce one student-facing status.");
+    assert(
+      ["Mostly understood", "Still developing", "Needs more work"].includes(completed.state.learning_profile.status),
+      "Student-facing learning profile should use one approved status."
+    );
+
+    const session = await prisma.assessmentSession.findUniqueOrThrow({
+      where: { session_public_id: started.session.session_public_id },
+      select: { id: true }
+    });
+    const profileCall = await prisma.agentCall.findFirstOrThrow({
+      where: {
+        assessment_session_db_id: session.id,
+        agent_name: "formative_value_and_planning_agent"
+      },
+      select: {
+        call_status: true,
+        output_validated: true,
+        output_payload: true
+      }
+    });
+    assert(profileCall.call_status === "succeeded", "Canonicalizable profile should be audited as succeeded.");
+    assert(profileCall.output_validated === true, "Canonicalizable profile should validate.");
+    const payload = profileCall.output_payload as Record<string, unknown>;
+    assert(payload.provisional_learning_state !== undefined, "Profile alias should map to provisional_learning_state.");
+    assert(payload.formative_need === "diagnosis_and_feedback", "Diagnostic feedback should canonicalize.");
+    assert(payload.matched_activity === "key_distractor_contrast", "Distractor contrast should canonicalize.");
+    assert(payload.next_expected_action === "respond_to_formative_activity", "Next action should canonicalize.");
+    assert(
+      typeof payload.student_facing_pattern_statement === "string" &&
+        !/^Still developing:/i.test(payload.student_facing_pattern_statement),
+      "Visible heading prefix should be removed from the persisted student-facing pattern."
+    );
+  } finally {
+    await cleanupSmokeStudentSessions({
+      prisma,
+      userDbId: student.id,
+      sessionPublicIds
+    });
+  }
+}
+
 async function assertValidProfileAndTargetedFeedbackSucceed() {
   const prefix = `formative_valid_live_${Date.now()}_${randomUUID().slice(0, 8)}`;
   const { student, sessionPublicIds, started, state } = await createPackageReviewSession(prefix);
@@ -374,6 +518,74 @@ async function assertValidProfileAndTargetedFeedbackSucceed() {
         `${call.agent_name} should persist provider metadata.`
       );
     }
+  } finally {
+    await cleanupSmokeStudentSessions({
+      prisma,
+      userDbId: student.id,
+      sessionPublicIds
+    });
+  }
+}
+
+async function assertRigidTargetedFeedbackHeadingBlocks() {
+  const prefix = `formative_heading_targeted_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const { student, sessionPublicIds, started, state } = await createPackageReviewSession(prefix);
+
+  try {
+    await withTemporaryEnv(simulatedLiveRuntimeEnv(), async () =>
+      withChatNativeFormativeProviderForTest(
+        new SyntheticFormativeProvider({ profile: "valid", targeted: "heading" }),
+        async () => {
+          const completed = await completeInitialConceptUnitAdministration({
+            student_user_db_id: student.id,
+            session_public_id: started.session.session_public_id,
+            concept_unit_public_id: state.current_concept_unit?.concept_unit_public_id ?? ""
+          });
+          assert(completed.state.assessment_state === "FORMATIVE_ACTIVITY", "Valid profile should show activity before heading block.");
+
+          try {
+            await submitFormativeActivityResponse({
+              student_user_db_id: student.id,
+              session_public_id: started.session.session_public_id,
+              message: "Theta describes the person, while item difficulty describes the item.",
+              client_message_id: `${prefix}_activity_response`
+            });
+          } catch (error) {
+            assert(
+              error instanceof Error && error.message === tutorUnavailableMessage,
+              "Rigid heading targeted feedback should return the safe unavailable message."
+            );
+            return;
+          }
+
+          throw new Error("Rigid heading targeted feedback should block progression.");
+        }
+      )
+    );
+
+    const session = await prisma.assessmentSession.findUniqueOrThrow({
+      where: { session_public_id: started.session.session_public_id },
+      select: { id: true }
+    });
+    const invalidCall = await prisma.agentCall.findFirstOrThrow({
+      where: {
+        assessment_session_db_id: session.id,
+        agent_name: "followup_agent",
+        schema_version: "chat-native-formative-activity-evaluation-output-v1"
+      },
+      select: {
+        call_status: true,
+        output_validated: true,
+        validation_error: true
+      }
+    });
+    assert(invalidCall.call_status === "invalid_output", "Heading targeted feedback should be invalid_output.");
+    assert(invalidCall.output_validated === false, "Heading targeted feedback should not validate.");
+    assert(
+      typeof invalidCall.validation_error === "string" &&
+        invalidCall.validation_error.includes("rigid visible heading"),
+      "Heading rejection should be diagnosed safely."
+    );
   } finally {
     await cleanupSmokeStudentSessions({
       prisma,
@@ -484,14 +696,101 @@ async function assertInvalidTargetedFeedbackBlocks() {
   }
 }
 
+async function assertIterativeFormativeLoopReachesNextChoice() {
+  const prefix = `formative_iterative_loop_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const { student, sessionPublicIds, started, state } = await createPackageReviewSession(prefix);
+
+  try {
+    await withTemporaryEnv(simulatedLiveRuntimeEnv(), async () =>
+      withChatNativeFormativeProviderForTest(
+        new SyntheticFormativeProvider({ profile: "valid", targeted: "iterative" }),
+        async () => {
+          const completed = await completeInitialConceptUnitAdministration({
+            student_user_db_id: student.id,
+            session_public_id: started.session.session_public_id,
+            concept_unit_public_id: state.current_concept_unit?.concept_unit_public_id ?? ""
+          });
+          assert(completed.state.assessment_state === "FORMATIVE_ACTIVITY", "Valid profile should show activity.");
+
+          const activity = await submitFormativeActivityResponse({
+            student_user_db_id: student.id,
+            session_public_id: started.session.session_public_id,
+            message: "Theta describes the person, while item difficulty describes the item.",
+            client_message_id: `${prefix}_activity_response`
+          });
+          assert(
+            activity.state.assessment_state === "REVISION",
+            "First iterative targeted output should request a scaffold/revision."
+          );
+
+          const firstRevision = await submitRevisionResponse({
+            student_user_db_id: student.id,
+            session_public_id: started.session.session_public_id,
+            message:
+              "Theta is the person estimate; item parameters describe item behavior.",
+            client_message_id: `${prefix}_revision_1`
+          });
+          assert(
+            firstRevision.state.assessment_state === "REVISION" ||
+              firstRevision.state.assessment_state === "FOLLOWUP_RESPONSE",
+            "Second iterative targeted output should keep the formative loop open."
+          );
+
+          const secondRevision = await submitRevisionResponse({
+            student_user_db_id: student.id,
+            session_public_id: started.session.session_public_id,
+            message:
+              "Theta stays on the linked person scale, while item difficulty and discrimination describe how each item functions.",
+            client_message_id: `${prefix}_revision_2`
+          });
+          assert(
+            secondRevision.state.assessment_state === "NEXT_CHOICE",
+            "Third iterative targeted output should reach next choice."
+          );
+        }
+      )
+    );
+
+    const session = await prisma.assessmentSession.findUniqueOrThrow({
+      where: { session_public_id: started.session.session_public_id },
+      select: { id: true }
+    });
+    const targetedCalls = await prisma.agentCall.findMany({
+      where: {
+        assessment_session_db_id: session.id,
+        agent_name: "followup_agent",
+        schema_version: "chat-native-formative-activity-evaluation-output-v1"
+      },
+      select: {
+        call_status: true,
+        output_validated: true
+      }
+    });
+    assert(targetedCalls.length === 3, "Iterative loop should create three targeted-feedback evaluations.");
+    assert(
+      targetedCalls.every((call) => call.call_status === "succeeded" && call.output_validated),
+      "Every iterative targeted-feedback call should validate."
+    );
+  } finally {
+    await cleanupSmokeStudentSessions({
+      prisma,
+      userDbId: student.id,
+      sessionPublicIds
+    });
+  }
+}
+
 async function main() {
   process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "true";
   process.env.OPERATIONAL_AGENT_MODE = "disabled";
   await ensureDemoStudentAssessment(prisma);
 
   await assertValidProfileAndTargetedFeedbackSucceed();
+  await assertCanonicalizableProfileLabelsValidate();
   await assertInvalidProfileBlocks();
   await assertInvalidTargetedFeedbackBlocks();
+  await assertRigidTargetedFeedbackHeadingBlocks();
+  await assertIterativeFormativeLoopReachesNextChoice();
 
   console.log("Student formative live-validation smoke passed. No OpenAI call was made.");
 }

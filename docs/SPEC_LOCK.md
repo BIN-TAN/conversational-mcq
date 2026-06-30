@@ -67,6 +67,7 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - Live response-package profiling and targeted-feedback calls are successful only when the provider call completes, structured output validates, student-facing safety checks pass, provider metadata is stored, and token usage is stored.
 - Invalid or unsafe live formative profile or targeted-feedback output must fail closed: preserve student progress, log a sanitized `llm_runtime_blocked` event, show the temporary unavailable message, and avoid creating or showing formative activity or targeted feedback from invalid live output.
 - Deterministic formative fallback remains valid for mock, test, disabled, or explicit fallback paths, but it must not be counted as a successful live formative profile or targeted-feedback result.
+- Live formative output validation may canonicalize clearly equivalent labels or known field aliases before strict schema validation, but it must not accept unsafe, ambiguous, or student-visible internal labels. Rigid visible headings such as "What you did well:", "Reasoning detail:", "Earlier:", "Current focus:", or "Still developing:" must not appear in student-facing formative feedback.
 
 ## Phase 8A Guarded Operational Integration
 

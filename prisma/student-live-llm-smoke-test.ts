@@ -34,6 +34,7 @@ import {
   assertLiveAgentCallIsAudited,
   sanitizedAuditSummary
 } from "./student-live-llm-diagnostics";
+import type { StudentSessionState } from "../src/lib/student-assessment-ui/types";
 
 const envLoadResult = loadEnvConfig(process.cwd());
 const prisma = new PrismaClient();
@@ -125,6 +126,63 @@ function liveSmokeReadiness() {
   }
 }
 
+async function advanceFormativeLoopToNextChoice(input: {
+  studentDbId: string;
+  sessionPublicId: string;
+  prefix: string;
+  state: StudentSessionState;
+}) {
+  let state = input.state;
+  const formativeMessages = [
+    "Theta is the person estimate on the linked scale. Difficulty describes where an item is located.",
+    "Theta belongs to the person, while difficulty and discrimination are item features that affect item behavior.",
+    "I don't know yet."
+  ];
+  const revisionMessages = [
+    "Theta is about the student on the linked latent trait scale, while item parameters describe item behavior.",
+    "The person's theta can be compared on the linked scale, and item parameters explain how each item functions.",
+    "I don't know the reason yet."
+  ];
+
+  for (let turnIndex = 0; turnIndex < 6; turnIndex += 1) {
+    if (state.assessment_state === "NEXT_CHOICE") {
+      return state;
+    }
+
+    if (state.assessment_state === "FORMATIVE_ACTIVITY") {
+      const response = await submitFormativeActivityResponse({
+        student_user_db_id: input.studentDbId,
+        session_public_id: input.sessionPublicId,
+        message: formativeMessages[Math.min(turnIndex, formativeMessages.length - 1)],
+        client_message_id: `${input.prefix}_activity_${turnIndex + 1}`
+      });
+      state = response.state;
+      assertStudentVisibleTextIsSafe(state);
+      continue;
+    }
+
+    if (
+      state.assessment_state === "REVISION" ||
+      state.assessment_state === "FOLLOWUP_RESPONSE" ||
+      state.assessment_state === "TARGETED_FEEDBACK"
+    ) {
+      const revision = await submitRevisionResponse({
+        student_user_db_id: input.studentDbId,
+        session_public_id: input.sessionPublicId,
+        message: revisionMessages[Math.min(turnIndex, revisionMessages.length - 1)],
+        client_message_id: `${input.prefix}_revision_${turnIndex + 1}`
+      });
+      state = revision.state;
+      assertStudentVisibleTextIsSafe(state);
+      continue;
+    }
+
+    throw new Error(`Unexpected formative loop state: ${state.assessment_state}.`);
+  }
+
+  throw new Error(`Expected next choice after formative loop, got ${state.assessment_state}.`);
+}
+
 async function main() {
   if (process.env.RUN_LIVE_LLM_SMOKE !== "1") {
     console.log(
@@ -206,29 +264,13 @@ async function main() {
     assert(completedInitial.state.assessment_state === "FORMATIVE_ACTIVITY", "Expected formative activity.");
     assertStudentVisibleTextIsSafe(completedInitial.state);
 
-    const activity = await submitFormativeActivityResponse({
-      student_user_db_id: student.id,
-      session_public_id: started.session.session_public_id,
-      message:
-        "Theta is the person estimate on the linked scale. Difficulty describes where an item is located.",
-      client_message_id: `${prefix}_activity`
+    const nextChoiceState = await advanceFormativeLoopToNextChoice({
+      studentDbId: student.id,
+      sessionPublicId: started.session.session_public_id,
+      prefix,
+      state: completedInitial.state
     });
-    assert(
-      activity.state.assessment_state === "REVISION" || activity.state.assessment_state === "NEXT_CHOICE",
-      "Expected revision or next choice after live formative activity evaluation."
-    );
-    assertStudentVisibleTextIsSafe(activity.state);
-
-    if (activity.state.assessment_state === "REVISION") {
-      const revision = await submitRevisionResponse({
-        student_user_db_id: student.id,
-        session_public_id: started.session.session_public_id,
-        message:
-          "Theta is about the student on the linked latent trait scale, while item parameters describe item behavior.",
-        client_message_id: `${prefix}_revision`
-      });
-      assert(revision.state.assessment_state === "NEXT_CHOICE", "Expected next choice after revision.");
-    }
+    assert(nextChoiceState.assessment_state === "NEXT_CHOICE", "Expected next choice after formative loop.");
 
     const choice = await submitNextChoice({
       student_user_db_id: student.id,

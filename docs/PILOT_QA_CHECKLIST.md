@@ -101,6 +101,12 @@ targeted_output_validated = true
 
 If the live smoke reports `invalid_output`, `failed`, or `output_validated = false` for the formative profile or targeted feedback call, stop the pilot-readiness check and use the sanitized diagnostics. The runtime should preserve student progress and show the temporary unavailable message rather than continuing with invalid live output.
 
+If the failure details include an `agent_call_id`, inspect only sanitized fields:
+
+```bash
+npm run student:live-llm-audit-diagnose -- --agent-call-id <agent_call_id>
+```
+
 ## Student Flow Checklist
 
 - Student can log in and reach `/student/assessment`.

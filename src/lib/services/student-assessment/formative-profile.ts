@@ -141,11 +141,20 @@ The application owns state transitions and persistence.
 Student-facing text must:
 - be short and conversational;
 - speak directly to the student using you and your;
-- briefly name what the student did well, what still seems developing, whether more reasoning detail would help, and what the next activity is trying to support;
+- briefly summarize the useful starting point, what still needs work, and what the next activity is trying to support;
 - mention any deferred concern from the initial package only in safe summary form when it supports the next activity;
 - avoid internal labels such as response profile, formative need, metadata, structured output, system prompt, or answer key;
+- avoid visible template headings such as "What you did well:", "Reasoning detail:", "Earlier:", "Current focus:", or "Still developing:";
 - not dump the full answer key;
 - focus on one activity the student can answer next.
+
+Use only these enum labels:
+- formative_need: diagnosis, feedback, scaffolding, confidence_calibration, scaffolding_and_feedback, diagnosis_and_feedback
+- matched_activity: confirmation_or_extension, confidence_calibration, scaffolded_reasoning, key_distractor_contrast, distractor_justification, distractor_diagnosis, distractor_repair, answer_reasoning_alignment, guided_elimination
+- next_expected_action: respond_to_formative_activity
+
+Do not include a separate student-facing status object. The application will compute the single visible status.
+Set should_reveal_correct_answer to false.
 
 Use the required JSON schema only.
 `;
@@ -162,6 +171,7 @@ Student-facing text must:
 - ask for exactly one next prompt when a revision, clarification, or scaffold is needed;
 - avoid the sentence "Please revise your answer, reasoning, or confidence based on this feedback.";
 - avoid internal labels such as response profile, formative need, metadata, structured output, agent call, system prompt, or answer key;
+- avoid visible template headings such as "What you did well:", "Reasoning detail:", "Earlier:", "Current focus:", or "Still developing:";
 - not dump the full answer key;
 - not restart the answer/reason/confidence/tempting-option cycle.
 
@@ -238,6 +248,165 @@ function validationErrorSummary(input: {
     category: input.category,
     issues: input.issues
   });
+}
+
+function normalizeLabel(value: unknown) {
+  return typeof value === "string"
+    ? value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ")
+    : null;
+}
+
+function canonicalLabel<T extends string>(
+  value: unknown,
+  aliases: Record<string, T>
+) {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  return aliases[normalizeLabel(value) ?? ""] ?? value;
+}
+
+const FORMATIVE_NEED_ALIASES: Record<string, z.infer<typeof FormativeNeedSchema>> = {
+  "diagnostic feedback": "diagnosis_and_feedback",
+  "diagnostic and feedback": "diagnosis_and_feedback",
+  "diagnosis and feedback": "diagnosis_and_feedback",
+  "diagnostic clarification": "diagnosis",
+  "diagnostic": "diagnosis",
+  "reasoning refinement": "scaffolding_and_feedback",
+  "reasoning scaffolding": "scaffolding_and_feedback",
+  "scaffolded reasoning": "scaffolding",
+  "needs attention": "scaffolding_and_feedback",
+  "developing": "scaffolding_and_feedback",
+  "confidence calibration": "confidence_calibration",
+  "feedback only": "feedback"
+};
+
+const MATCHED_ACTIVITY_ALIASES: Record<string, z.infer<typeof MatchedActivitySchema>> = {
+  "distractor contrast": "key_distractor_contrast",
+  "key distractor comparison": "key_distractor_contrast",
+  "diagnostic clarification": "distractor_diagnosis",
+  "diagnostic": "distractor_diagnosis",
+  "reasoning refinement": "scaffolded_reasoning",
+  "reasoning scaffolding": "scaffolded_reasoning",
+  "developing": "scaffolded_reasoning",
+  "needs attention": "scaffolded_reasoning",
+  "confidence calibration": "confidence_calibration",
+  "consolidation transfer": "confirmation_or_extension",
+  "consolidation or transfer": "confirmation_or_extension"
+};
+
+const NEXT_EXPECTED_ACTION_ALIASES: Record<string, z.infer<typeof NextExpectedActionSchema>> = {
+  "respond to activity": "respond_to_formative_activity",
+  "respond to matched activity": "respond_to_formative_activity",
+  "respond to formative followup": "respond_to_formative_activity",
+  "respond to formative follow up": "respond_to_formative_activity",
+  "complete formative activity": "respond_to_formative_activity"
+};
+
+const TARGETED_NEXT_ACTION_ALIASES: Record<string, z.infer<typeof FormativeActivityNextActionSchema>> = {
+  "next choice": "confirm_and_next_choice",
+  "choose next step": "confirm_and_next_choice",
+  "ready for next choice": "confirm_and_next_choice",
+  "revise": "ask_revision",
+  "revision": "ask_revision",
+  "ask for revision": "ask_revision",
+  "scaffold": "provide_scaffold",
+  "scaffolding": "provide_scaffold",
+  "clarify": "clarify_question",
+  "clarification": "clarify_question",
+  "transfer": "offer_transfer"
+};
+
+const RIGID_VISIBLE_HEADING_PATTERN =
+  /\b(?:What you did well|Still developing|Reasoning detail|Earlier|Current focus)\s*:/i;
+
+function removeRigidVisibleHeadingPrefix(value: string) {
+  return value.replace(
+    /^\s*(?:What you did well|Still developing|Reasoning detail|Earlier|Current focus)\s*:\s*/i,
+    ""
+  );
+}
+
+function canonicalizeFormativeProfileOutput(value: unknown) {
+  const source = jsonRecord(value);
+
+  if (Object.keys(source).length === 0) {
+    return value;
+  }
+
+  let usedAlias = false;
+  const output: Record<string, unknown> = { ...source };
+  const alias = (target: string, ...candidates: string[]) => {
+    if (output[target] !== undefined) {
+      return;
+    }
+
+    for (const candidate of candidates) {
+      if (source[candidate] !== undefined) {
+        output[target] = source[candidate];
+        usedAlias = true;
+        return;
+      }
+    }
+  };
+
+  alias("provisional_learning_state", "provisional_learning_profile", "learning_state");
+  alias("student_facing_pattern_statement", "student_facing_profile_statement", "student_pattern_statement");
+  alias("student_facing_followup_prompt", "student_facing_next_prompt", "student_facing_activity_prompt", "followup_prompt");
+
+  output.formative_need = canonicalLabel(output.formative_need, FORMATIVE_NEED_ALIASES);
+  output.matched_activity = canonicalLabel(output.matched_activity, MATCHED_ACTIVITY_ALIASES);
+  output.next_expected_action = canonicalLabel(output.next_expected_action, NEXT_EXPECTED_ACTION_ALIASES);
+
+  if (typeof output.student_facing_pattern_statement === "string") {
+    output.student_facing_pattern_statement = removeRigidVisibleHeadingPrefix(
+      output.student_facing_pattern_statement
+    );
+  }
+
+  if (!usedAlias) {
+    return output;
+  }
+
+  return {
+    provisional_learning_state: output.provisional_learning_state,
+    main_issue: output.main_issue,
+    formative_need: output.formative_need,
+    matched_activity: output.matched_activity,
+    evidence_used: output.evidence_used,
+    confidence_calibration_flag: output.confidence_calibration_flag,
+    answer_reasoning_alignment: output.answer_reasoning_alignment,
+    student_facing_pattern_statement: output.student_facing_pattern_statement,
+    student_facing_followup_prompt: output.student_facing_followup_prompt,
+    should_reveal_correct_answer: output.should_reveal_correct_answer,
+    next_expected_action: output.next_expected_action
+  };
+}
+
+function canonicalizeTargetedFeedbackOutput(value: unknown) {
+  const output = jsonRecord(value);
+
+  if (Object.keys(output).length === 0) {
+    return value;
+  }
+
+  const evaluation = jsonRecord(output.formative_activity_evaluation);
+
+  if (Object.keys(evaluation).length === 0) {
+    return output;
+  }
+
+  return {
+    ...output,
+    formative_activity_evaluation: {
+      ...evaluation,
+      next_action: canonicalLabel(
+        evaluation.next_action,
+        TARGETED_NEXT_ACTION_ALIASES
+      )
+    }
+  };
 }
 
 export function chatNativeProviderAuditUpdate(
@@ -545,7 +714,7 @@ function studentFacingPhrase(value: unknown) {
     return "";
   }
 
-  return value.trim().replace(/\s+/g, " ")
+  return removeRigidVisibleHeadingPrefix(value).trim().replace(/\s+/g, " ")
     .replace(/\bThe student needs to\b/gi, "You may need to")
     .replace(/\bThe student needs\b/gi, "You may need")
     .replace(/\bThe student asked\b/gi, "You asked")
@@ -1195,6 +1364,10 @@ function validateStudentFacingOutput(input: {
     issues.push("student-facing text is too long for chat");
   }
 
+  if (RIGID_VISIBLE_HEADING_PATTERN.test(visibleText)) {
+    issues.push("student-facing text includes rigid visible heading labels");
+  }
+
   const uniqueCorrectOptions = [...new Set(input.correct_options)];
   const mentionedCorrectOptions = uniqueCorrectOptions.filter((option) =>
     new RegExp(`\\b${option.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(visibleText)
@@ -1247,6 +1420,10 @@ function validateTargetedFeedbackOutput(input: {
     lower.includes("please revise your answer, reasoning, or confidence based on this feedback")
   ) {
     issues.push("revision prompt uses the prohibited generic revision sentence");
+  }
+
+  if (RIGID_VISIBLE_HEADING_PATTERN.test(visibleText)) {
+    issues.push("targeted feedback includes rigid visible heading labels");
   }
 
   if (visibleText.length > 900) {
@@ -1601,7 +1778,8 @@ async function callProviderOrMock(input: {
   let validationCategory: "schema_validation" | "student_facing_validation" = "schema_validation";
 
   if (providerResult.status === "completed") {
-    const parsed = ChatNativeFormativeProfileOutputSchema.safeParse(providerResult.parsed_output);
+    const normalizedOutput = canonicalizeFormativeProfileOutput(providerResult.parsed_output);
+    const parsed = ChatNativeFormativeProfileOutputSchema.safeParse(normalizedOutput);
     const validation = parsed.success
       ? validateStudentFacingOutput({ output: parsed.data, correct_options: input.correct_options })
       : { ok: false, issues: validationIssueSummaries(parsed.error.issues) };
@@ -1844,7 +2022,8 @@ async function callTargetedFeedbackProviderOrMock(input: {
   let validationCategory: "schema_validation" | "student_facing_validation" = "schema_validation";
 
   if (providerResult.status === "completed") {
-    const parsed = ChatNativeTargetedFeedbackOutputSchema.safeParse(providerResult.parsed_output);
+    const normalizedOutput = canonicalizeTargetedFeedbackOutput(providerResult.parsed_output);
+    const parsed = ChatNativeTargetedFeedbackOutputSchema.safeParse(normalizedOutput);
     const validation = parsed.success
       ? validateTargetedFeedbackOutput({ output: parsed.data, correct_options: input.correct_options })
       : { ok: false, issues: validationIssueSummaries(parsed.error.issues) };

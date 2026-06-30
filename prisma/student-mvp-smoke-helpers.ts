@@ -155,17 +155,32 @@ export async function completeInitialItem(input: {
       }
     })
   ).state;
-  state = (
-    await recordReasoning({
-      student_user_db_id: input.studentDbId,
-      session_public_id: input.sessionPublicId,
-      item_public_id: item.item_public_id,
-      data: {
-        reasoning_text: `Initial item ${input.itemIndex} reasoning compares theta with item parameters.`,
-        client_action_id: `${input.prefix}_initial${input.itemIndex}_reason`
-      }
-    })
-  ).state;
+  const reasoningAttempts = [
+    `Initial item ${input.itemIndex} reasoning compares theta with item parameters.`,
+    "Theta is the person's location on the trait scale, while item parameters describe features of the item, so I am separating person and item quantities.",
+    "I don't know the reason yet."
+  ];
+  for (const [attemptIndex, reasoningText] of reasoningAttempts.entries()) {
+    state = (
+      await recordReasoning({
+        student_user_db_id: input.studentDbId,
+        session_public_id: input.sessionPublicId,
+        item_public_id: item.item_public_id,
+        data: {
+          reasoning_text: reasoningText,
+          client_action_id: `${input.prefix}_initial${input.itemIndex}_reason_${attemptIndex + 1}`
+        }
+      })
+    ).state;
+
+    if (state.assessment_state !== "AWAIT_REASON") {
+      break;
+    }
+  }
+  assert(
+    state.assessment_state === "AWAIT_CONFIDENCE",
+    `Initial item ${input.itemIndex} reasoning should advance to confidence or accepted uncertainty.`
+  );
   state = (
     await recordConfidence({
       student_user_db_id: input.studentDbId,
@@ -193,17 +208,32 @@ export async function completeInitialItem(input: {
         }
       })
     ).state;
-    state = (
-      await recordTemptingOption({
-        student_user_db_id: input.studentDbId,
-        session_public_id: input.sessionPublicId,
-        item_public_id: item.item_public_id,
-        data: {
-          tempting_option_reason: "It used similar language about item parameters.",
-          client_action_id: `${input.prefix}_initial${input.itemIndex}_tempting_reason`
-        }
-      })
-    ).state;
+    const temptingReasonAttempts = [
+      "It used similar language about item parameters.",
+      "It seemed plausible because it also mentioned item parameters, but I was unsure whether it separated item features from theta.",
+      "I don't know why it was tempting yet."
+    ];
+    for (const [attemptIndex, temptingReason] of temptingReasonAttempts.entries()) {
+      state = (
+        await recordTemptingOption({
+          student_user_db_id: input.studentDbId,
+          session_public_id: input.sessionPublicId,
+          item_public_id: item.item_public_id,
+          data: {
+            tempting_option_reason: temptingReason,
+            client_action_id: `${input.prefix}_initial${input.itemIndex}_tempting_reason_${attemptIndex + 1}`
+          }
+        })
+      ).state;
+
+      if (state.assessment_state !== "AWAIT_TEMPTING_REASON") {
+        break;
+      }
+    }
+    assert(
+      state.assessment_state !== "AWAIT_TEMPTING_REASON",
+      `Initial item ${input.itemIndex} tempting reason should advance or accept uncertainty.`
+    );
   } else {
     state = (
       await recordTemptingOption({
@@ -259,6 +289,20 @@ export async function completeTransferItem(input: {
       }
     })
   ).state;
+  if (state.assessment_state === "AWAIT_REASON") {
+    state = (
+      await recordReasoning({
+        student_user_db_id: input.studentDbId,
+        session_public_id: input.sessionPublicId,
+        item_public_id: transferItem.item_public_id,
+        data: {
+          reasoning_text:
+            "Theta stays on the linked person scale, while item parameters describe how a particular item behaves.",
+          client_action_id: `${input.prefix}_transfer_reason_repair`
+        }
+      })
+    ).state;
+  }
   assert(state.assessment_state === "AWAIT_CONFIDENCE", "Transfer reason should advance to confidence.");
 
   state = (
@@ -304,6 +348,20 @@ export async function completeTransferItem(input: {
       }
     })
   ).state;
+  if (state.assessment_state === "AWAIT_TEMPTING_REASON") {
+    state = (
+      await recordTemptingOption({
+        student_user_db_id: input.studentDbId,
+        session_public_id: input.sessionPublicId,
+        item_public_id: transferItem.item_public_id,
+        data: {
+          tempting_option_reason:
+            "It seemed plausible because it mentioned the item mix, but I was unsure whether it explained the linked scale.",
+          client_action_id: `${input.prefix}_transfer_tempting_reason_repair`
+        }
+      })
+    ).state;
+  }
   assert(state.assessment_state === "SESSION_COMPLETE", "Transfer completion should complete the session.");
 
   return {
