@@ -33,6 +33,7 @@
     "student:mvp-e2e-smoke": "tsx prisma/student-mvp-e2e-smoke-test.ts",
     "student:live-llm-smoke": "tsx prisma/student-live-llm-smoke-test.ts",
     "student:live-llm-diagnostics-smoke": "tsx prisma/student-live-llm-diagnostics-smoke-test.ts",
+    "student:formative-live-validation-smoke": "tsx prisma/student-formative-live-validation-smoke-test.ts",
     "demo:student-assessment": "tsx prisma/demo-student-assessment.ts",
     "demo:student-assessment:cleanup": "tsx prisma/demo-student-assessment-cleanup.ts",
     "demo:reset-student-mvp": "tsx prisma/demo-reset-student-mvp.ts",

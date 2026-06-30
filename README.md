@@ -173,7 +173,7 @@ The optional live LLM readiness smoke is intentionally skipped unless explicitly
 npm run student:live-llm-smoke
 ```
 
-To run it intentionally, configure server-side live LLM variables locally and set `RUN_LIVE_LLM_SMOKE=1`. Do not run this in ordinary CI or commit any API key. See `docs/MVP_E2E_READINESS.md`.
+To run it intentionally, configure server-side live LLM variables locally and set `RUN_LIVE_LLM_SMOKE=1`. Do not run this in ordinary CI or commit any API key. The smoke only passes when the formative profile and targeted feedback calls both succeed, validate, and persist provider metadata plus token usage. See `docs/MVP_E2E_READINESS.md`.
 
 The optional live Item Administration Tutor smoke is also skipped by default:
 

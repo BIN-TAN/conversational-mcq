@@ -130,6 +130,38 @@ function main() {
     "Diagnostics must not print raw secret-like values."
   );
 
+  const invalidOutputCall = baseCall({
+    call_status: "invalid_output",
+    output_validated: false,
+    validation_error: JSON.stringify({
+      category: "schema_validation",
+      issues: [
+        {
+          path: "formative_need",
+          code: "invalid_enum_value",
+          message: "Invalid enum value."
+        }
+      ]
+    }),
+    output_payload: null
+  });
+  const invalidOutputMessage = expectFailureMessage(() =>
+    assertLiveAgentCallIsAudited({
+      label: "formative profile",
+      call: invalidOutputCall,
+      schema: ChatNativeFormativeProfileOutputSchema,
+      audit_context: [sanitizedAuditSummary(invalidOutputCall)]
+    })
+  );
+  assert(
+    invalidOutputMessage.includes("live structured output was not validated"),
+    "Invalid structured output should fail live smoke success criteria."
+  );
+  assert(
+    invalidOutputMessage.includes("formative_need"),
+    "Invalid structured output diagnostics should include validation issue paths."
+  );
+
   const successfulMissingMetadataCall = baseCall({
     provider_request_id: null,
     provider_response_id: null
@@ -145,6 +177,22 @@ function main() {
   assert(
     metadataFailureMessage.includes("provider request/response ID metadata was not stored"),
     "Successful live call should still require provider metadata."
+  );
+
+  const successfulMissingUsageCall = baseCall({
+    token_usage: null
+  });
+  const usageFailureMessage = expectFailureMessage(() =>
+    assertLiveAgentCallIsAudited({
+      label: "formative profile",
+      call: successfulMissingUsageCall,
+      schema: ChatNativeFormativeProfileOutputSchema,
+      audit_context: [sanitizedAuditSummary(successfulMissingUsageCall)]
+    })
+  );
+  assert(
+    usageFailureMessage.includes("token usage metadata was not stored"),
+    "Successful live call should require token usage metadata."
   );
 
   assertLiveAgentCallIsAudited({

@@ -64,6 +64,9 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - Deterministic/mock item administration is allowed only in `NODE_ENV=test`, smoke tests that explicitly force mock behavior, or intentional local mock walkthroughs with `ITEM_ADMIN_TUTOR_MODE=mock` and `ALLOW_LOCAL_MOCK_RUNTIME=true`.
 - Failed live item-administration provider output must keep the current assessment step, preserve progress, log `item_admin_tutor_source=safe_block_after_live_failure`, and avoid recording the failed response as valid evidence.
 - Student-facing prompts must not advertise specific language choices by default. Backend validation may still accept meaningful non-English or mixed-language responses.
+- Live response-package profiling and targeted-feedback calls are successful only when the provider call completes, structured output validates, student-facing safety checks pass, provider metadata is stored, and token usage is stored.
+- Invalid or unsafe live formative profile or targeted-feedback output must fail closed: preserve student progress, log a sanitized `llm_runtime_blocked` event, show the temporary unavailable message, and avoid creating or showing formative activity or targeted feedback from invalid live output.
+- Deterministic formative fallback remains valid for mock, test, disabled, or explicit fallback paths, but it must not be counted as a successful live formative profile or targeted-feedback result.
 
 ## Phase 8A Guarded Operational Integration
 

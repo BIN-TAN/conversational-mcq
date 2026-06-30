@@ -6,7 +6,7 @@ import { FormativeValueSchema } from "@/lib/domain/enums";
 import { getLlmRuntimeConfig, resolveAgentModelConfig } from "@/lib/llm/config";
 import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
-import type { StructuredAgentResult } from "@/lib/llm/providers/types";
+import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
 import { assertNoProhibitedProviderInput, redactForAudit } from "@/lib/agents/redaction";
 import { toPrismaJson } from "@/lib/services/json";
 import { logConversationTurn } from "@/lib/services/conversation-turns";
@@ -188,6 +188,8 @@ const TRANSFER_ITEM_AGENT_NAME = "deterministic_transfer_item";
 const MAX_FORMATIVE_RESPONSE_CHARS = 5000;
 const MAX_REVISION_CHARS = 5000;
 const MAX_FORMATIVE_REPAIR_TURNS = 3;
+const ASSESSMENT_TUTOR_UNAVAILABLE_MESSAGE =
+  "The assessment tutor is temporarily unavailable. Your progress is saved. Please try again in a moment or pause and return later.";
 const REPEATED_INVALID_RESPONSE_PROMPT =
   "I still cannot use that as a reason. Choose one:\nA. Try writing your reason again.\nB. Mark this as 'I don't know the reason yet.'";
 const MAX_LOOP_GUARD_MESSAGE =
@@ -195,6 +197,47 @@ const MAX_LOOP_GUARD_MESSAGE =
 
 function prismaJson(value: unknown) {
   return toPrismaJson(value) ?? Prisma.JsonNull;
+}
+
+let chatNativeFormativeProviderOverrideForTest: LlmProvider | null = null;
+
+export async function withChatNativeFormativeProviderForTest<T>(
+  provider: LlmProvider,
+  callback: () => Promise<T>
+): Promise<T> {
+  const previous = chatNativeFormativeProviderOverrideForTest;
+  chatNativeFormativeProviderOverrideForTest = provider;
+
+  try {
+    return await callback();
+  } finally {
+    chatNativeFormativeProviderOverrideForTest = previous;
+  }
+}
+
+function safeValidationMessage(message: string) {
+  return message
+    .replace(/sk-[A-Za-z0-9_-]{12,}/g, "[REDACTED_OPENAI_KEY]")
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]{12,}/gi, "Bearer [REDACTED_TOKEN]")
+    .slice(0, 500);
+}
+
+function validationIssueSummaries(issues: z.ZodIssue[]) {
+  return issues.map((issue) => ({
+    path: issue.path.join(".") || "<root>",
+    code: issue.code,
+    message: safeValidationMessage(issue.message)
+  }));
+}
+
+function validationErrorSummary(input: {
+  category: "schema_validation" | "student_facing_validation";
+  issues: string[] | ReturnType<typeof validationIssueSummaries>;
+}) {
+  return JSON.stringify({
+    category: input.category,
+    issues: input.issues
+  });
 }
 
 export function chatNativeProviderAuditUpdate(
@@ -308,6 +351,37 @@ function providerFailureValidationMessage(input: {
   }
 
   return parts.join("; ");
+}
+
+function liveProviderResultBlocked(input: {
+  provider_result: StructuredAgentResult<unknown> | null;
+  validation_status: string;
+}) {
+  return Boolean(input.provider_result && input.validation_status !== "validated");
+}
+
+async function logLiveFormativeRuntimeBlocked(input: {
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string;
+  event_category: "formative_profile" | "formative_activity_evaluation";
+  agent_call_id: string;
+  validation_status: string;
+  validation_issues: string[];
+  provider_status: string | null;
+}) {
+  await logProcessEvent({
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    event_type: "llm_runtime_blocked",
+    event_category: input.event_category,
+    event_source: "backend",
+    payload: {
+      agent_call_id: input.agent_call_id,
+      validation_status: input.validation_status,
+      validation_issue_count: input.validation_issues.length,
+      provider_status: input.provider_status
+    }
+  });
 }
 
 function jsonRecord(value: unknown): Record<string, unknown> {
@@ -1504,7 +1578,7 @@ async function callProviderOrMock(input: {
   }
 
   assertNoProhibitedProviderInput(input.provider_input);
-  const provider = createLlmProvider();
+  const provider = chatNativeFormativeProviderOverrideForTest ?? createLlmProvider();
   const modelConfig = resolveAgentModelConfig(CHAT_NATIVE_PROFILE_AGENT_NAME);
   const providerResult = await provider.executeStructured({
     agent_name: CHAT_NATIVE_PROFILE_AGENT_NAME,
@@ -1521,11 +1595,16 @@ async function callProviderOrMock(input: {
       schema_version: CHAT_NATIVE_PROFILE_SCHEMA_VERSION
     }
   });
+  let validationIssues: string[] | ReturnType<typeof validationIssueSummaries> = [
+    "provider_output_not_student_safe_or_not_completed"
+  ];
+  let validationCategory: "schema_validation" | "student_facing_validation" = "schema_validation";
+
   if (providerResult.status === "completed") {
     const parsed = ChatNativeFormativeProfileOutputSchema.safeParse(providerResult.parsed_output);
     const validation = parsed.success
       ? validateStudentFacingOutput({ output: parsed.data, correct_options: input.correct_options })
-      : { ok: false, issues: parsed.error.issues.map((issue) => issue.message) };
+      : { ok: false, issues: validationIssueSummaries(parsed.error.issues) };
 
     if (parsed.success && validation.ok) {
       await prisma.agentCall.update({
@@ -1547,6 +1626,9 @@ async function callProviderOrMock(input: {
         provider_result: providerResult
       };
     }
+
+    validationIssues = validation.issues;
+    validationCategory = parsed.success ? "student_facing_validation" : "schema_validation";
   }
 
   const fallbackOutput = deterministicMockOutput();
@@ -1554,11 +1636,14 @@ async function callProviderOrMock(input: {
     where: { id: agentCall.id },
     data: {
       ...chatNativeProviderAuditUpdate(providerResult),
-      output_payload: prismaJson(fallbackOutput),
+      output_payload: Prisma.JsonNull,
       output_validated: false,
       validation_error:
         providerResult.status === "completed"
-          ? "Provider output failed Phase 5 student-facing validation; deterministic fallback used."
+          ? validationErrorSummary({
+              category: validationCategory,
+              issues: validationIssues
+            })
           : providerFailureValidationMessage({
               providerResult,
               phaseLabel: "Phase 5 formative profile"
@@ -1573,8 +1658,13 @@ async function callProviderOrMock(input: {
   return {
     agent_call_id: agentCall.id,
     output: fallbackOutput,
-    validation_status: "fallback_after_provider_failure",
-    validation_issues: ["provider_output_not_student_safe_or_not_completed"],
+    validation_status:
+      providerResult.status === "completed"
+        ? "blocked_after_validation_failure"
+        : "blocked_after_provider_failure",
+    validation_issues: validationIssues.map((issue) =>
+      typeof issue === "string" ? issue : `${issue.path}: ${issue.message}`
+    ),
     provider_result: providerResult
   };
 }
@@ -1731,7 +1821,7 @@ async function callTargetedFeedbackProviderOrMock(input: {
   }
 
   assertNoProhibitedProviderInput(input.provider_input);
-  const provider = createLlmProvider();
+  const provider = chatNativeFormativeProviderOverrideForTest ?? createLlmProvider();
   const modelConfig = resolveAgentModelConfig(CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_NAME);
   const providerResult = await provider.executeStructured({
     agent_name: CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_NAME,
@@ -1748,11 +1838,16 @@ async function callTargetedFeedbackProviderOrMock(input: {
       schema_version: CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION
     }
   });
+  let validationIssues: string[] | ReturnType<typeof validationIssueSummaries> = [
+    "provider_output_not_student_safe_or_not_completed"
+  ];
+  let validationCategory: "schema_validation" | "student_facing_validation" = "schema_validation";
+
   if (providerResult.status === "completed") {
     const parsed = ChatNativeTargetedFeedbackOutputSchema.safeParse(providerResult.parsed_output);
     const validation = parsed.success
       ? validateTargetedFeedbackOutput({ output: parsed.data, correct_options: input.correct_options })
-      : { ok: false, issues: parsed.error.issues.map((issue) => issue.message) };
+      : { ok: false, issues: validationIssueSummaries(parsed.error.issues) };
 
     if (parsed.success && validation.ok) {
       await prisma.agentCall.update({
@@ -1774,6 +1869,9 @@ async function callTargetedFeedbackProviderOrMock(input: {
         provider_result: providerResult
       };
     }
+
+    validationIssues = validation.issues;
+    validationCategory = parsed.success ? "student_facing_validation" : "schema_validation";
   }
 
   const fallbackOutput = deterministicTargetedFeedbackOutput(
@@ -1783,11 +1881,14 @@ async function callTargetedFeedbackProviderOrMock(input: {
     where: { id: agentCall.id },
     data: {
       ...chatNativeProviderAuditUpdate(providerResult),
-      output_payload: prismaJson(fallbackOutput),
+      output_payload: Prisma.JsonNull,
       output_validated: false,
       validation_error:
         providerResult.status === "completed"
-          ? "Provider output failed Phase 12 student-facing validation; deterministic fallback used."
+          ? validationErrorSummary({
+              category: validationCategory,
+              issues: validationIssues
+            })
           : providerFailureValidationMessage({
               providerResult,
               phaseLabel: "Phase 12 formative activity evaluation"
@@ -1802,8 +1903,13 @@ async function callTargetedFeedbackProviderOrMock(input: {
   return {
     agent_call_id: agentCall.id,
     output: fallbackOutput,
-    validation_status: "fallback_after_provider_failure",
-    validation_issues: ["provider_output_not_student_safe_or_not_completed"],
+    validation_status:
+      providerResult.status === "completed"
+        ? "blocked_after_validation_failure"
+        : "blocked_after_provider_failure",
+    validation_issues: validationIssues.map((issue) =>
+      typeof issue === "string" ? issue : `${issue.path}: ${issue.message}`
+    ),
     provider_result: providerResult
   };
 }
@@ -1910,6 +2016,30 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
       provider_input: providerInput,
       correct_options: correctOptionsFromPackage(responsePackage.payload)
     });
+  }
+
+  if (liveProviderResultBlocked({
+    provider_result: feedbackResult.provider_result,
+    validation_status: feedbackResult.validation_status
+  })) {
+    await logLiveFormativeRuntimeBlocked({
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      event_category: "formative_activity_evaluation",
+      agent_call_id: feedbackResult.agent_call_id,
+      validation_status: feedbackResult.validation_status,
+      validation_issues: feedbackResult.validation_issues,
+      provider_status: feedbackResult.provider_result?.status ?? null
+    });
+    throw new StudentAssessmentServiceError(
+      "llm_not_ready",
+      ASSESSMENT_TUTOR_UNAVAILABLE_MESSAGE,
+      409,
+      {
+        agent_call_id: feedbackResult.agent_call_id,
+        validation_status: feedbackResult.validation_status
+      }
+    );
   }
 
   const now = new Date();
@@ -2454,6 +2584,30 @@ export async function ensureChatNativeFormativeActivity(input: {
       provider_status: providerResult.provider_result?.status ?? "mock_fallback"
     }
   });
+
+  if (liveProviderResultBlocked({
+    provider_result: providerResult.provider_result,
+    validation_status: providerResult.validation_status
+  })) {
+    await logLiveFormativeRuntimeBlocked({
+      assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
+      concept_unit_session_db_id: conceptUnitSession.id,
+      event_category: "formative_profile",
+      agent_call_id: providerResult.agent_call_id,
+      validation_status: providerResult.validation_status,
+      validation_issues: providerResult.validation_issues,
+      provider_status: providerResult.provider_result?.status ?? null
+    });
+    throw new StudentAssessmentServiceError(
+      "llm_not_ready",
+      ASSESSMENT_TUTOR_UNAVAILABLE_MESSAGE,
+      409,
+      {
+        agent_call_id: providerResult.agent_call_id,
+        validation_status: providerResult.validation_status
+      }
+    );
+  }
 
   if (conceptUnitSession.assessment_session.current_phase === "profiling_pending") {
     await updateAssessmentSessionPhase({

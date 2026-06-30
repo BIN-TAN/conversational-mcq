@@ -99,6 +99,8 @@ targeted_call_status = succeeded
 targeted_output_validated = true
 ```
 
+If the live smoke reports `invalid_output`, `failed`, or `output_validated = false` for the formative profile or targeted feedback call, stop the pilot-readiness check and use the sanitized diagnostics. The runtime should preserve student progress and show the temporary unavailable message rather than continuing with invalid live output.
+
 ## Student Flow Checklist
 
 - Student can log in and reach `/student/assessment`.

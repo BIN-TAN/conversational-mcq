@@ -41,6 +41,34 @@ function objectKeys(value: unknown) {
   return record(value) ? Object.keys(value as Record<string, unknown>).sort() : [];
 }
 
+function safeDiagnosticText(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  return value
+    .replace(/sk-[A-Za-z0-9_-]{12,}/g, "[REDACTED_OPENAI_KEY]")
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]{12,}/gi, "Bearer [REDACTED_TOKEN]")
+    .slice(0, 800);
+}
+
+function validationIssuePaths(value: string | null) {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    const issues = Array.isArray(record(parsed)?.issues) ? record(parsed)?.issues as unknown[] : [];
+    return issues
+      .map((issue) => record(issue)?.path)
+      .filter((path): path is string => typeof path === "string")
+      .slice(0, 20);
+  } catch {
+    return [];
+  }
+}
+
 function providerFailureRecord(call: LiveAuditCall) {
   return record(record(call.raw_output)?.provider_failure);
 }
@@ -71,6 +99,8 @@ export function sanitizedAuditSummary(call: LiveAuditCall) {
     client_request_id_present: Boolean(call.client_request_id),
     output_validated: call.output_validated,
     validation_error_present: Boolean(call.validation_error),
+    validation_error_message: safeDiagnosticText(call.validation_error),
+    validation_issue_paths: validationIssuePaths(call.validation_error),
     error_category: call.error_category,
     sanitized_error_category: typeof error?.category === "string" ? error.category : null,
     sanitized_error_type: typeof error?.type === "string" ? error.type : null,
@@ -130,6 +160,15 @@ export function assertLiveAgentCallIsAudited(input: {
     );
   }
 
+  if (input.call.call_status === "invalid_output" || !input.call.output_validated) {
+    throw new Error(
+      `${input.label}: live structured output was not validated.\n${diagnosticJson({
+        checked_call: input.call,
+        relevant_agent_calls: input.audit_context
+      })}`
+    );
+  }
+
   if (input.call.call_status === "succeeded" || input.call.call_status === "completed") {
     assert(
       Boolean(input.call.provider_request_id || input.call.provider_response_id),
@@ -138,24 +177,20 @@ export function assertLiveAgentCallIsAudited(input: {
         relevant_agent_calls: input.audit_context
       })}`
     );
+    assert(
+      input.call.token_usage !== null && input.call.token_usage !== undefined,
+      `${input.label}: token usage metadata was not stored.\n${diagnosticJson({
+        checked_call: input.call,
+        relevant_agent_calls: input.audit_context
+      })}`
+    );
   }
 
   assert(
     input.schema.safeParse(input.call.output_payload).success,
-    `${input.label}: stored output payload is not schema-shaped, including fallback output if used.`
+    `${input.label}: stored validated output payload is not schema-shaped.`
   );
 
-  if (input.call.output_validated) {
-    assert(input.call.call_status === "succeeded", `${input.label}: validated output should be succeeded.`);
-    assert(!input.call.validation_error, `${input.label}: validated output should not have validation_error.`);
-  } else {
-    assert(
-      Boolean(input.call.validation_error),
-      `${input.label}: unsafe or invalid output should store a validation error before fallback.`
-    );
-    assert(
-      input.call.call_status === "invalid_output",
-      `${input.label}: invalid or unsafe output should not be audited as succeeded.`
-    );
-  }
+  assert(input.call.call_status === "succeeded", `${input.label}: validated output should be succeeded.`);
+  assert(!input.call.validation_error, `${input.label}: validated output should not have validation_error.`);
 }

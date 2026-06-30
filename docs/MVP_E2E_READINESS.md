@@ -98,7 +98,7 @@ Do not paste API keys into chat. Do not commit `.env`, `.env.local`, or credenti
 
 If `RUN_LIVE_LLM_SMOKE=1` is set but required configuration is missing, the script prints only missing or invalid variable names. It never prints variable values.
 
-The live smoke verifies that the response package reaches the provider path, structured outputs are schema-shaped, unsafe or invalid outputs are blocked or replaced with deterministic fallback, student-visible text remains safe, and `agent_calls` stores provider metadata plus validation status.
+The live smoke verifies that the response package reaches the provider path, structured profile and targeted-feedback outputs validate, student-visible text remains safe, and `agent_calls` stores provider metadata plus token usage. A live profile or targeted-feedback call with `invalid_output`, `failed`, missing provider metadata, missing token usage, or `output_validated=false` is a live-smoke failure.
 
 ## Item Administration Tutor Runtime
 
@@ -166,6 +166,8 @@ profile_output_validated = true
 targeted_call_status = succeeded
 targeted_output_validated = true
 ```
+
+If either live formative output is invalid or unsafe, the runtime fails closed: the student's progress remains saved, no invalid formative activity or targeted feedback is shown, and the student sees the temporary unavailable message. Do not treat deterministic fallback output as a successful live formative result.
 
 Do not record API keys, raw provider payloads, raw model outputs, hidden prompts, answer keys, or full student text in pilot notes.
 
