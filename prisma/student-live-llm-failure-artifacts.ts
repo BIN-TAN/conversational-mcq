@@ -243,16 +243,33 @@ function currentItemFromResumeContext(value: unknown) {
 function errorSummary(error: unknown) {
   const details = record(record(error)?.details);
   const code = stringValue(record(error)?.code);
+  const safeDetails = safeErrorDetails(details);
+  const stateShapeFailure =
+    safeDetails.failure_stage === "live_smoke_state_shape_error" ||
+    (error instanceof Error && error.name === "ZodError");
 
   return {
     name: error instanceof Error ? error.name : null,
     code,
     status: typeof record(error)?.status === "number" ? record(error)?.status : null,
-    message: safeDiagnosticText(error instanceof Error ? error.message : String(error)),
+    message: stateShapeFailure
+      ? "Student assessment state shape validation failed."
+      : safeDiagnosticText(error instanceof Error ? error.message : String(error)),
     agent_call_id: stringValue(details?.agent_call_id),
     validation_status: stringValue(details?.validation_status),
     details_keys: details ? Object.keys(details).sort() : [],
-    safe_details: safeErrorDetails(details)
+    safe_details: stateShapeFailure && Object.keys(safeDetails).length === 0
+      ? {
+          failure_stage: "live_smoke_state_shape_error",
+          expected_schema: "student_assessment_state",
+          missing_paths: zodIssuePaths(error),
+          returned_payload_keys: [],
+          last_action_attempted: null,
+          refetch_attempted: null,
+          refetch_succeeded: null,
+          resulting_state_if_refetched: null
+        }
+      : safeDetails
   };
 }
 
@@ -284,7 +301,13 @@ function safeLoopHistory(value: unknown) {
         from_state: stringValue(entryRecord.from_state),
         action: stringValue(entryRecord.action),
         to_state: stringValue(entryRecord.to_state),
-        next_step: stringValue(entryRecord.next_step)
+        next_step: stringValue(entryRecord.next_step),
+        returned_payload_keys: safeStringArray(entryRecord.returned_payload_keys),
+        refetch_attempted:
+          typeof entryRecord.refetch_attempted === "boolean" ? entryRecord.refetch_attempted : null,
+        refetch_succeeded:
+          typeof entryRecord.refetch_succeeded === "boolean" ? entryRecord.refetch_succeeded : null,
+        state_source: stringValue(entryRecord.state_source)
       };
     })
     .filter((entry): entry is {
@@ -293,8 +316,55 @@ function safeLoopHistory(value: unknown) {
       action: string | null;
       to_state: string | null;
       next_step: string | null;
+      returned_payload_keys: string[];
+      refetch_attempted: boolean | null;
+      refetch_succeeded: boolean | null;
+      state_source: string | null;
     } => Boolean(entry))
     .slice(0, 12);
+}
+
+function zodIssuePaths(error: unknown) {
+  const issues = Array.isArray(record(error)?.issues) ? (record(error)?.issues as unknown[]) : [];
+
+  return issues
+    .map((issue) => {
+      const issueRecord = record(issue);
+      const path = Array.isArray(issueRecord?.path) ? issueRecord.path : [];
+
+      return path
+        .map((entry) => (typeof entry === "string" || typeof entry === "number" ? String(entry) : null))
+        .filter((entry): entry is string => Boolean(entry))
+        .join(".");
+    })
+    .filter((path) => path.length > 0)
+    .slice(0, 50);
+}
+
+function zodIssuePathsFromText(value: unknown) {
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    const issues = Array.isArray(parsed) ? parsed : [];
+
+    return issues
+      .map((issue) => {
+        const issueRecord = record(issue);
+        const path = Array.isArray(issueRecord?.path) ? issueRecord.path : [];
+
+        return path
+          .map((entry) => (typeof entry === "string" || typeof entry === "number" ? String(entry) : null))
+          .filter((entry): entry is string => Boolean(entry))
+          .join(".");
+      })
+      .filter((pathValue) => pathValue.length > 0)
+      .slice(0, 50);
+  } catch {
+    return [];
+  }
 }
 
 function safeErrorDetails(details: UnknownRecord | null) {
@@ -308,11 +378,64 @@ function safeErrorDetails(details: UnknownRecord | null) {
     actual_state: stringValue(details.actual_state),
     last_action_attempted: stringValue(details.last_action_attempted),
     allowed_actions: safeStringArray(details.allowed_actions),
+    expected_schema: stringValue(details.expected_schema),
+    missing_paths: safeStringArray(details.missing_paths),
+    returned_payload_keys: safeStringArray(details.returned_payload_keys),
     current_phase: stringValue(details.current_phase),
     effective_phase: stringValue(details.effective_phase),
     next_step: stringValue(details.next_step),
+    refetch_attempted:
+      typeof details.refetch_attempted === "boolean" ? details.refetch_attempted : null,
+    refetch_succeeded:
+      typeof details.refetch_succeeded === "boolean" ? details.refetch_succeeded : null,
+    resulting_state_if_refetched: stringValue(details.resulting_state_if_refetched),
     loop_turns: typeof details.loop_turns === "number" ? details.loop_turns : null,
     loop_history: safeLoopHistory(details.loop_history)
+  };
+}
+
+function safeStoredFailureSummary(value: unknown) {
+  const failure = record(value);
+
+  if (!failure) {
+    return null;
+  }
+
+  const safeDetails = safeErrorDetails(record(failure.safe_details));
+  const parsedIssuePaths = zodIssuePathsFromText(failure.message);
+  const missingPaths = Array.isArray(safeDetails.missing_paths) ? safeDetails.missing_paths : [];
+  const returnedPayloadKeys = Array.isArray(safeDetails.returned_payload_keys)
+    ? safeDetails.returned_payload_keys
+    : [];
+  const stateShapeFailure =
+    safeDetails.failure_stage === "live_smoke_state_shape_error" ||
+    stringValue(failure.name) === "ZodError" ||
+    parsedIssuePaths.length > 0;
+  const normalizedDetails = stateShapeFailure
+    ? {
+        ...safeDetails,
+        failure_stage: "live_smoke_state_shape_error",
+        expected_schema: safeDetails.expected_schema ?? "student_assessment_state",
+        missing_paths: missingPaths.length > 0 ? missingPaths : parsedIssuePaths,
+        returned_payload_keys: returnedPayloadKeys,
+        last_action_attempted: safeDetails.last_action_attempted,
+        refetch_attempted: safeDetails.refetch_attempted,
+        refetch_succeeded: safeDetails.refetch_succeeded,
+        resulting_state_if_refetched: safeDetails.resulting_state_if_refetched
+      }
+    : safeDetails;
+
+  return {
+    name: stringValue(failure.name),
+    code: stringValue(failure.code),
+    status: typeof failure.status === "number" ? failure.status : null,
+    message: stateShapeFailure
+      ? "Student assessment state shape validation failed."
+      : safeDiagnosticText(failure.message),
+    agent_call_id: stringValue(failure.agent_call_id),
+    validation_status: stringValue(failure.validation_status),
+    details_keys: safeStringArray(failure.details_keys),
+    safe_details: normalizedDetails
   };
 }
 
@@ -591,6 +714,13 @@ export async function findLiveLlmFailureArtifact(input: {
   return null;
 }
 
+export function sanitizeLiveLlmFailureArtifactForDiagnostic(artifact: UnknownRecord) {
+  return {
+    ...artifact,
+    failure: safeStoredFailureSummary(artifact.failure)
+  };
+}
+
 export function summarizeLiveLlmFailureArtifact(artifact: UnknownRecord, filePath: string) {
   const session = record(artifact.session_summary);
   const primary = record(artifact.primary_agent_call);
@@ -616,6 +746,6 @@ export function summarizeLiveLlmFailureArtifact(artifact: UnknownRecord, filePat
     conversation_turn_count: Array.isArray(artifact.conversation_turns)
       ? artifact.conversation_turns.length
       : 0,
-    failure: record(artifact.failure)
+    failure: safeStoredFailureSummary(artifact.failure)
   };
 }

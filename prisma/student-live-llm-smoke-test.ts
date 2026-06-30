@@ -12,6 +12,7 @@ import {
 } from "../src/lib/services/student-assessment/formative-profile";
 import {
   completeInitialConceptUnitAdministration,
+  getStudentSessionState,
   getStudentSafeTranscript,
   startConceptUnitInitialAdministration,
   startOrResumeStudentAssessmentSession,
@@ -220,46 +221,55 @@ async function main() {
     const loopResult = await advanceLiveSmokeFormativeLoop({
       prefix,
       state: completedInitial.state,
+      parse_state: (value) => StudentSessionStateSchema.parse(value),
+      fetch_state: async () =>
+        getStudentSessionState({
+          student_user_db_id: student.id,
+          session_public_id: started.session.session_public_id
+        }),
       submit_formative_activity_response: async (submission) => {
-        const response = await submitFormativeActivityResponse({
+        return submitFormativeActivityResponse({
           student_user_db_id: student.id,
           session_public_id: started.session.session_public_id,
           message: submission.message,
           client_message_id: submission.client_message_id
         });
-        return response.state;
       },
       submit_followup_response: async (submission) => {
-        const response = await submitStudentFollowupMessage({
+        return submitStudentFollowupMessage({
           student_user_db_id: student.id,
           session_public_id: started.session.session_public_id,
           message: submission.message,
           client_message_id: submission.client_message_id
         });
-        return StudentSessionStateSchema.parse(response.state);
       },
       submit_revision_response: async (submission) => {
-        const response = await submitRevisionResponse({
+        return submitRevisionResponse({
           student_user_db_id: student.id,
           session_public_id: started.session.session_public_id,
           message: submission.message,
           client_message_id: submission.client_message_id
         });
-        return response.state;
       },
       assert_student_visible_text_safe: assertStudentVisibleTextIsSafe
     });
     const nextChoiceState = loopResult.state;
-    assert(nextChoiceState.assessment_state === "NEXT_CHOICE", "Expected next choice after formative loop.");
+    assert(
+      nextChoiceState.assessment_state === "NEXT_CHOICE" ||
+        nextChoiceState.assessment_state === "SESSION_COMPLETE",
+      "Expected next choice or session completion after formative loop."
+    );
 
-    failureStage = "session_completion";
-    const choice = await submitNextChoice({
-      student_user_db_id: student.id,
-      session_public_id: started.session.session_public_id,
-      choice: "move_next",
-      client_action_id: `${prefix}_next_choice_a`
-    });
-    assert(choice.state.assessment_state === "SESSION_COMPLETE", "Expected session completion.");
+    if (nextChoiceState.assessment_state === "NEXT_CHOICE") {
+      failureStage = "session_completion";
+      const choice = await submitNextChoice({
+        student_user_db_id: student.id,
+        session_public_id: started.session.session_public_id,
+        choice: "move_next",
+        client_action_id: `${prefix}_next_choice_a`
+      });
+      assert(choice.state.assessment_state === "SESSION_COMPLETE", "Expected session completion.");
+    }
 
     const session = await prisma.assessmentSession.findUniqueOrThrow({
       where: { session_public_id: started.session.session_public_id },

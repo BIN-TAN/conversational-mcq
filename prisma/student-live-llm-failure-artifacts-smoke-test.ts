@@ -17,6 +17,7 @@ import {
   findLatestLiveLlmFailureArtifact,
   findLiveLlmFailureArtifact,
   readLiveLlmFailureArtifact,
+  sanitizeLiveLlmFailureArtifactForDiagnostic,
   summarizeLiveLlmFailureArtifact,
   writeLiveLlmSmokeFailureArtifact
 } from "./student-live-llm-failure-artifacts";
@@ -259,6 +260,99 @@ async function main() {
     assert(
       artifactText.includes("\"last_action_attempted\": \"submit_followup_response\""),
       "Failure artifact should preserve the safe last attempted action."
+    );
+    const shapeFailure = new StudentAssessmentServiceError(
+      "live_smoke_flow_mismatch",
+      "Live smoke action did not return a full student state, and authoritative state refetch failed.",
+      409,
+      {
+        failure_stage: "live_smoke_state_shape_error",
+        expected_schema: "student_assessment_state",
+        missing_paths: ["session_status", "assessment_state", "next_step"],
+        returned_payload_keys: ["assistant_message", "message_status", "state"],
+        last_action_attempted: "submit_followup_response",
+        refetch_attempted: true,
+        refetch_succeeded: false,
+        resulting_state_if_refetched: null
+      }
+    );
+    const shapeArtifact = await buildLiveLlmSmokeFailureArtifact({
+      prisma,
+      sessionPublicId: started.session.session_public_id,
+      stage: "targeted_feedback_loop",
+      error: shapeFailure
+    });
+    const shapeFailureSummary = (shapeArtifact.artifact.failure as Record<string, unknown>);
+    const safeDetails = shapeFailureSummary.safe_details as Record<string, unknown>;
+    assert(
+      shapeFailureSummary.message === "Student assessment state shape validation failed.",
+      "State-shape failure should use a generic safe diagnostic message."
+    );
+    assert(
+      safeDetails.failure_stage === "live_smoke_state_shape_error",
+      "State-shape artifact should preserve safe failure stage."
+    );
+    assert(
+      Array.isArray(safeDetails.missing_paths) &&
+        safeDetails.missing_paths.includes("assessment_state"),
+      "State-shape artifact should preserve safe missing paths."
+    );
+    assert(
+      Array.isArray(safeDetails.returned_payload_keys) &&
+        safeDetails.returned_payload_keys.includes("message_status"),
+      "State-shape artifact should preserve returned payload keys only."
+    );
+    assert(
+      JSON.stringify(shapeArtifact.artifact).includes(rawStudentText) === false,
+      "State-shape artifact must not contain raw student response text."
+    );
+    const legacyZodArtifact = {
+      ...shapeArtifact.artifact,
+      failure: {
+        name: "ZodError",
+        code: null,
+        status: null,
+        message: JSON.stringify([
+          {
+            code: "invalid_type",
+            expected: "string",
+            received: "undefined",
+            path: ["assessment_state"],
+            message: "Required"
+          },
+          {
+            code: "invalid_type",
+            expected: "string",
+            received: "undefined",
+            path: ["next_step"],
+            message: "Required"
+          }
+        ]),
+        agent_call_id: null,
+        validation_status: null,
+        details_keys: [],
+        safe_details: {}
+      }
+    };
+    const legacySummary = summarizeLiveLlmFailureArtifact(
+      legacyZodArtifact as Record<string, unknown>,
+      "/tmp/legacy-zod-artifact.json"
+    );
+    const legacyDiagnosticArtifact = sanitizeLiveLlmFailureArtifactForDiagnostic(
+      legacyZodArtifact as Record<string, unknown>
+    );
+    assert(
+      (legacySummary.failure as Record<string, unknown>).message ===
+        "Student assessment state shape validation failed.",
+      "Legacy Zod artifact summaries should use the generic state-shape message."
+    );
+    assert(
+      JSON.stringify(legacyDiagnosticArtifact).includes("invalid_type") === false,
+      "Diagnostic artifact output should not echo raw legacy Zod issue text."
+    );
+    assert(
+      JSON.stringify(legacyDiagnosticArtifact).includes("assessment_state"),
+      "Diagnostic artifact output should preserve safe missing state paths."
     );
 
     const byAgentCall = await findLiveLlmFailureArtifact({ agentCallId: agentCall.id });

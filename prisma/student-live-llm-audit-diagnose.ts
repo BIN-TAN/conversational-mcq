@@ -6,6 +6,7 @@ import {
   findLatestLiveLlmFailureArtifact,
   findLiveLlmFailureArtifact,
   readLiveLlmFailureArtifact,
+  sanitizeLiveLlmFailureArtifactForDiagnostic,
   summarizeLiveLlmFailureArtifact
 } from "./student-live-llm-failure-artifacts";
 
@@ -26,7 +27,7 @@ async function diagnoseArtifact(filePath: string) {
   console.log(JSON.stringify({
     status: "found_in_artifact",
     diagnostic: summarizeLiveLlmFailureArtifact(artifact, filePath),
-    artifact
+    artifact: sanitizeLiveLlmFailureArtifactForDiagnostic(artifact)
   }, null, 2));
 }
 
