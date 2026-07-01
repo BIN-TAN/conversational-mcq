@@ -283,7 +283,7 @@ Profile integration interpretation packet verification:
 npm run student:profile-integration-smoke
 ```
 
-This no-live smoke builds `profile-integration-interpretation-v1` from `ability-evidence-packet-v1` and `engagement-evidence-packet-v1`. It interprets knowledge-state evidence and engagement context only; it does not determine formative value, choose an activity, call OpenAI, or render student-facing UI. It also simulates the provider path with an injected local provider and verifies `agent_calls` audit persistence. See `docs/PROFILE_INTEGRATION_DESIGN.md`.
+This no-live smoke builds `profile-integration-interpretation-v1` from `ability-evidence-packet-v1` and `engagement-evidence-packet-v1`. It interprets knowledge-state evidence and engagement context only; it does not determine formative value, choose an activity, or call OpenAI. After package submission, the app persists a student-profile snapshot and renders only the student-safe status, message, and knowledge-focus projection; internal integration evidence remains teacher/research data. The smoke also simulates the provider path with an injected local provider and verifies `agent_calls` audit persistence. See `docs/PROFILE_INTEGRATION_DESIGN.md`.
 
 Profile integration review artifact generation:
 

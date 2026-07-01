@@ -1256,6 +1256,13 @@ Phase 6A.5 must not implement:
   sanitized diagnostics: IDs, statuses, schema version, safe validation issue
   metadata, provider-metadata presence, token-usage presence, and failure
   stage, plus repair-attempt status.
-- Phase 27c does not implement teacher upload, new item content, UI wiring,
-  formative activity selection, or schema migrations. It does not run paid live
-  calls during ordinary tests, builds, or review artifact generation.
+- Phase 27c persists a student-safe profile-integration snapshot in
+  `student_profiles` after package submission and may display only the
+  three-label status, short message, and knowledge-focus projection to
+  students. The internal integrated status, integration pattern, engagement
+  context, evidence rationale, limitations, source packet versions, and safety
+  flags remain teacher/research inspection data.
+- Phase 27c does not implement teacher upload, new item content, formative
+  value determination, formative activity selection, or schema migrations. It
+  does not run paid live calls during ordinary tests, builds, review artifact
+  generation, or student-safe projection rendering.

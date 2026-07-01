@@ -755,14 +755,43 @@ async function main() {
     );
     assert(state.learning_profile.explanation.length > 0, "Learning profile should include a short explanation.");
     assert(
-      /^Your next focus\b/i.test(state.learning_profile.next_focus),
-      "Learning profile should include one student-facing next-focus statement."
+      /^Knowledge focus:/i.test(state.learning_profile.next_focus),
+      "Learning profile should include one student-facing knowledge-focus statement."
     );
     assert(
-      !/\b(the student|they|their|engagement profile|formative need|metadata|structured output|agent call)\b/i.test(
+      !/\b(the student|they|their|engagement profile|engagement category|ai assistance|external assistance|formative need|metadata|structured output|agent call|integration pattern|internal integrated status)\b/i.test(
         JSON.stringify(state.learning_profile)
       ),
       "Learning profile should use direct student-facing wording without internal labels."
+    );
+    const persistedIntegrationProfile = await prisma.studentProfile.findFirst({
+      where: {
+        concept_unit_session: {
+          assessment_session: { session_public_id: started.session.session_public_id }
+        },
+        item_level_evidence: {
+          path: ["source"],
+          equals: "profile_integration_interpretation"
+        }
+      },
+      select: {
+        item_level_evidence: true,
+        recommended_next_evidence: true,
+        based_on_agent_call_db_id: true
+      }
+    });
+    assert(persistedIntegrationProfile, "Profile integration snapshot should be persisted.");
+    assert(
+      persistedIntegrationProfile.based_on_agent_call_db_id === null,
+      "Deterministic profile integration display snapshot should not fabricate an agent-call link."
+    );
+    assert(
+      JSON.stringify(persistedIntegrationProfile.item_level_evidence).includes("teacher_research_summary"),
+      "Profile integration snapshot should preserve teacher/research inspection evidence."
+    );
+    assert(
+      JSON.stringify(persistedIntegrationProfile.recommended_next_evidence).includes("student_safe_message"),
+      "Profile integration snapshot should preserve the student-safe message separately."
     );
     const postPackageTranscript = await getStudentSafeTranscript({
       student_user_db_id: student.id,
@@ -822,6 +851,11 @@ async function main() {
     assert((counts.student_response_edit_submitted ?? 0) > 0, "In-flow edit event missing.");
     assert((counts.reasoning_edited ?? 0) > 0, "Reasoning edit event missing.");
     assert((counts.clarification_answered ?? 0) > 0, "Clarification event missing.");
+    assert((counts.profile_integration_interpreted ?? 0) > 0, "Profile integration event missing.");
+    assert(
+      (counts.student_safe_profile_projection_updated ?? 0) > 0,
+      "Student-safe profile projection event missing."
+    );
     assert(
       JSON.stringify(events.map((event) => event.payload)).includes('"item_admin_tutor_source":"deterministic_mock"'),
       "Item administration tutor source should be recorded in process-event evidence."

@@ -12,6 +12,7 @@ import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
 import { toPrismaJson } from "@/lib/services/json";
+import { logProcessEvent } from "@/lib/services/process-events";
 import {
   ABILITY_EVIDENCE_PACKET_SCHEMA_VERSION,
   buildAbilityEvidencePacketForSession,
@@ -273,6 +274,11 @@ export type ProfileIntegrationValidationIssue = {
 
 type JsonRecord = Record<string, unknown>;
 type StudentFacingProjection = ProfileIntegrationInterpretationPacketV1["student_safe_message"];
+export type StudentSafeProfileIntegrationProjection = StudentFacingProjection & {
+  updated_at: string;
+};
+
+const PROFILE_INTEGRATION_STUDENT_PROFILE_SOURCE = "profile_integration_interpretation";
 
 export type ProfileIntegrationAgentInput = {
   agent_name: typeof PROFILE_INTEGRATION_AGENT_NAME;
@@ -1543,6 +1549,232 @@ export function projectStudentSafeIntegratedMessage(
   return packet.student_safe_message;
 }
 
+function jsonRecord(value: unknown): JsonRecord {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
+}
+
+function safeString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+const StudentSafeProfileIntegrationProjectionSchema = z.object({
+  status: StudentFacingStatusSchema,
+  message: z.string().min(1).max(320),
+  knowledge_focus: z.string().min(1).max(220)
+}).strict();
+
+const STUDENT_SAFE_PROFILE_PROHIBITED_RULES: Array<{
+  rule_code:
+    | "answer_key_leak_detected"
+    | "correct_option_leak_detected"
+    | "correctness_label_detected"
+    | "distractor_metadata_detected"
+    | "misconception_id_exposed"
+    | "raw_reasoning_exposed"
+    | "raw_process_payload_exposed"
+    | "raw_llm_output_exposed"
+    | "api_key_or_secret_exposed"
+    | "engagement_label_exposed_to_student"
+    | "ai_assistance_label_exposed_to_student"
+    | "unsupported_integrity_claim_detected"
+    | "formative_value_direction_present";
+  pattern: RegExp;
+  blocked_pattern_label: string;
+}> = [
+  { rule_code: "answer_key_leak_detected", pattern: /\banswer key\b/i, blocked_pattern_label: "answer_key" },
+  { rule_code: "correct_option_leak_detected", pattern: /\bcorrect option\b/i, blocked_pattern_label: "correct_option" },
+  { rule_code: "correctness_label_detected", pattern: /\b(correctness|correct|incorrect|right answer|wrong answer)\b/i, blocked_pattern_label: "correctness_label" },
+  { rule_code: "distractor_metadata_detected", pattern: /\bdistractor\b/i, blocked_pattern_label: "distractor_label" },
+  { rule_code: "misconception_id_exposed", pattern: /\bmisconception(?:[_ -]?id)?\b/i, blocked_pattern_label: "misconception_label" },
+  { rule_code: "raw_reasoning_exposed", pattern: /\braw reasoning\b/i, blocked_pattern_label: "raw_reasoning" },
+  { rule_code: "raw_process_payload_exposed", pattern: /\b(raw process|process payload|process data|process evidence)\b/i, blocked_pattern_label: "process_data_label" },
+  { rule_code: "raw_llm_output_exposed", pattern: /\braw (?:llm|model|provider) output\b|\bstructured output\b|\bsystem prompt\b|\bagent call\b/i, blocked_pattern_label: "internal_llm_label" },
+  { rule_code: "api_key_or_secret_exposed", pattern: /\b(api key|authorization header|session secret|database url)\b/i, blocked_pattern_label: "secret_reference" },
+  { rule_code: "engagement_label_exposed_to_student", pattern: /\b(engagement profile|engagement category|engaged|moderately engaged|disengaged|low engagement|low participation)\b/i, blocked_pattern_label: "engagement_label" },
+  { rule_code: "ai_assistance_label_exposed_to_student", pattern: /\b(ai assistance|external assistance|genai|chatgpt)\b/i, blocked_pattern_label: "external_assistance_label" },
+  { rule_code: "unsupported_integrity_claim_detected", pattern: /\b(integrity|authenticity|authentic work|independent work|suspicious|questionable)\b/i, blocked_pattern_label: "unsupported_integrity_label" },
+  { rule_code: "unsupported_integrity_claim_detected", pattern: new RegExp(`\\b(${["che" + "ating", "mis" + "conduct"].join("|")})\\b`, "i"), blocked_pattern_label: "unsupported_integrity_label" },
+  { rule_code: "formative_value_direction_present", pattern: /\b(formative need|formative value|response profile|metadata|integration pattern|internal integrated status)\b/i, blocked_pattern_label: "internal_profile_label" }
+];
+
+export function validateStudentSafeProfileIntegrationProjection(value: unknown) {
+  const schemaResult = StudentSafeProfileIntegrationProjectionSchema.safeParse(value);
+  const issues: ProfileIntegrationValidationIssue[] = [];
+
+  if (!schemaResult.success) {
+    for (const issue of schemaResult.error.issues) {
+      pushIssue(issues, issue.path.join(".") || "student_safe_message", "schema_invalid");
+    }
+    return { valid: false as const, issues };
+  }
+
+  const projection = schemaResult.data;
+  const textEntries = [
+    { path: "student_safe_message.message", text: projection.message },
+    { path: "student_safe_message.knowledge_focus", text: projection.knowledge_focus }
+  ];
+
+  for (const entry of textEntries) {
+    if (/\b(the student|they|their)\b/i.test(entry.text)) {
+      pushIssue(
+        issues,
+        entry.path,
+        "formative_value_direction_present",
+        "third_person_student_facing_language"
+      );
+    }
+    for (const rule of STUDENT_SAFE_PROFILE_PROHIBITED_RULES) {
+      if (rule.pattern.test(entry.text)) {
+        pushIssue(issues, entry.path, rule.rule_code, rule.blocked_pattern_label);
+      }
+    }
+  }
+
+  return issues.length === 0
+    ? { valid: true as const, projection, issues }
+    : { valid: false as const, issues };
+}
+
+export function projectStoredStudentProfileIntegration(input: {
+  item_level_evidence: Prisma.JsonValue;
+  recommended_next_evidence?: Prisma.JsonValue | null;
+  created_at: Date | string;
+}): StudentSafeProfileIntegrationProjection | null {
+  const evidence = jsonRecord(input.item_level_evidence);
+  if (evidence.source !== PROFILE_INTEGRATION_STUDENT_PROFILE_SOURCE) {
+    return null;
+  }
+
+  const evidenceMessage = jsonRecord(evidence.student_safe_message);
+  const recommendedMessage = jsonRecord(jsonRecord(input.recommended_next_evidence).student_safe_message);
+  const candidate = {
+    status: safeString(evidenceMessage.status) || safeString(recommendedMessage.status),
+    message: safeString(evidenceMessage.message) || safeString(recommendedMessage.message),
+    knowledge_focus:
+      safeString(evidenceMessage.knowledge_focus) || safeString(recommendedMessage.knowledge_focus)
+  };
+  const validation = validateStudentSafeProfileIntegrationProjection(candidate);
+
+  if (!validation.valid) {
+    return null;
+  }
+
+  return {
+    ...validation.projection,
+    updated_at:
+      input.created_at instanceof Date ? input.created_at.toISOString() : input.created_at
+  };
+}
+
+function abilityProfileForIntegration(packet: ProfileIntegrationInterpretationPacketV1) {
+  switch (packet.integration_pattern) {
+    case "stable_understanding":
+      return "mostly_correct_understanding";
+    case "likely_misconception":
+      return "misconception_based_understanding";
+    case "likely_knowledge_gap":
+      return "fragmented_or_limited_understanding";
+    case "insufficient_evidence":
+      return "insufficient_evidence";
+    case "mixed_or_conflicting_evidence":
+      return "partial_understanding";
+    case "developing_understanding":
+    default:
+      return "partial_understanding";
+  }
+}
+
+function engagementProfileForIntegration(packet: ProfileIntegrationInterpretationPacketV1) {
+  switch (packet.engagement_context.engagement_category) {
+    case "engaged":
+      return "adequate_engagement";
+    case "moderately_engaged":
+      return "variable_engagement";
+    case "disengaged":
+      return "low_engagement";
+    case "insufficient_evidence":
+    default:
+      return "insufficient_process_evidence";
+  }
+}
+
+function integratedProfileForIntegration(packet: ProfileIntegrationInterpretationPacketV1) {
+  switch (packet.integration_pattern) {
+    case "stable_understanding":
+      return "robust_understanding_ready_for_transfer";
+    case "likely_misconception":
+      return "misconception_with_sufficient_engagement";
+    case "developing_understanding":
+      return "developing_understanding_with_productive_engagement";
+    case "insufficient_evidence":
+      return "insufficient_evidence_for_formative_decision";
+    case "likely_knowledge_gap":
+    case "mixed_or_conflicting_evidence":
+    default:
+      return "conflicting_evidence_needs_clarification";
+  }
+}
+
+function evidenceSufficiencyForIntegration(packet: ProfileIntegrationInterpretationPacketV1) {
+  if (packet.integration_pattern === "insufficient_evidence") return "limited";
+  if (packet.status_confidence === "high") return "strong";
+  if (packet.status_confidence === "medium") return "adequate";
+  return "limited";
+}
+
+function confidenceAlignmentForIntegration(packet: ProfileIntegrationInterpretationPacketV1) {
+  if (packet.ability_interpretation.evidence_consistency === "insufficient") {
+    return "insufficient_evidence";
+  }
+  if (
+    packet.ability_interpretation.evidence_consistency === "mixed" ||
+    packet.ability_interpretation.evidence_consistency === "conflicting"
+  ) {
+    return "mixed";
+  }
+  return "well_calibrated";
+}
+
+function profileIntegrationSnapshot(packet: ProfileIntegrationInterpretationPacketV1) {
+  return {
+    source: PROFILE_INTEGRATION_STUDENT_PROFILE_SOURCE,
+    schema_version: packet.schema_version,
+    agent_name: packet.agent_name,
+    agent_version: packet.agent_version,
+    generation_mode: packet.generation_mode,
+    session_public_id: packet.session_public_id,
+    student_public_id: packet.student_public_id,
+    assessment_public_id: packet.assessment_public_id,
+    concept_unit_id: packet.concept_unit_id,
+    generated_at: packet.generated_at,
+    source_packets: packet.source_packets,
+    internal_integrated_status: packet.internal_integrated_status,
+    student_facing_status: packet.student_facing_status,
+    status_confidence: packet.status_confidence,
+    integration_pattern: packet.integration_pattern,
+    ability_interpretation: {
+      summary: packet.ability_interpretation.summary,
+      evidence_consistency: packet.ability_interpretation.evidence_consistency,
+      main_conceptual_issue: packet.ability_interpretation.main_conceptual_issue,
+      misconception_claim_strength: packet.ability_interpretation.misconception_claim_strength,
+      knowledge_gap_claim_strength: packet.ability_interpretation.knowledge_gap_claim_strength,
+      confidence_calibration_summary: packet.ability_interpretation.confidence_calibration_summary,
+      limitations: packet.ability_interpretation.limitations
+    },
+    engagement_context: {
+      summary: packet.engagement_context.summary,
+      engagement_effect_on_interpretation: packet.engagement_context.engagement_effect_on_interpretation,
+      ai_assistance_effect_on_interpretation: packet.engagement_context.ai_assistance_effect_on_interpretation,
+      limitations: packet.engagement_context.limitations
+    },
+    evidence_rationale: packet.evidence_rationale,
+    uncertainty_and_limitations: packet.uncertainty_and_limitations,
+    student_safe_message: packet.student_safe_message,
+    teacher_research_summary: packet.teacher_research_summary,
+    safety_check: packet.safety_check
+  };
+}
+
 function highConfidenceBlockedByEvidence(input: ProfileIntegrationAgentInput, packet: ProfileIntegrationInterpretationPacketV1) {
   return (
     packet.ability_interpretation.evidence_consistency === "mixed" ||
@@ -1786,6 +2018,175 @@ export async function buildProfileIntegrationInterpretationPacketForSession(
     agentInput,
     `profile_integration_validation_failed_${validation.issues.length}_issues`
   );
+}
+
+export async function persistProfileIntegrationSnapshotForSession(input: {
+  session_public_id: string;
+  execution_mode?: "deterministic_mock" | "live_provider";
+}) {
+  const session = await prisma.assessmentSession.findUnique({
+    where: { session_public_id: input.session_public_id },
+    select: {
+      id: true,
+      session_public_id: true
+    }
+  });
+
+  if (!session) {
+    return { status: "blocked" as const, blocked_reason: "session_not_found" };
+  }
+
+  const conceptUnitSession = await prisma.conceptUnitSession.findFirst({
+    where: {
+      assessment_session_db_id: session.id,
+      response_packages: {
+        some: {
+          package_type: "initial_concept_unit_response_package"
+        }
+      }
+    },
+    orderBy: [{ initial_completed_at: "desc" }, { updated_at: "desc" }],
+    select: {
+      id: true,
+      assessment_session_db_id: true,
+      concept_unit_db_id: true,
+      initial_completed_at: true,
+      student_profiles: {
+        select: {
+          id: true,
+          item_level_evidence: true,
+          created_at: true
+        },
+        orderBy: [{ created_at: "desc" }]
+      }
+    }
+  });
+
+  if (!conceptUnitSession) {
+    return { status: "blocked" as const, blocked_reason: "initial_response_package_missing" };
+  }
+
+  const existing = conceptUnitSession.student_profiles.find((profile) => {
+    const evidence = jsonRecord(profile.item_level_evidence);
+    return evidence.source === PROFILE_INTEGRATION_STUDENT_PROFILE_SOURCE;
+  });
+
+  if (existing) {
+    return {
+      status: "already_persisted" as const,
+      student_profile_db_id: existing.id
+    };
+  }
+
+  const packet = await buildProfileIntegrationInterpretationPacketForSession(input.session_public_id, {
+    execution_mode: input.execution_mode ?? "deterministic_mock"
+  });
+  const validation = validateProfileIntegrationOutput(packet);
+  const studentProjectionValidation = validateStudentSafeProfileIntegrationProjection(
+    packet.student_safe_message
+  );
+
+  if (!validation.valid || !studentProjectionValidation.valid) {
+    const issues = validation.valid ? studentProjectionValidation.issues : validation.issues;
+    await logProcessEvent({
+      assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
+      concept_unit_session_db_id: conceptUnitSession.id,
+      event_type: "profile_integration_blocked",
+      event_category: "profile_integration",
+      event_source: "backend",
+      payload: {
+        schema_version: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION,
+        issue_count: issues.length,
+        issues: issues.map((issue) => ({
+          field_path: issue.field_path,
+          rule_code: issue.rule_code,
+          blocked_pattern_label: issue.blocked_pattern_label ?? null
+        }))
+      }
+    });
+    return {
+      status: "blocked" as const,
+      blocked_reason: "profile_integration_validation_failed",
+      issue_count: issues.length
+    };
+  }
+
+  const createdAt = conceptUnitSession.initial_completed_at ?? new Date();
+  const profile = await prisma.studentProfile.create({
+    data: {
+      concept_unit_session_db_id: conceptUnitSession.id,
+      profile_type: "initial",
+      ability_profile: abilityProfileForIntegration(packet),
+      ability_pattern_flags: prismaJson({
+        source: PROFILE_INTEGRATION_STUDENT_PROFILE_SOURCE,
+        student_safe_status: packet.student_safe_message.status,
+        status_confidence: packet.status_confidence
+      }),
+      engagement_profile: engagementProfileForIntegration(packet),
+      engagement_pattern_flags: prismaJson({
+        source: PROFILE_INTEGRATION_STUDENT_PROFILE_SOURCE,
+        engagement_effect_on_interpretation:
+          packet.engagement_context.engagement_effect_on_interpretation
+      }),
+      integrated_diagnostic_profile: integratedProfileForIntegration(packet),
+      integrated_profile_confidence: packet.status_confidence,
+      integrated_profile_rationale: packet.teacher_research_summary.safe_internal_summary,
+      evidence_sufficiency: evidenceSufficiencyForIntegration(packet),
+      confidence_alignment: confidenceAlignmentForIntegration(packet),
+      independence_interpretability: "not_applicable",
+      misconception_indicators: prismaJson({
+        source: PROFILE_INTEGRATION_STUDENT_PROFILE_SOURCE,
+        main_conceptual_issue: packet.ability_interpretation.main_conceptual_issue,
+        misconception_claim_strength: packet.ability_interpretation.misconception_claim_strength
+      }),
+      item_level_evidence: prismaJson(profileIntegrationSnapshot(packet)),
+      reasoning_quality_summary: packet.ability_interpretation.summary,
+      engagement_summary: packet.engagement_context.summary,
+      process_interpretation_cautions: prismaJson(packet.uncertainty_and_limitations),
+      profile_confidence: packet.status_confidence,
+      rationale: packet.teacher_research_summary.safe_internal_summary,
+      recommended_next_evidence: prismaJson({
+        source: PROFILE_INTEGRATION_STUDENT_PROFILE_SOURCE,
+        student_safe_message: packet.student_safe_message
+      }),
+      based_on_agent_call_db_id: null,
+      created_at: createdAt
+    }
+  });
+
+  await logProcessEvent({
+    assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
+    concept_unit_session_db_id: conceptUnitSession.id,
+    event_type: "profile_integration_interpreted",
+    event_category: "profile_integration",
+    event_source: "backend",
+    payload: {
+      schema_version: packet.schema_version,
+      generation_mode: packet.generation_mode,
+      student_facing_status: packet.student_safe_message.status,
+      status_confidence: packet.status_confidence,
+      integration_pattern: packet.integration_pattern,
+      safety_check_passed: true
+    }
+  });
+  await logProcessEvent({
+    assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
+    concept_unit_session_db_id: conceptUnitSession.id,
+    event_type: "student_safe_profile_projection_updated",
+    event_category: "profile_integration",
+    event_source: "backend",
+    payload: {
+      schema_version: packet.schema_version,
+      student_facing_status: packet.student_safe_message.status,
+      safety_check_passed: true
+    }
+  });
+
+  return {
+    status: "persisted" as const,
+    student_profile_db_id: profile.id,
+    student_facing_status: packet.student_safe_message.status
+  };
 }
 
 export async function writeProfileIntegrationReviewArtifact(input: {

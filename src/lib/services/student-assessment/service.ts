@@ -36,6 +36,10 @@ import {
   type ItemAdministrationTutorResult
 } from "@/lib/services/student-assessment/item-administration-tutor";
 import {
+  persistProfileIntegrationSnapshotForSession,
+  projectStoredStudentProfileIntegration
+} from "@/lib/services/student-assessment/profile-integration";
+import {
   assertChatNativeActionAllowed,
   type ChatNativeAssessmentAction,
   type ChatNativeAssessmentState
@@ -362,6 +366,7 @@ function studentSafeLearningProfile(input: {
     evidence_sufficiency: string;
     integrated_profile_rationale?: string | null;
     rationale?: string | null;
+    item_level_evidence: Prisma.JsonValue;
     recommended_next_evidence?: Prisma.JsonValue;
     created_at: Date;
   } | null;
@@ -371,6 +376,16 @@ function studentSafeLearningProfile(input: {
 }) {
   if (!input.profile) {
     return null;
+  }
+
+  const profileIntegrationProjection = projectStoredStudentProfileIntegration(input.profile);
+  if (profileIntegrationProjection) {
+    return {
+      status: profileIntegrationProjection.status,
+      explanation: oneSentence(profileIntegrationProjection.message),
+      next_focus: oneSentence(`Knowledge focus: ${profileIntegrationProjection.knowledge_focus}`),
+      updated_at: profileIntegrationProjection.updated_at
+    };
   }
 
   const flags = recordValue(input.profile.ability_pattern_flags);
@@ -1990,8 +2005,8 @@ export async function getStudentSessionState(input: {
     assessment_db_id: session.assessment_db_id,
     current_concept_unit_db_id: currentConceptUnit?.id ?? null
   });
-  const latestStudentProfile = conceptUnitSession
-    ? await prisma.studentProfile.findFirst({
+  const studentProfiles = conceptUnitSession
+    ? await prisma.studentProfile.findMany({
         where: { concept_unit_session_db_id: conceptUnitSession.id },
         orderBy: [{ created_at: "desc" }],
         select: {
@@ -2001,11 +2016,16 @@ export async function getStudentSessionState(input: {
           evidence_sufficiency: true,
           integrated_profile_rationale: true,
           rationale: true,
+          item_level_evidence: true,
           recommended_next_evidence: true,
           created_at: true
         }
       })
-    : null;
+    : [];
+  const latestStudentProfile =
+    studentProfiles.find((profile) => projectStoredStudentProfileIntegration(profile)) ??
+    studentProfiles[0] ??
+    null;
   const latestFormativeDecision = conceptUnitSession
     ? await prisma.formativeDecision.findFirst({
         where: { concept_unit_session_db_id: conceptUnitSession.id },
@@ -4673,6 +4693,9 @@ export async function completeInitialConceptUnitAdministration(input: {
     if (!existingPackage) {
       await createResponsePackage({ concept_unit_session_db_id: conceptUnitSession.id });
     }
+    await persistProfileIntegrationSnapshotForSession({
+      session_public_id: session.session_public_id
+    });
     await ensureChatNativeFormativeActivity({
       concept_unit_session_db_id: conceptUnitSession.id,
       invocation_reason: "student_package_review_continue_replay"
@@ -4768,6 +4791,9 @@ export async function completeInitialConceptUnitAdministration(input: {
   if (!existingPackage) {
     await createResponsePackage({ concept_unit_session_db_id: conceptUnitSession.id });
   }
+  await persistProfileIntegrationSnapshotForSession({
+    session_public_id: session.session_public_id
+  });
   await ensureChatNativeFormativeActivity({
     concept_unit_session_db_id: conceptUnitSession.id,
     invocation_reason: "student_package_review_continue"

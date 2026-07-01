@@ -117,6 +117,8 @@ npm run student:profile-integration-review -- --session-public-id <session_publi
 
 The command writes ignored artifacts under `.data/profile-integration-review/`. Student-safe output is limited to one of `Mostly understood`, `Still developing`, or `Needs more work`, plus a short message and knowledge-focus statement. The student-safe projection hides engagement labels, AI-assistance labels, answer keys, correct options, correctness labels, distractor metadata, raw reasoning, raw process payloads, raw provider output, formative value direction, and activity recommendations.
 
+After the student submits the three-item package, the app persists a profile-integration snapshot in `student_profiles` and displays only the student-safe status/message/knowledge-focus projection in the learning-profile panel. Internal integrated status, integration pattern, engagement context, evidence rationale, and safety flags remain teacher/research inspection data and are not serialized to student payloads. This persistence does not choose a formative value, recommend an activity, or replace the operational formative-profile record used by follow-up logic.
+
 Profile integration can also exercise the provider-backed path, but only through explicit opt-in commands. Default verification remains no-live:
 
 ```bash

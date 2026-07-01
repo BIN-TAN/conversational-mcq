@@ -489,12 +489,12 @@ function reviewScenario(result: ScenarioResult, scenario: Scenario): ReviewIssue
         message: `Unexpected profile status: ${result.learning_profile.status}.`
       });
     }
-    if (!/^Your next focus\b/i.test(result.learning_profile.next_focus)) {
+    if (!/^(Your next focus\b|Knowledge focus:)/i.test(result.learning_profile.next_focus)) {
       issues.push({
         scenario: result.name,
         reviewer: "learning_profile",
         severity: "high",
-        message: "Profile next-focus statement is missing or not student-facing."
+        message: "Profile focus statement is missing or not student-facing."
       });
     }
     if (/mostly_understood|still_developing|needs_more_work/i.test(safeText(result.learning_profile))) {

@@ -272,6 +272,18 @@ Artifacts are written under:
 
 The artifacts are local developer/research review files and are ignored by Git.
 
+## Student-Safe Persistence And Display
+
+After the three-item package is submitted, the application now persists a `profile-integration-interpretation-v1` snapshot in `student_profiles` using the existing schema. The snapshot is marked in `item_level_evidence.source` as `profile_integration_interpretation` and preserves teacher/research inspection fields such as internal status, integration pattern, confidence, safe ability interpretation summary, safe engagement-context summary, evidence rationale, limitations, source packet versions, and safety-check flags.
+
+The snapshot does not update the operational `latest_student_profile_db_id`; formative activity selection and follow-up logic continue to use the existing formative-profile records. The student serializer explicitly finds the integration snapshot and projects only:
+
+- one status: `Mostly understood`, `Still developing`, or `Needs more work`;
+- a short supportive message;
+- a knowledge-focus statement.
+
+Student-facing projection validation blocks answer keys, correctness labels, distractor metadata, misconception identifiers, raw reasoning, raw process payloads, raw provider output, internal profile labels, engagement labels, AI-assistance labels, process-data wording, and integrity/provenance language. If a stored projection cannot validate safely, it is not returned to the student UI.
+
 ## Future Use
 
 A later formative layer may consume this packet. That later layer must remain separate from this interpretation packet and must not infer activity selection from engagement context alone.
