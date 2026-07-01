@@ -238,10 +238,28 @@ async function main() {
         packet.session_engagement_summary.session_decision_trace.top_counterevidence,
       package_duration_band:
         packet.session_engagement_summary.session_decision_trace.package_duration_band,
+      package_wall_clock_band:
+        packet.session_engagement_summary.session_decision_trace.package_timing.wall_clock_band,
+      package_active_response_band:
+        packet.session_engagement_summary.session_decision_trace.package_timing.active_response_band,
+      package_sum_item_active_band:
+        packet.session_engagement_summary.session_decision_trace.package_timing.sum_item_active_band,
+      package_focus_adjusted_band:
+        packet.session_engagement_summary.session_decision_trace.package_timing.focus_adjusted_band,
+      timing_source_used_for_rapid_rule:
+        packet.session_engagement_summary.session_decision_trace.package_timing.timing_source_used_for_rapid_rule,
+      package_ultra_rapid_rule_matched:
+        packet.session_engagement_summary.session_decision_trace.package_timing.package_ultra_rapid_rule_matched,
+      package_extreme_rapid_rule_matched:
+        packet.session_engagement_summary.session_decision_trace.package_timing.package_extreme_rapid_rule_matched,
+      package_rapid_warning_rule_matched:
+        packet.session_engagement_summary.session_decision_trace.package_timing.package_rapid_warning_rule_matched,
       sparse_item_count:
         packet.session_engagement_summary.session_decision_trace.sparse_item_count,
       substantive_item_count:
         packet.session_engagement_summary.session_decision_trace.substantive_item_count,
+      substantive_reasoning_basis_counts:
+        packet.session_engagement_summary.session_decision_trace.substantive_reasoning_basis_counts,
       matched_session_rules:
         packet.session_engagement_summary.session_decision_trace.matched_session_rules.map(
           (rule) => rule.rule_id

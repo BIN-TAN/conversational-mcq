@@ -1170,12 +1170,21 @@ Phase 6A.5 must not implement:
 - Engagement evidence v1 may derive initial three-item package timing from
   existing item and process timestamps. The package-level thresholds are
   provisional engineering thresholds:
-  `initial_package_extreme_rapid_ms=30000` and
-  `initial_package_rapid_ms=60000`. A package-level extreme rapid sparse rule
-  can support `disengaged` only when timing is available, at least three item
-  entries are present, at least two items have sparse/low-information,
-  uncertainty-without-elaboration, repair, or invalid evidence, and no strong
-  substantive reasoning counterevidence exists.
+  `initial_package_ultra_rapid_ms=8000`,
+  `initial_package_extreme_rapid_ms=15000`, and
+  `initial_package_rapid_warning_ms=30000`.
+- Package-level rapid sparse rules must prefer active response timing over
+  wall-clock timing. They should record wall-clock duration, active-response
+  duration, summed per-item active duration, focus-adjusted duration when
+  feasible, and the timing source used for the rapid rule. Wall-clock timing is
+  a fallback only and must be labeled as such.
+- A package-level ultra/extreme rapid sparse rule can support `disengaged` only
+  when timing is available, at least three item entries are present, at least
+  two items have sparse/low-information, uncertainty-without-elaboration,
+  repair, or invalid evidence, and no strong substantive reasoning
+  counterevidence exists. Rapid-warning timing is weaker and must not
+  automatically classify a session as `disengaged` without convergent weak
+  engagement signals.
 - Completed three-item packages are baseline completion context, not strong
   engagement counterevidence. Observed process events indicate data
   availability and instrumentation context; they are not engagement
@@ -1186,8 +1195,12 @@ Phase 6A.5 must not implement:
   are not invalid engagement patterns.
 - Short uncertainty statements such as "I don't know" are uncertainty evidence,
   not invalid engagement evidence. They may contribute to a package-level
-  sparse evidence pattern only when paired with extreme rapid package timing
-  and repeated sparse evidence.
+  sparse evidence pattern only when paired with active ultra/extreme rapid
+  package timing and repeated sparse evidence.
+- Substantive reasoning counterevidence requires task-relevant content,
+  adequate or usable response-quality evidence, or a key idea/action signal.
+  Reasoning length alone is not enough; long irrelevant or repetitive text must
+  remain low-information evidence.
 - AI-assistance signals in the evidence packet are exactly `none_indicated`,
   `likely_external_assistance_pattern`, and `insufficient_evidence`.
   AI-assistance is allowed; the signal is behavioral process context only and

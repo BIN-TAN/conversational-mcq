@@ -40,6 +40,60 @@ function serialized(value: unknown) {
   return JSON.stringify(value).toLowerCase();
 }
 
+type PackageTimingForTest = NonNullable<Parameters<typeof summarizeSessionEngagement>[1]>;
+type PackageTimingSourceForTest = PackageTimingForTest["timing_source_used_for_rapid_rule"];
+
+function packageTimingForTest(input: {
+  wall?: number | null;
+  active?: number | null;
+  sum?: number | null;
+  focus?: number | null;
+  source?: PackageTimingSourceForTest;
+  baseline?: boolean;
+  dataQuality?: boolean;
+  limitations?: string[];
+}): PackageTimingForTest {
+  const source: PackageTimingSourceForTest =
+    input.source ??
+    (input.active !== undefined && input.active !== null
+      ? "active_response"
+      : input.sum !== undefined && input.sum !== null
+        ? "sum_item_active"
+        : input.focus !== undefined && input.focus !== null
+          ? "focus_adjusted"
+          : input.wall !== undefined && input.wall !== null
+            ? "wall_clock_fallback"
+            : "unavailable");
+  const rapidDuration =
+    source === "active_response"
+      ? input.active ?? null
+      : source === "sum_item_active"
+        ? input.sum ?? null
+        : source === "focus_adjusted"
+          ? input.focus ?? null
+          : source === "wall_clock_fallback"
+            ? input.wall ?? null
+            : null;
+  const limitations = input.limitations ?? [
+    ...(input.active === undefined || input.active === null ? ["active_package_timing_unavailable"] : []),
+    ...(source === "wall_clock_fallback" ? ["wall_clock_timing_used_for_rapid_rule_fallback"] : []),
+    ...(source === "unavailable" ? ["package_timing_unavailable"] : [])
+  ];
+
+  return {
+    wall_clock_duration_ms: input.wall ?? null,
+    active_response_duration_ms: input.active ?? null,
+    sum_item_active_duration_ms: input.sum ?? null,
+    focus_adjusted_duration_ms: input.focus ?? null,
+    timing_source_used_for_rapid_rule: source,
+    rapid_rule_duration_ms: rapidDuration,
+    rapid_rule_timing_approximate: source === "focus_adjusted" || source === "wall_clock_fallback" || source === "unavailable",
+    baseline_completion_observed: input.baseline ?? true,
+    data_quality_events_observed: input.dataQuality ?? true,
+    timing_limitations: limitations
+  };
+}
+
 function runPureEngagementAssertions() {
   const engaged = buildItemEngagementEvidence({
     item_public_id: "engaged_item",
@@ -136,6 +190,30 @@ function runPureEngagementAssertions() {
   assert(
     !becauseOnly.decision_trace.matched_rules.some((rule) => rule.rule_id === "meaningful_reasoning_or_revision"),
     "Minimal text such as 'because' should not count as meaningful reasoning counterevidence."
+  );
+  assert(
+    becauseOnly.substantive_reasoning_basis === "not_substantive_low_information",
+    "Minimal text should record a low-information substantive reasoning basis."
+  );
+
+  const longIrrelevant = buildItemEngagementEvidence({
+    item_public_id: "long_irrelevant_item",
+    response_present: true,
+    selected_option: "B",
+    reasoning_text:
+      "banana banana banana banana banana banana banana banana banana banana banana banana banana banana banana banana",
+    item_response_time_ms: 18_000,
+    revision_count: 0,
+    event_counts: { typing_activity_summary: 1 },
+    process_instrumentation_available: true
+  });
+  assert(
+    longIrrelevant.substantive_reasoning_basis === "not_substantive_low_information",
+    "Long but irrelevant or repeated placeholder text should not count as substantive."
+  );
+  assert(
+    !longIrrelevant.decision_trace.matched_rules.some((rule) => rule.rule_id === "meaningful_reasoning_or_revision"),
+    "Long irrelevant text should not match meaningful reasoning."
   );
 
   const wrongAnswerAlone = buildItemEngagementEvidence({
@@ -262,80 +340,103 @@ function runPureEngagementAssertions() {
     "Repeated rapid/minimal session trace should include full-item completion threshold."
   );
 
-  const extremeRapidSparsePackage = summarizeSessionEngagement(
+  const ultraRapidSparsePackage = summarizeSessionEngagement(
     [rapid, becauseOnly, idk],
-    {
-      package_duration_ms: 20_000,
-      package_duration_source: "first_item_presented_to_package_submitted",
-      package_timing_approximate: false,
-      baseline_completion_observed: true,
-      data_quality_events_observed: true
-    }
+    packageTimingForTest({ wall: 180_000, active: 7_500, sum: 7_200 })
   );
   assert(
-    extremeRapidSparsePackage.provisional_engagement_category === "disengaged",
-    "Three-item package under 30 seconds with at least two sparse items should classify as disengaged."
+    ultraRapidSparsePackage.provisional_engagement_category === "disengaged",
+    "Wall-clock typical/long should not hide ultra-rapid active sparse answering."
   );
   assert(
-    extremeRapidSparsePackage.category_confidence === "high",
-    "Direct extreme rapid sparse package timing should produce high confidence."
+    ultraRapidSparsePackage.category_confidence === "high",
+    "Reliable active ultra-rapid sparse package timing should produce high confidence."
   );
   assert(
-    extremeRapidSparsePackage.session_decision_trace.package_duration_band === "package_extreme_rapid",
-    "Session trace should include package extreme rapid duration band."
+    ultraRapidSparsePackage.session_decision_trace.package_duration_band === "package_ultra_rapid",
+    "Session trace should use active ultra-rapid duration band for rapid rules."
   );
   assert(
-    extremeRapidSparsePackage.session_decision_trace.sparse_item_count >= 2,
+    ultraRapidSparsePackage.session_decision_trace.package_timing.wall_clock_band === "package_typical_or_long",
+    "Session trace should retain the wall-clock band separately."
+  );
+  assert(
+    ultraRapidSparsePackage.session_decision_trace.package_timing.active_response_band === "package_ultra_rapid",
+    "Session trace should include the active response band."
+  );
+  assert(
+    ultraRapidSparsePackage.session_decision_trace.package_timing.timing_source_used_for_rapid_rule === "active_response",
+    "Active response timing should be preferred for rapid sparse rules."
+  );
+  assert(
+    ultraRapidSparsePackage.session_decision_trace.package_timing.package_ultra_rapid_rule_matched,
+    "Ultra rapid sparse rule should match."
+  );
+  assert(
+    ultraRapidSparsePackage.session_decision_trace.sparse_item_count >= 2,
     "Session trace should include sparse item count."
   );
   assert(
-    extremeRapidSparsePackage.session_decision_trace.substantive_item_count === 0,
-    "Extreme sparse package should record no substantive item counterevidence."
+    ultraRapidSparsePackage.session_decision_trace.substantive_item_count === 0,
+    "Ultra sparse package should record no substantive item counterevidence."
   );
   assert(
-    extremeRapidSparsePackage.session_decision_trace.matched_session_rules.some(
-      (rule) => rule.rule_id === "initial_package_extreme_rapid_sparse"
+    ultraRapidSparsePackage.session_decision_trace.matched_session_rules.some(
+      (rule) => rule.rule_id === "initial_package_ultra_rapid_sparse"
     ),
-    "Session trace should include initial_package_extreme_rapid_sparse."
+    "Session trace should include initial_package_ultra_rapid_sparse."
   );
   assert(
-    !extremeRapidSparsePackage.session_decision_trace.top_counterevidence.includes("completed_three_items"),
-    "Completed three items should not be top counterevidence against extreme rapid sparse disengagement."
+    !ultraRapidSparsePackage.session_decision_trace.top_counterevidence.includes("completed_three_items"),
+    "Completed three items should not be top counterevidence against ultra rapid sparse disengagement."
   );
   assert(
-    !extremeRapidSparsePackage.session_decision_trace.top_counterevidence.includes("process_events_observed"),
+    !ultraRapidSparsePackage.session_decision_trace.top_counterevidence.includes("process_events_observed"),
     "Process events observed should be data-quality evidence, not engagement counterevidence."
   );
   assert(
-    extremeRapidSparsePackage.session_decision_trace.completed_three_items_counterevidence_explanation.includes(
+    ultraRapidSparsePackage.session_decision_trace.completed_three_items_counterevidence_explanation.includes(
       "baseline_completion"
     ),
     "Trace should explain why completed items are baseline completion context."
   );
   assert(
-    extremeRapidSparsePackage.session_decision_trace.meaningful_reasoning_counterevidence_explanation.includes(
+    ultraRapidSparsePackage.session_decision_trace.meaningful_reasoning_counterevidence_explanation.includes(
       "not_counted"
     ),
     "Trace should explain why meaningful reasoning counterevidence was not counted."
   );
 
-  const approximateExtremeRapidSparsePackage = summarizeSessionEngagement(
+  const extremeRapidSparsePackage = summarizeSessionEngagement(
     [rapid, becauseOnly, idk],
-    {
-      package_duration_ms: 24_000,
-      package_duration_source: "first_interaction_to_package_submitted",
-      package_timing_approximate: true,
-      baseline_completion_observed: true,
-      data_quality_events_observed: true
-    }
+    packageTimingForTest({ wall: 75_000, active: 12_000, sum: 11_500 })
   );
   assert(
-    approximateExtremeRapidSparsePackage.provisional_engagement_category === "disengaged",
-    "Approximate extreme rapid sparse package should still classify as disengaged."
+    extremeRapidSparsePackage.provisional_engagement_category === "disengaged",
+    "Active response duration under 15 seconds with repeated sparse evidence should classify as disengaged."
   );
   assert(
-    approximateExtremeRapidSparsePackage.category_confidence === "medium",
-    "Approximate extreme rapid package timing should lower confidence to medium."
+    extremeRapidSparsePackage.session_decision_trace.package_timing.package_extreme_rapid_rule_matched,
+    "Extreme rapid sparse rule should match."
+  );
+
+  const fallbackWallClockSparsePackage = summarizeSessionEngagement(
+    [rapid, becauseOnly, idk],
+    packageTimingForTest({ wall: 7_000, source: "wall_clock_fallback" })
+  );
+  assert(
+    fallbackWallClockSparsePackage.provisional_engagement_category === "disengaged",
+    "Fallback wall-clock ultra rapid timing can support disengagement when sparse evidence repeats."
+  );
+  assert(
+    fallbackWallClockSparsePackage.category_confidence === "medium",
+    "Fallback wall-clock rapid timing should lower confidence to medium."
+  );
+  assert(
+    fallbackWallClockSparsePackage.session_decision_trace.package_timing.timing_limitations.includes(
+      "wall_clock_timing_used_for_rapid_rule_fallback"
+    ),
+    "Fallback wall-clock use should be explicit in timing limitations."
   );
 
   const secondSubstantive = buildItemEngagementEvidence({
@@ -351,23 +452,63 @@ function runPureEngagementAssertions() {
   });
   const rapidMixedPackage = summarizeSessionEngagement(
     [engaged, secondSubstantive, minimalOnly],
-    {
-      package_duration_ms: 45_000,
-      package_duration_source: "first_item_presented_to_package_submitted",
-      package_timing_approximate: false,
-      baseline_completion_observed: true,
-      data_quality_events_observed: true
-    }
+    packageTimingForTest({ wall: 110_000, active: 24_000, sum: 22_000 })
   );
   assert(
     rapidMixedPackage.provisional_engagement_category !== "disengaged",
-    "Package under 60 seconds with substantive reasoning on multiple items should not automatically disengage."
+    "Rapid-warning timing with strong substantive reasoning should not automatically disengage."
   );
   assert(
-    rapidMixedPackage.session_decision_trace.matched_session_rules.some(
-      (rule) => rule.rule_id === "initial_package_rapid_mixed"
+    !rapidMixedPackage.session_decision_trace.package_timing.package_rapid_warning_rule_matched,
+    "Strong substantive counterevidence should prevent the rapid-warning sparse rule."
+  );
+
+  const rapidWarningMixedPackage = summarizeSessionEngagement(
+    [rapid, minimalOnly, secondSubstantive],
+    packageTimingForTest({ wall: 95_000, active: 24_000, sum: 23_000 })
+  );
+  assert(
+    rapidWarningMixedPackage.provisional_engagement_category === "moderately_engaged",
+    "Active response duration between 15 and 30 seconds with mixed evidence can remain moderately engaged."
+  );
+  assert(
+    rapidWarningMixedPackage.session_decision_trace.package_timing.package_rapid_warning_rule_matched,
+    "Rapid-warning sparse rule should be traceable when mixed evidence is weak."
+  );
+
+  const slowSparseIdk = buildItemEngagementEvidence({
+    item_public_id: "slow_sparse_idk_item",
+    response_present: true,
+    selected_option: "E",
+    reasoning_text: "I don't know the reason yet.",
+    item_response_time_ms: 38_000,
+    revision_count: 0,
+    event_counts: { idk_selected: 1 },
+    process_instrumentation_available: true
+  });
+  const slowMinimal = buildItemEngagementEvidence({
+    item_public_id: "slow_minimal_item",
+    response_present: true,
+    selected_option: "B",
+    reasoning_text: "short",
+    item_response_time_ms: 32_000,
+    revision_count: 0,
+    event_counts: { typing_activity_summary: 1 },
+    process_instrumentation_available: true
+  });
+  const activeUnavailableLongWallClock = summarizeSessionEngagement(
+    [slowSparseIdk, slowMinimal, wrongAnswerAlone],
+    packageTimingForTest({ wall: 120_000, source: "wall_clock_fallback" })
+  );
+  assert(
+    activeUnavailableLongWallClock.provisional_engagement_category === "moderately_engaged",
+    "Unavailable active timing with typical/long wall clock should not force disengaged."
+  );
+  assert(
+    activeUnavailableLongWallClock.session_decision_trace.package_timing.timing_limitations.includes(
+      "active_package_timing_unavailable"
     ),
-    "Rapid mixed package should include the rapid mixed session rule."
+    "Active timing unavailable should be explicit."
   );
 
   const unavailable = buildItemEngagementEvidence({
@@ -558,14 +699,19 @@ async function runDbPacketAssertion() {
       "Engagement packet should include threshold policy."
     );
     assert(
+      parsed.engagement_rule_config.initial_package_ultra_rapid_ms ===
+        ENGAGEMENT_RULE_CONFIG_V1.initial_package_ultra_rapid_ms,
+      "Engagement packet should include package ultra rapid threshold."
+    );
+    assert(
       parsed.engagement_rule_config.initial_package_extreme_rapid_ms ===
         ENGAGEMENT_RULE_CONFIG_V1.initial_package_extreme_rapid_ms,
       "Engagement packet should include package extreme rapid threshold."
     );
     assert(
-      parsed.engagement_rule_config.initial_package_rapid_ms ===
-        ENGAGEMENT_RULE_CONFIG_V1.initial_package_rapid_ms,
-      "Engagement packet should include package rapid threshold."
+      parsed.engagement_rule_config.initial_package_rapid_warning_ms ===
+        ENGAGEMENT_RULE_CONFIG_V1.initial_package_rapid_warning_ms,
+      "Engagement packet should include package rapid-warning threshold."
     );
     assert(
       parsed.item_engagement_evidence.every((item) => item.interpretation_source === "deterministic_v1"),
@@ -586,9 +732,25 @@ async function runDbPacketAssertion() {
     );
     assert(
       parsed.session_engagement_summary.session_decision_trace.package_duration_thresholds_used.some(
-        (threshold) => threshold.threshold_name === "initial_package_extreme_rapid_ms"
+        (threshold) => threshold.threshold_name === "initial_package_rapid_warning_ms"
       ),
       "Session summary should include package-level timing thresholds."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.package_timing.timing_source_used_for_rapid_rule !==
+        "unavailable",
+      "Session summary should include the timing source used for rapid rules."
+    );
+    assert(
+      typeof parsed.session_engagement_summary.session_decision_trace.package_timing
+        .package_ultra_rapid_rule_matched === "boolean",
+      "Session summary should include ultra rapid rule match status."
+    );
+    assert(
+      Object.keys(
+        parsed.session_engagement_summary.session_decision_trace.substantive_reasoning_basis_counts
+      ).length > 0,
+      "Session summary should include substantive reasoning basis counts."
     );
     assert(
       parsed.session_engagement_summary.session_decision_trace.completed_three_items_counterevidence_explanation

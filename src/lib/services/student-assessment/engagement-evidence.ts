@@ -12,8 +12,9 @@ export const ENGAGEMENT_RULE_CONFIG_V1 = {
   answer_selection_rapid_ms: 3_000,
   reasoning_response_rapid_ms: 5_000,
   full_item_completion_rapid_ms: 25_000,
-  initial_package_extreme_rapid_ms: 30_000,
-  initial_package_rapid_ms: 60_000,
+  initial_package_ultra_rapid_ms: 8_000,
+  initial_package_extreme_rapid_ms: 15_000,
+  initial_package_rapid_warning_ms: 30_000,
   minimal_reasoning_character_threshold: 20,
   minimal_reasoning_token_threshold: 4,
   substantive_reasoning_character_threshold: 90,
@@ -45,6 +46,27 @@ const ThresholdUsageSchema = z.object({
   observed_value: ThresholdValueSchema.optional(),
   observed_band: z.string().optional()
 }).strict();
+const PackageTimingBandSchema = z.enum([
+  "package_ultra_rapid",
+  "package_extreme_rapid",
+  "package_rapid_warning",
+  "package_typical_or_long",
+  "package_timing_unavailable"
+]);
+const PackageTimingSourceSchema = z.enum([
+  "active_response",
+  "sum_item_active",
+  "focus_adjusted",
+  "wall_clock_fallback",
+  "unavailable"
+]);
+const SubstantiveReasoningBasisSchema = z.enum([
+  "length_and_task_relevance",
+  "response_quality_adequate",
+  "key_idea_present",
+  "not_substantive_low_information",
+  "unavailable"
+]);
 const DecisionRuleTraceSchema = z.object({
   rule_id: z.string(),
   rule_label: z.string(),
@@ -79,16 +101,26 @@ const SessionEngagementDecisionTraceSchema = z.object({
   category_confidence: EvidenceConfidenceSchema,
   item_category_counts: z.record(z.number().int().nonnegative()),
   dominant_signal_counts: z.record(z.number().int().nonnegative()),
-  package_duration_band: z.enum([
-    "package_extreme_rapid",
-    "package_rapid",
-    "package_typical_or_long",
-    "package_timing_unavailable"
-  ]),
+  package_duration_band: PackageTimingBandSchema,
   package_duration_thresholds_used: z.array(ThresholdUsageSchema),
+  package_timing: z.object({
+    wall_clock_band: PackageTimingBandSchema,
+    active_response_band: PackageTimingBandSchema,
+    sum_item_active_band: PackageTimingBandSchema,
+    focus_adjusted_band: PackageTimingBandSchema,
+    timing_source_used_for_rapid_rule: PackageTimingSourceSchema,
+    ultra_rapid_threshold_ms: z.number(),
+    extreme_rapid_threshold_ms: z.number(),
+    rapid_warning_threshold_ms: z.number(),
+    package_ultra_rapid_rule_matched: z.boolean(),
+    package_extreme_rapid_rule_matched: z.boolean(),
+    package_rapid_warning_rule_matched: z.boolean(),
+    timing_limitations: z.array(z.string())
+  }).strict(),
   package_rapid_rule_matched: z.boolean(),
   sparse_item_count: z.number().int().nonnegative(),
   substantive_item_count: z.number().int().nonnegative(),
+  substantive_reasoning_basis_counts: z.record(z.number().int().nonnegative()),
   baseline_completion_observed: z.boolean(),
   data_quality_events_observed: z.boolean(),
   completed_three_items_counterevidence_explanation: z.string(),
@@ -125,6 +157,7 @@ const ItemEngagementEvidenceSchema = z.object({
   typing_summary_count: z.number().int().nonnegative(),
   rapid_response_pattern: z.boolean(),
   repeated_invalid_response_count: z.number().int().nonnegative(),
+  substantive_reasoning_basis: SubstantiveReasoningBasisSchema,
   engagement_signal: EngagementCategorySchema,
   ai_assistance_signal: AiAssistanceSignalSchema,
   possible_interpretation: z.string(),
@@ -169,8 +202,9 @@ export const EngagementEvidencePacketV1Schema = z.object({
     answer_selection_rapid_ms: z.number(),
     reasoning_response_rapid_ms: z.number(),
     full_item_completion_rapid_ms: z.number(),
+    initial_package_ultra_rapid_ms: z.number(),
     initial_package_extreme_rapid_ms: z.number(),
-    initial_package_rapid_ms: z.number(),
+    initial_package_rapid_warning_ms: z.number(),
     minimal_reasoning_character_threshold: z.number(),
     minimal_reasoning_token_threshold: z.number(),
     substantive_reasoning_character_threshold: z.number(),
@@ -209,19 +243,21 @@ type ProcessEventSummary = {
   event_type: string;
   visibility_duration_ms: number | null;
   pause_duration_ms: number | null;
+  payload: unknown;
   occurred_at: Date;
 };
 
 type PackageTimingInput = {
-  package_duration_ms: number | null;
-  package_duration_source:
-    | "first_item_presented_to_package_submitted"
-    | "first_item_started_to_package_submitted"
-    | "first_interaction_to_package_submitted"
-    | "package_timing_unavailable";
-  package_timing_approximate: boolean;
+  wall_clock_duration_ms: number | null;
+  active_response_duration_ms: number | null;
+  sum_item_active_duration_ms: number | null;
+  focus_adjusted_duration_ms: number | null;
+  timing_source_used_for_rapid_rule: z.infer<typeof PackageTimingSourceSchema>;
+  rapid_rule_duration_ms: number | null;
+  rapid_rule_timing_approximate: boolean;
   baseline_completion_observed: boolean;
   data_quality_events_observed: boolean;
+  timing_limitations: string[];
 };
 
 type BuildItemEngagementEvidenceInput = {
@@ -257,6 +293,10 @@ function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function numberValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -282,11 +322,14 @@ function timeBand(milliseconds?: number | null): string {
 
 function packageDurationBand(milliseconds?: number | null) {
   if (!milliseconds || milliseconds <= 0) return "package_timing_unavailable" as const;
+  if (milliseconds <= ENGAGEMENT_RULE_CONFIG_V1.initial_package_ultra_rapid_ms) {
+    return "package_ultra_rapid" as const;
+  }
   if (milliseconds <= ENGAGEMENT_RULE_CONFIG_V1.initial_package_extreme_rapid_ms) {
     return "package_extreme_rapid" as const;
   }
-  if (milliseconds <= ENGAGEMENT_RULE_CONFIG_V1.initial_package_rapid_ms) {
-    return "package_rapid" as const;
+  if (milliseconds <= ENGAGEMENT_RULE_CONFIG_V1.initial_package_rapid_warning_ms) {
+    return "package_rapid_warning" as const;
   }
   return "package_typical_or_long" as const;
 }
@@ -300,6 +343,50 @@ function countByType(events: Array<{ event_type: string }>) {
 
 function countKeys(counts: Record<string, number>, keys: string[]) {
   return keys.reduce((total, key) => total + (counts[key] ?? 0), 0);
+}
+
+function countEngagementEventSignals(events: ProcessEventSummary[]) {
+  const counts = countByType(events);
+
+  for (const event of events) {
+    if (event.event_type !== "response_quality_checked") continue;
+
+    const payload = record(event.payload);
+    const responseQuality = stringValue(payload.response_quality);
+    const messageClassification = stringValue(payload.message_classification);
+    const reasoningSignal = stringValue(payload.reasoning_signal);
+
+    if (
+      responseQuality === "adequate" ||
+      messageClassification === "usable_reasoning" ||
+      messageClassification === "weak_but_usable_reasoning" ||
+      reasoningSignal === "usable" ||
+      reasoningSignal === "weak_but_usable"
+    ) {
+      counts.response_quality_adequate_or_usable =
+        (counts.response_quality_adequate_or_usable ?? 0) + 1;
+    }
+
+    if (
+      responseQuality === "low_information" ||
+      responseQuality === "insufficient_knowledge" ||
+      messageClassification === "insufficient_knowledge"
+    ) {
+      counts.response_quality_low_information = (counts.response_quality_low_information ?? 0) + 1;
+    }
+
+    if (
+      responseQuality === "not_usable" ||
+      responseQuality === "gibberish" ||
+      responseQuality === "off_topic" ||
+      messageClassification === "off_topic" ||
+      messageClassification === "not_usable"
+    ) {
+      counts.response_quality_not_usable = (counts.response_quality_not_usable ?? 0) + 1;
+    }
+  }
+
+  return counts;
 }
 
 function tokenCount(text: string) {
@@ -335,6 +422,39 @@ function splitRuleTraces(rules: DecisionRuleTrace[]) {
 
 function normalizeReasoningForSignal(text?: string | null) {
   return (text ?? "").trim().toLowerCase();
+}
+
+function hasLowInformationReasoningPattern(reasoning: string) {
+  const normalized = reasoning.trim().toLowerCase();
+  if (!normalized) return true;
+
+  const compact = normalized.replace(/[^a-z0-9\u4e00-\u9fff]+/gi, "");
+  if (!compact) return true;
+
+  if (/^(because|idk|ok|okay|guess|no idea|not sure|unsure|i don't know|i do not know)$/i.test(normalized)) {
+    return true;
+  }
+
+  if (/\b(i do not know|i don't know|no idea|not sure|unsure)\b/i.test(normalized) && normalized.length < 90) {
+    return true;
+  }
+
+  const repeatedCharacterMatch = compact.match(/^(.)\1{8,}$/u);
+  if (repeatedCharacterMatch) return true;
+
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  const uniqueTokens = new Set(tokens);
+  if (tokens.length >= 12 && uniqueTokens.size <= 3) return true;
+
+  if (/\b(banana|bananas|asdf|lorem ipsum|random words|nothing to do with this)\b/i.test(normalized)) {
+    return true;
+  }
+
+  return false;
+}
+
+function hasTaskRelevanceSignal(reasoning: string) {
+  return /\b(theta|ability|item|difficulty|parameter|irt|invariance|scale|latent|discrimination|person|student|calibrat|estimate|model|compare|comparable)\b/i.test(reasoning);
 }
 
 function aiAssistanceDecisionFor(input: {
@@ -555,6 +675,12 @@ export function buildItemEngagementEvidence(
     countKeys(eventCounts, ["idk_selected", "insufficient_knowledge_marked"]) > 0;
   const reasoningCharacterCount = reasoning.length;
   const reasoningTokenCount = tokenCount(reasoning);
+  const lowInformationReasoning = hasLowInformationReasoningPattern(reasoning);
+  const taskRelevantReasoning = hasTaskRelevanceSignal(reasoning);
+  const responseQualityAdequateOrUsable =
+    countKeys(eventCounts, ["response_quality_adequate_or_usable"]) > 0;
+  const responseQualityLowInformation =
+    countKeys(eventCounts, ["response_quality_low_information", "response_quality_not_usable"]) > 0;
   const rapidResponsePattern =
     Boolean(input.response_present) &&
     typeof input.item_response_time_ms === "number" &&
@@ -580,12 +706,31 @@ export function buildItemEngagementEvidence(
   const sparseReasoning = reasoningLengthBand === "missing" || reasoningLengthBand === "very_short";
   const minimalReasoningPattern =
     sparseReasoning ||
+    lowInformationReasoning ||
+    responseQualityLowInformation ||
     reasoningCharacterCount < ENGAGEMENT_RULE_CONFIG_V1.minimal_reasoning_character_threshold ||
     reasoningTokenCount < ENGAGEMENT_RULE_CONFIG_V1.minimal_reasoning_token_threshold;
-  const substantiveReasoningPattern =
-    reasoningCharacterCount >= ENGAGEMENT_RULE_CONFIG_V1.substantive_reasoning_character_threshold ||
-    reasoningLengthBand === "medium" ||
-    reasoningLengthBand === "long";
+  const substantiveReasoningBasis: z.infer<typeof SubstantiveReasoningBasisSchema> =
+    !input.response_present || reasoningCharacterCount === 0
+      ? "unavailable"
+      : responseQualityAdequateOrUsable && !lowInformationReasoning && !responseQualityLowInformation
+        ? "response_quality_adequate"
+        : taskRelevantReasoning &&
+            reasoningCharacterCount >= ENGAGEMENT_RULE_CONFIG_V1.substantive_reasoning_character_threshold &&
+            !lowInformationReasoning &&
+            !responseQualityLowInformation
+          ? "length_and_task_relevance"
+          : taskRelevantReasoning &&
+              reasoningCharacterCount >= ENGAGEMENT_RULE_CONFIG_V1.minimal_reasoning_character_threshold &&
+              !lowInformationReasoning &&
+              !responseQualityLowInformation
+            ? "key_idea_present"
+            : "not_substantive_low_information";
+  const substantiveReasoningPattern = [
+    "length_and_task_relevance",
+    "response_quality_adequate",
+    "key_idea_present"
+  ].includes(substantiveReasoningBasis);
   const rapidMinimalReasoningPattern = rapidResponsePattern && minimalReasoningPattern;
   const repeatedInvalidPattern =
     countKeys(eventCounts, ["repeated_invalid_response"]) > 0 ||
@@ -723,13 +868,18 @@ export function buildItemEngagementEvidence(
       rule_id: "meaningful_reasoning_or_revision",
       rule_label: "Meaningful reasoning or revision evidence",
       matched: substantiveReasoningPattern || revisionCount > 0,
-      signal_types: ["reasoning_length_band", "revision_count"],
+      signal_types: ["reasoning_length_band", "substantive_reasoning_basis", "revision_count"],
       thresholds_used: [
         {
           threshold_name: "substantive_reasoning_character_threshold",
           threshold_value: ENGAGEMENT_RULE_CONFIG_V1.substantive_reasoning_character_threshold,
           observed_value: reasoningCharacterCount,
           observed_band: reasoningLengthBand
+        },
+        {
+          threshold_name: "substantive_reasoning_basis",
+          threshold_value: "length_and_task_relevance_or_response_quality_or_key_idea",
+          observed_value: substantiveReasoningBasis
         }
       ],
       contribution: "supports_engagement",
@@ -790,6 +940,7 @@ export function buildItemEngagementEvidence(
     typing_summary_count: typingSummaryCount,
     rapid_response_pattern: rapidResponsePattern,
     repeated_invalid_response_count: repeatedInvalidResponseCount,
+    substantive_reasoning_basis: substantiveReasoningBasis,
     engagement_signal: engagementSignal,
     ai_assistance_signal: aiAssistanceSignal,
     possible_interpretation: possibleInterpretation,
@@ -817,21 +968,11 @@ function itemRuleMatched(item: ItemEngagementEvidenceV1, ruleId: string) {
 }
 
 function itemHasSubstantiveReasoning(item: ItemEngagementEvidenceV1) {
-  if (item.reasoning_length_band === "medium" || item.reasoning_length_band === "long") {
-    return true;
-  }
-
-  const meaningfulRule = item.decision_trace.matched_rules.find(
-    (rule) => rule.rule_id === "meaningful_reasoning_or_revision"
-  );
-  const observedCharacters = meaningfulRule?.thresholds_used.find(
-    (threshold) => threshold.threshold_name === "substantive_reasoning_character_threshold"
-  )?.observed_value;
-
-  return (
-    typeof observedCharacters === "number" &&
-    observedCharacters >= ENGAGEMENT_RULE_CONFIG_V1.substantive_reasoning_character_threshold
-  );
+  return [
+    "length_and_task_relevance",
+    "response_quality_adequate",
+    "key_idea_present"
+  ].includes(item.substantive_reasoning_basis);
 }
 
 function itemHasSparseOrLowInformationEvidence(item: ItemEngagementEvidenceV1) {
@@ -846,6 +987,7 @@ function itemHasSparseOrLowInformationEvidence(item: ItemEngagementEvidenceV1) {
     itemRuleMatched(item, "rapid_minimal_reasoning_combo") ||
     itemRuleMatched(item, "minimal_reasoning_only") ||
     itemRuleMatched(item, "repeated_invalid_or_unusable_response") ||
+    item.substantive_reasoning_basis === "not_substantive_low_information" ||
     item.repair_prompt_count > 0 ||
     uncertaintyWithoutElaboration ||
     (sparseReasoning && !itemHasSubstantiveReasoning(item))
@@ -854,9 +996,13 @@ function itemHasSparseOrLowInformationEvidence(item: ItemEngagementEvidenceV1) {
 
 function defaultPackageTimingInput(items: ItemEngagementEvidenceV1[]): PackageTimingInput {
   return {
-    package_duration_ms: null,
-    package_duration_source: "package_timing_unavailable",
-    package_timing_approximate: true,
+    wall_clock_duration_ms: null,
+    active_response_duration_ms: null,
+    sum_item_active_duration_ms: null,
+    focus_adjusted_duration_ms: null,
+    timing_source_used_for_rapid_rule: "unavailable",
+    rapid_rule_duration_ms: null,
+    rapid_rule_timing_approximate: true,
     baseline_completion_observed: items.length >= 3 && items.every((item) => item.response_present),
     data_quality_events_observed: items.some(
       (item) =>
@@ -868,7 +1014,8 @@ function defaultPackageTimingInput(items: ItemEngagementEvidenceV1[]): PackageTi
         item.repair_prompt_count > 0 ||
         item.option_change_count > 0 ||
         item.repeated_invalid_response_count > 0
-    )
+    ),
+    timing_limitations: ["active_package_timing_unavailable"]
   };
 }
 
@@ -887,23 +1034,55 @@ export function summarizeSessionEngagement(
   ).length;
   const sparseItemCount = items.filter(itemHasSparseOrLowInformationEvidence).length;
   const substantiveItemCount = items.filter(itemHasSubstantiveReasoning).length;
-  const packageBand = packageDurationBand(packageTiming.package_duration_ms);
-  const initialPackageExtremeRapidSparseMatched =
-    packageBand === "package_extreme_rapid" &&
-    items.length >= 3 &&
-    sparseItemCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count &&
-    substantiveItemCount === 0;
-  const initialPackageRapidMixedMatched =
-    !initialPackageExtremeRapidSparseMatched &&
-    (packageBand === "package_extreme_rapid" || packageBand === "package_rapid") &&
-    items.length >= 3 &&
-    sparseItemCount > 0 &&
-    substantiveItemCount > 0;
+  const substantiveReasoningBasisCounts = items.reduce<Record<string, number>>((counts, item) => {
+    counts[item.substantive_reasoning_basis] = (counts[item.substantive_reasoning_basis] ?? 0) + 1;
+    return counts;
+  }, {});
+  const wallClockBand = packageDurationBand(packageTiming.wall_clock_duration_ms);
+  const activeResponseBand = packageDurationBand(packageTiming.active_response_duration_ms);
+  const sumItemActiveBand = packageDurationBand(packageTiming.sum_item_active_duration_ms);
+  const focusAdjustedBand = packageDurationBand(packageTiming.focus_adjusted_duration_ms);
+  const packageBand = packageDurationBand(packageTiming.rapid_rule_duration_ms);
+  const rapidRuleDuration = packageTiming.rapid_rule_duration_ms;
+  const hasInitialPackage = items.length >= 3;
+  const hasRepeatedSparseEvidence =
+    sparseItemCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count;
+  const hasStrongSubstantiveCounterevidence = substantiveItemCount >= 2;
+  const hasWeakOrNoSubstantiveCounterevidence = substantiveItemCount <= 1;
+  const reliableActiveTiming =
+    ["active_response", "sum_item_active", "focus_adjusted"].includes(
+      packageTiming.timing_source_used_for_rapid_rule
+    ) && !packageTiming.rapid_rule_timing_approximate;
+  const packageUltraRapidRuleMatched =
+    hasInitialPackage &&
+    hasRepeatedSparseEvidence &&
+    !hasStrongSubstantiveCounterevidence &&
+    rapidRuleDuration !== null &&
+    rapidRuleDuration <= ENGAGEMENT_RULE_CONFIG_V1.initial_package_ultra_rapid_ms;
+  const packageExtremeRapidRuleMatched =
+    hasInitialPackage &&
+    hasRepeatedSparseEvidence &&
+    !hasStrongSubstantiveCounterevidence &&
+    rapidRuleDuration !== null &&
+    rapidRuleDuration <= ENGAGEMENT_RULE_CONFIG_V1.initial_package_extreme_rapid_ms;
+  const packageRapidWarningRuleMatched =
+    hasInitialPackage &&
+    hasWeakOrNoSubstantiveCounterevidence &&
+    rapidRuleDuration !== null &&
+    rapidRuleDuration <= ENGAGEMENT_RULE_CONFIG_V1.initial_package_rapid_warning_ms &&
+    (hasRepeatedSparseEvidence || rapidMinimalItemCount + disengagedCount >= 2);
+  const rapidWarningConvergesForDisengagement =
+    packageRapidWarningRuleMatched &&
+    !packageExtremeRapidRuleMatched &&
+    hasRepeatedSparseEvidence &&
+    (substantiveItemCount === 0 || disengagedCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count);
   const category: EngagementCategory = items.length === 0
     ? "insufficient_evidence"
     : insufficientProcessCount === items.length
       ? "insufficient_evidence"
-      : initialPackageExtremeRapidSparseMatched ||
+      : packageUltraRapidRuleMatched ||
+          packageExtremeRapidRuleMatched ||
+          rapidWarningConvergesForDisengagement ||
           disengagedCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count ||
           rapidMinimalItemCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count
         ? "disengaged"
@@ -928,11 +1107,15 @@ export function summarizeSessionEngagement(
   limitations.add("process_data_are_ambiguous");
   limitations.add("process_data_must_not_be_used_as_direct_ability_evidence");
   limitations.add("thresholds_are_provisional_not_empirically_calibrated");
+  for (const limitation of packageTiming.timing_limitations) {
+    limitations.add(limitation);
+  }
 
-  const categoryConfidence: EvidenceConfidence = initialPackageExtremeRapidSparseMatched
-    ? packageTiming.package_timing_approximate
-      ? "medium"
-      : "high"
+  const categoryConfidence: EvidenceConfidence =
+    packageUltraRapidRuleMatched || packageExtremeRapidRuleMatched
+    ? reliableActiveTiming && sparseItemCount >= 2 && substantiveItemCount === 0
+      ? "high"
+      : "medium"
     : items.some((item) => item.evidence_confidence === "medium")
       ? "medium"
       : "low";
@@ -964,23 +1147,25 @@ export function summarizeSessionEngagement(
     if (item.focus_loss_count > 0) {
       counts.focus_loss_signal = (counts.focus_loss_signal ?? 0) + 1;
     }
+    counts[`substantive_basis_${item.substantive_reasoning_basis}`] =
+      (counts[`substantive_basis_${item.substantive_reasoning_basis}`] ?? 0) + 1;
     return counts;
   }, {});
   const sessionRules = [
     ruleTrace({
-      rule_id: "initial_package_extreme_rapid_sparse",
-      rule_label: "Initial three-item package completed extremely quickly with sparse evidence",
-      matched: initialPackageExtremeRapidSparseMatched,
+      rule_id: "initial_package_ultra_rapid_sparse",
+      rule_label: "Initial three-item package active response time was ultra rapid with sparse evidence",
+      matched: packageUltraRapidRuleMatched,
       signal_types: [
-        "initial_package_duration",
+        "initial_package_active_duration",
         "sparse_or_low_information_item_count",
         "substantive_reasoning_item_count"
       ],
       thresholds_used: [
         {
-          threshold_name: "initial_package_extreme_rapid_ms",
-          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.initial_package_extreme_rapid_ms,
-          observed_value: packageTiming.package_duration_ms ?? "missing",
+          threshold_name: "initial_package_ultra_rapid_ms",
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.initial_package_ultra_rapid_ms,
+          observed_value: rapidRuleDuration ?? "missing",
           observed_band: packageBand
         },
         {
@@ -990,51 +1175,90 @@ export function summarizeSessionEngagement(
           observed_band: "sparse_item_count"
         },
         {
-          threshold_name: "substantive_reasoning_counterevidence_item_count",
-          threshold_value: 0,
+          threshold_name: "strong_substantive_counterevidence_item_count",
+          threshold_value: 2,
           observed_value: substantiveItemCount
         },
         {
-          threshold_name: "package_duration_source",
-          threshold_value: packageTiming.package_duration_source,
-          observed_value: packageTiming.package_timing_approximate ? "approximate" : "direct"
+          threshold_name: "timing_source_used_for_rapid_rule",
+          threshold_value: packageTiming.timing_source_used_for_rapid_rule,
+          observed_value: packageTiming.rapid_rule_timing_approximate ? "approximate" : "direct"
         }
       ],
       contribution: "supports_disengagement",
-      confidence:
-        initialPackageExtremeRapidSparseMatched && !packageTiming.package_timing_approximate ? "high" : "medium"
+      confidence: packageUltraRapidRuleMatched && reliableActiveTiming ? "high" : "medium"
     }),
     ruleTrace({
-      rule_id: "initial_package_rapid_mixed",
-      rule_label: "Initial package was rapid but included mixed or substantive evidence",
-      matched: initialPackageRapidMixedMatched,
+      rule_id: "initial_package_extreme_rapid_sparse",
+      rule_label: "Initial three-item package active response time was extreme rapid with sparse evidence",
+      matched: packageExtremeRapidRuleMatched,
       signal_types: [
-        "initial_package_duration",
+        "initial_package_active_duration",
         "sparse_or_low_information_item_count",
         "substantive_reasoning_item_count"
       ],
       thresholds_used: [
         {
-          threshold_name: "initial_package_rapid_ms",
-          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.initial_package_rapid_ms,
-          observed_value: packageTiming.package_duration_ms ?? "missing",
+          threshold_name: "initial_package_extreme_rapid_ms",
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.initial_package_extreme_rapid_ms,
+          observed_value: rapidRuleDuration ?? "missing",
+          observed_band: packageBand
+        },
+        {
+          threshold_name: "disengaged_min_item_count",
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count,
+          observed_value: sparseItemCount,
+          observed_band: "sparse_item_count"
+        },
+        {
+          threshold_name: "strong_substantive_counterevidence_item_count",
+          threshold_value: 2,
+          observed_value: substantiveItemCount
+        },
+        {
+          threshold_name: "timing_source_used_for_rapid_rule",
+          threshold_value: packageTiming.timing_source_used_for_rapid_rule,
+          observed_value: packageTiming.rapid_rule_timing_approximate ? "approximate" : "direct"
+        }
+      ],
+      contribution: "supports_disengagement",
+      confidence: packageExtremeRapidRuleMatched && reliableActiveTiming ? "high" : "medium"
+    }),
+    ruleTrace({
+      rule_id: "initial_package_rapid_warning_sparse",
+      rule_label: "Initial three-item package active response time was in the rapid-warning band with weak evidence",
+      matched: packageRapidWarningRuleMatched,
+      signal_types: [
+        "initial_package_active_duration",
+        "sparse_or_low_information_item_count",
+        "substantive_reasoning_item_count"
+      ],
+      thresholds_used: [
+        {
+          threshold_name: "initial_package_rapid_warning_ms",
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.initial_package_rapid_warning_ms,
+          observed_value: rapidRuleDuration ?? "missing",
           observed_band: packageBand
         },
         {
           threshold_name: "sparse_item_count",
-          threshold_value: 1,
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count,
           observed_value: sparseItemCount
         },
         {
-          threshold_name: "substantive_item_count",
+          threshold_name: "maximum_weak_substantive_counterevidence_item_count",
           threshold_value: 1,
           observed_value: substantiveItemCount
+        },
+        {
+          threshold_name: "timing_source_used_for_rapid_rule",
+          threshold_value: packageTiming.timing_source_used_for_rapid_rule,
+          observed_value: packageTiming.rapid_rule_timing_approximate ? "approximate" : "direct"
         }
       ],
-      contribution:
-        sparseItemCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count && substantiveItemCount <= 1
-          ? "supports_disengagement"
-          : "supports_moderate_engagement",
+      contribution: rapidWarningConvergesForDisengagement
+        ? "supports_disengagement"
+        : "supports_moderate_engagement",
       confidence: "medium"
     }),
     ruleTrace({
@@ -1096,30 +1320,33 @@ export function summarizeSessionEngagement(
       matched:
         category === "moderately_engaged" &&
         engagedCount < Math.max(1, Math.ceil(items.length / 2)) &&
-        disengagedCount < ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count,
+        disengagedCount < ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count &&
+        !packageRapidWarningRuleMatched,
       signal_types: ["item_engagement_signal"],
       contribution: "supports_moderate_engagement",
       confidence: "medium"
     })
   ];
   const sessionRuleSplit = splitRuleTraces(sessionRules);
-  const hasStrongSubstantiveCounterevidence = substantiveItemCount > 0;
   const completionCounterevidenceExplanation =
-    packageTiming.baseline_completion_observed && initialPackageExtremeRapidSparseMatched
-      ? "completed_three_items_is_baseline_completion_not_counterevidence_when_package_is_extreme_rapid_sparse"
+    packageTiming.baseline_completion_observed &&
+    (packageUltraRapidRuleMatched || packageExtremeRapidRuleMatched || packageRapidWarningRuleMatched)
+      ? "completed_three_items_is_baseline_completion_not_counterevidence_when_package_is_active_rapid_sparse"
       : packageTiming.baseline_completion_observed
         ? "completed_three_items_is_baseline_completion_context_only"
         : "completed_three_items_not_observed";
   const meaningfulReasoningCounterevidenceExplanation = hasStrongSubstantiveCounterevidence
-    ? "substantive_reasoning_threshold_met_on_at_least_one_item"
-    : "meaningful_reasoning_counterevidence_not_counted_without_substantive_reasoning";
+    ? "strong_substantive_reasoning_counterevidence_requires_multiple_task_relevant_or_quality_supported_items"
+    : substantiveItemCount === 1
+      ? "one_substantive_item_is_weak_counterevidence_against_repeated_sparse_evidence"
+      : "meaningful_reasoning_counterevidence_not_counted_without_task_relevant_or_quality_supported_reasoning";
   const processEventsCounterevidenceExplanation = packageTiming.data_quality_events_observed
     ? "process_events_observed_indicate_data_quality_not_engagement_counterevidence"
     : "process_events_not_observed_or_not_available";
   const topCounterevidence = [
-    hasStrongSubstantiveCounterevidence && "substantive_reasoning_counterevidence_present",
+    hasStrongSubstantiveCounterevidence && "strong_substantive_reasoning_counterevidence_present",
     moderatelyEngagedCount > 0 && "some_moderate_participation_evidence",
-    initialPackageRapidMixedMatched && "rapid_package_with_mixed_evidence"
+    packageRapidWarningRuleMatched && !rapidWarningConvergesForDisengagement && "rapid_warning_with_mixed_evidence"
   ].filter((value): value is string => Boolean(value));
   const whyNotOtherCategories: WhyNotCategory[] =
     category === "disengaged"
@@ -1127,8 +1354,12 @@ export function summarizeSessionEngagement(
           { category: "engaged", reason_code: "multiple_items_lacked_substantive_response_evidence" },
           {
             category: "moderately_engaged",
-            reason_code: initialPackageExtremeRapidSparseMatched
-              ? "initial_package_extreme_rapid_sparse_rule_matched"
+            reason_code: packageUltraRapidRuleMatched
+              ? "initial_package_ultra_rapid_sparse_rule_matched"
+              : packageExtremeRapidRuleMatched
+                ? "initial_package_extreme_rapid_sparse_rule_matched"
+                : rapidWarningConvergesForDisengagement
+                  ? "initial_package_rapid_warning_sparse_rule_converged"
               : "disengagement_signals_repeated_across_items"
           }
         ]
@@ -1206,26 +1437,50 @@ export function summarizeSessionEngagement(
       package_duration_band: packageBand,
       package_duration_thresholds_used: [
         {
+          threshold_name: "initial_package_ultra_rapid_ms",
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.initial_package_ultra_rapid_ms,
+          observed_value: rapidRuleDuration ?? "missing",
+          observed_band: packageBand
+        },
+        {
           threshold_name: "initial_package_extreme_rapid_ms",
           threshold_value: ENGAGEMENT_RULE_CONFIG_V1.initial_package_extreme_rapid_ms,
-          observed_value: packageTiming.package_duration_ms ?? "missing",
+          observed_value: rapidRuleDuration ?? "missing",
           observed_band: packageBand
         },
         {
-          threshold_name: "initial_package_rapid_ms",
-          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.initial_package_rapid_ms,
-          observed_value: packageTiming.package_duration_ms ?? "missing",
+          threshold_name: "initial_package_rapid_warning_ms",
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.initial_package_rapid_warning_ms,
+          observed_value: rapidRuleDuration ?? "missing",
           observed_band: packageBand
         },
         {
-          threshold_name: "package_duration_source",
-          threshold_value: packageTiming.package_duration_source,
-          observed_value: packageTiming.package_timing_approximate ? "approximate" : "direct"
+          threshold_name: "timing_source_used_for_rapid_rule",
+          threshold_value: packageTiming.timing_source_used_for_rapid_rule,
+          observed_value: packageTiming.rapid_rule_timing_approximate ? "approximate" : "direct"
         }
       ],
-      package_rapid_rule_matched: initialPackageExtremeRapidSparseMatched || initialPackageRapidMixedMatched,
+      package_timing: {
+        wall_clock_band: wallClockBand,
+        active_response_band: activeResponseBand,
+        sum_item_active_band: sumItemActiveBand,
+        focus_adjusted_band: focusAdjustedBand,
+        timing_source_used_for_rapid_rule: packageTiming.timing_source_used_for_rapid_rule,
+        ultra_rapid_threshold_ms: ENGAGEMENT_RULE_CONFIG_V1.initial_package_ultra_rapid_ms,
+        extreme_rapid_threshold_ms: ENGAGEMENT_RULE_CONFIG_V1.initial_package_extreme_rapid_ms,
+        rapid_warning_threshold_ms: ENGAGEMENT_RULE_CONFIG_V1.initial_package_rapid_warning_ms,
+        package_ultra_rapid_rule_matched: packageUltraRapidRuleMatched,
+        package_extreme_rapid_rule_matched: packageExtremeRapidRuleMatched,
+        package_rapid_warning_rule_matched: packageRapidWarningRuleMatched,
+        timing_limitations: packageTiming.timing_limitations
+      },
+      package_rapid_rule_matched:
+        packageUltraRapidRuleMatched ||
+        packageExtremeRapidRuleMatched ||
+        packageRapidWarningRuleMatched,
       sparse_item_count: sparseItemCount,
       substantive_item_count: substantiveItemCount,
+      substantive_reasoning_basis_counts: substantiveReasoningBasisCounts,
       baseline_completion_observed: packageTiming.baseline_completion_observed,
       data_quality_events_observed: packageTiming.data_quality_events_observed,
       completed_three_items_counterevidence_explanation: completionCounterevidenceExplanation,
@@ -1235,7 +1490,7 @@ export function summarizeSessionEngagement(
       non_matched_session_rules: sessionRuleSplit.nonMatched,
       why_not_other_categories: whyNotOtherCategories,
       top_counterevidence: topCounterevidence,
-      limitations: ["thresholds_are_provisional_not_empirically_calibrated"]
+      limitations: ["thresholds_are_provisional_not_empirically_calibrated", ...packageTiming.timing_limitations]
     },
     ai_assistance_decision_trace: {
       ai_assistance_signal: aiSignal,
@@ -1305,9 +1560,96 @@ function millisecondsBetween(start: Date | null, end: Date | null) {
   return duration > 0 && Number.isFinite(duration) ? duration : null;
 }
 
+const STUDENT_RESPONSE_ACTION_EVENTS = new Set([
+  "option_clicked",
+  "option_selected",
+  "answer_changed",
+  "reasoning_started",
+  "reasoning_entered",
+  "reasoning_submitted",
+  "reasoning_revised",
+  "confidence_clicked",
+  "confidence_selected",
+  "confidence_changed",
+  "tempting_option_submitted",
+  "tempting_option_reason_submitted",
+  "tempting_option_changed",
+  "student_response_edit_submitted"
+]);
+
+const FOCUS_OR_IDLE_INTERVAL_EVENTS = new Set([
+  "page_visibility_hidden",
+  "page_hidden",
+  "window_blur",
+  "long_pause",
+  "inactivity_detected"
+]);
+
+function eventDurationMs(event: ProcessEventSummary) {
+  const payload = record(event.payload);
+  const duration =
+    event.visibility_duration_ms ??
+    event.pause_duration_ms ??
+    numberValue(payload.duration_ms) ??
+    numberValue(payload.focus_duration_ms) ??
+    numberValue(payload.hidden_duration_ms) ??
+    numberValue(payload.pause_duration_ms);
+
+  return duration !== null && duration > 0 && Number.isFinite(duration) ? duration : null;
+}
+
+function chooseRapidRuleTiming(input: {
+  activeResponseDuration: number | null;
+  sumItemActiveDuration: number | null;
+  focusAdjustedDuration: number | null;
+  wallClockDuration: number | null;
+}): Pick<
+  PackageTimingInput,
+  "timing_source_used_for_rapid_rule" | "rapid_rule_duration_ms" | "rapid_rule_timing_approximate"
+> {
+  if (input.activeResponseDuration !== null) {
+    return {
+      timing_source_used_for_rapid_rule: "active_response",
+      rapid_rule_duration_ms: input.activeResponseDuration,
+      rapid_rule_timing_approximate: false
+    };
+  }
+
+  if (input.sumItemActiveDuration !== null) {
+    return {
+      timing_source_used_for_rapid_rule: "sum_item_active",
+      rapid_rule_duration_ms: input.sumItemActiveDuration,
+      rapid_rule_timing_approximate: false
+    };
+  }
+
+  if (input.focusAdjustedDuration !== null) {
+    return {
+      timing_source_used_for_rapid_rule: "focus_adjusted",
+      rapid_rule_duration_ms: input.focusAdjustedDuration,
+      rapid_rule_timing_approximate: true
+    };
+  }
+
+  if (input.wallClockDuration !== null) {
+    return {
+      timing_source_used_for_rapid_rule: "wall_clock_fallback",
+      rapid_rule_duration_ms: input.wallClockDuration,
+      rapid_rule_timing_approximate: true
+    };
+  }
+
+  return {
+    timing_source_used_for_rapid_rule: "unavailable",
+    rapid_rule_duration_ms: null,
+    rapid_rule_timing_approximate: true
+  };
+}
+
 function derivePackageTiming(input: {
   events: ProcessEventSummary[];
   responses: Array<{
+    item_db_id: string;
     item_started_at: Date | null;
     item_submitted_at: Date | null;
     created_at: Date;
@@ -1327,63 +1669,81 @@ function derivePackageTiming(input: {
       .filter((event) => event.event_type === "item_presented")
       .map((event) => event.occurred_at)
   );
-  const firstItemStartedAt = earliestDate(input.responses.map((response) => response.item_started_at));
-  const firstInteractionAt = earliestDate([
+  const firstStudentActionAt = earliestDate([
     ...input.events
-      .filter((event) =>
-        [
-          "option_clicked",
-          "answer_changed",
-          "reasoning_started",
-          "reasoning_submitted",
-          "confidence_clicked",
-          "tempting_option_submitted",
-          "tempting_option_reason_submitted"
-        ].includes(event.event_type)
-      )
+      .filter((event) => STUDENT_RESPONSE_ACTION_EVENTS.has(event.event_type))
       .map((event) => event.occurred_at),
     ...input.responses.map((response) => response.created_at)
   ]);
+  const wallClockDuration = millisecondsBetween(firstItemPresentedAt, packageSubmittedAt);
+  const activeResponseDuration = millisecondsBetween(firstStudentActionAt, packageSubmittedAt);
+  const itemActiveDurations = input.responses
+    .map((response) => {
+      const itemEvents = input.events.filter((event) => event.item_db_id === response.item_db_id);
+      const firstItemStudentActionAt = earliestDate([
+        ...itemEvents
+          .filter((event) => STUDENT_RESPONSE_ACTION_EVENTS.has(event.event_type))
+          .map((event) => event.occurred_at),
+        response.created_at
+      ]);
+      const itemCompletedAt =
+        earliestDate(
+          itemEvents
+            .filter((event) => event.event_type === "item_completed")
+            .map((event) => event.occurred_at)
+        ) ?? response.item_submitted_at;
 
-  const directDuration = millisecondsBetween(firstItemPresentedAt, packageSubmittedAt);
-  if (directDuration !== null) {
-    return {
-      package_duration_ms: directDuration,
-      package_duration_source: "first_item_presented_to_package_submitted",
-      package_timing_approximate: false,
-      baseline_completion_observed: input.baselineCompletionObserved,
-      data_quality_events_observed: input.dataQualityEventsObserved
-    };
+      return millisecondsBetween(firstItemStudentActionAt, itemCompletedAt);
+    })
+    .filter((duration): duration is number => duration !== null);
+  const sumItemActiveDuration =
+    itemActiveDurations.length > 0
+      ? itemActiveDurations.reduce((total, duration) => total + duration, 0)
+      : null;
+  const idleOrHiddenDuration = input.events
+    .filter((event) => {
+      if (!FOCUS_OR_IDLE_INTERVAL_EVENTS.has(event.event_type)) return false;
+      if (firstItemPresentedAt && event.occurred_at < firstItemPresentedAt) return false;
+      if (event.occurred_at > packageSubmittedAt) return false;
+      return true;
+    })
+    .map(eventDurationMs)
+    .filter((duration): duration is number => duration !== null)
+    .reduce((total, duration) => total + duration, 0);
+  const focusAdjustedDuration =
+    wallClockDuration !== null && idleOrHiddenDuration > 0
+      ? Math.max(1, wallClockDuration - idleOrHiddenDuration)
+      : null;
+  const rapidRuleTiming = chooseRapidRuleTiming({
+    activeResponseDuration,
+    sumItemActiveDuration,
+    focusAdjustedDuration,
+    wallClockDuration
+  });
+  const timingLimitations = new Set<string>();
+
+  if (activeResponseDuration === null) {
+    timingLimitations.add("active_package_timing_unavailable");
   }
-
-  const startedDuration = millisecondsBetween(firstItemStartedAt, packageSubmittedAt);
-  if (startedDuration !== null) {
-    return {
-      package_duration_ms: startedDuration,
-      package_duration_source: "first_item_started_to_package_submitted",
-      package_timing_approximate: false,
-      baseline_completion_observed: input.baselineCompletionObserved,
-      data_quality_events_observed: input.dataQualityEventsObserved
-    };
+  if (rapidRuleTiming.timing_source_used_for_rapid_rule === "wall_clock_fallback") {
+    timingLimitations.add("wall_clock_timing_used_for_rapid_rule_fallback");
   }
-
-  const interactionDuration = millisecondsBetween(firstInteractionAt, packageSubmittedAt);
-  if (interactionDuration !== null) {
-    return {
-      package_duration_ms: interactionDuration,
-      package_duration_source: "first_interaction_to_package_submitted",
-      package_timing_approximate: true,
-      baseline_completion_observed: input.baselineCompletionObserved,
-      data_quality_events_observed: input.dataQualityEventsObserved
-    };
+  if (focusAdjustedDuration === null) {
+    timingLimitations.add("focus_adjusted_package_timing_unavailable");
+  }
+  if (rapidRuleTiming.timing_source_used_for_rapid_rule === "unavailable") {
+    timingLimitations.add("package_timing_unavailable");
   }
 
   return {
-    package_duration_ms: null,
-    package_duration_source: "package_timing_unavailable",
-    package_timing_approximate: true,
+    wall_clock_duration_ms: wallClockDuration,
+    active_response_duration_ms: activeResponseDuration,
+    sum_item_active_duration_ms: sumItemActiveDuration,
+    focus_adjusted_duration_ms: focusAdjustedDuration,
+    ...rapidRuleTiming,
     baseline_completion_observed: input.baselineCompletionObserved,
-    data_quality_events_observed: input.dataQualityEventsObserved
+    data_quality_events_observed: input.dataQualityEventsObserved,
+    timing_limitations: [...timingLimitations]
   };
 }
 
@@ -1413,6 +1773,7 @@ export async function buildEngagementEvidencePacketForSession(
               event_type: true,
               visibility_duration_ms: true,
               pause_duration_ms: true,
+              payload: true,
               occurred_at: true
             }
           }
@@ -1456,7 +1817,7 @@ export async function buildEngagementEvidencePacketForSession(
       reasoning_text: response.reasoning_text,
       item_response_time_ms: response.item_response_time_ms,
       revision_count: response.revision_count,
-      event_counts: countByType(itemEvents),
+      event_counts: countEngagementEventSignals(itemEvents),
       process_instrumentation_available: instrumentationAvailable
     });
   });
