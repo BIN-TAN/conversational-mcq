@@ -1162,6 +1162,15 @@ Phase 6A.5 must not implement:
 - Engagement categories in the evidence packet are exactly `engaged`,
   `moderately_engaged`, `disengaged`, and `insufficient_evidence`. A single weak
   process signal is not enough to assign `disengaged`.
+- Engagement evidence v1 must include provisional threshold metadata and
+  decision traces. The thresholds are engineering thresholds, not empirically
+  calibrated psychometric thresholds. Item-level and session-level traces may
+  include matched rules, non-matched rules, threshold names/values, bands,
+  dominant signal counts, reason codes, and limitations.
+- Rapid response, minimal reasoning, and a single focus/paste signal are not
+  sufficient alone for a `disengaged` or likely external-assistance category.
+  Wrong answers, low confidence, content questions, and procedural questions
+  are not invalid engagement patterns.
 - AI-assistance signals in the evidence packet are exactly `none_indicated`,
   `likely_external_assistance_pattern`, and `insufficient_evidence`.
   AI-assistance is allowed; the signal is behavioral process context only and
@@ -1179,7 +1188,8 @@ Phase 6A.5 must not implement:
   answer keys, distractor metadata, raw prompts, API keys, cookies, or secrets.
 - Engagement review artifacts are ignored under
   `.data/engagement-evidence-review/` and must contain only bands, counts,
-  public IDs, safe labels, and interpretation cautions.
+  public IDs, safe labels, threshold metadata, rule IDs, reason codes, and
+  interpretation cautions.
 - Phase 27b does not implement profile integration, final ability inference,
   teacher upload, new item content, live LLM calls, or schema migrations.
 

@@ -59,6 +59,19 @@ async function writeJsonArtifact(fileName: string, payload: unknown) {
   return outputPath;
 }
 
+function topDecisionReasons(packet: Awaited<ReturnType<typeof buildEngagementEvidencePacketForSession>>) {
+  const sessionRules = packet.session_engagement_summary.session_decision_trace.matched_session_rules
+    .map((rule) => rule.rule_id);
+  const dominantSignals = Object.entries(
+    packet.session_engagement_summary.session_decision_trace.dominant_signal_counts
+  )
+    .filter(([, count]) => count > 0)
+    .sort((left, right) => right[1] - left[1])
+    .map(([key]) => key);
+
+  return [...new Set([...sessionRules, ...dominantSignals])].slice(0, 5);
+}
+
 async function addSyntheticProcessContext(sessionPublicId: string) {
   const session = await prisma.assessmentSession.findUniqueOrThrow({
     where: { session_public_id: sessionPublicId },
@@ -218,7 +231,12 @@ async function main() {
       item_evidence_count: packet.item_engagement_evidence.length,
       provisional_engagement_category:
         packet.session_engagement_summary.provisional_engagement_category,
+      category_confidence: packet.session_engagement_summary.category_confidence,
       ai_assistance_signal: packet.session_engagement_summary.ai_assistance_signal,
+      top_engagement_decision_reasons: topDecisionReasons(packet),
+      top_counterevidence:
+        packet.session_engagement_summary.session_decision_trace.top_counterevidence,
+      threshold_policy: packet.session_engagement_summary.threshold_policy,
       observed_event_type_count:
         Object.keys(packet.process_data_inventory.observed_event_counts).length,
       unobserved_supported_event_type_count:

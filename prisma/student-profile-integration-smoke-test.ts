@@ -12,8 +12,10 @@ import {
 import {
   ENGAGEMENT_EVIDENCE_PACKET_SCHEMA_VERSION,
   EngagementEvidencePacketV1Schema,
+  ENGAGEMENT_RULE_CONFIG_V1,
   buildEngagementEvidencePacketForSession,
-  buildItemEngagementEvidence
+  buildItemEngagementEvidence,
+  summarizeSessionEngagement
 } from "../src/lib/services/student-assessment/engagement-evidence";
 import {
   PROFILE_INTEGRATION_AGENT_NAME,
@@ -191,39 +193,6 @@ function engagementItem(index: number, input: EngagementEvidenceInput) {
   });
 }
 
-function engagementSummary(items: ReturnType<typeof buildItemEngagementEvidence>[]) {
-  const engagedCount = items.filter((item) => item.engagement_signal === "engaged").length;
-  const disengagedCount = items.filter((item) => item.engagement_signal === "disengaged").length;
-  const category = items.length === 0
-    ? "insufficient_evidence" as const
-    : disengagedCount >= 2
-      ? "disengaged" as const
-      : engagedCount >= Math.max(1, Math.ceil(items.length / 2))
-        ? "engaged" as const
-        : "moderately_engaged" as const;
-  const aiSignal = items.some((item) => item.ai_assistance_signal === "likely_external_assistance_pattern")
-    ? "likely_external_assistance_pattern" as const
-    : items.some((item) => item.ai_assistance_signal === "insufficient_evidence")
-      ? "insufficient_evidence" as const
-      : "none_indicated" as const;
-
-  return {
-    provisional_engagement_category: category,
-    category_confidence: items.some((item) => item.evidence_confidence === "medium") ? "medium" as const : "low" as const,
-    ai_assistance_signal: aiSignal,
-    item_count: items.length,
-    engaged_item_count: engagedCount,
-    disengaged_item_count: disengagedCount,
-    process_data_interpretation_policy:
-      "Process data are contextual engagement and evidence-sufficiency signals. They do not directly determine ability.",
-    limitations: [
-      "single_weak_signal_is_not_enough",
-      "process_data_are_ambiguous",
-      "process_data_must_not_be_used_as_direct_ability_evidence"
-    ]
-  };
-}
-
 function inputFromEvidence(input: {
   abilities: ReturnType<typeof buildItemAbilityEvidence>[];
   engagements: ReturnType<typeof buildItemEngagementEvidence>[];
@@ -254,7 +223,8 @@ function inputFromEvidence(input: {
     concept_unit_id: abilityPacket.concept_unit_id,
     source_response_package_refs: [],
     item_engagement_evidence: input.engagements,
-    session_engagement_summary: engagementSummary(input.engagements),
+    session_engagement_summary: summarizeSessionEngagement(input.engagements),
+    engagement_rule_config: ENGAGEMENT_RULE_CONFIG_V1,
     process_data_inventory: {
       observed_event_counts: {},
       supported_event_types: [],

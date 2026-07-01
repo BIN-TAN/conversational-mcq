@@ -72,6 +72,37 @@ Rules are conservative:
 
 These categories describe participation evidence in the session. They are not ability categories and do not directly change the ability evidence packet.
 
+## Provisional V1 Thresholds And Decision Trace
+
+Engagement evidence v1 includes an explicit rule configuration:
+
+```text
+answer_selection_rapid_ms = 3000
+reasoning_response_rapid_ms = 5000
+item_completion_rapid_ms = 3000
+minimal_reasoning_character_threshold = 20
+minimal_reasoning_token_threshold = 4
+substantive_reasoning_character_threshold = 90
+repeated_invalid_response_threshold = 2
+disengaged_min_convergent_signal_count = 2
+disengaged_min_item_count = 2
+likely_ai_min_convergent_signal_count = 2
+long_focus_loss_ms = 10000
+long_inactivity_ms = 60000
+```
+
+These are provisional engineering thresholds, not empirically calibrated psychometric thresholds. They are included in packets and review artifacts so a teacher/researcher can inspect how a category was produced.
+
+Each item includes `decision_trace` with matched and non-matched deterministic rules, threshold names and values, duration/length bands, why-not category reasons, and limitations. Each session includes `session_decision_trace` with item category counts, dominant signal counts, matched session rules, counterevidence, and why-not category reasons.
+
+Important semantics:
+
+- Rapid response is a time-based signal only. It does not by itself imply disengagement.
+- Minimal reasoning is based on length band and character/token thresholds. A short uncertainty statement such as "I don't know" is uncertainty or knowledge-gap evidence, not invalid engagement evidence.
+- Invalid pattern means repeated unusable/off-task/irrelevant/low-information responses after repair opportunities. Wrong answers, low confidence, content questions, and procedural questions are not invalid engagement patterns.
+- `disengaged` requires convergent signals at item level or repeated item-level disengagement across the session.
+- `insufficient_evidence` is used when records are missing, too sparse, or too ambiguous.
+
 ## AI Assistance Signal Policy
 
 The packet may record one contextual `ai_assistance_signal`:
@@ -97,6 +128,8 @@ process_data_are_ambiguous
 
 The system must never turn this packet into a student accusation or a student-facing profile.
 
+The packet includes `ai_assistance_decision_trace` at item and session level. One focus loss alone or one paste event alone remains `insufficient_evidence`, not `likely_external_assistance_pattern`. `likely_external_assistance_pattern` requires convergent contextual signals. `none_indicated` means no relevant signal pattern was observed; it is not proof that no AI or external assistance was used.
+
 ## Possible Interpretation
 
 Each item now includes:
@@ -112,10 +145,14 @@ A future LLM may produce an interpretation from redacted structured signals only
 
 ## Redaction Policy
 
-The review artifact contains only bands, counts, public IDs, safe labels, and interpretation cautions. It omits:
+The review artifact contains only bands, counts, public IDs, safe labels, threshold names and values, rule IDs, reason codes, and interpretation cautions. It omits:
 
 - raw reasoning;
 - raw process-event payloads;
+- raw typed text;
+- raw clipboard text;
+- raw keystrokes;
+- raw browser URLs;
 - raw conversation turns;
 - item stems;
 - answer keys;

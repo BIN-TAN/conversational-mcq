@@ -4,7 +4,9 @@ import {
   buildEngagementEvidencePacketForSession,
   buildItemEngagementEvidence,
   EngagementEvidencePacketV1Schema,
+  ENGAGEMENT_RULE_CONFIG_V1,
   redactEngagementEvidencePacketForReview,
+  summarizeSessionEngagement,
   validateRedactedEngagementReviewArtifactSafety
 } from "../src/lib/services/student-assessment/engagement-evidence";
 import { applyProvisionalItemDiagnosticMetadata } from "../src/lib/services/student-assessment/provisional-item-diagnostic-metadata";
@@ -67,6 +69,33 @@ function runPureEngagementAssertions() {
     rapid.engagement_signal === "moderately_engaged",
     "A single rapid sparse response should not become disengaged by itself."
   );
+  assert(
+    rapid.decision_trace.matched_rules.some((rule) => rule.rule_id === "rapid_minimal_reasoning_combo"),
+    "Rapid sparse response should include the rapid/minimal rule trace."
+  );
+  assert(
+    rapid.decision_trace.non_matched_rules.some((rule) => rule.rule_id === "repeated_invalid_or_unusable_response"),
+    "Rapid sparse response should explain that invalid-response rule did not match."
+  );
+
+  const minimalOnly = buildItemEngagementEvidence({
+    item_public_id: "minimal_only_item",
+    response_present: true,
+    selected_option: "B",
+    reasoning_text: "short",
+    item_response_time_ms: 24_000,
+    revision_count: 0,
+    event_counts: { typing_activity_summary: 1 },
+    process_instrumentation_available: true
+  });
+  assert(
+    minimalOnly.engagement_signal === "moderately_engaged",
+    "Minimal reasoning alone should not become disengaged."
+  );
+  assert(
+    minimalOnly.decision_trace.matched_rules.some((rule) => rule.rule_id === "minimal_reasoning_only"),
+    "Minimal reasoning should include a matched trace."
+  );
 
   const idk = buildItemEngagementEvidence({
     item_public_id: "idk_item",
@@ -82,6 +111,40 @@ function runPureEngagementAssertions() {
   assert(
     idk.engagement_signal === "moderately_engaged",
     "I don't know should remain separate from ability evidence."
+  );
+  assert(
+    !idk.decision_trace.matched_rules.some((rule) => rule.rule_id === "repeated_invalid_or_unusable_response"),
+    "I don't know alone must not be treated as invalid engagement evidence."
+  );
+
+  const wrongAnswerAlone = buildItemEngagementEvidence({
+    item_public_id: "wrong_answer_alone_item",
+    response_present: true,
+    selected_option: "A",
+    reasoning_text: "I think the parameter describes how the item behaves across students.",
+    item_response_time_ms: 28_000,
+    revision_count: 0,
+    event_counts: { typing_activity_summary: 1 },
+    process_instrumentation_available: true
+  });
+  assert(
+    wrongAnswerAlone.engagement_signal !== "disengaged",
+    "Wrong answer marker alone must not be invalid engagement evidence."
+  );
+
+  const proceduralQuestion = buildItemEngagementEvidence({
+    item_public_id: "procedural_question_item",
+    response_present: true,
+    selected_option: "C",
+    reasoning_text: "I am asking how to format this, then giving my reason.",
+    item_response_time_ms: 30_000,
+    revision_count: 0,
+    event_counts: { procedural_clarification_request: 1 },
+    process_instrumentation_available: true
+  });
+  assert(
+    proceduralQuestion.engagement_signal !== "disengaged",
+    "Procedural question alone must not be invalid engagement evidence."
   );
 
   const singlePaste = buildItemEngagementEvidence({
@@ -118,6 +181,12 @@ function runPureEngagementAssertions() {
     "Paste plus focus loss should be a stronger contextual signal."
   );
   assert(
+    likelyExternal.ai_assistance_decision_trace.matched_rules.some(
+      (rule) => rule.rule_id === "convergent_paste_focus_context"
+    ),
+    "Likely external-assistance signal should include matched convergent rule."
+  );
+  assert(
     likelyExternal.interpretation_source === "deterministic_v1",
     "Engagement interpretation should be explicitly deterministic."
   );
@@ -140,6 +209,12 @@ function runPureEngagementAssertions() {
     weakDisengagementConvergence.engagement_signal === "disengaged",
     "Convergent weak participation signals should support disengaged."
   );
+  assert(
+    weakDisengagementConvergence.decision_trace.matched_rules.some(
+      (rule) => rule.thresholds_used.some((threshold) => threshold.threshold_name === "repeated_invalid_response_threshold")
+    ),
+    "Disengaged item trace should include threshold usage."
+  );
 
   const unavailable = buildItemEngagementEvidence({
     item_public_id: "missing_process_item",
@@ -156,6 +231,75 @@ function runPureEngagementAssertions() {
   assert(
     unavailable.interpretation_cautions.includes("ai_assistance_signal_should_be_compared_with_self_report"),
     "Updated AI-signal limitation should be present."
+  );
+
+  const repeatedWeakSession = summarizeSessionEngagement([
+    weakDisengagementConvergence,
+    buildItemEngagementEvidence({
+      item_public_id: "second_weak_convergent_item",
+      response_present: true,
+      selected_option: "A",
+      reasoning_text: "ok",
+      item_response_time_ms: 1_000,
+      revision_count: 0,
+      event_counts: { response_quality_rejected: ENGAGEMENT_RULE_CONFIG_V1.repeated_invalid_response_threshold },
+      process_instrumentation_available: true
+    }),
+    minimalOnly
+  ]);
+  assert(
+    repeatedWeakSession.provisional_engagement_category === "disengaged",
+    "Repeated rapid/minimal/invalid signals across multiple items can classify disengaged."
+  );
+  assert(
+    repeatedWeakSession.session_decision_trace.matched_session_rules.some(
+      (rule) => rule.rule_id === "multiple_items_rapid_sparse"
+    ),
+    "Session trace should explain repeated disengagement item threshold."
+  );
+  assert(
+    repeatedWeakSession.session_decision_trace.matched_session_rules.some((rule) =>
+      rule.thresholds_used.some((threshold) => threshold.threshold_name === "disengaged_min_item_count")
+    ),
+    "Session trace should include disengaged item-count threshold."
+  );
+
+  const mixedSession = summarizeSessionEngagement([engaged, minimalOnly, unavailable]);
+  assert(
+    ["moderately_engaged", "insufficient_evidence"].includes(mixedSession.provisional_engagement_category),
+    "Mixed item signals should remain moderate or insufficient, not overclaim disengaged."
+  );
+  assert(
+    mixedSession.session_decision_trace.why_not_other_categories.length > 0,
+    "Session trace should include why-not category reasons."
+  );
+
+  const oneFocus = buildItemEngagementEvidence({
+    item_public_id: "single_focus_item",
+    response_present: true,
+    selected_option: "B",
+    reasoning_text: "This is a moderate explanation.",
+    item_response_time_ms: 40_000,
+    revision_count: 0,
+    event_counts: { window_blur: 1 },
+    process_instrumentation_available: true
+  });
+  assert(
+    oneFocus.ai_assistance_signal === "insufficient_evidence",
+    "One focus loss alone should not produce likely external-assistance pattern."
+  );
+  assert(
+    singlePaste.ai_assistance_decision_trace.why_not_likely_external_assistance_pattern.some(
+      (reason) => reason.reason_code === "single_weak_signal_is_not_enough"
+    ),
+    "Single paste should include why-not-likely reason."
+  );
+  assert(
+    summarizeSessionEngagement([engaged, wrongAnswerAlone, proceduralQuestion]).ai_assistance_decision_trace
+      .why_not_likely_external_assistance_pattern.some(
+        (reason) => reason.reason_code === "no_convergent_focus_paste_typing_pattern"
+      ),
+    "none_indicated AI trace should include why-not likely reason."
   );
 }
 
@@ -256,8 +400,26 @@ async function runDbPacketAssertion() {
 
     assert(parsed.item_engagement_evidence.length === 3, "Engagement packet should include three initial items.");
     assert(
+      parsed.engagement_rule_config.threshold_policy === "provisional_v1_not_empirically_calibrated",
+      "Engagement packet should include threshold policy."
+    );
+    assert(
       parsed.item_engagement_evidence.every((item) => item.interpretation_source === "deterministic_v1"),
       "Every item should include deterministic interpretation source."
+    );
+    assert(
+      parsed.item_engagement_evidence.every((item) => item.decision_trace.matched_rules.length > 0),
+      "Every item should include item-level decision trace."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.matched_session_rules.length > 0,
+      "Session summary should include matched session rules."
+    );
+    assert(
+      Array.isArray(
+        parsed.session_engagement_summary.ai_assistance_decision_trace.why_not_likely_external_assistance_pattern
+      ),
+      "Session summary should include AI assistance trace."
     );
     assert(
       parsed.item_engagement_evidence.every((item) => item.possible_interpretation.length > 0),
@@ -278,6 +440,8 @@ async function runDbPacketAssertion() {
     assert(!text.includes("correct_option"), "Redacted engagement artifact leaked answer-key field.");
     assert(!text.includes("reasoning_text"), "Redacted engagement artifact leaked raw reasoning field.");
     assert(!text.includes("provider"), "Redacted engagement artifact should not include provider details.");
+    assert(!text.includes("clipboard_text"), "Redacted engagement artifact leaked clipboard text key.");
+    assert(!text.includes("raw_url"), "Redacted engagement artifact leaked raw URL key.");
     assert(!text.includes("possible_external_assistance_or_reference"), "Old AI-assistance signal must not appear.");
     assert(!text.includes("ai_assistance_signal_requires_human_contextual_review"), "Old AI-assistance limitation must not appear.");
     assert(!text.includes("used genai"), "Redacted engagement artifact must not claim GenAI use.");

@@ -267,7 +267,7 @@ Engagement evidence packet verification:
 npm run student:engagement-evidence-smoke
 ```
 
-This no-live smoke builds `engagement-evidence-packet-v1` from fixed IRT response-package and process-event evidence. It does not create a final engagement profile, does not call OpenAI, does not make academic-integrity claims, and does not render student-facing evidence. The AI-assistance signal is limited to `none_indicated`, `likely_external_assistance_pattern`, and `insufficient_evidence`; it is behavioral context only. See `docs/ENGAGEMENT_PROFILING_DESIGN.md`.
+This no-live smoke builds `engagement-evidence-packet-v1` from fixed IRT response-package and process-event evidence. It does not create a final engagement profile, does not call OpenAI, does not make academic-integrity claims, and does not render student-facing evidence. The packet includes provisional v1 threshold metadata and item/session decision traces for teacher/research inspection. The AI-assistance signal is limited to `none_indicated`, `likely_external_assistance_pattern`, and `insufficient_evidence`; it is behavioral context only. See `docs/ENGAGEMENT_PROFILING_DESIGN.md`.
 
 Engagement evidence review artifact generation:
 
@@ -275,7 +275,7 @@ Engagement evidence review artifact generation:
 npm run student:engagement-evidence-review
 ```
 
-This no-live review command creates a temporary deterministic sample session when no session is supplied, writes a redacted engagement evidence artifact plus process-data inventory under `.data/engagement-evidence-review/`, and prints a concise summary. The artifacts contain bands, counts, safe labels, and interpretation cautions only.
+This no-live review command creates a temporary deterministic sample session when no session is supplied, writes a redacted engagement evidence artifact plus process-data inventory under `.data/engagement-evidence-review/`, and prints a concise summary. The artifacts contain bands, counts, safe labels, threshold names/values, rule IDs, reason codes, and interpretation cautions only.
 
 Profile integration interpretation packet verification:
 
