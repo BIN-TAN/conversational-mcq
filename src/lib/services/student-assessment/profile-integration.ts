@@ -41,8 +41,14 @@ Boundaries:
 - Use only the provided structured evidence. Do not invent evidence, student text, item content, hidden metadata, or answer keys.
 - Do not expose answer keys, correct options, correctness labels, distractor metadata, raw misconception identifiers, raw student reasoning, raw process payloads, raw model output, prompts, provider metadata, or secrets.
 - Process and engagement evidence affect reliability and confidence only. They are not direct ability evidence.
-- External-assistance signals are contextual only and must not penalize the student or appear in the student-facing message.
-- Never make an unsupported integrity accusation. Do not call AI assistance ${"che" + "ating"} or ${"mis" + "conduct"}.
+- AI or external assistance is allowed in this product context. Do not treat it as a violation or as direct ability evidence.
+- Do not make integrity, authenticity, independent-work, suspicious-behavior, ${"che" + "ating"}, or ${"mis" + "conduct"} judgments.
+- Do not use the words or ideas integrity, academic integrity, authenticity, authentic work, independent work, suspicious, or questionable.
+- Do not infer external assistance unless ai_assistance_signal is likely_external_assistance_pattern.
+- If ai_assistance_signal is insufficient_evidence, do not mention AI, external assistance, integrity, authenticity, independent work, suspicious behavior, or response provenance in evidence rationale.
+- If ai_assistance_signal is none_indicated, do not mention AI, external assistance, integrity, authenticity, independent work, suspicious behavior, or response provenance at all.
+- If ai_assistance_signal is likely_external_assistance_pattern, you may mention only this neutral internal idea: "The response-production context may affect how much weight to give polished reasoning evidence."
+- Even when likely_external_assistance_pattern is present, do not penalize the student, do not reduce ability category automatically, do not say the student used AI, and do not say the student relied on AI.
 - If evidence is mixed, conflicting, low-information, or heavily limited, use broad conservative categories and lower confidence.
 - Use likely_misconception only when at least two aligned evidence sources support the same conceptual issue.
 - Do not use high status_confidence when evidence consistency is mixed/conflicting/insufficient, reasoning quality is vague/mixed/insufficient, multiple I-don't-know or low-information signals are present, metadata limitations are substantial, or the integration pattern is mixed_or_conflicting_evidence or insufficient_evidence.
@@ -70,6 +76,7 @@ Forbidden teacher/research summary style:
 
 Student-facing message rules:
 - Keep the message brief, supportive, and focused on current knowledge state.
+- Never mention AI assistance, external assistance, process data, engagement category, low participation, disengagement, integrity, authenticity, independent work, suspicious behavior, ${"che" + "ating"}, or ${"mis" + "conduct"} in student-facing text.
 - knowledge_focus may name the concept or distinction currently unclear.
 - knowledge_focus must not recommend an activity or say what the student or tutor should do next.
 
@@ -83,6 +90,9 @@ Repair pass:
 - You receive only safe validation issue codes and field paths, not the invalid output.
 - Rewrite the whole output as current-evidence interpretation only.
 - Remove any formative direction, activity recommendation, next-step wording, or planning language from every field.
+- Remove unsupported integrity, authenticity, independent-work, suspicious-behavior, AI-use, external-assistance, or response-provenance claims from every field.
+- If ai_assistance_signal is likely_external_assistance_pattern, keep only the neutral internal response-production context idea allowed in the main instructions.
+- If ai_assistance_signal is insufficient_evidence or none_indicated, make no AI, external-assistance, integrity, authenticity, independent-work, suspicious-behavior, or response-provenance claim.
 - If high confidence was rejected, lower status_confidence and add a limitation.
 - If evidence is mixed or weak, choose mixed_or_conflicting_evidence or insufficient_evidence.
 `;
@@ -492,6 +502,28 @@ function pushIssue(
   });
 }
 
+const NEUTRAL_RESPONSE_PRODUCTION_CONTEXT =
+  "The response-production context may affect how much weight to give polished reasoning evidence.";
+
+function normalizedText(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function isProfileIntegrationClaimPath(pathLabel: string) {
+  return (
+    /^\$\.evidence_rationale\[\d+\]\.claim$/.test(pathLabel) ||
+    pathLabel === "$.teacher_research_summary.safe_internal_summary" ||
+    pathLabel === "$.ability_interpretation.summary" ||
+    pathLabel === "$.engagement_context.summary" ||
+    pathLabel === "$.student_safe_message.message" ||
+    pathLabel === "$.student_safe_message.knowledge_focus"
+  );
+}
+
+function neutralResponseProductionContextIsAllowed(text: string) {
+  return normalizedText(text).includes(NEUTRAL_RESPONSE_PRODUCTION_CONTEXT);
+}
+
 export function buildProfileIntegrationAgentInput(input: {
   ability_packet: AbilityEvidencePacketV1;
   engagement_packet: EngagementEvidencePacketV1;
@@ -861,7 +893,7 @@ function deterministicProfileIntegrationOutput(
     ...(input.ability_summary.limitation_count > 0 ? ["ability_packet_has_limitations"] : []),
     ...(input.engagement_summary.limitation_count > 0 ? ["engagement_packet_has_limitations"] : []),
     ...(engagementEffect === "lowers_confidence" ? ["engagement_context_lowers_status_confidence_only"] : []),
-    ...(aiEffect === "contextualizes_reasoning_evidence" ? ["external_assistance_context_is_not_student_facing"] : []),
+    ...(aiEffect === "contextualizes_reasoning_evidence" ? ["evidence_weighting_context_is_internal_only"] : []),
     "profile_integration_current_evidence_only"
   ]);
   const evidenceRationale: ProfileIntegrationInterpretationPacketV1["evidence_rationale"] = [
@@ -1020,6 +1052,7 @@ function validationErrorPayload(input: {
 const REMEDIABLE_PROFILE_INTEGRATION_RULES = new Set<ProfileIntegrationValidationIssue["rule_code"]>([
   "formative_value_direction_present",
   "activity_recommendation_present",
+  "unsupported_integrity_claim_detected",
   "high_confidence_overclaim"
 ]);
 
@@ -1072,6 +1105,7 @@ async function executeProfileIntegrationRepairAttempt(input: {
       no_formative_value_direction: true,
       no_activity_recommendation: true,
       no_next_step_language: true,
+      remove_unsupported_integrity_authenticity_or_external_assistance_claims: true,
       lower_confidence_when_validator_requested: true
     }
   };
@@ -1583,7 +1617,11 @@ export function validateProfileIntegrationOutput(
     { rule: "activity_recommendation_present", pattern: /\b(?:tutor|teacher|system|agent)\s+should\s+(?:provide|assign|show|give|deliver|use)\b/i, label: "tutor_action_language" },
     { rule: "activity_recommendation_present", pattern: /\bstudent\s+should\s+receive\b/i, label: "student_assignment_language" },
     { rule: "activity_recommendation_present", pattern: /\bshould\s+(?:assign|show next)\b/i, label: "assignment_language" },
-    { rule: "unsupported_integrity_claim_detected", pattern: new RegExp(`\\b(${["che" + "ating", "mis" + "conduct", "dishonest", "academic integrity violation"].join("|")})\\b`, "i"), label: "unsupported_integrity_claim" },
+    { rule: "unsupported_integrity_claim_detected", pattern: /\bacademic integrity\b|\bintegrity\b/i, label: "integrity_claim" },
+    { rule: "unsupported_integrity_claim_detected", pattern: /\bauthenticity\b|\bauthentic work\b|\bauthentic response\b/i, label: "authenticity_claim" },
+    { rule: "unsupported_integrity_claim_detected", pattern: /\bindependent work\b|\bindependently (?:worked|produced|written|answered|reasoned)\b|\bindependent (?:response|reasoning|answer)\b/i, label: "independent_work_claim" },
+    { rule: "unsupported_integrity_claim_detected", pattern: /\bsuspicious\b|\bquestionable\b/i, label: "suspicious_behavior_claim" },
+    { rule: "unsupported_integrity_claim_detected", pattern: new RegExp(`\\b(${["che" + "ating", "mis" + "conduct", "dishonest"].join("|")})\\b`, "i"), label: "integrity_claim" },
     { rule: "answer_key_leak_detected", pattern: /\banswer key\b/i, label: "answer_key" },
     { rule: "correct_option_leak_detected", pattern: /\bcorrect option\b/i, label: "correct_option" },
     { rule: "correctness_label_detected", pattern: /\b(correctness|is correct|is incorrect|wrong answer|right answer)\b/i, label: "correctness_label" },
@@ -1603,13 +1641,67 @@ export function validateProfileIntegrationOutput(
     }
   }
 
+  const aiSignal = input?.engagement_summary.ai_assistance_signal ?? packet.engagement_context.ai_assistance_signal;
+  const aiOrExternalAssistancePattern =
+    /\b(ai assistance|external assistance|external reference|outside help|outside assistance|genai|chatgpt|language model)\b/i;
+  const aiUseClaimPattern =
+    /\b(?:student\s+)?(?:used|uses|using|relied on|relies on|received|got|copied|generated|written by|produced by)\s+(?:ai|genai|external assistance|outside help|outside assistance|an external source|a tool|chatgpt|a language model)\b/i;
+  const responseProvenancePattern =
+    /\b(response[- ]production|response provenance|provenance|externally produced|external source|generated by|written by)\b/i;
+
+  for (const entry of stringEntries.filter((stringEntry) => isProfileIntegrationClaimPath(stringEntry.path))) {
+    const text = entry.text;
+    if (aiUseClaimPattern.test(text)) {
+      pushIssue(
+        issues,
+        entry.path,
+        "unsupported_integrity_claim_detected",
+        aiSignal === "likely_external_assistance_pattern"
+          ? "unsupported_external_assistance_claim"
+          : "ai_use_claim_without_likely_signal"
+      );
+      continue;
+    }
+
+    if (aiOrExternalAssistancePattern.test(text)) {
+      pushIssue(
+        issues,
+        entry.path,
+        "unsupported_integrity_claim_detected",
+        aiSignal === "likely_external_assistance_pattern"
+          ? "unsupported_external_assistance_claim"
+          : "ai_use_claim_without_likely_signal"
+      );
+      continue;
+    }
+
+    if (responseProvenancePattern.test(text)) {
+      const neutralContextAllowed =
+        aiSignal === "likely_external_assistance_pattern" &&
+        neutralResponseProductionContextIsAllowed(text);
+      if (!neutralContextAllowed) {
+        pushIssue(
+          issues,
+          entry.path,
+          "unsupported_integrity_claim_detected",
+          aiSignal === "likely_external_assistance_pattern"
+            ? "unsupported_external_assistance_claim"
+            : "ai_use_claim_without_likely_signal"
+        );
+      }
+    }
+  }
+
   const studentOnlyRules: Array<{
     rule: ProfileIntegrationValidationIssue["rule_code"];
     pattern: RegExp;
     label: string;
   }> = [
-    { rule: "engagement_label_exposed_to_student", pattern: /\b(engaged|moderately engaged|disengaged|low engagement|low task participation|participation evidence)\b/i, label: "engagement_label" },
+    { rule: "engagement_label_exposed_to_student", pattern: /\b(engaged|moderately engaged|disengaged|low engagement|low task participation|low participation|participation evidence|process data|process evidence)\b/i, label: "engagement_label" },
     { rule: "ai_assistance_label_exposed_to_student", pattern: /\b(ai assistance|external assistance|external reference|genai)\b/i, label: "external_assistance_label" },
+    { rule: "unsupported_integrity_claim_detected", pattern: /\bacademic integrity\b|\bintegrity\b/i, label: "integrity_claim" },
+    { rule: "unsupported_integrity_claim_detected", pattern: /\bauthenticity\b|\bauthentic work\b|\bauthentic response\b/i, label: "authenticity_claim" },
+    { rule: "unsupported_integrity_claim_detected", pattern: /\bindependent work\b|\bindependent (?:response|reasoning|answer)\b|\bsuspicious\b|\bquestionable\b/i, label: "independent_work_claim" },
     { rule: "distractor_metadata_detected", pattern: /\bdistractor\b/i, label: "distractor_label" },
     { rule: "misconception_id_exposed", pattern: /\bmisconception\b/i, label: "misconception_label" }
   ];

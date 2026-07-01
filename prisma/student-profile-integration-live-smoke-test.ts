@@ -146,6 +146,7 @@ async function profileIntegrationAuditSummaries(sessionPublicId: string) {
       agent_name: true,
       schema_version: true,
       provider: true,
+      client_request_id: true,
       call_status: true,
       output_validated: true,
       validation_error: true,
@@ -167,6 +168,7 @@ async function profileIntegrationAuditSummaries(sessionPublicId: string) {
       agent_name: call.agent_name,
       schema_version: call.schema_version,
       provider: call.provider,
+      repair_attempt: call.client_request_id?.startsWith("profile_integration_repair_") ?? false,
       call_status: call.call_status,
       output_validated: call.output_validated,
       validation_issue_count: validation.issue_count,
@@ -185,6 +187,36 @@ async function profileIntegrationAuditSummaries(sessionPublicId: string) {
       completed_at: call.completed_at?.toISOString() ?? null
     };
   });
+}
+
+function summarizeRepairStatus(agentCalls: Awaited<ReturnType<typeof profileIntegrationAuditSummaries>>) {
+  const repairCalls = agentCalls.filter((call) => call.repair_attempt);
+
+  if (repairCalls.length === 0) {
+    return {
+      repair_attempted: false,
+      repair_status: "not_attempted" as const
+    };
+  }
+
+  if (repairCalls.some((call) => call.call_status === "succeeded" && call.output_validated)) {
+    return {
+      repair_attempted: true,
+      repair_status: "succeeded" as const
+    };
+  }
+
+  if (repairCalls.some((call) => call.call_status === "started")) {
+    return {
+      repair_attempted: true,
+      repair_status: "incomplete" as const
+    };
+  }
+
+  return {
+    repair_attempted: true,
+    repair_status: "failed" as const
+  };
 }
 
 async function writeFailureArtifact(input: {
@@ -206,6 +238,7 @@ async function writeFailureArtifact(input: {
       artifact_version: "profile-integration-live-smoke-failure-v1",
       session_public_id: input.session_public_id,
       error_message: input.error_message.slice(0, 500),
+      ...summarizeRepairStatus(input.agent_calls),
       agent_calls: input.agent_calls
     }, null, 2)}\n`,
     "utf8"
@@ -357,11 +390,13 @@ async function main() {
         error_message: liveResult.blocked_reason,
         agent_calls: agentCalls
       });
+      const repairSummary = summarizeRepairStatus(agentCalls);
       console.log(JSON.stringify({
         status: "failed",
         diagnostic_artifact_path: artifactPath,
         session_public_id: sample.session_public_id,
         blocked_reason: liveResult.blocked_reason,
+        ...repairSummary,
         agent_calls: agentCalls
       }, null, 2));
       throw new Error(`Live profile integration failed: ${liveResult.blocked_reason}`);
@@ -375,12 +410,14 @@ async function main() {
         error_message: `Live profile integration packet failed validation with ${validation.issues.length} issues.`,
         agent_calls: agentCalls
       });
+      const repairSummary = summarizeRepairStatus(agentCalls);
       console.log(JSON.stringify({
         status: "failed",
         diagnostic_artifact_path: artifactPath,
         session_public_id: sample.session_public_id,
         validation_issue_count: validation.issues.length,
         validation_issues: validation.issues,
+        ...repairSummary,
         agent_calls: agentCalls
       }, null, 2));
       throw new Error("Live profile integration packet failed validation.");

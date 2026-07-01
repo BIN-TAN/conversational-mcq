@@ -111,8 +111,13 @@ function assertNoForbiddenStudentText(value: unknown) {
     "low task participation",
     "ai assistance",
     "external assistance",
+    "process data",
     "cheating",
     "misconduct",
+    "integrity",
+    "authenticity",
+    "independent work",
+    "suspicious",
     "formative value",
     "activity recommendation"
   ];
@@ -532,12 +537,187 @@ async function runPureIntegrationAssertions() {
     ...validPacket,
     student_safe_message: {
       ...validPacket.student_safe_message,
-      message: "Low engagement and AI assistance affected this profile."
+      message: "Low engagement, process data, and AI assistance affected this profile."
     }
   };
   assert(
     !validateProfileIntegrationOutput(engagementLabelOutput).valid,
     "Student-facing engagement and external-assistance labels should be rejected."
+  );
+
+  const insufficientSignalInput = inputFromEvidence({
+    abilities: [strongAbility(1), strongAbility(2), strongAbility(3)],
+    engagements: [
+      engagementItem(1, {
+        response_present: true,
+        selected_option: "C",
+        reasoning_text:
+          "Theta is the person location on the latent trait scale, while item parameters describe item behavior.",
+        item_response_time_ms: 35_000,
+        revision_count: 0,
+        event_counts: { paste_detected: 1, typing_activity_summary: 1 },
+        process_instrumentation_available: true
+      }),
+      engagedEvidence(2),
+      engagedEvidence(3)
+    ]
+  });
+  assert(
+    insufficientSignalInput.engagement_summary.ai_assistance_signal === "insufficient_evidence",
+    "Single weak process context should remain insufficient evidence."
+  );
+  const insufficientSignalPacket = await callProfileIntegrationAgent(insufficientSignalInput);
+  const insufficientAiMentionOutput = {
+    ...insufficientSignalPacket,
+    evidence_rationale: [
+      ...insufficientSignalPacket.evidence_rationale,
+      {
+        claim_type: "engagement" as const,
+        claim: "AI assistance may have shaped the polished reasoning evidence.",
+        supports: "reliability_context" as const,
+        strength: "low" as const
+      }
+    ]
+  };
+  const insufficientAiMentionValidation = validateProfileIntegrationOutput(
+    insufficientAiMentionOutput,
+    insufficientSignalInput
+  );
+  assert(
+    !insufficientAiMentionValidation.valid,
+    "Insufficient external-assistance evidence should not permit an assistance claim."
+  );
+  assert(
+    insufficientAiMentionValidation.issues.some((issue) =>
+      issue.rule_code === "unsupported_integrity_claim_detected" &&
+      issue.blocked_pattern_label === "ai_use_claim_without_likely_signal"
+    ),
+    "Insufficient assistance evidence should report a safe unsupported-claim rule."
+  );
+
+  const insufficientAuthenticityOutput = {
+    ...insufficientSignalPacket,
+    evidence_rationale: [
+      ...insufficientSignalPacket.evidence_rationale,
+      {
+        claim_type: "engagement" as const,
+        claim: "The response has an authenticity concern.",
+        supports: "reliability_context" as const,
+        strength: "low" as const
+      }
+    ]
+  };
+  const insufficientAuthenticityValidation = validateProfileIntegrationOutput(
+    insufficientAuthenticityOutput,
+    insufficientSignalInput
+  );
+  assert(
+    !insufficientAuthenticityValidation.valid,
+    "Authenticity claims should be rejected when process context is insufficient."
+  );
+  assert(
+    insufficientAuthenticityValidation.issues.some((issue) =>
+      issue.rule_code === "unsupported_integrity_claim_detected" &&
+      issue.blocked_pattern_label === "authenticity_claim"
+    ),
+    "Authenticity claims should report a safe blocked label."
+  );
+
+  const noneSignalAiMentionOutput = {
+    ...validPacket,
+    teacher_research_summary: {
+      ...validPacket.teacher_research_summary,
+      safe_internal_summary: "No AI assistance was indicated in the current evidence."
+    }
+  };
+  const noneSignalAiMentionValidation = validateProfileIntegrationOutput(
+    noneSignalAiMentionOutput,
+    inputFromEvidence({
+      abilities: [strongAbility(1), strongAbility(2), strongAbility(3)],
+      engagements: [engagedEvidence(1), engagedEvidence(2), engagedEvidence(3)]
+    })
+  );
+  assert(
+    !noneSignalAiMentionValidation.valid,
+    "No-signal evidence should not mention AI or external assistance."
+  );
+
+  const likelySignalInput = inputFromEvidence({
+    abilities: [strongAbility(1), strongAbility(2), strongAbility(3)],
+    engagements: [
+      engagementItem(1, {
+        response_present: true,
+        selected_option: "C",
+        reasoning_text:
+          "Theta is the person location on a common latent scale, so item parameters describe item behavior rather than changing the construct.",
+        item_response_time_ms: 45_000,
+        revision_count: 0,
+        event_counts: { paste_detected: 1, window_blur: 1 },
+        process_instrumentation_available: true
+      }),
+      engagedEvidence(2),
+      engagedEvidence(3)
+    ]
+  });
+  assert(
+    likelySignalInput.engagement_summary.ai_assistance_signal === "likely_external_assistance_pattern",
+    "Convergent process context should produce the stronger contextual signal."
+  );
+  const likelySignalPacket = await callProfileIntegrationAgent(likelySignalInput);
+  const neutralEvidenceContextOutput = {
+    ...likelySignalPacket,
+    evidence_rationale: [
+      ...likelySignalPacket.evidence_rationale,
+      {
+        claim_type: "engagement" as const,
+        claim:
+          "The response-production context may affect how much weight to give polished reasoning evidence.",
+        supports: "reliability_context" as const,
+        strength: "low" as const
+      }
+    ]
+  };
+  assert(
+    validateProfileIntegrationOutput(neutralEvidenceContextOutput, likelySignalInput).valid,
+    "Likely contextual signal should allow only the neutral internal response-production wording."
+  );
+  const likelyUnsupportedOutput = {
+    ...likelySignalPacket,
+    evidence_rationale: [
+      ...likelySignalPacket.evidence_rationale,
+      {
+        claim_type: "engagement" as const,
+        claim: "The student used AI to produce the response.",
+        supports: "reliability_context" as const,
+        strength: "low" as const
+      }
+    ]
+  };
+  const likelyUnsupportedValidation = validateProfileIntegrationOutput(
+    likelyUnsupportedOutput,
+    likelySignalInput
+  );
+  assert(
+    !likelyUnsupportedValidation.valid,
+    "Likely contextual signal should not allow a direct AI-use claim."
+  );
+  assert(
+    likelyUnsupportedValidation.issues.some((issue) =>
+      issue.rule_code === "unsupported_integrity_claim_detected" &&
+      issue.blocked_pattern_label === "unsupported_external_assistance_claim"
+    ),
+    "Unsupported direct external-assistance claims should report a safe blocked label."
+  );
+  const likelyIntegrityOutput = {
+    ...likelySignalPacket,
+    teacher_research_summary: {
+      ...likelySignalPacket.teacher_research_summary,
+      safe_internal_summary: "The response raises an integrity concern."
+    }
+  };
+  assert(
+    !validateProfileIntegrationOutput(likelyIntegrityOutput, likelySignalInput).valid,
+    "Integrity language should remain rejected even with stronger contextual process evidence."
   );
 
   const mixedInput = inputFromEvidence({
@@ -743,6 +923,123 @@ async function runProviderPathAssertions() {
   assert(
     repairedAgentCall.provider_request_id === "mock_profile_integration_repair_request_2",
     "Repaired output should audit the repair provider request."
+  );
+
+  let unsupportedClaimRepairCallCount = 0;
+  const unsupportedClaimRepairProvider = new FixedProfileIntegrationProvider((request) => {
+    unsupportedClaimRepairCallCount += 1;
+    const repairedOutput = unsupportedClaimRepairCallCount === 1
+      ? {
+          ...validOutput,
+          evidence_rationale: [
+            ...validOutput.evidence_rationale,
+            {
+              claim_type: "engagement" as const,
+              claim: "The response raises an authenticity concern.",
+              supports: "reliability_context" as const,
+              strength: "low" as const
+            }
+          ]
+        }
+      : {
+          ...validOutput,
+          evidence_rationale: [
+            ...validOutput.evidence_rationale,
+            {
+              claim_type: "engagement" as const,
+              claim: "Engagement evidence is used only as context for confidence in the current interpretation.",
+              supports: "reliability_context" as const,
+              strength: "low" as const
+            }
+          ],
+          status_confidence: "medium" as const
+        };
+
+    return {
+      provider: "mock",
+      provider_request_id: `mock_profile_integration_unsupported_repair_request_${unsupportedClaimRepairCallCount}`,
+      provider_response_id: `mock_profile_integration_unsupported_repair_response_${unsupportedClaimRepairCallCount}`,
+      client_request_id: request.client_request_id,
+      status: "completed",
+      parsed_output: repairedOutput,
+      raw_output: {
+        id: `mock_profile_integration_unsupported_repair_response_${unsupportedClaimRepairCallCount}`,
+        output: "redacted"
+      },
+      usage: { input_tokens: 10, output_tokens: 12, total_tokens: 22 },
+      latency_ms: 2
+    };
+  });
+  const unsupportedClaimRepairResult = await executeProfileIntegrationAgentWithProviderForTest({
+    agent_input: input,
+    provider: unsupportedClaimRepairProvider
+  });
+
+  assert(
+    unsupportedClaimRepairResult.status === "succeeded",
+    "Unsupported integrity/authenticity claim should be repairable once."
+  );
+  assert(
+    unsupportedClaimRepairCallCount === 2,
+    "Unsupported claim repair should use exactly one repair attempt."
+  );
+  assert(
+    unsupportedClaimRepairResult.agent_call_id,
+    "Unsupported claim repair should return the repair agent call."
+  );
+
+  const unsupportedRepairAgentCall = await prisma.agentCall.findUniqueOrThrow({
+    where: { id: unsupportedClaimRepairResult.agent_call_id },
+    select: { output_validated: true, call_status: true, provider_request_id: true }
+  });
+  assert(unsupportedRepairAgentCall.call_status === "succeeded", "Unsupported claim repair should mark repair call succeeded.");
+  assert(unsupportedRepairAgentCall.output_validated, "Unsupported claim repair output should validate.");
+  assert(
+    unsupportedRepairAgentCall.provider_request_id === "mock_profile_integration_unsupported_repair_request_2",
+    "Unsupported claim repair should audit the repair provider request."
+  );
+
+  let unsupportedClaimFailedRepairCallCount = 0;
+  const unsupportedClaimFailedRepairProvider = new FixedProfileIntegrationProvider((request) => {
+    unsupportedClaimFailedRepairCallCount += 1;
+    const output = {
+      ...validOutput,
+      teacher_research_summary: {
+        ...validOutput.teacher_research_summary,
+        safe_internal_summary:
+          unsupportedClaimFailedRepairCallCount === 1
+            ? "The response raises an authenticity concern."
+            : "The response raises an integrity concern."
+      }
+    };
+
+    return {
+      provider: "mock",
+      provider_request_id: `mock_profile_integration_unsupported_failed_repair_request_${unsupportedClaimFailedRepairCallCount}`,
+      provider_response_id: `mock_profile_integration_unsupported_failed_repair_response_${unsupportedClaimFailedRepairCallCount}`,
+      client_request_id: request.client_request_id,
+      status: "completed",
+      parsed_output: output,
+      raw_output: {
+        id: `mock_profile_integration_unsupported_failed_repair_response_${unsupportedClaimFailedRepairCallCount}`,
+        output: "redacted"
+      },
+      usage: { input_tokens: 8, output_tokens: 8, total_tokens: 16 },
+      latency_ms: 2
+    };
+  });
+  const unsupportedClaimFailedRepairResult = await executeProfileIntegrationAgentWithProviderForTest({
+    agent_input: input,
+    provider: unsupportedClaimFailedRepairProvider
+  });
+
+  assert(
+    unsupportedClaimFailedRepairResult.status === "invalid_output",
+    "Unsupported claim repair should fail closed if repair output remains unsafe."
+  );
+  assert(
+    unsupportedClaimFailedRepairCallCount === 2,
+    "Unsupported claim failed repair should still use only one repair attempt."
   );
 
   let failedRepairCallCount = 0;

@@ -1216,12 +1216,21 @@ Phase 6A.5 must not implement:
   substantially metadata-limited. `likely_misconception` requires at least two
   aligned evidence sources. Engagement, process, and external-assistance
   context must not be used as direct ability evidence.
+- AI assistance is allowed in the product context. Profile integration must not
+  make integrity, authenticity, independent-work, suspicious-behavior, direct
+  AI-use, or unsupported external-assistance claims. When
+  `ai_assistance_signal` is `insufficient_evidence` or `none_indicated`, the
+  output must not make assistance or provenance claims. When the signal is
+  `likely_external_assistance_pattern`, only neutral internal
+  response-production context may be used for evidence weighting; it must not
+  directly change the ability category or appear in student-facing text.
 - The provider-backed path may make one repair attempt only for remediable
   validation failures: formative value direction, activity or next-activity
-  recommendation, and high-confidence overclaim. The repair request must use
-  the same redacted structured evidence plus safe issue field paths and rule
-  codes only. It must not include the rejected provider output. If repair fails,
-  the service fails closed.
+  recommendation, unsupported integrity/authenticity/external-assistance claim,
+  and high-confidence overclaim. The repair request must use the same redacted
+  structured evidence plus safe issue field paths, rule codes, and blocked
+  pattern labels only. It must not include the rejected provider output. If
+  repair fails, the service fails closed.
 - Live profile integration is opt-in only. It requires explicit live
   server-side LLM configuration and either `OPENAI_MODEL_PROFILE_INTEGRATION`,
   `OPENAI_MODEL_PLANNING`, or `OPENAI_MODEL_FOLLOWUP`. The default
@@ -1237,7 +1246,8 @@ Phase 6A.5 must not implement:
   labels, AI-assistance labels, answer keys, correct option values,
   correctness labels, distractor metadata, raw misconception IDs, raw reasoning,
   raw process payloads, raw provider output, formative value direction, or
-  activity recommendations.
+  activity recommendations. It must not mention process data, integrity,
+  authenticity, response provenance, or external assistance.
 - Profile integration review artifacts are ignored under
   `.data/profile-integration-review/` and must remain redacted structured
   evidence only.
@@ -1245,7 +1255,7 @@ Phase 6A.5 must not implement:
   `.data/profile-integration-live-smoke/failures/` and must contain only
   sanitized diagnostics: IDs, statuses, schema version, safe validation issue
   metadata, provider-metadata presence, token-usage presence, and failure
-  stage.
+  stage, plus repair-attempt status.
 - Phase 27c does not implement teacher upload, new item content, UI wiring,
   formative activity selection, or schema migrations. It does not run paid live
   calls during ordinary tests, builds, or review artifact generation.

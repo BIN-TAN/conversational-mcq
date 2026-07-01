@@ -77,6 +77,8 @@ The packet includes:
 
 Teacher/research summaries are current-evidence summaries only. They may describe what the evidence suggests, what is uncertain, how ability and engagement evidence relate, and what should not be overclaimed. They must not contain planning language, next-step recommendations, activity selection, intervention planning, or tutor-action recommendations.
 
+AI or external assistance is allowed in the product context. Profile integration must not make integrity, authenticity, independent-work, suspicious-behavior, or direct AI-use judgments. If `ai_assistance_signal` is `insufficient_evidence` or `none_indicated`, output must not mention AI assistance, external assistance, response provenance, integrity, or authenticity claims. If `ai_assistance_signal` is `likely_external_assistance_pattern`, internal evidence summaries may use only the neutral idea that response-production context can affect how much weight to give polished reasoning evidence. This context must not directly change the ability category and must never appear in student-facing text.
+
 Internal integrated status may be:
 
 ```text
@@ -160,6 +162,7 @@ Validation is deterministic. It rejects outputs that:
 - expose raw provider output or prompts;
 - expose secrets;
 - expose engagement or AI-assistance labels in the student-safe message;
+- make integrity, authenticity, independent-work, suspicious-behavior, direct AI-use, or unsupported external-assistance claims;
 - use a student-facing status outside the three allowed labels;
 - overclaim a high-confidence interpretation when evidence is mixed, low-information, reliability-limited, or metadata-limited;
 - claim `likely_misconception` without at least two aligned evidence sources;
@@ -198,9 +201,10 @@ The provider-backed path may make one repair attempt when the first structured o
 
 - formative value direction;
 - activity or next-activity recommendation;
+- unsupported integrity, authenticity, independent-work, suspicious-behavior, direct AI-use, or unsupported external-assistance claim;
 - high-confidence overclaim.
 
-The repair request uses the same redacted structured evidence and safe validation issue metadata only: field path, rule code, and safe blocked-pattern label. It does not include the rejected provider output. If the repair validates, the repair attempt is accepted and audited. If the repair fails, the service fails closed and returns the conservative fallback; invalid provider output is never accepted into review artifacts or student-facing projections.
+The repair request uses the same redacted structured evidence and safe validation issue metadata only: field path, rule code, and safe blocked-pattern label. It does not include the rejected provider output. If the repair validates, the repair attempt is accepted and audited. If the repair fails, the service fails closed and returns the conservative fallback; invalid provider output is never accepted into review artifacts or student-facing projections. Deterministic fallback is not counted as live-provider success.
 
 ## Review Commands
 
@@ -250,7 +254,7 @@ If the opt-in live smoke fails, it prints sanitized diagnostics and writes an ig
 .data/profile-integration-live-smoke/failures/
 ```
 
-Diagnostics include only public IDs, call status, schema version, safe validation issue paths and rule codes, provider-metadata presence, token-usage presence, and failure stage.
+Diagnostics include only public IDs, call status, schema version, safe validation issue paths and rule codes, safe blocked-pattern labels, provider-metadata presence, token-usage presence, failure stage, and whether the one-repair path was attempted or succeeded.
 
 The optional model variable is:
 
