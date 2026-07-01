@@ -89,7 +89,7 @@ For a redacted review artifact and process-data inventory report, run:
 npm run student:engagement-evidence-review
 ```
 
-The command writes ignored artifacts under `.data/engagement-evidence-review/`. The default artifacts omit raw reasoning, raw process-event payloads, raw conversation turns, answer keys, correct options, distractor metadata, raw provider output, and secrets. They may include threshold names/values, wall-clock/active/summed/focus-adjusted duration bands, count bands, timing-source labels, rule IDs, reason codes, item public IDs, and the session public ID. The AI-assistance signal taxonomy is limited to `none_indicated`, `likely_external_assistance_pattern`, and `insufficient_evidence`; it is behavioral context only and should be compared with future student self-report before stronger interpretation.
+The command writes ignored artifacts under `.data/engagement-evidence-review/`. The default artifacts omit raw reasoning, raw process-event payloads, raw conversation turns, answer keys, correct options, distractor metadata, raw provider output, and secrets. They may include threshold names/values, wall-clock/active/summed/focus-adjusted duration bands, count bands, timing-source labels, safe event type/source/timestamp reconstruction, rule IDs, reason codes, item public IDs, and the session public ID. The AI-assistance signal taxonomy is limited to `none_indicated`, `likely_external_assistance_pattern`, and `insufficient_evidence`; it is behavioral context only and should be compared with future student self-report before stronger interpretation.
 
 ## Profile Integration Interpretation Packet
 

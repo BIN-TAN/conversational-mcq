@@ -1178,6 +1178,11 @@ Phase 6A.5 must not implement:
   duration, summed per-item active duration, focus-adjusted duration when
   feasible, and the timing source used for the rapid rule. Wall-clock timing is
   a fallback only and must be labeled as such.
+- Engagement review artifacts may include safe timing reconstruction fields:
+  event type, source table, timestamp, duration, timing band, and per-item
+  active timing summaries. They must not include raw process-event payloads,
+  raw conversation text, typed text, pasted text, URLs, answer keys, correct
+  options, distractor metadata, provider output, or secrets.
 - A package-level ultra/extreme rapid sparse rule can support `disengaged` only
   when timing is available, at least three item entries are present, at least
   two items have sparse/low-information, uncertainty-without-elaboration,

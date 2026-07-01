@@ -42,6 +42,25 @@ function serialized(value: unknown) {
 
 type PackageTimingForTest = NonNullable<Parameters<typeof summarizeSessionEngagement>[1]>;
 type PackageTimingSourceForTest = PackageTimingForTest["timing_source_used_for_rapid_rule"];
+type PackageTimingBandForTest = PackageTimingForTest["timing_reconstruction"]["wall_clock_band"];
+type TimingEventSourceForTest = PackageTimingForTest["timing_reconstruction"]["first_item_presented_event"]["source"];
+
+function packageBandForTest(milliseconds?: number | null): PackageTimingBandForTest {
+  if (!milliseconds || milliseconds <= 0) return "package_timing_unavailable";
+  if (milliseconds <= ENGAGEMENT_RULE_CONFIG_V1.initial_package_ultra_rapid_ms) return "package_ultra_rapid";
+  if (milliseconds <= ENGAGEMENT_RULE_CONFIG_V1.initial_package_extreme_rapid_ms) return "package_extreme_rapid";
+  if (milliseconds <= ENGAGEMENT_RULE_CONFIG_V1.initial_package_rapid_warning_ms) return "package_rapid_warning";
+  return "package_typical_or_long";
+}
+
+function itemTimeBandForTest(milliseconds?: number | null) {
+  if (!milliseconds || milliseconds <= 0) return "missing";
+  if (milliseconds < 3_000) return "under_3_sec";
+  if (milliseconds < 15_000) return "3_15_sec";
+  if (milliseconds < 60_000) return "15_60_sec";
+  if (milliseconds < 180_000) return "1_3_min";
+  return "over_3_min";
+}
 
 function packageTimingForTest(input: {
   wall?: number | null;
@@ -52,6 +71,7 @@ function packageTimingForTest(input: {
   baseline?: boolean;
   dataQuality?: boolean;
   limitations?: string[];
+  itemDurations?: number[];
 }): PackageTimingForTest {
   const source: PackageTimingSourceForTest =
     input.source ??
@@ -79,6 +99,10 @@ function packageTimingForTest(input: {
     ...(source === "wall_clock_fallback" ? ["wall_clock_timing_used_for_rapid_rule_fallback"] : []),
     ...(source === "unavailable" ? ["package_timing_unavailable"] : [])
   ];
+  const firstItemPresentedSource: TimingEventSourceForTest =
+    input.wall === undefined || input.wall === null ? "unknown" : "process_events";
+  const firstStudentActionSource: TimingEventSourceForTest =
+    input.active === undefined || input.active === null ? "unknown" : "process_events";
 
   return {
     wall_clock_duration_ms: input.wall ?? null,
@@ -90,7 +114,42 @@ function packageTimingForTest(input: {
     rapid_rule_timing_approximate: source === "focus_adjusted" || source === "wall_clock_fallback" || source === "unavailable",
     baseline_completion_observed: input.baseline ?? true,
     data_quality_events_observed: input.dataQuality ?? true,
-    timing_limitations: limitations
+    timing_limitations: limitations,
+    timing_reconstruction: {
+      first_item_presented_event: {
+        event_type: input.wall === undefined || input.wall === null ? "unknown" : "item_presented",
+        occurred_at: input.wall === undefined || input.wall === null ? null : "2026-07-01T00:00:00.000Z",
+        source: firstItemPresentedSource
+      },
+      first_student_action_event: {
+        event_type: input.active === undefined || input.active === null ? "unknown" : "option_clicked",
+        occurred_at: input.active === undefined || input.active === null ? null : "2026-07-01T00:00:01.000Z",
+        source: firstStudentActionSource
+      },
+      package_submitted_event: {
+        event_type: "package_submitted",
+        occurred_at: "2026-07-01T00:00:10.000Z",
+        source: "process_events"
+      },
+      wall_clock_duration_ms: input.wall ?? null,
+      active_response_duration_ms: input.active ?? null,
+      sum_item_active_duration_ms: input.sum ?? null,
+      focus_adjusted_duration_ms: input.focus ?? null,
+      wall_clock_band: packageBandForTest(input.wall),
+      active_response_band: packageBandForTest(input.active),
+      sum_item_active_band: packageBandForTest(input.sum),
+      focus_adjusted_band: packageBandForTest(input.focus),
+      timing_source_used_for_rapid_rule: source,
+      timing_limitations: limitations,
+      item_active_timing_reconstruction: (input.itemDurations ?? []).map((duration, index) => ({
+        item_public_id: `test_item_${index + 1}`,
+        first_student_action_event_type: "option_clicked",
+        item_completed_event_type: "item_completed",
+        active_duration_band: itemTimeBandForTest(duration),
+        active_duration_ms: duration,
+        timing_limitations: []
+      }))
+    }
   };
 }
 
@@ -367,6 +426,29 @@ function runPureEngagementAssertions() {
   assert(
     ultraRapidSparsePackage.session_decision_trace.package_timing.timing_source_used_for_rapid_rule === "active_response",
     "Active response timing should be preferred for rapid sparse rules."
+  );
+  assert(
+    ultraRapidSparsePackage.session_decision_trace.timing_reconstruction.first_item_presented_event.event_type ===
+      "item_presented",
+    "Timing reconstruction should include first item event."
+  );
+  assert(
+    ultraRapidSparsePackage.session_decision_trace.timing_reconstruction.first_student_action_event.event_type ===
+      "option_clicked",
+    "Timing reconstruction should include first student action event."
+  );
+  assert(
+    ultraRapidSparsePackage.session_decision_trace.timing_reconstruction.package_submitted_event.event_type ===
+      "package_submitted",
+    "Timing reconstruction should include package submitted event."
+  );
+  assert(
+    ultraRapidSparsePackage.session_decision_trace.timing_reconstruction.active_response_duration_ms === 7_500,
+    "Active response duration should use first student action, not first item presentation."
+  );
+  assert(
+    ultraRapidSparsePackage.session_decision_trace.timing_reconstruction.wall_clock_duration_ms === 180_000,
+    "Timing reconstruction should preserve wall-clock duration separately."
   );
   assert(
     ultraRapidSparsePackage.session_decision_trace.package_timing.package_ultra_rapid_rule_matched,
@@ -737,9 +819,47 @@ async function runDbPacketAssertion() {
       "Session summary should include package-level timing thresholds."
     );
     assert(
-      parsed.session_engagement_summary.session_decision_trace.package_timing.timing_source_used_for_rapid_rule !==
+    parsed.session_engagement_summary.session_decision_trace.package_timing.timing_source_used_for_rapid_rule !==
         "unavailable",
       "Session summary should include the timing source used for rapid rules."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.timing_reconstruction.first_item_presented_event
+        .event_type !== "unknown",
+      "Timing reconstruction should include a first item presentation event."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.timing_reconstruction.first_student_action_event
+        .event_type !== "unknown",
+      "Timing reconstruction should include a first student action event."
+    );
+    assert(
+      ["package_submitted", "initial_response_package_created"].includes(
+        parsed.session_engagement_summary.session_decision_trace.timing_reconstruction.package_submitted_event
+          .event_type
+      ),
+      "Timing reconstruction should identify the initial package terminal marker."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.timing_reconstruction.first_student_action_event
+        .event_type !== "item_presented",
+      "Active response duration should be anchored to a student action, not item presentation."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.timing_reconstruction
+        .item_active_timing_reconstruction.length === 3,
+      "Timing reconstruction should include one safe per-item timing record per item."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.timing_reconstruction
+        .item_active_timing_reconstruction.every(
+          (entry) =>
+            entry.item_public_id &&
+            entry.first_student_action_event_type &&
+            entry.item_completed_event_type &&
+            entry.active_duration_band
+        ),
+      "Each per-item timing reconstruction should include safe event types and bands."
     );
     assert(
       typeof parsed.session_engagement_summary.session_decision_trace.package_timing
@@ -787,6 +907,7 @@ async function runDbPacketAssertion() {
     const text = serialized(reviewArtifact);
     assert(!text.includes("correct_option"), "Redacted engagement artifact leaked answer-key field.");
     assert(!text.includes("reasoning_text"), "Redacted engagement artifact leaked raw reasoning field.");
+    assert(!text.includes("\"payload\""), "Redacted engagement artifact leaked raw process payload key.");
     assert(!text.includes("provider"), "Redacted engagement artifact should not include provider details.");
     assert(!text.includes("clipboard_text"), "Redacted engagement artifact leaked clipboard text key.");
     assert(!text.includes("raw_url"), "Redacted engagement artifact leaked raw URL key.");

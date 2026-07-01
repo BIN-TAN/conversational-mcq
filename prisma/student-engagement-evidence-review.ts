@@ -254,6 +254,24 @@ async function main() {
         packet.session_engagement_summary.session_decision_trace.package_timing.package_extreme_rapid_rule_matched,
       package_rapid_warning_rule_matched:
         packet.session_engagement_summary.session_decision_trace.package_timing.package_rapid_warning_rule_matched,
+      first_student_action_event_type:
+        packet.session_engagement_summary.session_decision_trace.timing_reconstruction
+          .first_student_action_event.event_type,
+      package_submitted_event_type:
+        packet.session_engagement_summary.session_decision_trace.timing_reconstruction
+          .package_submitted_event.event_type,
+      wall_clock_duration_ms:
+        packet.session_engagement_summary.session_decision_trace.timing_reconstruction
+          .wall_clock_duration_ms,
+      active_response_duration_ms:
+        packet.session_engagement_summary.session_decision_trace.timing_reconstruction
+          .active_response_duration_ms,
+      sum_item_active_duration_ms:
+        packet.session_engagement_summary.session_decision_trace.timing_reconstruction
+          .sum_item_active_duration_ms,
+      timing_limitations:
+        packet.session_engagement_summary.session_decision_trace.timing_reconstruction
+          .timing_limitations,
       sparse_item_count:
         packet.session_engagement_summary.session_decision_trace.sparse_item_count,
       substantive_item_count:

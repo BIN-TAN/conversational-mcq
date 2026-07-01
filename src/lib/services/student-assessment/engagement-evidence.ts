@@ -67,6 +67,42 @@ const SubstantiveReasoningBasisSchema = z.enum([
   "not_substantive_low_information",
   "unavailable"
 ]);
+const TimingEventSourceSchema = z.enum([
+  "process_events",
+  "item_responses",
+  "conversation_turns",
+  "response_packages",
+  "unknown"
+]);
+const TimingReconstructionEventSchema = z.object({
+  event_type: z.string(),
+  occurred_at: z.string().nullable(),
+  source: TimingEventSourceSchema
+}).strict();
+const ItemTimingReconstructionSchema = z.object({
+  item_public_id: z.string(),
+  first_student_action_event_type: z.string(),
+  item_completed_event_type: z.string(),
+  active_duration_band: z.string(),
+  active_duration_ms: z.number().int().nonnegative().nullable(),
+  timing_limitations: z.array(z.string())
+}).strict();
+const TimingReconstructionSchema = z.object({
+  first_item_presented_event: TimingReconstructionEventSchema,
+  first_student_action_event: TimingReconstructionEventSchema,
+  package_submitted_event: TimingReconstructionEventSchema,
+  wall_clock_duration_ms: z.number().int().nonnegative().nullable(),
+  active_response_duration_ms: z.number().int().nonnegative().nullable(),
+  sum_item_active_duration_ms: z.number().int().nonnegative().nullable(),
+  focus_adjusted_duration_ms: z.number().int().nonnegative().nullable(),
+  wall_clock_band: PackageTimingBandSchema,
+  active_response_band: PackageTimingBandSchema,
+  sum_item_active_band: PackageTimingBandSchema,
+  focus_adjusted_band: PackageTimingBandSchema,
+  timing_source_used_for_rapid_rule: PackageTimingSourceSchema,
+  timing_limitations: z.array(z.string()),
+  item_active_timing_reconstruction: z.array(ItemTimingReconstructionSchema)
+}).strict();
 const DecisionRuleTraceSchema = z.object({
   rule_id: z.string(),
   rule_label: z.string(),
@@ -117,6 +153,7 @@ const SessionEngagementDecisionTraceSchema = z.object({
     package_rapid_warning_rule_matched: z.boolean(),
     timing_limitations: z.array(z.string())
   }).strict(),
+  timing_reconstruction: TimingReconstructionSchema,
   package_rapid_rule_matched: z.boolean(),
   sparse_item_count: z.number().int().nonnegative(),
   substantive_item_count: z.number().int().nonnegative(),
@@ -237,6 +274,10 @@ type AiAssistanceSignal = z.infer<typeof AiAssistanceSignalSchema>;
 type EvidenceConfidence = z.infer<typeof EvidenceConfidenceSchema>;
 type DecisionRuleTrace = z.infer<typeof DecisionRuleTraceSchema>;
 type WhyNotCategory = z.infer<typeof WhyNotCategorySchema>;
+type TimingEventSource = z.infer<typeof TimingEventSourceSchema>;
+type TimingReconstructionEvent = z.infer<typeof TimingReconstructionEventSchema>;
+type ItemTimingReconstruction = z.infer<typeof ItemTimingReconstructionSchema>;
+type TimingReconstruction = z.infer<typeof TimingReconstructionSchema>;
 
 type ProcessEventSummary = {
   item_db_id: string | null;
@@ -258,6 +299,7 @@ type PackageTimingInput = {
   baseline_completion_observed: boolean;
   data_quality_events_observed: boolean;
   timing_limitations: string[];
+  timing_reconstruction: TimingReconstruction;
 };
 
 type BuildItemEngagementEvidenceInput = {
@@ -995,6 +1037,8 @@ function itemHasSparseOrLowInformationEvidence(item: ItemEngagementEvidenceV1) {
 }
 
 function defaultPackageTimingInput(items: ItemEngagementEvidenceV1[]): PackageTimingInput {
+  const timingLimitations = ["active_package_timing_unavailable"];
+
   return {
     wall_clock_duration_ms: null,
     active_response_duration_ms: null,
@@ -1015,7 +1059,23 @@ function defaultPackageTimingInput(items: ItemEngagementEvidenceV1[]): PackageTi
         item.option_change_count > 0 ||
         item.repeated_invalid_response_count > 0
     ),
-    timing_limitations: ["active_package_timing_unavailable"]
+    timing_limitations: timingLimitations,
+    timing_reconstruction: {
+      first_item_presented_event: safeTimingEvent(null),
+      first_student_action_event: safeTimingEvent(null),
+      package_submitted_event: safeTimingEvent(null),
+      wall_clock_duration_ms: null,
+      active_response_duration_ms: null,
+      sum_item_active_duration_ms: null,
+      focus_adjusted_duration_ms: null,
+      wall_clock_band: "package_timing_unavailable",
+      active_response_band: "package_timing_unavailable",
+      sum_item_active_band: "package_timing_unavailable",
+      focus_adjusted_band: "package_timing_unavailable",
+      timing_source_used_for_rapid_rule: "unavailable",
+      timing_limitations: timingLimitations,
+      item_active_timing_reconstruction: items.map((item) => unknownItemTiming(item.item_public_id))
+    }
   };
 }
 
@@ -1474,6 +1534,7 @@ export function summarizeSessionEngagement(
         package_rapid_warning_rule_matched: packageRapidWarningRuleMatched,
         timing_limitations: packageTiming.timing_limitations
       },
+      timing_reconstruction: packageTiming.timing_reconstruction,
       package_rapid_rule_matched:
         packageUltraRapidRuleMatched ||
         packageExtremeRapidRuleMatched ||
@@ -1542,22 +1603,58 @@ function processInstrumentationAvailable(eventCounts: Record<string, number>) {
   return ENGAGEMENT_PROCESS_EVENT_TYPES.some((eventType) => (eventCounts[eventType] ?? 0) > 0);
 }
 
-function earliestDate(dates: Array<Date | null | undefined>) {
-  const timestamps = dates
-    .filter((date): date is Date => date instanceof Date)
-    .map((date) => date.getTime())
-    .filter((timestamp) => Number.isFinite(timestamp));
-
-  if (timestamps.length === 0) return null;
-
-  return new Date(Math.min(...timestamps));
-}
-
 function millisecondsBetween(start: Date | null, end: Date | null) {
   if (!start || !end) return null;
 
   const duration = end.getTime() - start.getTime();
   return duration > 0 && Number.isFinite(duration) ? duration : null;
+}
+
+type TimingCandidate = {
+  event_type: string;
+  occurred_at: Date | null;
+  source: TimingEventSource;
+};
+
+function earliestTimingCandidate(candidates: Array<TimingCandidate | null | undefined>) {
+  const available = candidates.filter(
+    (candidate): candidate is TimingCandidate => Boolean(candidate?.occurred_at)
+  );
+
+  if (available.length === 0) return null;
+
+  return available.reduce((earliest, candidate) => {
+    if (!earliest.occurred_at) return candidate;
+    if (!candidate.occurred_at) return earliest;
+    return candidate.occurred_at.getTime() < earliest.occurred_at.getTime() ? candidate : earliest;
+  });
+}
+
+function safeTimingEvent(candidate: TimingCandidate | null, fallbackType = "unknown"): TimingReconstructionEvent {
+  return {
+    event_type: candidate?.event_type ?? fallbackType,
+    occurred_at: candidate?.occurred_at ? candidate.occurred_at.toISOString() : null,
+    source: candidate?.source ?? "unknown"
+  };
+}
+
+function processTimingCandidate(event: ProcessEventSummary): TimingCandidate {
+  return {
+    event_type: event.event_type,
+    occurred_at: event.occurred_at,
+    source: "process_events"
+  };
+}
+
+function unknownItemTiming(itemPublicId: string): ItemTimingReconstruction {
+  return {
+    item_public_id: itemPublicId,
+    first_student_action_event_type: "unknown",
+    item_completed_event_type: "unknown",
+    active_duration_band: "missing",
+    active_duration_ms: null,
+    timing_limitations: ["item_active_timing_unavailable"]
+  };
 }
 
 const STUDENT_RESPONSE_ACTION_EVENTS = new Set([
@@ -1650,51 +1747,116 @@ function derivePackageTiming(input: {
   events: ProcessEventSummary[];
   responses: Array<{
     item_db_id: string;
+    item_public_id: string;
     item_started_at: Date | null;
     item_submitted_at: Date | null;
+    created_at: Date;
+  }>;
+  conversationTurns: Array<{
+    item_db_id: string | null;
+    actor_type: string;
     created_at: Date;
   }>;
   packageCreatedAt: Date;
   baselineCompletionObserved: boolean;
   dataQualityEventsObserved: boolean;
 }): PackageTimingInput {
-  const packageSubmittedAt =
-    earliestDate(
-      input.events
-        .filter((event) => event.event_type === "package_submitted")
-        .map((event) => event.occurred_at)
-    ) ?? input.packageCreatedAt;
-  const firstItemPresentedAt = earliestDate(
+  const packageSubmittedCandidate = earliestTimingCandidate([
+    ...input.events
+      .filter((event) => event.event_type === "package_submitted")
+      .map(processTimingCandidate),
+    {
+      event_type: "initial_response_package_created",
+      occurred_at: input.packageCreatedAt,
+      source: "response_packages" as const
+    }
+  ]);
+  const packageSubmittedAt = packageSubmittedCandidate?.occurred_at ?? input.packageCreatedAt;
+  const firstItemPresentedCandidate = earliestTimingCandidate(
     input.events
       .filter((event) => event.event_type === "item_presented")
-      .map((event) => event.occurred_at)
+      .map(processTimingCandidate)
   );
-  const firstStudentActionAt = earliestDate([
+  const firstItemPresentedAt = firstItemPresentedCandidate?.occurred_at ?? null;
+  const firstStudentActionCandidate = earliestTimingCandidate([
     ...input.events
       .filter((event) => STUDENT_RESPONSE_ACTION_EVENTS.has(event.event_type))
-      .map((event) => event.occurred_at),
-    ...input.responses.map((response) => response.created_at)
+      .map(processTimingCandidate),
+    ...input.responses.map((response) => ({
+      event_type: "item_response_created",
+      occurred_at: response.created_at,
+      source: "item_responses" as const
+    })),
+    ...input.conversationTurns
+      .filter((turn) => turn.actor_type === "student")
+      .map((turn) => ({
+        event_type: "student_conversation_turn",
+        occurred_at: turn.created_at,
+        source: "conversation_turns" as const
+      }))
   ]);
+  const firstStudentActionAt = firstStudentActionCandidate?.occurred_at ?? null;
   const wallClockDuration = millisecondsBetween(firstItemPresentedAt, packageSubmittedAt);
   const activeResponseDuration = millisecondsBetween(firstStudentActionAt, packageSubmittedAt);
-  const itemActiveDurations = input.responses
-    .map((response) => {
+  const itemActiveReconstructions = input.responses.map((response) => {
       const itemEvents = input.events.filter((event) => event.item_db_id === response.item_db_id);
-      const firstItemStudentActionAt = earliestDate([
+      const itemConversationTurns = input.conversationTurns.filter(
+        (turn) => turn.item_db_id === response.item_db_id && turn.actor_type === "student"
+      );
+      const firstItemStudentActionCandidate = earliestTimingCandidate([
         ...itemEvents
           .filter((event) => STUDENT_RESPONSE_ACTION_EVENTS.has(event.event_type))
-          .map((event) => event.occurred_at),
-        response.created_at
+          .map(processTimingCandidate),
+        {
+          event_type: "item_response_created",
+          occurred_at: response.created_at,
+          source: "item_responses" as const
+        },
+        ...itemConversationTurns.map((turn) => ({
+          event_type: "student_conversation_turn",
+          occurred_at: turn.created_at,
+          source: "conversation_turns" as const
+        }))
       ]);
-      const itemCompletedAt =
-        earliestDate(
-          itemEvents
-            .filter((event) => event.event_type === "item_completed")
-            .map((event) => event.occurred_at)
-        ) ?? response.item_submitted_at;
+      const itemCompletedCandidate = earliestTimingCandidate([
+        ...itemEvents
+          .filter((event) => event.event_type === "item_completed")
+          .map(processTimingCandidate),
+        response.item_submitted_at
+          ? {
+              event_type: "item_submitted_at",
+              occurred_at: response.item_submitted_at,
+              source: "item_responses" as const
+            }
+          : null
+      ]);
+      const activeDuration = millisecondsBetween(
+        firstItemStudentActionCandidate?.occurred_at ?? null,
+        itemCompletedCandidate?.occurred_at ?? null
+      );
+      const timingLimitations = [
+        !firstItemStudentActionCandidate && "item_first_student_action_unavailable",
+        !itemCompletedCandidate && "item_completion_timing_unavailable",
+        firstItemStudentActionCandidate?.source === "item_responses" && "item_response_created_at_used_as_action_fallback",
+        itemCompletedCandidate?.source === "item_responses" && "item_submitted_at_used_as_completion_fallback"
+      ].filter((value): value is string => Boolean(value));
 
-      return millisecondsBetween(firstItemStudentActionAt, itemCompletedAt);
-    })
+      return {
+        item_public_id: response.item_public_id,
+        duration: activeDuration,
+        reconstruction: {
+          item_public_id: response.item_public_id,
+          first_student_action_event_type:
+            firstItemStudentActionCandidate?.event_type ?? "unknown",
+          item_completed_event_type: itemCompletedCandidate?.event_type ?? "unknown",
+          active_duration_band: timeBand(activeDuration),
+          active_duration_ms: activeDuration,
+          timing_limitations: timingLimitations
+        } satisfies ItemTimingReconstruction
+      };
+    });
+  const itemActiveDurations = itemActiveReconstructions
+    .map((entry) => entry.duration)
     .filter((duration): duration is number => duration !== null);
   const sumItemActiveDuration =
     itemActiveDurations.length > 0
@@ -1734,6 +1896,15 @@ function derivePackageTiming(input: {
   if (rapidRuleTiming.timing_source_used_for_rapid_rule === "unavailable") {
     timingLimitations.add("package_timing_unavailable");
   }
+  if (firstStudentActionCandidate?.source === "item_responses") {
+    timingLimitations.add("item_response_created_at_used_as_first_student_action_fallback");
+  }
+  if (firstStudentActionCandidate?.source === "conversation_turns") {
+    timingLimitations.add("conversation_turn_used_as_first_student_action_fallback");
+  }
+  if (packageSubmittedCandidate?.source === "response_packages") {
+    timingLimitations.add("response_package_created_at_used_as_package_submitted_marker");
+  }
 
   return {
     wall_clock_duration_ms: wallClockDuration,
@@ -1743,7 +1914,23 @@ function derivePackageTiming(input: {
     ...rapidRuleTiming,
     baseline_completion_observed: input.baselineCompletionObserved,
     data_quality_events_observed: input.dataQualityEventsObserved,
-    timing_limitations: [...timingLimitations]
+    timing_limitations: [...timingLimitations],
+    timing_reconstruction: {
+      first_item_presented_event: safeTimingEvent(firstItemPresentedCandidate),
+      first_student_action_event: safeTimingEvent(firstStudentActionCandidate),
+      package_submitted_event: safeTimingEvent(packageSubmittedCandidate, "package_submitted"),
+      wall_clock_duration_ms: wallClockDuration,
+      active_response_duration_ms: activeResponseDuration,
+      sum_item_active_duration_ms: sumItemActiveDuration,
+      focus_adjusted_duration_ms: focusAdjustedDuration,
+      wall_clock_band: packageDurationBand(wallClockDuration),
+      active_response_band: packageDurationBand(activeResponseDuration),
+      sum_item_active_band: packageDurationBand(sumItemActiveDuration),
+      focus_adjusted_band: packageDurationBand(focusAdjustedDuration),
+      timing_source_used_for_rapid_rule: rapidRuleTiming.timing_source_used_for_rapid_rule,
+      timing_limitations: [...timingLimitations],
+      item_active_timing_reconstruction: itemActiveReconstructions.map((entry) => entry.reconstruction)
+    }
   };
 }
 
@@ -1766,6 +1953,13 @@ export async function buildEngagementEvidencePacketForSession(
           item_responses: {
             orderBy: [{ created_at: "asc" }],
             include: { item: true }
+          },
+          conversation_turns: {
+            select: {
+              item_db_id: true,
+              actor_type: true,
+              created_at: true
+            }
           },
           process_events: {
             select: {
@@ -1801,7 +1995,14 @@ export async function buildEngagementEvidencePacketForSession(
   const instrumentationAvailable = processInstrumentationAvailable(observedEventCounts);
   const packageTiming = derivePackageTiming({
     events: conceptUnitSession.process_events,
-    responses,
+    responses: responses.map((response) => ({
+      item_db_id: response.item_db_id,
+      item_public_id: response.item.item_public_id,
+      item_started_at: response.item_started_at,
+      item_submitted_at: response.item_submitted_at,
+      created_at: response.created_at
+    })),
+    conversationTurns: conceptUnitSession.conversation_turns,
     packageCreatedAt: sourcePackage.created_at,
     baselineCompletionObserved: responses.length >= 3 && responses.every((response) =>
       Boolean(response.item_submitted_at || response.selected_option || response.reasoning_text)

@@ -117,6 +117,8 @@ unavailable
 
 If active response timing is unavailable and only a typical/long wall-clock fallback exists, the packet must not infer rapid completion. It records `active_package_timing_unavailable` as a limitation instead.
 
+The review artifact also includes a safe timing reconstruction for diagnosis. It may include event type, source table, timestamp, duration in milliseconds, timing band, timing source used for the rapid rule, and per-item active timing bands. It must not include raw process-event payloads, raw conversation text, browser URLs, typed text, pasted text, answer keys, or item distractor metadata. If a process-event student action is missing, the reconstruction may fall back to `item_response_created` or a student conversation-turn timestamp and must label that fallback in `timing_limitations`.
+
 Initial package timing bands are:
 
 ```text
@@ -186,7 +188,7 @@ A future LLM may produce an interpretation from redacted structured signals only
 
 ## Redaction Policy
 
-The review artifact contains only bands, counts, public IDs, safe labels, threshold names and values, rule IDs, reason codes, and interpretation cautions. It omits:
+The review artifact contains only bands, counts, public IDs, safe labels, safe timing event metadata, threshold names and values, rule IDs, reason codes, and interpretation cautions. It omits:
 
 - raw reasoning;
 - raw process-event payloads;
