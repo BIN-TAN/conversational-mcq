@@ -180,6 +180,27 @@ async function main() {
       select: { message_text: true, structured_payload: true }
     });
     assert(editTurn, "Package review edit conversation turn missing.");
+    const editMessage = editTurn.message_text ?? "";
+    assert(
+      !editMessage.includes("Edited my response"),
+      "Package review transcript should not use the generic edit placeholder."
+    );
+    assert(
+      editMessage.includes(`I changed my answer to ${revisedAnswer}.`),
+      "Package review transcript should show the revised answer."
+    );
+    assert(
+      editMessage.includes("I revised this because the item evidence is stronger for the other option."),
+      "Package review transcript should show the revised reasoning."
+    );
+    assert(
+      editMessage.includes("I changed my confidence to Medium."),
+      "Package review transcript should show the revised confidence."
+    );
+    assert(
+      editMessage.includes(`I was tempted by ${temptingOption} because The wording still sounded partly relevant.`),
+      "Package review transcript should show the revised tempting-option evidence."
+    );
     assertStudentVisibleTextIsSafe(editTurn);
 
     const continued = await completeInitialConceptUnitAdministration({

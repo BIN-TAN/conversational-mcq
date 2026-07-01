@@ -529,6 +529,29 @@ async function main() {
       })
     ).state;
     assert(state.current_item?.existing_reasoning_text === editedReasoning, "Edited reasoning should hydrate.");
+    const reasoningEditTurn = await prisma.conversationTurn.findFirst({
+      where: {
+        assessment_session: { session_public_id: started.session.session_public_id },
+        actor_type: "student",
+        item: { item_public_id: firstItem.item_public_id },
+        structured_payload: {
+          path: ["source"],
+          equals: "student_response_in_flow_edit"
+        }
+      },
+      orderBy: { created_at: "desc" },
+      select: { message_text: true, structured_payload: true }
+    });
+    assert(reasoningEditTurn, "In-flow reasoning edit transcript turn missing.");
+    assert(
+      reasoningEditTurn.message_text === editedReasoning,
+      "In-flow reasoning edit transcript should show the revised reasoning."
+    );
+    assert(
+      !reasoningEditTurn.message_text.includes("Edited my response"),
+      "In-flow edit transcript should not use the generic edit placeholder."
+    );
+    assertStudentVisibleTextIsSafe(reasoningEditTurn);
 
     state = (
       await recordConfidence({

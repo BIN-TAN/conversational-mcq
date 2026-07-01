@@ -387,7 +387,7 @@ Phase 5A is read-only for research records. It must not edit item responses, cha
 
 The teacher UI may show correctness and answer snapshots as research evidence. It must not label students as high or low ability, rank performance, fabricate diagnostic profiles, fabricate formative values, or infer independence. Correctness is evidence, not a student profile.
 
-Process data shown in Phase 5A are process context for engagement and evidence sufficiency. The UI and APIs must not label cheating, dishonesty, confirmed GenAI use, or misconduct. Prompt-injection and invalid-help events remain boundary/process events, not profile judgments.
+Process data shown in Phase 5A are process context for engagement and evidence sufficiency. The UI and APIs must not apply academic-integrity accusations, dishonesty labels, confirmed GenAI-use claims, or misconduct labels. Prompt-injection and invalid-help events remain boundary/process events, not profile judgments.
 
 Future agent sections may state that no student profile, formative decision, follow-up round, or LLM agent call exists. They must not show enum defaults as if they were generated agent output.
 
@@ -451,7 +451,7 @@ Forbidden behavior:
 - natural language must not set selected option, confidence, correctness, phase, item order, profile, planning, follow-up, or completion
 - no correctness feedback, hints, explanations, tutoring, answer recommendations, or content clarification during initial administration
 - no student-facing provider, model, prompt, usage, profile, formative, or diagnostic labels
-- no misconduct, cheating, or confirmed GenAI-use language
+- no misconduct, academic-integrity accusation, or confirmed GenAI-use language
 - no use of mock Response Collection Agent output in ordinary student workflow unless `ALLOW_MOCK_RESPONSE_COLLECTION_IN_STUDENT_WORKFLOW=true`
 - no OpenAI call unless live calls are explicitly enabled server-side and usage guards allow it
 - no changes to profiling, planning, follow-up, concept progression, scoring, feedback, or adaptive routing
@@ -535,7 +535,7 @@ The locked three-layer profile design remains binding:
 - `engagement_profile`
 - `integrated_diagnostic_profile`
 
-Correctness is evidence, not the profile itself. Process data are contextual evidence for engagement and evidence sufficiency, not misconduct evidence. The system must never claim cheating, dishonesty, confirmed GenAI use, or misconduct. Independence language is limited to the locked `independence_interpretability` enum, including `independent_understanding_uncertain` and `insufficient_evidence`.
+Correctness is evidence, not the profile itself. Process data are contextual evidence for engagement and evidence sufficiency, not misconduct evidence. The system must never claim academic-integrity violations, dishonesty, confirmed GenAI use, or misconduct. Independence language is limited to the locked `independence_interpretability` enum, including `independent_understanding_uncertain` and `insufficient_evidence`.
 
 The safe default remains mock execution. Live OpenAI profiling may occur only when server-side environment variables explicitly configure `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, `OPENAI_API_KEY`, `OPENAI_MODEL_PROFILING`, and the usage guard allows the call. Frontend code must not expose model configuration or provider secrets.
 
@@ -1155,9 +1155,20 @@ Phase 6A.5 must not implement:
   typing activity summaries, pause/inactivity events, and uncertainty markers.
 - Process data are contextual evidence about participation and evidence
   sufficiency. They must not be used as direct ability evidence.
-- Process data must never be used to state that a student cheated, used GenAI,
-  or committed misconduct. AI-assistance signals are contextual and require
-  human interpretation before any stronger operational use.
+- Engagement categories in the evidence packet are exactly `engaged`,
+  `moderately_engaged`, `disengaged`, and `insufficient_evidence`. A single weak
+  process signal is not enough to assign `disengaged`.
+- AI-assistance signals in the evidence packet are exactly `none_indicated`,
+  `likely_external_assistance_pattern`, and `insufficient_evidence`.
+  AI-assistance is allowed; the signal is behavioral process context only and
+  should be compared with future student self-report before stronger
+  interpretation. Phase 27b does not implement self-report collection.
+- Phase 27b review artifacts must not emit retired AI-assistance signal names
+  or retired human-review limitation names from the earlier draft taxonomy.
+- Phase 27b item evidence includes deterministic `possible_interpretation`
+  text with `interpretation_source=deterministic_v1`. Future LLM phrasing may
+  use only redacted structured signals after later approval and must not decide
+  final categories.
 - Browser instrumentation may log `page_visibility_hidden`,
   `page_visibility_visible`, `window_blur`, `window_focus`, `paste_detected`,
   and `typing_activity_summary`, but it must not log typed text, pasted content,

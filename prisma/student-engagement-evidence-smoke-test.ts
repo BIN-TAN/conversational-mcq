@@ -63,7 +63,10 @@ function runPureEngagementAssertions() {
     event_counts: {},
     process_instrumentation_available: true
   });
-  assert(rapid.engagement_signal === "disengaged", "Rapid sparse response should be a disengagement signal.");
+  assert(
+    rapid.engagement_signal === "moderately_engaged",
+    "A single rapid sparse response should not become disengaged by itself."
+  );
 
   const idk = buildItemEngagementEvidence({
     item_public_id: "idk_item",
@@ -76,9 +79,12 @@ function runPureEngagementAssertions() {
     process_instrumentation_available: true
   });
   assert(idk.idk_or_insufficient_knowledge_marked, "I don't know evidence should be marked.");
-  assert(idk.engagement_signal === "moderately_engaged", "I don't know should not be treated as misconduct or ability evidence.");
+  assert(
+    idk.engagement_signal === "moderately_engaged",
+    "I don't know should remain separate from ability evidence."
+  );
 
-  const possibleExternal = buildItemEngagementEvidence({
+  const singlePaste = buildItemEngagementEvidence({
     item_public_id: "paste_item",
     response_present: true,
     selected_option: "C",
@@ -89,8 +95,12 @@ function runPureEngagementAssertions() {
     process_instrumentation_available: true
   });
   assert(
-    possibleExternal.ai_assistance_signal === "possible_external_assistance_or_reference",
-    "Paste alone should be possible external assistance/reference, not a misconduct label."
+    singlePaste.ai_assistance_signal === "insufficient_evidence",
+    "Paste alone should remain insufficient evidence."
+  );
+  assert(
+    singlePaste.possible_interpretation.includes("single weak signal"),
+    "Single weak process signal should produce a cautious interpretation."
   );
 
   const likelyExternal = buildItemEngagementEvidence({
@@ -107,6 +117,29 @@ function runPureEngagementAssertions() {
     likelyExternal.ai_assistance_signal === "likely_external_assistance_pattern",
     "Paste plus focus loss should be a stronger contextual signal."
   );
+  assert(
+    likelyExternal.interpretation_source === "deterministic_v1",
+    "Engagement interpretation should be explicitly deterministic."
+  );
+  assert(
+    likelyExternal.possible_interpretation.includes("student self-report"),
+    "Likely external-assistance interpretation should mention self-report comparison."
+  );
+
+  const weakDisengagementConvergence = buildItemEngagementEvidence({
+    item_public_id: "weak_convergent_item",
+    response_present: true,
+    selected_option: "E",
+    reasoning_text: "idk",
+    item_response_time_ms: 900,
+    revision_count: 0,
+    event_counts: { repeated_invalid_response: 1 },
+    process_instrumentation_available: true
+  });
+  assert(
+    weakDisengagementConvergence.engagement_signal === "disengaged",
+    "Convergent weak participation signals should support disengaged."
+  );
 
   const unavailable = buildItemEngagementEvidence({
     item_public_id: "missing_process_item",
@@ -120,6 +153,10 @@ function runPureEngagementAssertions() {
   });
   assert(unavailable.ai_assistance_signal === "insufficient_evidence", "Missing instrumentation should remain insufficient evidence.");
   assert(unavailable.evidence_confidence === "low", "Missing instrumentation should keep confidence low.");
+  assert(
+    unavailable.interpretation_cautions.includes("ai_assistance_signal_should_be_compared_with_self_report"),
+    "Updated AI-signal limitation should be present."
+  );
 }
 
 async function addSyntheticProcessContext(sessionPublicId: string) {
@@ -218,6 +255,14 @@ async function runDbPacketAssertion() {
     const safety = validateRedactedEngagementReviewArtifactSafety(reviewArtifact);
 
     assert(parsed.item_engagement_evidence.length === 3, "Engagement packet should include three initial items.");
+    assert(
+      parsed.item_engagement_evidence.every((item) => item.interpretation_source === "deterministic_v1"),
+      "Every item should include deterministic interpretation source."
+    );
+    assert(
+      parsed.item_engagement_evidence.every((item) => item.possible_interpretation.length > 0),
+      "Every item should include a possible interpretation."
+    );
     assert(parsed.source_response_package_refs.length === 1, "Engagement packet should trace response package source.");
     assert(
       parsed.process_data_inventory.supported_event_types.includes("paste_detected"),
@@ -233,7 +278,8 @@ async function runDbPacketAssertion() {
     assert(!text.includes("correct_option"), "Redacted engagement artifact leaked answer-key field.");
     assert(!text.includes("reasoning_text"), "Redacted engagement artifact leaked raw reasoning field.");
     assert(!text.includes("provider"), "Redacted engagement artifact should not include provider details.");
-    assert(!text.includes("cheated"), "Redacted engagement artifact must not accuse cheating.");
+    assert(!text.includes("possible_external_assistance_or_reference"), "Old AI-assistance signal must not appear.");
+    assert(!text.includes("ai_assistance_signal_requires_human_contextual_review"), "Old AI-assistance limitation must not appear.");
     assert(!text.includes("used genai"), "Redacted engagement artifact must not claim GenAI use.");
   } finally {
     await cleanupSmokeStudentSessions({

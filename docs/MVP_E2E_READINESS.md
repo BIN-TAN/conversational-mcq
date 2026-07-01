@@ -81,7 +81,7 @@ The fixed IRT MVP can also build an internal `engagement-evidence-packet-v1` fro
 npm run student:engagement-evidence-smoke
 ```
 
-The packet is a profiling foundation, not a misconduct finding, GenAI-use claim, motivation diagnosis, or student-facing profile. It uses response presence, reasoning length bands, timing bands, revisions, repair events, focus/visibility events, paste detection, typing activity summaries, pause/inactivity events, and uncertainty markers. Process data are contextual evidence about participation and evidence sufficiency; they do not directly determine ability.
+The packet is a profiling foundation, not a confirmed GenAI-use claim, motivation diagnosis, accusation, or student-facing profile. It uses response presence, reasoning length bands, timing bands, revisions, repair events, focus/visibility events, paste detection, typing activity summaries, pause/inactivity events, and uncertainty markers. Process data are contextual evidence about participation and evidence sufficiency; they do not directly determine ability.
 
 For a redacted review artifact and process-data inventory report, run:
 
@@ -89,7 +89,7 @@ For a redacted review artifact and process-data inventory report, run:
 npm run student:engagement-evidence-review
 ```
 
-The command writes ignored artifacts under `.data/engagement-evidence-review/`. The default artifacts omit raw reasoning, raw process-event payloads, raw conversation turns, answer keys, correct options, distractor metadata, raw provider output, and secrets. The AI-assistance signal is a contextual flag only; it must not be used to state that a student cheated, used GenAI, or committed misconduct.
+The command writes ignored artifacts under `.data/engagement-evidence-review/`. The default artifacts omit raw reasoning, raw process-event payloads, raw conversation turns, answer keys, correct options, distractor metadata, raw provider output, and secrets. The AI-assistance signal taxonomy is limited to `none_indicated`, `likely_external_assistance_pattern`, and `insufficient_evidence`; it is behavioral context only and should be compared with future student self-report before stronger interpretation.
 
 ## Opt-In Live LLM Smoke
 

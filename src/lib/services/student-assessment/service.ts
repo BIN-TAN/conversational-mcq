@@ -704,6 +704,55 @@ const PACKAGE_REVIEW_MESSAGE = PACKAGE_REVIEW_PROMPT.prompt_text;
 const TRANSFER_COMPLETION_MESSAGE =
   "Thanks. Your response to the additional question has been recorded.";
 
+function studentFacingConfidenceLabel(value: string | null | undefined) {
+  if (value === "low") return "Low";
+  if (value === "medium") return "Medium";
+  if (value === "high") return "High";
+  return "Not selected";
+}
+
+function studentResponseEditMessage(input: {
+  item_order: number;
+  changed_fields: string[];
+  selected_option: string | null | undefined;
+  reasoning_text: string | null | undefined;
+  confidence_rating: string | null | undefined;
+  no_tempting_option: boolean;
+  tempting_option: string | null;
+  tempting_option_reason: string | null;
+}) {
+  const parts: string[] = [];
+
+  if (input.changed_fields.includes("answer")) {
+    parts.push(`I changed my answer to ${input.selected_option ?? "the selected option"}.`);
+  }
+
+  if (input.changed_fields.includes("reasoning")) {
+    const reasoningText = input.reasoning_text?.trim();
+    parts.push(reasoningText || "I updated my reason.");
+  }
+
+  if (input.changed_fields.includes("confidence")) {
+    parts.push(`I changed my confidence to ${studentFacingConfidenceLabel(input.confidence_rating)}.`);
+  }
+
+  if (input.changed_fields.includes("tempting_option")) {
+    if (input.no_tempting_option) {
+      parts.push("No other option was tempting.");
+    } else if (input.tempting_option && input.tempting_option_reason) {
+      parts.push(`I was tempted by ${input.tempting_option} because ${input.tempting_option_reason}`);
+    } else if (input.tempting_option) {
+      parts.push(`I was tempted by ${input.tempting_option}.`);
+    } else {
+      parts.push("I updated my tempting-option response.");
+    }
+  }
+
+  return parts.length > 0
+    ? parts.join("\n")
+    : `I reviewed Question ${input.item_order} without changing it.`;
+}
+
 function normalizeTemptingOptionEvidence(value: unknown): TemptingOptionEvidence | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -3876,7 +3925,16 @@ export async function updatePackageReviewItemResponse(input: {
         item_db_id: context.item.id,
         phase: context.session.current_phase,
         actor_type: "student",
-        message_text: `Edited Question ${context.item.item_order} response.`,
+        message_text: studentResponseEditMessage({
+          item_order: context.item.item_order,
+          changed_fields: changedFields,
+          selected_option: selectedOption,
+          reasoning_text: reasoningText,
+          confidence_rating: data.confidence_rating,
+          no_tempting_option: noTemptingOption,
+          tempting_option: temptingOption,
+          tempting_option_reason: temptingOptionReason
+        }),
         structured_payload: structuredPayload,
         created_at: now
       });
@@ -4148,7 +4206,16 @@ export async function updateInFlowItemResponse(input: {
           item_db_id: context.item.id,
           phase: context.session.current_phase,
           actor_type: "student",
-          message_text: "Edited my response.",
+          message_text: studentResponseEditMessage({
+            item_order: context.item.item_order,
+            changed_fields: changedFields,
+            selected_option: nextSelectedOption,
+            reasoning_text: nextReasoning,
+            confidence_rating: nextConfidence,
+            no_tempting_option: nextNoTemptingOption,
+            tempting_option: nextTemptingOption,
+            tempting_option_reason: nextTemptingReason
+          }),
           structured_payload: structuredPayload,
           created_at: now
         });

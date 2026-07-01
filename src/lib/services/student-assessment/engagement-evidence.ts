@@ -12,11 +12,10 @@ const EngagementCategorySchema = z.enum([
   "engaged",
   "moderately_engaged",
   "disengaged",
-  "insufficient_process_evidence"
+  "insufficient_evidence"
 ]);
 const AiAssistanceSignalSchema = z.enum([
   "none_indicated",
-  "possible_external_assistance_or_reference",
   "likely_external_assistance_pattern",
   "insufficient_evidence"
 ]);
@@ -39,6 +38,8 @@ const ItemEngagementEvidenceSchema = z.object({
   repeated_invalid_response_count: z.number().int().nonnegative(),
   engagement_signal: EngagementCategorySchema,
   ai_assistance_signal: AiAssistanceSignalSchema,
+  possible_interpretation: z.string(),
+  interpretation_source: z.literal("deterministic_v1"),
   evidence_confidence: EvidenceConfidenceSchema,
   interpretation_cautions: z.array(z.string()),
   signal_notes: z.array(z.string())
@@ -76,7 +77,7 @@ export const EngagementEvidencePacketV1Schema = z.object({
   }),
   safety_check: z.object({
     no_misconduct_label: z.literal(true),
-    no_ai_cheating_label: z.literal(true),
+    no_confirmed_ai_use_label: z.literal(true),
     no_raw_reasoning: z.literal(true),
     no_raw_process_payloads: z.literal(true),
     no_answer_keys: z.literal(true)
@@ -164,6 +165,90 @@ function normalizeReasoningForSignal(text?: string | null) {
   return (text ?? "").trim().toLowerCase();
 }
 
+function aiAssistanceSignalFor(input: {
+  processInstrumentationAvailable: boolean;
+  pasteEventCount: number;
+  focusLossCount: number;
+  longPauseCount: number;
+  inactivityCount: number;
+  typingSummaryCount: number;
+  reasoningLengthBand: string;
+  responseTimeBand: string;
+}): z.infer<typeof AiAssistanceSignalSchema> {
+  if (!input.processInstrumentationAvailable) {
+    return "insufficient_evidence";
+  }
+
+  const signalCount = [
+    input.pasteEventCount > 0,
+    input.focusLossCount > 0,
+    input.longPauseCount > 0 || input.inactivityCount > 0,
+    input.typingSummaryCount === 0 &&
+      (input.reasoningLengthBand === "medium" || input.reasoningLengthBand === "long"),
+    input.responseTimeBand === "under_3_sec" && input.reasoningLengthBand !== "missing"
+  ].filter(Boolean).length;
+
+  if (signalCount >= 2 && (input.pasteEventCount > 0 || input.focusLossCount > 0)) {
+    return "likely_external_assistance_pattern";
+  }
+
+  if (signalCount === 1 && (input.pasteEventCount > 0 || input.focusLossCount > 0)) {
+    return "insufficient_evidence";
+  }
+
+  return "none_indicated";
+}
+
+function possibleInterpretationFor(input: {
+  responsePresent: boolean;
+  engagementSignal: z.infer<typeof EngagementCategorySchema>;
+  aiAssistanceSignal: z.infer<typeof AiAssistanceSignalSchema>;
+  reasoningLengthBand: string;
+  revisionCount: number;
+  repairPromptCount: number;
+  pasteEventCount: number;
+  focusLossCount: number;
+  longPauseCount: number;
+  inactivityCount: number;
+  idkMarked: boolean;
+}) {
+  if (!input.responsePresent) {
+    return "No completed response was available, so participation evidence is insufficient for this item.";
+  }
+
+  if (input.aiAssistanceSignal === "likely_external_assistance_pattern") {
+    return "Multiple contextual process signals occurred together; this behavioral pattern should be compared with any student self-report before interpretation.";
+  }
+
+  if (input.pasteEventCount > 0 || input.focusLossCount > 0) {
+    return "One contextual process signal was observed, but a single weak signal is not enough for a stronger interpretation.";
+  }
+
+  if (input.engagementSignal === "engaged") {
+    return input.revisionCount > 0
+      ? "The response includes meaningful text and revision activity, suggesting active participation evidence for this item."
+      : "The response includes meaningful text, suggesting active participation evidence for this item.";
+  }
+
+  if (input.engagementSignal === "disengaged") {
+    return "Multiple weak participation signals occurred together, so the item-level engagement evidence is low.";
+  }
+
+  if (input.idkMarked) {
+    return "The student marked uncertainty while still providing usable participation evidence.";
+  }
+
+  if (input.longPauseCount > 0 || input.inactivityCount > 0) {
+    return "Pause or inactivity context was observed, so the participation evidence should be interpreted cautiously.";
+  }
+
+  if (input.repairPromptCount > 0) {
+    return "The response needed repair prompting, so participation evidence is present but limited.";
+  }
+
+  return "Participation evidence is present but does not support a stronger item-level engagement interpretation.";
+}
+
 export function buildItemEngagementEvidence(
   input: BuildItemEngagementEvidenceInput
 ): ItemEngagementEvidenceV1 {
@@ -196,8 +281,10 @@ export function buildItemEngagementEvidence(
     input.item_response_time_ms > 0 &&
     input.item_response_time_ms < 3_000;
   const interpretationCautions = [
-    "Process data are contextual evidence about participation and evidence sufficiency, not misconduct evidence.",
-    "AI-assistance signals are not cheating labels and require human interpretation before any stronger claim."
+    "ai_assistance_signal_is_behavioral_not_misconduct",
+    "ai_assistance_signal_should_be_compared_with_self_report",
+    "single_weak_signal_is_not_enough",
+    "process_data_are_ambiguous"
   ];
   const signalNotes: string[] = [];
 
@@ -211,9 +298,16 @@ export function buildItemEngagementEvidence(
   if (idkMarked) signalNotes.push("student_marked_uncertainty_or_insufficient_knowledge");
 
   const sparseReasoning = reasoningLengthBand === "missing" || reasoningLengthBand === "very_short";
+  const weakEngagementSignalCount = [
+    rapidResponsePattern && sparseReasoning,
+    repeatedInvalidResponseCount > 0,
+    repairPromptCount >= 2,
+    idkMarked && sparseReasoning,
+    !input.process_instrumentation_available && sparseReasoning
+  ].filter(Boolean).length;
   const engagementSignal: z.infer<typeof EngagementCategorySchema> = !input.response_present
-    ? "insufficient_process_evidence"
-    : rapidResponsePattern && sparseReasoning
+    ? "insufficient_evidence"
+    : weakEngagementSignalCount >= 2
       ? "disengaged"
       : idkMarked && sparseReasoning
         ? "moderately_engaged"
@@ -221,19 +315,35 @@ export function buildItemEngagementEvidence(
           ? "engaged"
           : "moderately_engaged";
 
-  const aiAssistanceSignal: z.infer<typeof AiAssistanceSignalSchema> = !input.process_instrumentation_available
-    ? "insufficient_evidence"
-    : pasteEventCount > 0 && focusLossCount > 0
-      ? "likely_external_assistance_pattern"
-      : pasteEventCount > 0 || focusLossCount > 1
-        ? "possible_external_assistance_or_reference"
-        : "none_indicated";
+  const aiAssistanceSignal = aiAssistanceSignalFor({
+    processInstrumentationAvailable: input.process_instrumentation_available,
+    pasteEventCount,
+    focusLossCount,
+    longPauseCount,
+    inactivityCount,
+    typingSummaryCount,
+    reasoningLengthBand,
+    responseTimeBand
+  });
 
   const evidenceConfidence: z.infer<typeof EvidenceConfidenceSchema> = !input.process_instrumentation_available
     ? "low"
     : typingSummaryCount > 0 || focusLossCount > 0 || pasteEventCount > 0
       ? "medium"
       : "low";
+  const possibleInterpretation = possibleInterpretationFor({
+    responsePresent: input.response_present,
+    engagementSignal,
+    aiAssistanceSignal,
+    reasoningLengthBand,
+    revisionCount,
+    repairPromptCount,
+    pasteEventCount,
+    focusLossCount,
+    longPauseCount,
+    inactivityCount,
+    idkMarked
+  });
 
   return ItemEngagementEvidenceSchema.parse({
     item_public_id: input.item_public_id,
@@ -253,6 +363,8 @@ export function buildItemEngagementEvidence(
     repeated_invalid_response_count: repeatedInvalidResponseCount,
     engagement_signal: engagementSignal,
     ai_assistance_signal: aiAssistanceSignal,
+    possible_interpretation: possibleInterpretation,
+    interpretation_source: "deterministic_v1",
     evidence_confidence: evidenceConfidence,
     interpretation_cautions: interpretationCautions,
     signal_notes: signalNotes
@@ -264,17 +376,13 @@ function summarizeSessionEngagement(
 ): EngagementEvidencePacketV1["session_engagement_summary"] {
   const engagedCount = items.filter((item) => item.engagement_signal === "engaged").length;
   const disengagedCount = items.filter((item) => item.engagement_signal === "disengaged").length;
-  const possibleAiCount = items.filter((item) =>
-    item.ai_assistance_signal === "possible_external_assistance_or_reference" ||
-    item.ai_assistance_signal === "likely_external_assistance_pattern"
-  ).length;
   const insufficientProcessCount = items.filter(
-    (item) => item.engagement_signal === "insufficient_process_evidence"
+    (item) => item.engagement_signal === "insufficient_evidence"
   ).length;
   const category: z.infer<typeof EngagementCategorySchema> = items.length === 0
-    ? "insufficient_process_evidence"
+    ? "insufficient_evidence"
     : insufficientProcessCount === items.length
-      ? "insufficient_process_evidence"
+      ? "insufficient_evidence"
       : disengagedCount >= 2
         ? "disengaged"
         : engagedCount >= Math.max(1, Math.ceil(items.length / 2))
@@ -284,19 +392,18 @@ function summarizeSessionEngagement(
     ? "insufficient_evidence"
     : items.some((item) => item.ai_assistance_signal === "likely_external_assistance_pattern")
       ? "likely_external_assistance_pattern"
-      : possibleAiCount > 0
-        ? "possible_external_assistance_or_reference"
-        : items.every((item) => item.ai_assistance_signal === "insufficient_evidence")
-          ? "insufficient_evidence"
-          : "none_indicated";
+      : items.some((item) => item.ai_assistance_signal === "insufficient_evidence")
+        ? "insufficient_evidence"
+        : "none_indicated";
   const limitations = new Set<string>();
 
   if (items.some((item) => item.evidence_confidence === "low")) {
     limitations.add("engagement_evidence_confidence_low_for_some_items");
   }
-  if (aiSignal !== "none_indicated") {
-    limitations.add("ai_assistance_signal_requires_human_contextual_review");
-  }
+  limitations.add("ai_assistance_signal_is_behavioral_not_misconduct");
+  limitations.add("ai_assistance_signal_should_be_compared_with_self_report");
+  limitations.add("single_weak_signal_is_not_enough");
+  limitations.add("process_data_are_ambiguous");
   limitations.add("process_data_must_not_be_used_as_direct_ability_evidence");
 
   return {
@@ -422,7 +529,7 @@ export async function buildEngagementEvidencePacketForSession(
     },
     safety_check: {
       no_misconduct_label: true,
-      no_ai_cheating_label: true,
+      no_confirmed_ai_use_label: true,
       no_raw_reasoning: true,
       no_raw_process_payloads: true,
       no_answer_keys: true
@@ -486,9 +593,9 @@ export function validateRedactedEngagementReviewArtifactSafety(value: unknown) {
   const issues = collectForbiddenKeys(value);
   const serializedText = collectStringValues(value).join("\n").toLowerCase();
   const forbiddenTerms = [
-    "student cheated",
-    "cheating detected",
-    "used genai",
+    "confirmed genai use",
+    "student used genai",
+    "student committed misconduct",
     "answer key",
     "correct option",
     "distractor metadata",
