@@ -1167,10 +1167,27 @@ Phase 6A.5 must not implement:
   calibrated psychometric thresholds. Item-level and session-level traces may
   include matched rules, non-matched rules, threshold names/values, bands,
   dominant signal counts, reason codes, and limitations.
+- Engagement evidence v1 may derive initial three-item package timing from
+  existing item and process timestamps. The package-level thresholds are
+  provisional engineering thresholds:
+  `initial_package_extreme_rapid_ms=30000` and
+  `initial_package_rapid_ms=60000`. A package-level extreme rapid sparse rule
+  can support `disengaged` only when timing is available, at least three item
+  entries are present, at least two items have sparse/low-information,
+  uncertainty-without-elaboration, repair, or invalid evidence, and no strong
+  substantive reasoning counterevidence exists.
+- Completed three-item packages are baseline completion context, not strong
+  engagement counterevidence. Observed process events indicate data
+  availability and instrumentation context; they are not engagement
+  counterevidence by themselves.
 - Rapid response, minimal reasoning, and a single focus/paste signal are not
   sufficient alone for a `disengaged` or likely external-assistance category.
   Wrong answers, low confidence, content questions, and procedural questions
   are not invalid engagement patterns.
+- Short uncertainty statements such as "I don't know" are uncertainty evidence,
+  not invalid engagement evidence. They may contribute to a package-level
+  sparse evidence pattern only when paired with extreme rapid package timing
+  and repeated sparse evidence.
 - AI-assistance signals in the evidence packet are exactly `none_indicated`,
   `likely_external_assistance_pattern`, and `insufficient_evidence`.
   AI-assistance is allowed; the signal is behavioral process context only and

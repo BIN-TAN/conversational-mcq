@@ -236,6 +236,16 @@ async function main() {
       top_engagement_decision_reasons: topDecisionReasons(packet),
       top_counterevidence:
         packet.session_engagement_summary.session_decision_trace.top_counterevidence,
+      package_duration_band:
+        packet.session_engagement_summary.session_decision_trace.package_duration_band,
+      sparse_item_count:
+        packet.session_engagement_summary.session_decision_trace.sparse_item_count,
+      substantive_item_count:
+        packet.session_engagement_summary.session_decision_trace.substantive_item_count,
+      matched_session_rules:
+        packet.session_engagement_summary.session_decision_trace.matched_session_rules.map(
+          (rule) => rule.rule_id
+        ),
       threshold_policy: packet.session_engagement_summary.threshold_policy,
       observed_event_type_count:
         Object.keys(packet.process_data_inventory.observed_event_counts).length,

@@ -80,6 +80,8 @@ Engagement evidence v1 includes an explicit rule configuration:
 answer_selection_rapid_ms = 3000
 reasoning_response_rapid_ms = 5000
 full_item_completion_rapid_ms = 25000
+initial_package_extreme_rapid_ms = 30000
+initial_package_rapid_ms = 60000
 minimal_reasoning_character_threshold = 20
 minimal_reasoning_token_threshold = 4
 substantive_reasoning_character_threshold = 90
@@ -95,14 +97,28 @@ These are provisional engineering thresholds, not empirically calibrated psychom
 
 The current packet builder receives `item_response_time_ms`, which represents the full item package interval currently available to engagement evidence: answer selection, reasoning, confidence, and tempting-option evidence. The `full_item_completion_rapid_ms` threshold is therefore wider than answer-selection or reasoning-only thresholds. `answer_selection_rapid_ms` and `reasoning_response_rapid_ms` are retained in the config for stage-specific traces when those intervals are supplied by a later packet builder.
 
-Each item includes `decision_trace` with matched and non-matched deterministic rules, threshold names and values, duration/length bands, why-not category reasons, and limitations. Each session includes `session_decision_trace` with item category counts, dominant signal counts, matched session rules, counterevidence, and why-not category reasons.
+The session trace also derives initial three-item package timing from existing item/process timestamps. It prefers first `item_presented` to `package_submitted`; if that is unavailable, it falls back to first item start or first student interaction. Bands are:
+
+```text
+package_extreme_rapid <= 30000 ms
+package_rapid <= 60000 ms
+package_typical_or_long > 60000 ms
+package_timing_unavailable
+```
+
+An `initial_package_extreme_rapid_sparse` rule can support `disengaged` when an initial three-item package is completed extremely quickly, at least two items have sparse/low-information/uncertainty-without-elaboration or repair/invalid evidence, and no strong substantive reasoning counterevidence exists. A weaker `initial_package_rapid_mixed` rule records rapid mixed evidence without automatically classifying every under-60-second package as disengaged.
+
+Each item includes `decision_trace` with matched and non-matched deterministic rules, threshold names and values, duration/length bands, why-not category reasons, and limitations. Each session includes `session_decision_trace` with item category counts, dominant signal counts, package timing bands, sparse/substantive item counts, matched session rules, counterevidence, and why-not category reasons.
 
 Important semantics:
 
 - Rapid response is a time-based signal only. It must state which interval was measured: answer selection time, reasoning response time, or full item package completion time. It does not by itself imply disengagement.
 - Minimal reasoning is based on length band and character/token thresholds. A short uncertainty statement such as "I don't know" is uncertainty or knowledge-gap evidence, not invalid engagement evidence.
+- Completed initial items are baseline completion context, not strong engagement counterevidence when package-level rapid sparse evidence is present.
+- Observed process events indicate data availability and instrumentation context. They are not engagement counterevidence by themselves.
+- Meaningful reasoning counterevidence requires substantive reasoning-length evidence or later approved task-relevance evidence. Generic low-information text such as "because" and uncertainty statements such as "I don't know" do not count as meaningful reasoning counterevidence by themselves.
 - Invalid pattern means repeated unusable/off-task/irrelevant/low-information responses after repair opportunities. Wrong answers, low confidence, content questions, and procedural questions are not invalid engagement patterns.
-- `disengaged` requires convergent signals at item level or repeated item-level disengagement across the session.
+- `disengaged` requires convergent signals at item level, repeated item-level disengagement across the session, or the conservative package-level extreme rapid sparse rule.
 - `insufficient_evidence` is used when records are missing, too sparse, or too ambiguous.
 
 ## AI Assistance Signal Policy

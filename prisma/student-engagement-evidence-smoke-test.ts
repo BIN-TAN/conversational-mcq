@@ -123,6 +123,21 @@ function runPureEngagementAssertions() {
     "I don't know alone must not be treated as invalid engagement evidence."
   );
 
+  const becauseOnly = buildItemEngagementEvidence({
+    item_public_id: "because_only_item",
+    response_present: true,
+    selected_option: "B",
+    reasoning_text: "because",
+    item_response_time_ms: 6_000,
+    revision_count: 0,
+    event_counts: {},
+    process_instrumentation_available: true
+  });
+  assert(
+    !becauseOnly.decision_trace.matched_rules.some((rule) => rule.rule_id === "meaningful_reasoning_or_revision"),
+    "Minimal text such as 'because' should not count as meaningful reasoning counterevidence."
+  );
+
   const wrongAnswerAlone = buildItemEngagementEvidence({
     item_public_id: "wrong_answer_alone_item",
     response_present: true,
@@ -245,6 +260,114 @@ function runPureEngagementAssertions() {
       rule.thresholds_used.some((threshold) => threshold.threshold_name === "full_item_completion_rapid_ms")
     ),
     "Repeated rapid/minimal session trace should include full-item completion threshold."
+  );
+
+  const extremeRapidSparsePackage = summarizeSessionEngagement(
+    [rapid, becauseOnly, idk],
+    {
+      package_duration_ms: 20_000,
+      package_duration_source: "first_item_presented_to_package_submitted",
+      package_timing_approximate: false,
+      baseline_completion_observed: true,
+      data_quality_events_observed: true
+    }
+  );
+  assert(
+    extremeRapidSparsePackage.provisional_engagement_category === "disengaged",
+    "Three-item package under 30 seconds with at least two sparse items should classify as disengaged."
+  );
+  assert(
+    extremeRapidSparsePackage.category_confidence === "high",
+    "Direct extreme rapid sparse package timing should produce high confidence."
+  );
+  assert(
+    extremeRapidSparsePackage.session_decision_trace.package_duration_band === "package_extreme_rapid",
+    "Session trace should include package extreme rapid duration band."
+  );
+  assert(
+    extremeRapidSparsePackage.session_decision_trace.sparse_item_count >= 2,
+    "Session trace should include sparse item count."
+  );
+  assert(
+    extremeRapidSparsePackage.session_decision_trace.substantive_item_count === 0,
+    "Extreme sparse package should record no substantive item counterevidence."
+  );
+  assert(
+    extremeRapidSparsePackage.session_decision_trace.matched_session_rules.some(
+      (rule) => rule.rule_id === "initial_package_extreme_rapid_sparse"
+    ),
+    "Session trace should include initial_package_extreme_rapid_sparse."
+  );
+  assert(
+    !extremeRapidSparsePackage.session_decision_trace.top_counterevidence.includes("completed_three_items"),
+    "Completed three items should not be top counterevidence against extreme rapid sparse disengagement."
+  );
+  assert(
+    !extremeRapidSparsePackage.session_decision_trace.top_counterevidence.includes("process_events_observed"),
+    "Process events observed should be data-quality evidence, not engagement counterevidence."
+  );
+  assert(
+    extremeRapidSparsePackage.session_decision_trace.completed_three_items_counterevidence_explanation.includes(
+      "baseline_completion"
+    ),
+    "Trace should explain why completed items are baseline completion context."
+  );
+  assert(
+    extremeRapidSparsePackage.session_decision_trace.meaningful_reasoning_counterevidence_explanation.includes(
+      "not_counted"
+    ),
+    "Trace should explain why meaningful reasoning counterevidence was not counted."
+  );
+
+  const approximateExtremeRapidSparsePackage = summarizeSessionEngagement(
+    [rapid, becauseOnly, idk],
+    {
+      package_duration_ms: 24_000,
+      package_duration_source: "first_interaction_to_package_submitted",
+      package_timing_approximate: true,
+      baseline_completion_observed: true,
+      data_quality_events_observed: true
+    }
+  );
+  assert(
+    approximateExtremeRapidSparsePackage.provisional_engagement_category === "disengaged",
+    "Approximate extreme rapid sparse package should still classify as disengaged."
+  );
+  assert(
+    approximateExtremeRapidSparsePackage.category_confidence === "medium",
+    "Approximate extreme rapid package timing should lower confidence to medium."
+  );
+
+  const secondSubstantive = buildItemEngagementEvidence({
+    item_public_id: "second_substantive_item",
+    response_present: true,
+    selected_option: "D",
+    reasoning_text:
+      "The item parameter describes the item, while the theta value describes the person on the latent trait scale.",
+    item_response_time_ms: 18_000,
+    revision_count: 0,
+    event_counts: { typing_activity_summary: 1 },
+    process_instrumentation_available: true
+  });
+  const rapidMixedPackage = summarizeSessionEngagement(
+    [engaged, secondSubstantive, minimalOnly],
+    {
+      package_duration_ms: 45_000,
+      package_duration_source: "first_item_presented_to_package_submitted",
+      package_timing_approximate: false,
+      baseline_completion_observed: true,
+      data_quality_events_observed: true
+    }
+  );
+  assert(
+    rapidMixedPackage.provisional_engagement_category !== "disengaged",
+    "Package under 60 seconds with substantive reasoning on multiple items should not automatically disengage."
+  );
+  assert(
+    rapidMixedPackage.session_decision_trace.matched_session_rules.some(
+      (rule) => rule.rule_id === "initial_package_rapid_mixed"
+    ),
+    "Rapid mixed package should include the rapid mixed session rule."
   );
 
   const unavailable = buildItemEngagementEvidence({
@@ -435,6 +558,16 @@ async function runDbPacketAssertion() {
       "Engagement packet should include threshold policy."
     );
     assert(
+      parsed.engagement_rule_config.initial_package_extreme_rapid_ms ===
+        ENGAGEMENT_RULE_CONFIG_V1.initial_package_extreme_rapid_ms,
+      "Engagement packet should include package extreme rapid threshold."
+    );
+    assert(
+      parsed.engagement_rule_config.initial_package_rapid_ms ===
+        ENGAGEMENT_RULE_CONFIG_V1.initial_package_rapid_ms,
+      "Engagement packet should include package rapid threshold."
+    );
+    assert(
       parsed.item_engagement_evidence.every((item) => item.interpretation_source === "deterministic_v1"),
       "Every item should include deterministic interpretation source."
     );
@@ -445,6 +578,28 @@ async function runDbPacketAssertion() {
     assert(
       parsed.session_engagement_summary.session_decision_trace.matched_session_rules.length > 0,
       "Session summary should include matched session rules."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.package_duration_band !==
+        "package_timing_unavailable",
+      "Session summary should include package-level timing band."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.package_duration_thresholds_used.some(
+        (threshold) => threshold.threshold_name === "initial_package_extreme_rapid_ms"
+      ),
+      "Session summary should include package-level timing thresholds."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.completed_three_items_counterevidence_explanation
+        .length > 0,
+      "Session summary should explain completed-three-items counterevidence role."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.process_events_counterevidence_explanation.includes(
+        "data"
+      ),
+      "Session summary should explain process events as data-quality context."
     );
     assert(
       Array.isArray(
