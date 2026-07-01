@@ -11,7 +11,7 @@ export const ENGAGEMENT_RULE_CONFIG_V1 = {
   threshold_policy: "provisional_v1_not_empirically_calibrated",
   answer_selection_rapid_ms: 3_000,
   reasoning_response_rapid_ms: 5_000,
-  item_completion_rapid_ms: 3_000,
+  full_item_completion_rapid_ms: 25_000,
   minimal_reasoning_character_threshold: 20,
   minimal_reasoning_token_threshold: 4,
   substantive_reasoning_character_threshold: 90,
@@ -151,7 +151,7 @@ export const EngagementEvidencePacketV1Schema = z.object({
     threshold_policy: z.literal(ENGAGEMENT_RULE_CONFIG_V1.threshold_policy),
     answer_selection_rapid_ms: z.number(),
     reasoning_response_rapid_ms: z.number(),
-    item_completion_rapid_ms: z.number(),
+    full_item_completion_rapid_ms: z.number(),
     minimal_reasoning_character_threshold: z.number(),
     minimal_reasoning_token_threshold: z.number(),
     substantive_reasoning_character_threshold: z.number(),
@@ -516,7 +516,7 @@ export function buildItemEngagementEvidence(
     Boolean(input.response_present) &&
     typeof input.item_response_time_ms === "number" &&
     input.item_response_time_ms > 0 &&
-    input.item_response_time_ms < ENGAGEMENT_RULE_CONFIG_V1.item_completion_rapid_ms;
+    input.item_response_time_ms < ENGAGEMENT_RULE_CONFIG_V1.full_item_completion_rapid_ms;
   const interpretationCautions = [
     "ai_assistance_signal_is_behavioral_not_misconduct",
     "ai_assistance_signal_should_be_compared_with_self_report",
@@ -552,7 +552,6 @@ export function buildItemEngagementEvidence(
     rapidMinimalReasoningPattern,
     repeatedInvalidPattern,
     repairPromptCount >= 2,
-    idkMarked && sparseReasoning,
     !input.process_instrumentation_available && sparseReasoning
   ].filter(Boolean).length;
   const engagementSignal: EngagementCategory = !input.response_present
@@ -616,11 +615,11 @@ export function buildItemEngagementEvidence(
       rule_id: "rapid_minimal_reasoning_combo",
       rule_label: "Rapid response combined with minimal reasoning",
       matched: rapidMinimalReasoningPattern,
-      signal_types: ["response_time", "reasoning_length_band"],
+      signal_types: ["full_item_package_completion_time", "reasoning_length_band"],
       thresholds_used: [
         {
-          threshold_name: "item_completion_rapid_ms",
-          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.item_completion_rapid_ms,
+          threshold_name: "full_item_completion_rapid_ms",
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.full_item_completion_rapid_ms,
           observed_value: input.item_response_time_ms ?? "missing",
           observed_band: responseTimeBand
         },
@@ -779,11 +778,15 @@ export function summarizeSessionEngagement(
   const insufficientProcessCount = items.filter(
     (item) => item.engagement_signal === "insufficient_evidence"
   ).length;
+  const rapidMinimalItemCount = items.filter((item) =>
+    item.decision_trace.matched_rules.some((rule) => rule.rule_id === "rapid_minimal_reasoning_combo")
+  ).length;
   const category: EngagementCategory = items.length === 0
     ? "insufficient_evidence"
     : insufficientProcessCount === items.length
       ? "insufficient_evidence"
-      : disengagedCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count
+      : disengagedCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count ||
+          rapidMinimalItemCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count
         ? "disengaged"
         : engagedCount >= Math.max(1, Math.ceil(items.length / 2))
           ? "engaged"
@@ -844,13 +847,21 @@ export function summarizeSessionEngagement(
     ruleTrace({
       rule_id: "multiple_items_rapid_sparse",
       rule_label: "Multiple items with rapid or sparse participation evidence",
-      matched: disengagedCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count,
-      signal_types: ["item_engagement_signal", "rapid_response_pattern", "reasoning_length_band"],
+      matched:
+        disengagedCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count ||
+        rapidMinimalItemCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count,
+      signal_types: ["item_engagement_signal", "full_item_package_completion_time", "reasoning_length_band"],
       thresholds_used: [
         {
           threshold_name: "disengaged_min_item_count",
           threshold_value: ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count,
           observed_value: disengagedCount
+        },
+        {
+          threshold_name: "full_item_completion_rapid_ms",
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.full_item_completion_rapid_ms,
+          observed_value: rapidMinimalItemCount,
+          observed_band: "rapid_minimal_item_count"
         }
       ],
       contribution: "supports_disengagement",

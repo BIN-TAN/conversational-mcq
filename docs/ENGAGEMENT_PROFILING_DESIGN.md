@@ -79,7 +79,7 @@ Engagement evidence v1 includes an explicit rule configuration:
 ```text
 answer_selection_rapid_ms = 3000
 reasoning_response_rapid_ms = 5000
-item_completion_rapid_ms = 3000
+full_item_completion_rapid_ms = 25000
 minimal_reasoning_character_threshold = 20
 minimal_reasoning_token_threshold = 4
 substantive_reasoning_character_threshold = 90
@@ -93,11 +93,13 @@ long_inactivity_ms = 60000
 
 These are provisional engineering thresholds, not empirically calibrated psychometric thresholds. They are included in packets and review artifacts so a teacher/researcher can inspect how a category was produced.
 
+The current packet builder receives `item_response_time_ms`, which represents the full item package interval currently available to engagement evidence: answer selection, reasoning, confidence, and tempting-option evidence. The `full_item_completion_rapid_ms` threshold is therefore wider than answer-selection or reasoning-only thresholds. `answer_selection_rapid_ms` and `reasoning_response_rapid_ms` are retained in the config for stage-specific traces when those intervals are supplied by a later packet builder.
+
 Each item includes `decision_trace` with matched and non-matched deterministic rules, threshold names and values, duration/length bands, why-not category reasons, and limitations. Each session includes `session_decision_trace` with item category counts, dominant signal counts, matched session rules, counterevidence, and why-not category reasons.
 
 Important semantics:
 
-- Rapid response is a time-based signal only. It does not by itself imply disengagement.
+- Rapid response is a time-based signal only. It must state which interval was measured: answer selection time, reasoning response time, or full item package completion time. It does not by itself imply disengagement.
 - Minimal reasoning is based on length band and character/token thresholds. A short uncertainty statement such as "I don't know" is uncertainty or knowledge-gap evidence, not invalid engagement evidence.
 - Invalid pattern means repeated unusable/off-task/irrelevant/low-information responses after repair opportunities. Wrong answers, low confidence, content questions, and procedural questions are not invalid engagement patterns.
 - `disengaged` requires convergent signals at item level or repeated item-level disengagement across the session.

@@ -83,7 +83,7 @@ function runPureEngagementAssertions() {
     response_present: true,
     selected_option: "B",
     reasoning_text: "short",
-    item_response_time_ms: 24_000,
+    item_response_time_ms: 28_000,
     revision_count: 0,
     event_counts: { typing_activity_summary: 1 },
     process_instrumentation_available: true
@@ -95,6 +95,12 @@ function runPureEngagementAssertions() {
   assert(
     minimalOnly.decision_trace.matched_rules.some((rule) => rule.rule_id === "minimal_reasoning_only"),
     "Minimal reasoning should include a matched trace."
+  );
+  assert(
+    minimalOnly.decision_trace.non_matched_rules.some((rule) =>
+      rule.thresholds_used.some((threshold) => threshold.threshold_name === "full_item_completion_rapid_ms")
+    ),
+    "Minimal-only trace should show the full-item rapid threshold did not match."
   );
 
   const idk = buildItemEngagementEvidence({
@@ -214,6 +220,31 @@ function runPureEngagementAssertions() {
       (rule) => rule.thresholds_used.some((threshold) => threshold.threshold_name === "repeated_invalid_response_threshold")
     ),
     "Disengaged item trace should include threshold usage."
+  );
+
+  const repeatedRapidMinimalOnlySession = summarizeSessionEngagement([
+    rapid,
+    buildItemEngagementEvidence({
+      item_public_id: "second_rapid_minimal_item",
+      response_present: true,
+      selected_option: "B",
+      reasoning_text: "guess",
+      item_response_time_ms: 2_500,
+      revision_count: 0,
+      event_counts: {},
+      process_instrumentation_available: true
+    }),
+    engaged
+  ]);
+  assert(
+    repeatedRapidMinimalOnlySession.provisional_engagement_category === "disengaged",
+    "Repeated rapid plus minimal reasoning across items can classify the session as disengaged."
+  );
+  assert(
+    repeatedRapidMinimalOnlySession.session_decision_trace.matched_session_rules.some((rule) =>
+      rule.thresholds_used.some((threshold) => threshold.threshold_name === "full_item_completion_rapid_ms")
+    ),
+    "Repeated rapid/minimal session trace should include full-item completion threshold."
   );
 
   const unavailable = buildItemEngagementEvidence({
