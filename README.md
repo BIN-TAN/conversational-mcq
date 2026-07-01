@@ -138,6 +138,8 @@ ALLOW_LOCAL_MOCK_RUNTIME=true
 npm run dev
 ```
 
+`ALLOW_LOCAL_MOCK_RUNTIME` is optional and defaults to `false` when unset. Live runtime does not require it. If it is set, it must be exactly `true` or `false`; values such as `yes`, `1`, or `TRUE` fail configuration validation. Explicit mock runtime still requires `ITEM_ADMIN_TUTOR_MODE=mock` plus `ALLOW_LOCAL_MOCK_RUNTIME=true`.
+
 To create a true macOS app wrapper, open Automator, choose `Application`, add `Run Shell Script`, and paste:
 
 ```bash
@@ -333,7 +335,7 @@ npm run llm:readiness
 
 `npm run llm:readiness` may perform a lightweight authenticated OpenAI model-metadata check when live config is otherwise present. It does not make a model generation request and prints only safe key fingerprints, model names, auth status, cache status, and reason codes. Authenticated readiness is cached briefly to avoid repeated checks.
 
-If live config is missing, unauthenticated, invalid, unknown, public, or conflicting in browser/runtime auto mode, student start/resume is disabled and open-text turns are blocked with a safe temporary-unavailable message rather than silently using mock. Deterministic mock is limited to tests, smoke commands, or intentional local walkthroughs using `ITEM_ADMIN_TUTOR_MODE=mock` with `ALLOW_LOCAL_MOCK_RUNTIME=true`. To run the optional paid smoke intentionally, configure live OpenAI provider settings and `RUN_LIVE_ITEM_ADMIN_SMOKE=1` locally. It checks that content questions during initial administration are deferred without advancing and that explicit uncertainty advances as low-information evidence.
+If live config is missing, unauthenticated, invalid, unknown, public, or conflicting in browser/runtime auto mode, student start/resume is disabled and open-text turns are blocked with a safe temporary-unavailable message rather than silently using mock. Deterministic mock is limited to tests, smoke commands, or intentional local walkthroughs using `ITEM_ADMIN_TUTOR_MODE=mock` with `ALLOW_LOCAL_MOCK_RUNTIME=true`. `ALLOW_LOCAL_MOCK_RUNTIME` may be omitted for live runtime and then resolves to `false`; invalid explicit values fail closed. To run the optional paid smoke intentionally, configure live OpenAI provider settings and `RUN_LIVE_ITEM_ADMIN_SMOKE=1` locally. It checks that content questions during initial administration are deferred without advancing and that explicit uncertainty advances as low-information evidence.
 
 Async workflow commands:
 

@@ -22,9 +22,11 @@ import {
   buildProfileIntegrationAgentInput,
   buildProfileIntegrationInterpretationPacketForSession,
   callProfileIntegrationAgent,
+  executeLiveProfileIntegrationAgent,
   executeProfileIntegrationAgentWithProviderForTest,
   studentStatusForIntegrationPattern,
   validateProfileIntegrationOutput,
+  withProfileIntegrationProviderForTest,
   writeProfileIntegrationReviewArtifact
 } from "../src/lib/services/student-assessment/profile-integration";
 import type { LlmProvider, StructuredAgentRequest, StructuredAgentResult } from "../src/lib/llm/providers/types";
@@ -53,6 +55,39 @@ function configureNoLiveRuntime() {
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
   process.env.ITEM_ADMIN_TUTOR_MODE = "mock";
   process.env.ALLOW_LOCAL_MOCK_RUNTIME = "true";
+}
+
+function fakeOpenAIKey(label: string) {
+  return `sk-${label.replace(/[^A-Za-z0-9_-]/g, "")}-000000000000000000000000`;
+}
+
+async function withTemporaryProcessEnv<T>(
+  values: Record<string, string | undefined>,
+  callback: () => Promise<T>
+) {
+  const previous = Object.fromEntries(
+    Object.keys(values).map((key) => [key, process.env[key]])
+  );
+
+  try {
+    for (const [key, value] of Object.entries(values)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+
+    return await callback();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
 }
 
 function serialized(value: unknown) {
@@ -743,6 +778,46 @@ async function runProviderPathAssertions() {
 
   assert(failedRepairResult.status === "invalid_output", "Repair path should fail closed when repair output is still unsafe.");
   assert(failedRepairCallCount === 2, "Failed repair should use only one repair attempt.");
+
+  const liveProviderWithoutMockFlag = new FixedProfileIntegrationProvider((request) => ({
+    provider: "mock",
+    provider_request_id: "mock_profile_integration_live_missing_allow_request",
+    provider_response_id: "mock_profile_integration_live_missing_allow_response",
+    client_request_id: request.client_request_id,
+    status: "completed",
+    parsed_output: validOutput,
+    raw_output: { id: "mock_profile_integration_live_missing_allow_response", output: validOutput },
+    usage: { input_tokens: 11, output_tokens: 13, total_tokens: 24 },
+    latency_ms: 2
+  }));
+  await withTemporaryProcessEnv(
+    {
+      LLM_PROVIDER: "openai",
+      LLM_LIVE_CALLS_ENABLED: "true",
+      OPENAI_API_KEY: fakeOpenAIKey("profile-integration-live-missing-allow"),
+      OPENAI_API_KEY_FILE: "",
+      OPENAI_MODEL_PROFILE_INTEGRATION: "gpt-test-profile-integration",
+      OPENAI_MODEL_PLANNING: "",
+      OPENAI_MODEL_FOLLOWUP: "",
+      ALLOW_LOCAL_MOCK_RUNTIME: undefined,
+      ITEM_ADMIN_TUTOR_MODE: "auto"
+    },
+    async () => {
+      await withProfileIntegrationProviderForTest(
+        liveProviderWithoutMockFlag,
+        async () => {
+          const liveResult = await executeLiveProfileIntegrationAgent({
+            agent_input: input
+          });
+
+          assert(
+            liveResult.status === "succeeded",
+            "Live profile integration executor should pass env parsing when ALLOW_LOCAL_MOCK_RUNTIME is missing."
+          );
+        }
+      );
+    }
+  );
 
   await prisma.agentCall.deleteMany({
     where: {

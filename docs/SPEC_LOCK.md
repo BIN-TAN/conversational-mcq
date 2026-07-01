@@ -62,6 +62,10 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - `npm run llm:readiness` is the safe readiness check for this runtime path. When live config is otherwise present, it may perform a lightweight authenticated OpenAI model-metadata check; it must not generate model output. It may report key presence, source class, fingerprint prefix, auth status, auth check time, cache status, reason codes, model names, env-file names, and conflict status, but never raw credential values.
 - If live readiness is missing, invalid, unknown, public, or conflicting in normal browser/runtime auto mode, student start/resume is blocked and open-text item-administration turns fail closed with a saved-progress unavailable message. The runtime must not silently substitute deterministic mock output as valid student evidence.
 - Deterministic/mock item administration is allowed only in `NODE_ENV=test`, smoke tests that explicitly force mock behavior, or intentional local mock walkthroughs with `ITEM_ADMIN_TUTOR_MODE=mock` and `ALLOW_LOCAL_MOCK_RUNTIME=true`.
+- `ALLOW_LOCAL_MOCK_RUNTIME` is optional and defaults to `false` when unset.
+  Live runtime must not require it. If explicitly set, it must be exactly
+  `true` or `false`; invalid values fail closed with a safe variable-name
+  diagnostic.
 - Failed live item-administration provider output must keep the current assessment step, preserve progress, log `item_admin_tutor_source=safe_block_after_live_failure`, and avoid recording the failed response as valid evidence.
 - Student-facing prompts must not advertise specific language choices by default. Backend validation may still accept meaningful non-English or mixed-language responses.
 - Live response-package profiling and targeted-feedback calls are successful only when the provider call completes, structured output validates, student-facing safety checks pass, provider metadata is stored, and token usage is stored.

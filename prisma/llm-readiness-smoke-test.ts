@@ -7,6 +7,7 @@ import {
   getAssessmentTutorRuntimeStatus,
   withAssessmentTutorAuthCheckForTest
 } from "../src/lib/llm/assessment-tutor-readiness";
+import { getServerEnv } from "../src/lib/env";
 
 const baseEnv: Record<string, string> = {
   DATABASE_URL: "postgresql://readiness:readiness@localhost:5432/readiness?schema=public",
@@ -66,6 +67,61 @@ async function withTempEnvDir(files: Record<string, string>, callback: (cwd: str
 }
 
 async function main() {
+  await withTemporaryEnv(
+    {
+      ...baseEnv,
+      ALLOW_LOCAL_MOCK_RUNTIME: undefined
+    },
+    async () => {
+      const env = getServerEnv();
+      assert(env.ALLOW_LOCAL_MOCK_RUNTIME === false, "Missing ALLOW_LOCAL_MOCK_RUNTIME should default to false.");
+    }
+  );
+
+  await withTemporaryEnv(
+    {
+      ...baseEnv,
+      ALLOW_LOCAL_MOCK_RUNTIME: "false"
+    },
+    async () => {
+      const env = getServerEnv();
+      assert(env.ALLOW_LOCAL_MOCK_RUNTIME === false, "ALLOW_LOCAL_MOCK_RUNTIME=false should parse as false.");
+    }
+  );
+
+  await withTemporaryEnv(
+    {
+      ...baseEnv,
+      ALLOW_LOCAL_MOCK_RUNTIME: "true"
+    },
+    async () => {
+      const env = getServerEnv();
+      assert(env.ALLOW_LOCAL_MOCK_RUNTIME === true, "ALLOW_LOCAL_MOCK_RUNTIME=true should parse as true.");
+    }
+  );
+
+  for (const invalidValue of ["yes", "1", "TRUE", "maybe"]) {
+    await withTemporaryEnv(
+      {
+        ...baseEnv,
+        ALLOW_LOCAL_MOCK_RUNTIME: invalidValue
+      },
+      async () => {
+        let message = "";
+        try {
+          getServerEnv();
+        } catch (error) {
+          message = error instanceof Error ? error.message : String(error);
+        }
+
+        assert(message.includes("ALLOW_LOCAL_MOCK_RUNTIME"), "Invalid ALLOW_LOCAL_MOCK_RUNTIME should name the variable.");
+        assert(message.includes("expected 'true' or 'false'"), "Invalid ALLOW_LOCAL_MOCK_RUNTIME should report expected values.");
+        assert(message.includes("missing is allowed and defaults to false"), "Invalid ALLOW_LOCAL_MOCK_RUNTIME should document missing default.");
+        assert(!message.includes(invalidValue), "Invalid ALLOW_LOCAL_MOCK_RUNTIME diagnostic should not echo the value.");
+      }
+    );
+  }
+
   await withTemporaryEnv(
     {
       ...baseEnv,
@@ -193,6 +249,50 @@ async function main() {
           assert(authChecks === 1, "Auth check should be cached.");
         }
       );
+    }
+  );
+
+  await withTemporaryEnv(
+    {
+      ...baseEnv,
+      ALLOW_LOCAL_MOCK_RUNTIME: undefined,
+      OPENAI_API_KEY: fakeKey("valid-missing-allow")
+    },
+    async () => {
+      await withAssessmentTutorAuthCheckForTest(
+        async () => ({
+          auth_status: "valid",
+          auth_checked_at: new Date().toISOString(),
+          auth_check_error_code: null,
+          http_status: 200,
+          provider_request_id: "synthetic_auth_request_missing_allow"
+        }),
+        async () => {
+          const status = await getAssessmentTutorRuntimeStatus();
+          assert(status.ready, "Live readiness should pass with ALLOW_LOCAL_MOCK_RUNTIME missing when live config is valid.");
+          assert(status.runtime_source === "live_llm", "Missing ALLOW_LOCAL_MOCK_RUNTIME should not force mock runtime.");
+          assert(status.local_mock_allowed === false, "Missing ALLOW_LOCAL_MOCK_RUNTIME should report local mock not allowed.");
+          assert(!status.reason_codes.includes("server_env_invalid"), "Missing ALLOW_LOCAL_MOCK_RUNTIME should not invalidate server env.");
+        }
+      );
+    }
+  );
+
+  await withTemporaryEnv(
+    {
+      ...baseEnv,
+      LLM_PROVIDER: "mock",
+      LLM_LIVE_CALLS_ENABLED: "false",
+      OPENAI_API_KEY: "",
+      OPENAI_MODEL_ITEM_ADMIN: "",
+      ITEM_ADMIN_TUTOR_MODE: "mock",
+      ALLOW_LOCAL_MOCK_RUNTIME: undefined
+    },
+    async () => {
+      const status = await getAssessmentTutorRuntimeStatus();
+      assert(!status.ready, "Explicit mock mode without ALLOW_LOCAL_MOCK_RUNTIME=true should fail closed.");
+      assert(status.runtime_source === "configuration_blocked", "Unallowed mock mode should be configuration blocked.");
+      assert(status.reason_codes.includes("local_mock_runtime_not_allowed"), "Unallowed mock mode should report local_mock_runtime_not_allowed.");
     }
   );
 

@@ -44,6 +44,15 @@ function envPresent(name: string) {
   return typeof process.env[name] === "string" && process.env[name]?.trim().length > 0;
 }
 
+function restoreEnvValue(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
+}
+
 function liveReadiness() {
   const missingDatabaseOrSession = REQUIRED_DATABASE_ENV.filter((name) => !envPresent(name));
   const missingProvider = REQUIRED_PROVIDER_ENV.filter((name) => !envPresent(name));
@@ -292,10 +301,10 @@ async function createSampleSessionWithMockSetup() {
   });
   await createResponsePackage({ concept_unit_session_db_id: conceptUnitSession.id });
 
-  process.env.LLM_PROVIDER = liveEnvSnapshot.LLM_PROVIDER;
-  process.env.LLM_LIVE_CALLS_ENABLED = liveEnvSnapshot.LLM_LIVE_CALLS_ENABLED;
-  process.env.ITEM_ADMIN_TUTOR_MODE = liveEnvSnapshot.ITEM_ADMIN_TUTOR_MODE;
-  process.env.ALLOW_LOCAL_MOCK_RUNTIME = liveEnvSnapshot.ALLOW_LOCAL_MOCK_RUNTIME;
+  restoreEnvValue("LLM_PROVIDER", liveEnvSnapshot.LLM_PROVIDER);
+  restoreEnvValue("LLM_LIVE_CALLS_ENABLED", liveEnvSnapshot.LLM_LIVE_CALLS_ENABLED);
+  restoreEnvValue("ITEM_ADMIN_TUTOR_MODE", liveEnvSnapshot.ITEM_ADMIN_TUTOR_MODE);
+  restoreEnvValue("ALLOW_LOCAL_MOCK_RUNTIME", liveEnvSnapshot.ALLOW_LOCAL_MOCK_RUNTIME);
 
   return {
     session_public_id: started.session.session_public_id,

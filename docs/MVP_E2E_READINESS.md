@@ -238,7 +238,7 @@ npm run llm:readiness
 
 When live configuration is otherwise present, this command may perform a lightweight OpenAI model-metadata authentication check. It does not generate model output. It prints only safe diagnostics: provider, model names, key presence, key fingerprint prefix, auth status, auth check time, auth error code, auth cache status, env-file names, safe fingerprint prefixes, and reason codes. It never prints the key value.
 
-If any live requirement is missing, disabled, conflicting, public, invalid, or authentication cannot be confirmed in browser/runtime auto mode, student start/resume is disabled and open-text turns are blocked with a safe temporary-unavailable message rather than silently using mock. Set `ITEM_ADMIN_TUTOR_MODE=mock` and `ALLOW_LOCAL_MOCK_RUNTIME=true` only for intentional local mock walkthroughs. Smoke tests may also force deterministic mock without making provider calls.
+If any live requirement is missing, disabled, conflicting, public, invalid, or authentication cannot be confirmed in browser/runtime auto mode, student start/resume is disabled and open-text turns are blocked with a safe temporary-unavailable message rather than silently using mock. `ALLOW_LOCAL_MOCK_RUNTIME` is optional and defaults to `false` when unset; live runtime does not require it. Set `ITEM_ADMIN_TUTOR_MODE=mock` and `ALLOW_LOCAL_MOCK_RUNTIME=true` only for intentional local mock walkthroughs. Invalid explicit values such as `yes`, `1`, or `TRUE` fail closed. Smoke tests may also force deterministic mock without making provider calls.
 
 Backend audit payloads record `item_admin_tutor_source` for open-text administration turns:
 
@@ -337,6 +337,8 @@ ITEM_ADMIN_TUTOR_MODE=mock
 ALLOW_LOCAL_MOCK_RUNTIME=true
 npm run dev
 ```
+
+If `ALLOW_LOCAL_MOCK_RUNTIME` is omitted, readiness reports `local_mock_allowed: false`. Missing is not a live-runtime configuration error.
 
 Stop and status commands:
 

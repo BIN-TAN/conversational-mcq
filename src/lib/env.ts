@@ -27,8 +27,10 @@ const positiveIntWithDefault = (defaultValue: number) =>
 
 const booleanWithDefault = (defaultValue: boolean) =>
   z
-    .enum(["true", "false"])
-    .default(defaultValue ? "true" : "false")
+    .preprocess(
+      (value) => (value === "" || value === undefined ? (defaultValue ? "true" : "false") : value),
+      z.enum(["true", "false"])
+    )
     .transform((value) => value === "true");
 
 function isValidTimeZone(value: string) {
@@ -203,7 +205,17 @@ export function getServerEnv(): ServerEnv {
 
   if (!parsed.success) {
     const details = parsed.error.issues
-      .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+      .map((issue) => {
+        const path = issue.path.join(".");
+        if (path === "ALLOW_LOCAL_MOCK_RUNTIME") {
+          return [
+            "ALLOW_LOCAL_MOCK_RUNTIME: expected 'true' or 'false' when set",
+            "missing is allowed and defaults to false"
+          ].join("; ");
+        }
+
+        return `${path}: ${issue.message}`;
+      })
       .join("; ");
 
     throw new Error(`Invalid environment configuration: ${details}`);
