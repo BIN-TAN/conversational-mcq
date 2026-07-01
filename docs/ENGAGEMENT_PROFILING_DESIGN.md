@@ -83,6 +83,9 @@ full_item_completion_rapid_ms = 25000
 initial_package_ultra_rapid_ms = 8000
 initial_package_extreme_rapid_ms = 15000
 initial_package_rapid_warning_ms = 30000
+package_reasoning_typing_very_low_ms = 8000
+package_reasoning_typing_low_ms = 15000
+item_reasoning_typing_rapid_ms = 3000
 minimal_reasoning_character_threshold = 20
 minimal_reasoning_token_threshold = 4
 substantive_reasoning_character_threshold = 90
@@ -101,23 +104,24 @@ The current packet builder receives `item_response_time_ms`, which represents th
 The session trace also derives initial three-item package timing from existing item/process timestamps. It records wall-clock package time separately from active package time:
 
 - `package_wall_clock_duration_ms`: first `item_presented` to `package_submitted`; this can include idle time.
-- `package_active_response_duration_ms`: first student response action to `package_submitted`.
-- `package_sum_item_active_duration_ms`: sum of per-item intervals from first student action on that item to item completion.
-- `package_focus_adjusted_duration_ms`: wall-clock time minus long hidden, blur, pause, or inactivity intervals when safe duration data exist.
+- `package_focus_adjusted_task_duration_ms`: first item presented to package submitted, minus safe hidden, blur, pause, or inactivity intervals when such intervals are available.
+- `package_sum_item_focus_adjusted_duration_ms`: sum of per-item focus-adjusted task intervals where safe interval data are available.
+- `package_response_production_duration_ms`: first student response action to `package_submitted`; this excludes reading time and is supporting evidence when focus-adjusted task time is unavailable.
+- `package_reasoning_typing_duration_ms`: aggregate safe `typing_activity_summary` duration for reasoning fields. This is a process signal, not direct ability evidence. It never stores raw keystrokes, typed text, or clipboard content.
 
 Rapid sparse classification prefers timing sources in this order:
 
 ```text
-active_response
-sum_item_active
-focus_adjusted
+focus_adjusted_task
+sum_item_focus_adjusted
+response_production
 wall_clock_fallback
 unavailable
 ```
 
-If active response timing is unavailable and only a typical/long wall-clock fallback exists, the packet must not infer rapid completion. It records `active_package_timing_unavailable` as a limitation instead.
+If active timing is unavailable and only a typical/long wall-clock fallback exists, the packet must not infer rapid completion. It records `active_package_timing_unavailable` as a limitation instead.
 
-The review artifact also includes a safe timing reconstruction for diagnosis. It may include event type, source table, timestamp, duration in milliseconds, timing band, timing source used for the rapid rule, and per-item active timing bands. It must not include raw process-event payloads, raw conversation text, browser URLs, typed text, pasted text, answer keys, or item distractor metadata. If a process-event student action is missing, the reconstruction may fall back to `item_response_created` or a student conversation-turn timestamp and must label that fallback in `timing_limitations`.
+The review artifact also includes a safe timing reconstruction for diagnosis. It may include event type, source table, timestamp, duration in milliseconds, timing band, timing source used for the rapid rule, per-item active timing bands, and aggregate reasoning-typing bands. It must not include raw process-event payloads, raw conversation text, browser URLs, typed text, pasted text, answer keys, or item distractor metadata. If a process-event student action is missing, the reconstruction may fall back to `item_response_created` or a student conversation-turn timestamp and must label that fallback in `timing_limitations`.
 
 Initial package timing bands are:
 
@@ -132,6 +136,8 @@ package_timing_unavailable
 The `package_typical_or_long` band covers durations above the rapid-warning threshold. The older 60-second rapid band is no longer used for package-level rapid sparse classification.
 
 `initial_package_ultra_rapid_sparse` and `initial_package_extreme_rapid_sparse` can support `disengaged` when the preferred active timing source is at or below the threshold, at least two items have sparse/low-information/uncertainty-without-elaboration or repair/invalid evidence, and no strong substantive reasoning counterevidence exists. `initial_package_rapid_warning_sparse` is weaker: it records rapid-warning timing with weak evidence but only supports `disengaged` when additional weak-engagement signals converge. Rapid timing alone never classifies a session as disengaged.
+
+`very_low_reasoning_typing_sparse` is a supporting rule. It can strengthen a repeated sparse-evidence pattern when aggregate package reasoning typing is at or below `package_reasoning_typing_very_low_ms` or at least two item reasoning summaries are at or below `item_reasoning_typing_rapid_ms`. Reasoning typing time alone never classifies a session as `disengaged`; pasted-response context is recorded as a limitation/context signal rather than direct disengagement evidence.
 
 Each item includes `decision_trace` with matched and non-matched deterministic rules, threshold names and values, duration/length bands, why-not category reasons, and limitations. Each session includes `session_decision_trace` with item category counts, dominant signal counts, package timing bands, sparse/substantive item counts, matched session rules, counterevidence, and why-not category reasons.
 

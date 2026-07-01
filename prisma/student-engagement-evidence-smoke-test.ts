@@ -67,35 +67,45 @@ function packageTimingForTest(input: {
   active?: number | null;
   sum?: number | null;
   focus?: number | null;
+  typing?: number | null;
   source?: PackageTimingSourceForTest;
   baseline?: boolean;
   dataQuality?: boolean;
   limitations?: string[];
   itemDurations?: number[];
+  itemTypingDurations?: number[];
 }): PackageTimingForTest {
   const source: PackageTimingSourceForTest =
     input.source ??
-    (input.active !== undefined && input.active !== null
-      ? "active_response"
+    (input.focus !== undefined && input.focus !== null
+      ? "focus_adjusted_task"
       : input.sum !== undefined && input.sum !== null
-        ? "sum_item_active"
-        : input.focus !== undefined && input.focus !== null
-          ? "focus_adjusted"
+        ? "sum_item_focus_adjusted"
+        : input.active !== undefined && input.active !== null
+          ? "response_production"
           : input.wall !== undefined && input.wall !== null
             ? "wall_clock_fallback"
             : "unavailable");
   const rapidDuration =
-    source === "active_response"
-      ? input.active ?? null
-      : source === "sum_item_active"
+    source === "focus_adjusted_task"
+      ? input.focus ?? null
+      : source === "sum_item_focus_adjusted"
         ? input.sum ?? null
-        : source === "focus_adjusted"
-          ? input.focus ?? null
+        : source === "response_production"
+          ? input.active ?? null
           : source === "wall_clock_fallback"
             ? input.wall ?? null
             : null;
   const limitations = input.limitations ?? [
-    ...(input.active === undefined || input.active === null ? ["active_package_timing_unavailable"] : []),
+    ...(input.focus === undefined || input.focus === null ? ["focus_adjusted_task_timing_unavailable"] : []),
+    ...(input.sum === undefined || input.sum === null ? ["sum_item_focus_adjusted_timing_unavailable"] : []),
+    ...(input.active === undefined || input.active === null ? ["response_production_timing_unavailable"] : []),
+    ...((input.focus === undefined || input.focus === null) &&
+    (input.sum === undefined || input.sum === null) &&
+    (input.active === undefined || input.active === null)
+      ? ["active_package_timing_unavailable"]
+      : []),
+    ...(input.typing === undefined || input.typing === null ? ["reasoning_typing_timing_unavailable"] : []),
     ...(source === "wall_clock_fallback" ? ["wall_clock_timing_used_for_rapid_rule_fallback"] : []),
     ...(source === "unavailable" ? ["package_timing_unavailable"] : [])
   ];
@@ -109,12 +119,41 @@ function packageTimingForTest(input: {
     active_response_duration_ms: input.active ?? null,
     sum_item_active_duration_ms: input.sum ?? null,
     focus_adjusted_duration_ms: input.focus ?? null,
+    focus_adjusted_task_duration_ms: input.focus ?? null,
+    sum_item_focus_adjusted_duration_ms: input.sum ?? null,
+    response_production_duration_ms: input.active ?? null,
+    package_reasoning_typing_duration_ms: input.typing ?? null,
     timing_source_used_for_rapid_rule: source,
     rapid_rule_duration_ms: rapidDuration,
-    rapid_rule_timing_approximate: source === "focus_adjusted" || source === "wall_clock_fallback" || source === "unavailable",
+    rapid_rule_timing_approximate: source === "wall_clock_fallback" || source === "unavailable",
     baseline_completion_observed: input.baseline ?? true,
     data_quality_events_observed: input.dataQuality ?? true,
     timing_limitations: limitations,
+    item_timing_by_public_id: Object.fromEntries(
+      (input.itemDurations ?? []).map((duration, index) => {
+        const itemPublicId = `test_item_${index + 1}`;
+        const typingDuration = input.itemTypingDurations?.[index] ?? null;
+        return [
+          itemPublicId,
+          {
+            item_public_id: itemPublicId,
+            wall_clock_band: packageBandForTest(duration),
+            focus_adjusted_task_band: packageBandForTest(duration),
+            response_production_band: packageBandForTest(duration),
+            reasoning_typing_band:
+              typingDuration === null
+                ? "reasoning_typing_unavailable"
+                : typingDuration <= ENGAGEMENT_RULE_CONFIG_V1.item_reasoning_typing_rapid_ms
+                  ? "reasoning_typing_very_low"
+                  : typingDuration <= ENGAGEMENT_RULE_CONFIG_V1.package_reasoning_typing_low_ms
+                    ? "reasoning_typing_low"
+                    : "reasoning_typing_typical_or_high",
+            reasoning_typing_basis: typingDuration === null ? "unavailable" : "typing_activity_summary",
+            timing_limitations: typingDuration === null ? ["reasoning_typing_timing_unavailable"] : []
+          }
+        ];
+      })
+    ),
     timing_reconstruction: {
       first_item_presented_event: {
         event_type: input.wall === undefined || input.wall === null ? "unknown" : "item_presented",
@@ -135,10 +174,25 @@ function packageTimingForTest(input: {
       active_response_duration_ms: input.active ?? null,
       sum_item_active_duration_ms: input.sum ?? null,
       focus_adjusted_duration_ms: input.focus ?? null,
+      focus_adjusted_task_duration_ms: input.focus ?? null,
+      sum_item_focus_adjusted_duration_ms: input.sum ?? null,
+      response_production_duration_ms: input.active ?? null,
+      package_reasoning_typing_duration_ms: input.typing ?? null,
       wall_clock_band: packageBandForTest(input.wall),
       active_response_band: packageBandForTest(input.active),
       sum_item_active_band: packageBandForTest(input.sum),
       focus_adjusted_band: packageBandForTest(input.focus),
+      focus_adjusted_task_band: packageBandForTest(input.focus),
+      sum_item_focus_adjusted_band: packageBandForTest(input.sum),
+      response_production_band: packageBandForTest(input.active),
+      reasoning_typing_band:
+        input.typing === undefined || input.typing === null
+          ? "reasoning_typing_unavailable"
+          : input.typing <= ENGAGEMENT_RULE_CONFIG_V1.package_reasoning_typing_very_low_ms
+            ? "reasoning_typing_very_low"
+            : input.typing <= ENGAGEMENT_RULE_CONFIG_V1.package_reasoning_typing_low_ms
+              ? "reasoning_typing_low"
+              : "reasoning_typing_typical_or_high",
       timing_source_used_for_rapid_rule: source,
       timing_limitations: limitations,
       item_active_timing_reconstruction: (input.itemDurations ?? []).map((duration, index) => ({
@@ -214,6 +268,36 @@ function runPureEngagementAssertions() {
       rule.thresholds_used.some((threshold) => threshold.threshold_name === "full_item_completion_rapid_ms")
     ),
     "Minimal-only trace should show the full-item rapid threshold did not match."
+  );
+
+  const veryLowTypingSparse = buildItemEngagementEvidence({
+    item_public_id: "very_low_typing_sparse_item",
+    response_present: true,
+    selected_option: "B",
+    reasoning_text: "short",
+    item_response_time_ms: 38_000,
+    item_timing: {
+      item_public_id: "very_low_typing_sparse_item",
+      wall_clock_band: "package_typical_or_long",
+      focus_adjusted_task_band: "package_timing_unavailable",
+      response_production_band: "package_typical_or_long",
+      reasoning_typing_band: "reasoning_typing_very_low",
+      reasoning_typing_basis: "typing_activity_summary",
+      timing_limitations: []
+    },
+    revision_count: 0,
+    event_counts: { typing_activity_summary: 1 },
+    process_instrumentation_available: true
+  });
+  assert(
+    veryLowTypingSparse.engagement_signal === "moderately_engaged",
+    "Very low reasoning typing plus sparse reasoning should not classify a single item as disengaged by itself."
+  );
+  assert(
+    veryLowTypingSparse.decision_trace.matched_rules.some(
+      (rule) => rule.rule_id === "very_low_item_reasoning_typing_sparse"
+    ),
+    "Item trace should include very-low reasoning typing basis."
   );
 
   const idk = buildItemEngagementEvidence({
@@ -401,7 +485,7 @@ function runPureEngagementAssertions() {
 
   const ultraRapidSparsePackage = summarizeSessionEngagement(
     [rapid, becauseOnly, idk],
-    packageTimingForTest({ wall: 180_000, active: 7_500, sum: 7_200 })
+    packageTimingForTest({ wall: 180_000, active: 7_500, sum: 7_200, focus: 7_000, typing: 6_000 })
   );
   assert(
     ultraRapidSparsePackage.provisional_engagement_category === "disengaged",
@@ -420,12 +504,22 @@ function runPureEngagementAssertions() {
     "Session trace should retain the wall-clock band separately."
   );
   assert(
-    ultraRapidSparsePackage.session_decision_trace.package_timing.active_response_band === "package_ultra_rapid",
-    "Session trace should include the active response band."
+    ultraRapidSparsePackage.session_decision_trace.package_timing.focus_adjusted_task_band === "package_ultra_rapid",
+    "Session trace should include the focus-adjusted task band."
   );
   assert(
-    ultraRapidSparsePackage.session_decision_trace.package_timing.timing_source_used_for_rapid_rule === "active_response",
-    "Active response timing should be preferred for rapid sparse rules."
+    ultraRapidSparsePackage.session_decision_trace.package_timing.response_production_band === "package_ultra_rapid",
+    "Session trace should include the response-production band."
+  );
+  assert(
+    ultraRapidSparsePackage.session_decision_trace.package_timing.reasoning_typing_band ===
+      "reasoning_typing_very_low",
+    "Session trace should include the package reasoning typing band."
+  );
+  assert(
+    ultraRapidSparsePackage.session_decision_trace.package_timing.timing_source_used_for_rapid_rule ===
+      "focus_adjusted_task",
+    "Focus-adjusted task timing should be preferred for rapid sparse rules."
   );
   assert(
     ultraRapidSparsePackage.session_decision_trace.timing_reconstruction.first_item_presented_event.event_type ===
@@ -444,7 +538,7 @@ function runPureEngagementAssertions() {
   );
   assert(
     ultraRapidSparsePackage.session_decision_trace.timing_reconstruction.active_response_duration_ms === 7_500,
-    "Active response duration should use first student action, not first item presentation."
+    "Response-production duration should use first student action, not first item presentation."
   );
   assert(
     ultraRapidSparsePackage.session_decision_trace.timing_reconstruction.wall_clock_duration_ms === 180_000,
@@ -453,6 +547,10 @@ function runPureEngagementAssertions() {
   assert(
     ultraRapidSparsePackage.session_decision_trace.package_timing.package_ultra_rapid_rule_matched,
     "Ultra rapid sparse rule should match."
+  );
+  assert(
+    ultraRapidSparsePackage.session_decision_trace.package_timing.reasoning_typing_very_low_rule_matched,
+    "Very low reasoning typing with repeated sparse evidence should be traceable."
   );
   assert(
     ultraRapidSparsePackage.session_decision_trace.sparse_item_count >= 2,
@@ -491,15 +589,34 @@ function runPureEngagementAssertions() {
 
   const extremeRapidSparsePackage = summarizeSessionEngagement(
     [rapid, becauseOnly, idk],
-    packageTimingForTest({ wall: 75_000, active: 12_000, sum: 11_500 })
+    packageTimingForTest({ wall: 75_000, active: 12_000 })
   );
   assert(
     extremeRapidSparsePackage.provisional_engagement_category === "disengaged",
-    "Active response duration under 15 seconds with repeated sparse evidence should classify as disengaged."
+    "Response-production duration under 15 seconds with repeated sparse evidence should classify as disengaged when focus-adjusted timing is unavailable."
   );
   assert(
     extremeRapidSparsePackage.session_decision_trace.package_timing.package_extreme_rapid_rule_matched,
     "Extreme rapid sparse rule should match."
+  );
+  assert(
+    extremeRapidSparsePackage.session_decision_trace.package_timing.timing_source_used_for_rapid_rule ===
+      "response_production",
+    "Response-production timing should be used only after focus-adjusted timing is unavailable."
+  );
+
+  const sumItemFocusSparsePackage = summarizeSessionEngagement(
+    [rapid, becauseOnly, idk],
+    packageTimingForTest({ wall: 120_000, active: 80_000, sum: 7_800 })
+  );
+  assert(
+    sumItemFocusSparsePackage.provisional_engagement_category === "disengaged",
+    "Summed item focus-adjusted duration under 8 seconds should classify repeated sparse evidence as disengaged."
+  );
+  assert(
+    sumItemFocusSparsePackage.session_decision_trace.package_timing.timing_source_used_for_rapid_rule ===
+      "sum_item_focus_adjusted",
+    "Summed item focus-adjusted timing should be preferred over response-production timing."
   );
 
   const fallbackWallClockSparsePackage = summarizeSessionEngagement(
@@ -534,7 +651,7 @@ function runPureEngagementAssertions() {
   });
   const rapidMixedPackage = summarizeSessionEngagement(
     [engaged, secondSubstantive, minimalOnly],
-    packageTimingForTest({ wall: 110_000, active: 24_000, sum: 22_000 })
+    packageTimingForTest({ wall: 110_000, active: 24_000 })
   );
   assert(
     rapidMixedPackage.provisional_engagement_category !== "disengaged",
@@ -547,7 +664,7 @@ function runPureEngagementAssertions() {
 
   const rapidWarningMixedPackage = summarizeSessionEngagement(
     [rapid, minimalOnly, secondSubstantive],
-    packageTimingForTest({ wall: 95_000, active: 24_000, sum: 23_000 })
+    packageTimingForTest({ wall: 95_000, active: 24_000 })
   );
   assert(
     rapidWarningMixedPackage.provisional_engagement_category === "moderately_engaged",
@@ -591,6 +708,20 @@ function runPureEngagementAssertions() {
       "active_package_timing_unavailable"
     ),
     "Active timing unavailable should be explicit."
+  );
+
+  const veryLowTypingWithoutRapidTiming = summarizeSessionEngagement(
+    [slowSparseIdk, slowMinimal, wrongAnswerAlone],
+    packageTimingForTest({ wall: 120_000, source: "wall_clock_fallback", typing: 5_000 })
+  );
+  assert(
+    veryLowTypingWithoutRapidTiming.provisional_engagement_category !== "disengaged",
+    "Very low reasoning typing time alone should not classify a session as disengaged."
+  );
+  assert(
+    veryLowTypingWithoutRapidTiming.session_decision_trace.package_timing
+      .reasoning_typing_very_low_rule_matched,
+    "Very low reasoning typing with repeated sparse evidence should still be traceable."
   );
 
   const unavailable = buildItemEngagementEvidence({
@@ -804,6 +935,20 @@ async function runDbPacketAssertion() {
       "Every item should include item-level decision trace."
     );
     assert(
+      parsed.item_engagement_evidence.every((item) => item.item_timing.item_public_id === item.item_public_id),
+      "Every item should include safe item timing diagnostics."
+    );
+    assert(
+      parsed.item_engagement_evidence.every((item) => item.item_timing.reasoning_typing_basis),
+      "Every item timing trace should include reasoning typing basis."
+    );
+    assert(
+      parsed.item_engagement_evidence.some(
+        (item) => item.item_timing.reasoning_typing_basis === "typing_activity_summary"
+      ),
+      "Typing summary events should be reflected in item timing basis."
+    );
+    assert(
       parsed.session_engagement_summary.session_decision_trace.matched_session_rules.length > 0,
       "Session summary should include matched session rules."
     );
@@ -822,6 +967,21 @@ async function runDbPacketAssertion() {
     parsed.session_engagement_summary.session_decision_trace.package_timing.timing_source_used_for_rapid_rule !==
         "unavailable",
       "Session summary should include the timing source used for rapid rules."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.package_timing.response_production_band !==
+        "package_timing_unavailable",
+      "Session summary should include response-production timing band."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.package_timing.reasoning_typing_band !==
+        undefined,
+      "Session summary should include package reasoning typing band."
+    );
+    assert(
+      typeof parsed.session_engagement_summary.session_decision_trace.package_timing
+        .reasoning_typing_very_low_rule_matched === "boolean",
+      "Session summary should include reasoning typing rule match status."
     );
     assert(
       parsed.session_engagement_summary.session_decision_trace.timing_reconstruction.first_item_presented_event
@@ -907,6 +1067,7 @@ async function runDbPacketAssertion() {
     const text = serialized(reviewArtifact);
     assert(!text.includes("correct_option"), "Redacted engagement artifact leaked answer-key field.");
     assert(!text.includes("reasoning_text"), "Redacted engagement artifact leaked raw reasoning field.");
+    assert(!text.includes("raw typed"), "Redacted engagement artifact leaked raw typing language.");
     assert(!text.includes("\"payload\""), "Redacted engagement artifact leaked raw process payload key.");
     assert(!text.includes("provider"), "Redacted engagement artifact should not include provider details.");
     assert(!text.includes("clipboard_text"), "Redacted engagement artifact leaked clipboard text key.");

@@ -240,12 +240,17 @@ async function main() {
         packet.session_engagement_summary.session_decision_trace.package_duration_band,
       package_wall_clock_band:
         packet.session_engagement_summary.session_decision_trace.package_timing.wall_clock_band,
-      package_active_response_band:
-        packet.session_engagement_summary.session_decision_trace.package_timing.active_response_band,
-      package_sum_item_active_band:
-        packet.session_engagement_summary.session_decision_trace.package_timing.sum_item_active_band,
-      package_focus_adjusted_band:
-        packet.session_engagement_summary.session_decision_trace.package_timing.focus_adjusted_band,
+      package_focus_adjusted_task_band:
+        packet.session_engagement_summary.session_decision_trace.package_timing
+          .focus_adjusted_task_band,
+      package_sum_item_focus_adjusted_band:
+        packet.session_engagement_summary.session_decision_trace.package_timing
+          .sum_item_focus_adjusted_band,
+      package_response_production_band:
+        packet.session_engagement_summary.session_decision_trace.package_timing
+          .response_production_band,
+      package_reasoning_typing_band:
+        packet.session_engagement_summary.session_decision_trace.package_timing.reasoning_typing_band,
       timing_source_used_for_rapid_rule:
         packet.session_engagement_summary.session_decision_trace.package_timing.timing_source_used_for_rapid_rule,
       package_ultra_rapid_rule_matched:
@@ -254,6 +259,9 @@ async function main() {
         packet.session_engagement_summary.session_decision_trace.package_timing.package_extreme_rapid_rule_matched,
       package_rapid_warning_rule_matched:
         packet.session_engagement_summary.session_decision_trace.package_timing.package_rapid_warning_rule_matched,
+      reasoning_typing_very_low_rule_matched:
+        packet.session_engagement_summary.session_decision_trace.package_timing
+          .reasoning_typing_very_low_rule_matched,
       first_student_action_event_type:
         packet.session_engagement_summary.session_decision_trace.timing_reconstruction
           .first_student_action_event.event_type,
@@ -263,12 +271,18 @@ async function main() {
       wall_clock_duration_ms:
         packet.session_engagement_summary.session_decision_trace.timing_reconstruction
           .wall_clock_duration_ms,
-      active_response_duration_ms:
+      response_production_duration_ms:
         packet.session_engagement_summary.session_decision_trace.timing_reconstruction
-          .active_response_duration_ms,
-      sum_item_active_duration_ms:
+          .response_production_duration_ms,
+      sum_item_focus_adjusted_duration_ms:
         packet.session_engagement_summary.session_decision_trace.timing_reconstruction
-          .sum_item_active_duration_ms,
+          .sum_item_focus_adjusted_duration_ms,
+      focus_adjusted_task_duration_ms:
+        packet.session_engagement_summary.session_decision_trace.timing_reconstruction
+          .focus_adjusted_task_duration_ms,
+      package_reasoning_typing_duration_ms:
+        packet.session_engagement_summary.session_decision_trace.timing_reconstruction
+          .package_reasoning_typing_duration_ms,
       timing_limitations:
         packet.session_engagement_summary.session_decision_trace.timing_reconstruction
           .timing_limitations,

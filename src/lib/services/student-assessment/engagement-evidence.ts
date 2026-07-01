@@ -15,6 +15,9 @@ export const ENGAGEMENT_RULE_CONFIG_V1 = {
   initial_package_ultra_rapid_ms: 8_000,
   initial_package_extreme_rapid_ms: 15_000,
   initial_package_rapid_warning_ms: 30_000,
+  package_reasoning_typing_very_low_ms: 8_000,
+  package_reasoning_typing_low_ms: 15_000,
+  item_reasoning_typing_rapid_ms: 3_000,
   minimal_reasoning_character_threshold: 20,
   minimal_reasoning_token_threshold: 4,
   substantive_reasoning_character_threshold: 90,
@@ -54,11 +57,23 @@ const PackageTimingBandSchema = z.enum([
   "package_timing_unavailable"
 ]);
 const PackageTimingSourceSchema = z.enum([
-  "active_response",
-  "sum_item_active",
-  "focus_adjusted",
+  "focus_adjusted_task",
+  "sum_item_focus_adjusted",
+  "response_production",
   "wall_clock_fallback",
   "unavailable"
+]);
+const ReasoningTypingBandSchema = z.enum([
+  "reasoning_typing_very_low",
+  "reasoning_typing_low",
+  "reasoning_typing_typical_or_high",
+  "reasoning_typing_unavailable"
+]);
+const ReasoningTypingBasisSchema = z.enum([
+  "typing_activity_summary",
+  "unavailable",
+  "pasted_response_context",
+  "not_applicable"
 ]);
 const SubstantiveReasoningBasisSchema = z.enum([
   "length_and_task_relevance",
@@ -87,6 +102,15 @@ const ItemTimingReconstructionSchema = z.object({
   active_duration_ms: z.number().int().nonnegative().nullable(),
   timing_limitations: z.array(z.string())
 }).strict();
+const ItemEngagementTimingSchema = z.object({
+  item_public_id: z.string(),
+  wall_clock_band: PackageTimingBandSchema,
+  focus_adjusted_task_band: PackageTimingBandSchema,
+  response_production_band: PackageTimingBandSchema,
+  reasoning_typing_band: ReasoningTypingBandSchema,
+  reasoning_typing_basis: ReasoningTypingBasisSchema,
+  timing_limitations: z.array(z.string())
+}).strict();
 const TimingReconstructionSchema = z.object({
   first_item_presented_event: TimingReconstructionEventSchema,
   first_student_action_event: TimingReconstructionEventSchema,
@@ -95,10 +119,18 @@ const TimingReconstructionSchema = z.object({
   active_response_duration_ms: z.number().int().nonnegative().nullable(),
   sum_item_active_duration_ms: z.number().int().nonnegative().nullable(),
   focus_adjusted_duration_ms: z.number().int().nonnegative().nullable(),
+  focus_adjusted_task_duration_ms: z.number().int().nonnegative().nullable(),
+  sum_item_focus_adjusted_duration_ms: z.number().int().nonnegative().nullable(),
+  response_production_duration_ms: z.number().int().nonnegative().nullable(),
+  package_reasoning_typing_duration_ms: z.number().int().nonnegative().nullable(),
   wall_clock_band: PackageTimingBandSchema,
   active_response_band: PackageTimingBandSchema,
   sum_item_active_band: PackageTimingBandSchema,
   focus_adjusted_band: PackageTimingBandSchema,
+  focus_adjusted_task_band: PackageTimingBandSchema,
+  sum_item_focus_adjusted_band: PackageTimingBandSchema,
+  response_production_band: PackageTimingBandSchema,
+  reasoning_typing_band: ReasoningTypingBandSchema,
   timing_source_used_for_rapid_rule: PackageTimingSourceSchema,
   timing_limitations: z.array(z.string()),
   item_active_timing_reconstruction: z.array(ItemTimingReconstructionSchema)
@@ -144,13 +176,21 @@ const SessionEngagementDecisionTraceSchema = z.object({
     active_response_band: PackageTimingBandSchema,
     sum_item_active_band: PackageTimingBandSchema,
     focus_adjusted_band: PackageTimingBandSchema,
+    focus_adjusted_task_band: PackageTimingBandSchema,
+    sum_item_focus_adjusted_band: PackageTimingBandSchema,
+    response_production_band: PackageTimingBandSchema,
+    reasoning_typing_band: ReasoningTypingBandSchema,
     timing_source_used_for_rapid_rule: PackageTimingSourceSchema,
     ultra_rapid_threshold_ms: z.number(),
     extreme_rapid_threshold_ms: z.number(),
     rapid_warning_threshold_ms: z.number(),
+    reasoning_typing_very_low_threshold_ms: z.number(),
+    reasoning_typing_low_threshold_ms: z.number(),
+    item_reasoning_typing_rapid_threshold_ms: z.number(),
     package_ultra_rapid_rule_matched: z.boolean(),
     package_extreme_rapid_rule_matched: z.boolean(),
     package_rapid_warning_rule_matched: z.boolean(),
+    reasoning_typing_very_low_rule_matched: z.boolean(),
     timing_limitations: z.array(z.string())
   }).strict(),
   timing_reconstruction: TimingReconstructionSchema,
@@ -195,6 +235,7 @@ const ItemEngagementEvidenceSchema = z.object({
   rapid_response_pattern: z.boolean(),
   repeated_invalid_response_count: z.number().int().nonnegative(),
   substantive_reasoning_basis: SubstantiveReasoningBasisSchema,
+  item_timing: ItemEngagementTimingSchema,
   engagement_signal: EngagementCategorySchema,
   ai_assistance_signal: AiAssistanceSignalSchema,
   possible_interpretation: z.string(),
@@ -242,6 +283,9 @@ export const EngagementEvidencePacketV1Schema = z.object({
     initial_package_ultra_rapid_ms: z.number(),
     initial_package_extreme_rapid_ms: z.number(),
     initial_package_rapid_warning_ms: z.number(),
+    package_reasoning_typing_very_low_ms: z.number(),
+    package_reasoning_typing_low_ms: z.number(),
+    item_reasoning_typing_rapid_ms: z.number(),
     minimal_reasoning_character_threshold: z.number(),
     minimal_reasoning_token_threshold: z.number(),
     substantive_reasoning_character_threshold: z.number(),
@@ -277,6 +321,7 @@ type WhyNotCategory = z.infer<typeof WhyNotCategorySchema>;
 type TimingEventSource = z.infer<typeof TimingEventSourceSchema>;
 type TimingReconstructionEvent = z.infer<typeof TimingReconstructionEventSchema>;
 type ItemTimingReconstruction = z.infer<typeof ItemTimingReconstructionSchema>;
+type ItemEngagementTiming = z.infer<typeof ItemEngagementTimingSchema>;
 type TimingReconstruction = z.infer<typeof TimingReconstructionSchema>;
 
 type ProcessEventSummary = {
@@ -293,6 +338,10 @@ type PackageTimingInput = {
   active_response_duration_ms: number | null;
   sum_item_active_duration_ms: number | null;
   focus_adjusted_duration_ms: number | null;
+  focus_adjusted_task_duration_ms: number | null;
+  sum_item_focus_adjusted_duration_ms: number | null;
+  response_production_duration_ms: number | null;
+  package_reasoning_typing_duration_ms: number | null;
   timing_source_used_for_rapid_rule: z.infer<typeof PackageTimingSourceSchema>;
   rapid_rule_duration_ms: number | null;
   rapid_rule_timing_approximate: boolean;
@@ -300,6 +349,7 @@ type PackageTimingInput = {
   data_quality_events_observed: boolean;
   timing_limitations: string[];
   timing_reconstruction: TimingReconstruction;
+  item_timing_by_public_id: Record<string, ItemEngagementTiming>;
 };
 
 type BuildItemEngagementEvidenceInput = {
@@ -307,6 +357,7 @@ type BuildItemEngagementEvidenceInput = {
   response_present: boolean;
   reasoning_text?: string | null;
   item_response_time_ms?: number | null;
+  item_timing?: ItemEngagementTiming | null;
   revision_count?: number | null;
   selected_option?: string | null;
   event_counts: Record<string, number>;
@@ -374,6 +425,28 @@ function packageDurationBand(milliseconds?: number | null) {
     return "package_rapid_warning" as const;
   }
   return "package_typical_or_long" as const;
+}
+
+function packageReasoningTypingBand(milliseconds?: number | null) {
+  if (!milliseconds || milliseconds <= 0) return "reasoning_typing_unavailable" as const;
+  if (milliseconds <= ENGAGEMENT_RULE_CONFIG_V1.package_reasoning_typing_very_low_ms) {
+    return "reasoning_typing_very_low" as const;
+  }
+  if (milliseconds <= ENGAGEMENT_RULE_CONFIG_V1.package_reasoning_typing_low_ms) {
+    return "reasoning_typing_low" as const;
+  }
+  return "reasoning_typing_typical_or_high" as const;
+}
+
+function itemReasoningTypingBand(milliseconds?: number | null) {
+  if (!milliseconds || milliseconds <= 0) return "reasoning_typing_unavailable" as const;
+  if (milliseconds <= ENGAGEMENT_RULE_CONFIG_V1.item_reasoning_typing_rapid_ms) {
+    return "reasoning_typing_very_low" as const;
+  }
+  if (milliseconds <= ENGAGEMENT_RULE_CONFIG_V1.package_reasoning_typing_low_ms) {
+    return "reasoning_typing_low" as const;
+  }
+  return "reasoning_typing_typical_or_high" as const;
 }
 
 function countByType(events: Array<{ event_type: string }>) {
@@ -693,6 +766,26 @@ export function buildItemEngagementEvidence(
   input: BuildItemEngagementEvidenceInput
 ): ItemEngagementEvidenceV1 {
   const eventCounts = input.event_counts;
+  const itemTiming: ItemEngagementTiming =
+    input.item_timing ??
+    {
+      item_public_id: input.item_public_id,
+      wall_clock_band: packageDurationBand(input.item_response_time_ms),
+      focus_adjusted_task_band: "package_timing_unavailable",
+      response_production_band: packageDurationBand(input.item_response_time_ms),
+      reasoning_typing_band:
+        countKeys(eventCounts, ["typing_activity_summary"]) > 0
+          ? "reasoning_typing_typical_or_high"
+          : "reasoning_typing_unavailable",
+      reasoning_typing_basis:
+        countKeys(eventCounts, ["typing_activity_summary"]) > 0
+          ? "typing_activity_summary"
+          : "unavailable",
+      timing_limitations:
+        countKeys(eventCounts, ["typing_activity_summary"]) > 0
+          ? ["item_focus_adjusted_timing_unavailable"]
+          : ["item_focus_adjusted_timing_unavailable", "reasoning_typing_timing_unavailable"]
+    };
   const reasoning = normalizeReasoningForSignal(input.reasoning_text);
   const reasoningLengthBand = lengthBand(reasoning.length);
   const responseTimeBand = timeBand(input.item_response_time_ms);
@@ -752,6 +845,8 @@ export function buildItemEngagementEvidence(
     responseQualityLowInformation ||
     reasoningCharacterCount < ENGAGEMENT_RULE_CONFIG_V1.minimal_reasoning_character_threshold ||
     reasoningTokenCount < ENGAGEMENT_RULE_CONFIG_V1.minimal_reasoning_token_threshold;
+  const veryLowReasoningTypingMinimalPattern =
+    itemTiming.reasoning_typing_band === "reasoning_typing_very_low" && minimalReasoningPattern;
   const substantiveReasoningBasis: z.infer<typeof SubstantiveReasoningBasisSchema> =
     !input.response_present || reasoningCharacterCount === 0
       ? "unavailable"
@@ -780,6 +875,7 @@ export function buildItemEngagementEvidence(
       ENGAGEMENT_RULE_CONFIG_V1.repeated_invalid_response_threshold;
   const weakEngagementSignalCount = [
     rapidMinimalReasoningPattern,
+    veryLowReasoningTypingMinimalPattern,
     repeatedInvalidPattern,
     repairPromptCount >= 2,
     !input.process_instrumentation_available && sparseReasoning
@@ -892,6 +988,28 @@ export function buildItemEngagementEvidence(
       confidence: "low"
     }),
     ruleTrace({
+      rule_id: "very_low_item_reasoning_typing_sparse",
+      rule_label: "Very low reasoning typing time with sparse reasoning",
+      matched: veryLowReasoningTypingMinimalPattern,
+      signal_types: ["reasoning_typing_duration", "reasoning_length_band"],
+      thresholds_used: [
+        {
+          threshold_name: "item_reasoning_typing_rapid_ms",
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.item_reasoning_typing_rapid_ms,
+          observed_value: itemTiming.reasoning_typing_band,
+          observed_band: itemTiming.reasoning_typing_band
+        },
+        {
+          threshold_name: "minimal_reasoning_character_threshold",
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.minimal_reasoning_character_threshold,
+          observed_value: reasoningCharacterCount,
+          observed_band: reasoningLengthBand
+        }
+      ],
+      contribution: "supports_disengagement",
+      confidence: "low"
+    }),
+    ruleTrace({
       rule_id: "repeated_invalid_or_unusable_response",
       rule_label: "Repeated unusable response pattern",
       matched: repeatedInvalidPattern,
@@ -983,6 +1101,7 @@ export function buildItemEngagementEvidence(
     rapid_response_pattern: rapidResponsePattern,
     repeated_invalid_response_count: repeatedInvalidResponseCount,
     substantive_reasoning_basis: substantiveReasoningBasis,
+    item_timing: itemTiming,
     engagement_signal: engagementSignal,
     ai_assistance_signal: aiAssistanceSignal,
     possible_interpretation: possibleInterpretation,
@@ -1044,6 +1163,10 @@ function defaultPackageTimingInput(items: ItemEngagementEvidenceV1[]): PackageTi
     active_response_duration_ms: null,
     sum_item_active_duration_ms: null,
     focus_adjusted_duration_ms: null,
+    focus_adjusted_task_duration_ms: null,
+    sum_item_focus_adjusted_duration_ms: null,
+    response_production_duration_ms: null,
+    package_reasoning_typing_duration_ms: null,
     timing_source_used_for_rapid_rule: "unavailable",
     rapid_rule_duration_ms: null,
     rapid_rule_timing_approximate: true,
@@ -1060,6 +1183,20 @@ function defaultPackageTimingInput(items: ItemEngagementEvidenceV1[]): PackageTi
         item.repeated_invalid_response_count > 0
     ),
     timing_limitations: timingLimitations,
+    item_timing_by_public_id: Object.fromEntries(
+      items.map((item) => [
+        item.item_public_id,
+        {
+          item_public_id: item.item_public_id,
+          wall_clock_band: "package_timing_unavailable",
+          focus_adjusted_task_band: "package_timing_unavailable",
+          response_production_band: "package_timing_unavailable",
+          reasoning_typing_band: "reasoning_typing_unavailable",
+          reasoning_typing_basis: "unavailable",
+          timing_limitations: ["item_active_timing_unavailable", "reasoning_typing_timing_unavailable"]
+        } satisfies ItemEngagementTiming
+      ])
+    ),
     timing_reconstruction: {
       first_item_presented_event: safeTimingEvent(null),
       first_student_action_event: safeTimingEvent(null),
@@ -1068,10 +1205,18 @@ function defaultPackageTimingInput(items: ItemEngagementEvidenceV1[]): PackageTi
       active_response_duration_ms: null,
       sum_item_active_duration_ms: null,
       focus_adjusted_duration_ms: null,
+      focus_adjusted_task_duration_ms: null,
+      sum_item_focus_adjusted_duration_ms: null,
+      response_production_duration_ms: null,
+      package_reasoning_typing_duration_ms: null,
       wall_clock_band: "package_timing_unavailable",
       active_response_band: "package_timing_unavailable",
       sum_item_active_band: "package_timing_unavailable",
       focus_adjusted_band: "package_timing_unavailable",
+      focus_adjusted_task_band: "package_timing_unavailable",
+      sum_item_focus_adjusted_band: "package_timing_unavailable",
+      response_production_band: "package_timing_unavailable",
+      reasoning_typing_band: "reasoning_typing_unavailable",
       timing_source_used_for_rapid_rule: "unavailable",
       timing_limitations: timingLimitations,
       item_active_timing_reconstruction: items.map((item) => unknownItemTiming(item.item_public_id))
@@ -1102,6 +1247,10 @@ export function summarizeSessionEngagement(
   const activeResponseBand = packageDurationBand(packageTiming.active_response_duration_ms);
   const sumItemActiveBand = packageDurationBand(packageTiming.sum_item_active_duration_ms);
   const focusAdjustedBand = packageDurationBand(packageTiming.focus_adjusted_duration_ms);
+  const focusAdjustedTaskBand = packageDurationBand(packageTiming.focus_adjusted_task_duration_ms);
+  const sumItemFocusAdjustedBand = packageDurationBand(packageTiming.sum_item_focus_adjusted_duration_ms);
+  const responseProductionBand = packageDurationBand(packageTiming.response_production_duration_ms);
+  const reasoningTypingBand = packageReasoningTypingBand(packageTiming.package_reasoning_typing_duration_ms);
   const packageBand = packageDurationBand(packageTiming.rapid_rule_duration_ms);
   const rapidRuleDuration = packageTiming.rapid_rule_duration_ms;
   const hasInitialPackage = items.length >= 3;
@@ -1110,9 +1259,17 @@ export function summarizeSessionEngagement(
   const hasStrongSubstantiveCounterevidence = substantiveItemCount >= 2;
   const hasWeakOrNoSubstantiveCounterevidence = substantiveItemCount <= 1;
   const reliableActiveTiming =
-    ["active_response", "sum_item_active", "focus_adjusted"].includes(
+    ["focus_adjusted_task", "sum_item_focus_adjusted", "response_production"].includes(
       packageTiming.timing_source_used_for_rapid_rule
     ) && !packageTiming.rapid_rule_timing_approximate;
+  const rapidReasoningTypingItemCount = items.filter(
+    (item) => item.item_timing.reasoning_typing_band === "reasoning_typing_very_low"
+  ).length;
+  const veryLowReasoningTypingRuleMatched =
+    hasInitialPackage &&
+    hasRepeatedSparseEvidence &&
+    (reasoningTypingBand === "reasoning_typing_very_low" ||
+      rapidReasoningTypingItemCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count);
   const packageUltraRapidRuleMatched =
     hasInitialPackage &&
     hasRepeatedSparseEvidence &&
@@ -1135,7 +1292,9 @@ export function summarizeSessionEngagement(
     packageRapidWarningRuleMatched &&
     !packageExtremeRapidRuleMatched &&
     hasRepeatedSparseEvidence &&
-    (substantiveItemCount === 0 || disengagedCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count);
+    (substantiveItemCount === 0 ||
+      disengagedCount >= ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count ||
+      veryLowReasoningTypingRuleMatched);
   const category: EngagementCategory = items.length === 0
     ? "insufficient_evidence"
     : insufficientProcessCount === items.length
@@ -1187,6 +1346,10 @@ export function summarizeSessionEngagement(
       }
       if (rule.rule_id === "minimal_reasoning_only") {
         counts.minimal_reasoning_pattern = (counts.minimal_reasoning_pattern ?? 0) + 1;
+      }
+      if (rule.rule_id === "very_low_item_reasoning_typing_sparse") {
+        counts.very_low_reasoning_typing_sparse =
+          (counts.very_low_reasoning_typing_sparse ?? 0) + 1;
       }
       if (rule.rule_id === "repeated_invalid_or_unusable_response") {
         counts.repeated_invalid_response = (counts.repeated_invalid_response ?? 0) + 1;
@@ -1320,6 +1483,37 @@ export function summarizeSessionEngagement(
         ? "supports_disengagement"
         : "supports_moderate_engagement",
       confidence: "medium"
+    }),
+    ruleTrace({
+      rule_id: "very_low_reasoning_typing_sparse",
+      rule_label: "Very low reasoning typing time with repeated sparse evidence",
+      matched: veryLowReasoningTypingRuleMatched,
+      signal_types: [
+        "package_reasoning_typing_duration",
+        "item_reasoning_typing_duration",
+        "sparse_or_low_information_item_count"
+      ],
+      thresholds_used: [
+        {
+          threshold_name: "package_reasoning_typing_very_low_ms",
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.package_reasoning_typing_very_low_ms,
+          observed_value: packageTiming.package_reasoning_typing_duration_ms ?? "missing",
+          observed_band: reasoningTypingBand
+        },
+        {
+          threshold_name: "item_reasoning_typing_rapid_ms",
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.item_reasoning_typing_rapid_ms,
+          observed_value: rapidReasoningTypingItemCount,
+          observed_band: "rapid_item_reasoning_typing_count"
+        },
+        {
+          threshold_name: "sparse_item_count",
+          threshold_value: ENGAGEMENT_RULE_CONFIG_V1.disengaged_min_item_count,
+          observed_value: sparseItemCount
+        }
+      ],
+      contribution: "supports_disengagement",
+      confidence: "low"
     }),
     ruleTrace({
       rule_id: "multiple_items_rapid_sparse",
@@ -1525,13 +1719,22 @@ export function summarizeSessionEngagement(
         active_response_band: activeResponseBand,
         sum_item_active_band: sumItemActiveBand,
         focus_adjusted_band: focusAdjustedBand,
+        focus_adjusted_task_band: focusAdjustedTaskBand,
+        sum_item_focus_adjusted_band: sumItemFocusAdjustedBand,
+        response_production_band: responseProductionBand,
+        reasoning_typing_band: reasoningTypingBand,
         timing_source_used_for_rapid_rule: packageTiming.timing_source_used_for_rapid_rule,
         ultra_rapid_threshold_ms: ENGAGEMENT_RULE_CONFIG_V1.initial_package_ultra_rapid_ms,
         extreme_rapid_threshold_ms: ENGAGEMENT_RULE_CONFIG_V1.initial_package_extreme_rapid_ms,
         rapid_warning_threshold_ms: ENGAGEMENT_RULE_CONFIG_V1.initial_package_rapid_warning_ms,
+        reasoning_typing_very_low_threshold_ms:
+          ENGAGEMENT_RULE_CONFIG_V1.package_reasoning_typing_very_low_ms,
+        reasoning_typing_low_threshold_ms: ENGAGEMENT_RULE_CONFIG_V1.package_reasoning_typing_low_ms,
+        item_reasoning_typing_rapid_threshold_ms: ENGAGEMENT_RULE_CONFIG_V1.item_reasoning_typing_rapid_ms,
         package_ultra_rapid_rule_matched: packageUltraRapidRuleMatched,
         package_extreme_rapid_rule_matched: packageExtremeRapidRuleMatched,
         package_rapid_warning_rule_matched: packageRapidWarningRuleMatched,
+        reasoning_typing_very_low_rule_matched: veryLowReasoningTypingRuleMatched,
         timing_limitations: packageTiming.timing_limitations
       },
       timing_reconstruction: packageTiming.timing_reconstruction,
@@ -1682,49 +1885,63 @@ const FOCUS_OR_IDLE_INTERVAL_EVENTS = new Set([
   "inactivity_detected"
 ]);
 
-function eventDurationMs(event: ProcessEventSummary) {
+function inactiveIntervalDurationMs(event: ProcessEventSummary) {
   const payload = record(event.payload);
   const duration =
-    event.visibility_duration_ms ??
-    event.pause_duration_ms ??
-    numberValue(payload.duration_ms) ??
-    numberValue(payload.focus_duration_ms) ??
-    numberValue(payload.hidden_duration_ms) ??
-    numberValue(payload.pause_duration_ms);
+    event.event_type === "long_pause" || event.event_type === "inactivity_detected"
+      ? event.pause_duration_ms ??
+        numberValue(payload.pause_duration_ms) ??
+        numberValue(payload.duration_ms)
+      : event.event_type === "page_visibility_hidden" || event.event_type === "page_hidden"
+        ? numberValue(payload.hidden_duration_ms)
+        : event.event_type === "window_blur"
+          ? numberValue(payload.blur_duration_ms)
+          : null;
 
   return duration !== null && duration > 0 && Number.isFinite(duration) ? duration : null;
 }
 
+function typingDurationMs(event: ProcessEventSummary) {
+  if (event.event_type !== "typing_activity_summary") return null;
+  const duration = numberValue(record(event.payload).duration_ms);
+  return duration !== null && duration > 0 && Number.isFinite(duration) ? duration : null;
+}
+
+function sumDurations(durations: Array<number | null>) {
+  const available = durations.filter((duration): duration is number => duration !== null);
+  return available.length > 0 ? available.reduce((total, duration) => total + duration, 0) : null;
+}
+
 function chooseRapidRuleTiming(input: {
-  activeResponseDuration: number | null;
-  sumItemActiveDuration: number | null;
-  focusAdjustedDuration: number | null;
+  focusAdjustedTaskDuration: number | null;
+  sumItemFocusAdjustedDuration: number | null;
+  responseProductionDuration: number | null;
   wallClockDuration: number | null;
 }): Pick<
   PackageTimingInput,
   "timing_source_used_for_rapid_rule" | "rapid_rule_duration_ms" | "rapid_rule_timing_approximate"
 > {
-  if (input.activeResponseDuration !== null) {
+  if (input.focusAdjustedTaskDuration !== null) {
     return {
-      timing_source_used_for_rapid_rule: "active_response",
-      rapid_rule_duration_ms: input.activeResponseDuration,
+      timing_source_used_for_rapid_rule: "focus_adjusted_task",
+      rapid_rule_duration_ms: input.focusAdjustedTaskDuration,
       rapid_rule_timing_approximate: false
     };
   }
 
-  if (input.sumItemActiveDuration !== null) {
+  if (input.sumItemFocusAdjustedDuration !== null) {
     return {
-      timing_source_used_for_rapid_rule: "sum_item_active",
-      rapid_rule_duration_ms: input.sumItemActiveDuration,
+      timing_source_used_for_rapid_rule: "sum_item_focus_adjusted",
+      rapid_rule_duration_ms: input.sumItemFocusAdjustedDuration,
       rapid_rule_timing_approximate: false
     };
   }
 
-  if (input.focusAdjustedDuration !== null) {
+  if (input.responseProductionDuration !== null) {
     return {
-      timing_source_used_for_rapid_rule: "focus_adjusted",
-      rapid_rule_duration_ms: input.focusAdjustedDuration,
-      rapid_rule_timing_approximate: true
+      timing_source_used_for_rapid_rule: "response_production",
+      rapid_rule_duration_ms: input.responseProductionDuration,
+      rapid_rule_timing_approximate: false
     };
   }
 
@@ -1797,12 +2014,24 @@ function derivePackageTiming(input: {
   ]);
   const firstStudentActionAt = firstStudentActionCandidate?.occurred_at ?? null;
   const wallClockDuration = millisecondsBetween(firstItemPresentedAt, packageSubmittedAt);
-  const activeResponseDuration = millisecondsBetween(firstStudentActionAt, packageSubmittedAt);
-  const itemActiveReconstructions = input.responses.map((response) => {
+  const responseProductionDuration = millisecondsBetween(firstStudentActionAt, packageSubmittedAt);
+  const itemTimingEntries = input.responses.map((response) => {
       const itemEvents = input.events.filter((event) => event.item_db_id === response.item_db_id);
       const itemConversationTurns = input.conversationTurns.filter(
         (turn) => turn.item_db_id === response.item_db_id && turn.actor_type === "student"
       );
+      const itemPresentedCandidate = earliestTimingCandidate([
+        ...itemEvents
+          .filter((event) => event.event_type === "item_presented")
+          .map(processTimingCandidate),
+        response.item_started_at
+          ? {
+              event_type: "item_started_at",
+              occurred_at: response.item_started_at,
+              source: "item_responses" as const
+            }
+          : null
+      ]);
       const firstItemStudentActionCandidate = earliestTimingCandidate([
         ...itemEvents
           .filter((event) => STUDENT_RESPONSE_ACTION_EVENTS.has(event.event_type))
@@ -1830,38 +2059,81 @@ function derivePackageTiming(input: {
             }
           : null
       ]);
-      const activeDuration = millisecondsBetween(
+      const responseProductionItemDuration = millisecondsBetween(
         firstItemStudentActionCandidate?.occurred_at ?? null,
         itemCompletedCandidate?.occurred_at ?? null
       );
+      const itemWallClockDuration = millisecondsBetween(
+        itemPresentedCandidate?.occurred_at ?? null,
+        itemCompletedCandidate?.occurred_at ?? null
+      );
+      const itemInactiveDuration = itemEvents
+        .filter((event) => {
+          if (!FOCUS_OR_IDLE_INTERVAL_EVENTS.has(event.event_type)) return false;
+          if (itemPresentedCandidate?.occurred_at && event.occurred_at < itemPresentedCandidate.occurred_at) {
+            return false;
+          }
+          if (itemCompletedCandidate?.occurred_at && event.occurred_at > itemCompletedCandidate.occurred_at) {
+            return false;
+          }
+          return true;
+        })
+        .map(inactiveIntervalDurationMs)
+        .filter((duration): duration is number => duration !== null)
+        .reduce((total, duration) => total + duration, 0);
+      const itemFocusAdjustedDuration =
+        itemWallClockDuration !== null && itemInactiveDuration > 0
+          ? Math.max(1, itemWallClockDuration - itemInactiveDuration)
+          : null;
+      const itemReasoningTypingDuration = sumDurations(itemEvents.map(typingDurationMs));
+      const pasteObserved = itemEvents.some((event) => event.event_type === "paste_detected");
+      const reasoningTypingBasis: z.infer<typeof ReasoningTypingBasisSchema> =
+        itemReasoningTypingDuration !== null
+          ? "typing_activity_summary"
+          : pasteObserved
+            ? "pasted_response_context"
+            : "unavailable";
       const timingLimitations = [
+        !itemPresentedCandidate && "item_presented_timing_unavailable",
         !firstItemStudentActionCandidate && "item_first_student_action_unavailable",
         !itemCompletedCandidate && "item_completion_timing_unavailable",
+        itemFocusAdjustedDuration === null && "item_focus_adjusted_timing_unavailable",
+        itemReasoningTypingDuration === null && "item_reasoning_typing_timing_unavailable",
         firstItemStudentActionCandidate?.source === "item_responses" && "item_response_created_at_used_as_action_fallback",
         itemCompletedCandidate?.source === "item_responses" && "item_submitted_at_used_as_completion_fallback"
       ].filter((value): value is string => Boolean(value));
 
       return {
         item_public_id: response.item_public_id,
-        duration: activeDuration,
+        response_production_duration: responseProductionItemDuration,
+        focus_adjusted_duration: itemFocusAdjustedDuration,
+        reasoning_typing_duration: itemReasoningTypingDuration,
+        item_timing: {
+          item_public_id: response.item_public_id,
+          wall_clock_band: packageDurationBand(itemWallClockDuration),
+          focus_adjusted_task_band: packageDurationBand(itemFocusAdjustedDuration),
+          response_production_band: packageDurationBand(responseProductionItemDuration),
+          reasoning_typing_band: itemReasoningTypingBand(itemReasoningTypingDuration),
+          reasoning_typing_basis: reasoningTypingBasis,
+          timing_limitations: timingLimitations
+        } satisfies ItemEngagementTiming,
         reconstruction: {
           item_public_id: response.item_public_id,
           first_student_action_event_type:
             firstItemStudentActionCandidate?.event_type ?? "unknown",
           item_completed_event_type: itemCompletedCandidate?.event_type ?? "unknown",
-          active_duration_band: timeBand(activeDuration),
-          active_duration_ms: activeDuration,
+          active_duration_band: timeBand(responseProductionItemDuration),
+          active_duration_ms: responseProductionItemDuration,
           timing_limitations: timingLimitations
         } satisfies ItemTimingReconstruction
       };
     });
-  const itemActiveDurations = itemActiveReconstructions
-    .map((entry) => entry.duration)
-    .filter((duration): duration is number => duration !== null);
-  const sumItemActiveDuration =
-    itemActiveDurations.length > 0
-      ? itemActiveDurations.reduce((total, duration) => total + duration, 0)
-      : null;
+  const sumItemResponseProductionDuration = sumDurations(
+    itemTimingEntries.map((entry) => entry.response_production_duration)
+  );
+  const sumItemFocusAdjustedDuration = sumDurations(
+    itemTimingEntries.map((entry) => entry.focus_adjusted_duration)
+  );
   const idleOrHiddenDuration = input.events
     .filter((event) => {
       if (!FOCUS_OR_IDLE_INTERVAL_EVENTS.has(event.event_type)) return false;
@@ -1869,29 +2141,52 @@ function derivePackageTiming(input: {
       if (event.occurred_at > packageSubmittedAt) return false;
       return true;
     })
-    .map(eventDurationMs)
+    .map(inactiveIntervalDurationMs)
     .filter((duration): duration is number => duration !== null)
     .reduce((total, duration) => total + duration, 0);
-  const focusAdjustedDuration =
+  const focusAdjustedTaskDuration =
     wallClockDuration !== null && idleOrHiddenDuration > 0
       ? Math.max(1, wallClockDuration - idleOrHiddenDuration)
       : null;
+  const packageReasoningTypingDuration = sumDurations(
+    input.events
+      .filter((event) => {
+        if (event.event_type !== "typing_activity_summary") return false;
+        if (firstItemPresentedAt && event.occurred_at < firstItemPresentedAt) return false;
+        if (event.occurred_at > packageSubmittedAt) return false;
+        return true;
+      })
+      .map(typingDurationMs)
+  );
   const rapidRuleTiming = chooseRapidRuleTiming({
-    activeResponseDuration,
-    sumItemActiveDuration,
-    focusAdjustedDuration,
+    focusAdjustedTaskDuration,
+    sumItemFocusAdjustedDuration,
+    responseProductionDuration,
     wallClockDuration
   });
   const timingLimitations = new Set<string>();
 
-  if (activeResponseDuration === null) {
+  if (
+    focusAdjustedTaskDuration === null &&
+    sumItemFocusAdjustedDuration === null &&
+    responseProductionDuration === null
+  ) {
     timingLimitations.add("active_package_timing_unavailable");
   }
   if (rapidRuleTiming.timing_source_used_for_rapid_rule === "wall_clock_fallback") {
     timingLimitations.add("wall_clock_timing_used_for_rapid_rule_fallback");
   }
-  if (focusAdjustedDuration === null) {
-    timingLimitations.add("focus_adjusted_package_timing_unavailable");
+  if (focusAdjustedTaskDuration === null) {
+    timingLimitations.add("focus_adjusted_task_timing_unavailable");
+  }
+  if (sumItemFocusAdjustedDuration === null) {
+    timingLimitations.add("sum_item_focus_adjusted_timing_unavailable");
+  }
+  if (responseProductionDuration === null) {
+    timingLimitations.add("response_production_timing_unavailable");
+  }
+  if (packageReasoningTypingDuration === null) {
+    timingLimitations.add("reasoning_typing_timing_unavailable");
   }
   if (rapidRuleTiming.timing_source_used_for_rapid_rule === "unavailable") {
     timingLimitations.add("package_timing_unavailable");
@@ -1908,28 +2203,43 @@ function derivePackageTiming(input: {
 
   return {
     wall_clock_duration_ms: wallClockDuration,
-    active_response_duration_ms: activeResponseDuration,
-    sum_item_active_duration_ms: sumItemActiveDuration,
-    focus_adjusted_duration_ms: focusAdjustedDuration,
+    active_response_duration_ms: responseProductionDuration,
+    sum_item_active_duration_ms: sumItemResponseProductionDuration,
+    focus_adjusted_duration_ms: focusAdjustedTaskDuration,
+    focus_adjusted_task_duration_ms: focusAdjustedTaskDuration,
+    sum_item_focus_adjusted_duration_ms: sumItemFocusAdjustedDuration,
+    response_production_duration_ms: responseProductionDuration,
+    package_reasoning_typing_duration_ms: packageReasoningTypingDuration,
     ...rapidRuleTiming,
     baseline_completion_observed: input.baselineCompletionObserved,
     data_quality_events_observed: input.dataQualityEventsObserved,
     timing_limitations: [...timingLimitations],
+    item_timing_by_public_id: Object.fromEntries(
+      itemTimingEntries.map((entry) => [entry.item_public_id, entry.item_timing])
+    ),
     timing_reconstruction: {
       first_item_presented_event: safeTimingEvent(firstItemPresentedCandidate),
       first_student_action_event: safeTimingEvent(firstStudentActionCandidate),
       package_submitted_event: safeTimingEvent(packageSubmittedCandidate, "package_submitted"),
       wall_clock_duration_ms: wallClockDuration,
-      active_response_duration_ms: activeResponseDuration,
-      sum_item_active_duration_ms: sumItemActiveDuration,
-      focus_adjusted_duration_ms: focusAdjustedDuration,
+      active_response_duration_ms: responseProductionDuration,
+      sum_item_active_duration_ms: sumItemResponseProductionDuration,
+      focus_adjusted_duration_ms: focusAdjustedTaskDuration,
+      focus_adjusted_task_duration_ms: focusAdjustedTaskDuration,
+      sum_item_focus_adjusted_duration_ms: sumItemFocusAdjustedDuration,
+      response_production_duration_ms: responseProductionDuration,
+      package_reasoning_typing_duration_ms: packageReasoningTypingDuration,
       wall_clock_band: packageDurationBand(wallClockDuration),
-      active_response_band: packageDurationBand(activeResponseDuration),
-      sum_item_active_band: packageDurationBand(sumItemActiveDuration),
-      focus_adjusted_band: packageDurationBand(focusAdjustedDuration),
+      active_response_band: packageDurationBand(responseProductionDuration),
+      sum_item_active_band: packageDurationBand(sumItemResponseProductionDuration),
+      focus_adjusted_band: packageDurationBand(focusAdjustedTaskDuration),
+      focus_adjusted_task_band: packageDurationBand(focusAdjustedTaskDuration),
+      sum_item_focus_adjusted_band: packageDurationBand(sumItemFocusAdjustedDuration),
+      response_production_band: packageDurationBand(responseProductionDuration),
+      reasoning_typing_band: packageReasoningTypingBand(packageReasoningTypingDuration),
       timing_source_used_for_rapid_rule: rapidRuleTiming.timing_source_used_for_rapid_rule,
       timing_limitations: [...timingLimitations],
-      item_active_timing_reconstruction: itemActiveReconstructions.map((entry) => entry.reconstruction)
+      item_active_timing_reconstruction: itemTimingEntries.map((entry) => entry.reconstruction)
     }
   };
 }
@@ -2017,6 +2327,7 @@ export async function buildEngagementEvidencePacketForSession(
       selected_option: response.selected_option,
       reasoning_text: response.reasoning_text,
       item_response_time_ms: response.item_response_time_ms,
+      item_timing: packageTiming.item_timing_by_public_id[response.item.item_public_id],
       revision_count: response.revision_count,
       event_counts: countEngagementEventSignals(itemEvents),
       process_instrumentation_available: instrumentationAvailable
