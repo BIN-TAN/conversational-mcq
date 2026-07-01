@@ -1182,13 +1182,19 @@ Phase 6A.5 must not implement:
   summed item focus-adjusted time, response-production time, and wall-clock
   fallback. They should record wall-clock duration, focus-adjusted task
   duration, summed item focus-adjusted duration, response-production duration,
-  reasoning typing duration, and the timing source used for the rapid rule.
-  Wall-clock timing is a fallback only and must be labeled as such.
+  reasoning-input elapsed duration, and the timing source used for the rapid
+  rule. `package_reasoning_typing_duration_ms` remains a compatibility alias
+  for `package_reasoning_input_elapsed_time_ms`; it is elapsed item text-input
+  time from safe typing summaries, not active keystroke time. Wall-clock timing
+  is a fallback only and must be labeled as such.
 - Engagement review artifacts may include safe timing reconstruction fields:
   event type, source table, timestamp, duration, timing band, and per-item
-  active timing summaries. They must not include raw process-event payloads,
-  raw conversation text, typed text, pasted text, URLs, answer keys, correct
-  options, distractor metadata, provider output, or secrets.
+  active timing summaries. They may also include per-item typing reconstruction
+  with field scope, elapsed-duration band, duration, typing summary event count,
+  start/end event labels, idle/blur inclusion flags, and safe limitation labels.
+  They must not include raw process-event payloads, raw conversation text, typed
+  text, pasted text, URLs, answer keys, correct options, distractor metadata,
+  provider output, or secrets.
 - Reasoning typing time is a process signal and not direct ability evidence.
   Very low reasoning typing time alone must not classify a session as
   `disengaged`; it may only strengthen repeated sparse-evidence patterns.

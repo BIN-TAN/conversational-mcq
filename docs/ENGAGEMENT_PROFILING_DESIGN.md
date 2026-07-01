@@ -107,7 +107,8 @@ The session trace also derives initial three-item package timing from existing i
 - `package_focus_adjusted_task_duration_ms`: first item presented to package submitted, minus safe hidden, blur, pause, or inactivity intervals when such intervals are available.
 - `package_sum_item_focus_adjusted_duration_ms`: sum of per-item focus-adjusted task intervals where safe interval data are available.
 - `package_response_production_duration_ms`: first student response action to `package_submitted`; this excludes reading time and is supporting evidence when focus-adjusted task time is unavailable.
-- `package_reasoning_typing_duration_ms`: aggregate safe `typing_activity_summary` duration for reasoning fields. This is a process signal, not direct ability evidence. It never stores raw keystrokes, typed text, or clipboard content.
+- `package_reasoning_input_elapsed_time_ms`: aggregate safe item-scoped `typing_activity_summary` duration. The current browser instrumentation measures elapsed time from first keydown in an item text input until the summary is flushed; it is not active keystroke time and can include idle time inside the segment. It never stores raw keystrokes, typed text, or clipboard content.
+- `package_reasoning_typing_duration_ms`: backwards-compatible alias for the same elapsed input timing. New diagnostics should treat `package_reasoning_input_elapsed_time_ms` as the clearer name.
 
 Rapid sparse classification prefers timing sources in this order:
 
@@ -121,7 +122,9 @@ unavailable
 
 If active timing is unavailable and only a typical/long wall-clock fallback exists, the packet must not infer rapid completion. It records `active_package_timing_unavailable` as a limitation instead.
 
-The review artifact also includes a safe timing reconstruction for diagnosis. It may include event type, source table, timestamp, duration in milliseconds, timing band, timing source used for the rapid rule, per-item active timing bands, and aggregate reasoning-typing bands. It must not include raw process-event payloads, raw conversation text, browser URLs, typed text, pasted text, answer keys, or item distractor metadata. If a process-event student action is missing, the reconstruction may fall back to `item_response_created` or a student conversation-turn timestamp and must label that fallback in `timing_limitations`.
+The review artifact also includes a safe timing reconstruction for diagnosis. It may include event type, source table, timestamp, duration in milliseconds, timing band, timing source used for the rapid rule, per-item active timing bands, and aggregate reasoning-input elapsed bands. It must not include raw process-event payloads, raw conversation text, browser URLs, typed text, pasted text, answer keys, or item distractor metadata. If a process-event student action is missing, the reconstruction may fall back to `item_response_created` or a student conversation-turn timestamp and must label that fallback in `timing_limitations`.
+
+Typing timing reconstruction is intentionally conservative. Each per-item record can include `field_type`, `typing_duration_band`, `typing_duration_ms`, `typing_event_count`, start/end event labels, `includes_idle_time`, `includes_blur_time`, and timing limitations. In v1, `field_type=item_text_input_elapsed_time` means the frontend scoped the summary to the current item but did not persist a specific input field name. `includes_idle_time=true` means the duration can include pauses between the first keydown and summary flush. Active typing time is unavailable because per-keystroke timestamps are not stored.
 
 Initial package timing bands are:
 

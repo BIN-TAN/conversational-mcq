@@ -283,6 +283,27 @@ async function main() {
       package_reasoning_typing_duration_ms:
         packet.session_engagement_summary.session_decision_trace.timing_reconstruction
           .package_reasoning_typing_duration_ms,
+      package_reasoning_input_elapsed_time_ms:
+        packet.session_engagement_summary.session_decision_trace.timing_reconstruction
+          .package_reasoning_input_elapsed_time_ms,
+      per_item_reasoning_typing_bands:
+        packet.session_engagement_summary.session_decision_trace.timing_reconstruction
+          .typing_timing_reconstruction.map((entry) => ({
+            item_public_id: entry.item_public_id,
+            field_type: entry.field_type,
+            typing_duration_band: entry.typing_duration_band,
+            typing_duration_ms: entry.typing_duration_ms,
+            typing_event_count: entry.typing_event_count,
+            includes_idle_time: entry.includes_idle_time,
+            includes_blur_time: entry.includes_blur_time,
+            timing_limitations: entry.timing_limitations
+          })),
+      typing_timing_limitations: [
+        ...new Set(
+          packet.session_engagement_summary.session_decision_trace.timing_reconstruction
+            .typing_timing_reconstruction.flatMap((entry) => entry.timing_limitations)
+        )
+      ],
       timing_limitations:
         packet.session_engagement_summary.session_decision_trace.timing_reconstruction
           .timing_limitations,

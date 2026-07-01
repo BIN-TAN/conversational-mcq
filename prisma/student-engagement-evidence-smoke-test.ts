@@ -123,6 +123,7 @@ function packageTimingForTest(input: {
     sum_item_focus_adjusted_duration_ms: input.sum ?? null,
     response_production_duration_ms: input.active ?? null,
     package_reasoning_typing_duration_ms: input.typing ?? null,
+    package_reasoning_input_elapsed_time_ms: input.typing ?? null,
     timing_source_used_for_rapid_rule: source,
     rapid_rule_duration_ms: rapidDuration,
     rapid_rule_timing_approximate: source === "wall_clock_fallback" || source === "unavailable",
@@ -178,6 +179,7 @@ function packageTimingForTest(input: {
       sum_item_focus_adjusted_duration_ms: input.sum ?? null,
       response_production_duration_ms: input.active ?? null,
       package_reasoning_typing_duration_ms: input.typing ?? null,
+      package_reasoning_input_elapsed_time_ms: input.typing ?? null,
       wall_clock_band: packageBandForTest(input.wall),
       active_response_band: packageBandForTest(input.active),
       sum_item_active_band: packageBandForTest(input.sum),
@@ -202,7 +204,42 @@ function packageTimingForTest(input: {
         active_duration_band: itemTimeBandForTest(duration),
         active_duration_ms: duration,
         timing_limitations: []
-      }))
+      })),
+      typing_timing_reconstruction: (input.itemDurations ?? []).map((_, index) => {
+        const itemPublicId = `test_item_${index + 1}`;
+        const typingDuration = input.itemTypingDurations?.[index] ?? null;
+        return {
+          item_public_id: itemPublicId,
+          field_type: "item_text_input_elapsed_time",
+          typing_duration_band:
+            typingDuration === null
+              ? "reasoning_typing_unavailable"
+              : typingDuration <= ENGAGEMENT_RULE_CONFIG_V1.item_reasoning_typing_rapid_ms
+                ? "reasoning_typing_very_low"
+                : typingDuration <= ENGAGEMENT_RULE_CONFIG_V1.package_reasoning_typing_low_ms
+                  ? "reasoning_typing_low"
+                  : "reasoning_typing_typical_or_high",
+          typing_duration_ms: typingDuration,
+          typing_event_count: typingDuration === null ? 0 : 1,
+          start_event_type: typingDuration === null ? "unknown" : "first_keydown_inferred_from_typing_summary",
+          end_event_type: typingDuration === null ? "unknown" : "typing_activity_summary_flush",
+          includes_idle_time: typingDuration === null ? "unknown" : true,
+          includes_blur_time: "unknown",
+          timing_limitations:
+            typingDuration === null
+              ? [
+                  "reasoning_input_elapsed_time_unavailable",
+                  "active_typing_time_unavailable",
+                  "field_type_inferred_from_current_item_context"
+                ]
+              : [
+                  "active_typing_time_unavailable",
+                  "field_type_inferred_from_current_item_context",
+                  "duration_is_reasoning_input_elapsed_time_not_active_typing_time",
+                  "typing_summary_flush_trigger_not_persisted"
+                ]
+        };
+      })
     }
   };
 }
@@ -850,6 +887,20 @@ async function addSyntheticProcessContext(sessionPublicId: string) {
             }
     });
   }
+
+  await logProcessEvent({
+    assessment_session_db_id: session.id,
+    concept_unit_session_db_id: conceptUnitSession.id,
+    event_type: "typing_activity_summary",
+    event_category: "student_process",
+    event_source: "frontend",
+    payload: {
+      key_count: 99,
+      backspace_count: 0,
+      enter_key_count: 0,
+      duration_ms: 999_999
+    }
+  });
 }
 
 async function runDbPacketAssertion() {
@@ -1020,6 +1071,51 @@ async function runDbPacketAssertion() {
             entry.active_duration_band
         ),
       "Each per-item timing reconstruction should include safe event types and bands."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.timing_reconstruction
+        .typing_timing_reconstruction.length === 3,
+      "Timing reconstruction should include one safe per-item typing timing record per item."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.timing_reconstruction
+        .typing_timing_reconstruction.every(
+          (entry) =>
+            entry.item_public_id &&
+            entry.field_type === "item_text_input_elapsed_time" &&
+            typeof entry.typing_event_count === "number" &&
+            entry.start_event_type &&
+            entry.end_event_type &&
+            Array.isArray(entry.timing_limitations)
+        ),
+      "Each typing timing reconstruction should include safe field scope, event counts, event labels, and limitations."
+    );
+    const typingReconstruction =
+      parsed.session_engagement_summary.session_decision_trace.timing_reconstruction
+        .typing_timing_reconstruction;
+    const summedItemTypingDuration = typingReconstruction.reduce(
+      (total, entry) => total + (entry.typing_duration_ms ?? 0),
+      0
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.timing_reconstruction
+        .package_reasoning_input_elapsed_time_ms === summedItemTypingDuration,
+      "Package reasoning-input elapsed time should be the sum of item-scoped typing summaries only."
+    );
+    assert(
+      parsed.session_engagement_summary.session_decision_trace.timing_reconstruction
+        .package_reasoning_input_elapsed_time_ms === 60_000,
+      "Unscoped typing summaries should not be included in package reasoning-input elapsed time."
+    );
+    assert(
+      typingReconstruction.some((entry) => entry.includes_idle_time === true),
+      "Typing elapsed time should be labeled as idle-inclusive when duration is available."
+    );
+    assert(
+      typingReconstruction.every((entry) =>
+        entry.timing_limitations.includes("active_typing_time_unavailable")
+      ),
+      "Typing timing reconstruction should state that active typing time is unavailable."
     );
     assert(
       typeof parsed.session_engagement_summary.session_decision_trace.package_timing
