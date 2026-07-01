@@ -75,6 +75,8 @@ The packet includes:
 - teacher/research summary;
 - deterministic safety check flags.
 
+Teacher/research summaries are current-evidence summaries only. They may describe what the evidence suggests, what is uncertain, how ability and engagement evidence relate, and what should not be overclaimed. They must not contain planning language, next-step recommendations, activity selection, intervention planning, or tutor-action recommendations.
+
 Internal integrated status may be:
 
 ```text
@@ -150,6 +152,7 @@ Validation is deterministic. It rejects outputs that:
 
 - include a formative value direction;
 - include an activity recommendation;
+- include next-activity, intervention-planning, instructional-plan, or tutor-action recommendation language;
 - expose answer-key or correct-option content;
 - expose correctness labels in student-facing text;
 - expose distractor metadata;
@@ -175,6 +178,8 @@ High `status_confidence` is not allowed when:
 
 `likely_misconception` requires multiple aligned sources. A single wrong answer, by itself, is not enough.
 
+Student-facing `knowledge_focus` may name the knowledge point that is unclear, such as "Separating theta as person ability from item difficulty." It must not tell the student to do an activity or prescribe what the tutor should show next.
+
 ## Fallback
 
 If the candidate integration output is invalid, the service builds a conservative deterministic fallback:
@@ -186,6 +191,16 @@ If the candidate integration output is invalid, the service builds a conservativ
 - no activity recommendation
 
 The fallback is marked as `deterministic_fallback` and remains reviewable.
+
+## Live Repair
+
+The provider-backed path may make one repair attempt when the first structured output is schema-shaped but fails only for remediable safety or overclaiming issues:
+
+- formative value direction;
+- activity or next-activity recommendation;
+- high-confidence overclaim.
+
+The repair request uses the same redacted structured evidence and safe validation issue metadata only: field path, rule code, and safe blocked-pattern label. It does not include the rejected provider output. If the repair validates, the repair attempt is accepted and audited. If the repair fails, the service fails closed and returns the conservative fallback; invalid provider output is never accepted into review artifacts or student-facing projections.
 
 ## Review Commands
 
@@ -228,6 +243,14 @@ RUN_LIVE_PROFILE_INTEGRATION_SMOKE=1 npm run student:profile-integration-live-sm
 ```
 
 The live path stores `agent_calls` rows with `agent_name=profile_integration_agent`, schema version `profile-integration-interpretation-v1`, provider/model metadata, provider request or response metadata when available, output validation status, validation errors, and token usage when returned by the provider.
+
+If the opt-in live smoke fails, it prints sanitized diagnostics and writes an ignored local artifact under:
+
+```text
+.data/profile-integration-live-smoke/failures/
+```
+
+Diagnostics include only public IDs, call status, schema version, safe validation issue paths and rule codes, provider-metadata presence, token-usage presence, and failure stage.
 
 The optional model variable is:
 

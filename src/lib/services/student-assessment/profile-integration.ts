@@ -36,7 +36,8 @@ You are the Profile Integration Agent for a protected chat-native formative asse
 Interpret redacted ability-evidence and engagement-evidence packets into one structured profile integration packet.
 
 Boundaries:
-- You are not administering items, choosing a formative value, recommending an activity, or controlling state transitions.
+- This task is current profile evidence interpretation only.
+- You are not administering items, choosing a formative value, recommending an activity, recommending an intervention, saying what the tutor should do next, saying what activity should come next, or controlling state transitions.
 - Use only the provided structured evidence. Do not invent evidence, student text, item content, hidden metadata, or answer keys.
 - Do not expose answer keys, correct options, correctness labels, distractor metadata, raw misconception identifiers, raw student reasoning, raw process payloads, raw model output, prompts, provider metadata, or secrets.
 - Process and engagement evidence affect reliability and confidence only. They are not direct ability evidence.
@@ -49,8 +50,46 @@ Boundaries:
 - Internal status may use Insufficient evidence.
 - Integration pattern must be one of stable_understanding, developing_understanding, likely_knowledge_gap, likely_misconception, mixed_or_conflicting_evidence, or insufficient_evidence.
 
+Teacher/research summary rules:
+- Summarize current evidence only: what the evidence suggests, what is uncertain, how ability and engagement evidence relate, and what should not be overclaimed.
+- Do not include planning, recommendation, next-step, activity, intervention, or tutor-action language.
+- Do not use labels such as formative value, formative direction, next activity, activity recommendation, intervention, instructional plan, should provide, should assign, or should show next.
+
+Allowed teacher/research summary style:
+- "The evidence is mixed: the student provided some reasoning, but uncertainty and conflicting answer evidence limit the strength of the interpretation."
+- "The current evidence supports a developing understanding pattern with medium confidence."
+- "The response process appears sufficient to treat the current evidence as usable, but the interpretation remains provisional."
+
+Forbidden teacher/research summary style:
+- "The next formative value should be misconception contrast."
+- "The tutor should provide a clarification activity."
+- "The student should receive a transfer challenge."
+- "Recommended activity: ..."
+- "The next step is ..."
+- "Instructional plan: ..."
+
+Student-facing message rules:
+- Keep the message brief, supportive, and focused on current knowledge state.
+- knowledge_focus may name the concept or distinction currently unclear.
+- knowledge_focus must not recommend an activity or say what the student or tutor should do next.
+
 Return only the required JSON object for profile-integration-interpretation-v1.
 `;
+
+const PROFILE_INTEGRATION_REPAIR_PROMPT_INSTRUCTIONS = `${PROFILE_INTEGRATION_PROMPT_INSTRUCTIONS}
+
+Repair pass:
+- The previous profile-integration output was rejected by deterministic validation.
+- You receive only safe validation issue codes and field paths, not the invalid output.
+- Rewrite the whole output as current-evidence interpretation only.
+- Remove any formative direction, activity recommendation, next-step wording, or planning language from every field.
+- If high confidence was rejected, lower status_confidence and add a limitation.
+- If evidence is mixed or weak, choose mixed_or_conflicting_evidence or insufficient_evidence.
+`;
+
+const PROFILE_INTEGRATION_REPAIR_PROMPT_HASH = createHash("sha256")
+  .update(PROFILE_INTEGRATION_REPAIR_PROMPT_INSTRUCTIONS)
+  .digest("hex");
 
 export const PROFILE_INTEGRATION_PROMPT_HASH = createHash("sha256")
   .update(PROFILE_INTEGRATION_PROMPT_INSTRUCTIONS)
@@ -710,7 +749,7 @@ function studentSafeMessageFor(input: {
     status: input.status,
     message:
       input.pattern === "insufficient_evidence"
-        ? "The current evidence is limited, so the safest next step is to clarify the idea."
+        ? "The current evidence is limited, so the idea still needs clarification."
         : "Your responses show useful progress, but the pattern is still developing.",
     knowledge_focus: "Focus on the part of the idea that still feels uncertain or mixed."
   };
@@ -774,7 +813,7 @@ export function buildConservativeIntegrationFallback(
     student_safe_message: studentMessage,
     teacher_research_summary: {
       safe_internal_summary:
-        "Conservative integration fallback produced a student-safe status without formative value or activity selection.",
+        "Conservative integration fallback produced a student-safe status from current evidence only.",
       evidence_trace_summary: [
         `ability_category=${input.ability_summary.provisional_category}`,
         `engagement_category=${input.engagement_summary.provisional_engagement_category}`,
@@ -823,7 +862,7 @@ function deterministicProfileIntegrationOutput(
     ...(input.engagement_summary.limitation_count > 0 ? ["engagement_packet_has_limitations"] : []),
     ...(engagementEffect === "lowers_confidence" ? ["engagement_context_lowers_status_confidence_only"] : []),
     ...(aiEffect === "contextualizes_reasoning_evidence" ? ["external_assistance_context_is_not_student_facing"] : []),
-    "profile_integration_does_not_select_formative_activity"
+    "profile_integration_current_evidence_only"
   ]);
   const evidenceRationale: ProfileIntegrationInterpretationPacketV1["evidence_rationale"] = [
     {
@@ -896,7 +935,7 @@ function deterministicProfileIntegrationOutput(
     student_safe_message: studentMessage,
     teacher_research_summary: {
       safe_internal_summary:
-        "Profile integration packet was built from redacted ability and engagement evidence packets. It does not choose an instructional category or activity.",
+        "Profile integration packet was built from redacted ability and engagement evidence packets as a current-evidence interpretation only.",
       evidence_trace_summary: [
         `ability_category=${input.ability_summary.provisional_category}`,
         `ability_confidence=${input.ability_summary.category_confidence}`,
@@ -978,6 +1017,26 @@ function validationErrorPayload(input: {
   });
 }
 
+const REMEDIABLE_PROFILE_INTEGRATION_RULES = new Set<ProfileIntegrationValidationIssue["rule_code"]>([
+  "formative_value_direction_present",
+  "activity_recommendation_present",
+  "high_confidence_overclaim"
+]);
+
+function profileIntegrationIssuesAreRepairable(issues: ProfileIntegrationValidationIssue[]) {
+  return issues.length > 0 && issues.every((issue) =>
+    REMEDIABLE_PROFILE_INTEGRATION_RULES.has(issue.rule_code)
+  );
+}
+
+function repairIssueSummary(issues: ProfileIntegrationValidationIssue[]) {
+  return issues.map((issue) => ({
+    field_path: issue.field_path,
+    rule_code: issue.rule_code,
+    ...(issue.blocked_pattern_label ? { blocked_pattern_label: issue.blocked_pattern_label } : {})
+  }));
+}
+
 function safeProviderFailureReason(providerResult: StructuredAgentResult<unknown>) {
   return [
     providerResult.error?.category ?? providerResult.status,
@@ -987,6 +1046,200 @@ function safeProviderFailureReason(providerResult: StructuredAgentResult<unknown
       ? `http_${providerResult.transport_telemetry.normalized_error.http_status}`
       : null
   ].filter(Boolean).join(":");
+}
+
+async function executeProfileIntegrationRepairAttempt(input: {
+  agent_input: ProfileIntegrationAgentInput;
+  provider: LlmProvider;
+  provider_label: "mock" | "openai";
+  model_config: AgentModelConfig;
+  live_call_allowed: boolean;
+  request_timeout_ms: number;
+  audit_context?: {
+    assessment_session_db_id?: string;
+    concept_unit_session_db_id?: string;
+  };
+  initial_validation_issues: ProfileIntegrationValidationIssue[];
+}): Promise<ProfileIntegrationExecutionResult> {
+  const startedAt = new Date();
+  const clientRequestId = `profile_integration_repair_${randomUUID()}`;
+  const repairInput = {
+    profile_integration_input: input.agent_input,
+    rejected_output_not_included: true,
+    validation_issues: repairIssueSummary(input.initial_validation_issues),
+    repair_policy: {
+      current_evidence_only: true,
+      no_formative_value_direction: true,
+      no_activity_recommendation: true,
+      no_next_step_language: true,
+      lower_confidence_when_validator_requested: true
+    }
+  };
+
+  assertNoProhibitedProviderInput(repairInput);
+
+  const agentCall = await prisma.agentCall.create({
+    data: {
+      id: randomUUID(),
+      assessment_session_db_id: input.audit_context?.assessment_session_db_id,
+      concept_unit_session_db_id: input.audit_context?.concept_unit_session_db_id,
+      agent_name: PROFILE_INTEGRATION_AGENT_NAME,
+      agent_version: PROFILE_INTEGRATION_AGENT_VERSION,
+      model_name: input.model_config.model_name,
+      provider: input.provider_label,
+      client_request_id: clientRequestId,
+      agent_invocation_key: `profile_integration_repair:${input.agent_input.session_context.session_public_id}:${PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION}:${randomUUID()}`,
+      prompt_hash: PROFILE_INTEGRATION_REPAIR_PROMPT_HASH,
+      reasoning_effort: input.model_config.reasoning_effort,
+      max_output_tokens: input.model_config.max_output_tokens,
+      prompt_version: PROFILE_INTEGRATION_PROMPT_VERSION,
+      schema_version: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION,
+      input_payload: prismaJson(redactForAudit(repairInput)),
+      live_call_allowed: input.live_call_allowed,
+      call_status: "started",
+      started_at: startedAt
+    }
+  });
+
+  try {
+    const providerResult = await input.provider.executeStructured({
+      agent_name: PROFILE_INTEGRATION_AGENT_NAME as unknown as AgentName,
+      model_config: input.model_config,
+      instructions: PROFILE_INTEGRATION_REPAIR_PROMPT_INSTRUCTIONS,
+      input: repairInput,
+      output_schema: ProfileIntegrationInterpretationPacketV1Schema,
+      schema_name: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
+      client_request_id: clientRequestId,
+      timeout_ms: input.request_timeout_ms,
+      metadata: {
+        purpose: "chat_native_profile_integration_repair",
+        agent_name: PROFILE_INTEGRATION_AGENT_NAME,
+        prompt_version: PROFILE_INTEGRATION_PROMPT_VERSION,
+        schema_version: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION
+      }
+    });
+
+    if (providerResult.status === "completed") {
+      const candidate =
+        providerResult.parsed_output && typeof providerResult.parsed_output === "object"
+          ? {
+              ...(providerResult.parsed_output as Record<string, unknown>),
+              generation_mode: input.provider_label === "openai" ? "live_provider" : "deterministic_mock",
+              generated_at: nowIso()
+            }
+          : providerResult.parsed_output;
+      const validation = validateProfileIntegrationOutput(candidate, input.agent_input);
+
+      if (validation.valid) {
+        await prisma.agentCall.update({
+          where: { id: agentCall.id },
+          data: {
+            ...providerAuditUpdate(providerResult),
+            output_payload: prismaJson(validation.packet),
+            output_validated: true,
+            call_status: "succeeded",
+            completed_at: new Date()
+          }
+        });
+
+        return {
+          status: "succeeded",
+          packet: validation.packet,
+          agent_call_id: agentCall.id,
+          validation_issues: []
+        };
+      }
+
+      const fallbackPacket = buildConservativeIntegrationFallback(
+        input.agent_input,
+        `profile_integration_repair_rejected_${validation.issues.length}_issues`
+      );
+      await prisma.agentCall.update({
+        where: { id: agentCall.id },
+        data: {
+          ...providerAuditUpdate(providerResult),
+          output_payload: Prisma.JsonNull,
+          output_validated: false,
+          validation_error: validationErrorPayload({
+            category: "profile_integration_validation",
+            issues: validation.issues
+          }),
+          call_status: "invalid_output",
+          error_category: "profile_integration_validation",
+          completed_at: new Date()
+        }
+      });
+
+      return {
+        status: "invalid_output",
+        fallback_packet: fallbackPacket,
+        agent_call_id: agentCall.id,
+        validation_issues: validation.issues,
+        blocked_reason: "profile_integration_repair_failed_validation"
+      };
+    }
+
+    const fallbackPacket = buildConservativeIntegrationFallback(
+      input.agent_input,
+      `profile_integration_repair_provider_failed_${safeProviderFailureReason(providerResult)}`
+    );
+    await prisma.agentCall.update({
+      where: { id: agentCall.id },
+      data: {
+        ...providerAuditUpdate(providerResult),
+        output_payload: Prisma.JsonNull,
+        output_validated: false,
+        validation_error: validationErrorPayload({
+          category: "provider_failure",
+          message:
+            providerResult.error?.message ??
+            providerResult.refusal ??
+            providerResult.incomplete_reason ??
+            "Profile integration repair provider call did not complete."
+        }),
+        refusal_text: providerResult.refusal,
+        incomplete_reason: providerResult.incomplete_reason,
+        call_status: "failed",
+        error_category: providerResult.error?.category ?? providerResult.status,
+        completed_at: new Date()
+      }
+    });
+
+    return {
+      status: "failed",
+      fallback_packet: fallbackPacket,
+      agent_call_id: agentCall.id,
+      validation_issues: [],
+      blocked_reason: "profile_integration_repair_provider_failed"
+    };
+  } catch (error) {
+    const fallbackPacket = buildConservativeIntegrationFallback(
+      input.agent_input,
+      "profile_integration_repair_provider_exception"
+    );
+    await prisma.agentCall.update({
+      where: { id: agentCall.id },
+      data: {
+        output_payload: Prisma.JsonNull,
+        output_validated: false,
+        validation_error: validationErrorPayload({
+          category: "provider_failure",
+          message: error instanceof Error ? error.message : "Profile integration repair provider call failed."
+        }),
+        call_status: "failed",
+        error_category: "unexpected_provider_response",
+        completed_at: new Date()
+      }
+    });
+
+    return {
+      status: "failed",
+      fallback_packet: fallbackPacket,
+      agent_call_id: agentCall.id,
+      validation_issues: [],
+      blocked_reason: "profile_integration_repair_provider_exception"
+    };
+  }
 }
 
 async function executeProfileIntegrationAgentWithProvider(input: {
@@ -1096,6 +1349,19 @@ async function executeProfileIntegrationAgentWithProvider(input: {
           completed_at: new Date()
         }
       });
+
+      if (profileIntegrationIssuesAreRepairable(validation.issues)) {
+        return executeProfileIntegrationRepairAttempt({
+          agent_input: input.agent_input,
+          provider: input.provider,
+          provider_label: input.provider_label,
+          model_config: input.model_config,
+          live_call_allowed: input.live_call_allowed,
+          request_timeout_ms: input.request_timeout_ms,
+          audit_context: input.audit_context,
+          initial_validation_issues: validation.issues
+        });
+      }
 
       return {
         status: "invalid_output",
@@ -1288,11 +1554,11 @@ export function validateProfileIntegrationOutput(
       continue;
     }
     const lowerKey = key.toLowerCase();
-    if (/formative[_-]?value|formative[_-]?need|activity[_-]?recommendation|matched[_-]?activity|intervention[_-]?plan/.test(lowerKey)) {
+    if (/formative[_-]?value|formative[_-]?need|formative[_-]?direction|activity[_-]?recommendation|matched[_-]?activity|next[_-]?activity|intervention[_-]?plan|instructional[_-]?plan/.test(lowerKey)) {
       pushIssue(
         issues,
         fieldPath,
-        /activity|matched|intervention/.test(lowerKey)
+        /activity|matched|intervention|instructional/.test(lowerKey)
           ? "activity_recommendation_present"
           : "formative_value_direction_present"
       );
@@ -1312,7 +1578,11 @@ export function validateProfileIntegrationOutput(
     studentOnly?: boolean;
   }> = [
     { rule: "formative_value_direction_present", pattern: /\bformative (value|need|direction)\b/i, label: "formative_direction_label" },
-    { rule: "activity_recommendation_present", pattern: /\b(activity recommendation|matched activity|intervention plan|next activity)\b/i, label: "activity_recommendation_label" },
+    { rule: "activity_recommendation_present", pattern: /\b(activity recommendation|matched activity|intervention plan|instructional plan|next activity|recommended activity|transfer challenge)\b/i, label: "activity_recommendation_label" },
+    { rule: "activity_recommendation_present", pattern: /\bthe next step is\b/i, label: "next_step_language" },
+    { rule: "activity_recommendation_present", pattern: /\b(?:tutor|teacher|system|agent)\s+should\s+(?:provide|assign|show|give|deliver|use)\b/i, label: "tutor_action_language" },
+    { rule: "activity_recommendation_present", pattern: /\bstudent\s+should\s+receive\b/i, label: "student_assignment_language" },
+    { rule: "activity_recommendation_present", pattern: /\bshould\s+(?:assign|show next)\b/i, label: "assignment_language" },
     { rule: "unsupported_integrity_claim_detected", pattern: new RegExp(`\\b(${["che" + "ating", "mis" + "conduct", "dishonest", "academic integrity violation"].join("|")})\\b`, "i"), label: "unsupported_integrity_claim" },
     { rule: "answer_key_leak_detected", pattern: /\banswer key\b/i, label: "answer_key" },
     { rule: "correct_option_leak_detected", pattern: /\bcorrect option\b/i, label: "correct_option" },

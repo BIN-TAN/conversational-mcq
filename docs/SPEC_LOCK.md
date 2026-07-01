@@ -1192,6 +1192,10 @@ Phase 6A.5 must not implement:
 - Profile integration is interpretation only. It must not determine formative
   value, choose a formative activity, recommend an intervention, change
   assessment state, alter scoring, or modify item administration logic.
+- Teacher/research summaries in `profile-integration-interpretation-v1` are
+  current-evidence summaries only. They must not contain planning language,
+  next-step recommendations, activity selection, intervention planning, or
+  tutor-action recommendations.
 - Ability and engagement remain separate evidence streams. Engagement context
   may affect status confidence or add limitations, but it must not directly
   recode ability evidence.
@@ -1208,6 +1212,12 @@ Phase 6A.5 must not implement:
   substantially metadata-limited. `likely_misconception` requires at least two
   aligned evidence sources. Engagement, process, and external-assistance
   context must not be used as direct ability evidence.
+- The provider-backed path may make one repair attempt only for remediable
+  validation failures: formative value direction, activity or next-activity
+  recommendation, and high-confidence overclaim. The repair request must use
+  the same redacted structured evidence plus safe issue field paths and rule
+  codes only. It must not include the rejected provider output. If repair fails,
+  the service fails closed.
 - Live profile integration is opt-in only. It requires explicit live
   server-side LLM configuration and either `OPENAI_MODEL_PROFILE_INTEGRATION`,
   `OPENAI_MODEL_PLANNING`, or `OPENAI_MODEL_FOLLOWUP`. The default
@@ -1227,6 +1237,11 @@ Phase 6A.5 must not implement:
 - Profile integration review artifacts are ignored under
   `.data/profile-integration-review/` and must remain redacted structured
   evidence only.
+- Live profile integration smoke failure artifacts are ignored under
+  `.data/profile-integration-live-smoke/failures/` and must contain only
+  sanitized diagnostics: IDs, statuses, schema version, safe validation issue
+  metadata, provider-metadata presence, token-usage presence, and failure
+  stage.
 - Phase 27c does not implement teacher upload, new item content, UI wiring,
   formative activity selection, or schema migrations. It does not run paid live
   calls during ordinary tests, builds, or review artifact generation.

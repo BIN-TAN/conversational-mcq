@@ -101,6 +101,8 @@ npm run student:profile-integration-smoke
 
 This packet interprets current knowledge-state evidence and engagement context. It is not formative value determination, not an activity recommendation, not a final student profile, and not classroom validation. Engagement context can lower interpretation confidence or add limitations, but it does not directly change the ability evidence category.
 
+The teacher/research summary inside the packet is also current-evidence-only. It may summarize what the evidence suggests, what is uncertain, and what should not be overclaimed. It must not recommend next steps, activities, interventions, or tutor actions.
+
 For a redacted review artifact, run:
 
 ```bash
@@ -133,6 +135,8 @@ OPENAI_MODEL_PROFILE_INTEGRATION or OPENAI_MODEL_PLANNING or OPENAI_MODEL_FOLLOW
 ```
 
 The live profile integration path stores `agent_calls` audit metadata for `profile_integration_agent`, including schema version `profile-integration-interpretation-v1`, provider/model metadata, provider request or response metadata when available, output validation status, safe validation errors, and token usage when returned. It does not choose a formative value or activity.
+
+If a schema-shaped live output fails only because it contains remediable direction/planning language or a high-confidence overclaim, the service may make one repair attempt using the same redacted evidence and safe validation issue metadata only. The invalid output is not included in the repair prompt and is never accepted. If repair fails, the path fails closed and writes sanitized live-smoke diagnostics under `.data/profile-integration-live-smoke/failures/`.
 
 ## Opt-In Live LLM Smoke
 

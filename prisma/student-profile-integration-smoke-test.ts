@@ -402,8 +402,57 @@ async function runPureIntegrationAssertions() {
   }) === "Still developing", "Insufficient pattern should default to Still developing.");
 
   const validPacket = stable;
+  const currentEvidenceOnlyOutput = {
+    ...validPacket,
+    teacher_research_summary: {
+      ...validPacket.teacher_research_summary,
+      safe_internal_summary:
+        "The evidence is mixed: the student provided some reasoning, but uncertainty and conflicting answer evidence limit the strength of the interpretation."
+    },
+    student_safe_message: {
+      ...validPacket.student_safe_message,
+      knowledge_focus: "Separating theta as person ability from item difficulty."
+    }
+  };
+  assert(
+    validateProfileIntegrationOutput(currentEvidenceOnlyOutput).valid,
+    "Current-evidence-only teacher summary and knowledge focus should be accepted."
+  );
   const formativeValueOutput = { ...validPacket, formative_value_direction: "diagnostic_clarification" };
   assert(!validateProfileIntegrationOutput(formativeValueOutput).valid, "Formative value direction should be rejected.");
+  const teacherFormativeDirectionOutput = {
+    ...validPacket,
+    teacher_research_summary: {
+      ...validPacket.teacher_research_summary,
+      safe_internal_summary: "The next formative value should be misconception contrast."
+    }
+  };
+  assert(
+    !validateProfileIntegrationOutput(teacherFormativeDirectionOutput).valid,
+    "Formative value direction in teacher summary should be rejected."
+  );
+  const teacherActivityOutput = {
+    ...validPacket,
+    teacher_research_summary: {
+      ...validPacket.teacher_research_summary,
+      safe_internal_summary: "The tutor should provide a clarification activity."
+    }
+  };
+  assert(
+    !validateProfileIntegrationOutput(teacherActivityOutput).valid,
+    "Activity recommendation in teacher summary should be rejected."
+  );
+  const nextActivityOutput = {
+    ...validPacket,
+    ability_interpretation: {
+      ...validPacket.ability_interpretation,
+      summary: "The next activity should focus on contrasting theta and item difficulty."
+    }
+  };
+  assert(
+    !validateProfileIntegrationOutput(nextActivityOutput).valid,
+    "Next-activity language in any field should be rejected."
+  );
   const activityOutput = {
     ...validPacket,
     student_safe_message: {
@@ -412,6 +461,17 @@ async function runPureIntegrationAssertions() {
     }
   };
   assert(!validateProfileIntegrationOutput(activityOutput).valid, "Activity recommendation should be rejected.");
+  const studentFormativeDirectionOutput = {
+    ...validPacket,
+    student_safe_message: {
+      ...validPacket.student_safe_message,
+      message: "Your formative value is diagnostic clarification."
+    }
+  };
+  assert(
+    !validateProfileIntegrationOutput(studentFormativeDirectionOutput).valid,
+    "Formative value direction in student-facing text should be rejected."
+  );
   const protectedOutput = {
     ...validPacket,
     student_safe_message: {
@@ -513,7 +573,7 @@ async function runPureIntegrationAssertions() {
 
 async function runProviderPathAssertions() {
   configureNoLiveRuntime();
-  const agentCallIds: string[] = [];
+  const cleanupStartedAt = new Date();
   const input = inputFromEvidence({
     abilities: [strongAbility(1), strongAbility(2), strongAbility(3)],
     engagements: [engagedEvidence(1), engagedEvidence(2), engagedEvidence(3)]
@@ -542,7 +602,6 @@ async function runProviderPathAssertions() {
 
   assert(validResult.status === "succeeded", "Valid provider output should be accepted.");
   assert(validResult.agent_call_id, "Provider path should return an audited agent call ID.");
-  agentCallIds.push(validResult.agent_call_id);
 
   const validAgentCall = await prisma.agentCall.findUniqueOrThrow({
     where: { id: validResult.agent_call_id },
@@ -586,7 +645,6 @@ async function runProviderPathAssertions() {
 
   assert(invalidResult.status === "invalid_output", "Invalid provider output should be rejected.");
   assert(invalidResult.agent_call_id, "Rejected provider output should still be audited.");
-  agentCallIds.push(invalidResult.agent_call_id);
 
   const invalidAgentCall = await prisma.agentCall.findUniqueOrThrow({
     where: { id: invalidResult.agent_call_id },
@@ -599,8 +657,98 @@ async function runProviderPathAssertions() {
     "Rejected provider output should store safe validation issue details."
   );
 
+  let repairCallCount = 0;
+  const repairedProvider = new FixedProfileIntegrationProvider((request) => {
+    repairCallCount += 1;
+    const repairedOutput = repairCallCount === 1
+      ? {
+          ...validOutput,
+          teacher_research_summary: {
+            ...validOutput.teacher_research_summary,
+            safe_internal_summary: "The next formative value should be misconception contrast."
+          }
+        }
+      : {
+          ...validOutput,
+          teacher_research_summary: {
+            ...validOutput.teacher_research_summary,
+            safe_internal_summary:
+              "The current evidence supports a developing understanding pattern with medium confidence."
+          },
+          status_confidence: "medium" as const
+        };
+
+    return {
+      provider: "mock",
+      provider_request_id: `mock_profile_integration_repair_request_${repairCallCount}`,
+      provider_response_id: `mock_profile_integration_repair_response_${repairCallCount}`,
+      client_request_id: request.client_request_id,
+      status: "completed",
+      parsed_output: repairedOutput,
+      raw_output: { id: `mock_profile_integration_repair_response_${repairCallCount}`, output: "redacted" },
+      usage: { input_tokens: 10, output_tokens: 12, total_tokens: 22 },
+      latency_ms: 2
+    };
+  });
+  const repairedResult = await executeProfileIntegrationAgentWithProviderForTest({
+    agent_input: input,
+    provider: repairedProvider
+  });
+
+  assert(repairedResult.status === "succeeded", "Repairable provider output should be accepted after a safe rewrite.");
+  assert(repairCallCount === 2, "Repairable output should use exactly one repair attempt.");
+  assert(repairedResult.agent_call_id, "Repaired provider output should return the repair agent call.");
+
+  const repairedAgentCall = await prisma.agentCall.findUniqueOrThrow({
+    where: { id: repairedResult.agent_call_id },
+    select: { output_validated: true, call_status: true, provider_request_id: true }
+  });
+  assert(repairedAgentCall.call_status === "succeeded", "Repaired output should mark the repair call succeeded.");
+  assert(repairedAgentCall.output_validated, "Repaired output should validate.");
+  assert(
+    repairedAgentCall.provider_request_id === "mock_profile_integration_repair_request_2",
+    "Repaired output should audit the repair provider request."
+  );
+
+  let failedRepairCallCount = 0;
+  const failedRepairProvider = new FixedProfileIntegrationProvider((request) => {
+    failedRepairCallCount += 1;
+    const output = {
+      ...validOutput,
+      teacher_research_summary: {
+        ...validOutput.teacher_research_summary,
+        safe_internal_summary:
+          failedRepairCallCount === 1
+            ? "The tutor should provide a clarification activity."
+            : "Recommended activity: assign a transfer challenge."
+      }
+    };
+
+    return {
+      provider: "mock",
+      provider_request_id: `mock_profile_integration_failed_repair_request_${failedRepairCallCount}`,
+      provider_response_id: `mock_profile_integration_failed_repair_response_${failedRepairCallCount}`,
+      client_request_id: request.client_request_id,
+      status: "completed",
+      parsed_output: output,
+      raw_output: { id: `mock_profile_integration_failed_repair_response_${failedRepairCallCount}`, output: "redacted" },
+      usage: { input_tokens: 8, output_tokens: 8, total_tokens: 16 },
+      latency_ms: 2
+    };
+  });
+  const failedRepairResult = await executeProfileIntegrationAgentWithProviderForTest({
+    agent_input: input,
+    provider: failedRepairProvider
+  });
+
+  assert(failedRepairResult.status === "invalid_output", "Repair path should fail closed when repair output is still unsafe.");
+  assert(failedRepairCallCount === 2, "Failed repair should use only one repair attempt.");
+
   await prisma.agentCall.deleteMany({
-    where: { id: { in: agentCallIds } }
+    where: {
+      agent_name: PROFILE_INTEGRATION_AGENT_NAME,
+      created_at: { gte: cleanupStartedAt }
+    }
   });
 }
 

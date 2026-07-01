@@ -1,11 +1,16 @@
 import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { loadEnvConfig } from "@next/env";
 import { PrismaClient } from "@prisma/client";
 import {
   PROFILE_INTEGRATION_AGENT_NAME,
-  buildProfileIntegrationInterpretationPacketForSession,
+  buildProfileIntegrationAgentInput,
+  executeLiveProfileIntegrationAgent,
   validateProfileIntegrationOutput
 } from "../src/lib/services/student-assessment/profile-integration";
+import { buildAbilityEvidencePacketForSession } from "../src/lib/services/student-assessment/ability-evidence";
+import { buildEngagementEvidencePacketForSession } from "../src/lib/services/student-assessment/engagement-evidence";
 import { applyProvisionalItemDiagnosticMetadata } from "../src/lib/services/student-assessment/provisional-item-diagnostic-metadata";
 import { createResponsePackage } from "../src/lib/services/response-packages";
 import { logProcessEvent } from "../src/lib/services/process-events";
@@ -69,6 +74,135 @@ function liveReadiness() {
     model_configured_by_one_of: modelConfigured ? MODEL_ENV_OPTIONS : [],
     missing_model_variable_options: modelConfigured ? [] : MODEL_ENV_OPTIONS
   };
+}
+
+function parseValidationError(value: string | null) {
+  if (!value) {
+    return {
+      issue_count: 0,
+      issues: [] as Array<{
+        field_path: string;
+        rule_code: string;
+        blocked_pattern_label?: string;
+      }>
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(value) as {
+      issue_count?: unknown;
+      issues?: Array<Record<string, unknown>>;
+    };
+    return {
+      issue_count: typeof parsed.issue_count === "number" ? parsed.issue_count : 0,
+      issues: Array.isArray(parsed.issues)
+        ? parsed.issues.map((issue) => ({
+            field_path: typeof issue.field_path === "string" ? issue.field_path : "",
+            rule_code: typeof issue.rule_code === "string" ? issue.rule_code : "",
+            ...(typeof issue.blocked_pattern_label === "string"
+              ? { blocked_pattern_label: issue.blocked_pattern_label }
+              : {})
+          }))
+        : []
+    };
+  } catch {
+    return {
+      issue_count: 1,
+      issues: [{
+        field_path: "validation_error",
+        rule_code: "unparsed_validation_error"
+      }]
+    };
+  }
+}
+
+async function profileIntegrationAuditSummaries(sessionPublicId: string) {
+  const session = await prisma.assessmentSession.findUnique({
+    where: { session_public_id: sessionPublicId },
+    select: { id: true }
+  });
+
+  if (!session) {
+    return [];
+  }
+
+  const calls = await prisma.agentCall.findMany({
+    where: {
+      assessment_session_db_id: session.id,
+      agent_name: PROFILE_INTEGRATION_AGENT_NAME
+    },
+    orderBy: [{ created_at: "asc" }],
+    select: {
+      id: true,
+      agent_name: true,
+      schema_version: true,
+      provider: true,
+      call_status: true,
+      output_validated: true,
+      validation_error: true,
+      provider_request_id: true,
+      provider_response_id: true,
+      input_tokens: true,
+      output_tokens: true,
+      total_tokens: true,
+      created_at: true,
+      completed_at: true
+    }
+  });
+
+  return calls.map((call) => {
+    const validation = parseValidationError(call.validation_error);
+
+    return {
+      agent_call_id: call.id,
+      agent_name: call.agent_name,
+      schema_version: call.schema_version,
+      provider: call.provider,
+      call_status: call.call_status,
+      output_validated: call.output_validated,
+      validation_issue_count: validation.issue_count,
+      validation_issues: validation.issues,
+      provider_metadata_present: Boolean(call.provider_request_id || call.provider_response_id),
+      token_usage_present: Boolean(call.input_tokens || call.output_tokens || call.total_tokens),
+      failure_stage:
+        call.call_status === "invalid_output"
+          ? "profile_integration_validation"
+          : call.call_status === "failed"
+            ? "provider_execution"
+            : call.output_validated
+              ? "validated"
+              : "unknown",
+      created_at: call.created_at.toISOString(),
+      completed_at: call.completed_at?.toISOString() ?? null
+    };
+  });
+}
+
+async function writeFailureArtifact(input: {
+  session_public_id: string;
+  error_message: string;
+  agent_calls: Awaited<ReturnType<typeof profileIntegrationAuditSummaries>>;
+}) {
+  const outputDir = path.join(process.cwd(), ".data", "profile-integration-live-smoke", "failures");
+  const outputPath = path.join(
+    outputDir,
+    `${new Date().toISOString().replace(/[:.]/g, "-")}-${input.session_public_id}.json`
+  );
+
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(
+    outputPath,
+    `${JSON.stringify({
+      artifact_type: "profile_integration_live_smoke_failure",
+      artifact_version: "profile-integration-live-smoke-failure-v1",
+      session_public_id: input.session_public_id,
+      error_message: input.error_message.slice(0, 500),
+      agent_calls: input.agent_calls
+    }, null, 2)}\n`,
+    "utf8"
+  );
+
+  return outputPath;
 }
 
 async function addSyntheticProcessContext(sessionPublicId: string) {
@@ -196,12 +330,52 @@ async function main() {
   const sample = await createSampleSessionWithMockSetup();
 
   try {
-    const packet = await buildProfileIntegrationInterpretationPacketForSession(
-      sample.session_public_id,
-      { execution_mode: "live_provider" }
-    );
-    const validation = validateProfileIntegrationOutput(packet);
-    assert(validation.valid, `Live profile integration packet failed validation: ${JSON.stringify(validation.issues)}`);
+    const abilityPacket = await buildAbilityEvidencePacketForSession(sample.session_public_id);
+    const engagementPacket = await buildEngagementEvidencePacketForSession(sample.session_public_id);
+    const agentInput = buildProfileIntegrationAgentInput({
+      ability_packet: abilityPacket,
+      engagement_packet: engagementPacket
+    });
+    const liveResult = await executeLiveProfileIntegrationAgent({
+      agent_input: agentInput,
+      session_public_id: sample.session_public_id
+    });
+
+    if (liveResult.status !== "succeeded") {
+      const agentCalls = await profileIntegrationAuditSummaries(sample.session_public_id);
+      const artifactPath = await writeFailureArtifact({
+        session_public_id: sample.session_public_id,
+        error_message: liveResult.blocked_reason,
+        agent_calls: agentCalls
+      });
+      console.log(JSON.stringify({
+        status: "failed",
+        diagnostic_artifact_path: artifactPath,
+        session_public_id: sample.session_public_id,
+        blocked_reason: liveResult.blocked_reason,
+        agent_calls: agentCalls
+      }, null, 2));
+      throw new Error(`Live profile integration failed: ${liveResult.blocked_reason}`);
+    }
+
+    const validation = validateProfileIntegrationOutput(liveResult.packet, agentInput);
+    if (!validation.valid) {
+      const agentCalls = await profileIntegrationAuditSummaries(sample.session_public_id);
+      const artifactPath = await writeFailureArtifact({
+        session_public_id: sample.session_public_id,
+        error_message: `Live profile integration packet failed validation with ${validation.issues.length} issues.`,
+        agent_calls: agentCalls
+      });
+      console.log(JSON.stringify({
+        status: "failed",
+        diagnostic_artifact_path: artifactPath,
+        session_public_id: sample.session_public_id,
+        validation_issue_count: validation.issues.length,
+        validation_issues: validation.issues,
+        agent_calls: agentCalls
+      }, null, 2));
+      throw new Error("Live profile integration packet failed validation.");
+    }
 
     const session = await prisma.assessmentSession.findUniqueOrThrow({
       where: { session_public_id: sample.session_public_id },
@@ -237,9 +411,9 @@ async function main() {
     console.log(JSON.stringify({
       status: "passed",
       session_public_id: sample.session_public_id,
-      student_facing_status: packet.student_facing_status,
-      integration_pattern: packet.integration_pattern,
-      status_confidence: packet.status_confidence,
+      student_facing_status: liveResult.packet.student_facing_status,
+      integration_pattern: liveResult.packet.integration_pattern,
+      status_confidence: liveResult.packet.status_confidence,
       profile_integration_call_status: agentCall.call_status,
       profile_integration_output_validated: agentCall.output_validated,
       provider_metadata_present: Boolean(agentCall.provider_request_id || agentCall.provider_response_id),

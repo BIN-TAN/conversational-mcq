@@ -309,7 +309,7 @@ To run it intentionally after configuring local server-side live LLM variables:
 RUN_LIVE_PROFILE_INTEGRATION_SMOKE=1 npm run student:profile-integration-live-smoke
 ```
 
-The live path may use `OPENAI_MODEL_PROFILE_INTEGRATION`, falling back to `OPENAI_MODEL_PLANNING` or `OPENAI_MODEL_FOLLOWUP`. It stores `agent_calls` audit rows for `profile_integration_agent` with schema version `profile-integration-interpretation-v1`, provider/model metadata, provider request or response metadata when available, output validation, safe validation errors, and token usage when returned.
+The live path may use `OPENAI_MODEL_PROFILE_INTEGRATION`, falling back to `OPENAI_MODEL_PLANNING` or `OPENAI_MODEL_FOLLOWUP`. It stores `agent_calls` audit rows for `profile_integration_agent` with schema version `profile-integration-interpretation-v1`, provider/model metadata, provider request or response metadata when available, output validation, safe validation errors, and token usage when returned. If a schema-shaped live output contains remediable direction/planning language or a high-confidence overclaim, the service may make one repair attempt using only redacted evidence and safe validation issue metadata. Live-smoke failures write sanitized diagnostics under `.data/profile-integration-live-smoke/failures/`.
 
 The optional live LLM readiness smoke is intentionally skipped unless explicitly enabled:
 
