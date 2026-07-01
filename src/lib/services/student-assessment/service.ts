@@ -753,6 +753,75 @@ function studentResponseEditMessage(input: {
     : `I reviewed Question ${input.item_order} without changing it.`;
 }
 
+function isLegacyEditedResponsePlaceholder(value: string | null | undefined) {
+  const text = value?.trim();
+  return Boolean(text && (text === "Edited my response." || /^Edited Question \d+ response\.$/.test(text)));
+}
+
+function stringPayloadValue(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function booleanPayloadValue(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+  return typeof value === "boolean" ? value : null;
+}
+
+function changedFieldsFromPayload(payload: Record<string, unknown>) {
+  return Array.isArray(payload.changed_fields)
+    ? payload.changed_fields.filter((entry): entry is string => typeof entry === "string")
+    : [];
+}
+
+function studentTranscriptEditFallbackMessage(input: {
+  message_text: string | null;
+  structured_payload: unknown;
+  current_response?: {
+    selected_option: string | null;
+    reasoning_text: string | null;
+    confidence_rating: string | null;
+  } | null;
+}) {
+  if (!isLegacyEditedResponsePlaceholder(input.message_text)) {
+    return input.message_text;
+  }
+
+  if (!input.structured_payload || typeof input.structured_payload !== "object" || Array.isArray(input.structured_payload)) {
+    return "I updated my response.";
+  }
+
+  const payload = input.structured_payload as Record<string, unknown>;
+  const source = stringPayloadValue(payload, "source");
+
+  if (source !== "student_response_in_flow_edit" && source !== "package_review_tempting_option") {
+    return "I updated my response.";
+  }
+
+  const changedFields = changedFieldsFromPayload(payload);
+  const selectedOption =
+    stringPayloadValue(payload, "selected_option") ?? input.current_response?.selected_option ?? null;
+  const reasoningText = input.current_response?.reasoning_text ?? null;
+  const confidenceRating =
+    stringPayloadValue(payload, "confidence_rating") ?? input.current_response?.confidence_rating ?? null;
+  const noTemptingOption = booleanPayloadValue(payload, "no_tempting_option") ?? false;
+  const temptingOption = stringPayloadValue(payload, "tempting_option");
+  const temptingOptionReason = stringPayloadValue(payload, "tempting_option_reason");
+
+  const reconstructed = studentResponseEditMessage({
+    item_order: 0,
+    changed_fields: changedFields,
+    selected_option: selectedOption,
+    reasoning_text: reasoningText,
+    confidence_rating: confidenceRating,
+    no_tempting_option: noTemptingOption,
+    tempting_option: temptingOption,
+    tempting_option_reason: temptingOptionReason
+  });
+
+  return /^I reviewed Question 0/.test(reconstructed) ? "I updated my response." : reconstructed;
+}
+
 function normalizeTemptingOptionEvidence(value: unknown): TemptingOptionEvidence | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -5005,7 +5074,17 @@ function studentTranscriptMessage(input: {
   actor_type?: string;
   message_text: string | null;
   structured_payload: unknown;
+  current_response?: {
+    selected_option: string | null;
+    reasoning_text: string | null;
+    confidence_rating: string | null;
+  } | null;
 }) {
+  const editedFallback = studentTranscriptEditFallbackMessage(input);
+  if (editedFallback) {
+    return editedFallback;
+  }
+
   if (input.message_text) {
     return input.message_text;
   }
@@ -5162,6 +5241,8 @@ export async function getStudentSafeTranscript(input: {
     },
     orderBy: [{ created_at: "asc" }],
     select: {
+      concept_unit_session_db_id: true,
+      item_db_id: true,
       actor_type: true,
       phase: true,
       message_text: true,
@@ -5179,17 +5260,60 @@ export async function getStudentSafeTranscript(input: {
       }
     }
   });
+  const responseLookupKeys = [
+    ...new Set(
+      turns
+        .filter((turn) => turn.concept_unit_session_db_id && turn.item_db_id)
+        .map((turn) => `${turn.concept_unit_session_db_id}:${turn.item_db_id}`)
+    )
+  ];
+  const itemResponses = responseLookupKeys.length > 0
+    ? await prisma.itemResponse.findMany({
+        where: {
+          OR: responseLookupKeys.map((key) => {
+            const [conceptUnitSessionDbId, itemDbId] = key.split(":");
+            return {
+              concept_unit_session_db_id: conceptUnitSessionDbId,
+              item_db_id: itemDbId
+            };
+          })
+        },
+        select: {
+          concept_unit_session_db_id: true,
+          item_db_id: true,
+          selected_option: true,
+          reasoning_text: true,
+          confidence_rating: true
+        }
+      })
+    : [];
+  const responseByTurnKey = new Map(
+    itemResponses.map((response) => [
+      `${response.concept_unit_session_db_id}:${response.item_db_id}`,
+      response
+    ])
+  );
   const result = {
     session_public_id: input.session_public_id,
-    transcript: turns.map((turn) => ({
-      actor: turn.actor_type === "student" ? "student" : "assistant",
-      message_text: studentTranscriptMessage(turn),
-      created_at: turn.created_at.toISOString(),
-      interaction_type: studentTranscriptInteractionType(turn),
-      phase: turn.phase,
-      followup_round_index: turn.followup_round?.round_index ?? null,
-      item_public_id: turn.item?.item_public_id ?? null
-    }))
+    transcript: turns.map((turn) => {
+      const responseKey = turn.concept_unit_session_db_id && turn.item_db_id
+        ? `${turn.concept_unit_session_db_id}:${turn.item_db_id}`
+        : null;
+      const currentResponse = responseKey ? responseByTurnKey.get(responseKey) ?? null : null;
+
+      return {
+        actor: turn.actor_type === "student" ? "student" : "assistant",
+        message_text: studentTranscriptMessage({
+          ...turn,
+          current_response: currentResponse
+        }),
+        created_at: turn.created_at.toISOString(),
+        interaction_type: studentTranscriptInteractionType(turn),
+        phase: turn.phase,
+        followup_round_index: turn.followup_round?.round_index ?? null,
+        item_public_id: turn.item?.item_public_id ?? null
+      };
+    })
   };
 
   assertStudentPayloadIsSafe(result);

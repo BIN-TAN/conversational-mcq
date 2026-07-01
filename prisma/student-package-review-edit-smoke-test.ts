@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import {
   completeInitialConceptUnitAdministration,
+  getStudentSafeTranscript,
   getStudentReviewResponses,
   startConceptUnitInitialAdministration,
   startOrResumeStudentAssessmentSession,
@@ -128,7 +129,7 @@ async function main() {
 
     const session = await prisma.assessmentSession.findUniqueOrThrow({
       where: { session_public_id: started.session.session_public_id },
-      select: { id: true }
+      select: { id: true, current_phase: true }
     });
     const conceptUnitSession = await prisma.conceptUnitSession.findFirstOrThrow({
       where: { assessment_session_db_id: session.id },
@@ -140,6 +141,7 @@ async function main() {
         item: { item_public_id: reviewItem.item_public_id }
       },
       select: {
+        item_db_id: true,
         selected_option: true,
         reasoning_text: true,
         confidence_rating: true,
@@ -202,6 +204,91 @@ async function main() {
       "Package review transcript should show the revised tempting-option evidence."
     );
     assertStudentVisibleTextIsSafe(editTurn);
+
+    const legacyBaseTime = new Date();
+    const legacyTurns = [
+      {
+        changed_fields: ["reasoning"],
+        payload: {
+          source: "student_response_in_flow_edit",
+          item_public_id: reviewItem.item_public_id,
+          changed_fields: ["reasoning"],
+          reasoning_length: "I revised this because the item evidence is stronger for the other option.".length
+        }
+      },
+      {
+        changed_fields: ["answer"],
+        payload: {
+          source: "student_response_in_flow_edit",
+          item_public_id: reviewItem.item_public_id,
+          changed_fields: ["answer"],
+          selected_option: revisedAnswer
+        }
+      },
+      {
+        changed_fields: ["confidence"],
+        payload: {
+          source: "student_response_in_flow_edit",
+          item_public_id: reviewItem.item_public_id,
+          changed_fields: ["confidence"],
+          confidence_rating: "medium"
+        }
+      },
+      {
+        changed_fields: ["tempting_option"],
+        payload: {
+          source: "student_response_in_flow_edit",
+          item_public_id: reviewItem.item_public_id,
+          changed_fields: ["tempting_option"],
+          no_tempting_option: false,
+          tempting_option: temptingOption,
+          tempting_option_reason: "The wording still sounded partly relevant."
+        }
+      }
+    ];
+
+    for (const [index, legacyTurn] of legacyTurns.entries()) {
+      await prisma.conversationTurn.create({
+        data: {
+          assessment_session_db_id: session.id,
+          concept_unit_session_db_id: conceptUnitSession.id,
+          item_db_id: storedResponse.item_db_id,
+          phase: session.current_phase,
+          actor_type: "student",
+          message_text: "Edited my response.",
+          structured_payload: legacyTurn.payload,
+          created_at: new Date(legacyBaseTime.getTime() + index + 1)
+        }
+      });
+    }
+
+    const transcript = await getStudentSafeTranscript({
+      student_user_db_id: student.id,
+      session_public_id: started.session.session_public_id
+    });
+    const transcriptText = transcript.transcript.map((turn) => turn.message_text);
+
+    assert(
+      !transcriptText.includes("Edited my response."),
+      "Legacy edit placeholder should not remain visible in the student transcript."
+    );
+    assert(
+      transcriptText.includes("I revised this because the item evidence is stronger for the other option."),
+      "Legacy reasoning edit placeholder should render the revised reasoning."
+    );
+    assert(
+      transcriptText.includes(`I changed my answer to ${revisedAnswer}.`),
+      "Legacy answer edit placeholder should render the revised answer."
+    );
+    assert(
+      transcriptText.includes("I changed my confidence to Medium."),
+      "Legacy confidence edit placeholder should render the revised confidence."
+    );
+    assert(
+      transcriptText.includes(`I was tempted by ${temptingOption} because The wording still sounded partly relevant.`),
+      "Legacy tempting-option edit placeholder should render revised tempting-option evidence."
+    );
+    assertStudentVisibleTextIsSafe(transcript);
 
     const continued = await completeInitialConceptUnitAdministration({
       student_user_db_id: student.id,
