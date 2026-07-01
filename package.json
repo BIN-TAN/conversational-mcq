@@ -32,6 +32,7 @@
     "student:engagement-evidence-review": "tsx prisma/student-engagement-evidence-review.ts",
     "student:profile-integration-smoke": "tsx prisma/student-profile-integration-smoke-test.ts",
     "student:profile-integration-review": "tsx prisma/student-profile-integration-review.ts",
+    "student:profile-integration-live-smoke": "tsx prisma/student-profile-integration-live-smoke-test.ts",
     "student:formative-evaluation-smoke": "tsx prisma/student-formative-evaluation-smoke-test.ts",
     "student:response-quality-smoke": "tsx prisma/student-response-quality-smoke-test.ts",
     "student:script-review-smoke": "tsx prisma/student-script-review-smoke-test.ts",

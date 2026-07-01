@@ -145,18 +145,30 @@ async function createSampleSession() {
 }
 
 async function main() {
-  configureNoLiveReviewRuntime();
+  const liveRequested =
+    process.argv.includes("--live") || process.env.RUN_LIVE_PROFILE_INTEGRATION_SMOKE === "1";
+
+  if (!liveRequested) {
+    configureNoLiveReviewRuntime();
+  }
+
   await ensureDemoStudentAssessment(prisma);
   await applyProvisionalItemDiagnosticMetadata(prisma);
 
   const requestedSessionPublicId = getArg("session-public-id");
+  assert(
+    !liveRequested || requestedSessionPublicId,
+    "Live profile integration review requires --session-public-id so setup remains explicit."
+  );
   const sample = requestedSessionPublicId ? null : await createSampleSession();
   const sessionPublicId = requestedSessionPublicId ?? sample?.session_public_id;
 
   assert(sessionPublicId, "A session public ID could not be determined.");
 
   try {
-    const packet = await buildProfileIntegrationInterpretationPacketForSession(sessionPublicId);
+    const packet = await buildProfileIntegrationInterpretationPacketForSession(sessionPublicId, {
+      execution_mode: liveRequested ? "live_provider" : "deterministic_mock"
+    });
     const validation = validateProfileIntegrationOutput(packet);
 
     if (!validation.valid) {

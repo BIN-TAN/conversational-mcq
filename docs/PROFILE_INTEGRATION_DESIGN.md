@@ -17,7 +17,7 @@ The agent contract is:
 profile_integration_agent
 ```
 
-Phase 27c implements the schema, input builder, deterministic mock output, validator, fallback, no-live smoke test, and redacted review command. It does not run paid provider calls.
+Phase 27c implements the schema, input builder, deterministic mock output, validator, fallback, redacted review command, provider-audited execution path, and opt-in live smoke wrapper. Normal review and smoke commands remain no-live by default. Paid provider calls occur only when explicitly enabled by a live smoke command and live server-side configuration.
 
 ## Why Integration Is Separate
 
@@ -158,9 +158,22 @@ Validation is deterministic. It rejects outputs that:
 - expose secrets;
 - expose engagement or AI-assistance labels in the student-safe message;
 - use a student-facing status outside the three allowed labels;
-- overclaim a high-confidence stable interpretation without limitations.
+- overclaim a high-confidence interpretation when evidence is mixed, low-information, reliability-limited, or metadata-limited;
+- claim `likely_misconception` without at least two aligned evidence sources;
+- use engagement, process, or external-assistance context as direct ability evidence.
 
 No separate reviewer LLM is used. Overclaiming is constrained by the prompt contract, strict schema validation, deterministic safety checks, and conservative fallback.
+
+High `status_confidence` is not allowed when:
+
+- evidence consistency is mixed, conflicting, or insufficient;
+- the integration pattern is `mixed_or_conflicting_evidence` or `insufficient_evidence`;
+- overall reasoning quality is vague, mixed, or insufficient;
+- low-information or explicit uncertainty evidence is present;
+- contextual reliability issues are present;
+- metadata limitations are substantial.
+
+`likely_misconception` requires multiple aligned sources. A single wrong answer, by itself, is not enough.
 
 ## Fallback
 
@@ -182,6 +195,8 @@ Run the no-live smoke:
 npm run student:profile-integration-smoke
 ```
 
+The smoke simulates the provider path with an injected local provider and verifies that valid output is audited in `agent_calls`, invalid output is rejected, and no OpenAI call occurs.
+
 Run the review command:
 
 ```bash
@@ -193,6 +208,34 @@ To review a specific session:
 ```bash
 npm run student:profile-integration-review -- --session-public-id <session_public_id>
 ```
+
+To intentionally run the provider-backed review path for a specific existing session, use both live server-side LLM configuration and:
+
+```bash
+npm run student:profile-integration-review -- --session-public-id <session_public_id> --live
+```
+
+The standalone live smoke is skipped unless explicitly enabled:
+
+```bash
+npm run student:profile-integration-live-smoke
+```
+
+To run it intentionally after local live configuration:
+
+```bash
+RUN_LIVE_PROFILE_INTEGRATION_SMOKE=1 npm run student:profile-integration-live-smoke
+```
+
+The live path stores `agent_calls` rows with `agent_name=profile_integration_agent`, schema version `profile-integration-interpretation-v1`, provider/model metadata, provider request or response metadata when available, output validation status, validation errors, and token usage when returned by the provider.
+
+The optional model variable is:
+
+```text
+OPENAI_MODEL_PROFILE_INTEGRATION
+```
+
+If it is not configured, the live path may use `OPENAI_MODEL_PLANNING` or `OPENAI_MODEL_FOLLOWUP` as the server-side fallback model variable.
 
 Artifacts are written under:
 

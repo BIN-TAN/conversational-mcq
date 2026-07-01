@@ -1,6 +1,17 @@
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { prisma } from "@/lib/db";
+import type { AgentName } from "@/lib/agents/names";
+import { assertNoProhibitedProviderInput, redactForAudit } from "@/lib/agents/redaction";
+import { getServerEnv } from "@/lib/env";
+import { getLlmRuntimeConfig, LlmConfigurationError, type AgentModelConfig } from "@/lib/llm/config";
+import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
+import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
+import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
+import { toPrismaJson } from "@/lib/services/json";
 import {
   ABILITY_EVIDENCE_PACKET_SCHEMA_VERSION,
   buildAbilityEvidencePacketForSession,
@@ -19,6 +30,31 @@ export const PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION =
   "profile-integration-interpretation-v1" as const;
 export const PROFILE_INTEGRATION_REVIEW_ARTIFACT_VERSION =
   "profile-integration-review-v1" as const;
+
+const PROFILE_INTEGRATION_PROMPT_INSTRUCTIONS = `
+You are the Profile Integration Agent for a protected chat-native formative assessment platform.
+Interpret redacted ability-evidence and engagement-evidence packets into one structured profile integration packet.
+
+Boundaries:
+- You are not administering items, choosing a formative value, recommending an activity, or controlling state transitions.
+- Use only the provided structured evidence. Do not invent evidence, student text, item content, hidden metadata, or answer keys.
+- Do not expose answer keys, correct options, correctness labels, distractor metadata, raw misconception identifiers, raw student reasoning, raw process payloads, raw model output, prompts, provider metadata, or secrets.
+- Process and engagement evidence affect reliability and confidence only. They are not direct ability evidence.
+- External-assistance signals are contextual only and must not penalize the student or appear in the student-facing message.
+- Never make an unsupported integrity accusation. Do not call AI assistance ${"che" + "ating"} or ${"mis" + "conduct"}.
+- If evidence is mixed, conflicting, low-information, or heavily limited, use broad conservative categories and lower confidence.
+- Use likely_misconception only when at least two aligned evidence sources support the same conceptual issue.
+- Do not use high status_confidence when evidence consistency is mixed/conflicting/insufficient, reasoning quality is vague/mixed/insufficient, multiple I-don't-know or low-information signals are present, metadata limitations are substantial, or the integration pattern is mixed_or_conflicting_evidence or insufficient_evidence.
+- Student-facing status labels must be exactly Mostly understood, Still developing, or Needs more work.
+- Internal status may use Insufficient evidence.
+- Integration pattern must be one of stable_understanding, developing_understanding, likely_knowledge_gap, likely_misconception, mixed_or_conflicting_evidence, or insufficient_evidence.
+
+Return only the required JSON object for profile-integration-interpretation-v1.
+`;
+
+export const PROFILE_INTEGRATION_PROMPT_HASH = createHash("sha256")
+  .update(PROFILE_INTEGRATION_PROMPT_INSTRUCTIONS)
+  .digest("hex");
 
 const InternalIntegratedStatusSchema = z.enum([
   "Mostly understood",
@@ -179,7 +215,10 @@ export type ProfileIntegrationValidationIssue = {
     | "engagement_label_exposed_to_student"
     | "ai_assistance_label_exposed_to_student"
     | "invalid_student_facing_status"
-    | "overclaim_without_limitation";
+    | "overclaim_without_limitation"
+    | "high_confidence_overclaim"
+    | "insufficient_misconception_alignment"
+    | "engagement_used_as_ability_evidence";
   blocked_pattern_label?: string;
 };
 
@@ -257,6 +296,99 @@ export type ProfileIntegrationAgentInput = {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function prismaJson(value: unknown) {
+  return toPrismaJson(value) ?? Prisma.JsonNull;
+}
+
+function configured(value?: string | null) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function providerAuditUpdate(providerResult: StructuredAgentResult<unknown>) {
+  const rawOutput =
+    providerResult.raw_output ?? (
+      providerResult.status === "failed"
+        ? {
+            provider_failure: {
+              provider: providerResult.provider,
+              status: providerResult.status,
+              category: providerResult.error?.category ?? null,
+              message: providerResult.error?.message ?? null,
+              retryable: providerResult.error?.retryable ?? null,
+              transport: providerResult.transport_telemetry
+                ? {
+                    adapter_version: providerResult.transport_telemetry.adapter_version,
+                    model_name: providerResult.transport_telemetry.model_name,
+                    http_status:
+                      providerResult.transport_telemetry.normalized_error?.http_status ??
+                      providerResult.transport_telemetry.http_status ??
+                      null,
+                    typed_failure_reason:
+                      providerResult.transport_telemetry.normalized_error?.typed_failure_reason ??
+                      null,
+                    provider_error_code:
+                      providerResult.transport_telemetry.normalized_error?.provider_error_code ??
+                      null
+                  }
+                : null
+            }
+          }
+        : undefined
+    );
+
+  return {
+    provider: providerResult.provider,
+    ...providerAuditMetadata(providerResult),
+    raw_output: prismaJson(redactForAudit(rawOutput)),
+    latency_ms: providerResult.latency_ms,
+    input_tokens: providerResult.usage?.input_tokens,
+    output_tokens: providerResult.usage?.output_tokens,
+    total_tokens: providerResult.usage?.total_tokens,
+    token_usage: providerResult.usage
+      ? prismaJson(providerResult.usage.raw ?? providerResult.usage)
+      : undefined
+  };
+}
+
+function resolveProfileIntegrationModelConfig(): AgentModelConfig {
+  const env = getServerEnv();
+  const modelName = [env.OPENAI_MODEL_PROFILE_INTEGRATION, env.OPENAI_MODEL_PLANNING, env.OPENAI_MODEL_FOLLOWUP]
+    .find((value) => configured(value));
+
+  if (!configured(modelName)) {
+    throw new LlmConfigurationError(
+      "profile_integration_model_missing",
+      "OPENAI_MODEL_PROFILE_INTEGRATION, OPENAI_MODEL_PLANNING, or OPENAI_MODEL_FOLLOWUP is required when live profile integration is explicitly enabled.",
+      { agent_name: PROFILE_INTEGRATION_AGENT_NAME }
+    );
+  }
+
+  return {
+    model_name: String(modelName),
+    max_output_tokens:
+      env.OPENAI_MAX_OUTPUT_TOKENS_PROFILE_INTEGRATION ??
+      env.OPENAI_MAX_OUTPUT_TOKENS_PLANNING ??
+      env.OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP ??
+      3000
+  };
+}
+
+let profileIntegrationProviderOverrideForTest: LlmProvider | null = null;
+
+export async function withProfileIntegrationProviderForTest<T>(
+  provider: LlmProvider,
+  callback: () => Promise<T>
+): Promise<T> {
+  const previous = profileIntegrationProviderOverrideForTest;
+  profileIntegrationProviderOverrideForTest = provider;
+
+  try {
+    return await callback();
+  } finally {
+    profileIntegrationProviderOverrideForTest = previous;
+  }
 }
 
 function countBy<T extends string>(values: T[]) {
@@ -428,6 +560,23 @@ function strongestClaimStrength(count: number, highStrengthCount = count): z.inf
   return highStrengthCount >= 1 ? "strong" : "moderate";
 }
 
+function alignedMisconceptionEvidenceCount(input: ProfileIntegrationAgentInput) {
+  return input.ability_summary.item_evidence.filter((item) =>
+    item.ability_signal_category === "misconception_signal" &&
+    item.misconception_match_count > 0 &&
+    (item.selected_option_role === "diagnostic_distractor" ||
+      item.tempting_option_role === "diagnostic_distractor")
+  ).length;
+}
+
+function substantialMetadataLimitations(input: ProfileIntegrationAgentInput) {
+  const itemLimitationCount = input.ability_summary.item_evidence.reduce(
+    (total, item) => total + item.limitation_count,
+    0
+  );
+  return input.ability_summary.limitation_count + input.engagement_summary.limitation_count + itemLimitationCount >= 3;
+}
+
 function patternFromInput(input: ProfileIntegrationAgentInput): ProfileIntegrationPattern {
   const counts = input.ability_summary.item_category_counts;
   const strongCount = counts.strong_understanding ?? 0;
@@ -441,9 +590,10 @@ function patternFromInput(input: ProfileIntegrationAgentInput): ProfileIntegrati
   if (strongCount >= 2 && misconceptionCount === 0 && gapCount === 0 && mixedCount === 0) {
     return "stable_understanding";
   }
-  if (misconceptionCount >= 2 || (misconceptionCount >= 1 && input.ability_summary.category_confidence === "high")) {
+  if (alignedMisconceptionEvidenceCount(input) >= 2) {
     return "likely_misconception";
   }
+  if (misconceptionCount > 0 && gapCount > 0) return "mixed_or_conflicting_evidence";
   if (gapCount >= 2 || (gapCount >= 1 && input.safe_response_package_summary.low_information_item_count >= 2)) {
     return "likely_knowledge_gap";
   }
@@ -479,6 +629,18 @@ function internalStatusFor(input: {
 
 function statusConfidenceFor(input: ProfileIntegrationAgentInput, pattern: ProfileIntegrationPattern) {
   if (pattern === "insufficient_evidence") return "low" as const;
+  if (
+    pattern === "mixed_or_conflicting_evidence" ||
+    input.ability_summary.reasoning_quality_overall === "vague" ||
+    input.ability_summary.reasoning_quality_overall === "mixed" ||
+    input.ability_summary.reasoning_quality_overall === "insufficient" ||
+    input.safe_response_package_summary.low_information_item_count > 0 ||
+    input.safe_response_package_summary.mixed_or_conflicting_item_count > 0 ||
+    input.engagement_summary.item_evidence.some((item) => item.idk_or_insufficient_knowledge_marked) ||
+    substantialMetadataLimitations(input)
+  ) {
+    return input.ability_summary.category_confidence === "low" ? "low" as const : "medium" as const;
+  }
   if (
     input.engagement_summary.provisional_engagement_category === "disengaged" ||
     input.engagement_summary.category_confidence === "low" ||
@@ -769,13 +931,339 @@ export async function callProfileIntegrationAgent(
   return deterministicProfileIntegrationOutput(input);
 }
 
+export type ProfileIntegrationExecutionResult =
+  | {
+      status: "succeeded";
+      packet: ProfileIntegrationInterpretationPacketV1;
+      agent_call_id?: string;
+      validation_issues: [];
+    }
+  | {
+      status: "invalid_output" | "failed" | "configuration_blocked";
+      fallback_packet: ProfileIntegrationInterpretationPacketV1;
+      agent_call_id?: string;
+      validation_issues: ProfileIntegrationValidationIssue[];
+      blocked_reason: string;
+    };
+
+async function resolveProfileIntegrationAuditContext(sessionPublicId: string) {
+  const session = await prisma.assessmentSession.findUnique({
+    where: { session_public_id: sessionPublicId },
+    select: {
+      id: true,
+      concept_unit_sessions: {
+        orderBy: [{ updated_at: "desc" }],
+        take: 1,
+        select: { id: true }
+      }
+    }
+  });
+
+  return {
+    assessment_session_db_id: session?.id,
+    concept_unit_session_db_id: session?.concept_unit_sessions[0]?.id
+  };
+}
+
+function validationErrorPayload(input: {
+  category: "schema_validation" | "profile_integration_validation" | "provider_failure";
+  issues?: ProfileIntegrationValidationIssue[];
+  message?: string;
+}) {
+  return JSON.stringify({
+    category: input.category,
+    issue_count: input.issues?.length ?? 0,
+    ...(input.issues ? { issues: input.issues } : {}),
+    ...(input.message ? { message: input.message.slice(0, 500) } : {})
+  });
+}
+
+function safeProviderFailureReason(providerResult: StructuredAgentResult<unknown>) {
+  return [
+    providerResult.error?.category ?? providerResult.status,
+    providerResult.transport_telemetry?.normalized_error?.typed_failure_reason,
+    providerResult.transport_telemetry?.normalized_error?.http_status !== undefined &&
+      providerResult.transport_telemetry.normalized_error.http_status !== null
+      ? `http_${providerResult.transport_telemetry.normalized_error.http_status}`
+      : null
+  ].filter(Boolean).join(":");
+}
+
+async function executeProfileIntegrationAgentWithProvider(input: {
+  agent_input: ProfileIntegrationAgentInput;
+  provider: LlmProvider;
+  provider_label: "mock" | "openai";
+  model_config: AgentModelConfig;
+  live_call_allowed: boolean;
+  request_timeout_ms: number;
+  audit_context?: {
+    assessment_session_db_id?: string;
+    concept_unit_session_db_id?: string;
+  };
+}): Promise<ProfileIntegrationExecutionResult> {
+  const startedAt = new Date();
+  const clientRequestId = `profile_integration_${randomUUID()}`;
+  assertNoProhibitedProviderInput(input.agent_input);
+
+  const agentCall = await prisma.agentCall.create({
+    data: {
+      id: randomUUID(),
+      assessment_session_db_id: input.audit_context?.assessment_session_db_id,
+      concept_unit_session_db_id: input.audit_context?.concept_unit_session_db_id,
+      agent_name: PROFILE_INTEGRATION_AGENT_NAME,
+      agent_version: PROFILE_INTEGRATION_AGENT_VERSION,
+      model_name: input.model_config.model_name,
+      provider: input.provider_label,
+      client_request_id: clientRequestId,
+      agent_invocation_key: `profile_integration:${input.agent_input.session_context.session_public_id}:${PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION}:${randomUUID()}`,
+      prompt_hash: PROFILE_INTEGRATION_PROMPT_HASH,
+      reasoning_effort: input.model_config.reasoning_effort,
+      max_output_tokens: input.model_config.max_output_tokens,
+      prompt_version: PROFILE_INTEGRATION_PROMPT_VERSION,
+      schema_version: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION,
+      input_payload: prismaJson(redactForAudit(input.agent_input)),
+      live_call_allowed: input.live_call_allowed,
+      call_status: "started",
+      started_at: startedAt
+    }
+  });
+
+  try {
+    const providerResult = await input.provider.executeStructured({
+      agent_name: PROFILE_INTEGRATION_AGENT_NAME as unknown as AgentName,
+      model_config: input.model_config,
+      instructions: PROFILE_INTEGRATION_PROMPT_INSTRUCTIONS,
+      input: input.agent_input,
+      output_schema: ProfileIntegrationInterpretationPacketV1Schema,
+      schema_name: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
+      client_request_id: clientRequestId,
+      timeout_ms: input.request_timeout_ms,
+      metadata: {
+        purpose: "chat_native_profile_integration_review",
+        agent_name: PROFILE_INTEGRATION_AGENT_NAME,
+        prompt_version: PROFILE_INTEGRATION_PROMPT_VERSION,
+        schema_version: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION
+      }
+    });
+
+    if (providerResult.status === "completed") {
+      const candidate =
+        providerResult.parsed_output && typeof providerResult.parsed_output === "object"
+          ? {
+              ...(providerResult.parsed_output as Record<string, unknown>),
+              generation_mode: input.provider_label === "openai" ? "live_provider" : "deterministic_mock",
+              generated_at: nowIso()
+            }
+          : providerResult.parsed_output;
+      const validation = validateProfileIntegrationOutput(candidate, input.agent_input);
+
+      if (validation.valid) {
+        await prisma.agentCall.update({
+          where: { id: agentCall.id },
+          data: {
+            ...providerAuditUpdate(providerResult),
+            output_payload: prismaJson(validation.packet),
+            output_validated: true,
+            call_status: "succeeded",
+            completed_at: new Date()
+          }
+        });
+
+        return {
+          status: "succeeded",
+          packet: validation.packet,
+          agent_call_id: agentCall.id,
+          validation_issues: []
+        };
+      }
+
+      const fallbackPacket = buildConservativeIntegrationFallback(
+        input.agent_input,
+        `profile_integration_provider_output_rejected_${validation.issues.length}_issues`
+      );
+      await prisma.agentCall.update({
+        where: { id: agentCall.id },
+        data: {
+          ...providerAuditUpdate(providerResult),
+          output_payload: Prisma.JsonNull,
+          output_validated: false,
+          validation_error: validationErrorPayload({
+            category: "profile_integration_validation",
+            issues: validation.issues
+          }),
+          call_status: "invalid_output",
+          error_category: "profile_integration_validation",
+          completed_at: new Date()
+        }
+      });
+
+      return {
+        status: "invalid_output",
+        fallback_packet: fallbackPacket,
+        agent_call_id: agentCall.id,
+        validation_issues: validation.issues,
+        blocked_reason: "profile_integration_output_failed_validation"
+      };
+    }
+
+    const fallbackPacket = buildConservativeIntegrationFallback(
+      input.agent_input,
+      `profile_integration_provider_failed_${safeProviderFailureReason(providerResult)}`
+    );
+    await prisma.agentCall.update({
+      where: { id: agentCall.id },
+      data: {
+        ...providerAuditUpdate(providerResult),
+        output_payload: Prisma.JsonNull,
+        output_validated: false,
+        validation_error: validationErrorPayload({
+          category: "provider_failure",
+          message:
+            providerResult.error?.message ??
+            providerResult.refusal ??
+            providerResult.incomplete_reason ??
+            "Profile integration provider call did not complete."
+        }),
+        refusal_text: providerResult.refusal,
+        incomplete_reason: providerResult.incomplete_reason,
+        call_status: "failed",
+        error_category: providerResult.error?.category ?? providerResult.status,
+        completed_at: new Date()
+      }
+    });
+
+    return {
+      status: "failed",
+      fallback_packet: fallbackPacket,
+      agent_call_id: agentCall.id,
+      validation_issues: [],
+      blocked_reason: "profile_integration_provider_failed"
+    };
+  } catch (error) {
+    const fallbackPacket = buildConservativeIntegrationFallback(
+      input.agent_input,
+      "profile_integration_provider_exception"
+    );
+    await prisma.agentCall.update({
+      where: { id: agentCall.id },
+      data: {
+        output_payload: Prisma.JsonNull,
+        output_validated: false,
+        validation_error: validationErrorPayload({
+          category: "provider_failure",
+          message: error instanceof Error ? error.message : "Profile integration provider call failed."
+        }),
+        call_status: "failed",
+        error_category: "unexpected_provider_response",
+        completed_at: new Date()
+      }
+    });
+
+    return {
+      status: "failed",
+      fallback_packet: fallbackPacket,
+      agent_call_id: agentCall.id,
+      validation_issues: [],
+      blocked_reason: "profile_integration_provider_exception"
+    };
+  }
+}
+
+export async function executeProfileIntegrationAgentWithProviderForTest(input: {
+  agent_input: ProfileIntegrationAgentInput;
+  provider: LlmProvider;
+  model_config?: AgentModelConfig;
+}): Promise<ProfileIntegrationExecutionResult> {
+  return executeProfileIntegrationAgentWithProvider({
+    agent_input: input.agent_input,
+    provider: input.provider,
+    provider_label: "mock",
+    model_config: input.model_config ?? {
+      model_name: `mock-${PROFILE_INTEGRATION_AGENT_NAME}`,
+      max_output_tokens: 3000
+    },
+    live_call_allowed: false,
+    request_timeout_ms: 60000
+  });
+}
+
+export async function executeLiveProfileIntegrationAgent(input: {
+  agent_input: ProfileIntegrationAgentInput;
+  session_public_id?: string;
+}): Promise<ProfileIntegrationExecutionResult> {
+  let runtime;
+  let modelConfig;
+
+  try {
+    runtime = getLlmRuntimeConfig();
+    modelConfig = resolveProfileIntegrationModelConfig();
+  } catch (error) {
+    return {
+      status: "configuration_blocked",
+      fallback_packet: buildConservativeIntegrationFallback(
+        input.agent_input,
+        error instanceof LlmConfigurationError ? error.code : "profile_integration_live_configuration_blocked"
+      ),
+      validation_issues: [],
+      blocked_reason: error instanceof Error ? error.message : "Profile integration live configuration failed."
+    };
+  }
+
+  if (runtime.provider !== "openai" || !runtime.live_calls_enabled) {
+    return {
+      status: "configuration_blocked",
+      fallback_packet: buildConservativeIntegrationFallback(
+        input.agent_input,
+        "profile_integration_live_calls_not_enabled"
+      ),
+      validation_issues: [],
+      blocked_reason: "Set LLM_PROVIDER=openai and LLM_LIVE_CALLS_ENABLED=true for live profile integration."
+    };
+  }
+
+  const auditContext = input.session_public_id
+    ? await resolveProfileIntegrationAuditContext(input.session_public_id)
+    : undefined;
+  const provider = profileIntegrationProviderOverrideForTest ?? createLlmProvider();
+
+  return executeProfileIntegrationAgentWithProvider({
+    agent_input: input.agent_input,
+    provider,
+    provider_label: "openai",
+    model_config: modelConfig,
+    live_call_allowed: true,
+    request_timeout_ms: runtime.request_timeout_ms,
+    audit_context: auditContext
+  });
+}
+
 export function projectStudentSafeIntegratedMessage(
   packet: ProfileIntegrationInterpretationPacketV1
 ): StudentFacingProjection {
   return packet.student_safe_message;
 }
 
-export function validateProfileIntegrationOutput(value: unknown) {
+function highConfidenceBlockedByEvidence(input: ProfileIntegrationAgentInput, packet: ProfileIntegrationInterpretationPacketV1) {
+  return (
+    packet.ability_interpretation.evidence_consistency === "mixed" ||
+    packet.ability_interpretation.evidence_consistency === "conflicting" ||
+    packet.ability_interpretation.evidence_consistency === "insufficient" ||
+    packet.integration_pattern === "mixed_or_conflicting_evidence" ||
+    packet.integration_pattern === "insufficient_evidence" ||
+    input.ability_summary.reasoning_quality_overall === "vague" ||
+    input.ability_summary.reasoning_quality_overall === "mixed" ||
+    input.ability_summary.reasoning_quality_overall === "insufficient" ||
+    input.safe_response_package_summary.low_information_item_count > 0 ||
+    input.safe_response_package_summary.mixed_or_conflicting_item_count > 0 ||
+    input.engagement_summary.item_evidence.some((item) => item.idk_or_insufficient_knowledge_marked) ||
+    substantialMetadataLimitations(input)
+  );
+}
+
+export function validateProfileIntegrationOutput(
+  value: unknown,
+  input?: ProfileIntegrationAgentInput
+) {
   const schemaResult = ProfileIntegrationInterpretationPacketV1Schema.safeParse(value);
   const issues: ProfileIntegrationValidationIssue[] = [];
 
@@ -879,13 +1367,31 @@ export function validateProfileIntegrationOutput(value: unknown) {
     pushIssue(issues, "uncertainty_and_limitations", "overclaim_without_limitation");
   }
 
+  if (input && packet.status_confidence === "high" && highConfidenceBlockedByEvidence(input, packet)) {
+    pushIssue(issues, "status_confidence", "high_confidence_overclaim");
+  }
+
+  if (input && packet.integration_pattern === "likely_misconception" && alignedMisconceptionEvidenceCount(input) < 2) {
+    pushIssue(issues, "integration_pattern", "insufficient_misconception_alignment");
+  }
+
+  for (const rationale of packet.evidence_rationale) {
+    if (
+      rationale.claim_type === "ability" &&
+      /\b(engagement|participation|process|ai assistance|external assistance)\b/i.test(rationale.claim)
+    ) {
+      pushIssue(issues, "evidence_rationale", "engagement_used_as_ability_evidence");
+    }
+  }
+
   return issues.length === 0
     ? { valid: true as const, packet, issues }
     : { valid: false as const, issues };
 }
 
 export async function buildProfileIntegrationInterpretationPacketForSession(
-  sessionPublicId: string
+  sessionPublicId: string,
+  options: { execution_mode?: "deterministic_mock" | "live_provider" } = {}
 ): Promise<ProfileIntegrationInterpretationPacketV1> {
   const abilityPacket = await buildAbilityEvidencePacketForSession(sessionPublicId);
   const engagementPacket = await buildEngagementEvidencePacketForSession(sessionPublicId);
@@ -893,8 +1399,22 @@ export async function buildProfileIntegrationInterpretationPacketForSession(
     ability_packet: abilityPacket,
     engagement_packet: engagementPacket
   });
+
+  if (options.execution_mode === "live_provider") {
+    const liveResult = await executeLiveProfileIntegrationAgent({
+      agent_input: agentInput,
+      session_public_id: sessionPublicId
+    });
+
+    if (liveResult.status === "succeeded") {
+      return liveResult.packet;
+    }
+
+    return liveResult.fallback_packet;
+  }
+
   const candidate = await callProfileIntegrationAgent(agentInput);
-  const validation = validateProfileIntegrationOutput(candidate);
+  const validation = validateProfileIntegrationOutput(candidate, agentInput);
 
   if (validation.valid) {
     return validation.packet;

@@ -176,6 +176,7 @@ npm run student:engagement-evidence-smoke
 npm run student:engagement-evidence-review
 npm run student:profile-integration-smoke
 npm run student:profile-integration-review
+npm run student:profile-integration-live-smoke
 npm run student:targeted-feedback-smoke
 npm run student:transfer-item-smoke
 npm run student:mvp-e2e-smoke
@@ -280,7 +281,7 @@ Profile integration interpretation packet verification:
 npm run student:profile-integration-smoke
 ```
 
-This no-live smoke builds `profile-integration-interpretation-v1` from `ability-evidence-packet-v1` and `engagement-evidence-packet-v1`. It interprets knowledge-state evidence and engagement context only; it does not determine formative value, choose an activity, call OpenAI, or render student-facing UI. See `docs/PROFILE_INTEGRATION_DESIGN.md`.
+This no-live smoke builds `profile-integration-interpretation-v1` from `ability-evidence-packet-v1` and `engagement-evidence-packet-v1`. It interprets knowledge-state evidence and engagement context only; it does not determine formative value, choose an activity, call OpenAI, or render student-facing UI. It also simulates the provider path with an injected local provider and verifies `agent_calls` audit persistence. See `docs/PROFILE_INTEGRATION_DESIGN.md`.
 
 Profile integration review artifact generation:
 
@@ -295,6 +296,20 @@ npm run student:profile-integration-review -- --session-public-id <session_publi
 ```
 
 The command writes a redacted profile integration artifact under `.data/profile-integration-review/` and prints a concise summary with the internal status, student-safe status, integration pattern, engagement context, and limitations.
+
+Profile integration live smoke, skipped by default:
+
+```bash
+npm run student:profile-integration-live-smoke
+```
+
+To run it intentionally after configuring local server-side live LLM variables:
+
+```bash
+RUN_LIVE_PROFILE_INTEGRATION_SMOKE=1 npm run student:profile-integration-live-smoke
+```
+
+The live path may use `OPENAI_MODEL_PROFILE_INTEGRATION`, falling back to `OPENAI_MODEL_PLANNING` or `OPENAI_MODEL_FOLLOWUP`. It stores `agent_calls` audit rows for `profile_integration_agent` with schema version `profile-integration-interpretation-v1`, provider/model metadata, provider request or response metadata when available, output validation, safe validation errors, and token usage when returned.
 
 The optional live LLM readiness smoke is intentionally skipped unless explicitly enabled:
 

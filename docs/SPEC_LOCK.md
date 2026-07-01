@@ -1186,8 +1186,9 @@ Phase 6A.5 must not implement:
   `engagement-evidence-packet-v1`.
 - The service-local agent contract is `profile_integration_agent`. Phase 27c
   implements the prompt/schema boundary, deterministic mock output,
-  deterministic validator, conservative fallback, no-live smoke test, and
-  redacted review artifact. It does not make paid provider calls.
+  deterministic validator, conservative fallback, provider-audited execution
+  path, no-live smoke test, opt-in live smoke wrapper, and redacted review
+  artifact. Default commands do not make paid provider calls.
 - Profile integration is interpretation only. It must not determine formative
   value, choose a formative activity, recommend an intervention, change
   assessment state, alter scoring, or modify item administration logic.
@@ -1202,6 +1203,21 @@ Phase 6A.5 must not implement:
   `developing_understanding`, `likely_knowledge_gap`,
   `likely_misconception`, `mixed_or_conflicting_evidence`, and
   `insufficient_evidence`.
+- High `status_confidence` must be rejected when evidence is mixed,
+  conflicting, insufficient, low-information, reliability-limited, or
+  substantially metadata-limited. `likely_misconception` requires at least two
+  aligned evidence sources. Engagement, process, and external-assistance
+  context must not be used as direct ability evidence.
+- Live profile integration is opt-in only. It requires explicit live
+  server-side LLM configuration and either `OPENAI_MODEL_PROFILE_INTEGRATION`,
+  `OPENAI_MODEL_PLANNING`, or `OPENAI_MODEL_FOLLOWUP`. The default
+  `student:profile-integration-review` and `student:profile-integration-smoke`
+  paths remain no-live unless the live path is explicitly requested.
+- Provider-backed profile integration must persist an `agent_calls` row with
+  `agent_name=profile_integration_agent`, schema version
+  `profile-integration-interpretation-v1`, provider/model metadata, provider
+  request or response metadata when available, validation status, safe
+  validation errors, and token usage when returned.
 - The student-safe projection may include only the three-label status, a short
   message, and a knowledge-focus statement. It must not expose engagement
   labels, AI-assistance labels, answer keys, correct option values,
@@ -1211,5 +1227,6 @@ Phase 6A.5 must not implement:
 - Profile integration review artifacts are ignored under
   `.data/profile-integration-review/` and must remain redacted structured
   evidence only.
-- Phase 27c does not implement teacher upload, new item content, live provider
-  calls, UI wiring, formative activity selection, or schema migrations.
+- Phase 27c does not implement teacher upload, new item content, UI wiring,
+  formative activity selection, or schema migrations. It does not run paid live
+  calls during ordinary tests, builds, or review artifact generation.

@@ -16,15 +16,18 @@ import {
   buildItemEngagementEvidence
 } from "../src/lib/services/student-assessment/engagement-evidence";
 import {
+  PROFILE_INTEGRATION_AGENT_NAME,
   ProfileIntegrationInterpretationPacketV1Schema,
   buildConservativeIntegrationFallback,
   buildProfileIntegrationAgentInput,
   buildProfileIntegrationInterpretationPacketForSession,
   callProfileIntegrationAgent,
+  executeProfileIntegrationAgentWithProviderForTest,
   studentStatusForIntegrationPattern,
   validateProfileIntegrationOutput,
   writeProfileIntegrationReviewArtifact
 } from "../src/lib/services/student-assessment/profile-integration";
+import type { LlmProvider, StructuredAgentRequest, StructuredAgentResult } from "../src/lib/llm/providers/types";
 import { applyProvisionalItemDiagnosticMetadata } from "../src/lib/services/student-assessment/provisional-item-diagnostic-metadata";
 import { createResponsePackage } from "../src/lib/services/response-packages";
 import { logProcessEvent } from "../src/lib/services/process-events";
@@ -117,6 +120,20 @@ const metadata = diagnosticMetadataForItem({
 
 type AbilityEvidenceInput = Omit<Parameters<typeof buildItemAbilityEvidence>[0], "item_public_id" | "metadata">;
 type EngagementEvidenceInput = Omit<Parameters<typeof buildItemEngagementEvidence>[0], "item_public_id">;
+
+class FixedProfileIntegrationProvider implements LlmProvider {
+  constructor(
+    private readonly resultFactory: (
+      request: StructuredAgentRequest<unknown, unknown>
+    ) => StructuredAgentResult<unknown>
+  ) {}
+
+  async executeStructured<TInput, TOutput>(
+    request: StructuredAgentRequest<TInput, TOutput>
+  ): Promise<StructuredAgentResult<TOutput>> {
+    return this.resultFactory(request as unknown as StructuredAgentRequest<unknown, unknown>) as StructuredAgentResult<TOutput>;
+  }
+}
 
 function abilityItem(index: number, input: AbilityEvidenceInput) {
   return buildItemAbilityEvidence({
@@ -416,6 +433,175 @@ async function runPureIntegrationAssertions() {
     }
   };
   assert(!validateProfileIntegrationOutput(rawOutput).valid, "Raw reasoning exposure should be rejected.");
+  const engagementLabelOutput = {
+    ...validPacket,
+    student_safe_message: {
+      ...validPacket.student_safe_message,
+      message: "Low engagement and AI assistance affected this profile."
+    }
+  };
+  assert(
+    !validateProfileIntegrationOutput(engagementLabelOutput).valid,
+    "Student-facing engagement and external-assistance labels should be rejected."
+  );
+
+  const mixedInput = inputFromEvidence({
+    abilities: [
+      strongAbility(1),
+      abilityItem(2, { selected_option: "E", correctness: "not_scored", confidence: "Low", reasoning_text: "I don't know.", no_tempting_option: true }),
+      abilityItem(3, { selected_option: "A", correctness: "incorrect", confidence: "High", reasoning_text: "Maybe harder items lower theta.", no_tempting_option: true })
+    ],
+    engagements: [engagedEvidence(1), engagedEvidence(2), engagedEvidence(3)]
+  });
+  const mixedPacket = await callProfileIntegrationAgent(mixedInput);
+  const overconfidentMixedOutput = {
+    ...mixedPacket,
+    status_confidence: "high" as const,
+    ability_interpretation: {
+      ...mixedPacket.ability_interpretation,
+      evidence_consistency: "mixed" as const
+    }
+  };
+  const overconfidentValidation = validateProfileIntegrationOutput(overconfidentMixedOutput, mixedInput);
+  assert(!overconfidentValidation.valid, "High confidence should be rejected for mixed or low-information evidence.");
+  assert(
+    overconfidentValidation.issues.some((issue) => issue.rule_code === "high_confidence_overclaim"),
+    "High-confidence overclaim should report a specific rule."
+  );
+
+  const singleMisconceptionInput = inputFromEvidence({
+    abilities: [
+      abilityItem(1, { selected_option: "A", correctness: "incorrect", confidence: "High", reasoning_text: "Item difficulty directly determines ability.", no_tempting_option: true }),
+      strongAbility(2),
+      strongAbility(3)
+    ],
+    engagements: [engagedEvidence(1), engagedEvidence(2), engagedEvidence(3)]
+  });
+  const unsupportedMisconceptionOutput = {
+    ...(await callProfileIntegrationAgent(singleMisconceptionInput)),
+    integration_pattern: "likely_misconception" as const
+  };
+  const unsupportedMisconceptionValidation = validateProfileIntegrationOutput(
+    unsupportedMisconceptionOutput,
+    singleMisconceptionInput
+  );
+  assert(
+    !unsupportedMisconceptionValidation.valid,
+    "Likely misconception should require at least two aligned sources."
+  );
+  assert(
+    unsupportedMisconceptionValidation.issues.some((issue) =>
+      issue.rule_code === "insufficient_misconception_alignment"
+    ),
+    "Unsupported misconception claim should report a specific rule."
+  );
+
+  const alignedMisconceptionInput = inputFromEvidence({
+    abilities: [
+      abilityItem(1, { selected_option: "A", correctness: "incorrect", confidence: "High", reasoning_text: "Item difficulty directly determines person ability.", no_tempting_option: true }),
+      abilityItem(2, { selected_option: "B", correctness: "incorrect", confidence: "High", reasoning_text: "Theta changes because a harder form changes the person location.", no_tempting_option: true }),
+      strongAbility(3)
+    ],
+    engagements: [engagedEvidence(1), engagedEvidence(2), engagedEvidence(3)]
+  });
+  const alignedMisconceptionPacket = await packetFor(alignedMisconceptionInput);
+  assert(
+    alignedMisconceptionPacket.integration_pattern === "likely_misconception",
+    "Two aligned misconception sources should be allowed."
+  );
+}
+
+async function runProviderPathAssertions() {
+  configureNoLiveRuntime();
+  const agentCallIds: string[] = [];
+  const input = inputFromEvidence({
+    abilities: [strongAbility(1), strongAbility(2), strongAbility(3)],
+    engagements: [engagedEvidence(1), engagedEvidence(2), engagedEvidence(3)]
+  });
+  const validOutput = await callProfileIntegrationAgent(input);
+  const validProvider = new FixedProfileIntegrationProvider((request) => ({
+    provider: "mock",
+    provider_request_id: "mock_profile_integration_request",
+    provider_response_id: "mock_profile_integration_response",
+    client_request_id: request.client_request_id,
+    status: "completed",
+    parsed_output: validOutput,
+    raw_output: { id: "mock_profile_integration_response", output: validOutput },
+    usage: {
+      input_tokens: 20,
+      output_tokens: 30,
+      total_tokens: 50,
+      raw: { source: "mock_profile_integration_usage" }
+    },
+    latency_ms: 2
+  }));
+  const validResult = await executeProfileIntegrationAgentWithProviderForTest({
+    agent_input: input,
+    provider: validProvider
+  });
+
+  assert(validResult.status === "succeeded", "Valid provider output should be accepted.");
+  assert(validResult.agent_call_id, "Provider path should return an audited agent call ID.");
+  agentCallIds.push(validResult.agent_call_id);
+
+  const validAgentCall = await prisma.agentCall.findUniqueOrThrow({
+    where: { id: validResult.agent_call_id },
+    select: {
+      agent_name: true,
+      schema_version: true,
+      provider_request_id: true,
+      provider_response_id: true,
+      output_validated: true,
+      call_status: true,
+      token_usage: true
+    }
+  });
+
+  assert(validAgentCall.agent_name === PROFILE_INTEGRATION_AGENT_NAME, "Agent call should use profile integration name.");
+  assert(validAgentCall.schema_version === "profile-integration-interpretation-v1", "Agent call should store profile integration schema version.");
+  assert(validAgentCall.provider_request_id === "mock_profile_integration_request", "Provider request ID should be audited.");
+  assert(validAgentCall.provider_response_id === "mock_profile_integration_response", "Provider response ID should be audited.");
+  assert(validAgentCall.output_validated, "Valid provider output should be marked validated.");
+  assert(validAgentCall.call_status === "succeeded", "Valid provider output should mark call succeeded.");
+  assert(Boolean(validAgentCall.token_usage), "Provider token usage metadata should be stored when available.");
+
+  const invalidProvider = new FixedProfileIntegrationProvider((request) => ({
+    provider: "mock",
+    provider_request_id: "mock_profile_integration_bad_request",
+    provider_response_id: "mock_profile_integration_bad_response",
+    client_request_id: request.client_request_id,
+    status: "completed",
+    parsed_output: {
+      ...validOutput,
+      formative_value_direction: "diagnostic_clarification"
+    },
+    raw_output: { id: "mock_profile_integration_bad_response", output: "invalid extra field" },
+    usage: { input_tokens: 10, output_tokens: 10, total_tokens: 20 },
+    latency_ms: 2
+  }));
+  const invalidResult = await executeProfileIntegrationAgentWithProviderForTest({
+    agent_input: input,
+    provider: invalidProvider
+  });
+
+  assert(invalidResult.status === "invalid_output", "Invalid provider output should be rejected.");
+  assert(invalidResult.agent_call_id, "Rejected provider output should still be audited.");
+  agentCallIds.push(invalidResult.agent_call_id);
+
+  const invalidAgentCall = await prisma.agentCall.findUniqueOrThrow({
+    where: { id: invalidResult.agent_call_id },
+    select: { output_validated: true, call_status: true, validation_error: true }
+  });
+  assert(!invalidAgentCall.output_validated, "Rejected provider output should not validate.");
+  assert(invalidAgentCall.call_status === "invalid_output", "Rejected provider output should mark invalid_output.");
+  assert(
+    invalidAgentCall.validation_error?.includes("schema_invalid"),
+    "Rejected provider output should store safe validation issue details."
+  );
+
+  await prisma.agentCall.deleteMany({
+    where: { id: { in: agentCallIds } }
+  });
 }
 
 async function addSyntheticProcessContext(sessionPublicId: string) {
@@ -539,6 +725,7 @@ async function runDbPacketAssertion() {
 async function main() {
   configureNoLiveRuntime();
   await runPureIntegrationAssertions();
+  await runProviderPathAssertions();
   await runDbPacketAssertion();
   console.log("Student profile-integration smoke passed. No OpenAI calls are made by this script.");
 }
