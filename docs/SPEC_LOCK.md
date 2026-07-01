@@ -1178,3 +1178,38 @@ Phase 6A.5 must not implement:
   public IDs, safe labels, and interpretation cautions.
 - Phase 27b does not implement profile integration, final ability inference,
   teacher upload, new item content, live LLM calls, or schema migrations.
+
+## Phase 27c Profile Integration Interpretation Lock
+
+- Phase 27c adds `profile-integration-interpretation-v1`, an internal
+  interpretation packet built from `ability-evidence-packet-v1` and
+  `engagement-evidence-packet-v1`.
+- The service-local agent contract is `profile_integration_agent`. Phase 27c
+  implements the prompt/schema boundary, deterministic mock output,
+  deterministic validator, conservative fallback, no-live smoke test, and
+  redacted review artifact. It does not make paid provider calls.
+- Profile integration is interpretation only. It must not determine formative
+  value, choose a formative activity, recommend an intervention, change
+  assessment state, alter scoring, or modify item administration logic.
+- Ability and engagement remain separate evidence streams. Engagement context
+  may affect status confidence or add limitations, but it must not directly
+  recode ability evidence.
+- Internal integrated status may be `Mostly understood`, `Still developing`,
+  `Needs more work`, or `Insufficient evidence`.
+- Student-facing status must be exactly one of `Mostly understood`,
+  `Still developing`, or `Needs more work`.
+- Allowed integration patterns are `stable_understanding`,
+  `developing_understanding`, `likely_knowledge_gap`,
+  `likely_misconception`, `mixed_or_conflicting_evidence`, and
+  `insufficient_evidence`.
+- The student-safe projection may include only the three-label status, a short
+  message, and a knowledge-focus statement. It must not expose engagement
+  labels, AI-assistance labels, answer keys, correct option values,
+  correctness labels, distractor metadata, raw misconception IDs, raw reasoning,
+  raw process payloads, raw provider output, formative value direction, or
+  activity recommendations.
+- Profile integration review artifacts are ignored under
+  `.data/profile-integration-review/` and must remain redacted structured
+  evidence only.
+- Phase 27c does not implement teacher upload, new item content, live provider
+  calls, UI wiring, formative activity selection, or schema migrations.

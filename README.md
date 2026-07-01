@@ -174,6 +174,8 @@ npm run student:ability-evidence-smoke
 npm run student:ability-evidence-review
 npm run student:engagement-evidence-smoke
 npm run student:engagement-evidence-review
+npm run student:profile-integration-smoke
+npm run student:profile-integration-review
 npm run student:targeted-feedback-smoke
 npm run student:transfer-item-smoke
 npm run student:mvp-e2e-smoke
@@ -262,7 +264,7 @@ Engagement evidence packet verification:
 npm run student:engagement-evidence-smoke
 ```
 
-This no-live smoke builds `engagement-evidence-packet-v1` from fixed IRT response-package and process-event evidence. It does not create a final engagement profile, does not call OpenAI, does not infer misconduct, and does not render student-facing evidence. The AI-assistance signal is limited to `none_indicated`, `likely_external_assistance_pattern`, and `insufficient_evidence`; it is behavioral context only. See `docs/ENGAGEMENT_PROFILING_DESIGN.md`.
+This no-live smoke builds `engagement-evidence-packet-v1` from fixed IRT response-package and process-event evidence. It does not create a final engagement profile, does not call OpenAI, does not make academic-integrity claims, and does not render student-facing evidence. The AI-assistance signal is limited to `none_indicated`, `likely_external_assistance_pattern`, and `insufficient_evidence`; it is behavioral context only. See `docs/ENGAGEMENT_PROFILING_DESIGN.md`.
 
 Engagement evidence review artifact generation:
 
@@ -271,6 +273,28 @@ npm run student:engagement-evidence-review
 ```
 
 This no-live review command creates a temporary deterministic sample session when no session is supplied, writes a redacted engagement evidence artifact plus process-data inventory under `.data/engagement-evidence-review/`, and prints a concise summary. The artifacts contain bands, counts, safe labels, and interpretation cautions only.
+
+Profile integration interpretation packet verification:
+
+```bash
+npm run student:profile-integration-smoke
+```
+
+This no-live smoke builds `profile-integration-interpretation-v1` from `ability-evidence-packet-v1` and `engagement-evidence-packet-v1`. It interprets knowledge-state evidence and engagement context only; it does not determine formative value, choose an activity, call OpenAI, or render student-facing UI. See `docs/PROFILE_INTEGRATION_DESIGN.md`.
+
+Profile integration review artifact generation:
+
+```bash
+npm run student:profile-integration-review
+```
+
+To review an existing completed session:
+
+```bash
+npm run student:profile-integration-review -- --session-public-id <session_public_id>
+```
+
+The command writes a redacted profile integration artifact under `.data/profile-integration-review/` and prints a concise summary with the internal status, student-safe status, integration pattern, engagement context, and limitations.
 
 The optional live LLM readiness smoke is intentionally skipped unless explicitly enabled:
 

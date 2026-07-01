@@ -91,6 +91,30 @@ npm run student:engagement-evidence-review
 
 The command writes ignored artifacts under `.data/engagement-evidence-review/`. The default artifacts omit raw reasoning, raw process-event payloads, raw conversation turns, answer keys, correct options, distractor metadata, raw provider output, and secrets. The AI-assistance signal taxonomy is limited to `none_indicated`, `likely_external_assistance_pattern`, and `insufficient_evidence`; it is behavioral context only and should be compared with future student self-report before stronger interpretation.
 
+## Profile Integration Interpretation Packet
+
+The fixed IRT MVP can build an internal `profile-integration-interpretation-v1` packet from the ability and engagement evidence packets:
+
+```bash
+npm run student:profile-integration-smoke
+```
+
+This packet interprets current knowledge-state evidence and engagement context. It is not formative value determination, not an activity recommendation, not a final student profile, and not classroom validation. Engagement context can lower interpretation confidence or add limitations, but it does not directly change the ability evidence category.
+
+For a redacted review artifact, run:
+
+```bash
+npm run student:profile-integration-review
+```
+
+To review a specific completed session:
+
+```bash
+npm run student:profile-integration-review -- --session-public-id <session_public_id>
+```
+
+The command writes ignored artifacts under `.data/profile-integration-review/`. Student-safe output is limited to one of `Mostly understood`, `Still developing`, or `Needs more work`, plus a short message and knowledge-focus statement. The student-safe projection hides engagement labels, AI-assistance labels, answer keys, correct options, correctness labels, distractor metadata, raw reasoning, raw process payloads, raw provider output, formative value direction, and activity recommendations.
+
 ## Opt-In Live LLM Smoke
 
 Live LLM readiness is intentionally opt-in. The script loads local Next.js env files with `@next/env`, then exits without a provider call unless this flag is set:
