@@ -1353,9 +1353,14 @@ Phase 6A.5 must not implement:
   AI-assistance labels, integrity/authenticity language, or activity planning.
 - Confidence calibration may be recommended only as a broad value. It must not
   be forced; the student must be able to choose a different focus or move on.
-  It requires explicit confidence-evidence mismatch evidence. Low confidence
-  alone is not a confidence-calibration need and may be appropriate for weak,
-  unknown, or gap-like evidence.
+  As a primary value, it requires adequate or strong understanding evidence plus
+  underconfidence or inconsistent confidence across adequate evidence. Low
+  confidence alone is not a confidence-calibration need and may be appropriate
+  for weak, unknown, or gap-like evidence.
+- Conceptual gaps, wrong models, weak reasoning, and likely misconceptions take
+  priority over confidence calibration. High confidence with wrong, weak, or
+  misconception evidence must be represented as a secondary consideration, not
+  as the primary calibration value.
 - Likely knowledge gap generally supports `diagnostic_clarification`.
   Mixed, conflicting, insufficient, or reliability-limited evidence generally
   supports `independent_understanding_verification`. Stable understanding
@@ -1363,9 +1368,11 @@ Phase 6A.5 must not implement:
   priors for a category-constrained agent, not unreviewable deterministic
   conclusions.
 - Provider or mock output selecting `confidence_calibration` without an
-  explicit mismatch reason such as `overconfident_weak_reasoning`,
-  `overconfident_misconception`, `underconfident_strong_understanding`, or
-  `inconsistent_confidence_pattern` must be rejected.
+  explicit adequate-understanding mismatch reason such as
+  `underconfident_strong_understanding`, `underconfident_adequate_reasoning`,
+  or `inconsistent_confidence_with_adequate_evidence` must be rejected.
+  Generic confidence mismatch, low confidence alone, high confidence alone, or
+  overconfident wrong/weak evidence is not sufficient for primary calibration.
 - Default formative-value smoke and review commands are no-live. The live
   smoke is skipped unless `RUN_LIVE_FORMATIVE_VALUE_SMOKE=1` is explicitly set.
   Deterministic fallback output must not be reported as successful live output.

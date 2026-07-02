@@ -24,12 +24,15 @@ The profile-integration pattern is a decision prior, not a hard deterministic ma
 
 `reasoning_refinement` fits partial understanding where the student's reasoning is incomplete, unstable, or poorly connected.
 
-`confidence_calibration` means a confidence-evidence mismatch. It is not the same as low confidence. Low confidence can be appropriate when the evidence is weak, unknown, or gap-like. Confidence calibration requires an explicit mismatch reason such as:
+`confidence_calibration` means the primary need is aligning confidence with already adequate or strong understanding evidence. It is not the same as low confidence. Low confidence can be appropriate when the evidence is weak, unknown, or gap-like.
 
-- overconfident weak reasoning;
-- overconfident misconception evidence;
+Confidence calibration can be the primary value only when understanding evidence is adequate or strong and the confidence evidence shows one of:
+
 - underconfident strong understanding;
-- inconsistent confidence across similar evidence.
+- underconfident adequate reasoning;
+- inconsistent confidence across adequate evidence.
+
+Conceptual gaps, wrong models, weak reasoning, and likely misconceptions take priority over calibration. High confidence with wrong, weak, or misconception evidence is recorded as a secondary confidence consideration and normally maps to `diagnostic_clarification` or `reasoning_refinement`, not primary `confidence_calibration`.
 
 `independent_understanding_verification` fits mixed, conflicting, insufficient, or reliability-limited evidence that needs a clearer in-platform expression of the student's own understanding. Student-facing text must not mention AI assistance, process data, engagement, provenance, integrity, or authenticity.
 
@@ -63,9 +66,11 @@ Student-facing text must not expose:
 - AI-assistance labels;
 - integrity, authenticity, cheating, misconduct, or suspicious-behavior language.
 
-Confidence calibration is allowed as a recommended broad value, but it must not be forced. The student must be able to choose another focus or move on.
+Confidence calibration is allowed as a recommended broad value when the adequate-understanding condition is met, but it must not be forced. The student must be able to choose another focus or move on.
 
-Provider or mock output that selects confidence calibration without an explicit mismatch reason is rejected. A likely knowledge gap with low confidence and weak evidence should generally choose diagnostic clarification, not confidence calibration.
+Provider or mock output that selects confidence calibration without an explicit adequate-understanding mismatch reason is rejected. Generic `confidence_mismatch`, low confidence alone, high confidence alone, confidence alignment mixed, or overconfident wrong/weak evidence is not sufficient. A likely knowledge gap with low confidence and weak evidence should generally choose diagnostic clarification, not confidence calibration.
+
+The packet includes `secondary_considerations` for internal audit notes such as overconfident wrong or weak evidence, incomplete reasoning, mixed evidence, or reliability-limited context. These notes are `student_visible=false` and must not override the primary conceptual learning need.
 
 ## Storage
 

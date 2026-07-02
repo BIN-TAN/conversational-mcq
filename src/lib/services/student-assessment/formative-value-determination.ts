@@ -48,15 +48,20 @@ Boundaries:
 17. If the profile indicates stable understanding, consolidation_and_transfer is appropriate.
 18. If the profile indicates a likely knowledge gap or insufficient conceptual access, diagnostic_clarification is appropriate.
 19. If the profile indicates partial understanding with unclear reasoning, reasoning_refinement is appropriate.
-20. Low confidence is not by itself a confidence-calibration need.
-21. Low confidence can be appropriate when the student lacks knowledge, says they do not know, or the evidence is weak.
-22. Confidence calibration requires an explicit confidence/evidence mismatch such as overconfident weak reasoning, overconfident misconception evidence, underconfident strong understanding, or inconsistent confidence across similar evidence.
-23. If profile integration indicates a likely knowledge gap, prefer diagnostic_clarification unless evidence shows an explicit confidence/evidence mismatch.
-24. If profile integration is mixed or conflicting, prefer independent_understanding_verification unless another value is clearly supported.
-25. If the evidence needs a stable in-platform expression of the student's own understanding, independent_understanding_verification is appropriate.
-26. Keep the student-facing message supportive and specific.
-27. Do not include activity recommendation, specific task, example, specific question, or intervention plan.
-28. If later explanation depth is needed, only set implementation guidance for the next stage.
+20. The primary formative value must target the main learning-relevant need.
+21. Conceptual gaps, wrong models, weak reasoning, and likely misconceptions take priority over confidence calibration.
+22. High confidence with wrong, weak, or misconception evidence is usually diagnostic_clarification or reasoning_refinement, not confidence_calibration.
+23. Low confidence is not by itself a confidence-calibration need.
+24. Low confidence can be appropriate when the student lacks knowledge, says they do not know, or the evidence is weak.
+25. Confidence calibration can be primary only when the evidence shows adequate or strong understanding but the student is underconfident or has inconsistent confidence across adequate evidence.
+26. If understanding evidence is not adequate, do not select confidence_calibration as the primary value.
+27. If profile integration indicates a likely knowledge gap, prefer diagnostic_clarification.
+28. If profile integration is mixed or conflicting, prefer independent_understanding_verification unless another conceptual value is clearly supported.
+29. If the evidence needs a stable in-platform expression of the student's own understanding, independent_understanding_verification is appropriate.
+30. Record confidence concerns that are not primary needs in secondary_considerations.
+31. Keep the student-facing message supportive and specific.
+32. Do not include activity recommendation, specific task, example, specific question, or intervention plan.
+33. If later explanation depth is needed, only set implementation guidance for the next stage.
 
 Allowed values:
 - diagnostic_clarification
@@ -102,11 +107,28 @@ const EvidenceReasonCodeSchema = z.enum([
   "confidence_mismatch",
   "overconfident_weak_reasoning",
   "overconfident_misconception",
+  "overconfident_wrong_or_weak_evidence",
   "underconfident_strong_understanding",
+  "underconfident_adequate_reasoning",
   "inconsistent_confidence_pattern",
+  "inconsistent_confidence_with_adequate_evidence",
   "stable_understanding",
   "evidence_reliability_context",
   "student_override"
+]);
+const SecondaryConsiderationTypeSchema = z.enum([
+  "confidence_note",
+  "reasoning_note",
+  "evidence_reliability_note",
+  "engagement_context_note"
+]);
+const SecondaryConsiderationReasonCodeSchema = z.enum([
+  "overconfident_wrong_or_weak_evidence",
+  "underconfident_strong_evidence",
+  "confidence_inconsistent",
+  "reasoning_incomplete",
+  "evidence_mixed",
+  "reliability_limited"
 ]);
 const ExplanationDepthSchema = z.enum(["basic", "moderate", "advanced", "adaptive"]);
 
@@ -121,6 +143,14 @@ const FormativeValueLabelSchema = z.enum([
 const EvidenceBasisSchema = z.object({
   source: EvidenceSourceSchema,
   reason_code: EvidenceReasonCodeSchema,
+  strength: ValueConfidenceSchema
+}).strict();
+
+const SecondaryConsiderationSchema = z.object({
+  type: SecondaryConsiderationTypeSchema,
+  label: z.string().min(1).max(120),
+  student_visible: z.literal(false),
+  reason_code: SecondaryConsiderationReasonCodeSchema,
   strength: ValueConfidenceSchema
 }).strict();
 
@@ -164,6 +194,7 @@ export const FormativeValueDeterminationPacketV1Schema = z.object({
     evidence_basis: z.array(EvidenceBasisSchema).min(1),
     limitations: z.array(z.string())
   }).strict(),
+  secondary_considerations: z.array(SecondaryConsiderationSchema).max(8),
   alternative_values: z.array(AlternativeValueSchema).min(1).max(4),
   student_choice_policy: StudentChoicePolicySchema,
   student_choice_state: StudentChoiceStateSchema,
@@ -198,6 +229,14 @@ export type FormativeValue = z.infer<typeof FormativeValueSchema>;
 export type FormativeValueDeterminationPacketV1 = z.infer<
   typeof FormativeValueDeterminationPacketV1Schema
 >;
+type EvidenceReasonCode = z.infer<typeof EvidenceReasonCodeSchema>;
+type SecondaryConsideration = z.infer<typeof SecondaryConsiderationSchema>;
+type PrimaryCalibrationReasonCode = Extract<
+  EvidenceReasonCode,
+  | "underconfident_strong_understanding"
+  | "underconfident_adequate_reasoning"
+  | "inconsistent_confidence_with_adequate_evidence"
+>;
 export type FormativeValueValidationIssue = {
   field_path: string;
   rule_code:
@@ -220,7 +259,8 @@ export type FormativeValueValidationIssue = {
     | "missing_student_choice_policy"
     | "mandatory_no_choice_wording"
     | "confidence_calibration_without_override"
-    | "confidence_calibration_without_explicit_mismatch";
+    | "confidence_calibration_without_explicit_mismatch"
+    | "confidence_calibration_without_adequate_understanding_mismatch";
   blocked_pattern_label?: string;
 };
 
@@ -246,12 +286,8 @@ export type FormativeValueAgentInput = {
     misconception_claim_strength: ProfileIntegrationInterpretationPacketV1["ability_interpretation"]["misconception_claim_strength"];
     knowledge_gap_claim_strength: ProfileIntegrationInterpretationPacketV1["ability_interpretation"]["knowledge_gap_claim_strength"];
     confidence_calibration_summary: string;
-    confidence_mismatch_reason_code:
-      | "overconfident_weak_reasoning"
-      | "overconfident_misconception"
-      | "underconfident_strong_understanding"
-      | "inconsistent_confidence_pattern"
-      | null;
+    primary_confidence_calibration_reason_code: PrimaryCalibrationReasonCode | null;
+    secondary_consideration_candidates: SecondaryConsideration[];
     engagement_context_summary: string;
     engagement_effect_on_interpretation: ProfileIntegrationInterpretationPacketV1["engagement_context"]["engagement_effect_on_interpretation"];
     ai_assistance_effect_on_interpretation: ProfileIntegrationInterpretationPacketV1["engagement_context"]["ai_assistance_effect_on_interpretation"];
@@ -274,6 +310,8 @@ export type FormativeValueAgentInput = {
     student_can_accept_choose_alternative_or_move_on: true;
     confidence_calibration_must_allow_override: true;
     confidence_calibration_requires_explicit_mismatch: true;
+    confidence_calibration_requires_adequate_understanding: true;
+    conceptual_needs_take_priority_over_confidence: true;
     student_text_must_hide_engagement_and_ai_labels: true;
     answer_key_protection_required: true;
   };
@@ -535,21 +573,20 @@ export function validateFormativeValueDeterminationOutput(value: unknown) {
     pushIssue(issues, "student_choice_policy", "confidence_calibration_without_override");
   }
   if (packet.primary_value === "confidence_calibration") {
-    const explicitMismatchReasons = new Set([
-      "overconfident_weak_reasoning",
-      "overconfident_misconception",
+    const adequateUnderstandingMismatchReasons = new Set<EvidenceReasonCode>([
       "underconfident_strong_understanding",
-      "inconsistent_confidence_pattern"
+      "underconfident_adequate_reasoning",
+      "inconsistent_confidence_with_adequate_evidence"
     ]);
-    const hasExplicitMismatchReason = packet.rationale.evidence_basis.some((basis) =>
-      explicitMismatchReasons.has(basis.reason_code)
+    const hasAdequateUnderstandingMismatchReason = packet.rationale.evidence_basis.some((basis) =>
+      adequateUnderstandingMismatchReasons.has(basis.reason_code)
     );
-    if (!hasExplicitMismatchReason) {
+    if (!hasAdequateUnderstandingMismatchReason) {
       pushIssue(
         issues,
         "rationale.evidence_basis",
-        "confidence_calibration_without_explicit_mismatch",
-        "missing_explicit_confidence_mismatch_reason"
+        "confidence_calibration_without_adequate_understanding_mismatch",
+        "missing_adequate_understanding_confidence_mismatch_reason"
       );
     }
   }
@@ -593,45 +630,56 @@ function evidenceReasonForPattern(
   return "reasoning_partial";
 }
 
-function confidenceMismatchReasonForProfile(
+function profileHasAdequateUnderstandingForCalibration(
   packet: ProfileIntegrationInterpretationPacketV1
-): Extract<
-  z.infer<typeof EvidenceReasonCodeSchema>,
-  | "overconfident_weak_reasoning"
-  | "overconfident_misconception"
-  | "underconfident_strong_understanding"
-  | "inconsistent_confidence_pattern"
-> | null {
-  const summary = packet.ability_interpretation.confidence_calibration_summary.toLowerCase();
-  const highConfidence = /\b(high confidence|very confident|overconfident|over-confidence|over confidence)\b/i;
-  const lowConfidence = /\b(low confidence|not confident|underconfident|under-confidence|under confidence)\b/i;
-  const weakEvidence = /\b(weak|unsupported|vague|shallow|low-information|little evidence|minimal evidence|knowledge gap|does not support|not supported)\b/i;
-  const strongEvidence = /\b(strong|stable|robust|well supported|mostly correct|solid|clear understanding)\b/i;
-  const misconceptionEvidence = /\b(misconception|diagnostic misconception|misconception evidence)\b/i;
-
+) {
   if (
-    /\b(inconsistent confidence|confidence varies|confidence varied|confidence fluctuates|mixed confidence across|confidence across similar evidence)\b/i.test(summary)
+    packet.integration_pattern === "stable_understanding" &&
+    packet.ability_interpretation.evidence_consistency === "consistent"
   ) {
-    return "inconsistent_confidence_pattern";
+    return true;
   }
-  if (highConfidence.test(summary) && misconceptionEvidence.test(summary)) {
-    return "overconfident_misconception";
+
+  return (
+    packet.integration_pattern === "developing_understanding" &&
+    packet.student_facing_status !== "Needs more work" &&
+    packet.ability_interpretation.evidence_consistency === "consistent" &&
+    packet.ability_interpretation.knowledge_gap_claim_strength !== "strong" &&
+    packet.ability_interpretation.misconception_claim_strength !== "strong"
+  );
+}
+
+function primaryCalibrationReasonForProfile(
+  packet: ProfileIntegrationInterpretationPacketV1
+): PrimaryCalibrationReasonCode | null {
+  const summary = packet.ability_interpretation.confidence_calibration_summary.toLowerCase();
+  const lowConfidence = /\b(low confidence|not confident|underconfident|under-confidence|under confidence)\b/i;
+  const adequateReasoning = /\b(adequate|reasonable|mostly correct|supported|consistent|clear|solid|strong|stable|robust|well supported|clear understanding)\b/i;
+  const strongEvidence = /\b(strong|stable|robust|well supported|clear understanding)\b/i;
+  const inconsistentConfidence =
+    /\b(inconsistent confidence|confidence varies|confidence varied|confidence fluctuates|mixed confidence across|confidence across similar evidence|unstable confidence)\b/i;
+
+  if (!profileHasAdequateUnderstandingForCalibration(packet)) {
+    return null;
   }
-  if (highConfidence.test(summary) && weakEvidence.test(summary)) {
-    return "overconfident_weak_reasoning";
-  }
+
   if (lowConfidence.test(summary) && strongEvidence.test(summary)) {
     return "underconfident_strong_understanding";
+  }
+  if (lowConfidence.test(summary) && adequateReasoning.test(summary)) {
+    return "underconfident_adequate_reasoning";
+  }
+  if (inconsistentConfidence.test(summary)) {
+    return "inconsistent_confidence_with_adequate_evidence";
   }
 
   return null;
 }
 
 function primaryValueForProfile(packet: ProfileIntegrationInterpretationPacketV1): FormativeValue {
-  if (confidenceMismatchReasonForProfile(packet)) return "confidence_calibration";
-
   switch (packet.integration_pattern) {
     case "stable_understanding":
+      if (primaryCalibrationReasonForProfile(packet)) return "confidence_calibration";
       return "consolidation_and_transfer";
     case "likely_knowledge_gap":
       return "diagnostic_clarification";
@@ -643,9 +691,90 @@ function primaryValueForProfile(packet: ProfileIntegrationInterpretationPacketV1
     case "insufficient_evidence":
       return "independent_understanding_verification";
     case "developing_understanding":
+      if (primaryCalibrationReasonForProfile(packet)) return "confidence_calibration";
+      if (packet.ability_interpretation.evidence_consistency === "conflicting") {
+        return "independent_understanding_verification";
+      }
+      return "reasoning_refinement";
     default:
       return "reasoning_refinement";
   }
+}
+
+function secondaryConsiderationsForProfile(
+  packet: ProfileIntegrationInterpretationPacketV1
+): SecondaryConsideration[] {
+  const considerations: SecondaryConsideration[] = [];
+  const summary = packet.ability_interpretation.confidence_calibration_summary.toLowerCase();
+  const highConfidence = /\b(high confidence|very confident|overconfident|over-confidence|over confidence)\b/i.test(summary);
+  const lowConfidence = /\b(low confidence|not confident|underconfident|under-confidence|under confidence)\b/i.test(summary);
+  const weakOrWrongEvidence =
+    /\b(wrong|weak|unsupported|vague|shallow|low-information|little evidence|minimal evidence|knowledge gap|does not support|not supported)\b/i.test(summary) ||
+    packet.integration_pattern === "likely_knowledge_gap" ||
+    packet.student_facing_status === "Needs more work";
+  const misconceptionEvidence =
+    /\b(misconception|diagnostic misconception|misconception evidence)\b/i.test(summary) ||
+    packet.integration_pattern === "likely_misconception";
+
+  if (highConfidence && (weakOrWrongEvidence || misconceptionEvidence)) {
+    considerations.push({
+      type: "confidence_note",
+      label: "confidence concern is secondary to conceptual evidence",
+      student_visible: false,
+      reason_code: "overconfident_wrong_or_weak_evidence",
+      strength: misconceptionEvidence || packet.integration_pattern === "likely_knowledge_gap" ? "high" : "medium"
+    });
+  }
+
+  if (primaryCalibrationReasonForProfile(packet)) {
+    considerations.push({
+      type: "confidence_note",
+      label: "underconfidence or inconsistent confidence with adequate evidence",
+      student_visible: false,
+      reason_code: lowConfidence ? "underconfident_strong_evidence" : "confidence_inconsistent",
+      strength: packet.status_confidence === "high" ? "high" : "medium"
+    });
+  }
+
+  if (packet.integration_pattern === "developing_understanding") {
+    considerations.push({
+      type: "reasoning_note",
+      label: "reasoning needs clearer connection",
+      student_visible: false,
+      reason_code: "reasoning_incomplete",
+      strength: "medium"
+    });
+  }
+
+  if (
+    packet.integration_pattern === "mixed_or_conflicting_evidence" ||
+    packet.integration_pattern === "insufficient_evidence"
+  ) {
+    considerations.push({
+      type: "evidence_reliability_note",
+      label: "current evidence is mixed or limited",
+      student_visible: false,
+      reason_code: "evidence_mixed",
+      strength: packet.integration_pattern === "insufficient_evidence" ? "high" : "medium"
+    });
+  }
+
+  if (
+    packet.engagement_context?.engagement_effect_on_interpretation === "lowers_confidence" ||
+    packet.engagement_context?.ai_assistance_effect_on_interpretation === "contextualizes_reasoning_evidence"
+  ) {
+    considerations.push({
+      type: "engagement_context_note",
+      label: "evidence reliability context limits interpretation",
+      student_visible: false,
+      reason_code: "reliability_limited",
+      strength: "medium"
+    });
+  }
+
+  return considerations.filter((consideration, index, all) =>
+    all.findIndex((other) => other.reason_code === consideration.reason_code) === index
+  );
 }
 
 function suggestedDepth(value: FormativeValue): z.infer<typeof ExplanationDepthSchema> {
@@ -748,7 +877,8 @@ export function buildFormativeValueAgentInput(input: {
       misconception_claim_strength: packet.ability_interpretation.misconception_claim_strength,
       knowledge_gap_claim_strength: packet.ability_interpretation.knowledge_gap_claim_strength,
       confidence_calibration_summary: packet.ability_interpretation.confidence_calibration_summary,
-      confidence_mismatch_reason_code: confidenceMismatchReasonForProfile(packet),
+      primary_confidence_calibration_reason_code: primaryCalibrationReasonForProfile(packet),
+      secondary_consideration_candidates: secondaryConsiderationsForProfile(packet),
       engagement_context_summary: packet.engagement_context.summary,
       engagement_effect_on_interpretation: packet.engagement_context.engagement_effect_on_interpretation,
       ai_assistance_effect_on_interpretation:
@@ -769,6 +899,8 @@ export function buildFormativeValueAgentInput(input: {
       student_can_accept_choose_alternative_or_move_on: true,
       confidence_calibration_must_allow_override: true,
       confidence_calibration_requires_explicit_mismatch: true,
+      confidence_calibration_requires_adequate_understanding: true,
+      conceptual_needs_take_priority_over_confidence: true,
       student_text_must_hide_engagement_and_ai_labels: true,
       answer_key_protection_required: true
     }
@@ -813,6 +945,13 @@ export function buildConservativeFormativeValueFallback(
       }],
       limitations: [reason, "formative_value_packet_is_not_activity_planning"]
     },
+    secondary_considerations: [{
+      type: "evidence_reliability_note",
+      label: "fallback used conservative evidence handling",
+      student_visible: false,
+      reason_code: "reliability_limited",
+      strength: "low"
+    }],
     alternative_values: alternatives,
     student_choice_policy: {
       can_accept_recommendation: true,
@@ -874,10 +1013,14 @@ function deterministicFormativeValueOutput(input: FormativeValueAgentInput) {
     integration_pattern: input.source_profile_integration.integration_pattern,
     ability_interpretation: {
       evidence_consistency: input.source_profile_integration.ability_evidence_consistency,
+      misconception_claim_strength: input.source_profile_integration.misconception_claim_strength,
+      knowledge_gap_claim_strength: input.source_profile_integration.knowledge_gap_claim_strength,
       confidence_calibration_summary:
         input.source_profile_integration.confidence_calibration_summary
     },
     engagement_context: {
+      engagement_effect_on_interpretation:
+        input.source_profile_integration.engagement_effect_on_interpretation,
       ai_assistance_effect_on_interpretation:
         input.source_profile_integration.ai_assistance_effect_on_interpretation
     },
@@ -890,7 +1033,8 @@ function deterministicFormativeValueOutput(input: FormativeValueAgentInput) {
   const alternatives = alternativesFor(primary, profilePacket);
   const reasonCode =
     primary === "confidence_calibration"
-      ? input.source_profile_integration.confidence_mismatch_reason_code ?? "confidence_mismatch"
+      ? input.source_profile_integration.primary_confidence_calibration_reason_code ??
+        "confidence_mismatch"
       : primary === "independent_understanding_verification" &&
           input.source_profile_integration.ai_assistance_effect_on_interpretation === "contextualizes_reasoning_evidence"
         ? "evidence_reliability_context"
@@ -926,6 +1070,7 @@ function deterministicFormativeValueOutput(input: FormativeValueAgentInput) {
       ],
       limitations: ["formative_value_packet_is_not_activity_planning"]
     },
+    secondary_considerations: input.source_profile_integration.secondary_consideration_candidates,
     alternative_values: alternatives,
     student_choice_policy: {
       can_accept_recommendation: true,

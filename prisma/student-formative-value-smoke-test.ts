@@ -51,6 +51,8 @@ function profilePacket(input: {
   status_confidence?: ProfileIntegrationInterpretationPacketV1["status_confidence"];
   evidence_consistency?: ProfileIntegrationInterpretationPacketV1["ability_interpretation"]["evidence_consistency"];
   confidence_calibration_summary?: string;
+  misconception_claim_strength?: ProfileIntegrationInterpretationPacketV1["ability_interpretation"]["misconception_claim_strength"];
+  knowledge_gap_claim_strength?: ProfileIntegrationInterpretationPacketV1["ability_interpretation"]["knowledge_gap_claim_strength"];
   ai_effect?: ProfileIntegrationInterpretationPacketV1["engagement_context"]["ai_assistance_effect_on_interpretation"];
   output_status?: ProfileIntegrationInterpretationPacketV1["output_status"];
 }): ProfileIntegrationInterpretationPacketV1 {
@@ -90,9 +92,11 @@ function profilePacket(input: {
           ? "The concept boundary is not yet clear in the current evidence."
           : null,
       misconception_claim_strength:
-        input.integration_pattern === "likely_misconception" ? "moderate" : "insufficient_evidence",
+        input.misconception_claim_strength ??
+        (input.integration_pattern === "likely_misconception" ? "moderate" : "insufficient_evidence"),
       knowledge_gap_claim_strength:
-        input.integration_pattern === "likely_knowledge_gap" ? "moderate" : "insufficient_evidence",
+        input.knowledge_gap_claim_strength ??
+        (input.integration_pattern === "likely_knowledge_gap" ? "moderate" : "insufficient_evidence"),
       confidence_calibration_summary:
         input.confidence_calibration_summary ??
         "Confidence and reasoning evidence are broadly aligned in the current evidence.",
@@ -241,12 +245,21 @@ async function runPureFormativeValueAssertions() {
   const overconfidentMisconception = await packetFor(profilePacket({
     integration_pattern: "likely_misconception",
     evidence_consistency: "consistent",
+    misconception_claim_strength: "strong",
     confidence_calibration_summary:
       "The student showed high confidence with diagnostic misconception evidence."
   }));
   assert(
-    overconfidentMisconception.primary_value === "confidence_calibration",
-    "High confidence with explicit misconception mismatch evidence may map to confidence calibration."
+    overconfidentMisconception.primary_value === "diagnostic_clarification",
+    "High confidence with likely misconception evidence should prioritize diagnostic clarification, not confidence calibration."
+  );
+  assert(
+    overconfidentMisconception.secondary_considerations.some((consideration) =>
+      consideration.reason_code === "overconfident_wrong_or_weak_evidence" &&
+      consideration.type === "confidence_note" &&
+      !consideration.student_visible
+    ),
+    "Overconfident misconception evidence should be captured as a non-student-visible secondary consideration."
   );
 
   const mixed = await packetFor(profilePacket({
@@ -265,9 +278,38 @@ async function runPureFormativeValueAssertions() {
     integration_pattern: "developing_understanding",
     confidence_calibration_summary: "The student appears overconfident with weak reasoning evidence."
   }));
-  assert(confidenceMismatch.primary_value === "confidence_calibration", "Confidence mismatch should map to confidence calibration.");
-  assert(confidenceMismatch.student_choice_policy.can_choose_alternative, "Confidence calibration must still allow alternatives.");
-  assert(confidenceMismatch.student_choice_policy.can_move_on, "Confidence calibration must still allow move-on.");
+  assert(
+    confidenceMismatch.primary_value === "reasoning_refinement",
+    "High confidence with weak reasoning should prioritize reasoning refinement, not confidence calibration."
+  );
+  assert(
+    confidenceMismatch.secondary_considerations.some((consideration) =>
+      consideration.reason_code === "overconfident_wrong_or_weak_evidence"
+    ),
+    "Overconfident weak reasoning should remain present as a secondary confidence note."
+  );
+  assert(
+    !confidenceMismatch.student_safe_message.why_this_focus.toLowerCase().includes("confidence"),
+    "Student-facing rationale should not overemphasize confidence when the primary need is conceptual reasoning."
+  );
+
+  const overconfidentKnowledgeGap = await packetFor(profilePacket({
+    integration_pattern: "likely_knowledge_gap",
+    student_facing_status: "Needs more work",
+    status_confidence: "medium",
+    confidence_calibration_summary:
+      "The student showed high confidence with wrong or weak evidence for the concept boundary."
+  }));
+  assert(
+    overconfidentKnowledgeGap.primary_value === "diagnostic_clarification",
+    "High confidence with wrong or weak knowledge-gap evidence should map to diagnostic clarification."
+  );
+  assert(
+    overconfidentKnowledgeGap.secondary_considerations.some((consideration) =>
+      consideration.reason_code === "overconfident_wrong_or_weak_evidence"
+    ),
+    "Overconfident wrong or weak evidence should be captured as a secondary consideration."
+  );
 
   const underconfidentStrong = await packetFor(profilePacket({
     integration_pattern: "stable_understanding",
@@ -280,6 +322,35 @@ async function runPureFormativeValueAssertions() {
   assert(
     underconfidentStrong.primary_value === "confidence_calibration",
     "Low confidence with strong evidence should map to confidence calibration."
+  );
+  assert(underconfidentStrong.student_choice_policy.can_choose_alternative, "Confidence calibration must still allow alternatives.");
+  assert(underconfidentStrong.student_choice_policy.can_move_on, "Confidence calibration must still allow move-on.");
+  assert(
+    underconfidentStrong.rationale.evidence_basis.some((basis) =>
+      basis.reason_code === "underconfident_strong_understanding"
+    ),
+    "Underconfident strong evidence should use an allowed primary calibration reason."
+  );
+
+  const underconfidentAdequate = await packetFor(profilePacket({
+    integration_pattern: "developing_understanding",
+    student_facing_status: "Still developing",
+    status_confidence: "medium",
+    evidence_consistency: "consistent",
+    misconception_claim_strength: "none",
+    knowledge_gap_claim_strength: "none",
+    confidence_calibration_summary:
+      "The student showed low confidence despite adequate, supported reasoning evidence."
+  }));
+  assert(
+    underconfidentAdequate.primary_value === "confidence_calibration",
+    "Low confidence with adequate reasoning evidence should map to confidence calibration."
+  );
+  assert(
+    underconfidentAdequate.rationale.evidence_basis.some((basis) =>
+      basis.reason_code === "underconfident_adequate_reasoning"
+    ),
+    "Underconfident adequate reasoning should use an allowed primary calibration reason."
   );
 
   const externalContext = await packetFor(profilePacket({
@@ -389,7 +460,35 @@ async function runValidationAssertions() {
           recommended_value_label: "Confidence calibration"
         }
       },
-      expected_rule: "confidence_calibration_without_explicit_mismatch"
+      expected_rule: "confidence_calibration_without_adequate_understanding_mismatch"
+    },
+    {
+      label: "confidence calibration with overconfident wrong or weak evidence",
+      output: {
+        ...base,
+        primary_value: "confidence_calibration",
+        primary_value_label: "Confidence calibration",
+        rationale: {
+          ...base.rationale,
+          evidence_basis: [{
+            source: "profile_integration",
+            reason_code: "overconfident_wrong_or_weak_evidence",
+            strength: "medium"
+          }]
+        },
+        student_safe_message: {
+          ...base.student_safe_message,
+          recommended_value_label: "Confidence calibration"
+        },
+        secondary_considerations: [{
+          type: "confidence_note",
+          label: "confidence concern is secondary to conceptual evidence",
+          student_visible: false,
+          reason_code: "overconfident_wrong_or_weak_evidence",
+          strength: "medium"
+        }]
+      },
+      expected_rule: "confidence_calibration_without_adequate_understanding_mismatch"
     }
   ];
 

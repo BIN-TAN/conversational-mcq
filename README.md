@@ -321,7 +321,7 @@ npm run student:formative-value-smoke
 
 This no-live smoke builds `formative-value-determination-v1` from the profile integration packet. It recommends one broad formative value, offers alternatives, verifies student choice/override/move-on capture, simulates provider audit persistence with an injected mock provider, and confirms no OpenAI call occurs. It does not generate an activity, task, item, explanation, or tutoring script. See `docs/FORMATIVE_VALUE_DETERMINATION_DESIGN.md`.
 
-Confidence calibration is reserved for explicit confidence-evidence mismatch; low confidence by itself is not treated as a confidence-calibration need. Likely knowledge gaps generally map to diagnostic clarification, while mixed or reliability-limited evidence generally maps to independent understanding verification unless another value is clearly supported.
+Confidence calibration is reserved for adequate or strong understanding evidence paired with underconfidence or inconsistent confidence. Conceptual gaps, weak reasoning, wrong models, and likely misconceptions take priority over calibration; high confidence with wrong or weak evidence is retained as a secondary consideration, not the primary value. Low confidence by itself is not treated as a confidence-calibration need. Likely knowledge gaps generally map to diagnostic clarification, while mixed or reliability-limited evidence generally maps to independent understanding verification unless another value is clearly supported.
 
 Formative value review artifact generation:
 
