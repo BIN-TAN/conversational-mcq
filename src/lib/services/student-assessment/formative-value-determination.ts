@@ -633,6 +633,12 @@ function evidenceReasonForPattern(
 function profileHasAdequateUnderstandingForCalibration(
   packet: ProfileIntegrationInterpretationPacketV1
 ) {
+  const summary = packet.ability_interpretation.confidence_calibration_summary.toLowerCase();
+  const adequateMixedConfidenceEvidence =
+    packet.ability_interpretation.evidence_consistency === "mixed" &&
+    /\b(adequate|strong|well supported|clear understanding)\b/i.test(summary) &&
+    /\b(inconsistent confidence|confidence varies|confidence varied|confidence fluctuates|mixed confidence across|unstable confidence)\b/i.test(summary);
+
   if (
     packet.integration_pattern === "stable_understanding" &&
     packet.ability_interpretation.evidence_consistency === "consistent"
@@ -643,7 +649,7 @@ function profileHasAdequateUnderstandingForCalibration(
   return (
     packet.integration_pattern === "developing_understanding" &&
     packet.student_facing_status !== "Needs more work" &&
-    packet.ability_interpretation.evidence_consistency === "consistent" &&
+    (packet.ability_interpretation.evidence_consistency === "consistent" || adequateMixedConfidenceEvidence) &&
     packet.ability_interpretation.knowledge_gap_claim_strength !== "strong" &&
     packet.ability_interpretation.misconception_claim_strength !== "strong"
   );

@@ -737,6 +737,31 @@ function evidenceConsistencyFor(pattern: ProfileIntegrationPattern) {
   return "mixed" as const;
 }
 
+function confidenceCalibrationSummaryFor(input: ProfileIntegrationAgentInput, pattern: ProfileIntegrationPattern) {
+  const calibration = input.ability_summary.confidence_calibration_overall;
+  const adequateEvidence =
+    pattern === "stable_understanding" ||
+    (
+      pattern === "developing_understanding" &&
+      input.ability_summary.reasoning_quality_overall === "adequate" &&
+      input.ability_summary.category_confidence !== "low"
+    );
+
+  if (calibration === "underconfident" && adequateEvidence) {
+    return "Confidence evidence shows low confidence despite adequate or strong understanding evidence.";
+  }
+
+  if (calibration === "mixed" && adequateEvidence) {
+    return "Confidence evidence shows inconsistent confidence across adequate evidence.";
+  }
+
+  if (calibration === "overconfident") {
+    return "Confidence evidence shows high confidence, but conceptual evidence must determine the primary learning need.";
+  }
+
+  return `Confidence alignment in the ability packet is ${calibration}.`;
+}
+
 function engagementEffectFor(input: ProfileIntegrationAgentInput) {
   if (input.engagement_summary.provisional_engagement_category === "insufficient_evidence") {
     return "insufficient_evidence" as const;
@@ -954,8 +979,7 @@ function deterministicProfileIntegrationOutput(
             : null,
       misconception_claim_strength: misconceptionStrength,
       knowledge_gap_claim_strength: knowledgeGapStrength,
-      confidence_calibration_summary:
-        `Confidence alignment in the ability packet is ${input.ability_summary.confidence_calibration_overall}.`,
+      confidence_calibration_summary: confidenceCalibrationSummaryFor(input, pattern),
       limitations: [...limitations]
     },
     engagement_context: {
@@ -1856,7 +1880,7 @@ export function validateProfileIntegrationOutput(
     { rule: "unsupported_integrity_claim_detected", pattern: new RegExp(`\\b(${["che" + "ating", "mis" + "conduct", "dishonest"].join("|")})\\b`, "i"), label: "integrity_claim" },
     { rule: "answer_key_leak_detected", pattern: /\banswer key\b/i, label: "answer_key" },
     { rule: "correct_option_leak_detected", pattern: /\bcorrect option\b/i, label: "correct_option" },
-    { rule: "correctness_label_detected", pattern: /\b(correctness|is correct|is incorrect|wrong answer|right answer)\b/i, label: "correctness_label" },
+    { rule: "correctness_label_detected", pattern: /\b(correctness|is correct|is incorrect|wrong answer|right answer)\b/i, label: "correctness_label", studentOnly: true },
     { rule: "distractor_metadata_detected", pattern: /\bdistractor (metadata|rationale|diagnostic)\b/i, label: "distractor_metadata" },
     { rule: "misconception_id_exposed", pattern: /\bmisconception[_-]?id\b/i, label: "misconception_id" },
     { rule: "raw_reasoning_exposed", pattern: /\braw reasoning\b/i, label: "raw_reasoning" },
@@ -1865,8 +1889,9 @@ export function validateProfileIntegrationOutput(
     { rule: "api_key_or_secret_exposed", pattern: /\b(api key|authorization header|session secret|database url)\b/i, label: "secret_reference" }
   ];
 
-  for (const entry of stringEntries) {
-    for (const rule of contentRules) {
+  for (const rule of contentRules) {
+    const entries = rule.studentOnly ? studentProjectionStrings : stringEntries;
+    for (const entry of entries) {
       if (containsAny(entry.text, [rule.pattern])) {
         pushIssue(issues, entry.path, rule.rule, rule.label);
       }

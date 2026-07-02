@@ -346,6 +346,23 @@ RUN_LIVE_FORMATIVE_VALUE_SMOKE=1 npm run student:formative-value-live-smoke
 
 The live path may use `OPENAI_MODEL_PROFILE_INTEGRATION`, falling back to `OPENAI_MODEL_PLANNING` or `OPENAI_MODEL_FOLLOWUP`. It validates the provider output against `formative-value-determination-v1`, stores `agent_calls` audit metadata for `formative_value_determination_agent`, and fails closed with sanitized diagnostics under `.data/formative-value-live-smoke/failures/` if the provider call or output validation fails. The default command makes no provider call.
 
+Profile/formative scenario QA:
+
+```bash
+npm run student:profile-formative-scenario-smoke
+npm run student:profile-formative-trial-review
+```
+
+The scenario smoke is no-live and deterministic. It runs the synthetic profile/formative matrix across profile integration patterns, student-safe statuses, engagement categories, AI-assistance context signals, all five formative values, and student choice states. It writes redacted artifacts under `.data/profile-formative-scenario-smoke/`.
+
+Paid live scenario trials are intentionally separate:
+
+```bash
+npm run student:profile-formative-live-trials
+```
+
+This command is paid-live by default, prints a warning, checks live readiness, refuses deterministic fallback as live success, and writes redacted artifacts under `.data/profile-formative-live-trials/`. Use `MAX_LIVE_PROFILE_FORMATIVE_TRIALS`, `PROFILE_FORMATIVE_TRIAL_SCENARIOS`, `PROFILE_FORMATIVE_TRIAL_DRY_RUN=true`, or `PROFILE_FORMATIVE_TRIAL_NO_LIVE=true` to limit or inspect a run. See `docs/PROFILE_FORMATIVE_SCENARIO_QA.md`.
+
 The optional live LLM readiness smoke is intentionally skipped unless explicitly enabled:
 
 ```bash

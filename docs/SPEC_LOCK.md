@@ -1376,3 +1376,21 @@ Phase 6A.5 must not implement:
 - Default formative-value smoke and review commands are no-live. The live
   smoke is skipped unless `RUN_LIVE_FORMATIVE_VALUE_SMOKE=1` is explicitly set.
   Deterministic fallback output must not be reported as successful live output.
+- Phase 28a QA adds a synthetic profile/formative scenario matrix. The
+  deterministic command `student:profile-formative-scenario-smoke` and
+  reviewer command `student:profile-formative-trial-review` must not call
+  OpenAI.
+- The only Phase 28a command that is paid-live by default is
+  `student:profile-formative-live-trials`. It must print a paid-call warning,
+  check live readiness, support max-count and explicit scenario selection
+  controls, and refuse to count deterministic fallback as live success.
+- Scenario QA artifacts are ignored local development artifacts under
+  `.data/profile-formative-scenario-smoke/`,
+  `.data/profile-formative-live-trials/`, and
+  `.data/profile-formative-trial-review/`. They must be redacted and must not
+  include answer keys, correct options, correctness labels, distractor
+  metadata, raw process payloads, raw provider output, prompts, API keys, or
+  secrets.
+- Scenario QA is error-analysis evidence only. It is not classroom validity,
+  does not implement activity planning, and does not authorize changes to item
+  content, scoring, item administration, or teacher upload.

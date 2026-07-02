@@ -738,6 +738,7 @@ async function runPersistenceAssertions() {
 
 async function main() {
   configureNoLiveFormativeValueRuntime();
+  const smokeStartedAt = new Date();
   const agentCallCountBefore = await prisma.agentCall.count();
 
   await runPureFormativeValueAssertions();
@@ -749,7 +750,7 @@ async function main() {
   const openAiCalls = await prisma.agentCall.count({
     where: {
       provider: "openai",
-      created_at: { gt: new Date(Date.now() - 60 * 60 * 1000) },
+      created_at: { gt: smokeStartedAt },
       agent_name: FORMATIVE_VALUE_AGENT_NAME
     }
   });

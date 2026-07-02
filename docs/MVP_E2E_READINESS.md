@@ -188,6 +188,34 @@ OPENAI_MODEL_PROFILE_INTEGRATION or OPENAI_MODEL_PLANNING or OPENAI_MODEL_FOLLOW
 
 The live formative-value path stores `agent_calls` audit metadata for `formative_value_determination_agent`, including schema version `formative-value-determination-v1`, provider/model metadata, provider request or response metadata when available, output validation status, safe validation errors, and token usage when returned. A deterministic fallback is not treated as live success.
 
+## Profile/Formative Scenario QA
+
+The profile/formative QA harness exercises synthetic response packages and process contexts across profile integration and formative value outcomes:
+
+```bash
+npm run student:profile-formative-scenario-smoke
+npm run student:profile-formative-trial-review
+```
+
+These commands are no-live by default. They write ignored redacted artifacts under:
+
+```text
+.data/profile-formative-scenario-smoke/
+.data/profile-formative-trial-review/
+```
+
+The matrix covers all five formative values, all current profile integration patterns, all student-safe statuses, engagement categories, AI-assistance context signals, and student choice states.
+
+The dedicated paid-live trial command is:
+
+```bash
+npm run student:profile-formative-live-trials
+```
+
+Unlike ordinary smoke tests, this command is paid-live by default. It prints a warning, checks live readiness, refuses silent deterministic fallback, and writes redacted artifacts under `.data/profile-formative-live-trials/`. Cost-control flags are `MAX_LIVE_PROFILE_FORMATIVE_TRIALS`, `PROFILE_FORMATIVE_TRIAL_SCENARIOS`, `PROFILE_FORMATIVE_TRIAL_DRY_RUN=true`, and `PROFILE_FORMATIVE_TRIAL_NO_LIVE=true`.
+
+See `docs/PROFILE_FORMATIVE_SCENARIO_QA.md` for scenario definitions, artifact interpretation, and mismatch categories.
+
 ## Opt-In Live LLM Smoke
 
 Live LLM readiness is intentionally opt-in. The script loads local Next.js env files with `@next/env`, then exits without a provider call unless this flag is set:
