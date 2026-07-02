@@ -1353,6 +1353,19 @@ Phase 6A.5 must not implement:
   AI-assistance labels, integrity/authenticity language, or activity planning.
 - Confidence calibration may be recommended only as a broad value. It must not
   be forced; the student must be able to choose a different focus or move on.
+  It requires explicit confidence-evidence mismatch evidence. Low confidence
+  alone is not a confidence-calibration need and may be appropriate for weak,
+  unknown, or gap-like evidence.
+- Likely knowledge gap generally supports `diagnostic_clarification`.
+  Mixed, conflicting, insufficient, or reliability-limited evidence generally
+  supports `independent_understanding_verification`. Stable understanding
+  generally supports `consolidation_and_transfer`. These mappings are decision
+  priors for a category-constrained agent, not unreviewable deterministic
+  conclusions.
+- Provider or mock output selecting `confidence_calibration` without an
+  explicit mismatch reason such as `overconfident_weak_reasoning`,
+  `overconfident_misconception`, `underconfident_strong_understanding`, or
+  `inconsistent_confidence_pattern` must be rejected.
 - Default formative-value smoke and review commands are no-live. The live
   smoke is skipped unless `RUN_LIVE_FORMATIVE_VALUE_SMOKE=1` is explicitly set.
   Deterministic fallback output must not be reported as successful live output.

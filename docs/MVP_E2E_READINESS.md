@@ -158,6 +158,8 @@ The packet recommends exactly one broad formative value from:
 
 This is value determination only. It does not generate an activity, task, item, explanation, or tutoring script, and it does not advance assessment state. The student choice policy must allow accepting the recommendation, choosing an alternative, or moving on. Confidence calibration may be recommended but cannot be forced.
 
+Profile integration patterns are decision priors rather than a fixed mapping. Likely knowledge gaps generally support `diagnostic_clarification`; mixed or conflicting evidence generally supports `independent_understanding_verification`; stable understanding generally supports `consolidation_and_transfer`. `confidence_calibration` is reserved for an explicit confidence-evidence mismatch such as high confidence with weak or misconception evidence, low confidence with otherwise strong evidence, or inconsistent confidence across similar evidence. Low confidence by itself is not a confidence-calibration need.
+
 For a redacted review artifact, run:
 
 ```bash

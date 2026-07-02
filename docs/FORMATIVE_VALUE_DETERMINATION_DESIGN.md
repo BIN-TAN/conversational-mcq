@@ -16,6 +16,25 @@ The allowed values are fixed:
 
 The packet must select exactly one primary value, include student-safe reasons, and offer alternatives. The student may accept the recommendation, choose an alternative, or move on. Overrides and move-on choices are recorded as process events.
 
+The profile-integration pattern is a decision prior, not a hard deterministic mapping. The live agent may interpret the evidence, but it is category-constrained and must respect the validation guardrails below.
+
+## Category Criteria
+
+`diagnostic_clarification` is the default fit when evidence suggests a likely knowledge gap, missing basic concept access, an "I don't know" pattern, vague reasoning due to lack of understanding, or unclear conceptual confusion.
+
+`reasoning_refinement` fits partial understanding where the student's reasoning is incomplete, unstable, or poorly connected.
+
+`confidence_calibration` means a confidence-evidence mismatch. It is not the same as low confidence. Low confidence can be appropriate when the evidence is weak, unknown, or gap-like. Confidence calibration requires an explicit mismatch reason such as:
+
+- overconfident weak reasoning;
+- overconfident misconception evidence;
+- underconfident strong understanding;
+- inconsistent confidence across similar evidence.
+
+`independent_understanding_verification` fits mixed, conflicting, insufficient, or reliability-limited evidence that needs a clearer in-platform expression of the student's own understanding. Student-facing text must not mention AI assistance, process data, engagement, provenance, integrity, or authenticity.
+
+`consolidation_and_transfer` fits stable understanding where the next broad value is to stabilize or extend the idea.
+
 ## Evidence Sources
 
 The input is allowlisted from the profile integration packet:
@@ -45,6 +64,8 @@ Student-facing text must not expose:
 - integrity, authenticity, cheating, misconduct, or suspicious-behavior language.
 
 Confidence calibration is allowed as a recommended broad value, but it must not be forced. The student must be able to choose another focus or move on.
+
+Provider or mock output that selects confidence calibration without an explicit mismatch reason is rejected. A likely knowledge gap with low confidence and weak evidence should generally choose diagnostic clarification, not confidence calibration.
 
 ## Storage
 

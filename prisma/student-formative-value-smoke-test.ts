@@ -3,6 +3,7 @@ import {
   FORMATIVE_VALUE_AGENT_NAME,
   buildFormativeValueAgentInput,
   callFormativeValueDeterminationAgent,
+  executeLiveFormativeValueDeterminationAgent,
   executeFormativeValueAgentWithProviderForTest,
   persistFormativeValueDeterminationSnapshot,
   presentFormativeValueChoice,
@@ -23,7 +24,8 @@ import {
 import type { LlmProvider, StructuredAgentRequest, StructuredAgentResult } from "../src/lib/llm/providers/types";
 import {
   configureNoLiveFormativeValueRuntime,
-  createFormativeValueSampleSession
+  createFormativeValueSampleSession,
+  restoreEnvValue
 } from "./student-formative-value-helpers";
 import { assert } from "./student-mvp-smoke-helpers";
 
@@ -212,9 +214,23 @@ async function runPureFormativeValueAssertions() {
 
   const gap = await packetFor(profilePacket({
     integration_pattern: "likely_knowledge_gap",
-    student_facing_status: "Needs more work"
+    student_facing_status: "Needs more work",
+    status_confidence: "low",
+    confidence_calibration_summary: "Confidence alignment in the ability packet is mixed."
   }));
   assert(gap.primary_value === "diagnostic_clarification", "Likely knowledge gap should map to diagnostic clarification.");
+
+  const appropriateLowConfidenceGap = await packetFor(profilePacket({
+    integration_pattern: "likely_knowledge_gap",
+    student_facing_status: "Needs more work",
+    status_confidence: "low",
+    confidence_calibration_summary:
+      "Low confidence appears appropriate because the current evidence indicates a knowledge gap and uncertainty."
+  }));
+  assert(
+    appropriateLowConfidenceGap.primary_value === "diagnostic_clarification",
+    "Likely knowledge gap with calibrated low confidence should not map to confidence calibration."
+  );
 
   const misconception = await packetFor(profilePacket({
     integration_pattern: "likely_misconception",
@@ -222,8 +238,20 @@ async function runPureFormativeValueAssertions() {
   }));
   assert(misconception.primary_value === "diagnostic_clarification", "Consistent misconception evidence should map to diagnostic clarification.");
 
+  const overconfidentMisconception = await packetFor(profilePacket({
+    integration_pattern: "likely_misconception",
+    evidence_consistency: "consistent",
+    confidence_calibration_summary:
+      "The student showed high confidence with diagnostic misconception evidence."
+  }));
+  assert(
+    overconfidentMisconception.primary_value === "confidence_calibration",
+    "High confidence with explicit misconception mismatch evidence may map to confidence calibration."
+  );
+
   const mixed = await packetFor(profilePacket({
-    integration_pattern: "mixed_or_conflicting_evidence"
+    integration_pattern: "mixed_or_conflicting_evidence",
+    confidence_calibration_summary: "Confidence alignment in the ability packet is mixed."
   }));
   assert(mixed.primary_value === "independent_understanding_verification", "Mixed evidence should map to independent understanding verification.");
 
@@ -235,11 +263,24 @@ async function runPureFormativeValueAssertions() {
 
   const confidenceMismatch = await packetFor(profilePacket({
     integration_pattern: "developing_understanding",
-    confidence_calibration_summary: "The student appears overconfident because confidence does not align with reasoning evidence."
+    confidence_calibration_summary: "The student appears overconfident with weak reasoning evidence."
   }));
   assert(confidenceMismatch.primary_value === "confidence_calibration", "Confidence mismatch should map to confidence calibration.");
   assert(confidenceMismatch.student_choice_policy.can_choose_alternative, "Confidence calibration must still allow alternatives.");
   assert(confidenceMismatch.student_choice_policy.can_move_on, "Confidence calibration must still allow move-on.");
+
+  const underconfidentStrong = await packetFor(profilePacket({
+    integration_pattern: "stable_understanding",
+    student_facing_status: "Mostly understood",
+    status_confidence: "high",
+    evidence_consistency: "consistent",
+    confidence_calibration_summary:
+      "The student showed low confidence despite strong, well supported evidence."
+  }));
+  assert(
+    underconfidentStrong.primary_value === "confidence_calibration",
+    "Low confidence with strong evidence should map to confidence calibration."
+  );
 
   const externalContext = await packetFor(profilePacket({
     integration_pattern: "stable_understanding",
@@ -328,6 +369,27 @@ async function runValidationAssertions() {
         }
       },
       expected_rule: "schema_invalid"
+    },
+    {
+      label: "confidence calibration without explicit mismatch",
+      output: {
+        ...base,
+        primary_value: "confidence_calibration",
+        primary_value_label: "Confidence calibration",
+        rationale: {
+          ...base.rationale,
+          evidence_basis: [{
+            source: "profile_integration",
+            reason_code: "confidence_mismatch",
+            strength: "medium"
+          }]
+        },
+        student_safe_message: {
+          ...base.student_safe_message,
+          recommended_value_label: "Confidence calibration"
+        }
+      },
+      expected_rule: "confidence_calibration_without_explicit_mismatch"
     }
   ];
 
@@ -440,6 +502,61 @@ async function runProviderAssertions() {
   }
 }
 
+async function withTemporaryProcessEnv<T>(
+  values: Record<string, string | undefined>,
+  callback: () => Promise<T>
+) {
+  const previous = Object.fromEntries(
+    Object.keys(values).map((key) => [key, process.env[key]])
+  );
+
+  try {
+    for (const [key, value] of Object.entries(values)) {
+      restoreEnvValue(key, value);
+    }
+
+    return await callback();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      restoreEnvValue(key, value);
+    }
+  }
+}
+
+async function runLivePolicyAssertions() {
+  const agentInput = buildFormativeValueAgentInput({
+    profile_integration_packet: profilePacket({
+      integration_pattern: "developing_understanding"
+    })
+  });
+  const beforeCount = await prisma.agentCall.count({
+    where: { agent_name: FORMATIVE_VALUE_AGENT_NAME }
+  });
+
+  await withTemporaryProcessEnv(
+    {
+      LLM_PROVIDER: "mock",
+      LLM_LIVE_CALLS_ENABLED: "false",
+      OPENAI_API_KEY: undefined,
+      OPENAI_API_KEY_FILE: undefined
+    },
+    async () => {
+      const result = await executeLiveFormativeValueDeterminationAgent({
+        agent_input: agentInput
+      });
+
+      assert(result.status === "configuration_blocked", "Blocked live configuration should not count as live success.");
+      assert(!result.agent_call_id, "Blocked live configuration should not create an agent call.");
+      assert(result.fallback_packet.primary_value, "Blocked live configuration may return a deterministic fallback packet.");
+    }
+  );
+
+  const afterCount = await prisma.agentCall.count({
+    where: { agent_name: FORMATIVE_VALUE_AGENT_NAME }
+  });
+  assert(afterCount === beforeCount, "Configuration-blocked live path should not create provider audit rows.");
+}
+
 async function runPersistenceAssertions() {
   const sample = await createFormativeValueSampleSession(prisma);
 
@@ -527,6 +644,7 @@ async function main() {
   await runPureFormativeValueAssertions();
   await runValidationAssertions();
   await runProviderAssertions();
+  await runLivePolicyAssertions();
   await runPersistenceAssertions();
 
   const openAiCalls = await prisma.agentCall.count({
