@@ -140,6 +140,52 @@ The live profile integration path stores `agent_calls` audit metadata for `profi
 
 If a schema-shaped live output fails only because it contains remediable direction/planning language, unsupported integrity/authenticity/external-assistance claims, or a high-confidence overclaim, the service may make one repair attempt using the same redacted evidence and safe validation issue metadata only. The invalid output is not included in the repair prompt and is never accepted. If repair fails, the path fails closed and writes sanitized live-smoke diagnostics under `.data/profile-integration-live-smoke/failures/`. The profile integration packet treats AI-assistance signals as internal evidence-production context only; no assistance or provenance claim is made when the signal is `insufficient_evidence` or `none_indicated`, and student-facing text never mentions AI assistance, process data, engagement category, integrity, or authenticity.
 
+## Formative Value Determination Packet
+
+The fixed IRT MVP can build a `formative-value-determination-v1` packet from the profile integration interpretation packet:
+
+```bash
+npm run student:formative-value-smoke
+```
+
+The packet recommends exactly one broad formative value from:
+
+- `diagnostic_clarification`
+- `reasoning_refinement`
+- `confidence_calibration`
+- `independent_understanding_verification`
+- `consolidation_and_transfer`
+
+This is value determination only. It does not generate an activity, task, item, explanation, or tutoring script, and it does not advance assessment state. The student choice policy must allow accepting the recommendation, choosing an alternative, or moving on. Confidence calibration may be recommended but cannot be forced.
+
+For a redacted review artifact, run:
+
+```bash
+npm run student:formative-value-review
+npm run student:formative-value-review -- --session-public-id <session_public_id>
+```
+
+The command writes ignored artifacts under `.data/formative-value-review/` and records process events for determination, presentation, and choice when a synthetic sample choice is exercised. Student-facing text hides engagement categories, AI-assistance labels, answer keys, correct options, correctness labels, distractor metadata, raw reasoning, raw process payloads, raw provider output, integrity/authenticity language, and activity planning.
+
+The live formative-value path is opt-in only:
+
+```bash
+npm run student:formative-value-live-smoke
+```
+
+The command skips safely unless `RUN_LIVE_FORMATIVE_VALUE_SMOKE=1` is set. When intentionally enabled, it requires:
+
+```text
+DATABASE_URL
+SESSION_SECRET
+LLM_PROVIDER=openai
+LLM_LIVE_CALLS_ENABLED=true
+OPENAI_API_KEY or OPENAI_API_KEY_FILE
+OPENAI_MODEL_PROFILE_INTEGRATION or OPENAI_MODEL_PLANNING or OPENAI_MODEL_FOLLOWUP
+```
+
+The live formative-value path stores `agent_calls` audit metadata for `formative_value_determination_agent`, including schema version `formative-value-determination-v1`, provider/model metadata, provider request or response metadata when available, output validation status, safe validation errors, and token usage when returned. A deterministic fallback is not treated as live success.
+
 ## Opt-In Live LLM Smoke
 
 Live LLM readiness is intentionally opt-in. The script loads local Next.js env files with `@next/env`, then exits without a provider call unless this flag is set:

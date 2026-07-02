@@ -1326,3 +1326,33 @@ Phase 6A.5 must not implement:
   value determination, formative activity selection, or schema migrations. It
   does not run paid live calls during ordinary tests, builds, review artifact
   generation, or student-safe projection rendering.
+
+## Phase 28a Formative Value Determination Lock
+
+- Phase 28a adds `formative-value-determination-v1`, a narrow packet built
+  from `profile-integration-interpretation-v1`.
+- The allowed values are exactly `diagnostic_clarification`,
+  `reasoning_refinement`, `confidence_calibration`,
+  `independent_understanding_verification`, and
+  `consolidation_and_transfer`.
+- The formative value determination layer must select one primary value,
+  include alternatives, and allow the student to accept, choose an alternative,
+  or move on. Student overrides and move-on choices must be recorded.
+- This layer must not generate activities, tasks, items, explanations, tutor
+  scripts, scoring changes, or state transitions. It must not use
+  `formative_decisions`, because that table represents planned formative
+  activity state.
+- Phase 28a records determination and choice state through process events:
+  `formative_value_determined`, `formative_value_presented`,
+  `formative_value_choice_recorded`, `formative_value_overridden`, and
+  `formative_value_moved_on`. Provider-backed runs may also persist
+  `agent_calls` audit rows for `formative_value_determination_agent`.
+- Student-facing text must not expose answer keys, correct options,
+  correctness labels, distractor metadata, misconception IDs, raw reasoning,
+  raw process payloads, raw provider output, engagement labels,
+  AI-assistance labels, integrity/authenticity language, or activity planning.
+- Confidence calibration may be recommended only as a broad value. It must not
+  be forced; the student must be able to choose a different focus or move on.
+- Default formative-value smoke and review commands are no-live. The live
+  smoke is skipped unless `RUN_LIVE_FORMATIVE_VALUE_SMOKE=1` is explicitly set.
+  Deterministic fallback output must not be reported as successful live output.

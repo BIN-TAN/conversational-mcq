@@ -313,6 +313,37 @@ RUN_LIVE_PROFILE_INTEGRATION_SMOKE=1 npm run student:profile-integration-live-sm
 
 The live path may use `OPENAI_MODEL_PROFILE_INTEGRATION`, falling back to `OPENAI_MODEL_PLANNING` or `OPENAI_MODEL_FOLLOWUP`. It stores `agent_calls` audit rows for `profile_integration_agent` with schema version `profile-integration-interpretation-v1`, provider/model metadata, provider request or response metadata when available, output validation, safe validation errors, and token usage when returned. If a schema-shaped live output contains remediable direction/planning language, unsupported integrity/authenticity/external-assistance claims, or a high-confidence overclaim, the service may make one repair attempt using only redacted evidence and safe validation issue metadata. AI-assistance signals are internal evidence-production context only; insufficient or absent signal evidence must not become an assistance/provenance claim. Live-smoke failures write sanitized diagnostics under `.data/profile-integration-live-smoke/failures/`, including whether repair was attempted.
 
+Formative value determination packet verification:
+
+```bash
+npm run student:formative-value-smoke
+```
+
+This no-live smoke builds `formative-value-determination-v1` from the profile integration packet. It recommends one broad formative value, offers alternatives, verifies student choice/override/move-on capture, simulates provider audit persistence with an injected mock provider, and confirms no OpenAI call occurs. It does not generate an activity, task, item, explanation, or tutoring script. See `docs/FORMATIVE_VALUE_DETERMINATION_DESIGN.md`.
+
+Formative value review artifact generation:
+
+```bash
+npm run student:formative-value-review
+npm run student:formative-value-review -- --session-public-id <session_public_id>
+```
+
+The command writes a redacted formative value artifact under `.data/formative-value-review/`, records determination/presentation process events, and prints the primary value, alternatives, choice policy, and limitations. When no session is supplied, it creates and cleans up a synthetic sample session.
+
+Formative value live smoke, skipped by default:
+
+```bash
+npm run student:formative-value-live-smoke
+```
+
+To run it intentionally after configuring local server-side live LLM variables:
+
+```bash
+RUN_LIVE_FORMATIVE_VALUE_SMOKE=1 npm run student:formative-value-live-smoke
+```
+
+The live path may use `OPENAI_MODEL_PROFILE_INTEGRATION`, falling back to `OPENAI_MODEL_PLANNING` or `OPENAI_MODEL_FOLLOWUP`. It validates the provider output against `formative-value-determination-v1`, stores `agent_calls` audit metadata for `formative_value_determination_agent`, and fails closed with sanitized diagnostics under `.data/formative-value-live-smoke/failures/` if the provider call or output validation fails. The default command makes no provider call.
+
 The optional live LLM readiness smoke is intentionally skipped unless explicitly enabled:
 
 ```bash
