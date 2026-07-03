@@ -213,6 +213,11 @@ export const profileFormativeScenarios: ProfileFormativeScenario[] = [
       ability("C", "correct", "Medium", vagueReason),
       ability("C", "correct", "Medium", adequateReason)
     ],
+    expected_allowed_outcomes: {
+      profile_integration_patterns: ["developing_understanding", "stable_understanding"],
+      student_facing_statuses: ["Still developing", "Mostly understood"],
+      formative_values: ["reasoning_refinement", "independent_understanding_verification"]
+    },
     scripted_confidence_pattern: ["Medium", "Medium", "Medium"],
     scripted_tempting_option_pattern: [null, null, null],
     engagement_items: [moderate(), moderate(), engaged()],
@@ -461,6 +466,9 @@ export const profileFormativeScenarios: ProfileFormativeScenario[] = [
     scripted_confidence_pattern: ["High", "High", "High"],
     scripted_tempting_option_pattern: [null, null, null],
     optional_process_event_profile: "single_paste_only",
+    expected_allowed_outcomes: {
+      formative_values: ["consolidation_and_transfer", "independent_understanding_verification"]
+    },
     engagement_items: [
       engagement(true, "C", strongReason, 40_000, { event_counts: { paste_detected: 1, typing_activity_summary: 1 } }),
       engaged(),
@@ -478,7 +486,8 @@ export const profileFormativeScenarios: ProfileFormativeScenario[] = [
     target_ai_assistance_signal: "none_indicated",
     target_formative_value: "diagnostic_clarification",
     expected_allowed_outcomes: {
-      engagement_categories: ["moderately_engaged", "disengaged"]
+      profile_integration_patterns: ["likely_knowledge_gap", "insufficient_evidence"],
+      engagement_categories: ["moderately_engaged", "disengaged", "insufficient_evidence"]
     },
     scripted_student_response_package: [
       ability("E", "not_scored", "Low", idkReason),
@@ -545,7 +554,10 @@ export const profileFormativeScenarios: ProfileFormativeScenario[] = [
     target_formative_value: "reasoning_refinement",
     student_choice: "chose_alternative",
     expected_allowed_outcomes: {
-      engagement_categories: ["moderately_engaged", "engaged"]
+      profile_integration_patterns: ["developing_understanding", "stable_understanding"],
+      student_facing_statuses: ["Still developing", "Mostly understood"],
+      engagement_categories: ["moderately_engaged", "engaged"],
+      formative_values: ["reasoning_refinement", "independent_understanding_verification"]
     },
     scripted_student_response_package: [
       ability("C", "correct", "Medium", partialReason),

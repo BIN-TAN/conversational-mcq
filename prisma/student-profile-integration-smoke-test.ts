@@ -1004,12 +1004,34 @@ async function runProviderPathAssertions() {
   });
 
   assert(
-    unsupportedClaimFailedRepairResult.status === "invalid_output",
-    "Unsupported claim repair should fail closed if repair output remains unsafe."
+    unsupportedClaimFailedRepairResult.status === "succeeded",
+    "Unsupported internal integrity/authenticity wording should be canonicalized during the single repair pass."
   );
   assert(
     unsupportedClaimFailedRepairCallCount === 2,
     "Unsupported claim failed repair should still use only one repair attempt."
+  );
+  assert(
+    unsupportedClaimFailedRepairResult.agent_call_id,
+    "Canonicalized unsupported-claim repair should return the repair agent call."
+  );
+
+  const canonicalizedUnsupportedRepairCall = await prisma.agentCall.findUniqueOrThrow({
+    where: { id: unsupportedClaimFailedRepairResult.agent_call_id },
+    select: { output_validated: true, call_status: true, output_payload: true }
+  });
+  assert(
+    canonicalizedUnsupportedRepairCall.call_status === "succeeded",
+    "Canonicalized unsupported-claim repair should mark the repair call succeeded."
+  );
+  assert(
+    canonicalizedUnsupportedRepairCall.output_validated,
+    "Canonicalized unsupported-claim repair output should validate."
+  );
+  assert(
+    !serialized(canonicalizedUnsupportedRepairCall.output_payload).includes("integrity concern") &&
+      !serialized(canonicalizedUnsupportedRepairCall.output_payload).includes("authenticity concern"),
+    "Canonicalized unsupported-claim repair output should remove unsupported integrity/authenticity wording."
   );
 
   let failedRepairCallCount = 0;

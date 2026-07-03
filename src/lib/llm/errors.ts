@@ -5,6 +5,33 @@ export function sanitizeUnknownError(error: unknown): SanitizedAgentError {
   if (error instanceof APIError) {
     const status = error.status;
     const code = typeof error.code === "string" ? error.code : "";
+    const message = error.message ?? "";
+
+    if (!status) {
+      if (/timeout|timed out|abort/i.test(message)) {
+        return {
+          category: "timeout",
+          message: "Provider request timed out.",
+          retryable: true
+        };
+      }
+
+      if (/network|fetch|econnreset|enotfound|connection/i.test(message)) {
+        return {
+          category: "network",
+          message: "Provider network request failed.",
+          retryable: true
+        };
+      }
+
+      if (/structured outputs?|zodTextFormat|optional\(\)|json schema/i.test(message)) {
+        return {
+          category: "provider_request_schema_invalid",
+          message: "Provider-facing Structured Outputs schema is invalid.",
+          retryable: false
+        };
+      }
+    }
 
     if (status === 401) {
       return {

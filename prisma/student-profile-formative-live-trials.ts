@@ -7,11 +7,13 @@ import { getLlmRuntimeConfig, LlmConfigurationError } from "../src/lib/llm/confi
 import {
   callFormativeValueDeterminationAgent,
   executeLiveFormativeValueDeterminationAgent,
+  FORMATIVE_VALUE_PACKET_SCHEMA_VERSION,
   validateFormativeValueDeterminationOutput
 } from "../src/lib/services/student-assessment/formative-value-determination";
 import {
   callProfileIntegrationAgent,
   executeLiveProfileIntegrationAgent,
+  PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION,
   validateProfileIntegrationOutput
 } from "../src/lib/services/student-assessment/profile-integration";
 import {
@@ -41,6 +43,31 @@ function intEnv(name: string) {
 
 function envPresent(name: string) {
   return typeof process.env[name] === "string" && process.env[name]?.trim().length > 0;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function parseJsonObject(value: unknown): Record<string, unknown> | null {
+  const record = asRecord(value);
+  if (record) return record;
+  if (typeof value !== "string") return null;
+  try {
+    return asRecord(JSON.parse(value));
+  } catch {
+    return null;
+  }
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function modelConfigured() {
@@ -152,18 +179,30 @@ async function agentCallSummary(agentCallId?: string) {
       output_tokens: true,
       total_tokens: true,
       validation_error: true,
+      raw_output: true,
+      input_payload: true,
       created_at: true,
       completed_at: true
     }
   });
   if (!call) return null;
+  const validationError = parseJsonObject(call.validation_error);
+  const validationIssues = Array.isArray(validationError?.issues)
+    ? validationError.issues
+      .map((issue) => asRecord(issue))
+      .filter((issue): issue is Record<string, unknown> => Boolean(issue))
+    : [];
+  const rawOutput = asRecord(call.raw_output);
+  const providerFailure = asRecord(rawOutput?.provider_failure);
+  const providerTransport = asRecord(providerFailure?.transport);
+  const inputPayload = asRecord(call.input_payload);
 
   return {
     agent_call_id: call.id,
     agent_name: call.agent_name,
     schema_version: call.schema_version,
     provider: call.provider,
-    model_name_present: Boolean(call.model_name),
+    model_name: call.model_name,
     call_status: call.call_status,
     output_validated: call.output_validated,
     provider_metadata_present: Boolean(call.provider_request_id || call.provider_response_id),
@@ -172,6 +211,31 @@ async function agentCallSummary(agentCallId?: string) {
     output_tokens: call.output_tokens ?? 0,
     total_tokens: call.total_tokens ?? 0,
     validation_error_present: Boolean(call.validation_error),
+    validation_error_category: stringValue(validationError?.category),
+    validation_issue_count: validationIssues.length,
+    validation_issue_codes: [
+      ...new Set(validationIssues.map((issue) => stringValue(issue.rule_code)).filter(Boolean))
+    ],
+    provider_failure: providerFailure
+      ? {
+          category: stringValue(providerFailure.category),
+          message: stringValue(providerFailure.message),
+          retryable: typeof providerFailure.retryable === "boolean" ? providerFailure.retryable : null,
+          transport: {
+            adapter_version: stringValue(providerTransport?.adapter_version),
+            model_name: stringValue(providerTransport?.model_name),
+            http_status: numberValue(providerTransport?.http_status),
+            typed_failure_reason: stringValue(providerTransport?.typed_failure_reason),
+            provider_error_code: stringValue(providerTransport?.provider_error_code)
+          }
+        }
+      : null,
+    request_shape: {
+      input_top_level_keys: inputPayload ? Object.keys(inputPayload).sort() : [],
+      input_top_level_key_count: inputPayload ? Object.keys(inputPayload).length : 0,
+      schema_version: call.schema_version,
+      schema_name: call.schema_version.replace(/[^a-zA-Z0-9_-]/g, "_")
+    },
     created_at: call.created_at.toISOString(),
     completed_at: call.completed_at?.toISOString() ?? null
   };
@@ -347,6 +411,28 @@ async function runScenario(input: {
       profile_integration: profileCall,
       formative_value: formativeCall
     },
+    provider_diagnostics: {
+      profile_integration: profileCall
+        ? {
+            model_name: profileCall.model_name,
+            schema_version: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION,
+            request_shape: profileCall.request_shape,
+            provider_failure: profileCall.provider_failure,
+            validation_error_category: profileCall.validation_error_category,
+            validation_issue_codes: profileCall.validation_issue_codes
+          }
+        : null,
+      formative_value: formativeCall
+        ? {
+            model_name: formativeCall.model_name,
+            schema_version: FORMATIVE_VALUE_PACKET_SCHEMA_VERSION,
+            request_shape: formativeCall.request_shape,
+            provider_failure: formativeCall.provider_failure,
+            validation_error_category: formativeCall.validation_error_category,
+            validation_issue_codes: formativeCall.validation_issue_codes
+          }
+        : null
+    },
     validation: {
       profile_valid: profileValidation.valid,
       profile_issues: profileValidation.issues,
@@ -417,6 +503,7 @@ async function main() {
   const runTimestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const runModeLabel = live ? "live" : dryRun ? "dry-run" : "no-live";
   const runArtifactDirName = `run-${runTimestamp}-${runModeLabel}`;
+  const runArtifactDir = path.join(artifactDir, runArtifactDirName);
 
   console.log(JSON.stringify({
     status: "starting",
@@ -447,9 +534,10 @@ async function main() {
       readiness,
       scenario_count: scenarios.length,
       live_scenarios_run: 0,
-      artifact_dir: artifactDir
+      run_id: runArtifactDirName,
+      artifact_dir: runArtifactDir
     };
-    await writeJson(`blocked-${new Date().toISOString().replace(/[:.]/g, "-")}.json`, summary);
+    await writeJson(`${runArtifactDirName}/blocked-${new Date().toISOString().replace(/[:.]/g, "-")}.json`, summary);
     console.log(JSON.stringify(summary, null, 2));
     process.exitCode = 1;
     await prisma.$disconnect();
@@ -511,19 +599,42 @@ async function main() {
         result.failures.includes("formative_value_live_failed_or_invalid")
       ).length
     },
+    provider_invalid_request_counts: {
+      profile_integration: results.filter((result) =>
+        result.agent_calls.some((call) =>
+          call?.agent_name === "profile_integration_agent" &&
+          call.provider_failure?.category === "invalid_request"
+        )
+      ).length,
+      formative_value: results.filter((result) =>
+        result.agent_calls.some((call) =>
+          call?.agent_name === "formative_value_determination_agent" &&
+          call.provider_failure?.category === "invalid_request"
+        )
+      ).length
+    },
     uncovered_outcome_categories: {},
     scenario_level_recommendations: failed.map((result) => ({
       scenario_id: result.scenario_id,
-      classification: "review_live_model_or_scenario_alignment",
+      classification: result.agent_calls.some((call) => call?.provider_failure)
+        ? "provider request issue"
+        : result.failures.some((failure) => failure.includes("validation"))
+          ? "safety validator issue"
+          : result.failures.some((failure) => failure.includes("engagement"))
+            ? "engagement classification issue"
+            : result.failures.some((failure) => failure.includes("formative"))
+              ? "formative value determination issue"
+              : "profile integration issue",
       failures: result.failures
     }))
   };
   const errorAnalysisPath = await writeJson(
-    `error-analysis-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
+    `${runArtifactDirName}/error-analysis-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
     errorAnalysis
   );
   const summary = {
     status: failed.length === 0 ? "passed" : "failed",
+    run_id: runArtifactDirName,
     scenario_count: scenarios.length,
     live_scenarios_run: live ? results.length : 0,
     live_rerun_count: 0,
@@ -538,7 +649,10 @@ async function main() {
         call_status: call?.call_status,
         output_validated: call?.output_validated,
         provider_metadata_present: call?.provider_metadata_present,
-        token_usage_present: call?.token_usage_present
+        token_usage_present: call?.token_usage_present,
+        validation_error_category: call?.validation_error_category,
+        validation_issue_codes: call?.validation_issue_codes,
+        provider_failure: call?.provider_failure
       }))
     })),
     token_usage: tokenUsage,
@@ -547,10 +661,10 @@ async function main() {
       failures: result.failures,
       artifact_path: result.artifact_path
     })),
-    artifact_dir: artifactDir,
+    artifact_dir: runArtifactDir,
     error_analysis_artifact_path: errorAnalysisPath
   };
-  await writeJson(`summary-${new Date().toISOString().replace(/[:.]/g, "-")}.json`, summary);
+  await writeJson(`${runArtifactDirName}/summary-${new Date().toISOString().replace(/[:.]/g, "-")}.json`, summary);
   console.log(JSON.stringify(summary, null, 2));
 
   await prisma.$disconnect();

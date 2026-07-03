@@ -311,7 +311,7 @@ To run it intentionally after configuring local server-side live LLM variables:
 RUN_LIVE_PROFILE_INTEGRATION_SMOKE=1 npm run student:profile-integration-live-smoke
 ```
 
-The live path may use `OPENAI_MODEL_PROFILE_INTEGRATION`, falling back to `OPENAI_MODEL_PLANNING` or `OPENAI_MODEL_FOLLOWUP`. It stores `agent_calls` audit rows for `profile_integration_agent` with schema version `profile-integration-interpretation-v1`, provider/model metadata, provider request or response metadata when available, output validation, safe validation errors, and token usage when returned. If a schema-shaped live output contains remediable direction/planning language, unsupported integrity/authenticity/external-assistance claims, or a high-confidence overclaim, the service may make one repair attempt using only redacted evidence and safe validation issue metadata. AI-assistance signals are internal evidence-production context only; insufficient or absent signal evidence must not become an assistance/provenance claim. Live-smoke failures write sanitized diagnostics under `.data/profile-integration-live-smoke/failures/`, including whether repair was attempted.
+The live path may use `OPENAI_MODEL_PROFILE_INTEGRATION`, falling back to `OPENAI_MODEL_PLANNING` or `OPENAI_MODEL_FOLLOWUP`. It stores `agent_calls` audit rows for `profile_integration_agent` with schema version `profile-integration-interpretation-v1`, provider/model metadata, provider request or response metadata when available, output validation, safe validation errors, and token usage when returned. If a schema-shaped live output contains remediable direction/planning language, unsupported integrity/authenticity/external-assistance claims, internal correct-option phrasing, or a high-confidence overclaim, the service may make one repair attempt using only redacted evidence and safe validation issue metadata. Repair candidates may be safety-canonicalized before strict validation; invalid provider output is never accepted directly. AI-assistance signals are internal evidence-production context only; insufficient or absent signal evidence must not become an assistance/provenance claim. Live-smoke failures write sanitized diagnostics under `.data/profile-integration-live-smoke/failures/`, including whether repair was attempted.
 
 Formative value determination packet verification:
 
@@ -322,6 +322,8 @@ npm run student:formative-value-smoke
 This no-live smoke builds `formative-value-determination-v1` from the profile integration packet. It recommends one broad formative value, offers alternatives, verifies student choice/override/move-on capture, simulates provider audit persistence with an injected mock provider, and confirms no OpenAI call occurs. It does not generate an activity, task, item, explanation, or tutoring script. See `docs/FORMATIVE_VALUE_DETERMINATION_DESIGN.md`.
 
 Confidence calibration is reserved for adequate or strong understanding evidence paired with underconfidence or inconsistent confidence. Conceptual gaps, weak reasoning, wrong models, and likely misconceptions take priority over calibration; high confidence with wrong or weak evidence is retained as a secondary consideration, not the primary value. Low confidence by itself is not treated as a confidence-calibration need. Likely knowledge gaps generally map to diagnostic clarification, while mixed or reliability-limited evidence generally maps to independent understanding verification unless another value is clearly supported.
+
+Effective formative-value output remains backend-authoritative for clean adequate-understanding underconfidence cases. If a live provider chooses an adjacent value where backend precedence requires confidence calibration, the persisted effective packet is canonicalized to `confidence_calibration` and the raw provider result remains audit evidence only.
 
 Formative value review artifact generation:
 
@@ -361,7 +363,7 @@ Paid live scenario trials are intentionally separate:
 npm run student:profile-formative-live-trials
 ```
 
-This command is paid-live by default, prints a warning, checks live readiness, refuses deterministic fallback as live success, and writes redacted artifacts under `.data/profile-formative-live-trials/`. Use `MAX_LIVE_PROFILE_FORMATIVE_TRIALS`, `PROFILE_FORMATIVE_TRIAL_SCENARIOS`, `PROFILE_FORMATIVE_TRIAL_DRY_RUN=true`, or `PROFILE_FORMATIVE_TRIAL_NO_LIVE=true` to limit or inspect a run. See `docs/PROFILE_FORMATIVE_SCENARIO_QA.md`.
+This command is paid-live by default, prints a warning, checks live readiness, refuses deterministic fallback as live success, and writes redacted artifacts under timestamped run directories in `.data/profile-formative-live-trials/`. It captures safe provider-failure diagnostics without prompts, raw provider output, headers, or secrets. Profile/formative QA artifacts report both target labels and any explicit allowed boundary alternatives. Use `MAX_LIVE_PROFILE_FORMATIVE_TRIALS`, `PROFILE_FORMATIVE_TRIAL_SCENARIOS`, `PROFILE_FORMATIVE_TRIAL_DRY_RUN=true`, or `PROFILE_FORMATIVE_TRIAL_NO_LIVE=true` to limit or inspect a run. See `docs/PROFILE_FORMATIVE_SCENARIO_QA.md`.
 
 The optional live LLM readiness smoke is intentionally skipped unless explicitly enabled:
 

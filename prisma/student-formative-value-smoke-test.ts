@@ -556,6 +556,56 @@ async function runProviderAssertions() {
     assert(agentCall.call_status === "succeeded", "Valid provider output should mark call succeeded.");
     assert(Boolean(agentCall.token_usage), "Provider token usage metadata should be stored.");
 
+    const underconfidentAgentInput = buildFormativeValueAgentInput({
+      profile_integration_packet: profilePacket({
+        integration_pattern: "stable_understanding",
+        student_facing_status: "Mostly understood",
+        status_confidence: "medium",
+        evidence_consistency: "consistent",
+        confidence_calibration_summary:
+          "The student showed low confidence despite adequate, supported reasoning evidence."
+      })
+    });
+    const underconfidentCanonicalOutput = await callFormativeValueDeterminationAgent(underconfidentAgentInput);
+    const wrongPrimaryProvider = new FixedFormativeValueProvider((request) => ({
+      provider: "mock",
+      provider_request_id: "mock_formative_value_wrong_primary_request",
+      provider_response_id: "mock_formative_value_wrong_primary_response",
+      client_request_id: request.client_request_id,
+      status: "completed",
+      parsed_output: {
+        ...underconfidentCanonicalOutput,
+        primary_value: "independent_understanding_verification",
+        primary_value_label: "Independent understanding verification",
+        student_safe_message: {
+          ...underconfidentCanonicalOutput.student_safe_message,
+          recommended_value_label: "Independent understanding verification"
+        }
+      },
+      raw_output: { id: "mock_formative_value_wrong_primary_response", output: "redacted" },
+      usage: { input_tokens: 9, output_tokens: 11, total_tokens: 20 },
+      latency_ms: 2
+    }));
+    const wrongPrimaryResult = await executeFormativeValueAgentWithProviderForTest({
+      agent_input: underconfidentAgentInput,
+      provider: wrongPrimaryProvider
+    });
+
+    assert(
+      wrongPrimaryResult.status === "succeeded",
+      "Underconfident adequate-understanding primary value should be canonicalized to backend precedence."
+    );
+    assert(
+      wrongPrimaryResult.packet.primary_value === "confidence_calibration",
+      "Canonicalized underconfident output should use confidence calibration."
+    );
+    assert(
+      wrongPrimaryResult.packet.rationale.limitations.includes(
+        "primary_value_canonicalized_to_backend_confidence_calibration_precedence"
+      ),
+      "Canonicalized underconfident output should record the backend precedence correction."
+    );
+
     const invalidProvider = new FixedFormativeValueProvider((request) => ({
       provider: "mock",
       provider_request_id: "mock_formative_value_bad_request",

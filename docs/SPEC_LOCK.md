@@ -1287,10 +1287,12 @@ Phase 6A.5 must not implement:
 - The provider-backed path may make one repair attempt only for remediable
   validation failures: formative value direction, activity or next-activity
   recommendation, unsupported integrity/authenticity/external-assistance claim,
-  and high-confidence overclaim. The repair request must use the same redacted
-  structured evidence plus safe issue field paths, rule codes, and blocked
-  pattern labels only. It must not include the rejected provider output. If
-  repair fails, the service fails closed.
+  internal correct-option phrasing, and high-confidence overclaim. The repair
+  request must use the same redacted structured evidence plus safe issue field
+  paths, rule codes, and blocked pattern labels only. It must not include the
+  rejected provider output. A repair candidate may be safety-canonicalized to
+  remove unsupported internal wording before the same strict validation runs.
+  If repair fails, the service fails closed.
 - Live profile integration is opt-in only. It requires explicit live
   server-side LLM configuration and either `OPENAI_MODEL_PROFILE_INTEGRATION`,
   `OPENAI_MODEL_PLANNING`, or `OPENAI_MODEL_FOLLOWUP`. The default
@@ -1373,6 +1375,12 @@ Phase 6A.5 must not implement:
   or `inconsistent_confidence_with_adequate_evidence` must be rejected.
   Generic confidence mismatch, low confidence alone, high confidence alone, or
   overconfident wrong/weak evidence is not sufficient for primary calibration.
+- Effective formative-value output remains backend-authoritative for clean
+  adequate-understanding underconfidence cases. If provider or mock output
+  selects an adjacent value where the backend default is
+  `confidence_calibration`, the persisted effective packet may be canonicalized
+  to `confidence_calibration` and must record a safe limitation noting backend
+  precedence. Raw provider output remains audit evidence only.
 - Default formative-value smoke and review commands are no-live. The live
   smoke is skipped unless `RUN_LIVE_FORMATIVE_VALUE_SMOKE=1` is explicitly set.
   Deterministic fallback output must not be reported as successful live output.
@@ -1390,6 +1398,14 @@ Phase 6A.5 must not implement:
   `.data/profile-formative-trial-review/`. They must be redacted and must not
   include answer keys, correct options, correctness labels, distractor
   metadata, raw process payloads, raw provider output, prompts, API keys, or
+  secrets.
+- Paid-live profile/formative trial artifacts must be run-scoped under
+  `.data/profile-formative-live-trials/run-<timestamp>-live/`. The run
+  directory must include per-scenario records, a summary artifact, and an
+  error-analysis artifact. Provider request failures may record sanitized
+  model name, schema version, request top-level keys, provider error category,
+  HTTP status/code when available, and typed transport reason, but never raw
+  prompts, raw request payloads, raw response bodies, headers, credentials, or
   secrets.
 - Scenario QA is error-analysis evidence only. It is not classroom validity,
   does not implement activity planning, and does not authorize changes to item

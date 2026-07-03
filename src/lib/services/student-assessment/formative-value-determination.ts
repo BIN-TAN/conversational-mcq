@@ -707,6 +707,67 @@ function primaryValueForProfile(packet: ProfileIntegrationInterpretationPacketV1
   }
 }
 
+function profilePacketFromFormativeInput(input: FormativeValueAgentInput) {
+  return {
+    session_public_id: input.session_context.session_public_id,
+    student_public_id: input.session_context.student_public_id,
+    assessment_public_id: input.session_context.assessment_public_id,
+    concept_unit_id: input.session_context.concept_unit_id,
+    schema_version: input.source_profile_integration.schema_version,
+    student_facing_status: input.source_profile_integration.student_safe_status,
+    status_confidence: input.source_profile_integration.status_confidence,
+    integration_pattern: input.source_profile_integration.integration_pattern,
+    ability_interpretation: {
+      evidence_consistency: input.source_profile_integration.ability_evidence_consistency,
+      misconception_claim_strength: input.source_profile_integration.misconception_claim_strength,
+      knowledge_gap_claim_strength: input.source_profile_integration.knowledge_gap_claim_strength,
+      confidence_calibration_summary:
+        input.source_profile_integration.confidence_calibration_summary
+    },
+    engagement_context: {
+      engagement_effect_on_interpretation:
+        input.source_profile_integration.engagement_effect_on_interpretation,
+      ai_assistance_effect_on_interpretation:
+        input.source_profile_integration.ai_assistance_effect_on_interpretation
+    },
+    student_safe_message: input.source_profile_integration.student_safe_message
+  } as ProfileIntegrationInterpretationPacketV1;
+}
+
+function primaryValueForFormativeInput(input: FormativeValueAgentInput): FormativeValue {
+  const profilePacket = profilePacketFromFormativeInput(input);
+  return input.source_profile_integration.ai_assistance_effect_on_interpretation === "contextualizes_reasoning_evidence"
+    ? "independent_understanding_verification"
+    : primaryValueForProfile(profilePacket);
+}
+
+function canonicalizeFormativeValueCandidate(
+  candidate: unknown,
+  input: FormativeValueAgentInput
+): unknown {
+  const parsed = FormativeValueDeterminationPacketV1Schema.safeParse(candidate);
+  if (!parsed.success) return candidate;
+
+  const expectedPrimary = primaryValueForFormativeInput(input);
+  if (expectedPrimary !== "confidence_calibration" || parsed.data.primary_value === expectedPrimary) {
+    return candidate;
+  }
+
+  const canonical = deterministicFormativeValueOutput(input);
+  return {
+    ...canonical,
+    rationale: {
+      ...canonical.rationale,
+      limitations: [
+        ...new Set([
+          ...canonical.rationale.limitations,
+          "primary_value_canonicalized_to_backend_confidence_calibration_precedence"
+        ])
+      ]
+    }
+  };
+}
+
 function secondaryConsiderationsForProfile(
   packet: ProfileIntegrationInterpretationPacketV1
 ): SecondaryConsideration[] {
@@ -1008,34 +1069,8 @@ function safeSafetyCheck() {
 }
 
 function deterministicFormativeValueOutput(input: FormativeValueAgentInput) {
-  const profilePacket = {
-    session_public_id: input.session_context.session_public_id,
-    student_public_id: input.session_context.student_public_id,
-    assessment_public_id: input.session_context.assessment_public_id,
-    concept_unit_id: input.session_context.concept_unit_id,
-    schema_version: input.source_profile_integration.schema_version,
-    student_facing_status: input.source_profile_integration.student_safe_status,
-    status_confidence: input.source_profile_integration.status_confidence,
-    integration_pattern: input.source_profile_integration.integration_pattern,
-    ability_interpretation: {
-      evidence_consistency: input.source_profile_integration.ability_evidence_consistency,
-      misconception_claim_strength: input.source_profile_integration.misconception_claim_strength,
-      knowledge_gap_claim_strength: input.source_profile_integration.knowledge_gap_claim_strength,
-      confidence_calibration_summary:
-        input.source_profile_integration.confidence_calibration_summary
-    },
-    engagement_context: {
-      engagement_effect_on_interpretation:
-        input.source_profile_integration.engagement_effect_on_interpretation,
-      ai_assistance_effect_on_interpretation:
-        input.source_profile_integration.ai_assistance_effect_on_interpretation
-    },
-    student_safe_message: input.source_profile_integration.student_safe_message
-  } as ProfileIntegrationInterpretationPacketV1;
-  const primary =
-    input.source_profile_integration.ai_assistance_effect_on_interpretation === "contextualizes_reasoning_evidence"
-      ? "independent_understanding_verification"
-      : primaryValueForProfile(profilePacket);
+  const profilePacket = profilePacketFromFormativeInput(input);
+  const primary = primaryValueForFormativeInput(input);
   const alternatives = alternativesFor(primary, profilePacket);
   const reasonCode =
     primary === "confidence_calibration"
@@ -1244,7 +1279,8 @@ async function executeFormativeValueAgentWithProvider(input: {
               generated_at: nowIso()
             }
           : providerResult.parsed_output;
-      const validation = validateFormativeValueDeterminationOutput(candidate);
+      const canonicalCandidate = canonicalizeFormativeValueCandidate(candidate, input.agent_input);
+      const validation = validateFormativeValueDeterminationOutput(canonicalCandidate);
 
       if (validation.valid) {
         await prisma.agentCall.update({

@@ -138,7 +138,7 @@ OPENAI_MODEL_PROFILE_INTEGRATION or OPENAI_MODEL_PLANNING or OPENAI_MODEL_FOLLOW
 
 The live profile integration path stores `agent_calls` audit metadata for `profile_integration_agent`, including schema version `profile-integration-interpretation-v1`, provider/model metadata, provider request or response metadata when available, output validation status, safe validation errors, and token usage when returned. It does not choose a formative value or activity.
 
-If a schema-shaped live output fails only because it contains remediable direction/planning language, unsupported integrity/authenticity/external-assistance claims, or a high-confidence overclaim, the service may make one repair attempt using the same redacted evidence and safe validation issue metadata only. The invalid output is not included in the repair prompt and is never accepted. If repair fails, the path fails closed and writes sanitized live-smoke diagnostics under `.data/profile-integration-live-smoke/failures/`. The profile integration packet treats AI-assistance signals as internal evidence-production context only; no assistance or provenance claim is made when the signal is `insufficient_evidence` or `none_indicated`, and student-facing text never mentions AI assistance, process data, engagement category, integrity, or authenticity.
+If a schema-shaped live output fails only because it contains remediable direction/planning language, unsupported integrity/authenticity/external-assistance claims, internal correct-option phrasing, or a high-confidence overclaim, the service may make one repair attempt using the same redacted evidence and safe validation issue metadata only. The invalid output is not included in the repair prompt and is never accepted. The repair candidate may be safety-canonicalized to remove unsupported internal wording before strict validation; if it still fails validation, the path fails closed and writes sanitized live-smoke diagnostics under `.data/profile-integration-live-smoke/failures/`. The profile integration packet treats AI-assistance signals as internal evidence-production context only; no assistance or provenance claim is made when the signal is `insufficient_evidence` or `none_indicated`, and student-facing text never mentions AI assistance, process data, engagement category, integrity, or authenticity.
 
 ## Formative Value Determination Packet
 
@@ -159,6 +159,8 @@ The packet recommends exactly one broad formative value from:
 This is value determination only. It does not generate an activity, task, item, explanation, or tutoring script, and it does not advance assessment state. The student choice policy must allow accepting the recommendation, choosing an alternative, or moving on. Confidence calibration may be recommended but cannot be forced.
 
 Profile integration patterns are decision priors rather than a fixed mapping. Likely knowledge gaps generally support `diagnostic_clarification`; mixed or conflicting evidence generally supports `independent_understanding_verification`; stable understanding generally supports `consolidation_and_transfer`. `confidence_calibration` is reserved for cases where understanding evidence is adequate or strong but the student is underconfident or confidence is inconsistent across adequate evidence. Conceptual gaps, weak reasoning, wrong models, and likely misconceptions take priority over calibration. High confidence with wrong or weak evidence is recorded as a secondary consideration, not as the primary value. Low confidence by itself is not a confidence-calibration need.
+
+The effective formative-value packet follows backend precedence after live output is parsed. In clean adequate-understanding underconfidence cases, a live output that chooses a weaker adjacent value is canonicalized to `confidence_calibration`, with the raw provider result retained in the `agent_calls` audit row.
 
 For a redacted review artifact, run:
 
@@ -212,7 +214,7 @@ The dedicated paid-live trial command is:
 npm run student:profile-formative-live-trials
 ```
 
-Unlike ordinary smoke tests, this command is paid-live by default. It prints a warning, checks live readiness, refuses silent deterministic fallback, and writes redacted artifacts under `.data/profile-formative-live-trials/`. Cost-control flags are `MAX_LIVE_PROFILE_FORMATIVE_TRIALS`, `PROFILE_FORMATIVE_TRIAL_SCENARIOS`, `PROFILE_FORMATIVE_TRIAL_DRY_RUN=true`, and `PROFILE_FORMATIVE_TRIAL_NO_LIVE=true`.
+Unlike ordinary smoke tests, this command is paid-live by default. It prints a warning, checks live readiness, refuses silent deterministic fallback, and writes redacted artifacts under timestamped run directories in `.data/profile-formative-live-trials/`. Each run directory contains per-scenario records, a summary artifact, and an error-analysis artifact. Provider failures are recorded with safe model/schema/request-shape and sanitized transport fields only; prompts, raw provider output, headers, API keys, and secrets are not written. Cost-control flags are `MAX_LIVE_PROFILE_FORMATIVE_TRIALS`, `PROFILE_FORMATIVE_TRIAL_SCENARIOS`, `PROFILE_FORMATIVE_TRIAL_DRY_RUN=true`, and `PROFILE_FORMATIVE_TRIAL_NO_LIVE=true`.
 
 See `docs/PROFILE_FORMATIVE_SCENARIO_QA.md` for scenario definitions, artifact interpretation, and mismatch categories.
 

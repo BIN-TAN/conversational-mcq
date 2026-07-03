@@ -41,10 +41,10 @@ Run provider-backed scenario trials with:
 npm run student:profile-formative-live-trials
 ```
 
-This command is paid-live by default. It must be run intentionally and only after local live readiness is configured. It prints a paid-call warning, checks readiness, refuses to silently fall back to deterministic mode, and records redacted artifacts under:
+This command is paid-live by default. It must be run intentionally and only after local live readiness is configured. It prints a paid-call warning, checks readiness, refuses to silently fall back to deterministic mode, and records redacted artifacts under a timestamped run directory:
 
 ```text
-.data/profile-formative-live-trials/
+.data/profile-formative-live-trials/run-<timestamp>-live/
 ```
 
 Cost and selection controls:
@@ -62,7 +62,21 @@ PROFILE_FORMATIVE_TRIAL_DRY_RUN=true npm run student:profile-formative-live-tria
 PROFILE_FORMATIVE_TRIAL_NO_LIVE=true npm run student:profile-formative-live-trials
 ```
 
-The live harness records scenario IDs, expected and actual profile/status/engagement/value outcomes, agent call status, provider metadata presence, token usage presence, safety checks, fallback/repair use, and redacted transcript-safety summaries. It must not include raw prompts, raw provider outputs, answer keys, distractor metadata, raw process payloads, API keys, or secrets.
+The live harness records scenario IDs, expected and actual profile/status/engagement/value outcomes, agent call status, provider metadata presence, token usage presence, safety checks, fallback/repair use, safe provider-failure diagnostics, request-shape keys, and redacted transcript-safety summaries. It must not include raw prompts, raw provider outputs, answer keys, distractor metadata, raw process payloads, API keys, or secrets.
+
+Profile-integration live repair outputs may be safety-canonicalized before strict validation when the only problem is unsupported internal wording such as integrity/authenticity/provenance language or internal "correct option" phrasing. The raw provider result remains in audit metadata; only the persisted effective packet is canonicalized and then revalidated.
+
+Formative-value live outputs remain subject to backend precedence. When the profile evidence has an explicit adequate-understanding underconfidence signal, the effective primary value is canonicalized to `confidence_calibration` if the live model selects a weaker adjacent value. Boundary scenarios may declare explicit allowed alternatives for profile/status/value outcomes, but safety and schema failures are never accepted as alternatives.
+
+Each live run writes:
+
+```text
+.data/profile-formative-live-trials/run-<timestamp>-live/<scenario_id>.json
+.data/profile-formative-live-trials/run-<timestamp>-live/summary-<timestamp>.json
+.data/profile-formative-live-trials/run-<timestamp>-live/error-analysis-<timestamp>.json
+```
+
+Dry-run and no-live modes use the same run-directory pattern with `dry-run` or `no-live` in the directory name.
 
 ## Offline Trial Review
 
@@ -89,6 +103,7 @@ A mismatch should be classified as one of:
 - engagement classification issue
 - profile integration issue
 - formative value determination issue
+- provider request issue
 - conversation flow issue
 - safety validator issue
 
