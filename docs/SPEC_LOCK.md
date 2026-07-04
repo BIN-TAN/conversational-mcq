@@ -1390,8 +1390,16 @@ Phase 6A.5 must not implement:
   OpenAI.
 - The only Phase 28a command that is paid-live by default is
   `student:profile-formative-live-trials`. It must print a paid-call warning,
-  check live readiness, support max-count and explicit scenario selection
-  controls, and refuse to count deterministic fallback as live success.
+  check live readiness, support max-count, explicit scenario selection,
+  variation selection, and budget controls, and refuse to count deterministic
+  fallback as live success. The default paid-live matrix is 35 trials: 17 core
+  scenarios plus targeted conversation/process variations, with a hard default
+  cap of 50 trials unless a later phase explicitly changes the runner.
+- Scenario variations must include enough coverage to exercise uncertainty,
+  content/procedural questions, edits or revisions, student preference
+  overrides or move-on, engagement/process complications, likely
+  external-assistance context, and insufficient AI-signal context. They remain
+  synthetic and must not add new item content or activity-planning behavior.
 - Scenario QA artifacts are ignored local development artifacts under
   `.data/profile-formative-scenario-smoke/`,
   `.data/profile-formative-live-trials/`, and
@@ -1402,11 +1410,14 @@ Phase 6A.5 must not implement:
 - Paid-live profile/formative trial artifacts must be run-scoped under
   `.data/profile-formative-live-trials/run-<timestamp>-live/`. The run
   directory must include per-scenario records, a summary artifact, and an
-  error-analysis artifact. Provider request failures may record sanitized
-  model name, schema version, request top-level keys, provider error category,
-  HTTP status/code when available, and typed transport reason, but never raw
-  prompts, raw request payloads, raw response bodies, headers, credentials, or
-  secrets.
+  error-analysis artifact. Artifacts must distinguish provider category
+  outputs from effective backend outputs, repair/canonicalization/fallback
+  status, token usage, optional non-invoice-exact cost estimates, QA rubric
+  results, and result categories. Provider request failures may record
+  sanitized model name, schema version, request top-level keys, provider error
+  category, HTTP status/code when available, and typed transport reason, but
+  never raw prompts, raw request payloads, raw response bodies, headers,
+  credentials, or secrets.
 - Scenario QA is error-analysis evidence only. It is not classroom validity,
   does not implement activity planning, and does not authorize changes to item
   content, scoring, item administration, or teacher upload.

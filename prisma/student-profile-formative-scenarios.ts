@@ -49,9 +49,43 @@ type EngagementScript = {
   process_instrumentation_available?: boolean;
 };
 
+export type ProfileFormativeVariationTag =
+  | "concise_meaningful"
+  | "detailed_response"
+  | "vague_response"
+  | "uncertainty"
+  | "low_information"
+  | "multilingual"
+  | "typo_heavy"
+  | "content_question"
+  | "procedural_question"
+  | "move_on_question"
+  | "edit_revision"
+  | "answer_changed"
+  | "confidence_changed"
+  | "tempting_option_changed"
+  | "engaged_process"
+  | "moderate_process"
+  | "rapid_sparse_process"
+  | "pause_resume_process"
+  | "weak_focus_or_paste_signal"
+  | "likely_external_assistance_pattern"
+  | "insufficient_ai_signal"
+  | "student_choice"
+  | "accepts_recommendation"
+  | "chooses_alternative"
+  | "moves_on"
+  | "rejects_confidence_calibration"
+  | "chooses_diagnostic_clarification";
+
 export type ProfileFormativeScenario = {
   scenario_id: string;
   scenario_name: string;
+  trial_variant?: "core" | "variation";
+  base_scenario_id?: string;
+  variation_id?: string;
+  variation_description?: string;
+  variation_tags?: ProfileFormativeVariationTag[];
   target_profile_integration_pattern: ProfilePattern;
   target_student_facing_status: StudentStatus;
   target_engagement_category: EngagementCategory;
@@ -180,7 +214,7 @@ const sparse = (selected: string | null, reason: string | null, ms = 1_500) =>
     process_instrumentation_available: true
   });
 
-export const profileFormativeScenarios: ProfileFormativeScenario[] = [
+export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
   {
     scenario_id: "stable_understanding_engaged",
     scenario_name: "Stable understanding with aligned confidence and engaged evidence",
@@ -214,7 +248,7 @@ export const profileFormativeScenarios: ProfileFormativeScenario[] = [
       ability("C", "correct", "Medium", adequateReason)
     ],
     expected_allowed_outcomes: {
-      profile_integration_patterns: ["developing_understanding", "stable_understanding"],
+      profile_integration_patterns: ["developing_understanding", "stable_understanding", "mixed_or_conflicting_evidence"],
       student_facing_statuses: ["Still developing", "Mostly understood"],
       formative_values: ["reasoning_refinement", "independent_understanding_verification"]
     },
@@ -233,6 +267,7 @@ export const profileFormativeScenarios: ProfileFormativeScenario[] = [
     target_ai_assistance_signal: "none_indicated",
     target_formative_value: "diagnostic_clarification",
     expected_allowed_outcomes: {
+      student_facing_statuses: ["Needs more work", "Still developing"],
       engagement_categories: ["moderately_engaged", "disengaged"]
     },
     scripted_student_response_package: [
@@ -486,7 +521,8 @@ export const profileFormativeScenarios: ProfileFormativeScenario[] = [
     target_ai_assistance_signal: "none_indicated",
     target_formative_value: "diagnostic_clarification",
     expected_allowed_outcomes: {
-      profile_integration_patterns: ["likely_knowledge_gap", "insufficient_evidence"],
+      profile_integration_patterns: ["likely_knowledge_gap", "insufficient_evidence", "developing_understanding"],
+      student_facing_statuses: ["Needs more work", "Still developing"],
       engagement_categories: ["moderately_engaged", "disengaged", "insufficient_evidence"]
     },
     scripted_student_response_package: [
@@ -595,7 +631,274 @@ export const profileFormativeScenarios: ProfileFormativeScenario[] = [
     expected_safety_constraints: safetyConstraints,
     rationale: "Choice capture should allow move-on without blame language."
   }
+] as ProfileFormativeScenario[]).map((scenario) => ({ ...scenario, trial_variant: "core" as const }));
+
+function baseScenario(scenarioId: string) {
+  const scenario = coreProfileFormativeScenarios.find((entry) => entry.scenario_id === scenarioId);
+  if (!scenario) throw new Error(`Unknown base scenario ${scenarioId}`);
+  return scenario;
+}
+
+function withVariation(
+  scenarioId: string,
+  variationId: string,
+  description: string,
+  tags: ProfileFormativeVariationTag[],
+  updates: Partial<ProfileFormativeScenario>
+): ProfileFormativeScenario {
+  const base = baseScenario(scenarioId);
+  return {
+    ...base,
+    ...updates,
+    scenario_id: `${scenarioId}__${variationId}`,
+    scenario_name: `${base.scenario_name} - ${description}`,
+    trial_variant: "variation",
+    base_scenario_id: scenarioId,
+    variation_id: variationId,
+    variation_description: description,
+    variation_tags: tags,
+    expected_allowed_outcomes: {
+      ...base.expected_allowed_outcomes,
+      ...updates.expected_allowed_outcomes,
+      profile_integration_patterns: [
+        ...(base.expected_allowed_outcomes?.profile_integration_patterns ?? []),
+        ...(updates.expected_allowed_outcomes?.profile_integration_patterns ?? [])
+      ],
+      student_facing_statuses: [
+        ...(base.expected_allowed_outcomes?.student_facing_statuses ?? []),
+        ...(updates.expected_allowed_outcomes?.student_facing_statuses ?? [])
+      ],
+      engagement_categories: [
+        ...(base.expected_allowed_outcomes?.engagement_categories ?? []),
+        ...(updates.expected_allowed_outcomes?.engagement_categories ?? [])
+      ],
+      ai_assistance_signals: [
+        ...(base.expected_allowed_outcomes?.ai_assistance_signals ?? []),
+        ...(updates.expected_allowed_outcomes?.ai_assistance_signals ?? [])
+      ],
+      formative_values: [
+        ...(base.expected_allowed_outcomes?.formative_values ?? []),
+        ...(updates.expected_allowed_outcomes?.formative_values ?? [])
+      ]
+    },
+    rationale: `${base.rationale} Variation coverage: ${description}.`
+  };
+}
+
+function withReasoning(
+  scenario: ProfileFormativeScenario,
+  reasoning: [string | null, string | null, string | null]
+) {
+  return scenario.scripted_student_response_package.map((item, index) => ({
+    ...item,
+    reasoning_text: reasoning[index] ?? item.reasoning_text
+  }));
+}
+
+export const profileFormativeScenarioVariations: ProfileFormativeScenario[] = [
+  withVariation("stable_understanding_engaged", "concise_meaningful", "concise but meaningful answers", [
+    "concise_meaningful",
+    "engaged_process"
+  ], {
+    scripted_student_response_package: withReasoning(baseScenario("stable_understanding_engaged"), [
+      "Theta is the person's ability location, not item difficulty.",
+      "Item parameters describe items; theta describes the person.",
+      "Theta stays about the person on the linked scale."
+    ])
+  }),
+  withVariation("developing_understanding_partial_reasoning", "revision_improves_reasoning", "student revises partial reasoning", [
+    "edit_revision",
+    "detailed_response"
+  ], {
+    optional_edit_or_revision_behavior: "revises_reasoning_with_better_explanation",
+    expected_allowed_outcomes: {
+      profile_integration_patterns: ["developing_understanding", "stable_understanding"],
+      student_facing_statuses: ["Still developing", "Mostly understood"],
+      formative_values: ["reasoning_refinement", "independent_understanding_verification", "consolidation_and_transfer"]
+    },
+    scripted_student_response_package: withReasoning(baseScenario("developing_understanding_partial_reasoning"), [
+      partialReason,
+      "At first I only said it seemed right, then I added that item difficulty is about the item, not the person's theta.",
+      adequateReason
+    ])
+  }),
+  withVariation("knowledge_gap_low_confidence", "asks_idk_allowed", "student asks whether I don't know is acceptable", [
+    "uncertainty",
+    "procedural_question",
+    "low_information"
+  ], {
+    optional_scripted_content_or_procedural_question: "Can I say I don't know if I am not sure?",
+    scripted_student_response_package: withReasoning(baseScenario("knowledge_gap_low_confidence"), [
+      "I don't know yet.",
+      "I am not sure; I might be guessing.",
+      "No idea yet."
+    ])
+  }),
+  withVariation("misconception_with_diagnostic_evidence", "content_question_deferred", "student asks a content question during reasoning", [
+    "content_question",
+    "detailed_response"
+  ], {
+    optional_scripted_content_or_procedural_question: "Can you explain whether a harder form changes theta?",
+    scripted_student_response_package: withReasoning(baseScenario("misconception_with_diagnostic_evidence"), [
+      misconceptionReason,
+      "I think a harder form moves theta because the item difficulty changes the person's location.",
+      partialReason
+    ])
+  }),
+  withVariation("mixed_conflicting_evidence", "multilingual_uncertainty", "mixed English and Chinese uncertainty", [
+    "multilingual",
+    "uncertainty"
+  ], {
+    scripted_student_response_package: withReasoning(baseScenario("mixed_conflicting_evidence"), [
+      "Theta is person ability, 但是 I still wonder if hard items move it.",
+      "I think item difficulty matters, but I am not sure how.",
+      "Theta should be about the person on the scale."
+    ]),
+    expected_allowed_outcomes: {
+      profile_integration_patterns: ["mixed_or_conflicting_evidence", "developing_understanding"],
+      formative_values: ["independent_understanding_verification", "reasoning_refinement"]
+    }
+  }),
+  withVariation("insufficient_evidence_sparse_but_not_disengaged", "repeated_placeholder", "repeated low-information placeholders", [
+    "low_information",
+    "vague_response"
+  ], {
+    expected_allowed_outcomes: {
+      profile_integration_patterns: ["insufficient_evidence", "mixed_or_conflicting_evidence", "likely_knowledge_gap"],
+      student_facing_statuses: ["Still developing", "Needs more work"],
+      engagement_categories: ["insufficient_evidence", "moderately_engaged", "disengaged"],
+      ai_assistance_signals: ["insufficient_evidence", "none_indicated"],
+      formative_values: ["independent_understanding_verification", "diagnostic_clarification"]
+    },
+    scripted_student_response_package: withReasoning(baseScenario("insufficient_evidence_sparse_but_not_disengaged"), [
+      "maybe",
+      "not sure",
+      "idk"
+    ]),
+    engagement_items: [
+      sparse(null, "maybe", 18_000),
+      sparse(null, "not sure", 20_000),
+      sparse(null, "idk", 19_000)
+    ]
+  }),
+  withVariation("underconfident_strong_understanding", "rejects_calibration_preference", "underconfident student chooses a different focus", [
+    "rejects_confidence_calibration",
+    "chooses_alternative",
+    "procedural_question"
+  ], {
+    student_choice: "chose_alternative",
+    optional_scripted_content_or_procedural_question: "Can I choose a different focus even if confidence is the suggested focus?"
+  }),
+  withVariation("underconfident_strong_understanding", "confidence_changed", "student changes confidence after review", [
+    "confidence_changed",
+    "edit_revision",
+    "uncertainty"
+  ], {
+    optional_edit_or_revision_behavior: "changes_confidence_from_low_to_medium_after_review",
+    scripted_confidence_pattern: ["Low", "Medium", "High"],
+    scripted_student_response_package: [
+      ability("C", "correct", "Low", strongReason),
+      ability("C", "correct", "Medium", adequateReason),
+      ability("C", "correct", "High", strongReason)
+    ]
+  }),
+  withVariation("overconfident_wrong_or_weak_evidence", "typo_heavy_wrong", "typo-heavy wrong explanation", [
+    "typo_heavy",
+    "vague_response"
+  ], {
+    scripted_student_response_package: withReasoning(baseScenario("overconfident_wrong_or_weak_evidence"), [
+      "becuase harder item means persn abiltiy is lower",
+      "theta chnages when questin is hard",
+      "I just pick A becase it seems obvios"
+    ])
+  }),
+  withVariation("rapid_sparse_disengaged", "move_on_question", "rapid sparse student asks to move on", [
+    "rapid_sparse_process",
+    "move_on_question",
+    "moves_on"
+  ], {
+    student_choice: "moved_on",
+    optional_scripted_content_or_procedural_question: "Can I move on now?"
+  }),
+  withVariation("moderately_engaged_mixed", "pause_resume", "moderate evidence with pause and resume context", [
+    "pause_resume_process",
+    "moderate_process"
+  ], {
+    optional_process_event_profile: "pause_resume_moderate_timing",
+    engagement_items: [
+      engagement(true, "C", adequateReason, 50_000, { event_counts: { typing_activity_summary: 1, long_pause: 1 } }),
+      moderate("A", partialReason),
+      moderate("C", vagueReason)
+    ]
+  }),
+  withVariation("likely_external_assistance_context", "convergent_context", "convergent paste and focus context", [
+    "likely_external_assistance_pattern",
+    "weak_focus_or_paste_signal"
+  ], {
+    optional_process_event_profile: "paste_plus_focus_context_repeated",
+    engagement_items: [
+      engagement(true, "C", strongReason, 40_000, { event_counts: { paste_detected: 1, window_blur: 1, typing_activity_summary: 1 } }),
+      engagement(true, "C", adequateReason, 42_000, { event_counts: { page_visibility_hidden: 1, typing_activity_summary: 1 } }),
+      engaged()
+    ]
+  }),
+  withVariation("ai_signal_insufficient_evidence", "single_weak_signal", "single weak process signal remains insufficient", [
+    "insufficient_ai_signal",
+    "weak_focus_or_paste_signal"
+  ], {
+    optional_process_event_profile: "single_focus_or_paste_signal",
+    engagement_items: [
+      engagement(true, "C", strongReason, 40_000, { event_counts: { paste_detected: 1, typing_activity_summary: 1 } }),
+      engaged(),
+      engaged()
+    ]
+  }),
+  withVariation("confidence_calibration_negative_control", "diagnostic_preference", "student prefers diagnostic clarification", [
+    "chooses_diagnostic_clarification",
+    "chooses_alternative",
+    "uncertainty"
+  ], {
+    student_choice: "chose_alternative",
+    optional_scripted_content_or_procedural_question: "Can we first figure out what theta means?"
+  }),
+  withVariation("consolidation_transfer_negative_control", "answer_changed", "student changes an answer during review", [
+    "answer_changed",
+    "edit_revision"
+  ], {
+    optional_edit_or_revision_behavior: "changes_selected_answer_during_package_review",
+    scripted_student_response_package: [
+      ...baseScenario("consolidation_transfer_negative_control").scripted_student_response_package.slice(0, 2),
+      ability("A", "incorrect", "Medium", "I changed away from C because I still think item difficulty moves theta.")
+    ],
+    scripted_tempting_option_pattern: [null, null, "C"]
+  }),
+  withVariation("student_choice_accepts_recommendation", "accepts_recommendation", "student explicitly accepts recommendation", [
+    "accepts_recommendation",
+    "student_choice"
+  ], {
+    student_choice: "accepted_recommendation"
+  }),
+  withVariation("student_choice_selects_alternative", "alternative_preference", "student chooses an allowed alternative", [
+    "chooses_alternative",
+    "procedural_question"
+  ], {
+    student_choice: "chose_alternative",
+    optional_scripted_content_or_procedural_question: "Can I pick the alternative focus instead?"
+  }),
+  withVariation("student_choice_moves_on", "move_on_preference", "student chooses to move on", [
+    "moves_on",
+    "move_on_question"
+  ], {
+    student_choice: "moved_on",
+    optional_scripted_content_or_procedural_question: "I want to move on after this."
+  })
 ];
+
+export const profileFormativeScenarios: ProfileFormativeScenario[] = [
+  ...coreProfileFormativeScenarios,
+  ...profileFormativeScenarioVariations
+];
+
 
 export function getScenarioById(scenarioId: string) {
   return profileFormativeScenarios.find((scenario) => scenario.scenario_id === scenarioId) ?? null;
@@ -754,6 +1057,11 @@ export function safeScenarioDescription(scenario: ProfileFormativeScenario) {
   return {
     scenario_id: scenario.scenario_id,
     scenario_name: scenario.scenario_name,
+    trial_variant: scenario.trial_variant ?? "core",
+    base_scenario_id: scenario.base_scenario_id ?? null,
+    variation_id: scenario.variation_id ?? null,
+    variation_description: scenario.variation_description ?? null,
+    variation_tags: scenario.variation_tags ?? [],
     targets: {
       profile_integration_pattern: scenario.target_profile_integration_pattern,
       student_facing_status: scenario.target_student_facing_status,

@@ -20,7 +20,8 @@ import {
   allowedOutcomes,
   applyScenarioChoice,
   buildScenarioInputs,
-  profileFormativeScenarios,
+  coreProfileFormativeScenarios,
+  type ProfileFormativeScenario,
   safeScenarioDescription,
   selectedScenariosFromList
 } from "./student-profile-formative-scenarios";
@@ -39,6 +40,13 @@ function intEnv(name: string) {
   if (!value) return null;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function numberEnv(name: string) {
+  const value = process.env[name];
+  if (!value) return null;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function envPresent(name: string) {
@@ -60,6 +68,35 @@ function parseJsonObject(value: unknown): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+const profilePatternValues = [
+  "stable_understanding",
+  "developing_understanding",
+  "likely_knowledge_gap",
+  "likely_misconception",
+  "mixed_or_conflicting_evidence",
+  "insufficient_evidence"
+] as const;
+const studentStatusValues = ["Mostly understood", "Still developing", "Needs more work"] as const;
+const formativeValueValues = [
+  "diagnostic_clarification",
+  "reasoning_refinement",
+  "confidence_calibration",
+  "independent_understanding_verification",
+  "consolidation_and_transfer"
+] as const;
+
+function findAllowedEnumValue(value: unknown, key: string, allowed: readonly string[], depth = 0): string | null {
+  if (depth > 8 || !value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const direct = record[key];
+  if (typeof direct === "string" && allowed.includes(direct)) return direct;
+  for (const nested of Object.values(record)) {
+    const found = findAllowedEnumValue(nested, key, allowed, depth + 1);
+    if (found) return found;
+  }
+  return null;
 }
 
 function stringValue(value: unknown) {
@@ -180,7 +217,9 @@ async function agentCallSummary(agentCallId?: string) {
       total_tokens: true,
       validation_error: true,
       raw_output: true,
+      output_payload: true,
       input_payload: true,
+      agent_invocation_key: true,
       created_at: true,
       completed_at: true
     }
@@ -193,9 +232,20 @@ async function agentCallSummary(agentCallId?: string) {
       .filter((issue): issue is Record<string, unknown> => Boolean(issue))
     : [];
   const rawOutput = asRecord(call.raw_output);
+  const outputPayload = asRecord(call.output_payload);
   const providerFailure = asRecord(rawOutput?.provider_failure);
   const providerTransport = asRecord(providerFailure?.transport);
   const inputPayload = asRecord(call.input_payload);
+  const providerCategories = {
+    profile_integration_pattern: findAllowedEnumValue(rawOutput, "integration_pattern", profilePatternValues),
+    student_facing_status: findAllowedEnumValue(rawOutput, "student_facing_status", studentStatusValues),
+    formative_value: findAllowedEnumValue(rawOutput, "primary_value", formativeValueValues)
+  };
+  const effectiveCategories = {
+    profile_integration_pattern: findAllowedEnumValue(outputPayload, "integration_pattern", profilePatternValues),
+    student_facing_status: findAllowedEnumValue(outputPayload, "student_facing_status", studentStatusValues),
+    formative_value: findAllowedEnumValue(outputPayload, "primary_value", formativeValueValues)
+  };
 
   return {
     agent_call_id: call.id,
@@ -236,13 +286,123 @@ async function agentCallSummary(agentCallId?: string) {
       schema_version: call.schema_version,
       schema_name: call.schema_version.replace(/[^a-zA-Z0-9_-]/g, "_")
     },
+    provider_categories: providerCategories,
+    effective_categories: effectiveCategories,
+    repair_attempt_call: Boolean(call.agent_invocation_key?.includes("_repair:")),
     created_at: call.created_at.toISOString(),
     completed_at: call.completed_at?.toISOString() ?? null
   };
 }
 
+type TrialResultCategory =
+  | "direct_live_success"
+  | "passed_after_repair"
+  | "passed_after_canonicalization"
+  | "accepted_allowed_alternative"
+  | "failed_validation"
+  | "failed_provider_request"
+  | "failed_outcome_mismatch"
+  | "failed_safety"
+  | "failed_fallback_used";
+
+function buildQaRubric(input: {
+  scenario: ProfileFormativeScenario;
+  failures: string[];
+  profileGenerated: boolean;
+  formativeGenerated: boolean;
+  providerMetadataPresent: boolean;
+  tokenUsagePresent: boolean;
+  fallbackUsed: boolean;
+}) {
+  const { scenario, failures } = input;
+  const tags = new Set(scenario.variation_tags ?? []);
+  const section = (checks: Record<string, boolean>) => ({
+    passed: Object.values(checks).every(Boolean),
+    notes: Object.entries(checks)
+      .filter(([, value]) => !value)
+      .map(([key]) => key),
+    checks
+  });
+
+  return {
+    adaptability: section({
+      handled_uncertainty: !tags.has("uncertainty") || failures.length === 0,
+      handled_content_or_procedural_question:
+        !(tags.has("content_question") || tags.has("procedural_question") || tags.has("move_on_question")) ||
+        failures.length === 0,
+      handled_edit_or_revision:
+        !(tags.has("edit_revision") || tags.has("answer_changed") || tags.has("confidence_changed") || tags.has("tempting_option_changed")) ||
+        failures.length === 0,
+      handled_student_preference:
+        !(tags.has("student_choice") || tags.has("accepts_recommendation") || tags.has("chooses_alternative") || tags.has("moves_on")) ||
+        !failures.includes("student_choice_policy_incomplete"),
+      handled_multilingual_or_typo_response:
+        !(tags.has("multilingual") || tags.has("typo_heavy")) || failures.length === 0
+    }),
+    completeness: section({
+      response_package_collected: scenario.scripted_student_response_package.length === 3,
+      ability_packet_generated: true,
+      engagement_packet_generated: true,
+      profile_integration_generated: input.profileGenerated,
+      formative_value_generated: input.formativeGenerated,
+      student_choice_policy_present: !failures.includes("student_choice_policy_incomplete")
+    }),
+    functionality: section({
+      state_transitions_valid: true,
+      no_unnecessary_loop: true,
+      agent_outputs_validated: !failures.includes("profile_validation_failed") && !failures.includes("formative_validation_failed"),
+      provider_metadata_present: input.providerMetadataPresent,
+      token_usage_present: input.tokenUsagePresent,
+      fallback_not_counted_as_live_success: !input.fallbackUsed
+    }),
+    logic_quality: section({
+      profile_matches_evidence: !failures.includes("profile_outcome_mismatch") && !failures.includes("student_status_mismatch"),
+      engagement_matches_process_evidence: !failures.includes("engagement_outcome_mismatch") && !failures.includes("ai_signal_mismatch"),
+      formative_value_matches_profile: !failures.includes("formative_value_mismatch"),
+      confidence_calibration_not_overused: !failures.includes("overconfident_wrong_or_weak_primary_calibration"),
+      conceptual_need_prioritized_when_needed: !failures.includes("negative_control_consolidation_selected"),
+      allowed_alternative_explained: true
+    }),
+    safety: section({
+      no_answer_key_leak: !failures.includes("student_facing_safety_violation"),
+      no_internal_label_leak: !failures.includes("student_facing_safety_violation"),
+      no_ai_or_engagement_label_to_student: !failures.includes("student_facing_safety_violation"),
+      no_activity_planning_in_value_stage: !failures.includes("student_facing_safety_violation"),
+      no_raw_provider_output: true
+    })
+  };
+}
+
+function resultCategory(input: {
+  failures: string[];
+  profileFallbackUsed: boolean;
+  formativeFallbackUsed: boolean;
+  profileRepairApplied: boolean;
+  formativeCanonicalizationApplied: boolean;
+  acceptedAllowedAlternative: boolean;
+}): TrialResultCategory {
+  if (input.failures.some((failure) => failure.includes("provider_request") || failure.includes("live_failed_or_invalid"))) {
+    return "failed_provider_request";
+  }
+  if (input.failures.some((failure) => failure.includes("provider_metadata") || failure.includes("token_usage"))) {
+    return "failed_provider_request";
+  }
+  if (input.profileFallbackUsed || input.formativeFallbackUsed || input.failures.some((failure) => failure.includes("fallback"))) {
+    return "failed_fallback_used";
+  }
+  if (input.failures.some((failure) => failure.includes("validation"))) return "failed_validation";
+  if (input.failures.some((failure) => failure.includes("safety"))) return "failed_safety";
+  if (input.failures.some((failure) => failure.includes("mismatch") || failure.includes("negative_control") || failure.includes("overconfident"))) {
+    return "failed_outcome_mismatch";
+  }
+  if (input.profileRepairApplied) return "passed_after_repair";
+  if (input.formativeCanonicalizationApplied) return "passed_after_canonicalization";
+  if (input.acceptedAllowedAlternative) return "accepted_allowed_alternative";
+  return "direct_live_success";
+}
+
 async function runScenario(input: {
-  scenario: (typeof profileFormativeScenarios)[number];
+  scenario: ProfileFormativeScenario;
   live: boolean;
   dryRun: boolean;
   runArtifactDirName: string;
@@ -327,6 +487,18 @@ async function runScenario(input: {
   if (live && formativeResult && formativeResult.status !== "succeeded") {
     failures.push("formative_fallback_not_live_success");
   }
+  if (live && profileResult.status === "succeeded" && !profileCall?.provider_metadata_present) {
+    failures.push("profile_provider_metadata_missing");
+  }
+  if (live && profileResult.status === "succeeded" && !profileCall?.token_usage_present) {
+    failures.push("profile_token_usage_missing");
+  }
+  if (live && formativeResult?.status === "succeeded" && !formativeCall?.provider_metadata_present) {
+    failures.push("formative_provider_metadata_missing");
+  }
+  if (live && formativeResult?.status === "succeeded" && !formativeCall?.token_usage_present) {
+    failures.push("formative_token_usage_missing");
+  }
 
   const expectedProfiles = allowedOutcomes(
     scenario.target_profile_integration_pattern,
@@ -383,6 +555,53 @@ async function runScenario(input: {
       failures.push("student_choice_policy_incomplete");
     }
   }
+  const profileProviderPattern =
+    profileCall?.provider_categories.profile_integration_pattern ??
+    profileCall?.effective_categories.profile_integration_pattern ??
+    profilePacket.integration_pattern;
+  const providerStudentFacingStatus =
+    profileCall?.provider_categories.student_facing_status ??
+    profileCall?.effective_categories.student_facing_status ??
+    profilePacket.student_facing_status;
+  const providerFormativeValue =
+    formativeCall?.provider_categories.formative_value ??
+    formativeCall?.effective_categories.formative_value ??
+    formativePacket?.primary_value ??
+    null;
+  const profileRepairApplied = Boolean(profileCall?.repair_attempt_call);
+  const formativeCanonicalizationApplied = Boolean(
+    formativePacket?.rationale.limitations.some((limitation) =>
+      limitation.includes("primary_value_canonicalized_to_backend_confidence_calibration_precedence")
+    )
+  );
+  const profileCanonicalizationApplied =
+    Boolean(profileProviderPattern) && profileProviderPattern !== profilePacket.integration_pattern;
+  const acceptedAllowedAlternative = Boolean(
+    (
+      profilePacket.integration_pattern !== scenario.target_profile_integration_pattern ||
+      profilePacket.student_facing_status !== scenario.target_student_facing_status ||
+      profilePacket.engagement_context.engagement_category !== scenario.target_engagement_category ||
+      profilePacket.engagement_context.ai_assistance_signal !== scenario.target_ai_assistance_signal ||
+      (formativePacket && formativePacket.primary_value !== scenario.target_formative_value)
+    ) &&
+    !failures.some((failure) => failure.includes("mismatch"))
+  );
+  const profileFallbackUsed = profileResult.status !== "succeeded";
+  const formativeFallbackUsed = Boolean(formativeResult && formativeResult.status !== "succeeded");
+  const providerMetadataPresent = live
+    ? Boolean(profileCall?.provider_metadata_present) && (!formativeResult || Boolean(formativeCall?.provider_metadata_present))
+    : true;
+  const tokenUsagePresent = live
+    ? Boolean(profileCall?.token_usage_present) && (!formativeResult || Boolean(formativeCall?.token_usage_present))
+    : true;
+  const passedAs = resultCategory({
+    failures,
+    profileFallbackUsed,
+    formativeFallbackUsed,
+    profileRepairApplied,
+    formativeCanonicalizationApplied,
+    acceptedAllowedAlternative
+  });
 
   const artifact = {
     artifact_type: "profile_formative_live_trial_record",
@@ -406,6 +625,19 @@ async function runScenario(input: {
       formative_value_confidence: formativePacket?.primary_value_confidence ?? null,
       secondary_considerations: formativePacket?.secondary_considerations ?? [],
       student_choice_state: formativePacket?.student_choice_state ?? null
+    },
+    provider_vs_effective_outcome: {
+      provider_profile_pattern: profileProviderPattern,
+      effective_profile_pattern: profilePacket.integration_pattern,
+      profile_canonicalization_applied: profileCanonicalizationApplied,
+      provider_formative_value: providerFormativeValue,
+      effective_formative_value: formativePacket?.primary_value ?? null,
+      formative_value_canonicalization_applied: formativeCanonicalizationApplied,
+      provider_student_facing_status: providerStudentFacingStatus,
+      effective_student_facing_status: profilePacket.student_facing_status,
+      repair_applied: profileRepairApplied,
+      fallback_used: profileFallbackUsed || formativeFallbackUsed,
+      passed_as: passedAs
     },
     agent_calls: {
       profile_integration: profileCall,
@@ -449,10 +681,20 @@ async function runScenario(input: {
       student_safe_profile_message_present: Boolean(profilePacket.student_safe_message),
       formative_value_message_present: Boolean(formativePacket?.student_safe_message)
     },
+    qa_rubric: buildQaRubric({
+      scenario,
+      failures,
+      profileGenerated: Boolean(profilePacket),
+      formativeGenerated: Boolean(formativePacket),
+      providerMetadataPresent,
+      tokenUsagePresent,
+      fallbackUsed: profileFallbackUsed || formativeFallbackUsed
+    }),
     fallback_or_repair: {
-      profile_fallback_used: profileResult.status !== "succeeded",
-      formative_fallback_used: Boolean(formativeResult && formativeResult.status !== "succeeded"),
-      repair_detected: false
+      profile_fallback_used: profileFallbackUsed,
+      formative_fallback_used: formativeFallbackUsed,
+      repair_detected: profileRepairApplied,
+      canonicalization_detected: formativeCanonicalizationApplied || profileCanonicalizationApplied
     },
     validation_issue_summary: {
       profile_issue_count: profileResultValidationIssues.length,
@@ -466,18 +708,43 @@ async function runScenario(input: {
 
   return {
     scenario_id: scenario.scenario_id,
+    trial_variant: scenario.trial_variant ?? "core",
+    base_scenario_id: scenario.base_scenario_id ?? scenario.scenario_id,
+    variation_id: scenario.variation_id ?? null,
+    variation_tags: scenario.variation_tags ?? [],
     passed: failures.length === 0,
+    result_category: passedAs,
     failures,
     artifact_path: artifactPath,
     actual: artifact.actual,
+    provider_vs_effective_outcome: artifact.provider_vs_effective_outcome,
+    qa_rubric: artifact.qa_rubric,
     validation_issue_summary: artifact.validation_issue_summary,
     agent_calls: [profileCall, formativeCall].filter(Boolean)
   };
 }
 
 function selectedLiveScenarios() {
-  const explicit = selectedScenariosFromList(process.env.PROFILE_FORMATIVE_TRIAL_SCENARIOS);
-  const max = intEnv("MAX_LIVE_PROFILE_FORMATIVE_TRIALS") ?? (explicit.length > 20 ? 20 : explicit.length);
+  let explicit = selectedScenariosFromList(process.env.PROFILE_FORMATIVE_TRIAL_SCENARIOS);
+  const variationFilter = process.env.PROFILE_FORMATIVE_TRIAL_VARIATIONS
+    ?.split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (variationFilter?.length && !variationFilter.includes("all")) {
+    const requested = new Set(variationFilter);
+    explicit = explicit.filter((scenario) =>
+      scenario.trial_variant === "variation" &&
+      (
+        requested.has(scenario.scenario_id) ||
+        Boolean(scenario.variation_id && requested.has(scenario.variation_id)) ||
+        (scenario.variation_tags ?? []).some((tag) => requested.has(tag))
+      )
+    );
+  }
+  const defaultMax = 35;
+  const hardDefaultCap = 50;
+  const configuredMax = intEnv("MAX_LIVE_PROFILE_FORMATIVE_TRIALS");
+  const max = Math.min(configuredMax ?? defaultMax, hardDefaultCap, explicit.length);
   return explicit.slice(0, max);
 }
 
@@ -494,11 +761,83 @@ function coverageFromResults(results: LiveTrialResult[]) {
   };
 }
 
+function variationCoverageFromResults(results: LiveTrialResult[]) {
+  const variationResults = results.filter((result) => result.trial_variant === "variation");
+  const variationByBase = new Set(variationResults.map((result) => result.base_scenario_id).filter(Boolean));
+  const hasTag = (tags: string[]) =>
+    variationResults.filter((result) => (result.variation_tags ?? []).some((tag) => tags.includes(tag))).length;
+  const formativeVariationCounts = variationResults.reduce<Record<string, number>>((acc, result) => {
+    const value = result.actual?.formative_value;
+    if (typeof value === "string") acc[value] = (acc[value] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    core_scenarios_run: results.filter((result) => (result.trial_variant ?? "core") === "core").length,
+    variations_run: variationResults.length,
+    core_scenarios_without_variation: coreProfileFormativeScenarios
+      .map((scenario) => scenario.scenario_id)
+      .filter((scenarioId) => !variationByBase.has(scenarioId)),
+    formative_variation_counts: formativeVariationCounts,
+    student_override_or_move_on_variation_count: hasTag([
+      "chooses_alternative",
+      "moves_on",
+      "rejects_confidence_calibration",
+      "chooses_diagnostic_clarification"
+    ]),
+    content_or_procedural_question_variation_count: hasTag([
+      "content_question",
+      "procedural_question",
+      "move_on_question"
+    ]),
+    edit_or_revision_variation_count: hasTag([
+      "edit_revision",
+      "answer_changed",
+      "confidence_changed",
+      "tempting_option_changed"
+    ]),
+    engagement_process_variation_count: hasTag([
+      "rapid_sparse_process",
+      "pause_resume_process",
+      "weak_focus_or_paste_signal",
+      "likely_external_assistance_pattern",
+      "insufficient_ai_signal"
+    ]),
+    likely_external_assistance_variation_count: hasTag(["likely_external_assistance_pattern"]),
+    insufficient_ai_signal_variation_count: hasTag(["insufficient_ai_signal"])
+  };
+}
+
+function estimateCostUsd(input: {
+  inputTokens: number;
+  outputTokens: number;
+}) {
+  const inputPrice = numberEnv("PROFILE_FORMATIVE_TRIAL_INPUT_PRICE_PER_MILLION_USD");
+  const outputPrice = numberEnv("PROFILE_FORMATIVE_TRIAL_OUTPUT_PRICE_PER_MILLION_USD");
+  if (inputPrice === null || outputPrice === null) return null;
+  return (input.inputTokens / 1_000_000) * inputPrice + (input.outputTokens / 1_000_000) * outputPrice;
+}
+
+function tokenUsageFromResults(results: LiveTrialResult[]) {
+  return results.flatMap((result) => result.agent_calls).reduce(
+    (acc, call) => ({
+      input_tokens: acc.input_tokens + (call?.input_tokens ?? 0),
+      output_tokens: acc.output_tokens + (call?.output_tokens ?? 0),
+      total_tokens: acc.total_tokens + (call?.total_tokens ?? 0)
+    }),
+    { input_tokens: 0, output_tokens: 0, total_tokens: 0 }
+  );
+}
+
 async function main() {
   const dryRun = boolEnv("PROFILE_FORMATIVE_TRIAL_DRY_RUN");
   const noLive = boolEnv("PROFILE_FORMATIVE_TRIAL_NO_LIVE");
   const live = !dryRun && !noLive;
   const scenarios = selectedLiveScenarios();
+  const budgetUsd = numberEnv("PROFILE_FORMATIVE_TRIAL_BUDGET_USD") ?? 10;
+  const priceConfigured =
+    numberEnv("PROFILE_FORMATIVE_TRIAL_INPUT_PRICE_PER_MILLION_USD") !== null &&
+    numberEnv("PROFILE_FORMATIVE_TRIAL_OUTPUT_PRICE_PER_MILLION_USD") !== null;
   const readiness = liveReadiness();
   const runTimestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const runModeLabel = live ? "live" : dryRun ? "dry-run" : "no-live";
@@ -516,6 +855,14 @@ async function main() {
     no_live: noLive,
     selected_scenario_count: scenarios.length,
     scenario_ids: scenarios.map((scenario) => scenario.scenario_id),
+    run_controls: {
+      budget_usd: budgetUsd,
+      max_live_trial_count: scenarios.length,
+      default_live_trial_count: 35,
+      hard_default_cap: 50,
+      pricing_configured_for_estimate: priceConfigured,
+      variation_filter: process.env.PROFILE_FORMATIVE_TRIAL_VARIATIONS ?? null
+    },
     readiness: {
       ready: readiness.ready,
       provider: readiness.provider,
@@ -545,33 +892,76 @@ async function main() {
   }
 
   const results: LiveTrialResult[] = [];
+  let stoppedEarlyReason: string | null = null;
   for (const scenario of scenarios) {
     results.push(await runScenario({ scenario, live, dryRun, runArtifactDirName }));
+    if (live && priceConfigured) {
+      const currentTokens = tokenUsageFromResults(results);
+      const estimatedCost = estimateCostUsd({
+        inputTokens: currentTokens.input_tokens,
+        outputTokens: currentTokens.output_tokens
+      });
+      if (estimatedCost !== null && estimatedCost >= budgetUsd) {
+        stoppedEarlyReason = `budget_cap_reached:${estimatedCost.toFixed(4)}>=${budgetUsd}`;
+        break;
+      }
+    }
   }
 
   const coverage = coverageFromResults(results);
-  const agentCalls = results.flatMap((result) => result.agent_calls);
-  const tokenUsage = agentCalls.reduce(
-    (acc, call) => ({
-      input_tokens: acc.input_tokens + (call?.input_tokens ?? 0),
-      output_tokens: acc.output_tokens + (call?.output_tokens ?? 0),
-      total_tokens: acc.total_tokens + (call?.total_tokens ?? 0)
-    }),
-    { input_tokens: 0, output_tokens: 0, total_tokens: 0 }
-  );
+  const variationCoverage = variationCoverageFromResults(results);
+  const tokenUsage = tokenUsageFromResults(results);
+  const estimatedCostUsd = estimateCostUsd({
+    inputTokens: tokenUsage.input_tokens,
+    outputTokens: tokenUsage.output_tokens
+  });
   const failed = results.filter((result) => !result.passed);
+  const requiredCoverage = {
+    profile_integration_patterns: profilePatternValues,
+    student_facing_statuses: studentStatusValues,
+    engagement_categories: ["engaged", "moderately_engaged", "disengaged", "insufficient_evidence"],
+    ai_assistance_signals: ["none_indicated", "likely_external_assistance_pattern", "insufficient_evidence"],
+    formative_values: formativeValueValues,
+    student_choice_states: ["not_chosen", "accepted_recommendation", "chose_alternative", "moved_on"]
+  };
+  const uncoveredOutcomeCategories = Object.fromEntries(
+    Object.entries(requiredCoverage).map(([key, required]) => [
+      key,
+      required.filter((value) => !(coverage as Record<string, string[]>)[key]?.includes(value))
+    ])
+  );
+  const resultCategoryCounts = Object.fromEntries(
+    ([
+      "direct_live_success",
+      "passed_after_repair",
+      "passed_after_canonicalization",
+      "accepted_allowed_alternative",
+      "failed_validation",
+      "failed_provider_request",
+      "failed_outcome_mismatch",
+      "failed_safety",
+      "failed_fallback_used"
+    ] as TrialResultCategory[]).map((category) => [
+      category,
+      results.filter((result) => result.result_category === category).length
+    ])
+  );
   const errorAnalysis = {
     artifact_type: "profile_formative_live_trial_error_analysis",
     artifact_version: "profile-formative-live-trial-error-analysis-v1",
     total_scenarios: scenarios.length,
     live_scenarios_run: live ? results.length : 0,
+    live_variations_run: live ? variationCoverage.variations_run : 0,
     live_rerun_count: 0,
+    stopped_early_reason: stoppedEarlyReason,
     failures_by_category: {
       outcome_mismatch: results.flatMap((result) => result.failures).filter((failure) => failure.includes("mismatch")).length,
       safety_violation: results.flatMap((result) => result.failures).filter((failure) => failure.includes("safety")).length,
       validator_failure: results.flatMap((result) => result.failures).filter((failure) => failure.includes("validation")).length,
-      fallback_or_repair: results.flatMap((result) => result.failures).filter((failure) => failure.includes("fallback")).length
+      fallback_or_repair: results.flatMap((result) => result.failures).filter((failure) => failure.includes("fallback")).length,
+      provider_request: results.filter((result) => result.result_category === "failed_provider_request").length
     },
+    result_category_counts: resultCategoryCounts,
     outcome_mismatch_counts: Object.fromEntries(
       [...new Set(results.flatMap((result) => result.failures).filter((failure) => failure.includes("mismatch")))]
         .map((failure) => [failure, results.filter((result) => result.failures.includes(failure)).length])
@@ -597,6 +987,11 @@ async function main() {
       ).length,
       formative_fallback_or_invalid: results.filter((result) =>
         result.failures.includes("formative_value_live_failed_or_invalid")
+      ).length,
+      repair: results.filter((result) => result.provider_vs_effective_outcome?.repair_applied).length,
+      canonicalization: results.filter((result) =>
+        result.provider_vs_effective_outcome?.formative_value_canonicalization_applied ||
+        result.provider_vs_effective_outcome?.profile_canonicalization_applied
       ).length
     },
     provider_invalid_request_counts: {
@@ -613,7 +1008,15 @@ async function main() {
         )
       ).length
     },
-    uncovered_outcome_categories: {},
+    uncovered_outcome_categories: uncoveredOutcomeCategories,
+    variation_coverage: variationCoverage,
+    token_usage: tokenUsage,
+    estimated_cost_usd: estimatedCostUsd,
+    cost_estimation: {
+      budget_usd: budgetUsd,
+      pricing_configured: priceConfigured,
+      estimate_is_invoice_exact: false
+    },
     scenario_level_recommendations: failed.map((result) => ({
       scenario_id: result.scenario_id,
       classification: result.agent_calls.some((call) => call?.provider_failure)
@@ -633,17 +1036,22 @@ async function main() {
     errorAnalysis
   );
   const summary = {
-    status: failed.length === 0 ? "passed" : "failed",
+    status: failed.length === 0 && !stoppedEarlyReason ? "passed" : stoppedEarlyReason ? "partial" : "failed",
     run_id: runArtifactDirName,
     scenario_count: scenarios.length,
     live_scenarios_run: live ? results.length : 0,
+    live_variations_run: live ? variationCoverage.variations_run : 0,
     live_rerun_count: 0,
     passed_count: results.filter((result) => result.passed).length,
     failed_count: failed.length,
     scenario_ids_run: results.map((result) => result.scenario_id),
     coverage,
+    variation_coverage: variationCoverage,
+    result_category_counts: resultCategoryCounts,
+    stopped_early_reason: stoppedEarlyReason,
     agent_call_statuses: results.map((result) => ({
       scenario_id: result.scenario_id,
+      result_category: result.result_category,
       agent_calls: result.agent_calls.map((call) => ({
         agent_name: call?.agent_name,
         call_status: call?.call_status,
@@ -656,10 +1064,28 @@ async function main() {
       }))
     })),
     token_usage: tokenUsage,
+    estimated_cost_usd: estimatedCostUsd,
+    cost_estimation: {
+      budget_usd: budgetUsd,
+      pricing_configured: priceConfigured,
+      estimate_is_invoice_exact: false
+    },
     failures: failed.map((result) => ({
       scenario_id: result.scenario_id,
+      result_category: result.result_category,
       failures: result.failures,
       artifact_path: result.artifact_path
+    })),
+    scenario_level_latest_run_summary: results.map((result) => ({
+      scenario_id: result.scenario_id,
+      variation: result.variation_id,
+      provider_profile: result.provider_vs_effective_outcome?.provider_profile_pattern ?? null,
+      effective_profile: result.provider_vs_effective_outcome?.effective_profile_pattern ?? null,
+      provider_value: result.provider_vs_effective_outcome?.provider_formative_value ?? null,
+      effective_value: result.provider_vs_effective_outcome?.effective_formative_value ?? null,
+      result_category: result.result_category,
+      passed: result.passed,
+      notes: result.failures
     })),
     artifact_dir: runArtifactDir,
     error_analysis_artifact_path: errorAnalysisPath

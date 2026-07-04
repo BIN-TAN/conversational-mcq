@@ -1084,6 +1084,8 @@ const REMEDIABLE_PROFILE_INTEGRATION_RULES = new Set<ProfileIntegrationValidatio
   "activity_recommendation_present",
   "unsupported_integrity_claim_detected",
   "correct_option_leak_detected",
+  "distractor_metadata_detected",
+  "misconception_id_exposed",
   "high_confidence_overclaim"
 ]);
 
@@ -1135,7 +1137,13 @@ function sanitizeUnsupportedProfileIntegrationText(input: {
 
   return text
     .replace(/\banswer key\b/gi, "protected scoring reference")
-    .replace(/\bcorrect option\b/gi, "target-aligned option");
+    .replace(/\bcorrect option\b/gi, "target-aligned option")
+    .replace(/\bdistractors? (metadata|rationale|diagnostic)\b/gi, "response pattern")
+    .replace(/\bdiagnostic distractors?\b/gi, "response patterns")
+    .replace(/\bdistractors?\b/gi, "response patterns")
+    .replace(/\bmisconception[_ -]?id\b/gi, "conceptual evidence marker")
+    .replace(/\bmisconception label\b/gi, "conceptual pattern")
+    .replace(/\bmisconception\b/gi, "conceptual mix-up");
 }
 
 function canonicalizeProfileIntegrationRepairCandidate(
@@ -1162,9 +1170,20 @@ function canonicalizeProfileIntegrationRepairCandidate(
     sanitize(limitation, `$.ability_interpretation.limitations[${index}]`)
   );
   packet.engagement_context.summary = sanitize(packet.engagement_context.summary, "$.engagement_context.summary");
+  packet.engagement_context.engagement_category =
+    agentInput.engagement_summary.provisional_engagement_category;
+  packet.engagement_context.engagement_effect_on_interpretation = engagementEffectFor(agentInput);
+  packet.engagement_context.ai_assistance_signal = agentInput.engagement_summary.ai_assistance_signal;
+  packet.engagement_context.ai_assistance_effect_on_interpretation = aiEffectFor(agentInput);
   packet.engagement_context.limitations = packet.engagement_context.limitations.map((limitation, index) =>
     sanitize(limitation, `$.engagement_context.limitations[${index}]`)
   );
+  packet.engagement_context.limitations = [
+    ...new Set([
+      ...packet.engagement_context.limitations,
+      "engagement_context_canonicalized_from_backend_evidence"
+    ])
+  ];
   packet.evidence_rationale = packet.evidence_rationale.map((rationale, index) => {
     const claim = sanitize(rationale.claim, `$.evidence_rationale[${index}].claim`);
     const claimUsesNeutralContext = claim === NEUTRAL_RESPONSE_PRODUCTION_CONTEXT;
@@ -1709,7 +1728,7 @@ const STUDENT_SAFE_PROFILE_PROHIBITED_RULES: Array<{
   { rule_code: "answer_key_leak_detected", pattern: /\banswer key\b/i, blocked_pattern_label: "answer_key" },
   { rule_code: "correct_option_leak_detected", pattern: /\bcorrect option\b/i, blocked_pattern_label: "correct_option" },
   { rule_code: "correctness_label_detected", pattern: /\b(correctness|correct|incorrect|right answer|wrong answer)\b/i, blocked_pattern_label: "correctness_label" },
-  { rule_code: "distractor_metadata_detected", pattern: /\bdistractor\b/i, blocked_pattern_label: "distractor_label" },
+  { rule_code: "distractor_metadata_detected", pattern: /\bdistractors?\b/i, blocked_pattern_label: "distractor_label" },
   { rule_code: "misconception_id_exposed", pattern: /\bmisconception(?:[_ -]?id)?\b/i, blocked_pattern_label: "misconception_label" },
   { rule_code: "raw_reasoning_exposed", pattern: /\braw reasoning\b/i, blocked_pattern_label: "raw_reasoning" },
   { rule_code: "raw_process_payload_exposed", pattern: /\b(raw process|process payload|process data|process evidence)\b/i, blocked_pattern_label: "process_data_label" },
@@ -1982,7 +2001,7 @@ export function validateProfileIntegrationOutput(
     { rule: "answer_key_leak_detected", pattern: /\banswer key\b/i, label: "answer_key" },
     { rule: "correct_option_leak_detected", pattern: /\bcorrect option\b/i, label: "correct_option" },
     { rule: "correctness_label_detected", pattern: /\b(correctness|is correct|is incorrect|wrong answer|right answer)\b/i, label: "correctness_label", studentOnly: true },
-    { rule: "distractor_metadata_detected", pattern: /\bdistractor (metadata|rationale|diagnostic)\b/i, label: "distractor_metadata" },
+    { rule: "distractor_metadata_detected", pattern: /\bdistractors? (metadata|rationale|diagnostic)\b/i, label: "distractor_metadata" },
     { rule: "misconception_id_exposed", pattern: /\bmisconception[_-]?id\b/i, label: "misconception_id" },
     { rule: "raw_reasoning_exposed", pattern: /\braw reasoning\b/i, label: "raw_reasoning" },
     { rule: "raw_process_payload_exposed", pattern: /\b(raw process|process payload|clipboard content|typed text)\b/i, label: "raw_process_payload" },
@@ -2060,7 +2079,7 @@ export function validateProfileIntegrationOutput(
     { rule: "unsupported_integrity_claim_detected", pattern: /\bacademic integrity\b|\bintegrity\b/i, label: "integrity_claim" },
     { rule: "unsupported_integrity_claim_detected", pattern: /\bauthenticity\b|\bauthentic work\b|\bauthentic response\b/i, label: "authenticity_claim" },
     { rule: "unsupported_integrity_claim_detected", pattern: /\bindependent work\b|\bindependent (?:response|reasoning|answer)\b|\bsuspicious\b|\bquestionable\b/i, label: "independent_work_claim" },
-    { rule: "distractor_metadata_detected", pattern: /\bdistractor\b/i, label: "distractor_label" },
+    { rule: "distractor_metadata_detected", pattern: /\bdistractors?\b/i, label: "distractor_label" },
     { rule: "misconception_id_exposed", pattern: /\bmisconception\b/i, label: "misconception_label" }
   ];
 

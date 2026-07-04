@@ -355,7 +355,7 @@ npm run student:profile-formative-scenario-smoke
 npm run student:profile-formative-trial-review
 ```
 
-The scenario smoke is no-live and deterministic. It runs the synthetic profile/formative matrix across profile integration patterns, student-safe statuses, engagement categories, AI-assistance context signals, all five formative values, and student choice states. It writes redacted artifacts under `.data/profile-formative-scenario-smoke/`.
+The scenario smoke is no-live and deterministic. It runs the synthetic profile/formative matrix across profile integration patterns, student-safe statuses, engagement categories, AI-assistance context signals, all five formative values, student choice states, and a targeted conversation/process variation layer. It writes redacted artifacts under `.data/profile-formative-scenario-smoke/`.
 
 Paid live scenario trials are intentionally separate:
 
@@ -363,7 +363,7 @@ Paid live scenario trials are intentionally separate:
 npm run student:profile-formative-live-trials
 ```
 
-This command is paid-live by default, prints a warning, checks live readiness, refuses deterministic fallback as live success, and writes redacted artifacts under timestamped run directories in `.data/profile-formative-live-trials/`. It captures safe provider-failure diagnostics without prompts, raw provider output, headers, or secrets. Profile/formative QA artifacts report both target labels and any explicit allowed boundary alternatives. Use `MAX_LIVE_PROFILE_FORMATIVE_TRIALS`, `PROFILE_FORMATIVE_TRIAL_SCENARIOS`, `PROFILE_FORMATIVE_TRIAL_DRY_RUN=true`, or `PROFILE_FORMATIVE_TRIAL_NO_LIVE=true` to limit or inspect a run. See `docs/PROFILE_FORMATIVE_SCENARIO_QA.md`.
+This command is paid-live by default, prints a warning, checks live readiness, refuses deterministic fallback as live success, and writes redacted artifacts under timestamped run directories in `.data/profile-formative-live-trials/`. The default live set is 35 trials: the 17 core scenarios plus targeted variations. It captures safe provider-failure diagnostics without prompts, raw provider output, headers, or secrets. Profile/formative QA artifacts report provider versus effective category outcomes, explicit allowed boundary alternatives, QA rubrics, result categories, token usage, and optional estimated cost. Use `MAX_LIVE_PROFILE_FORMATIVE_TRIALS`, `PROFILE_FORMATIVE_TRIAL_SCENARIOS`, `PROFILE_FORMATIVE_TRIAL_VARIATIONS`, `PROFILE_FORMATIVE_TRIAL_BUDGET_USD=10`, `PROFILE_FORMATIVE_TRIAL_DRY_RUN=true`, or `PROFILE_FORMATIVE_TRIAL_NO_LIVE=true` to limit or inspect a run. See `docs/PROFILE_FORMATIVE_SCENARIO_QA.md`.
 
 The optional live LLM readiness smoke is intentionally skipped unless explicitly enabled:
 

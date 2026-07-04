@@ -637,7 +637,7 @@ function profileHasAdequateUnderstandingForCalibration(
   const adequateMixedConfidenceEvidence =
     packet.ability_interpretation.evidence_consistency === "mixed" &&
     /\b(adequate|strong|well supported|clear understanding)\b/i.test(summary) &&
-    /\b(inconsistent confidence|confidence varies|confidence varied|confidence fluctuates|mixed confidence across|unstable confidence)\b/i.test(summary);
+    /\b(inconsistent confidence|confidence varies|confidence varied|confidence fluctuates|mixed confidence across|mixed confidence pattern|confidence pattern is mixed|unstable confidence)\b/i.test(summary);
 
   if (
     packet.integration_pattern === "stable_understanding" &&
@@ -659,11 +659,11 @@ function primaryCalibrationReasonForProfile(
   packet: ProfileIntegrationInterpretationPacketV1
 ): PrimaryCalibrationReasonCode | null {
   const summary = packet.ability_interpretation.confidence_calibration_summary.toLowerCase();
-  const lowConfidence = /\b(low confidence|not confident|underconfident|under-confidence|under confidence)\b/i;
+  const lowConfidence = /\b(low confidence|not confident|underconfident|underconfidence|under-confidence|under confidence)\b/i;
   const adequateReasoning = /\b(adequate|reasonable|mostly correct|supported|consistent|clear|solid|strong|stable|robust|well supported|clear understanding)\b/i;
   const strongEvidence = /\b(strong|stable|robust|well supported|clear understanding)\b/i;
   const inconsistentConfidence =
-    /\b(inconsistent confidence|confidence varies|confidence varied|confidence fluctuates|mixed confidence across|confidence across similar evidence|unstable confidence)\b/i;
+    /\b(inconsistent confidence|confidence varies|confidence varied|confidence fluctuates|mixed confidence across|mixed confidence pattern|confidence pattern is mixed|confidence across similar evidence|unstable confidence)\b/i;
 
   if (!profileHasAdequateUnderstandingForCalibration(packet)) {
     return null;
@@ -749,10 +749,24 @@ function canonicalizeFormativeValueCandidate(
   if (!parsed.success) return candidate;
 
   const expectedPrimary = primaryValueForFormativeInput(input);
-  if (expectedPrimary !== "confidence_calibration" || parsed.data.primary_value === expectedPrimary) {
+  if (parsed.data.primary_value === expectedPrimary) {
     return candidate;
   }
 
+  const shouldCanonicalize =
+    expectedPrimary === "confidence_calibration" ||
+    (expectedPrimary === "independent_understanding_verification" &&
+      input.source_profile_integration.ai_assistance_effect_on_interpretation ===
+        "contextualizes_reasoning_evidence");
+
+  if (!shouldCanonicalize) {
+    return candidate;
+  }
+
+  const limitation =
+    expectedPrimary === "confidence_calibration"
+      ? "primary_value_canonicalized_to_backend_confidence_calibration_precedence"
+      : "primary_value_canonicalized_to_backend_independent_verification_for_reliability_context";
   const canonical = deterministicFormativeValueOutput(input);
   return {
     ...canonical,
@@ -761,7 +775,7 @@ function canonicalizeFormativeValueCandidate(
       limitations: [
         ...new Set([
           ...canonical.rationale.limitations,
-          "primary_value_canonicalized_to_backend_confidence_calibration_precedence"
+          limitation
         ])
       ]
     }
@@ -774,7 +788,7 @@ function secondaryConsiderationsForProfile(
   const considerations: SecondaryConsideration[] = [];
   const summary = packet.ability_interpretation.confidence_calibration_summary.toLowerCase();
   const highConfidence = /\b(high confidence|very confident|overconfident|over-confidence|over confidence)\b/i.test(summary);
-  const lowConfidence = /\b(low confidence|not confident|underconfident|under-confidence|under confidence)\b/i.test(summary);
+  const lowConfidence = /\b(low confidence|not confident|underconfident|underconfidence|under-confidence|under confidence)\b/i.test(summary);
   const weakOrWrongEvidence =
     /\b(wrong|weak|unsupported|vague|shallow|low-information|little evidence|minimal evidence|knowledge gap|does not support|not supported)\b/i.test(summary) ||
     packet.integration_pattern === "likely_knowledge_gap" ||

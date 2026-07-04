@@ -1,10 +1,20 @@
-import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
+import { readdir, readFile, writeFile, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 
 const liveReviewRequested = process.env.RUN_LIVE_TRIAL_REVIEWER === "1";
 const smokeDir = path.join(process.cwd(), ".data", "profile-formative-scenario-smoke");
 const liveDir = path.join(process.cwd(), ".data", "profile-formative-live-trials");
 const outputDir = path.join(process.cwd(), ".data", "profile-formative-trial-review");
+
+function args() {
+  const entries = process.argv.slice(2);
+  const runIdIndex = entries.indexOf("--run-id");
+  return {
+    latestRun: entries.includes("--latest-run"),
+    allRuns: entries.includes("--all-runs"),
+    runId: runIdIndex >= 0 ? entries[runIdIndex + 1] : null
+  };
+}
 
 async function collectJsonFiles(
   dir: string,
@@ -52,6 +62,49 @@ function readSummaryJsonFiles(dir: string) {
   return collectJsonFiles(dir, (fileName) => fileName.startsWith("summary-"));
 }
 
+async function latestLiveRunDir() {
+  try {
+    const entries = await readdir(liveDir, { withFileTypes: true });
+    const dirs = await Promise.all(
+      entries
+        .filter((entry) => entry.isDirectory() && entry.name.startsWith("run-"))
+        .map(async (entry) => ({
+          name: entry.name,
+          mtimeMs: (await stat(path.join(liveDir, entry.name))).mtimeMs
+        }))
+    );
+    return dirs.sort((a, b) => b.mtimeMs - a.mtimeMs)[0]?.name ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function liveReviewSources() {
+  const parsedArgs = args();
+  if (parsedArgs.allRuns) {
+    return {
+      mode: "all_runs",
+      dirs: [liveDir],
+      selected_run_id: null
+    };
+  }
+
+  const selectedRunId = parsedArgs.runId ?? (parsedArgs.latestRun ? await latestLiveRunDir() : null);
+  if (!selectedRunId) {
+    return {
+      mode: parsedArgs.latestRun ? "latest_run_missing" : "historical_default_all_runs",
+      dirs: parsedArgs.latestRun ? [] : [liveDir],
+      selected_run_id: null
+    };
+  }
+
+  return {
+    mode: parsedArgs.runId ? "run_id" : "latest_run",
+    dirs: [path.join(liveDir, selectedRunId)],
+    selected_run_id: selectedRunId
+  };
+}
+
 function safeFlags(record: Record<string, unknown>) {
   const serialized = JSON.stringify(record).toLowerCase();
   const flags = [];
@@ -73,12 +126,24 @@ async function main() {
     return;
   }
 
+  const liveSources = await liveReviewSources();
+  const liveRecordsNested = await Promise.all(
+    liveSources.dirs.map(async (dir) =>
+      (await readScenarioJsonFiles(dir)).map((entry) => ({ source: "live_trials", ...entry }))
+    )
+  );
+  const liveSummaryNested = await Promise.all(
+    liveSources.dirs.map(async (dir) =>
+      (await readSummaryJsonFiles(dir)).map((entry) => ({ source: "live_trial_summary", ...entry }))
+    )
+  );
+
   const records = [
     ...(await readScenarioJsonFiles(smokeDir)).map((entry) => ({ source: "scenario_smoke", ...entry })),
-    ...(await readScenarioJsonFiles(liveDir)).map((entry) => ({ source: "live_trials", ...entry }))
+    ...liveRecordsNested.flat()
   ];
   const summaryRecords = [
-    ...(await readSummaryJsonFiles(liveDir)).map((entry) => ({ source: "live_trial_summary", ...entry }))
+    ...liveSummaryNested.flat()
   ];
   const reviewed = records.map((entry) => {
     const parsed = entry.parsed;
@@ -120,6 +185,8 @@ async function main() {
       ? "review_has_findings"
       : "passed",
     reviewer_mode: "deterministic_no_live",
+    live_source_mode: liveSources.mode,
+    selected_run_id: liveSources.selected_run_id,
     records_reviewed: allReviewed.length,
     model_quality_findings: allReviewed.filter((entry) => entry.failure_count > 0),
     safety_findings: allReviewed.filter((entry) => entry.safe_flags.length > 0),
