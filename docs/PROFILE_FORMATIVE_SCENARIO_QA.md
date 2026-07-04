@@ -1,12 +1,12 @@
 # Profile and Formative Value Scenario QA
 
-Phase 28a adds a synthetic scenario matrix for checking profile integration and formative value determination before activity planning is implemented.
+Phase 28a adds a 100-scenario synthetic matrix for checking profile integration and formative value determination before activity planning is implemented.
 
 This QA layer is not classroom validation. It uses scripted synthetic response packages and process-event profiles to exercise boundary cases across ability evidence, engagement evidence, profile integration, formative value selection, and student choice capture.
 
 ## Coverage Goals
 
-The scenario matrix includes 17 core scenarios plus targeted conversation/process variations. The current default budgeted live set is 35 trials: every core scenario plus one or more targeted variations. The matrix covers:
+The scenario matrix includes 17 core scenarios, 18 original variations, and 65 additional synthetic variations. The matrix covers:
 
 - profile integration patterns: `stable_understanding`, `developing_understanding`, `likely_knowledge_gap`, `likely_misconception`, `mixed_or_conflicting_evidence`, `insufficient_evidence`
 - student-facing statuses: `Mostly understood`, `Still developing`, `Needs more work`
@@ -37,9 +37,11 @@ The smoke fails if any required formative value category or other required cover
 
 ## Paid Live Scenario Trials
 
-Run provider-backed scenario trials with:
+Run provider-backed scenario trials intentionally with:
 
 ```bash
+PROFILE_FORMATIVE_TRIAL_BUDGET_USD=10 \
+MAX_LIVE_PROFILE_FORMATIVE_TRIALS=100 \
 npm run student:profile-formative-live-trials
 ```
 
@@ -49,6 +51,17 @@ This command is paid-live by default. It must be run intentionally and only afte
 .data/profile-formative-live-trials/run-<timestamp>-live/
 ```
 
+Staged live execution is recommended for safety:
+
+```bash
+PROFILE_FORMATIVE_TRIAL_BUDGET_USD=10 \
+MAX_LIVE_PROFILE_FORMATIVE_TRIALS=10 \
+PROFILE_FORMATIVE_TRIAL_CANARY=true \
+npm run student:profile-formative-live-trials
+```
+
+The 10-scenario canary is a cross-coverage sample across formative values, profile patterns, engagement categories, student choice, multilingual or typo evidence, and process/AI-context evidence. If the canary shows no systemic provider/schema/safety issue, run the full 100-scenario matrix.
+
 Cost and selection controls:
 
 ```bash
@@ -57,7 +70,7 @@ PROFILE_FORMATIVE_TRIAL_SCENARIOS=knowledge_gap_low_confidence,misconception_wit
 npm run student:profile-formative-live-trials
 ```
 
-By default, the live command runs up to 35 trials. The hard default cap is 50 trials unless the runner is changed in a later phase. The approved budget cap for this QA phase can be set with:
+By default, the live command can run the full 100-scenario matrix. The approved budget cap for this QA phase can be set with:
 
 ```bash
 PROFILE_FORMATIVE_TRIAL_BUDGET_USD=10 npm run student:profile-formative-live-trials
@@ -89,8 +102,11 @@ Live result categories are:
 - `direct_live_success`
 - `passed_after_repair`
 - `passed_after_canonicalization`
+- `passed_after_provider_retry`
 - `accepted_allowed_alternative`
+- `scenario_expectation_updated_after_adjudication`
 - `blocked_provider_quota`
+- `infrastructure_transient`
 - `failed_validation`
 - `failed_provider_request`
 - `failed_outcome_mismatch`
@@ -98,6 +114,8 @@ Live result categories are:
 - `failed_fallback_used`
 
 `blocked_provider_quota` is used only when the provider reports a non-retryable quota block such as HTTP 429 with `insufficient_quota` / `openai_quota_exceeded`. A quota-blocked scenario is infrastructure-blocked, not a profile or formative-value model-quality failure, because no valid provider output exists. When quota exhaustion is detected, the live runner stops immediately, writes skipped records for remaining planned scenarios as `not_run_provider_quota_block`, and marks the run `blocked_provider_quota`. Restore quota or billing before rerunning the full matrix.
+
+Retry behavior is bounded. The live QA runner retries exactly once for retryable provider timeout or network transient failures, records `retry_count`, preserves the first failure, and classifies a successful retry as `passed_after_provider_retry`. It does not retry safety failures, schema/validator failures, quota blocks, semantic outcome mismatches, or fallback-used failures.
 
 Each live run writes:
 
@@ -127,24 +145,26 @@ By default this reviewer is deterministic and does not call OpenAI. It reads onl
 .data/profile-formative-trial-review/
 ```
 
-By default, the reviewer selects the latest retained live run when one exists and does not mix older retained failures into the current review. `--latest-run` reviews the latest retained live run. `--latest-full-run` reviews the latest retained live run whose summary records exactly 35 live scenarios and exactly 35 scenario IDs, so coverage is calculated within one full matrix run rather than stitched from targeted reruns or no-live artifacts. `--run-id` reviews one retained run. `--all-runs` is the only mode that includes historical retained runs. If no live run exists, the reviewer can fall back to current no-live smoke artifacts. An LLM-based offline reviewer is intentionally disabled unless a later phase explicitly implements and authorizes it.
+By default, the reviewer selects the latest retained live run when one exists and does not mix older retained failures into the current review. `--latest-run` reviews the latest retained live run. `--latest-full-run` reviews the latest retained live run whose summary records exactly 100 live scenarios and exactly 100 scenario IDs, so coverage is calculated within one full matrix run rather than stitched from targeted reruns or no-live artifacts. `--run-id` reviews one retained run. `--all-runs` is the only mode that includes historical retained runs. If no live run exists, the reviewer can fall back to current no-live smoke artifacts. An LLM-based offline reviewer is intentionally disabled unless a later phase explicitly implements and authorizes it.
 
-The reviewer separates quota-blocked and provider-blocked artifacts from model-quality findings. A quota-blocked run reports `provider_blocking_findings`, `final_live_qa_acceptance=false`, and `rerun_required_after_quota_restored=true`; it must not be used as final live QA evidence. Safety findings are still reported independently if any artifact contains a student-facing safety violation.
+The reviewer separates quota-blocked and provider-blocked artifacts from model-quality findings. It also recomputes adjudication from redacted expected/actual/effective fields so retained live artifacts do not need to be mutated when a boundary mismatch is later classified as an allowed alternative. A quota-blocked run reports `provider_blocking_findings`, `final_live_qa_acceptance=false`, and `rerun_required_after_quota_restored=true`; it must not be used as final live QA evidence. Safety findings are still reported independently if any artifact contains a student-facing safety violation.
 
 ## Interpreting Mismatches
 
-A mismatch should be classified as one of:
+A mismatch must be adjudicated before it is treated as a true system failure. Primary adjudication labels are:
 
-- scenario design issue
-- evidence packet issue
-- engagement classification issue
-- profile integration issue
-- formative value determination issue
-- provider request issue
-- conversation flow issue
-- safety validator issue
+- `true_model_logic_failure`
+- `true_system_logic_failure`
+- `scenario_expectation_too_rigid`
+- `scenario_evidence_does_not_support_target`
+- `allowed_alternative_defensible`
+- `harness_evaluation_bug`
+- `infrastructure_transient`
+- `provider_request_failure`
+- `safety_failure`
+- `validator_failure`
 
-Allowed alternatives should be encoded only where the evidence genuinely supports ambiguity. Deterministic fallback must not count as live success.
+Allowed alternatives should be encoded only where the evidence genuinely supports ambiguity. For example, a profile subtype mismatch may be accepted when the effective formative value and student-facing status remain conservative and safe. Deterministic fallback must not count as live success.
 
 ## Adding A Scenario
 

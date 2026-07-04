@@ -355,7 +355,7 @@ npm run student:profile-formative-scenario-smoke
 npm run student:profile-formative-trial-review
 ```
 
-The scenario smoke is no-live and deterministic. It runs the synthetic profile/formative matrix across profile integration patterns, student-safe statuses, engagement categories, AI-assistance context signals, all five formative values, student choice states, and a targeted conversation/process variation layer. It writes redacted artifacts under `.data/profile-formative-scenario-smoke/`. To review one retained full live matrix without stitching in old or no-live artifacts, run `npm run student:profile-formative-trial-review -- --latest-full-run`; use `--all-runs` only for historical comparison. If a live run is blocked by OpenAI quota, the reviewer reports provider-blocking findings instead of model-quality findings; restore quota or billing before rerunning the full matrix.
+The scenario smoke is no-live and deterministic. It runs the 100-scenario synthetic profile/formative matrix across profile integration patterns, student-safe statuses, engagement categories, AI-assistance context signals, all five formative values, student choice states, and a targeted conversation/process variation layer. It writes redacted artifacts under `.data/profile-formative-scenario-smoke/`. To review one retained full 100-scenario live matrix without stitching in old or no-live artifacts, run `npm run student:profile-formative-trial-review -- --latest-full-run`; use `--all-runs` only for historical comparison. If a live run is blocked by OpenAI quota, the reviewer reports provider-blocking findings instead of model-quality findings; restore quota or billing before rerunning the full matrix.
 
 Paid live scenario trials are intentionally separate:
 
@@ -363,7 +363,20 @@ Paid live scenario trials are intentionally separate:
 npm run student:profile-formative-live-trials
 ```
 
-This command is paid-live by default, prints a warning, checks live readiness, refuses deterministic fallback as live success, and writes redacted artifacts under timestamped run directories in `.data/profile-formative-live-trials/`. The default live set is 35 trials: the 17 core scenarios plus targeted variations. It captures safe provider-failure diagnostics without prompts, raw provider output, headers, or secrets. Profile/formative QA artifacts report provider versus effective category outcomes, explicit allowed boundary alternatives, QA rubrics, result categories, token usage, and optional estimated cost. Use `MAX_LIVE_PROFILE_FORMATIVE_TRIALS`, `PROFILE_FORMATIVE_TRIAL_SCENARIOS`, `PROFILE_FORMATIVE_TRIAL_VARIATIONS`, `PROFILE_FORMATIVE_TRIAL_BUDGET_USD=10`, `PROFILE_FORMATIVE_TRIAL_DRY_RUN=true`, or `PROFILE_FORMATIVE_TRIAL_NO_LIVE=true` to limit or inspect a run. See `docs/PROFILE_FORMATIVE_SCENARIO_QA.md`.
+This command is paid-live by default, prints a warning, checks live readiness, refuses deterministic fallback as live success, and writes redacted artifacts under timestamped run directories in `.data/profile-formative-live-trials/`. Phase 28a uses a staged 10-scenario canary followed by the full 100-scenario matrix:
+
+```bash
+PROFILE_FORMATIVE_TRIAL_BUDGET_USD=10 \
+MAX_LIVE_PROFILE_FORMATIVE_TRIALS=10 \
+PROFILE_FORMATIVE_TRIAL_CANARY=true \
+npm run student:profile-formative-live-trials
+
+PROFILE_FORMATIVE_TRIAL_BUDGET_USD=10 \
+MAX_LIVE_PROFILE_FORMATIVE_TRIALS=100 \
+npm run student:profile-formative-live-trials
+```
+
+The runner captures safe provider-failure diagnostics without prompts, raw provider output, headers, or secrets. Profile/formative QA artifacts report provider versus effective category outcomes, explicit allowed boundary alternatives, adjudication labels, QA rubrics, result categories, retry counts, token usage, and optional estimated cost. Use `MAX_LIVE_PROFILE_FORMATIVE_TRIALS`, `PROFILE_FORMATIVE_TRIAL_SCENARIOS`, `PROFILE_FORMATIVE_TRIAL_VARIATIONS`, `PROFILE_FORMATIVE_TRIAL_BUDGET_USD=10`, `PROFILE_FORMATIVE_TRIAL_DRY_RUN=true`, or `PROFILE_FORMATIVE_TRIAL_NO_LIVE=true` to limit or inspect a run. See `docs/PROFILE_FORMATIVE_SCENARIO_QA.md`.
 
 The optional live LLM readiness smoke is intentionally skipped unless explicitly enabled:
 

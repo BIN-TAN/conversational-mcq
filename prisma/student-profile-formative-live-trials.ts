@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadEnvConfig } from "@next/env";
 import { PrismaClient } from "@prisma/client";
@@ -21,10 +21,12 @@ import {
   applyScenarioChoice,
   buildScenarioInputs,
   coreProfileFormativeScenarios,
+  profileFormativeCanaryScenarioIds,
   type ProfileFormativeScenario,
   safeScenarioDescription,
   selectedScenariosFromList
 } from "./student-profile-formative-scenarios";
+import { adjudicateProfileFormativeFailure } from "./student-profile-formative-adjudication";
 
 loadEnvConfig(process.cwd());
 
@@ -302,8 +304,11 @@ type TrialResultCategory =
   | "direct_live_success"
   | "passed_after_repair"
   | "passed_after_canonicalization"
+  | "passed_after_provider_retry"
   | "accepted_allowed_alternative"
+  | "scenario_expectation_updated_after_adjudication"
   | "blocked_provider_quota"
+  | "infrastructure_transient"
   | "failed_validation"
   | "failed_provider_request"
   | "failed_outcome_mismatch"
@@ -322,6 +327,13 @@ type ProviderFailureSummary = {
     provider_error_code: string | null;
   };
 };
+
+type FirstAttemptFailure = {
+  result_category: TrialResultCategory;
+  failures: string[];
+  provider_failure: ProviderFailureSummary;
+  artifact_path: string;
+} | null;
 
 const QUOTA_FAILURE_SUMMARY: ProviderFailureSummary = {
   category: "quota",
@@ -351,6 +363,29 @@ function quotaFailureFromResult(result: {
   agent_calls: Array<{ provider_failure?: ProviderFailureSummary | null } | null>;
 }) {
   return result.agent_calls.find((call) => isProviderQuotaFailure(call?.provider_failure))?.provider_failure ?? null;
+}
+
+function retryableProviderTransient(failure: ProviderFailureSummary | null | undefined) {
+  if (!failure || isProviderQuotaFailure(failure)) return false;
+  if (failure.retryable !== true) return false;
+  const typedReason = failure.transport.typed_failure_reason;
+  return (
+    typedReason === "openai_request_timeout" ||
+    typedReason === "network_failure" ||
+    typedReason === "rate_limited" ||
+    typedReason === "provider_5xx" ||
+    typedReason === "temporary_overload" ||
+    failure.category === "timeout" ||
+    failure.category === "network" ||
+    failure.category === "rate_limit" ||
+    failure.category === "provider_error"
+  );
+}
+
+function retryableProviderFailureFromResult(result: {
+  agent_calls: Array<{ provider_failure?: ProviderFailureSummary | null } | null>;
+}) {
+  return result.agent_calls.find((call) => retryableProviderTransient(call?.provider_failure))?.provider_failure ?? null;
 }
 
 function buildQaRubric(input: {
@@ -474,16 +509,29 @@ async function runScenario(input: {
   if (dryRun) {
     return {
       scenario_id: scenario.scenario_id,
+      trial_variant: scenario.trial_variant ?? "core",
+      base_scenario_id: scenario.base_scenario_id ?? scenario.scenario_id,
+      variation_id: scenario.variation_id ?? null,
+      variation_tags: scenario.variation_tags ?? [],
       passed: true,
+      result_category: "direct_live_success" as const,
+      provider_quota_blocked: false,
+      provider_failure: null,
       skipped_provider: true,
       failures: [] as string[],
+      retry_count: 0,
+      first_attempt_failure: null as FirstAttemptFailure,
+      adjudication: null,
       artifact_path: await writeJson(`${runArtifactDirName}/${scenario.scenario_id}.json`, {
         artifact_type: "profile_formative_live_trial_dry_run",
         artifact_version: "profile-formative-live-trial-v1",
         scenario: safeScenarioDescription(scenario),
-        provider_request_made: false
+        provider_request_made: false,
+        retry_count: 0
       }),
       actual: null,
+      provider_vs_effective_outcome: null,
+      qa_rubric: null,
       validation_issue_summary: {
         profile_issue_count: 0,
         formative_issue_count: 0,
@@ -723,30 +771,51 @@ async function runScenario(input: {
     formativeCanonicalizationApplied,
     acceptedAllowedAlternative
   });
+  const expected = {
+    profile_integration_pattern: scenario.target_profile_integration_pattern,
+    student_facing_status: scenario.target_student_facing_status,
+    engagement_category: scenario.target_engagement_category,
+    ai_assistance_signal: scenario.target_ai_assistance_signal,
+    formative_value: scenario.target_formative_value
+  };
+  const actual = {
+    profile_integration_pattern: profilePacket.integration_pattern,
+    student_facing_status: profilePacket.student_facing_status,
+    status_confidence: profilePacket.status_confidence,
+    engagement_category: profilePacket.engagement_context.engagement_category,
+    ai_assistance_signal: profilePacket.engagement_context.ai_assistance_signal,
+    formative_value: formativePacket?.primary_value ?? null,
+    formative_value_confidence: formativePacket?.primary_value_confidence ?? null,
+    secondary_considerations: formativePacket?.secondary_considerations ?? [],
+    student_choice_state: formativePacket?.student_choice_state ?? null
+  };
+  const providerOutcome = {
+    profile_integration_pattern: profileProviderPattern,
+    student_facing_status: providerStudentFacingStatus,
+    formative_value: providerFormativeValue
+  };
+  const providerFailure = quotaFailureFromResult({ agent_calls: [profileCall, formativeCall].filter(Boolean) }) ??
+    retryableProviderFailureFromResult({ agent_calls: [profileCall, formativeCall].filter(Boolean) }) ??
+    [profileCall, formativeCall].find((call) => call?.provider_failure)?.provider_failure ??
+    null;
+  const adjudication = adjudicateProfileFormativeFailure({
+    scenario_id: scenario.scenario_id,
+    failures,
+    expected_outcome: expected,
+    actual_provider_outcome: providerOutcome,
+    actual_effective_outcome: actual,
+    evidence_basis: scenario.rationale,
+    scenario_rationale: scenario.why_target_outcome_is_reasonable ?? scenario.rationale,
+    provider_failure: providerFailure
+  });
 
   const artifact = {
     artifact_type: "profile_formative_live_trial_record",
     artifact_version: "profile-formative-live-trial-v1",
     provider_request_made: live,
     scenario: safeScenarioDescription(scenario),
-    expected: {
-      profile_integration_pattern: scenario.target_profile_integration_pattern,
-      student_facing_status: scenario.target_student_facing_status,
-      engagement_category: scenario.target_engagement_category,
-      ai_assistance_signal: scenario.target_ai_assistance_signal,
-      formative_value: scenario.target_formative_value
-    },
-    actual: {
-      profile_integration_pattern: profilePacket.integration_pattern,
-      student_facing_status: profilePacket.student_facing_status,
-      status_confidence: profilePacket.status_confidence,
-      engagement_category: profilePacket.engagement_context.engagement_category,
-      ai_assistance_signal: profilePacket.engagement_context.ai_assistance_signal,
-      formative_value: formativePacket?.primary_value ?? null,
-      formative_value_confidence: formativePacket?.primary_value_confidence ?? null,
-      secondary_considerations: formativePacket?.secondary_considerations ?? [],
-      student_choice_state: formativePacket?.student_choice_state ?? null
-    },
+    expected,
+    actual,
     provider_vs_effective_outcome: {
       provider_profile_pattern: profileProviderPattern,
       effective_profile_pattern: profilePacket.integration_pattern,
@@ -825,7 +894,9 @@ async function runScenario(input: {
       profile_issue_codes: [...new Set(profileResultValidationIssues.map((issue) => issue.rule_code))],
       formative_issue_codes: [...new Set(formativeResultValidationIssues.map((issue) => issue.rule_code))]
     },
-    failures
+    failures,
+    adjudication,
+    retry_count: 0
   };
   const artifactPath = await writeJson(`${runArtifactDirName}/${scenario.scenario_id}.json`, artifact);
 
@@ -838,8 +909,11 @@ async function runScenario(input: {
     passed: failures.length === 0,
     result_category: passedAs,
     provider_quota_blocked: providerQuotaBlocked,
-    provider_failure: quotaFailureFromResult({ agent_calls: [profileCall, formativeCall].filter(Boolean) }),
+    provider_failure: providerFailure,
     failures,
+    retry_count: 0,
+    first_attempt_failure: null as FirstAttemptFailure,
+    adjudication,
     artifact_path: artifactPath,
     actual: artifact.actual,
     provider_vs_effective_outcome: artifact.provider_vs_effective_outcome,
@@ -857,6 +931,23 @@ async function buildQuotaSkippedResult(input: {
 }) {
   const { scenario, runArtifactDirName, providerFailure, blockedAfterScenarioId } = input;
   const failures = ["not_run_provider_quota_block"];
+  const expected = {
+    profile_integration_pattern: scenario.target_profile_integration_pattern,
+    student_facing_status: scenario.target_student_facing_status,
+    engagement_category: scenario.target_engagement_category,
+    ai_assistance_signal: scenario.target_ai_assistance_signal,
+    formative_value: scenario.target_formative_value
+  };
+  const adjudication = adjudicateProfileFormativeFailure({
+    scenario_id: scenario.scenario_id,
+    failures,
+    expected_outcome: expected,
+    actual_provider_outcome: null,
+    actual_effective_outcome: null,
+    evidence_basis: scenario.rationale,
+    scenario_rationale: scenario.why_target_outcome_is_reasonable ?? scenario.rationale,
+    provider_failure: providerFailure
+  });
   const artifact = {
     artifact_type: "profile_formative_live_trial_record",
     artifact_version: "profile-formative-live-trial-v1",
@@ -866,13 +957,7 @@ async function buildQuotaSkippedResult(input: {
     blocked_after_scenario_id: blockedAfterScenarioId,
     provider_failure: providerFailure,
     scenario: safeScenarioDescription(scenario),
-    expected: {
-      profile_integration_pattern: scenario.target_profile_integration_pattern,
-      student_facing_status: scenario.target_student_facing_status,
-      engagement_category: scenario.target_engagement_category,
-      ai_assistance_signal: scenario.target_ai_assistance_signal,
-      formative_value: scenario.target_formative_value
-    },
+    expected,
     actual: null,
     provider_vs_effective_outcome: {
       provider_profile_pattern: null,
@@ -936,7 +1021,9 @@ async function buildQuotaSkippedResult(input: {
       profile_issue_codes: [],
       formative_issue_codes: []
     },
-    failures
+    failures,
+    adjudication,
+    retry_count: 0
   };
   const artifactPath = await writeJson(`${runArtifactDirName}/${scenario.scenario_id}.json`, artifact);
 
@@ -951,6 +1038,9 @@ async function buildQuotaSkippedResult(input: {
     provider_quota_blocked: true,
     provider_failure: providerFailure,
     failures,
+    retry_count: 0,
+    first_attempt_failure: null as FirstAttemptFailure,
+    adjudication,
     artifact_path: artifactPath,
     actual: null,
     provider_vs_effective_outcome: artifact.provider_vs_effective_outcome,
@@ -960,8 +1050,117 @@ async function buildQuotaSkippedResult(input: {
   };
 }
 
+async function annotateResultArtifact(
+  result: { artifact_path?: string | null },
+  patch: Record<string, unknown>
+) {
+  if (!result.artifact_path) return;
+  const parsed = JSON.parse(await readFile(result.artifact_path, "utf8")) as Record<string, unknown>;
+  await writeFile(result.artifact_path, `${JSON.stringify({ ...parsed, ...patch }, null, 2)}\n`, "utf8");
+}
+
+async function runScenarioWithRetry(input: {
+  scenario: ProfileFormativeScenario;
+  live: boolean;
+  dryRun: boolean;
+  simulateQuota: boolean;
+  runArtifactDirName: string;
+}) {
+  const first = await runScenario(input);
+  const retryableFailure = retryableProviderFailureFromResult({ agent_calls: first.agent_calls });
+  if (!input.live || input.dryRun || input.simulateQuota || !retryableFailure || first.provider_quota_blocked) {
+    return first;
+  }
+
+  const retry = await runScenario({ ...input, simulateQuota: false });
+  const firstAttemptFailure = {
+    result_category: first.result_category,
+    failures: first.failures,
+    provider_failure: retryableFailure,
+    artifact_path: first.artifact_path
+  };
+  const retryableFailureAfterRetry = retryableProviderFailureFromResult({ agent_calls: retry.agent_calls });
+
+  if (retry.passed) {
+    const patched = {
+      ...retry,
+      result_category: "passed_after_provider_retry" as const,
+      retry_count: 1,
+      first_attempt_failure: firstAttemptFailure,
+      adjudication: null
+    };
+    await annotateResultArtifact(patched, {
+      provider_vs_effective_outcome: {
+        ...(retry.provider_vs_effective_outcome ?? {}),
+        passed_as: "passed_after_provider_retry"
+      },
+      retry_count: 1,
+      first_attempt_failure: firstAttemptFailure,
+      adjudication: null
+    });
+    return patched;
+  }
+
+  if (retryableFailureAfterRetry) {
+    const adjudication = adjudicateProfileFormativeFailure({
+      scenario_id: retry.scenario_id,
+      failures: retry.failures,
+      expected_outcome: {
+        profile_integration_pattern: input.scenario.target_profile_integration_pattern,
+        student_facing_status: input.scenario.target_student_facing_status,
+        engagement_category: input.scenario.target_engagement_category,
+        ai_assistance_signal: input.scenario.target_ai_assistance_signal,
+        formative_value: input.scenario.target_formative_value
+      },
+      actual_provider_outcome: retry.provider_vs_effective_outcome
+        ? {
+            profile_integration_pattern: retry.provider_vs_effective_outcome.provider_profile_pattern,
+            student_facing_status: retry.provider_vs_effective_outcome.provider_student_facing_status,
+            formative_value: retry.provider_vs_effective_outcome.provider_formative_value
+          }
+        : null,
+      actual_effective_outcome: retry.actual,
+      evidence_basis: input.scenario.rationale,
+      scenario_rationale: input.scenario.why_target_outcome_is_reasonable ?? input.scenario.rationale,
+      provider_failure: retryableFailureAfterRetry,
+      retry_count: 1
+    });
+    const patched = {
+      ...retry,
+      result_category: "infrastructure_transient" as const,
+      retry_count: 1,
+      first_attempt_failure: firstAttemptFailure,
+      adjudication
+    };
+    await annotateResultArtifact(patched, {
+      provider_vs_effective_outcome: {
+        ...(retry.provider_vs_effective_outcome ?? {}),
+        passed_as: "infrastructure_transient"
+      },
+      retry_count: 1,
+      first_attempt_failure: firstAttemptFailure,
+      adjudication
+    });
+    return patched;
+  }
+
+  const patched = {
+    ...retry,
+    retry_count: 1,
+    first_attempt_failure: firstAttemptFailure
+  };
+  await annotateResultArtifact(patched, {
+    retry_count: 1,
+    first_attempt_failure: firstAttemptFailure
+  });
+  return patched;
+}
+
 function selectedLiveScenarios() {
-  let explicit = selectedScenariosFromList(process.env.PROFILE_FORMATIVE_TRIAL_SCENARIOS);
+  const canary = process.env.PROFILE_FORMATIVE_TRIAL_CANARY === "true";
+  let explicit = canary
+    ? selectedScenariosFromList(profileFormativeCanaryScenarioIds.join(","))
+    : selectedScenariosFromList(process.env.PROFILE_FORMATIVE_TRIAL_SCENARIOS);
   const variationFilter = process.env.PROFILE_FORMATIVE_TRIAL_VARIATIONS
     ?.split(",")
     .map((entry) => entry.trim())
@@ -977,15 +1176,15 @@ function selectedLiveScenarios() {
       )
     );
   }
-  const defaultMax = 35;
-  const hardDefaultCap = 50;
+  const defaultMax = canary ? 10 : 35;
+  const hardDefaultCap = 100;
   const configuredMax = intEnv("MAX_LIVE_PROFILE_FORMATIVE_TRIALS");
   const max = Math.min(configuredMax ?? defaultMax, hardDefaultCap, explicit.length);
   return explicit.slice(0, max);
 }
 
 type LiveTrialResult =
-  | Awaited<ReturnType<typeof runScenario>>
+  | Awaited<ReturnType<typeof runScenarioWithRetry>>
   | Awaited<ReturnType<typeof buildQuotaSkippedResult>>;
 
 function coverageFromResults(results: LiveTrialResult[]) {
@@ -1098,8 +1297,9 @@ async function main() {
     run_controls: {
       budget_usd: budgetUsd,
       max_live_trial_count: scenarios.length,
-      default_live_trial_count: 35,
-      hard_default_cap: 50,
+      canary_mode: process.env.PROFILE_FORMATIVE_TRIAL_CANARY === "true",
+      default_live_trial_count: process.env.PROFILE_FORMATIVE_TRIAL_CANARY === "true" ? 10 : 35,
+      hard_default_cap: 100,
       pricing_configured_for_estimate: priceConfigured,
       variation_filter: process.env.PROFILE_FORMATIVE_TRIAL_VARIATIONS ?? null
     },
@@ -1141,7 +1341,7 @@ async function main() {
       }
     | null = null;
   for (const [index, scenario] of scenarios.entries()) {
-    const result = await runScenario({ scenario, live, dryRun, simulateQuota: simulateQuota && index === 0, runArtifactDirName });
+    const result = await runScenarioWithRetry({ scenario, live, dryRun, simulateQuota: simulateQuota && index === 0, runArtifactDirName });
     results.push(result);
     if (result.result_category === "blocked_provider_quota" && result.provider_failure) {
       quotaBlock = {
@@ -1200,8 +1400,11 @@ async function main() {
       "direct_live_success",
       "passed_after_repair",
       "passed_after_canonicalization",
+      "passed_after_provider_retry",
       "accepted_allowed_alternative",
+      "scenario_expectation_updated_after_adjudication",
       "blocked_provider_quota",
+      "infrastructure_transient",
       "failed_validation",
       "failed_provider_request",
       "failed_outcome_mismatch",
@@ -1251,7 +1454,8 @@ async function main() {
       validator_failure: results.flatMap((result) => result.failures).filter((failure) => failure.includes("validation")).length,
       fallback_or_repair: results.flatMap((result) => result.failures).filter((failure) => failure.includes("fallback")).length,
       provider_request: results.filter((result) => result.result_category === "failed_provider_request").length,
-      provider_quota_blocked: results.filter((result) => result.result_category === "blocked_provider_quota").length
+      provider_quota_blocked: results.filter((result) => result.result_category === "blocked_provider_quota").length,
+      infrastructure_transient: results.filter((result) => result.result_category === "infrastructure_transient").length
     },
     result_category_counts: resultCategoryCounts,
     outcome_mismatch_counts: Object.fromEntries(
@@ -1311,7 +1515,8 @@ async function main() {
     },
     scenario_level_recommendations: failed.map((result) => ({
       scenario_id: result.scenario_id,
-      classification: result.result_category === "blocked_provider_quota"
+      classification: result.adjudication?.primary_failure_type ??
+        (result.result_category === "blocked_provider_quota"
         ? "provider quota block"
         : result.agent_calls.some((call) => call?.provider_failure)
         ? "provider request issue"
@@ -1321,8 +1526,9 @@ async function main() {
             ? "engagement classification issue"
             : result.failures.some((failure) => failure.includes("formative"))
               ? "formative value determination issue"
-              : "profile integration issue",
-      failures: result.failures
+              : "profile integration issue"),
+      failures: result.failures,
+      adjudication: result.adjudication
     }))
   };
   const errorAnalysisPath = await writeJson(
@@ -1377,6 +1583,7 @@ async function main() {
       scenario_id: result.scenario_id,
       result_category: result.result_category,
       provider_quota_blocked: result.provider_quota_blocked,
+      retry_count: result.retry_count,
       agent_calls: result.agent_calls.map((call) => ({
         agent_name: call?.agent_name,
         call_status: call?.call_status,
@@ -1399,6 +1606,9 @@ async function main() {
       scenario_id: result.scenario_id,
       result_category: result.result_category,
       failures: result.failures,
+      adjudication: result.adjudication,
+      retry_count: result.retry_count,
+      first_attempt_failure: result.first_attempt_failure,
       artifact_path: result.artifact_path
     })),
     scenario_level_latest_run_summary: results.map((result) => ({

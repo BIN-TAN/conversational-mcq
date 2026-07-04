@@ -16,6 +16,7 @@ import {
   profileFormativeScenarios,
   safeScenarioDescription
 } from "./student-profile-formative-scenarios";
+import { adjudicateProfileFormativeFailure } from "./student-profile-formative-adjudication";
 
 const artifactDir = path.join(process.cwd(), ".data", "profile-formative-scenario-smoke");
 
@@ -196,22 +197,40 @@ async function runScenario(scenario: (typeof profileFormativeScenarios)[number])
       !formativePacket.student_choice_policy.can_move_on) {
     failures.push("student_choice_policy_incomplete");
   }
+  const expected = {
+    profile_integration_pattern: scenario.target_profile_integration_pattern,
+    student_facing_status: scenario.target_student_facing_status,
+    engagement_category: scenario.target_engagement_category,
+    ai_assistance_signal: scenario.target_ai_assistance_signal,
+    formative_value: scenario.target_formative_value
+  };
+  const actual = {
+    profile_integration_pattern: profilePacket.integration_pattern,
+    student_facing_status: profilePacket.student_facing_status,
+    status_confidence: profilePacket.status_confidence,
+    engagement_category: profilePacket.engagement_context.engagement_category,
+    ai_assistance_signal: profilePacket.engagement_context.ai_assistance_signal,
+    formative_value: formativePacket.primary_value,
+    formative_value_confidence: formativePacket.primary_value_confidence,
+    secondary_considerations: formativePacket.secondary_considerations,
+    student_choice_state: formativePacket.student_choice_state
+  };
+  const adjudication = adjudicateProfileFormativeFailure({
+    scenario_id: scenario.scenario_id,
+    failures,
+    expected_outcome: expected,
+    actual_provider_outcome: null,
+    actual_effective_outcome: actual,
+    evidence_basis: scenario.rationale,
+    scenario_rationale: scenario.why_target_outcome_is_reasonable ?? scenario.rationale
+  });
 
   const artifact = {
     artifact_type: "profile_formative_scenario_smoke_record",
     artifact_version: "profile-formative-scenario-smoke-v1",
     scenario: safeScenarioDescription(scenario),
-    actual: {
-      profile_integration_pattern: profilePacket.integration_pattern,
-      student_facing_status: profilePacket.student_facing_status,
-      status_confidence: profilePacket.status_confidence,
-      engagement_category: profilePacket.engagement_context.engagement_category,
-      ai_assistance_signal: profilePacket.engagement_context.ai_assistance_signal,
-      formative_value: formativePacket.primary_value,
-      formative_value_confidence: formativePacket.primary_value_confidence,
-      secondary_considerations: formativePacket.secondary_considerations,
-      student_choice_state: formativePacket.student_choice_state
-    },
+    expected,
+    actual,
     validation: {
       profile_valid: profileValidation.valid,
       profile_issues: profileValidation.issues,
@@ -234,7 +253,8 @@ async function runScenario(scenario: (typeof profileFormativeScenarios)[number])
       raw_provider_output_included: false,
       raw_process_payload_included: false
     },
-    failures
+    failures,
+    adjudication
   };
   const artifactPath = await writeJson(`${scenario.scenario_id}.json`, artifact);
 
@@ -247,6 +267,7 @@ async function runScenario(scenario: (typeof profileFormativeScenarios)[number])
     passed: failures.length === 0,
     failures,
     actual: artifact.actual,
+    adjudication,
     artifact_path: artifactPath
   };
 }
@@ -338,6 +359,93 @@ function variationCoverageFailures(coverage: ReturnType<typeof variationCoverage
   return failures;
 }
 
+const minimumDesignCoverage = {
+  profile_integration_patterns: 10,
+  student_facing_statuses: 10,
+  engagement_categories: 10,
+  ai_assistance_signals: 8,
+  formative_values: 10,
+  student_choice_states: 5
+};
+
+function designCoverage(scenarios: typeof profileFormativeScenarios) {
+  const countValues = <T extends string>(values: T[]) =>
+    values.reduce<Record<string, number>>((acc, value) => {
+      acc[value] = (acc[value] ?? 0) + 1;
+      return acc;
+    }, {});
+
+  return {
+    profile_integration_patterns: countValues(scenarios.flatMap((scenario) =>
+      uniqueForCoverage([
+        scenario.target_profile_integration_pattern,
+        ...(scenario.expected_allowed_outcomes?.profile_integration_patterns ?? [])
+      ])
+    )),
+    student_facing_statuses: countValues(scenarios.flatMap((scenario) =>
+      uniqueForCoverage([
+        scenario.target_student_facing_status,
+        ...(scenario.expected_allowed_outcomes?.student_facing_statuses ?? [])
+      ])
+    )),
+    engagement_categories: countValues(scenarios.flatMap((scenario) =>
+      uniqueForCoverage([
+        scenario.target_engagement_category,
+        ...(scenario.expected_allowed_outcomes?.engagement_categories ?? [])
+      ])
+    )),
+    ai_assistance_signals: countValues(scenarios.flatMap((scenario) =>
+      uniqueForCoverage([
+        scenario.target_ai_assistance_signal,
+        ...(scenario.expected_allowed_outcomes?.ai_assistance_signals ?? [])
+      ])
+    )),
+    formative_values: countValues(scenarios.flatMap((scenario) =>
+      uniqueForCoverage([
+        scenario.target_formative_value,
+        ...(scenario.expected_allowed_outcomes?.formative_values ?? [])
+      ])
+    )),
+    student_choice_states: countValues(scenarios.map((scenario) => scenario.student_choice ?? "not_chosen"))
+  };
+}
+
+function uniqueForCoverage<T extends string>(values: T[]) {
+  return [...new Set(values)];
+}
+
+function designCoverageFailures(coverage: ReturnType<typeof designCoverage>) {
+  const requiredValues = {
+    profile_integration_patterns: [
+      "stable_understanding",
+      "developing_understanding",
+      "likely_knowledge_gap",
+      "likely_misconception",
+      "mixed_or_conflicting_evidence",
+      "insufficient_evidence"
+    ],
+    student_facing_statuses: ["Mostly understood", "Still developing", "Needs more work"],
+    engagement_categories: ["engaged", "moderately_engaged", "disengaged", "insufficient_evidence"],
+    ai_assistance_signals: ["none_indicated", "likely_external_assistance_pattern", "insufficient_evidence"],
+    formative_values: [
+      "diagnostic_clarification",
+      "reasoning_refinement",
+      "confidence_calibration",
+      "independent_understanding_verification",
+      "consolidation_and_transfer"
+    ],
+    student_choice_states: ["not_chosen", "accepted_recommendation", "chose_alternative", "moved_on"]
+  };
+
+  return Object.entries(requiredValues).flatMap(([category, values]) =>
+    values.flatMap((value) => {
+      const count = (coverage as Record<string, Record<string, number>>)[category]?.[value] ?? 0;
+      const required = (minimumDesignCoverage as Record<string, number>)[category];
+      return count < required ? [`${category}:${value}:${count}<${required}`] : [];
+    })
+  );
+}
+
 async function main() {
   process.env.LLM_PROVIDER = "mock";
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
@@ -358,6 +466,7 @@ async function main() {
     student_choice_states: [...new Set(results.map((result) => result.actual.student_choice_state.student_choice))].sort()
   };
   const variationCoverageSummary = variationCoverage(profileFormativeScenarios);
+  const designCoverageSummary = designCoverage(profileFormativeScenarios);
   const missingCoverage = {
     profile_integration_patterns: missing([
       "stable_understanding",
@@ -401,7 +510,14 @@ async function main() {
     .filter(([, values]) => values.length > 0)
     .map(([category, values]) => `${category}:${values.join(",")}`);
   const variationFailures = variationCoverageFailures(variationCoverageSummary);
+  const scenarioCountFailures = profileFormativeScenarios.length === 100
+    ? []
+    : [`scenario_count:${profileFormativeScenarios.length}!=100`];
+  const designFailures = designCoverageFailures(designCoverageSummary);
   const scenarioFailures = results.filter((result) => !result.passed);
+  const failureAdjudications = scenarioFailures
+    .map((result) => result.adjudication)
+    .filter(Boolean);
   const errorAnalysis = {
     artifact_type: "profile_formative_scenario_error_analysis",
     artifact_version: "profile-formative-scenario-error-analysis-v1",
@@ -413,7 +529,7 @@ async function main() {
       outcome_mismatch: results.flatMap((result) => result.failures).filter((failure) => failure.includes("mismatch")).length,
       safety_violation: results.flatMap((result) => result.failures).filter((failure) => failure.includes("safety")).length,
       validator_failure: results.flatMap((result) => result.failures).filter((failure) => failure.includes("validation")).length,
-      coverage_gap: coverageFailures.length + variationFailures.length
+      coverage_gap: coverageFailures.length + variationFailures.length + designFailures.length + scenarioCountFailures.length
     },
     outcome_mismatch_counts: Object.fromEntries(
       [...new Set(results.flatMap((result) => result.failures).filter((failure) => failure.includes("mismatch")))]
@@ -430,11 +546,14 @@ async function main() {
     ).map((result) => result.scenario_id),
     fallback_or_repair_counts: { deterministic_fallback: 0, repair: 0 },
     uncovered_outcome_categories: missingCoverage,
+    design_coverage: designCoverageSummary,
+    design_coverage_failures: designFailures,
     variation_coverage: variationCoverageSummary,
     variation_coverage_failures: variationFailures,
+    failure_adjudication_summary: failureAdjudications,
     scenario_level_recommendations: scenarioFailures.map((failure) => ({
       scenario_id: failure.scenario_id,
-      classification: "scenario_design_or_deterministic_rule_review_needed",
+      classification: failure.adjudication?.primary_failure_type ?? "scenario_design_or_deterministic_rule_review_needed",
       failures: failure.failures
     }))
   };
@@ -443,20 +562,31 @@ async function main() {
     errorAnalysis
   );
   const summary = {
-    status: scenarioFailures.length === 0 && coverageFailures.length === 0 && variationFailures.length === 0 ? "passed" : "failed",
+    status: scenarioFailures.length === 0 &&
+      coverageFailures.length === 0 &&
+      variationFailures.length === 0 &&
+      designFailures.length === 0 &&
+      scenarioCountFailures.length === 0
+      ? "passed"
+      : "failed",
     scenario_count: results.length,
     passed_count: results.filter((result) => result.passed).length,
     failed_count: scenarioFailures.length,
     coverage,
+    design_coverage: designCoverageSummary,
     variation_coverage: variationCoverageSummary,
+    failure_adjudication_summary: failureAdjudications,
     failures: [
       ...scenarioFailures.map((result) => ({
         scenario_id: result.scenario_id,
         failures: result.failures,
+        adjudication: result.adjudication,
         artifact_path: result.artifact_path
       })),
       ...coverageFailures.map((failure) => ({ coverage_failure: failure })),
-      ...variationFailures.map((failure) => ({ variation_coverage_failure: failure }))
+      ...variationFailures.map((failure) => ({ variation_coverage_failure: failure })),
+      ...designFailures.map((failure) => ({ design_coverage_failure: failure })),
+      ...scenarioCountFailures.map((failure) => ({ scenario_count_failure: failure }))
     ],
     artifact_dir: artifactDir,
     error_analysis_artifact_path: errorAnalysisPath,

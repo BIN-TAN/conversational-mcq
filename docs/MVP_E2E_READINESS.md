@@ -206,7 +206,7 @@ These commands are no-live by default. They write ignored redacted artifacts und
 .data/profile-formative-trial-review/
 ```
 
-The matrix covers all five formative values, all current profile integration patterns, all student-safe statuses, engagement categories, AI-assistance context signals, and student choice states. It includes 17 core scenarios plus a targeted variation layer for concise, vague, uncertainty, multilingual/typo-heavy, content/procedural question, edit/revision, rapid-sparse, pause/resume, focus/paste, external-assistance-context, and student-choice behaviors.
+The matrix covers all five formative values, all current profile integration patterns, all student-safe statuses, engagement categories, AI-assistance context signals, and student choice states. It includes 100 scenarios: 17 core scenarios, 18 original variations, and 65 additional synthetic variations for concise, detailed, vague, uncertainty, multilingual/typo-heavy, content/procedural question, edit/revision, rapid-sparse, pause/resume, focus/paste, external-assistance-context, and student-choice behaviors.
 
 The dedicated paid-live trial command is:
 
@@ -214,19 +214,32 @@ The dedicated paid-live trial command is:
 npm run student:profile-formative-live-trials
 ```
 
-Unlike ordinary smoke tests, this command is paid-live by default. It prints a warning, checks live readiness, refuses silent deterministic fallback, and writes redacted artifacts under timestamped run directories in `.data/profile-formative-live-trials/`. Each run directory contains per-scenario records, a summary artifact, and an error-analysis artifact. Provider failures are recorded with safe model/schema/request-shape and sanitized transport fields only; prompts, raw provider output, headers, API keys, and secrets are not written. Default live selection runs up to 35 trials: 17 core scenarios plus targeted variations. Cost-control flags are `MAX_LIVE_PROFILE_FORMATIVE_TRIALS`, `PROFILE_FORMATIVE_TRIAL_SCENARIOS`, `PROFILE_FORMATIVE_TRIAL_VARIATIONS`, `PROFILE_FORMATIVE_TRIAL_BUDGET_USD=10`, `PROFILE_FORMATIVE_TRIAL_DRY_RUN=true`, and `PROFILE_FORMATIVE_TRIAL_NO_LIVE=true`.
+Unlike ordinary smoke tests, this command is paid-live by default. It prints a warning, checks live readiness, refuses silent deterministic fallback, and writes redacted artifacts under timestamped run directories in `.data/profile-formative-live-trials/`. Each run directory contains per-scenario records, a summary artifact, and an error-analysis artifact. Provider failures are recorded with safe model/schema/request-shape and sanitized transport fields only; prompts, raw provider output, headers, API keys, and secrets are not written. The Phase 28a live protocol runs a 10-scenario canary first, then the full 100-scenario matrix when the canary shows no systemic provider/schema/safety issue:
 
-Live artifacts distinguish provider category outputs from effective backend outputs and classify each trial as direct success, passed after repair, passed after canonicalization, accepted allowed alternative, provider quota block, provider failure, validation failure, outcome mismatch, safety failure, or fallback-used failure. Deterministic fallback is never counted as live success.
+```bash
+PROFILE_FORMATIVE_TRIAL_BUDGET_USD=10 \
+MAX_LIVE_PROFILE_FORMATIVE_TRIALS=10 \
+PROFILE_FORMATIVE_TRIAL_CANARY=true \
+npm run student:profile-formative-live-trials
+
+PROFILE_FORMATIVE_TRIAL_BUDGET_USD=10 \
+MAX_LIVE_PROFILE_FORMATIVE_TRIALS=100 \
+npm run student:profile-formative-live-trials
+```
+
+Cost-control flags are `MAX_LIVE_PROFILE_FORMATIVE_TRIALS`, `PROFILE_FORMATIVE_TRIAL_SCENARIOS`, `PROFILE_FORMATIVE_TRIAL_VARIATIONS`, `PROFILE_FORMATIVE_TRIAL_BUDGET_USD=10`, `PROFILE_FORMATIVE_TRIAL_DRY_RUN=true`, and `PROFILE_FORMATIVE_TRIAL_NO_LIVE=true`.
+
+Live artifacts distinguish provider category outputs from effective backend outputs and classify each trial as direct success, passed after repair, passed after canonicalization, passed after one provider retry, accepted allowed alternative, scenario expectation updated after adjudication, provider quota block, infrastructure transient, provider failure, validation failure, outcome mismatch, safety failure, or fallback-used failure. Deterministic fallback is never counted as live success.
 
 If OpenAI returns a non-retryable quota block such as HTTP 429 `insufficient_quota` / `openai_quota_exceeded`, the run is marked `blocked_provider_quota`. The runner stops after the first quota block, writes skipped records for the remaining planned scenarios, and records that the run is not final live QA evidence. Quota-blocked scenarios are infrastructure findings, not model-quality outcome mismatches.
 
-Review the latest retained full 35-case live matrix without stitching in older or no-live artifacts with:
+Review the latest retained full 100-case live matrix without stitching in older or no-live artifacts with:
 
 ```bash
 npm run student:profile-formative-trial-review -- --latest-full-run
 ```
 
-Use `--all-runs` only for historical comparison across retained runs. The default reviewer and `--latest-run` mode do not mix old retained failures into the current run summary.
+Use `--all-runs` only for historical comparison across retained runs. The default reviewer and `--latest-run` mode do not mix old retained failures into the current run summary. Outcome mismatches are adjudicated before they count as true failures, and the reviewer can classify a boundary mismatch as an accepted allowed alternative without mutating the paid run artifact. Safety, schema, provider, and fallback-used failures remain blocking.
 
 After restoring quota or billing, rerun the full matrix and then review it again with `--latest-full-run`.
 

@@ -1,5 +1,6 @@
 import { readdir, readFile, writeFile, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { adjudicateProfileFormativeFailure } from "./student-profile-formative-adjudication";
 
 const liveReviewRequested = process.env.RUN_LIVE_TRIAL_REVIEWER === "1";
 const smokeDir = path.join(process.cwd(), ".data", "profile-formative-scenario-smoke");
@@ -102,9 +103,9 @@ async function liveRunDirs() {
 function isFullLiveSummary(parsed: Record<string, unknown>) {
   const scenarioIds = Array.isArray(parsed.scenario_ids_run) ? parsed.scenario_ids_run : [];
   return (
-    parsed.scenario_count === 35 &&
-    parsed.live_scenarios_run === 35 &&
-    scenarioIds.length === 35
+    parsed.scenario_count === 100 &&
+    parsed.live_scenarios_run === 100 &&
+    scenarioIds.length === 100
   );
 }
 
@@ -239,20 +240,89 @@ function findingKind(input: {
   safeFlags: string[];
   quotaScenarioIds?: Set<string>;
   scenarioId?: string;
+  adjudication?: Record<string, unknown> | null;
 }) {
   if (input.safeFlags.length > 0) return "safety";
+  if (input.adjudication) {
+    const primaryFailureType = stringValue(input.adjudication.primary_failure_type);
+    const shouldBlockReadiness = input.adjudication.should_block_readiness === true;
+    if (!shouldBlockReadiness) return "accepted_or_retried";
+    if (primaryFailureType === "infrastructure_transient" || primaryFailureType === "provider_request_failure") {
+      return "infrastructure";
+    }
+    if (primaryFailureType === "safety_failure") return "safety";
+    if (primaryFailureType === "validator_failure") return "validator";
+  }
   if (hasQuotaFailure(input.record) || (input.scenarioId && input.quotaScenarioIds?.has(input.scenarioId))) {
     return "provider_quota";
   }
   const category = resultCategory(input.record);
   if (category === "blocked_provider_quota") return "provider_quota";
-  if (category === "failed_provider_request" || providerFailureFromRecord(input.record).length > 0) {
+  if (category === "infrastructure_transient" || category === "failed_provider_request" || providerFailureFromRecord(input.record).length > 0) {
     return "infrastructure";
+  }
+  if (
+    category === "accepted_allowed_alternative" ||
+    category === "scenario_expectation_updated_after_adjudication" ||
+    category === "passed_after_provider_retry"
+  ) {
+    return "accepted_or_retried";
   }
   if (category === "failed_validation" || input.failures.some((failure) => failure.includes("validation"))) {
     return "validator";
   }
   return "model_quality";
+}
+
+function recomputeAdjudication(
+  record: Record<string, unknown>,
+  scenarioId: string,
+  failures: string[]
+) {
+  const scenario = asRecord(record.scenario);
+  const existingAdjudication = asRecord(record.adjudication);
+  const expected =
+    asRecord(record.expected) ??
+    asRecord(existingAdjudication?.expected_outcome) ??
+    {};
+  const actualEffective =
+    asRecord(record.actual) ??
+    asRecord(record.actual_effective_outcome) ??
+    asRecord(existingAdjudication?.actual_effective_outcome) ??
+    null;
+  const actualProvider =
+    asRecord(record.actual_provider_outcome) ??
+    asRecord(existingAdjudication?.actual_provider_outcome) ??
+    (actualEffective
+      ? {
+        profile_integration_pattern: actualEffective.profile_integration_pattern,
+        student_facing_status: actualEffective.student_facing_status,
+        formative_value: actualEffective.formative_value
+      }
+      : null);
+  const evidenceBasis =
+    stringValue(scenario?.rationale) ??
+    stringValue(existingAdjudication?.evidence_basis) ??
+    "Scenario evidence is synthetic and redacted.";
+  const scenarioRationale =
+    stringValue(scenario?.why_target_outcome_is_reasonable) ??
+    stringValue(existingAdjudication?.target_reasonableness) ??
+    null;
+  const providerFailure =
+    asRecord(record.provider_failure) ??
+    asRecord(existingAdjudication?.provider_failure) ??
+    null;
+  return adjudicateProfileFormativeFailure({
+    scenario_id: scenarioId,
+    failures,
+    expected_outcome: expected,
+    actual_provider_outcome: actualProvider,
+    actual_effective_outcome: actualEffective,
+    evidence_basis: evidenceBasis,
+    scenario_rationale: scenarioRationale,
+    provider_failure: providerFailure,
+    retry_count: numberValue(record.retry_count) ?? undefined
+  });
 }
 
 function quotaScenarioIdsFromSummaries(summaryRecords: Array<{ parsed: Record<string, unknown> }>) {
@@ -311,28 +381,35 @@ async function main() {
   const reviewed = records.map((entry) => {
     const parsed = entry.parsed;
     const failures = Array.isArray(parsed.failures) ? parsed.failures : [];
+    const failureStrings = failures.map(String);
     const flags = safeFlags(parsed);
     const scenarioId =
       typeof parsed.scenario === "object" && parsed.scenario && "scenario_id" in parsed.scenario
         ? String((parsed.scenario as { scenario_id?: unknown }).scenario_id)
         : "unknown";
+    const adjudication = recomputeAdjudication(parsed, scenarioId, failureStrings);
     const kind = findingKind({
       record: parsed,
-      failures: failures.map(String),
+      failures: failureStrings,
       safeFlags: flags,
       quotaScenarioIds,
-      scenarioId
+      scenarioId,
+      adjudication
     });
+    const accepted = kind === "accepted_or_retried";
     return {
       source: entry.source,
       file: entry.file,
       scenario_id: scenarioId,
-      pass: failures.length === 0,
-      failure_count: failures.length,
+      pass: failures.length === 0 || accepted,
+      failure_count: accepted ? 0 : failures.length,
+      original_failure_count: failures.length,
       finding_kind: kind,
-      safe_flags: flags
+      safe_flags: flags,
+      adjudication
     };
   });
+  const reviewedByScenarioId = new Map(reviewed.map((entry) => [entry.scenario_id, entry]));
   const summaryFindings = summaryRecords.flatMap((entry) => {
     const failures = Array.isArray(entry.parsed.failures) ? entry.parsed.failures : [];
     return failures.map((failure) => {
@@ -344,21 +421,27 @@ async function main() {
         : [];
       const failureRecord = asRecord(failure) ?? {};
       const flags = safeFlags(failureRecord);
+      const reviewedScenario = reviewedByScenarioId.get(scenarioId);
+      const adjudication = reviewedScenario?.adjudication ?? asRecord(failureRecord.adjudication);
       const kind = findingKind({
         record: failureRecord,
         failures: failureList,
         safeFlags: flags,
         quotaScenarioIds,
-        scenarioId
+        scenarioId,
+        adjudication
       });
+      const accepted = kind === "accepted_or_retried";
       return {
         source: entry.source,
         file: entry.file,
         scenario_id: scenarioId,
-        pass: failureList.length === 0,
-        failure_count: failureList.length,
+        pass: failureList.length === 0 || accepted,
+        failure_count: accepted ? 0 : failureList.length,
+        original_failure_count: failureList.length,
         finding_kind: kind,
-        safe_flags: flags
+        safe_flags: flags,
+        adjudication
       };
     });
   });
@@ -368,6 +451,10 @@ async function main() {
   const validatorFindings = allReviewed.filter((entry) => entry.finding_kind === "validator");
   const modelQualityFindings = allReviewed.filter((entry) => entry.finding_kind === "model_quality" && entry.failure_count > 0);
   const safetyFindings = allReviewed.filter((entry) => entry.safe_flags.length > 0);
+  const acceptedOrRetriedFindings = allReviewed.filter((entry) => entry.finding_kind === "accepted_or_retried" && entry.original_failure_count > 0);
+  const uniqueAcceptedOrRetriedFindings = Array.from(
+    new Map(acceptedOrRetriedFindings.map((entry) => [entry.scenario_id, entry])).values()
+  );
   const hasOnlyProviderQuotaFindings =
     providerBlockingFindings.length > 0 &&
     modelQualityFindings.length === 0 &&
@@ -389,6 +476,7 @@ async function main() {
     validator_findings: validatorFindings,
     model_quality_findings: modelQualityFindings,
     safety_findings: safetyFindings,
+    accepted_or_retried_findings: uniqueAcceptedOrRetriedFindings,
     run_level_message: providerBlockingFindings.length > 0
       ? "This run was blocked by provider quota. It cannot be used as final live QA evidence."
       : null,

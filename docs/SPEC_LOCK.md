@@ -1392,14 +1392,32 @@ Phase 6A.5 must not implement:
   `student:profile-formative-live-trials`. It must print a paid-call warning,
   check live readiness, support max-count, explicit scenario selection,
   variation selection, and budget controls, and refuse to count deterministic
-  fallback as live success. The default paid-live matrix is 35 trials: 17 core
-  scenarios plus targeted conversation/process variations, with a hard default
-  cap of 50 trials unless a later phase explicitly changes the runner.
+  fallback as live success. Phase 28a QA may run a staged 10-scenario canary
+  followed by the full 100-scenario synthetic matrix when the canary shows no
+  systemic provider, schema, or safety issue.
 - Scenario variations must include enough coverage to exercise uncertainty,
   content/procedural questions, edits or revisions, student preference
   overrides or move-on, engagement/process complications, likely
   external-assistance context, and insufficient AI-signal context. They remain
   synthetic and must not add new item content or activity-planning behavior.
+- The 100-scenario suite contains the 17 core scenarios, 18 original
+  variations, and 65 additional synthetic variations. The no-live smoke must
+  verify coverage for profile patterns, student-safe statuses, engagement
+  categories, AI/context signals, formative values, and student choice states.
+- Phase 28a outcome mismatches must be adjudicated before they count as true
+  model or system failures. Valid primary adjudication labels are
+  `true_model_logic_failure`, `true_system_logic_failure`,
+  `scenario_expectation_too_rigid`,
+  `scenario_evidence_does_not_support_target`,
+  `allowed_alternative_defensible`, `harness_evaluation_bug`,
+  `infrastructure_transient`, `provider_request_failure`, `safety_failure`,
+  and `validator_failure`. Allowed alternatives may be documented only where
+  the synthetic evidence supports ambiguity; safety, schema, provider, and
+  fallback-used failures remain blocking.
+- Retry behavior in profile/formative live QA is bounded to one retry for
+  retryable provider timeout or network transient failures. Safety failures,
+  validation failures, quota blocks, semantic mismatches, and fallback-used
+  failures must not be retried as live successes.
 - Scenario QA artifacts are ignored local development artifacts under
   `.data/profile-formative-scenario-smoke/`,
   `.data/profile-formative-live-trials/`, and
@@ -1421,7 +1439,7 @@ Phase 6A.5 must not implement:
 - The deterministic profile/formative trial reviewer must support
   `--latest-run`, `--latest-full-run`, `--run-id`, and `--all-runs`.
   `--latest-full-run` must select one retained run whose summary contains
-  exactly 35 live scenario records and must not stitch coverage from targeted
+  exactly 100 live scenario records and must not stitch coverage from targeted
   reruns, no-live artifacts, or historical failures. Historical aggregation is
   allowed only through `--all-runs`.
 - OpenAI quota exhaustion in profile/formative live scenario QA must be
