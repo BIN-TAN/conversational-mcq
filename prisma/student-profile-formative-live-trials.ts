@@ -29,7 +29,11 @@ import {
 loadEnvConfig(process.cwd());
 
 const prisma = new PrismaClient();
-const artifactDir = path.join(process.cwd(), ".data", "profile-formative-live-trials");
+function workspacePath(value: string) {
+  return path.isAbsolute(value) ? value : path.join(process.cwd(), value);
+}
+
+const artifactDir = workspacePath(process.env.PROFILE_FORMATIVE_TRIAL_ARTIFACT_DIR ?? ".data/profile-formative-live-trials");
 
 function boolEnv(name: string) {
   return process.env[name] === "true";
@@ -299,11 +303,55 @@ type TrialResultCategory =
   | "passed_after_repair"
   | "passed_after_canonicalization"
   | "accepted_allowed_alternative"
+  | "blocked_provider_quota"
   | "failed_validation"
   | "failed_provider_request"
   | "failed_outcome_mismatch"
   | "failed_safety"
   | "failed_fallback_used";
+
+type ProviderFailureSummary = {
+  category: string | null;
+  message: string | null;
+  retryable: boolean | null;
+  transport: {
+    adapter_version: string | null;
+    model_name: string | null;
+    http_status: number | null;
+    typed_failure_reason: string | null;
+    provider_error_code: string | null;
+  };
+};
+
+const QUOTA_FAILURE_SUMMARY: ProviderFailureSummary = {
+  category: "quota",
+  message: "OpenAI quota was exhausted.",
+  retryable: false,
+  transport: {
+    adapter_version: "openai-responses-adapter-v2",
+    model_name: "gpt-5.4-mini",
+    http_status: 429,
+    typed_failure_reason: "openai_quota_exceeded",
+    provider_error_code: "insufficient_quota"
+  }
+};
+
+function isProviderQuotaFailure(failure: ProviderFailureSummary | null | undefined) {
+  if (!failure) return false;
+  const transport = failure.transport;
+  return (
+    failure.category === "quota" ||
+    transport.http_status === 429 ||
+    transport.typed_failure_reason === "openai_quota_exceeded" ||
+    transport.provider_error_code === "insufficient_quota"
+  );
+}
+
+function quotaFailureFromResult(result: {
+  agent_calls: Array<{ provider_failure?: ProviderFailureSummary | null } | null>;
+}) {
+  return result.agent_calls.find((call) => isProviderQuotaFailure(call?.provider_failure))?.provider_failure ?? null;
+}
 
 function buildQaRubric(input: {
   scenario: ProfileFormativeScenario;
@@ -377,20 +425,32 @@ function resultCategory(input: {
   failures: string[];
   profileFallbackUsed: boolean;
   formativeFallbackUsed: boolean;
+  providerQuotaBlocked: boolean;
+  providerRequestFailed: boolean;
+  validationFailed: boolean;
   profileRepairApplied: boolean;
   formativeCanonicalizationApplied: boolean;
   acceptedAllowedAlternative: boolean;
 }): TrialResultCategory {
-  if (input.failures.some((failure) => failure.includes("provider_request") || failure.includes("live_failed_or_invalid"))) {
+  if (input.providerQuotaBlocked) {
+    return "blocked_provider_quota";
+  }
+  if (input.providerRequestFailed) {
     return "failed_provider_request";
   }
   if (input.failures.some((failure) => failure.includes("provider_metadata") || failure.includes("token_usage"))) {
     return "failed_provider_request";
   }
-  if (input.profileFallbackUsed || input.formativeFallbackUsed || input.failures.some((failure) => failure.includes("fallback"))) {
+  if (input.validationFailed || input.failures.some((failure) => failure.includes("validation"))) {
+    return "failed_validation";
+  }
+  if (
+    input.profileFallbackUsed ||
+    input.formativeFallbackUsed ||
+    input.failures.some((failure) => failure.includes("fallback") || failure.includes("live_failed_or_invalid"))
+  ) {
     return "failed_fallback_used";
   }
-  if (input.failures.some((failure) => failure.includes("validation"))) return "failed_validation";
   if (input.failures.some((failure) => failure.includes("safety"))) return "failed_safety";
   if (input.failures.some((failure) => failure.includes("mismatch") || failure.includes("negative_control") || failure.includes("overconfident"))) {
     return "failed_outcome_mismatch";
@@ -405,9 +465,10 @@ async function runScenario(input: {
   scenario: ProfileFormativeScenario;
   live: boolean;
   dryRun: boolean;
+  simulateQuota: boolean;
   runArtifactDirName: string;
 }) {
-  const { scenario, live, dryRun, runArtifactDirName } = input;
+  const { scenario, live, dryRun, simulateQuota, runArtifactDirName } = input;
   const { profile_input, formative_input_from_profile } = buildScenarioInputs(scenario);
 
   if (dryRun) {
@@ -435,13 +496,62 @@ async function runScenario(input: {
 
   const profileResult = live
     ? await executeLiveProfileIntegrationAgent({ agent_input: profile_input })
-    : { status: "succeeded" as const, packet: await callProfileIntegrationAgent(profile_input), validation_issues: [] as [] };
+    : simulateQuota
+      ? {
+          status: "failed" as const,
+          fallback_packet: profile_input.source_packets ? await callProfileIntegrationAgent(profile_input) : await callProfileIntegrationAgent(profile_input),
+          validation_issues: [],
+          agent_call_id: null
+        }
+      : { status: "succeeded" as const, packet: await callProfileIntegrationAgent(profile_input), validation_issues: [] as [] };
   const profileCall = "agent_call_id" in profileResult
-    ? await agentCallSummary(profileResult.agent_call_id)
+    ? profileResult.agent_call_id
+      ? await agentCallSummary(profileResult.agent_call_id)
+      : {
+          agent_call_id: "simulated_quota_block",
+          agent_name: "profile_integration_agent",
+          schema_version: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION,
+          provider: "openai",
+          model_name: "gpt-5.4-mini",
+          call_status: "failed",
+          output_validated: false,
+          provider_metadata_present: true,
+          token_usage_present: false,
+          input_tokens: 0,
+          output_tokens: 0,
+          total_tokens: 0,
+          validation_error_present: true,
+          validation_error_category: "provider_failure",
+          validation_issue_count: 0,
+          validation_issue_codes: [],
+          provider_failure: QUOTA_FAILURE_SUMMARY,
+          request_shape: {
+            input_top_level_keys: Object.keys(profile_input).sort(),
+            input_top_level_key_count: Object.keys(profile_input).length,
+            schema_version: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION,
+            schema_name: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION
+          },
+          provider_categories: {
+            profile_integration_pattern: null,
+            student_facing_status: null,
+            formative_value: null
+          },
+          effective_categories: {
+            profile_integration_pattern: null,
+            student_facing_status: null,
+            formative_value: null
+          },
+          repair_attempt_call: false,
+          created_at: new Date().toISOString(),
+          completed_at: new Date().toISOString()
+        }
     : null;
   const failures: string[] = [];
+  let providerQuotaBlocked = isProviderQuotaFailure(profileCall?.provider_failure);
 
-  if (profileResult.status !== "succeeded") {
+  if (providerQuotaBlocked) {
+    failures.push("provider_quota_blocked");
+  } else if (profileResult.status !== "succeeded") {
     failures.push("profile_integration_live_failed_or_invalid");
   }
   const profileResultValidationIssues = "validation_issues" in profileResult
@@ -471,8 +581,13 @@ async function runScenario(input: {
       : null;
 
     if (formativeResult.status !== "succeeded") {
-      failures.push("formative_value_live_failed_or_invalid");
       formativePacket = formativeResult.fallback_packet;
+      if (isProviderQuotaFailure(formativeCall?.provider_failure)) {
+        providerQuotaBlocked = true;
+        failures.push("provider_quota_blocked");
+      } else {
+        failures.push("formative_value_live_failed_or_invalid");
+      }
     } else {
       formativePacket = applyScenarioChoice(formativeResult.packet, scenario);
     }
@@ -481,10 +596,10 @@ async function runScenario(input: {
     ? formativeResult.validation_issues
     : [];
 
-  if (live && profileResult.status !== "succeeded") {
+  if (live && profileResult.status !== "succeeded" && !providerQuotaBlocked) {
     failures.push("profile_fallback_not_live_success");
   }
-  if (live && formativeResult && formativeResult.status !== "succeeded") {
+  if (live && formativeResult && formativeResult.status !== "succeeded" && !providerQuotaBlocked) {
     failures.push("formative_fallback_not_live_success");
   }
   if (live && profileResult.status === "succeeded" && !profileCall?.provider_metadata_present) {
@@ -521,11 +636,13 @@ async function runScenario(input: {
     scenario.expected_allowed_outcomes?.formative_values
   );
 
-  if (!expectedProfiles.has(profilePacket.integration_pattern)) failures.push("profile_outcome_mismatch");
-  if (!expectedStatuses.has(profilePacket.student_facing_status)) failures.push("student_status_mismatch");
-  if (!expectedEngagement.has(profilePacket.engagement_context.engagement_category)) failures.push("engagement_outcome_mismatch");
-  if (!expectedAiSignals.has(profilePacket.engagement_context.ai_assistance_signal)) failures.push("ai_signal_mismatch");
-  if (formativePacket && !expectedValues.has(formativePacket.primary_value)) failures.push("formative_value_mismatch");
+  if (!providerQuotaBlocked) {
+    if (!expectedProfiles.has(profilePacket.integration_pattern)) failures.push("profile_outcome_mismatch");
+    if (!expectedStatuses.has(profilePacket.student_facing_status)) failures.push("student_status_mismatch");
+    if (!expectedEngagement.has(profilePacket.engagement_context.engagement_category)) failures.push("engagement_outcome_mismatch");
+    if (!expectedAiSignals.has(profilePacket.engagement_context.ai_assistance_signal)) failures.push("ai_signal_mismatch");
+    if (formativePacket && !expectedValues.has(formativePacket.primary_value)) failures.push("formative_value_mismatch");
+  }
   if (
     formativePacket &&
     scenario.scenario_id.includes("overconfident") &&
@@ -571,7 +688,8 @@ async function runScenario(input: {
   const profileRepairApplied = Boolean(profileCall?.repair_attempt_call);
   const formativeCanonicalizationApplied = Boolean(
     formativePacket?.rationale.limitations.some((limitation) =>
-      limitation.includes("primary_value_canonicalized_to_backend_confidence_calibration_precedence")
+      limitation.includes("primary_value_canonicalized_to_backend_") ||
+      limitation.includes("provider_internal_wording_sanitized_for_review")
     )
   );
   const profileCanonicalizationApplied =
@@ -586,8 +704,8 @@ async function runScenario(input: {
     ) &&
     !failures.some((failure) => failure.includes("mismatch"))
   );
-  const profileFallbackUsed = profileResult.status !== "succeeded";
-  const formativeFallbackUsed = Boolean(formativeResult && formativeResult.status !== "succeeded");
+  const profileFallbackUsed = profileResult.status !== "succeeded" && !providerQuotaBlocked;
+  const formativeFallbackUsed = Boolean(formativeResult && formativeResult.status !== "succeeded" && !providerQuotaBlocked);
   const providerMetadataPresent = live
     ? Boolean(profileCall?.provider_metadata_present) && (!formativeResult || Boolean(formativeCall?.provider_metadata_present))
     : true;
@@ -598,6 +716,9 @@ async function runScenario(input: {
     failures,
     profileFallbackUsed,
     formativeFallbackUsed,
+    providerQuotaBlocked,
+    providerRequestFailed: Boolean(profileCall?.provider_failure || formativeCall?.provider_failure),
+    validationFailed: profileResultValidationIssues.length > 0 || formativeResultValidationIssues.length > 0,
     profileRepairApplied,
     formativeCanonicalizationApplied,
     acceptedAllowedAlternative
@@ -637,6 +758,8 @@ async function runScenario(input: {
       effective_student_facing_status: profilePacket.student_facing_status,
       repair_applied: profileRepairApplied,
       fallback_used: profileFallbackUsed || formativeFallbackUsed,
+      provider_quota_blocked: providerQuotaBlocked,
+      model_quality_evaluable: !providerQuotaBlocked,
       passed_as: passedAs
     },
     agent_calls: {
@@ -714,6 +837,8 @@ async function runScenario(input: {
     variation_tags: scenario.variation_tags ?? [],
     passed: failures.length === 0,
     result_category: passedAs,
+    provider_quota_blocked: providerQuotaBlocked,
+    provider_failure: quotaFailureFromResult({ agent_calls: [profileCall, formativeCall].filter(Boolean) }),
     failures,
     artifact_path: artifactPath,
     actual: artifact.actual,
@@ -721,6 +846,117 @@ async function runScenario(input: {
     qa_rubric: artifact.qa_rubric,
     validation_issue_summary: artifact.validation_issue_summary,
     agent_calls: [profileCall, formativeCall].filter(Boolean)
+  };
+}
+
+async function buildQuotaSkippedResult(input: {
+  scenario: ProfileFormativeScenario;
+  runArtifactDirName: string;
+  providerFailure: ProviderFailureSummary;
+  blockedAfterScenarioId: string;
+}) {
+  const { scenario, runArtifactDirName, providerFailure, blockedAfterScenarioId } = input;
+  const failures = ["not_run_provider_quota_block"];
+  const artifact = {
+    artifact_type: "profile_formative_live_trial_record",
+    artifact_version: "profile-formative-live-trial-v1",
+    provider_request_made: false,
+    provider_blocked: true,
+    skipped_reason: "not_run_provider_quota_block",
+    blocked_after_scenario_id: blockedAfterScenarioId,
+    provider_failure: providerFailure,
+    scenario: safeScenarioDescription(scenario),
+    expected: {
+      profile_integration_pattern: scenario.target_profile_integration_pattern,
+      student_facing_status: scenario.target_student_facing_status,
+      engagement_category: scenario.target_engagement_category,
+      ai_assistance_signal: scenario.target_ai_assistance_signal,
+      formative_value: scenario.target_formative_value
+    },
+    actual: null,
+    provider_vs_effective_outcome: {
+      provider_profile_pattern: null,
+      effective_profile_pattern: null,
+      profile_canonicalization_applied: false,
+      provider_formative_value: null,
+      effective_formative_value: null,
+      formative_value_canonicalization_applied: false,
+      provider_student_facing_status: null,
+      effective_student_facing_status: null,
+      repair_applied: false,
+      fallback_used: false,
+      provider_quota_blocked: true,
+      model_quality_evaluable: false,
+      passed_as: "blocked_provider_quota"
+    },
+    agent_calls: {
+      profile_integration: null,
+      formative_value: null
+    },
+    provider_diagnostics: {
+      profile_integration: {
+        provider_failure: providerFailure
+      },
+      formative_value: null
+    },
+    validation: {
+      profile_valid: false,
+      profile_issues: [],
+      profile_result_status: "not_run_provider_quota_block",
+      profile_result_validation_issues: [],
+      formative_result_status: "not_run_provider_quota_block",
+      formative_result_validation_issues: [],
+      student_text_findings: []
+    },
+    transcript_safety_summary: {
+      scripted_responses_used: true,
+      raw_prompt_included: false,
+      raw_provider_output_included: false,
+      student_safe_profile_message_present: false,
+      formative_value_message_present: false
+    },
+    qa_rubric: buildQaRubric({
+      scenario,
+      failures,
+      profileGenerated: false,
+      formativeGenerated: false,
+      providerMetadataPresent: false,
+      tokenUsagePresent: false,
+      fallbackUsed: false
+    }),
+    fallback_or_repair: {
+      profile_fallback_used: false,
+      formative_fallback_used: false,
+      repair_detected: false,
+      canonicalization_detected: false
+    },
+    validation_issue_summary: {
+      profile_issue_count: 0,
+      formative_issue_count: 0,
+      profile_issue_codes: [],
+      formative_issue_codes: []
+    },
+    failures
+  };
+  const artifactPath = await writeJson(`${runArtifactDirName}/${scenario.scenario_id}.json`, artifact);
+
+  return {
+    scenario_id: scenario.scenario_id,
+    trial_variant: scenario.trial_variant ?? "core",
+    base_scenario_id: scenario.base_scenario_id ?? scenario.scenario_id,
+    variation_id: scenario.variation_id ?? null,
+    variation_tags: scenario.variation_tags ?? [],
+    passed: false,
+    result_category: "blocked_provider_quota" as const,
+    provider_quota_blocked: true,
+    provider_failure: providerFailure,
+    failures,
+    artifact_path: artifactPath,
+    actual: null,
+    provider_vs_effective_outcome: artifact.provider_vs_effective_outcome,
+    qa_rubric: artifact.qa_rubric,
+    validation_issue_summary: artifact.validation_issue_summary,
+    agent_calls: []
   };
 }
 
@@ -748,7 +984,9 @@ function selectedLiveScenarios() {
   return explicit.slice(0, max);
 }
 
-type LiveTrialResult = Awaited<ReturnType<typeof runScenario>>;
+type LiveTrialResult =
+  | Awaited<ReturnType<typeof runScenario>>
+  | Awaited<ReturnType<typeof buildQuotaSkippedResult>>;
 
 function coverageFromResults(results: LiveTrialResult[]) {
   return {
@@ -832,7 +1070,8 @@ function tokenUsageFromResults(results: LiveTrialResult[]) {
 async function main() {
   const dryRun = boolEnv("PROFILE_FORMATIVE_TRIAL_DRY_RUN");
   const noLive = boolEnv("PROFILE_FORMATIVE_TRIAL_NO_LIVE");
-  const live = !dryRun && !noLive;
+  const simulateQuota = boolEnv("PROFILE_FORMATIVE_TRIAL_SIMULATE_QUOTA");
+  const live = !dryRun && !noLive && !simulateQuota;
   const scenarios = selectedLiveScenarios();
   const budgetUsd = numberEnv("PROFILE_FORMATIVE_TRIAL_BUDGET_USD") ?? 10;
   const priceConfigured =
@@ -840,7 +1079,7 @@ async function main() {
     numberEnv("PROFILE_FORMATIVE_TRIAL_OUTPUT_PRICE_PER_MILLION_USD") !== null;
   const readiness = liveReadiness();
   const runTimestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const runModeLabel = live ? "live" : dryRun ? "dry-run" : "no-live";
+  const runModeLabel = simulateQuota ? "quota-sim" : live ? "live" : dryRun ? "dry-run" : "no-live";
   const runArtifactDirName = `run-${runTimestamp}-${runModeLabel}`;
   const runArtifactDir = path.join(artifactDir, runArtifactDirName);
 
@@ -853,6 +1092,7 @@ async function main() {
     live_mode: live,
     dry_run: dryRun,
     no_live: noLive,
+    simulated_quota: simulateQuota,
     selected_scenario_count: scenarios.length,
     scenario_ids: scenarios.map((scenario) => scenario.scenario_id),
     run_controls: {
@@ -893,8 +1133,33 @@ async function main() {
 
   const results: LiveTrialResult[] = [];
   let stoppedEarlyReason: string | null = null;
-  for (const scenario of scenarios) {
-    results.push(await runScenario({ scenario, live, dryRun, runArtifactDirName }));
+  let quotaBlock:
+    | {
+        first_scenario_id: string;
+        provider_failure: ProviderFailureSummary;
+        attempted_count: number;
+      }
+    | null = null;
+  for (const [index, scenario] of scenarios.entries()) {
+    const result = await runScenario({ scenario, live, dryRun, simulateQuota: simulateQuota && index === 0, runArtifactDirName });
+    results.push(result);
+    if (result.result_category === "blocked_provider_quota" && result.provider_failure) {
+      quotaBlock = {
+        first_scenario_id: result.scenario_id,
+        provider_failure: result.provider_failure,
+        attempted_count: index + 1
+      };
+      stoppedEarlyReason = "provider_quota_exhausted";
+      for (const skippedScenario of scenarios.slice(index + 1)) {
+        results.push(await buildQuotaSkippedResult({
+          scenario: skippedScenario,
+          runArtifactDirName,
+          providerFailure: result.provider_failure,
+          blockedAfterScenarioId: result.scenario_id
+        }));
+      }
+      break;
+    }
     if (live && priceConfigured) {
       const currentTokens = tokenUsageFromResults(results);
       const estimatedCost = estimateCostUsd({
@@ -936,6 +1201,7 @@ async function main() {
       "passed_after_repair",
       "passed_after_canonicalization",
       "accepted_allowed_alternative",
+      "blocked_provider_quota",
       "failed_validation",
       "failed_provider_request",
       "failed_outcome_mismatch",
@@ -950,16 +1216,42 @@ async function main() {
     artifact_type: "profile_formative_live_trial_error_analysis",
     artifact_version: "profile-formative-live-trial-error-analysis-v1",
     total_scenarios: scenarios.length,
-    live_scenarios_run: live ? results.length : 0,
-    live_variations_run: live ? variationCoverage.variations_run : 0,
+    live_scenarios_run: live || simulateQuota ? results.length : 0,
+    live_variations_run: live || simulateQuota ? variationCoverage.variations_run : 0,
     live_rerun_count: 0,
     stopped_early_reason: stoppedEarlyReason,
+    provider_blocked: Boolean(quotaBlock),
+    provider_failure: quotaBlock?.provider_failure
+      ? {
+          category: quotaBlock.provider_failure.category,
+          http_status: quotaBlock.provider_failure.transport.http_status,
+          typed_failure_reason: quotaBlock.provider_failure.transport.typed_failure_reason,
+          provider_error_code: quotaBlock.provider_failure.transport.provider_error_code
+        }
+      : null,
+    provider_quota_block: quotaBlock
+      ? {
+          first_scenario_id: quotaBlock.first_scenario_id,
+          provider_attempted_scenarios: quotaBlock.attempted_count,
+          scenarios_completed_before_block: quotaBlock.attempted_count - 1,
+          scenarios_skipped_after_block: Math.max(0, scenarios.length - quotaBlock.attempted_count),
+          usable_live_outputs: results.filter((result) =>
+            result.passed &&
+            !result.provider_quota_blocked &&
+            !result.failures.some((failure) => failure.includes("provider"))
+          ).length,
+          model_quality_evaluable: false,
+          final_live_qa_acceptance: false,
+          rerun_required_after_quota_restored: true
+        }
+      : null,
     failures_by_category: {
       outcome_mismatch: results.flatMap((result) => result.failures).filter((failure) => failure.includes("mismatch")).length,
       safety_violation: results.flatMap((result) => result.failures).filter((failure) => failure.includes("safety")).length,
       validator_failure: results.flatMap((result) => result.failures).filter((failure) => failure.includes("validation")).length,
       fallback_or_repair: results.flatMap((result) => result.failures).filter((failure) => failure.includes("fallback")).length,
-      provider_request: results.filter((result) => result.result_category === "failed_provider_request").length
+      provider_request: results.filter((result) => result.result_category === "failed_provider_request").length,
+      provider_quota_blocked: results.filter((result) => result.result_category === "blocked_provider_quota").length
     },
     result_category_counts: resultCategoryCounts,
     outcome_mismatch_counts: Object.fromEntries(
@@ -1019,7 +1311,9 @@ async function main() {
     },
     scenario_level_recommendations: failed.map((result) => ({
       scenario_id: result.scenario_id,
-      classification: result.agent_calls.some((call) => call?.provider_failure)
+      classification: result.result_category === "blocked_provider_quota"
+        ? "provider quota block"
+        : result.agent_calls.some((call) => call?.provider_failure)
         ? "provider request issue"
         : result.failures.some((failure) => failure.includes("validation"))
           ? "safety validator issue"
@@ -1036,11 +1330,41 @@ async function main() {
     errorAnalysis
   );
   const summary = {
-    status: failed.length === 0 && !stoppedEarlyReason ? "passed" : stoppedEarlyReason ? "partial" : "failed",
+    status: quotaBlock ? "blocked_provider_quota" : failed.length === 0 && !stoppedEarlyReason ? "passed" : stoppedEarlyReason ? "partial" : "failed",
     run_id: runArtifactDirName,
     scenario_count: scenarios.length,
-    live_scenarios_run: live ? results.length : 0,
-    live_variations_run: live ? variationCoverage.variations_run : 0,
+    live_scenarios_run: live || simulateQuota ? results.length : 0,
+    live_variations_run: live || simulateQuota ? variationCoverage.variations_run : 0,
+    provider_blocked: Boolean(quotaBlock),
+    provider_failure: quotaBlock?.provider_failure
+      ? {
+          category: quotaBlock.provider_failure.category,
+          http_status: quotaBlock.provider_failure.transport.http_status,
+          typed_failure_reason: quotaBlock.provider_failure.transport.typed_failure_reason,
+          provider_error_code: quotaBlock.provider_failure.transport.provider_error_code
+        }
+      : null,
+    provider_quota_block: quotaBlock
+      ? {
+          first_scenario_id: quotaBlock.first_scenario_id,
+          provider_attempted_scenarios: quotaBlock.attempted_count,
+          scenarios_completed_before_block: quotaBlock.attempted_count - 1,
+          scenarios_skipped_after_block: Math.max(0, scenarios.length - quotaBlock.attempted_count),
+          passed_before_block: results.filter((result, index) => index < quotaBlock.attempted_count - 1 && result.passed).length,
+          failed_before_block: results.filter((result, index) => index < quotaBlock.attempted_count - 1 && !result.passed).length,
+          usable_live_outputs: results.filter((result) =>
+            result.passed &&
+            !result.provider_quota_blocked &&
+            !result.failures.some((failure) => failure.includes("provider"))
+          ).length,
+          model_quality_evaluable: false,
+          final_live_qa_acceptance: false,
+          rerun_required_after_quota_restored: true
+        }
+      : null,
+    model_quality_evaluable: !quotaBlock,
+    final_live_qa_acceptance: !quotaBlock && failed.length === 0 && !stoppedEarlyReason,
+    rerun_required_after_quota_restored: Boolean(quotaBlock),
     live_rerun_count: 0,
     passed_count: results.filter((result) => result.passed).length,
     failed_count: failed.length,
@@ -1052,6 +1376,7 @@ async function main() {
     agent_call_statuses: results.map((result) => ({
       scenario_id: result.scenario_id,
       result_category: result.result_category,
+      provider_quota_blocked: result.provider_quota_blocked,
       agent_calls: result.agent_calls.map((call) => ({
         agent_name: call?.agent_name,
         call_status: call?.call_status,

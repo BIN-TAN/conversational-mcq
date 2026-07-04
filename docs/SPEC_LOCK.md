@@ -1418,6 +1418,21 @@ Phase 6A.5 must not implement:
   category, HTTP status/code when available, and typed transport reason, but
   never raw prompts, raw request payloads, raw response bodies, headers,
   credentials, or secrets.
+- The deterministic profile/formative trial reviewer must support
+  `--latest-run`, `--latest-full-run`, `--run-id`, and `--all-runs`.
+  `--latest-full-run` must select one retained run whose summary contains
+  exactly 35 live scenario records and must not stitch coverage from targeted
+  reruns, no-live artifacts, or historical failures. Historical aggregation is
+  allowed only through `--all-runs`.
+- OpenAI quota exhaustion in profile/formative live scenario QA must be
+  classified as `blocked_provider_quota` when the provider reports HTTP 429,
+  `insufficient_quota`, `openai_quota_exceeded`, or a sanitized quota category.
+  The runner must fail fast after a non-retryable quota block, write skipped
+  records for remaining planned scenarios as not-run because of provider quota,
+  and mark the run as not final live QA evidence. The reviewer must report
+  these under provider-blocking or infrastructure findings, not model-quality
+  profile/formative outcome mismatches. Safety findings remain reportable if
+  present.
 - Scenario QA is error-analysis evidence only. It is not classroom validity,
   does not implement activity planning, and does not authorize changes to item
   content, scoring, item administration, or teacher upload.

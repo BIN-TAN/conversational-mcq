@@ -90,11 +90,14 @@ Live result categories are:
 - `passed_after_repair`
 - `passed_after_canonicalization`
 - `accepted_allowed_alternative`
+- `blocked_provider_quota`
 - `failed_validation`
 - `failed_provider_request`
 - `failed_outcome_mismatch`
 - `failed_safety`
 - `failed_fallback_used`
+
+`blocked_provider_quota` is used only when the provider reports a non-retryable quota block such as HTTP 429 with `insufficient_quota` / `openai_quota_exceeded`. A quota-blocked scenario is infrastructure-blocked, not a profile or formative-value model-quality failure, because no valid provider output exists. When quota exhaustion is detected, the live runner stops immediately, writes skipped records for remaining planned scenarios as `not_run_provider_quota_block`, and marks the run `blocked_provider_quota`. Restore quota or billing before rerunning the full matrix.
 
 Each live run writes:
 
@@ -113,6 +116,7 @@ Run the no-live artifact reviewer with:
 ```bash
 npm run student:profile-formative-trial-review
 npm run student:profile-formative-trial-review -- --latest-run
+npm run student:profile-formative-trial-review -- --latest-full-run
 npm run student:profile-formative-trial-review -- --run-id <run-id>
 npm run student:profile-formative-trial-review -- --all-runs
 ```
@@ -123,7 +127,9 @@ By default this reviewer is deterministic and does not call OpenAI. It reads onl
 .data/profile-formative-trial-review/
 ```
 
-`--latest-run` reviews the latest retained live run plus current no-live smoke artifacts. `--run-id` reviews one retained run. `--all-runs` includes historical retained runs. An LLM-based offline reviewer is intentionally disabled unless a later phase explicitly implements and authorizes it.
+By default, the reviewer selects the latest retained live run when one exists and does not mix older retained failures into the current review. `--latest-run` reviews the latest retained live run. `--latest-full-run` reviews the latest retained live run whose summary records exactly 35 live scenarios and exactly 35 scenario IDs, so coverage is calculated within one full matrix run rather than stitched from targeted reruns or no-live artifacts. `--run-id` reviews one retained run. `--all-runs` is the only mode that includes historical retained runs. If no live run exists, the reviewer can fall back to current no-live smoke artifacts. An LLM-based offline reviewer is intentionally disabled unless a later phase explicitly implements and authorizes it.
+
+The reviewer separates quota-blocked and provider-blocked artifacts from model-quality findings. A quota-blocked run reports `provider_blocking_findings`, `final_live_qa_acceptance=false`, and `rerun_required_after_quota_restored=true`; it must not be used as final live QA evidence. Safety findings are still reported independently if any artifact contains a student-facing safety violation.
 
 ## Interpreting Mismatches
 

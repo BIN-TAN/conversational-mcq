@@ -355,7 +355,7 @@ npm run student:profile-formative-scenario-smoke
 npm run student:profile-formative-trial-review
 ```
 
-The scenario smoke is no-live and deterministic. It runs the synthetic profile/formative matrix across profile integration patterns, student-safe statuses, engagement categories, AI-assistance context signals, all five formative values, student choice states, and a targeted conversation/process variation layer. It writes redacted artifacts under `.data/profile-formative-scenario-smoke/`.
+The scenario smoke is no-live and deterministic. It runs the synthetic profile/formative matrix across profile integration patterns, student-safe statuses, engagement categories, AI-assistance context signals, all five formative values, student choice states, and a targeted conversation/process variation layer. It writes redacted artifacts under `.data/profile-formative-scenario-smoke/`. To review one retained full live matrix without stitching in old or no-live artifacts, run `npm run student:profile-formative-trial-review -- --latest-full-run`; use `--all-runs` only for historical comparison. If a live run is blocked by OpenAI quota, the reviewer reports provider-blocking findings instead of model-quality findings; restore quota or billing before rerunning the full matrix.
 
 Paid live scenario trials are intentionally separate:
 

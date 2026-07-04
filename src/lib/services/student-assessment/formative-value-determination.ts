@@ -736,9 +736,72 @@ function profilePacketFromFormativeInput(input: FormativeValueAgentInput) {
 
 function primaryValueForFormativeInput(input: FormativeValueAgentInput): FormativeValue {
   const profilePacket = profilePacketFromFormativeInput(input);
-  return input.source_profile_integration.ai_assistance_effect_on_interpretation === "contextualizes_reasoning_evidence"
-    ? "independent_understanding_verification"
-    : primaryValueForProfile(profilePacket);
+  const hasKnowledgeGapEvidence =
+    input.source_profile_integration.knowledge_gap_claim_strength !== "none" &&
+    input.source_profile_integration.knowledge_gap_claim_strength !== "insufficient_evidence";
+  const hasMisconceptionEvidence =
+    input.source_profile_integration.misconception_claim_strength !== "none" &&
+    input.source_profile_integration.misconception_claim_strength !== "insufficient_evidence";
+
+  if (input.source_profile_integration.ai_assistance_effect_on_interpretation === "contextualizes_reasoning_evidence") {
+    return "independent_understanding_verification";
+  }
+  if (input.source_profile_integration.integration_pattern !== "stable_understanding" && hasKnowledgeGapEvidence) {
+    return "diagnostic_clarification";
+  }
+  if (input.source_profile_integration.integration_pattern !== "stable_understanding" && hasMisconceptionEvidence) {
+    return input.source_profile_integration.ability_evidence_consistency === "consistent"
+      ? "diagnostic_clarification"
+      : "reasoning_refinement";
+  }
+  return primaryValueForProfile(profilePacket);
+}
+
+function sanitizeInternalFormativeSummaryText(text: string) {
+  return text
+    .replace(/\banswer key\b/gi, "internal scoring reference")
+    .replace(/\bcorrect option\b/gi, "target-aligned option")
+    .replace(/\bright answer\b/gi, "target-aligned answer")
+    .replace(/\bwrong answer\b/gi, "non-target-aligned answer")
+    .replace(/\bis correct\b/gi, "is target-aligned")
+    .replace(/\bis incorrect\b/gi, "is not target-aligned")
+    .replace(/\bcorrectness\b/gi, "response alignment");
+}
+
+function canonicalizeInternalFormativeText(
+  packet: FormativeValueDeterminationPacketV1
+): FormativeValueDeterminationPacketV1 {
+  const teacherResearchSummary = sanitizeInternalFormativeSummaryText(packet.rationale.teacher_research_summary);
+  const limitations = packet.rationale.limitations.map(sanitizeInternalFormativeSummaryText);
+  const secondaryConsiderations = packet.secondary_considerations.map((consideration) => ({
+    ...consideration,
+    label: sanitizeInternalFormativeSummaryText(consideration.label)
+  }));
+  const changed =
+    teacherResearchSummary !== packet.rationale.teacher_research_summary ||
+    limitations.some((limitation, index) => limitation !== packet.rationale.limitations[index]) ||
+    secondaryConsiderations.some((consideration, index) =>
+      consideration.label !== packet.secondary_considerations[index]?.label
+    );
+
+  if (!changed) {
+    return packet;
+  }
+
+  return {
+    ...packet,
+    rationale: {
+      ...packet.rationale,
+      teacher_research_summary: teacherResearchSummary,
+      limitations: [
+        ...new Set([
+          ...limitations,
+          "provider_internal_wording_sanitized_for_review"
+        ])
+      ]
+    },
+    secondary_considerations: secondaryConsiderations
+  };
 }
 
 function canonicalizeFormativeValueCandidate(
@@ -747,10 +810,11 @@ function canonicalizeFormativeValueCandidate(
 ): unknown {
   const parsed = FormativeValueDeterminationPacketV1Schema.safeParse(candidate);
   if (!parsed.success) return candidate;
+  const safetyCanonicalCandidate = canonicalizeInternalFormativeText(parsed.data);
 
   const expectedPrimary = primaryValueForFormativeInput(input);
-  if (parsed.data.primary_value === expectedPrimary) {
-    return candidate;
+  if (safetyCanonicalCandidate.primary_value === expectedPrimary) {
+    return safetyCanonicalCandidate;
   }
 
   const shouldCanonicalize =
@@ -760,7 +824,7 @@ function canonicalizeFormativeValueCandidate(
         "contextualizes_reasoning_evidence");
 
   if (!shouldCanonicalize) {
-    return candidate;
+    return safetyCanonicalCandidate;
   }
 
   const limitation =
@@ -768,7 +832,7 @@ function canonicalizeFormativeValueCandidate(
       ? "primary_value_canonicalized_to_backend_confidence_calibration_precedence"
       : "primary_value_canonicalized_to_backend_independent_verification_for_reliability_context";
   const canonical = deterministicFormativeValueOutput(input);
-  return {
+  return canonicalizeInternalFormativeText({
     ...canonical,
     rationale: {
       ...canonical.rationale,
@@ -779,7 +843,7 @@ function canonicalizeFormativeValueCandidate(
         ])
       ]
     }
-  };
+  });
 }
 
 function secondaryConsiderationsForProfile(

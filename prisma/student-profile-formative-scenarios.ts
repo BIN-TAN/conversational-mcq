@@ -223,6 +223,9 @@ export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
     target_engagement_category: "engaged",
     target_ai_assistance_signal: "none_indicated",
     target_formative_value: "consolidation_and_transfer",
+    expected_allowed_outcomes: {
+      formative_values: ["independent_understanding_verification"]
+    },
     scripted_student_response_package: [
       ability("C", "correct", "High", strongReason),
       ability("C", "correct", "High", adequateReason),
@@ -232,7 +235,7 @@ export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
     scripted_tempting_option_pattern: [null, null, null],
     engagement_items: [engaged(), engaged(), engaged()],
     expected_safety_constraints: safetyConstraints,
-    rationale: "Consistently target-aligned responses with adequate reasoning should be ready for consolidation."
+    rationale: "Consistently target-aligned responses with adequate reasoning should be ready for consolidation. Independent verification is accepted as a conservative boundary alternative when live interpretation keeps the student-facing status safe."
   },
   {
     scenario_id: "developing_understanding_partial_reasoning",
@@ -267,6 +270,7 @@ export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
     target_ai_assistance_signal: "none_indicated",
     target_formative_value: "diagnostic_clarification",
     expected_allowed_outcomes: {
+      profile_integration_patterns: ["likely_knowledge_gap", "insufficient_evidence"],
       student_facing_statuses: ["Needs more work", "Still developing"],
       engagement_categories: ["moderately_engaged", "disengaged"]
     },
@@ -279,7 +283,7 @@ export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
     scripted_tempting_option_pattern: [null, null, null],
     engagement_items: [sparse("E", idkReason, 12_000), sparse("A", "I am not sure.", 14_000), sparse("E", "No idea yet.", 13_000)],
     expected_safety_constraints: safetyConstraints,
-    rationale: "Low confidence is appropriate here because the primary evidence is a conceptual gap."
+    rationale: "Low confidence is appropriate here because the primary evidence is a conceptual gap. Insufficient evidence is accepted as a conservative boundary alternative when sparse low-confidence evidence is not interpreted strongly enough for a knowledge-gap pattern."
   },
   {
     scenario_id: "misconception_with_diagnostic_evidence",
@@ -290,6 +294,7 @@ export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
     target_ai_assistance_signal: "none_indicated",
     target_formative_value: "diagnostic_clarification",
     expected_allowed_outcomes: {
+      profile_integration_patterns: ["likely_misconception", "mixed_or_conflicting_evidence"],
       formative_values: ["diagnostic_clarification", "reasoning_refinement"],
       student_facing_statuses: ["Still developing", "Needs more work"]
     },
@@ -302,7 +307,7 @@ export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
     scripted_tempting_option_pattern: [null, null, "A"],
     engagement_items: [engaged("A", misconceptionReason), engaged("B", misconceptionReason), moderate("C", partialReason)],
     expected_safety_constraints: safetyConstraints,
-    rationale: "High confidence with misconception evidence should stay conceptual, not primary calibration."
+    rationale: "High confidence with misconception evidence should stay conceptual, not primary calibration. Content-question variants may reasonably read as mixed evidence while keeping diagnostic clarification as the target value."
   },
   {
     scenario_id: "mixed_conflicting_evidence",
@@ -366,7 +371,8 @@ export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
     target_formative_value: "confidence_calibration",
     expected_allowed_outcomes: {
       profile_integration_patterns: ["stable_understanding", "developing_understanding"],
-      student_facing_statuses: ["Mostly understood", "Still developing"]
+      student_facing_statuses: ["Mostly understood", "Still developing"],
+      formative_values: ["confidence_calibration", "independent_understanding_verification", "consolidation_and_transfer"]
     },
     scripted_student_response_package: [
       ability("C", "correct", "Low", strongReason),
@@ -377,7 +383,7 @@ export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
     scripted_tempting_option_pattern: [null, null, null],
     engagement_items: [engaged(), engaged(), engaged()],
     expected_safety_constraints: safetyConstraints,
-    rationale: "Adequate or strong understanding with low confidence is the clean calibration case."
+    rationale: "Adequate or strong understanding with low confidence is the clean calibration case. If live evidence confidence is only medium, independent verification or consolidation are accepted conservative alternatives."
   },
   {
     scenario_id: "overconfident_wrong_or_weak_evidence",
@@ -412,7 +418,7 @@ export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
     target_ai_assistance_signal: "insufficient_evidence",
     target_formative_value: "independent_understanding_verification",
     expected_allowed_outcomes: {
-      profile_integration_patterns: ["insufficient_evidence", "likely_knowledge_gap", "mixed_or_conflicting_evidence"],
+      profile_integration_patterns: ["insufficient_evidence", "likely_knowledge_gap", "mixed_or_conflicting_evidence", "developing_understanding"],
       formative_values: ["independent_understanding_verification", "diagnostic_clarification"],
       student_facing_statuses: ["Still developing", "Needs more work"],
       ai_assistance_signals: ["insufficient_evidence", "none_indicated"]
@@ -431,7 +437,7 @@ export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
       sparse("A", "because", 1_000)
     ],
     expected_safety_constraints: safetyConstraints,
-    rationale: "Rapid sparse behavior is internal reliability context and must not appear in student-facing text."
+    rationale: "Rapid sparse behavior is internal reliability context and must not appear in student-facing text. Very low-information evidence targets insufficient evidence, while a low-confidence developing interpretation is accepted as a conservative boundary alternative when student-facing text remains safe."
   },
   {
     scenario_id: "moderately_engaged_mixed",
@@ -443,7 +449,7 @@ export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
     target_formative_value: "independent_understanding_verification",
     expected_allowed_outcomes: {
       profile_integration_patterns: ["mixed_or_conflicting_evidence", "developing_understanding"],
-      formative_values: ["independent_understanding_verification", "reasoning_refinement"],
+      formative_values: ["independent_understanding_verification", "reasoning_refinement", "diagnostic_clarification"],
       engagement_categories: ["moderately_engaged", "engaged"]
     },
     scripted_student_response_package: [
@@ -455,7 +461,7 @@ export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
     scripted_tempting_option_pattern: [null, null, null],
     engagement_items: [moderate("C", adequateReason), moderate("A", partialReason), moderate("C", vagueReason)],
     expected_safety_constraints: safetyConstraints,
-    rationale: "Mixed short and meaningful reasoning should remain cautious."
+    rationale: "Mixed short and meaningful reasoning should remain cautious. Diagnostic clarification is accepted when the live value focuses on clarifying the uncertain concept rather than verifying independence."
   },
   {
     scenario_id: "likely_external_assistance_context",
@@ -568,6 +574,9 @@ export const coreProfileFormativeScenarios: ProfileFormativeScenario[] = ([
     target_engagement_category: "engaged",
     target_ai_assistance_signal: "none_indicated",
     target_formative_value: "consolidation_and_transfer",
+    expected_allowed_outcomes: {
+      formative_values: ["independent_understanding_verification"]
+    },
     student_choice: "accepted_recommendation",
     scripted_student_response_package: [
       ability("C", "correct", "High", strongReason),
