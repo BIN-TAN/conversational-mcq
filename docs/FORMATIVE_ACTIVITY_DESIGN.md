@@ -38,6 +38,9 @@ The first turn must:
 - connect to a safe summary of the student's prior response package;
 - use distractor contrast when relevant;
 - avoid generic "good job" or "review the concept" feedback;
+- avoid template-spliced field phrasing such as repeated "Your responses" clauses or internal summary labels;
+- avoid internal labels such as ability evidence, ability packet, profile integration, formative value packet, engagement category, AI-assistance signal, and process data;
+- use family-specific wording rather than one shared template for every activity family;
 - end with exactly one clear student action prompt;
 - avoid answer keys, correctness labels, raw distractor metadata, raw misconception IDs, raw process payloads, and internal labels.
 
@@ -69,6 +72,8 @@ The validator rejects student-facing output containing:
 - cheating, misconduct, integrity, authenticity, suspicious, low-engagement, disengaged, or low-participation language;
 - activity-planning leakage that creates a scored item;
 - unstructured wall-of-text output with no next student action.
+
+The validator also rejects broken concept-focus instructions such as "Focus on..." embedded inside an explanation, impersonal student-facing wording such as "the student appears", fake distractor contrast that relies only on generic surface-clue language, and distractor-focused families that have no meaningful distractor role or safe contrast description.
 
 Review artifacts are written under `.data/formative-activity-review/` and are redacted. They include safe packet metadata, activity family, formative value, safe profile status, safe distractor role, first-turn text only if validation passes, quality issues, safety checklist, and limitations.
 

@@ -1486,6 +1486,15 @@ Phase 6A.5 must not implement:
   prior response package through safe summaries, use distractor contrast when
   relevant, allow a longer explanation, and end with exactly one student action
   prompt. It must not generate a new scored item.
+- First-turn text must be natural student-facing prose, not a splice of
+  upstream field summaries. It must reject template artifacts, broken
+  imperative concept-focus phrases, internal evidence labels, impersonal
+  wording such as "the student appears", and fake distractor contrast.
+- Each activity family must have distinct first-turn wording and content. A
+  distractor-focused family must have a non-`none` distractor role, a
+  meaningful student-safe contrast description, and a hidden-assumption or
+  concept-boundary contrast. Generic "surface clue" language alone is not
+  sufficient.
 - The dialogue protocol must allow continuing the activity, choosing another
   activity, or moving on. Ability evidence, engagement evidence, profile
   integration, and formative value updates require a student response to the

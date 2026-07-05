@@ -76,6 +76,9 @@ export function buildSyntheticProfileIntegrationPacket(input: {
   status?: StudentSafeStatus;
   status_confidence?: StatusConfidence;
   evidence_consistency?: ProfileIntegrationInterpretationPacketV1["ability_interpretation"]["evidence_consistency"];
+  knowledge_focus?: string;
+  student_message?: string;
+  ability_summary?: string;
   confidence_summary?: string;
   misconception_strength?: ProfileIntegrationInterpretationPacketV1["ability_interpretation"]["misconception_claim_strength"];
   knowledge_gap_strength?: ProfileIntegrationInterpretationPacketV1["ability_interpretation"]["knowledge_gap_claim_strength"];
@@ -112,7 +115,8 @@ export function buildSyntheticProfileIntegrationPacket(input: {
     integration_pattern: input.pattern,
     ability_interpretation: {
       summary:
-        "The current evidence concerns the distinction between a student's estimated ability and item parameter information.",
+        input.ability_summary ??
+        "The student's explanation is about the distinction between a person's estimated ability and item parameter information.",
       evidence_consistency:
         input.evidence_consistency ??
         (input.pattern === "stable_understanding" ? "consistent" : "mixed"),
@@ -124,7 +128,7 @@ export function buildSyntheticProfileIntegrationPacket(input: {
       knowledge_gap_claim_strength: knowledgeGapStrength,
       confidence_calibration_summary:
         input.confidence_summary ??
-        "Confidence evidence should be connected to the reasoning evidence in a cautious way.",
+        "Confidence can be checked against the explanation the student gives.",
       limitations: input.reliability_limited ? ["synthetic_reliability_limited_context"] : ["synthetic_fixture"]
     },
     engagement_context: {
@@ -148,8 +152,12 @@ export function buildSyntheticProfileIntegrationPacket(input: {
     uncertainty_and_limitations: ["synthetic_no_live_fixture"],
     student_safe_message: {
       status,
-      message: "Your responses show a current pattern that can be strengthened with a focused explanation.",
-      knowledge_focus: "the distinction between theta as a student ability estimate and item parameters"
+      message:
+        input.student_message ??
+        "Your answers suggest this idea is still forming and can be strengthened with a focused explanation.",
+      knowledge_focus:
+        input.knowledge_focus ??
+        "the distinction between theta as a student ability estimate and item parameters"
     },
     teacher_research_summary: {
       safe_internal_summary: "Synthetic profile integration summary for formative activity design.",
@@ -256,6 +264,9 @@ export function buildSyntheticActivitySourcePackets(input: {
   session_public_id?: string;
   status?: StudentSafeStatus;
   status_confidence?: StatusConfidence;
+  knowledge_focus?: string;
+  student_message?: string;
+  ability_summary?: string;
   confidence_summary?: string;
   reliability_limited?: boolean;
   ai_assistance_context?: boolean;
@@ -267,6 +278,9 @@ export function buildSyntheticActivitySourcePackets(input: {
     session_public_id: input.session_public_id,
     status: input.status,
     status_confidence: input.status_confidence,
+    knowledge_focus: input.knowledge_focus,
+    student_message: input.student_message,
+    ability_summary: input.ability_summary,
     confidence_summary: input.confidence_summary,
     reliability_limited: input.reliability_limited,
     ai_assistance_context: input.ai_assistance_context
