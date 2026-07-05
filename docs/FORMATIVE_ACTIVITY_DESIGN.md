@@ -1,6 +1,6 @@
 # Formative Activity Design
 
-Phase 29a adds the no-live design layer for the formative activity that follows profile integration and formative value determination. It defines the schema, activity taxonomy, dialogue protocol, review-only deterministic packet builder, validators, redacted review artifacts, and smoke tests. It does not call a live provider, render a browser UI, execute a full runtime activity, or update the profile after the activity.
+Phase 29a added the no-live design layer for the formative activity that follows profile integration and formative value determination. Phase 29b adds a live-capable first-turn generation and quality-review path for controlled smoke testing. It still does not render a browser UI, execute a full runtime activity, or update the profile after the activity.
 
 ## Scope
 
@@ -14,7 +14,7 @@ The activity packet uses:
 - safe distractor summaries
 - internal engagement context only as reliability context
 
-The Phase 29a output schema is `student-formative-activity-v1`, and the future live agent name is `formative_activity_dialogue_agent`.
+The output schema is `student-formative-activity-v1`. The live generator agent name is `formative_activity_dialogue_agent`, and the quality reviewer agent name is `formative_activity_quality_reviewer_agent`.
 
 ## Review-Only Generation Boundary
 
@@ -41,9 +41,39 @@ review_only = false
 ```
 
 The runtime helper `assertFormativeActivityPacketIsNotReviewOnlyForRuntime`
-rejects deterministic review packets. Future provider failure must fail closed
-or offer a safe student choice/move-on path; it must not silently serve
+rejects deterministic review packets. Provider failure must fail closed or
+offer a safe student choice/move-on path; it must not silently serve
 deterministic templates as a fallback.
+
+## Live Generator and Quality Review
+
+Phase 29b adds a controlled live-capable pipeline for first-turn generation:
+
+1. `formative_activity_dialogue_agent` generates a `student-formative-activity-v1` packet.
+2. Deterministic schema, privacy, and safety validators run before acceptance.
+3. `formative_activity_quality_reviewer_agent` reviews the packet using schema `formative-activity-quality-review-v1`.
+4. The reviewer may return `pass`, `repair_needed`, or `fail_closed`.
+5. A single bounded repair attempt is allowed only for safe text-quality issues.
+6. Deterministic validators run again after repair.
+7. The packet is accepted only if all hard gates pass.
+
+Reviewer approval never overrides deterministic hard gates. Protected leakage,
+wrong source metadata, missing provider/audit metadata, missing token usage,
+provider failure, quota failure, repeated timeout, and severe schema mismatch
+fail closed. Deterministic review packets remain invalid for runtime student
+serving.
+
+The live smoke is opt-in:
+
+```bash
+RUN_LIVE_FORMATIVE_ACTIVITY_SMOKE=1 npm run student:formative-activity-live-smoke
+```
+
+By default, `npm run student:formative-activity-live-smoke` skips without
+making a provider call. When enabled, it covers all six activity families and
+writes redacted summaries under `.data/formative-activity-live-smoke/`. The
+optional `FORMATIVE_ACTIVITY_SMOKE_FAMILIES` comma-separated variable can limit
+the family set for local diagnostics.
 
 ## Activity Families
 
@@ -152,7 +182,7 @@ npm run student:formative-activity-review -- --session-public-id sess_20260701_v
 
 ## Future Phases
 
-Phase 29b may add live activity-agent smoke testing. Phase 29c may add post-activity evidence, profile integration, and formative value updates after the student responds. Phase 29d may add the student UI dialogue. These are intentionally outside Phase 29a.
+Phase 29c may add post-activity evidence, profile integration, and formative value updates after the student responds. Phase 29d may add the student UI dialogue. Runtime execution and browser display remain outside Phase 29b.
 
 ## Research-Facing Rationale
 

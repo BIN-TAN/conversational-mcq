@@ -369,6 +369,23 @@ npm run student:formative-activity-review -- --session-public-id <session_public
 
 The command writes redacted activity review artifacts under `.data/formative-activity-review/` and prints the selected formative value, activity family, student-safe profile status, distractor role, generation source, quality result, safety result, and limitations. These artifacts are QA review material only. Future production activity dialogue must come from `formative_activity_dialogue_agent` live output marked `generation_source=live_llm`, `runtime_servable_to_student=true`, and `review_only=false`; provider failure must fail closed or offer a safe choice/move-on path rather than silently serving deterministic templates. See `docs/FORMATIVE_ACTIVITY_DESIGN.md`.
 
+Formative activity live generator smoke:
+
+```bash
+npm run student:formative-activity-live-smoke
+RUN_LIVE_FORMATIVE_ACTIVITY_SMOKE=1 npm run student:formative-activity-live-smoke
+```
+
+The default command skips and makes no provider call. With
+`RUN_LIVE_FORMATIVE_ACTIVITY_SMOKE=1`, the command is paid-live and runs the
+`formative_activity_dialogue_agent` plus
+`formative_activity_quality_reviewer_agent` over the six activity families. The
+pipeline applies deterministic schema/privacy/safety hard gates, allows at most
+one safe text-quality repair attempt, requires provider metadata and token
+usage, and writes redacted summaries under `.data/formative-activity-live-smoke/`.
+It does not render a browser UI, execute runtime activity dialogue, update
+profiles, or treat deterministic review templates as live success.
+
 Profile/formative scenario QA:
 
 ```bash

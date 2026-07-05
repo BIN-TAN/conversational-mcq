@@ -1542,3 +1542,35 @@ Phase 6A.5 must not implement:
   are no-live commands. They write redacted artifacts under
   `.data/formative-activity-review/` and must not create `agent_calls` rows or
   call OpenAI.
+
+## Phase 29b Live Formative Activity Review Lock
+
+- Phase 29b adds a live-capable formative activity first-turn generator and
+  quality-review pipeline for controlled smoke testing only. It must not render
+  a browser UI, execute runtime multi-turn activity, update profiles after the
+  activity, alter item content, change scoring, or wire the activity into
+  production student workflow.
+- The production-shaped packet must use
+  `agent_name=formative_activity_dialogue_agent`,
+  `generation_source=live_llm`, `runtime_servable_to_student=true`, and
+  `review_only=false`.
+- The quality reviewer agent is
+  `formative_activity_quality_reviewer_agent` with schema
+  `formative-activity-quality-review-v1`. Reviewer statuses are `pass`,
+  `repair_needed`, and `fail_closed`. Reviewer output is advisory for quality
+  only and cannot override deterministic hard gates.
+- The live pipeline order is generator output, deterministic schema/privacy/
+  safety validation, quality review, optional single safe repair, and final
+  deterministic validation. Accepted output requires provider metadata, token
+  usage, agent-call audit metadata, safe source flags, schema validity, safety
+  validity, and runtime guard success.
+- Repair is bounded to one attempt and may address only safe text-quality
+  issues. It must not repair protected leaks, missing provider metadata,
+  missing token usage, wrong generation source flags, quota failures, provider
+  failures, or severe schema mismatch.
+- Deterministic review templates remain review-only and must not be served to
+  students as fallback activity content. Provider failure must fail closed or
+  offer a safe student choice or move-on path in a future runtime phase.
+- `student:formative-activity-live-smoke` must skip by default. Paid provider
+  dispatch requires `RUN_LIVE_FORMATIVE_ACTIVITY_SMOKE=1` and live LLM
+  readiness. Normal tests must not call OpenAI.

@@ -9,6 +9,12 @@ import {
   writeRedactedFormativeActivityReviewArtifact,
   type FormativeActivityPacketV1
 } from "../src/lib/services/student-assessment/formative-activity-design";
+import {
+  evaluateFormativeActivityLivePipeline,
+  makeFormativeActivityAuditForTest,
+  makeLiveActivityPacketForTest,
+  makePassingActivityQualityReviewForTest
+} from "../src/lib/services/student-assessment/formative-activity-live";
 import { prisma } from "../src/lib/db";
 import { buildSyntheticActivitySourcePackets } from "./student-formative-activity-fixtures";
 import { assert } from "./student-mvp-smoke-helpers";
@@ -115,6 +121,26 @@ function assertRuntimeGuardAllowsFutureLivePacket(packet: FormativeActivityPacke
     "Future live-shaped activity packet should remain structurally valid when safety checks pass."
   );
   assertFormativeActivityPacketIsNotReviewOnlyForRuntime(futureLivePacket);
+}
+
+function assertPipelineRejectedFor(
+  packet: FormativeActivityPacketV1,
+  expectedRuleOrLabel: string,
+  message: string
+) {
+  const result = evaluateFormativeActivityLivePipeline({
+    candidate_packet: packet,
+    generator_audit: makeFormativeActivityAuditForTest(),
+    reviewer_output: makePassingActivityQualityReviewForTest(),
+    reviewer_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(result.status === "rejected", `${message}: live pipeline should reject the packet.`);
+  assert(
+    result.issues.some((issue) =>
+      issue.rule_code === expectedRuleOrLabel || issue.blocked_pattern_label === expectedRuleOrLabel
+    ),
+    `${message}: expected ${expectedRuleOrLabel}, got ${JSON.stringify(result.issues)}`
+  );
 }
 
 async function main() {
@@ -366,6 +392,154 @@ async function main() {
     "Deterministic activity output must not be student runtime constant should be true."
   );
   assertRuntimeGuardAllowsFutureLivePacket(diagnosticMisconception);
+
+  const liveDiagnosticMisconception = makeLiveActivityPacketForTest(diagnosticMisconception);
+  const acceptedLivePipeline = evaluateFormativeActivityLivePipeline({
+    candidate_packet: liveDiagnosticMisconception,
+    generator_audit: makeFormativeActivityAuditForTest(),
+    reviewer_output: makePassingActivityQualityReviewForTest(),
+    reviewer_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    acceptedLivePipeline.status === "accepted",
+    `Valid live_llm activity packet should pass live hard gates: ${JSON.stringify(acceptedLivePipeline)}`
+  );
+
+  const repairNeededReview = makePassingActivityQualityReviewForTest({
+    review_status: "repair_needed",
+    quality_score: "weak",
+    student_specificity: "weak",
+    conceptual_depth: "weak",
+    issues: [{
+      field_path: "first_turn.message",
+      rule_code: "needs_more_specificity",
+      severity: "major",
+      safe_summary: "The first turn should be more specific to the current concept focus."
+    }],
+    repair_instructions: ["Make the first turn more specific to the concept and keep one final prompt."]
+  });
+  const repairedLivePipeline = evaluateFormativeActivityLivePipeline({
+    candidate_packet: liveDiagnosticMisconception,
+    generator_audit: makeFormativeActivityAuditForTest(),
+    reviewer_output: repairNeededReview,
+    reviewer_audit: makeFormativeActivityAuditForTest(),
+    repair_packet: liveDiagnosticMisconception,
+    repair_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    repairedLivePipeline.status === "accepted" && repairedLivePipeline.repair_attempted,
+    `Reviewer repair_needed + valid repair should pass exactly once: ${JSON.stringify(repairedLivePipeline)}`
+  );
+
+  const failClosedReview = makePassingActivityQualityReviewForTest({
+    review_status: "fail_closed",
+    quality_score: "unsafe",
+    student_safety_risk: "high",
+    issues: [{
+      field_path: "first_turn.message",
+      rule_code: "unsafe_student_facing_text",
+      severity: "critical",
+      safe_summary: "The output is unsafe for student display."
+    }]
+  });
+  const failClosedPipeline = evaluateFormativeActivityLivePipeline({
+    candidate_packet: liveDiagnosticMisconception,
+    generator_audit: makeFormativeActivityAuditForTest(),
+    reviewer_output: failClosedReview,
+    reviewer_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    failClosedPipeline.status === "rejected" &&
+      failClosedPipeline.issues.some((issue) => issue.rule_code === "reviewer_fail_closed"),
+    "Reviewer fail_closed must reject the activity packet."
+  );
+
+  const invalidLiveButReviewerPass = makeLiveActivityPacketForTest(
+    unsafeFirstTurn(
+      diagnosticMisconception,
+      "A tempting option can feel reasonable because it has a surface clue. Can you continue?"
+    )
+  );
+  const invalidOverrideAttempt = evaluateFormativeActivityLivePipeline({
+    candidate_packet: invalidLiveButReviewerPass,
+    generator_audit: makeFormativeActivityAuditForTest(),
+    reviewer_output: makePassingActivityQualityReviewForTest(),
+    reviewer_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    invalidOverrideAttempt.status === "rejected" &&
+      invalidOverrideAttempt.issues.some((issue) => issue.blocked_pattern_label === "fake_distractor_contrast"),
+    "Reviewer pass must not override deterministic validator failure."
+  );
+
+  const missingTokenAudit = makeFormativeActivityAuditForTest({
+    input_tokens: undefined,
+    output_tokens: undefined,
+    total_tokens: undefined
+  });
+  const missingTokenPipeline = evaluateFormativeActivityLivePipeline({
+    candidate_packet: liveDiagnosticMisconception,
+    generator_audit: missingTokenAudit,
+    reviewer_output: makePassingActivityQualityReviewForTest(),
+    reviewer_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    missingTokenPipeline.status === "rejected" &&
+      missingTokenPipeline.issues.some((issue) => issue.rule_code === "missing_token_usage"),
+    "Missing token usage must reject live activity success."
+  );
+
+  const missingProviderMetadataPipeline = evaluateFormativeActivityLivePipeline({
+    candidate_packet: liveDiagnosticMisconception,
+    generator_audit: makeFormativeActivityAuditForTest({
+      provider_request_id: undefined,
+      provider_response_id: undefined
+    }),
+    reviewer_output: makePassingActivityQualityReviewForTest(),
+    reviewer_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    missingProviderMetadataPipeline.status === "rejected" &&
+      missingProviderMetadataPipeline.issues.some((issue) => issue.rule_code === "missing_provider_metadata"),
+    "Missing provider request/response metadata must reject live activity success."
+  );
+
+  const missingAuditMetadataPipeline = evaluateFormativeActivityLivePipeline({
+    candidate_packet: liveDiagnosticMisconception,
+    generator_audit: makeFormativeActivityAuditForTest({
+      agent_call_id: undefined,
+      client_request_id: undefined
+    }),
+    reviewer_output: makePassingActivityQualityReviewForTest(),
+    reviewer_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    missingAuditMetadataPipeline.status === "rejected" &&
+      missingAuditMetadataPipeline.issues.some((issue) => issue.rule_code === "missing_audit_metadata"),
+    "Missing agent-call/client audit metadata must reject live activity success."
+  );
+
+  assertPipelineRejectedFor(
+    makeLiveActivityPacketForTest(unsafeFirstTurn(diagnosticGap, "Good job. Can you review the concept?")),
+    "generic_feedback",
+    "Generic activity text"
+  );
+  assertPipelineRejectedFor(
+    makeLiveActivityPacketForTest(unsafeFirstTurn(diagnosticGap, "The answer key says A is correct. Can you continue?")),
+    "answer_key_leak_detected",
+    "Answer-key leakage"
+  );
+  assertPipelineRejectedFor(
+    makeLiveActivityPacketForTest(unsafeFirstTurn(diagnosticGap, "The engagement category and AI assistance signal explain this. Can you continue?")),
+    "engagement_or_ai_label_exposed",
+    "Engagement or AI label leakage"
+  );
+  assertPipelineRejectedFor(
+    makeLiveActivityPacketForTest(unsafeFirstTurn(diagnosticMisconception, "A tempting option can feel reasonable because it has a surface clue. Can you continue?")),
+    "fake_distractor_contrast",
+    "Weak distractor contrast"
+  );
+
   assert(
     new Set([
       diagnosticGap.first_turn.message,
@@ -555,7 +729,7 @@ async function main() {
 
   console.log(JSON.stringify({
     status: "passed",
-    cases_checked: 55,
+    cases_checked: 70,
     example_activity_family: diagnosticMisconception.activity_family,
     redacted_activity_artifact_path: artifactPath,
     openai_calls_made: false,

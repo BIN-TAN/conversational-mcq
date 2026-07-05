@@ -405,7 +405,7 @@ The live smoke should not run in ordinary local verification or CI. The default 
 
 ## Formative Activity Design Readiness
 
-Phase 29a adds a no-live formative activity design layer after profile integration and formative value determination. It creates `student-formative-activity-v1` packets for future dialogue review, but it does not call a live activity agent, render the activity in the browser, execute the full activity loop, or update profile/formative value after a student response. Deterministic Phase 29a packets are marked `generation_source=deterministic_review`, `runtime_servable_to_student=false`, and `review_only=true`; they are not production student-facing activity output.
+Phase 29a adds a no-live formative activity design layer after profile integration and formative value determination. Phase 29b adds a live-capable first-turn generator and quality-review smoke path. These phases still do not render the activity in the browser, execute the full activity loop, or update profile/formative value after a student response. Deterministic Phase 29a packets are marked `generation_source=deterministic_review`, `runtime_servable_to_student=false`, and `review_only=true`; they are not production student-facing activity output. Live Phase 29b packets must be marked `generation_source=live_llm`, `runtime_servable_to_student=true`, and `review_only=false`.
 
 Use:
 
@@ -413,9 +413,18 @@ Use:
 npm run student:formative-activity-smoke
 npm run student:formative-activity-review
 npm run student:formative-activity-review -- --session-public-id <session_public_id>
+npm run student:formative-activity-live-smoke
 ```
 
 The review command writes redacted artifacts under `.data/formative-activity-review/`. A valid packet includes the selected formative value, activity family, complete-explanation-plus-dialogue protocol, safe first turn, expected student action, distractor-use policy, and an evidence-update plan that requires a later student response. The command also writes a human-readable first-turn sample artifact covering all six activity families and the current real-session review target when available. The artifact quality scan should report `forbidden_hit_count = 0`, non-null student-safe profile status for every sample, concrete distractor descriptions for distractor-using samples, no colon-splice patterns, no internal labels, no fake distractor contrast, and review-only generation flags. Deterministic fallback or no-live packet generation must not be counted as live activity success. Future production activity output must come from `formative_activity_dialogue_agent` live output marked `generation_source=live_llm`; provider failure must fail closed or offer a safe choice/move-on path rather than silently serving deterministic templates.
+
+The live activity smoke skips by default and makes no provider call unless
+`RUN_LIVE_FORMATIVE_ACTIVITY_SMOKE=1` is set. When enabled, it calls the live
+generator and `formative_activity_quality_reviewer_agent`, applies
+deterministic hard gates before and after review or a single repair attempt,
+requires provider metadata and token usage, and writes redacted summaries under
+`.data/formative-activity-live-smoke/`. A deterministic packet or deterministic
+fallback must not count as live activity success.
 
 ## One-Click Local Launcher
 
