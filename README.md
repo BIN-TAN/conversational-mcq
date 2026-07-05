@@ -179,6 +179,10 @@ npm run student:engagement-evidence-review
 npm run student:profile-integration-smoke
 npm run student:profile-integration-review
 npm run student:profile-integration-live-smoke
+npm run student:formative-value-smoke
+npm run student:formative-value-review
+npm run student:formative-activity-smoke
+npm run student:formative-activity-review
 npm run student:targeted-feedback-smoke
 npm run student:transfer-item-smoke
 npm run student:mvp-e2e-smoke
@@ -347,6 +351,23 @@ RUN_LIVE_FORMATIVE_VALUE_SMOKE=1 npm run student:formative-value-live-smoke
 ```
 
 The live path may use `OPENAI_MODEL_PROFILE_INTEGRATION`, falling back to `OPENAI_MODEL_PLANNING` or `OPENAI_MODEL_FOLLOWUP`. It validates the provider output against `formative-value-determination-v1`, stores `agent_calls` audit metadata for `formative_value_determination_agent`, and fails closed with sanitized diagnostics under `.data/formative-value-live-smoke/failures/` if the provider call or output validation fails. The default command makes no provider call.
+
+Formative activity design packet verification:
+
+```bash
+npm run student:formative-activity-smoke
+```
+
+This Phase 29a no-live smoke builds `student-formative-activity-v1` packets from profile integration and formative value packets. It verifies activity-family mapping, long specific first-turn requirements, dialogue protocol fields, distractor-use policy, student-choice policy, evidence-update gating, redacted artifacts, and safety rejection rules. It does not call OpenAI, does not implement browser UI, does not execute a runtime activity, and does not update profiles.
+
+Formative activity review artifact generation:
+
+```bash
+npm run student:formative-activity-review
+npm run student:formative-activity-review -- --session-public-id <session_public_id>
+```
+
+The command writes redacted activity review artifacts under `.data/formative-activity-review/` and prints the selected formative value, activity family, student-safe profile status, distractor role, quality result, safety result, and limitations. See `docs/FORMATIVE_ACTIVITY_DESIGN.md`.
 
 Profile/formative scenario QA:
 

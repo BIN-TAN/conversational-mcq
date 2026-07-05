@@ -1454,3 +1454,49 @@ Phase 6A.5 must not implement:
 - Scenario QA is error-analysis evidence only. It is not classroom validity,
   does not implement activity planning, and does not authorize changes to item
   content, scoring, item administration, or teacher upload.
+
+## Phase 29a Formative Activity Design Lock
+
+- Phase 29a defines the formative activity design layer only. It adds
+  `student-formative-activity-v1` and the future agent name
+  `formative_activity_dialogue_agent`, but it must not dispatch live activity
+  provider calls, render a browser activity UI, execute the full runtime
+  activity loop, or update profiles after the activity in production runtime.
+- The formative activity layer is distinct from formative value determination.
+  Formative value chooses the broad purpose; the activity implements that
+  purpose through a complete explanation plus multi-turn dialogue.
+- Allowed activity families are `basic_concept_grounding`,
+  `distractor_contrast`, `reasoning_chain_repair`,
+  `independent_reconstruction`, `confidence_evidence_audit`, and
+  `transfer_and_distractor_generation`. The only activity mode in Phase 29a is
+  `complete_explanation_plus_dialogue`.
+- Deterministic mapping must use profile integration and formative value
+  evidence. Likely knowledge gaps generally map to basic concept grounding,
+  likely misconceptions or selected/tempting diagnostic alternatives map to
+  distractor contrast, developing reasoning maps to reasoning-chain repair,
+  mixed/insufficient/reliability-limited evidence maps to independent
+  reconstruction, adequate-understanding confidence mismatch maps to confidence
+  evidence audit, and stable understanding maps to transfer and distractor
+  generation.
+- Distractors are diagnostic reasoning paths. Student-facing wording may refer
+  to a tempting option or alternative reasoning path, but must not expose answer
+  keys, correct options, correctness labels, raw distractor metadata, or raw
+  misconception identifiers.
+- The first turn must be specific, include concept explanation, connect to the
+  prior response package through safe summaries, use distractor contrast when
+  relevant, allow a longer explanation, and end with exactly one student action
+  prompt. It must not generate a new scored item.
+- The dialogue protocol must allow continuing the activity, choosing another
+  activity, or moving on. Ability evidence, engagement evidence, profile
+  integration, and formative value updates require a student response to the
+  activity and remain not implemented in production runtime in Phase 29a.
+- Student-facing activity text must reject answer-key language, correct-option
+  and correctness labels, distractor metadata labels, raw misconception IDs,
+  raw reasoning/process/provider labels, API keys, headers, secrets, engagement
+  category, AI-assistance signal, cheating/misconduct/integrity/authenticity
+  language, low-engagement/disengaged/low-participation wording, new scored-item
+  generation, and wall-of-text output with no next action.
+- `student:formative-activity-smoke` and `student:formative-activity-review`
+  are no-live commands. They write redacted artifacts under
+  `.data/formative-activity-review/` and must not create `agent_calls` rows or
+  call OpenAI.

@@ -403,6 +403,20 @@ Do not record API keys, raw provider payloads, raw model outputs, hidden prompts
 
 The live smoke should not run in ordinary local verification or CI. The default development path remains mock/fallback.
 
+## Formative Activity Design Readiness
+
+Phase 29a adds a no-live formative activity design layer after profile integration and formative value determination. It creates `student-formative-activity-v1` packets for future dialogue, but it does not call a live activity agent, render the activity in the browser, execute the full activity loop, or update profile/formative value after a student response.
+
+Use:
+
+```bash
+npm run student:formative-activity-smoke
+npm run student:formative-activity-review
+npm run student:formative-activity-review -- --session-public-id <session_public_id>
+```
+
+The review command writes redacted artifacts under `.data/formative-activity-review/`. A valid packet includes the selected formative value, activity family, complete-explanation-plus-dialogue protocol, safe first turn, expected student action, distractor-use policy, and an evidence-update plan that requires a later student response. Deterministic fallback or no-live packet generation must not be counted as live activity success.
+
 ## One-Click Local Launcher
 
 The one-click launcher is for daily local use after the full opt-in live LLM smoke has already passed as the backend gate. It does not run paid model-generation smoke tests.
