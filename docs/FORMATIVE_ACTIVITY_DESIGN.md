@@ -1,6 +1,6 @@
 # Formative Activity Design
 
-Phase 29a adds the no-live design layer for the formative activity that follows profile integration and formative value determination. It defines the schema, activity taxonomy, dialogue protocol, deterministic packet builder, validators, redacted review artifacts, and smoke tests. It does not call a live provider, render a browser UI, execute a full runtime activity, or update the profile after the activity.
+Phase 29a adds the no-live design layer for the formative activity that follows profile integration and formative value determination. It defines the schema, activity taxonomy, dialogue protocol, review-only deterministic packet builder, validators, redacted review artifacts, and smoke tests. It does not call a live provider, render a browser UI, execute a full runtime activity, or update the profile after the activity.
 
 ## Scope
 
@@ -15,6 +15,35 @@ The activity packet uses:
 - internal engagement context only as reliability context
 
 The Phase 29a output schema is `student-formative-activity-v1`, and the future live agent name is `formative_activity_dialogue_agent`.
+
+## Review-Only Generation Boundary
+
+The deterministic Phase 29a builder is QA infrastructure only. Packets created
+by this builder have:
+
+```text
+generation_source = deterministic_review
+runtime_servable_to_student = false
+review_only = true
+```
+
+These packets may be used for schemas, validators, redaction and safety
+scanning, no-live fixtures, review artifacts, and regression tests. They must
+not be served as the real student-facing formative activity dialogue.
+
+Production activity generation must come from the future live LLM
+`formative_activity_dialogue_agent` path with:
+
+```text
+generation_source = live_llm
+runtime_servable_to_student = true
+review_only = false
+```
+
+The runtime helper `assertFormativeActivityPacketIsNotReviewOnlyForRuntime`
+rejects deterministic review packets. Future provider failure must fail closed
+or offer a safe student choice/move-on path; it must not silently serve
+deterministic templates as a fallback.
 
 ## Activity Families
 

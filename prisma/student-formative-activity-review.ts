@@ -238,6 +238,9 @@ async function buildHumanReadableSamplesArtifact(sessionPublicId?: string) {
     return {
       sample_id: `review_${hashJson({ artifact_section, packet }).slice(0, 16)}`,
       artifact_section,
+      generation_source: packet.generation_source,
+      runtime_servable_to_student: packet.runtime_servable_to_student,
+      review_only: packet.review_only,
       activity_family: packet.activity_family,
       selected_formative_value: packet.selected_formative_value,
       profile_condition,
@@ -266,6 +269,11 @@ async function buildHumanReadableSamplesArtifact(sessionPublicId?: string) {
     distractor_families_have_concrete_descriptions: reviewSamples
       .filter((sample) => sample.distractor_role !== "none")
       .every((sample) => sample.distractor_student_safe_description.length >= 80),
+    all_samples_review_only: reviewSamples.every((sample) =>
+      sample.generation_source === "deterministic_review" &&
+      sample.review_only === true &&
+      sample.runtime_servable_to_student === false
+    ),
     no_colon_splice_patterns: reviewSamples.every((sample) => !/:\s+(Your|The|This|It)\b/.test(sample.first_turn.message)),
     no_internal_labels: forbiddenHitCount(reviewSamples) === 0,
     no_fake_distractor_contrast: reviewSamples

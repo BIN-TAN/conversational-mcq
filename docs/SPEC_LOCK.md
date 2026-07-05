@@ -1462,6 +1462,22 @@ Phase 6A.5 must not implement:
   `formative_activity_dialogue_agent`, but it must not dispatch live activity
   provider calls, render a browser activity UI, execute the full runtime
   activity loop, or update profiles after the activity in production runtime.
+- The deterministic Phase 29a builder is review-only QA infrastructure.
+  Deterministic packets must be marked
+  `generation_source=deterministic_review`,
+  `runtime_servable_to_student=false`, and `review_only=true`. They may be used
+  only for schemas, validators, redaction/safety scanning, no-live fixtures,
+  review artifacts, and regression tests.
+- Production student-facing formative activity dialogue must not serve
+  deterministic review packets. The future production activity path must use
+  `formative_activity_dialogue_agent` live output marked
+  `generation_source=live_llm`, `runtime_servable_to_student=true`, and
+  `review_only=false`.
+- Runtime paths must reject deterministic review packets with a guard such as
+  `assertFormativeActivityPacketIsNotReviewOnlyForRuntime`. Future live
+  activity provider failure must fail closed or offer a safe student choice or
+  move-on path; it must not silently use deterministic templates as fallback
+  student dialogue.
 - The formative activity layer is distinct from formative value determination.
   Formative value chooses the broad purpose; the activity implements that
   purpose through a complete explanation plus multi-turn dialogue.

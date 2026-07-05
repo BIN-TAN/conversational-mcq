@@ -1,5 +1,8 @@
 import { readFile } from "node:fs/promises";
 import {
+  DETERMINISTIC_ACTIVITY_OUTPUT_MUST_NOT_BE_STUDENT_RUNTIME,
+  FORMATIVE_ACTIVITY_DETERMINISTIC_BUILDER_REVIEW_ONLY,
+  assertFormativeActivityPacketIsNotReviewOnlyForRuntime,
   buildFormativeActivityDesignPacketForSession,
   buildFormativeActivityDesignPacketFromPackets,
   validateFormativeActivityPacket,
@@ -77,6 +80,41 @@ function assertSafeStudentStatus(packet: FormativeActivityPacketV1) {
     ),
     "Every activity sample should include a student-safe profile status."
   );
+}
+
+function assertReviewOnlyPacket(packet: FormativeActivityPacketV1) {
+  assert(
+    packet.generation_source === "deterministic_review",
+    "Deterministic activity packets must be marked generation_source=deterministic_review."
+  );
+  assert(packet.review_only === true, "Deterministic activity packets must be marked review_only=true.");
+  assert(
+    packet.runtime_servable_to_student === false,
+    "Deterministic activity packets must be marked runtime_servable_to_student=false."
+  );
+}
+
+function assertRuntimeGuardRejects(packet: FormativeActivityPacketV1) {
+  let rejected = false;
+  try {
+    assertFormativeActivityPacketIsNotReviewOnlyForRuntime(packet);
+  } catch (error) {
+    rejected = error instanceof Error &&
+      /formative_activity_runtime_rejected/.test(error.message);
+  }
+  assert(rejected, "Runtime guard should reject deterministic review-only activity packets.");
+}
+
+function assertRuntimeGuardAllowsFutureLivePacket(packet: FormativeActivityPacketV1) {
+  const futureLivePacket = clonePacket(packet);
+  futureLivePacket.generation_source = "live_llm";
+  futureLivePacket.review_only = false;
+  futureLivePacket.runtime_servable_to_student = true;
+  assert(
+    validateFormativeActivityPacket(futureLivePacket).valid,
+    "Future live-shaped activity packet should remain structurally valid when safety checks pass."
+  );
+  assertFormativeActivityPacketIsNotReviewOnlyForRuntime(futureLivePacket);
 }
 
 async function main() {
@@ -319,7 +357,15 @@ async function main() {
     transfer
   ]) {
     assertSafeStudentStatus(packet);
+    assertReviewOnlyPacket(packet);
+    assertRuntimeGuardRejects(packet);
   }
+  assert(FORMATIVE_ACTIVITY_DETERMINISTIC_BUILDER_REVIEW_ONLY, "Deterministic builder review-only constant should be true.");
+  assert(
+    DETERMINISTIC_ACTIVITY_OUTPUT_MUST_NOT_BE_STUDENT_RUNTIME,
+    "Deterministic activity output must not be student runtime constant should be true."
+  );
+  assertRuntimeGuardAllowsFutureLivePacket(diagnosticMisconception);
   assert(
     new Set([
       diagnosticGap.first_turn.message,
@@ -469,6 +515,17 @@ async function main() {
 
   const artifactPath = await writeRedactedFormativeActivityReviewArtifact({ packet: diagnosticMisconception });
   const artifact = await readFile(artifactPath, "utf8");
+  const parsedArtifact = JSON.parse(artifact) as {
+    generation_source?: string;
+    runtime_servable_to_student?: boolean;
+    review_only?: boolean;
+  };
+  assert(parsedArtifact.generation_source === "deterministic_review", "Review artifact should mark deterministic review source.");
+  assert(parsedArtifact.review_only === true, "Review artifact should mark review_only=true.");
+  assert(
+    parsedArtifact.runtime_servable_to_student === false,
+    "Review artifact should mark runtime_servable_to_student=false."
+  );
   const forbiddenArtifactTerms = [
     "api key",
     "authorization header",
@@ -488,6 +545,8 @@ async function main() {
   const realSession = await buildFormativeActivityDesignPacketForSession("sess_20260701_v2n-8a0");
   const realValidation = validateFormativeActivityPacket(realSession);
   assert(realValidation.valid, `Real session activity packet should validate: ${JSON.stringify(realValidation.issues)}`);
+  assertReviewOnlyPacket(realSession);
+  assertRuntimeGuardRejects(realSession);
   assertExcludes(
     realSession.first_turn.message,
     /\b(ability evidence|ability[- ]packet|packet confidence|profile integration|formative value|engagement category|ai assistance|process data)\b/i,
@@ -496,7 +555,7 @@ async function main() {
 
   console.log(JSON.stringify({
     status: "passed",
-    cases_checked: 45,
+    cases_checked: 55,
     example_activity_family: diagnosticMisconception.activity_family,
     redacted_activity_artifact_path: artifactPath,
     openai_calls_made: false,

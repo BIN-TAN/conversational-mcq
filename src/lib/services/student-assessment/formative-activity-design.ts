@@ -19,6 +19,8 @@ export const FORMATIVE_ACTIVITY_SCHEMA_VERSION = "student-formative-activity-v1"
 export const FORMATIVE_ACTIVITY_AGENT_NAME = "formative_activity_dialogue_agent" as const;
 export const FORMATIVE_ACTIVITY_REVIEW_ARTIFACT_VERSION =
   "formative-activity-review-v1" as const;
+export const FORMATIVE_ACTIVITY_DETERMINISTIC_BUILDER_REVIEW_ONLY = true as const;
+export const DETERMINISTIC_ACTIVITY_OUTPUT_MUST_NOT_BE_STUDENT_RUNTIME = true as const;
 
 export const FormativeActivityFamilySchema = z.enum([
   "basic_concept_grounding",
@@ -74,10 +76,19 @@ const FormativeValueSchema = z.enum([
   "independent_understanding_verification",
   "consolidation_and_transfer"
 ]);
+const FormativeActivityGenerationSourceSchema = z.enum([
+  "deterministic_review",
+  "live_llm"
+]);
 
 export const FormativeActivityPacketV1Schema = z.object({
   schema_version: z.literal(FORMATIVE_ACTIVITY_SCHEMA_VERSION),
   agent_name: z.literal(FORMATIVE_ACTIVITY_AGENT_NAME),
+  // Phase 29a deterministic packets are review-only QA artifacts. Runtime
+  // student activity output must come from a future live_llm activity agent.
+  generation_source: FormativeActivityGenerationSourceSchema,
+  runtime_servable_to_student: z.boolean(),
+  review_only: z.boolean(),
   session_public_id: z.string().min(1),
   student_public_id: z.string().min(1),
   assessment_public_id: z.string().min(1),
@@ -188,6 +199,7 @@ export type FormativeActivityValidationIssue = {
     | "missing_transfer_or_generation_logic"
     | "weak_generic_tempting_alternative"
     | "family_metadata_missing"
+    | "invalid_generation_source_metadata"
     | "multiple_or_missing_prompts"
     | "missing_distractor_contrast"
     | "fake_distractor_contrast"
@@ -717,7 +729,9 @@ function firstTurnParts(input: FormativeActivityDesignInput, selection: Activity
   }
 }
 
-export function buildDeterministicFormativeActivityFirstTurn(
+// Review-only deterministic prose for schema, validator, fixture, and redaction QA.
+// This must never be served as production student activity dialogue.
+export function buildDeterministicFormativeActivityFirstTurnForReviewOnly(
   input: FormativeActivityDesignInput,
   selection = activitySelectionFor(input)
 ) {
@@ -737,6 +751,9 @@ export function buildDeterministicFormativeActivityFirstTurn(
     must_end_with_one_prompt: true as const
   };
 }
+
+export const buildDeterministicFormativeActivityFirstTurn =
+  buildDeterministicFormativeActivityFirstTurnForReviewOnly;
 
 function inputFromPackets(input: {
   profile_integration_packet: ProfileIntegrationInterpretationPacketV1;
@@ -795,12 +812,15 @@ export function buildFormativeActivityDesignPacketFromPackets(input: {
 }): FormativeActivityPacketV1 {
   const designInput = inputFromPackets(input);
   const selection = activitySelectionFor(designInput);
-  const firstTurn = buildDeterministicFormativeActivityFirstTurn(designInput, selection);
+  const firstTurn = buildDeterministicFormativeActivityFirstTurnForReviewOnly(designInput, selection);
   const expectedPrompt = expectedPromptFor(designInput, selection);
 
   return FormativeActivityPacketV1Schema.parse({
     schema_version: FORMATIVE_ACTIVITY_SCHEMA_VERSION,
     agent_name: FORMATIVE_ACTIVITY_AGENT_NAME,
+    generation_source: "deterministic_review",
+    runtime_servable_to_student: false,
+    review_only: true,
     session_public_id: designInput.session_public_id,
     student_public_id: designInput.student_public_id,
     assessment_public_id: designInput.assessment_public_id,
@@ -891,6 +911,31 @@ export async function buildFormativeActivityDesignPacketForSession(
     profile_integration_packet: profileIntegrationPacket,
     formative_value_packet: formativeValuePacket
   });
+}
+
+export function assertFormativeActivityPacketIsNotReviewOnlyForRuntime(
+  value: unknown
+): asserts value is FormativeActivityPacketV1 {
+  const parsed = FormativeActivityPacketV1Schema.safeParse(value);
+  if (!parsed.success) {
+    throw new Error("formative_activity_runtime_packet_invalid_schema");
+  }
+
+  const packet = parsed.data;
+  if (packet.generation_source === "deterministic_review") {
+    throw new Error("formative_activity_runtime_rejected_deterministic_review_packet");
+  }
+  if (packet.review_only) {
+    throw new Error("formative_activity_runtime_rejected_review_only_packet");
+  }
+  if (!packet.runtime_servable_to_student) {
+    throw new Error("formative_activity_runtime_rejected_nonservable_packet");
+  }
+
+  const validation = validateFormativeActivityPacket(packet);
+  if (!validation.valid) {
+    throw new Error("formative_activity_runtime_packet_failed_validation");
+  }
 }
 
 function pushIssue(
@@ -1037,6 +1082,19 @@ export function validateFormativeActivityPacket(value: unknown) {
   const message = packet.first_turn.message;
   const lowerMessage = message.toLowerCase();
 
+  if (
+    packet.generation_source === "deterministic_review" &&
+    (!packet.review_only || packet.runtime_servable_to_student)
+  ) {
+    pushIssue(issues, "generation_source", "invalid_generation_source_metadata", "deterministic_review_must_be_review_only");
+  }
+  if (
+    packet.generation_source === "live_llm" &&
+    (packet.review_only || !packet.runtime_servable_to_student)
+  ) {
+    pushIssue(issues, "generation_source", "invalid_generation_source_metadata", "live_llm_must_be_runtime_servable");
+  }
+
   if (/good job|review the concept|try again|study more/i.test(message)) {
     pushIssue(issues, "first_turn.message", "generic_feedback", "generic_feedback");
   }
@@ -1169,6 +1227,9 @@ function redactedReviewArtifact(packet: FormativeActivityPacketV1, validation: R
       selected_formative_value: packet.selected_formative_value,
       source_formative_value_packet_id: packet.source_formative_value_packet_id
     }),
+    generation_source: packet.generation_source,
+    runtime_servable_to_student: packet.runtime_servable_to_student,
+    review_only: packet.review_only,
     generated_at: nowIso(),
     schema_version: packet.schema_version,
     session_public_id: packet.session_public_id,

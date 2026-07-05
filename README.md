@@ -358,7 +358,7 @@ Formative activity design packet verification:
 npm run student:formative-activity-smoke
 ```
 
-This Phase 29a no-live smoke builds `student-formative-activity-v1` packets from profile integration and formative value packets. It verifies activity-family mapping, long specific first-turn requirements, dialogue protocol fields, distractor-use policy, student-choice policy, evidence-update gating, redacted artifacts, and safety rejection rules. It does not call OpenAI, does not implement browser UI, does not execute a runtime activity, and does not update profiles.
+This Phase 29a no-live smoke builds review-only `student-formative-activity-v1` packets from profile integration and formative value packets. Deterministic packets are marked `generation_source=deterministic_review`, `runtime_servable_to_student=false`, and `review_only=true`. The smoke verifies activity-family mapping, long specific first-turn requirements, dialogue protocol fields, distractor-use policy, student-choice policy, evidence-update gating, redacted artifacts, runtime-guard rejection, and safety rejection rules. It does not call OpenAI, does not implement browser UI, does not execute a runtime activity, and does not update profiles.
 
 Formative activity review artifact generation:
 
@@ -367,7 +367,7 @@ npm run student:formative-activity-review
 npm run student:formative-activity-review -- --session-public-id <session_public_id>
 ```
 
-The command writes redacted activity review artifacts under `.data/formative-activity-review/` and prints the selected formative value, activity family, student-safe profile status, distractor role, quality result, safety result, and limitations. See `docs/FORMATIVE_ACTIVITY_DESIGN.md`.
+The command writes redacted activity review artifacts under `.data/formative-activity-review/` and prints the selected formative value, activity family, student-safe profile status, distractor role, generation source, quality result, safety result, and limitations. These artifacts are QA review material only. Future production activity dialogue must come from `formative_activity_dialogue_agent` live output marked `generation_source=live_llm`, `runtime_servable_to_student=true`, and `review_only=false`; provider failure must fail closed or offer a safe choice/move-on path rather than silently serving deterministic templates. See `docs/FORMATIVE_ACTIVITY_DESIGN.md`.
 
 Profile/formative scenario QA:
 
