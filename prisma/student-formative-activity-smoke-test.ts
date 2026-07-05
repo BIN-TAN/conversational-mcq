@@ -11,6 +11,8 @@ import {
 } from "../src/lib/services/student-assessment/formative-activity-design";
 import {
   evaluateFormativeActivityLivePipeline,
+  formativeActivityPipelineIssuesAllowRepair,
+  formativeActivityPipelineNeedsRepair,
   makeFormativeActivityAuditForTest,
   makeLiveActivityPacketForTest,
   makePassingActivityQualityReviewForTest
@@ -431,6 +433,124 @@ async function main() {
     `Reviewer repair_needed + valid repair should pass exactly once: ${JSON.stringify(repairedLivePipeline)}`
   );
 
+  const basicGroundingSynonym = makeLiveActivityPacketForTest(unsafeFirstTurn(
+    diagnosticGap,
+    "Your earlier responses suggest the basic boundary is still forming. The key distinction is that theta describes where a person seems to be on an ability scale, while item parameters describe features of the item. Item information or difficulty describes what the item can tell us, not what the person knows by itself. A thermometer analogy helps: the reading is evidence about temperature, while the thermometer's features affect how that reading is produced. Responses connect the two because an item response gives evidence for estimating theta. The core distinction is that the person estimate and item features stay separate even when they are interpreted together. Can you explain that in your own words?"
+  ));
+  const synonymPipeline = evaluateFormativeActivityLivePipeline({
+    candidate_packet: basicGroundingSynonym,
+    generator_audit: makeFormativeActivityAuditForTest(),
+    reviewer_output: makePassingActivityQualityReviewForTest(),
+    reviewer_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    synonymPipeline.status === "accepted",
+    `Basic grounding should accept equivalent key/core distinction wording: ${JSON.stringify(synonymPipeline)}`
+  );
+
+  const remediableQualityCases: Array<{
+    label: string;
+    packet: FormativeActivityPacketV1;
+    expectedIssueLabel: string;
+  }> = [
+    {
+      label: "missing_concept_explanation",
+      packet: makeLiveActivityPacketForTest(unsafeFirstTurn(
+        diagnosticGap,
+        "Your earlier work suggests the basic boundary is still forming. Can you explain this in your own words?"
+      )),
+      expectedIssueLabel: "missing_concept_explanation"
+    },
+    {
+      label: "missing_basic_concept_depth",
+      packet: makeLiveActivityPacketForTest(unsafeFirstTurn(
+        diagnosticGap,
+        "Let's start with the basic distinction. Theta and item information are related. Can you explain the idea?"
+      )),
+      expectedIssueLabel: "missing_basic_concept_depth"
+    },
+    {
+      label: "missing_family_specific_content",
+      packet: makeLiveActivityPacketForTest(unsafeFirstTurn(
+        diagnosticMisconception,
+        "Your earlier responses suggest a tempting option felt plausible. Can you compare it with the target idea?"
+      )),
+      expectedIssueLabel: "missing_family_specific_content"
+    },
+    {
+      label: "missing_response_connection",
+      packet: makeLiveActivityPacketForTest(unsafeFirstTurn(
+        diagnosticGap,
+        "Let's start with the basic distinction. Theta describes where a person seems to be on an ability scale. Item parameters describe features of the item, such as how difficult or informative it is. Responses connect the two because an item response gives evidence for estimating theta, but theta and item information are not the same object. A useful contrast is a thermometer: the reading tells us something about the room, but the thermometer's sensitivity is not the room's temperature. Can you explain the distinction in your own words?"
+      )),
+      expectedIssueLabel: "missing_response_connection"
+    }
+  ];
+
+  for (const entry of remediableQualityCases) {
+    const needsRepair = evaluateFormativeActivityLivePipeline({
+      candidate_packet: entry.packet,
+      generator_audit: makeFormativeActivityAuditForTest(),
+      reviewer_output: makePassingActivityQualityReviewForTest(),
+      reviewer_audit: makeFormativeActivityAuditForTest()
+    });
+    assert(
+      formativeActivityPipelineNeedsRepair(needsRepair),
+      `${entry.label}: remediable deterministic quality failure should request repair, got ${JSON.stringify(needsRepair)}`
+    );
+    assert(
+      needsRepair.issues.some((issue) => issue.blocked_pattern_label === entry.expectedIssueLabel),
+      `${entry.label}: expected issue label ${entry.expectedIssueLabel}`
+    );
+    assert(
+      formativeActivityPipelineIssuesAllowRepair(needsRepair.issues),
+      `${entry.label}: issue set should be repairable.`
+    );
+
+    const repaired = evaluateFormativeActivityLivePipeline({
+      candidate_packet: entry.packet,
+      generator_audit: makeFormativeActivityAuditForTest(),
+      reviewer_output: makePassingActivityQualityReviewForTest(),
+      reviewer_audit: makeFormativeActivityAuditForTest(),
+      repair_packet: entry.label === "missing_family_specific_content"
+        ? liveDiagnosticMisconception
+        : makeLiveActivityPacketForTest(diagnosticGap),
+      repair_audit: makeFormativeActivityAuditForTest()
+    });
+    assert(
+      repaired.status === "accepted" && repaired.repair_attempted,
+      `${entry.label}: valid repair packet should be accepted, got ${JSON.stringify(repaired)}`
+    );
+  }
+
+  const failedRepairPipeline = evaluateFormativeActivityLivePipeline({
+    candidate_packet: remediableQualityCases[0]!.packet,
+    generator_audit: makeFormativeActivityAuditForTest(),
+    reviewer_output: makePassingActivityQualityReviewForTest(),
+    reviewer_audit: makeFormativeActivityAuditForTest(),
+    repair_packet: remediableQualityCases[1]!.packet,
+    repair_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    failedRepairPipeline.status === "rejected" && failedRepairPipeline.repair_attempted,
+    "Invalid repair packet should fail closed after one repair attempt."
+  );
+
+  const deterministicReviewAsRepair = evaluateFormativeActivityLivePipeline({
+    candidate_packet: remediableQualityCases[0]!.packet,
+    generator_audit: makeFormativeActivityAuditForTest(),
+    reviewer_output: makePassingActivityQualityReviewForTest(),
+    reviewer_audit: makeFormativeActivityAuditForTest(),
+    repair_packet: diagnosticMisconception,
+    repair_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    deterministicReviewAsRepair.status === "rejected" &&
+      deterministicReviewAsRepair.repair_attempted &&
+      deterministicReviewAsRepair.issues.some((issue) => issue.rule_code === "runtime_guard_rejected"),
+    "Deterministic review packet must not be accepted as repair output."
+  );
+
   const failClosedReview = makePassingActivityQualityReviewForTest({
     review_status: "fail_closed",
     quality_score: "unsafe",
@@ -488,6 +608,10 @@ async function main() {
       missingTokenPipeline.issues.some((issue) => issue.rule_code === "missing_token_usage"),
     "Missing token usage must reject live activity success."
   );
+  assert(
+    !formativeActivityPipelineIssuesAllowRepair(missingTokenPipeline.issues),
+    "Missing token usage must not trigger repair."
+  );
 
   const missingProviderMetadataPipeline = evaluateFormativeActivityLivePipeline({
     candidate_packet: liveDiagnosticMisconception,
@@ -519,6 +643,23 @@ async function main() {
     "Missing agent-call/client audit metadata must reject live activity success."
   );
 
+  const wrongSourcePacket = clonePacket(liveDiagnosticMisconception);
+  wrongSourcePacket.generation_source = "deterministic_review";
+  wrongSourcePacket.review_only = false;
+  wrongSourcePacket.runtime_servable_to_student = true;
+  const wrongSourcePipeline = evaluateFormativeActivityLivePipeline({
+    candidate_packet: wrongSourcePacket,
+    generator_audit: makeFormativeActivityAuditForTest(),
+    reviewer_output: makePassingActivityQualityReviewForTest(),
+    reviewer_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    wrongSourcePipeline.status === "rejected" &&
+      wrongSourcePipeline.issues.some((issue) => issue.blocked_pattern_label === "invalid_generation_source_metadata") &&
+      !formativeActivityPipelineIssuesAllowRepair(wrongSourcePipeline.issues),
+    "Wrong generation_source metadata must fail closed without repair."
+  );
+
   assertPipelineRejectedFor(
     makeLiveActivityPacketForTest(unsafeFirstTurn(diagnosticGap, "Good job. Can you review the concept?")),
     "generic_feedback",
@@ -528,6 +669,17 @@ async function main() {
     makeLiveActivityPacketForTest(unsafeFirstTurn(diagnosticGap, "The answer key says A is correct. Can you continue?")),
     "answer_key_leak_detected",
     "Answer-key leakage"
+  );
+  const protectedLeakagePipeline = evaluateFormativeActivityLivePipeline({
+    candidate_packet: makeLiveActivityPacketForTest(unsafeFirstTurn(diagnosticGap, "The answer key says A is correct. Can you continue?")),
+    generator_audit: makeFormativeActivityAuditForTest(),
+    reviewer_output: makePassingActivityQualityReviewForTest(),
+    reviewer_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    protectedLeakagePipeline.status === "rejected" &&
+      !formativeActivityPipelineIssuesAllowRepair(protectedLeakagePipeline.issues),
+    "Protected content leakage must not trigger repair."
   );
   assertPipelineRejectedFor(
     makeLiveActivityPacketForTest(unsafeFirstTurn(diagnosticGap, "The engagement category and AI assistance signal explain this. Can you continue?")),

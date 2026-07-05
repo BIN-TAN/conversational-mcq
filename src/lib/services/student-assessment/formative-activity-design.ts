@@ -1018,7 +1018,7 @@ function familyContentPassed(packet: FormativeActivityPacketV1) {
   switch (packet.activity_family) {
     case "basic_concept_grounding":
       return (
-        /\bbasic distinction\b/i.test(text) &&
+        /\b(basic distinction|basic boundary|key distinction|core distinction)\b/i.test(text) &&
         basicConceptExplanationSentenceCount(text) >= 3 &&
         /\bthermometer\b/i.test(text) &&
         /\bin your own words\b/i.test(packet.expected_student_action.prompt)
@@ -1030,7 +1030,9 @@ function familyContentPassed(packet: FormativeActivityPacketV1) {
         hasConcreteDistractorDescription(packet.distractor_use.student_safe_description)
       );
     case "reasoning_chain_repair":
-      return /\buseful (part|starting point)\b/i.test(text) && /\bmissing link\b/i.test(text) && /\btempting alternative\b/i.test(text);
+      return /\buseful (part|starting point)\b/i.test(text) &&
+        /\bmissing link\b/i.test(text) &&
+        /\b(tempting alternative|tempting option|plausible alternative)\b/i.test(text);
     case "independent_reconstruction":
       return /\boption choices aside\b/i.test(text) && /\bcurrent evidence is mixed or unclear\b/i.test(text) && /\bin your own words\b/i.test(text);
     case "confidence_evidence_audit":

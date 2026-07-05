@@ -163,17 +163,55 @@ function syntheticCases() {
   ];
 }
 
-function resultSummary(caseId: string, result: FormativeActivityLiveExecutionResult) {
+async function agentCallSummary(agentCallId?: string) {
+  if (!agentCallId) {
+    return {
+      agent_call_id_present: false,
+      call_status: "not_started",
+      output_validated: false,
+      provider_metadata_present: false,
+      token_usage_present: false
+    };
+  }
+
+  const call = await prisma.agentCall.findUnique({
+    where: { id: agentCallId },
+    select: {
+      call_status: true,
+      output_validated: true,
+      provider_request_id: true,
+      provider_response_id: true,
+      input_tokens: true,
+      output_tokens: true,
+      total_tokens: true
+    }
+  });
+
+  return {
+    agent_call_id_present: true,
+    call_status: call?.call_status ?? "missing",
+    output_validated: call?.output_validated ?? false,
+    provider_metadata_present: Boolean(call?.provider_request_id || call?.provider_response_id),
+    token_usage_present: Boolean(call?.input_tokens || call?.output_tokens || call?.total_tokens)
+  };
+}
+
+async function resultSummary(caseId: string, result: FormativeActivityLiveExecutionResult) {
+  const generator = await agentCallSummary(result.generator_agent_call_id);
+  const reviewer = await agentCallSummary(result.reviewer_agent_call_id);
+  const repair = await agentCallSummary(result.repair_agent_call_id);
+
   if (result.status !== "succeeded") {
     return {
       case_id: caseId,
       status: result.status,
       blocked_reason: result.blocked_reason,
       validation_issues: result.validation_issues,
-      generator_agent_call_id_present: Boolean(result.generator_agent_call_id),
-      reviewer_agent_call_id_present: Boolean(result.reviewer_agent_call_id),
-      repair_agent_call_id_present: Boolean(result.repair_agent_call_id),
-      repair_attempted: result.repair_attempted
+      generator,
+      reviewer,
+      repair,
+      repair_attempted: result.repair_attempted,
+      repair_status: result.repair_status ?? "not_attempted"
     };
   }
 
@@ -188,10 +226,13 @@ function resultSummary(caseId: string, result: FormativeActivityLiveExecutionRes
     review_status: result.quality_review.review_status,
     quality_score: result.quality_review.quality_score,
     repair_attempted: result.repair_attempted,
-    generator_agent_call_id_present: Boolean(result.generator_agent_call_id),
-    reviewer_agent_call_id_present: Boolean(result.reviewer_agent_call_id),
-    repair_agent_call_id_present: Boolean(result.repair_agent_call_id),
-    first_turn_char_count: result.packet.first_turn.message.length
+    repair_status: result.repair_status,
+    generator,
+    reviewer,
+    repair,
+    output_validated: true,
+    first_turn_char_count: result.packet.first_turn.message.length,
+    first_turn_message: result.packet.first_turn.message
   };
 }
 
@@ -245,7 +286,7 @@ async function main() {
       profile_integration_packet: source.profile,
       formative_value_packet: source.formative
     });
-    summaries.push(resultSummary(entry.case_id, result));
+    summaries.push(await resultSummary(entry.case_id, result));
     if (result.status !== "succeeded") {
       const artifactPath = await writeArtifact(summaries);
       console.log(JSON.stringify({
@@ -271,7 +312,7 @@ async function main() {
       profile_integration_packet: profile,
       formative_value_packet: formative
     });
-    summaries.push(resultSummary(`real_session_${REVIEW_SESSION_FALLBACK}`, result));
+    summaries.push(await resultSummary(`real_session_${REVIEW_SESSION_FALLBACK}`, result));
     if (result.status !== "succeeded") {
       const artifactPath = await writeArtifact(summaries);
       console.log(JSON.stringify({

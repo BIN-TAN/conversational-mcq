@@ -57,7 +57,7 @@ Hard requirements:
 4. Use the selected formative value and requested activity family from the input.
 5. The first turn must include a complete, student-friendly explanation before asking for one next student action.
 6. The first turn must be specific to the current profile interpretation, concept focus, and distractor role when relevant.
-7. End the first turn with exactly one question.
+7. End the first turn with exactly one question. The message must contain exactly one question mark, and that question mark must be at the end.
 8. Do not expose answer keys, correct options, correctness labels, distractor metadata, misconception IDs, engagement labels, AI-assistance labels, process data, raw reasoning, raw provider output, system prompts, API keys, headers, or secrets.
 9. Do not mention profile integration, formative value, ability evidence, packet confidence, metadata, structured output, agent calls, raw model output, or internal labels in student-facing text.
 10. Do not accuse the student of cheating, misconduct, integrity problems, AI use, or suspicious behavior.
@@ -65,6 +65,22 @@ Hard requirements:
 12. For transfer_and_distractor_generation, make clear that the activity is unscored.
 13. Do not use rigid headings such as "What you did well", "Reasoning detail", "Current focus", or "Earlier".
 14. If evidence is limited, use conservative language and ask for a fresh explanation rather than overclaiming.
+15. The student-facing first turn must include one of these natural concept-explanation phrases: "The key idea is", "A useful way to think", "The core idea is", "The main boundary", "The basic distinction", or "One part describes".
+16. The student-facing first turn must explicitly connect to the prior response summary using "your earlier responses", "your earlier thinking", or "your earlier explanation".
+17. Do not use more than one sentence ending in a question mark.
+18. Do not start expected_student_action.prompt with filler words such as "Please". Start with a meaningful verb that also appears in first_turn.message, such as "Explain", "Compare", "Revise", "Rate", "Apply", or "Generate".
+19. Treat the family-specific quoted phrases below as hard acceptance gates, not style suggestions. Copy the required quoted phrases naturally into first_turn.message for the requested family.
+
+Family-specific minimums:
+- basic_concept_grounding: include 3 to 5 concrete concept-explanation sentences before the prompt. Use the phrase "basic distinction". Include the concrete terms "theta", "ability scale", "item parameters", and "item information" or "difficulty". Include a simple thermometer analogy to separate a learner estimate from item features. Explain the idea from basic parts, connect to the student's prior response pattern in student-safe language, and ask one own-words prompt. Set expected_student_action.prompt to start with "Explain" and include the phrase "in your own words". Do not merely tell the student to explain the concept.
+- distractor_contrast: describe the safe tempting alternative or distractor, explain why it can feel tempting, name the hidden assumption, contrast it with the target concept boundary, and ask one compare prompt. The final question and expected_student_action.prompt must both use the verb "Compare".
+- reasoning_chain_repair: name the "useful part" or "useful starting point" of the student's reasoning, explain the "missing link", explain how skipping that link makes a "tempting alternative" plausible, and ask one revision prompt. The final question and expected_student_action.prompt must both use the verb "Revise".
+- independent_reconstruction: use the phrase "option choices aside", explain why "current evidence is mixed or unclear", include "in your own words", avoid AI/external-assistance wording, and ask one own-words prompt. The final question and expected_student_action.prompt must both use the verb "Explain" or "Reconstruct".
+- confidence_evidence_audit: connect "confidence" to "evidence", include the phrases "usable understanding" and "low confidence can be worth checking", use underconfidence only when adequate understanding evidence is present, and ask one evidence-plus-confidence prompt. The final question and expected_student_action.prompt must both use the verb "Rate" or "Connect".
+- transfer_and_distractor_generation: frame the task as "not another scored question", include "Transfer means" and "Distractor generation means", ask for a "nearby situation" or "nearby example" or plausible wrong alternative, explain that the goal is showing a concept boundary rather than tricking anyone, and ask one transfer or generation prompt. The final question and expected_student_action.prompt must both use the verb "Apply" or "Generate".
+
+Acceptable basic_concept_grounding style:
+"Let's start with the basic distinction. Theta is a way to describe where a person seems to be on an ability scale. Item parameters describe features of the item, such as how difficult or informative it is. A response is not a thermometer reading of ability; it is evidence that has to be interpreted together with the item. Your earlier responses suggest this boundary is still forming, so we will build the idea from the ground up. Can you explain that distinction in your own words using one detail from your earlier responses?"
 
 Return only the JSON object.
 `;
@@ -86,7 +102,7 @@ Evaluate:
 9. Answer-key or correctness leakage.
 
 Use review_status=pass only if the packet is ready for deterministic final checks.
-Use repair_needed only for text-quality issues that can be safely repaired without revealing protected content.
+Use repair_needed for text-quality issues that can be safely repaired without revealing protected content, including: first turn too short, missing concrete concept explanation, missing family-specific content, missing response connection, basic grounding without depth, distractor family without concrete contrast, generic feedback, or no clear prompt.
 Use fail_closed for protected leaks, unsafe claims, unsupported source flags, missing provenance requirements, or severe mismatch.
 
 Return only the required formative-activity-quality-review-v1 JSON object.
@@ -95,7 +111,17 @@ Return only the required formative-activity-quality-review-v1 JSON object.
 export const FORMATIVE_ACTIVITY_REPAIR_PROMPT_INSTRUCTIONS = `
 You are repairing a formative activity packet after quality review.
 
-You may repair only safe text-quality issues from the supplied review instructions. Do not repair protected leaks by restating them. Do not change source provenance except preserving live_llm/runtime_servable_to_student=true/review_only=false. Do not expose answer keys, correct options, correctness, distractor metadata, misconception IDs, raw reasoning, process data, engagement labels, AI-assistance labels, raw LLM output, prompts, headers, API keys, or secrets.
+You may repair only safe text-quality issues from the supplied validation issue codes and review instructions. Use only the safe source input fields: activity family, selected formative value, student-safe profile status, concept focus, prior response summary, and safe distractor description when available. Do not repair protected leaks by restating them. Do not change source provenance except preserving live_llm/runtime_servable_to_student=true/review_only=false. Do not expose answer keys, correct options, correctness, distractor metadata, misconception IDs, raw reasoning, process data, engagement labels, AI-assistance labels, raw LLM output, prompts, headers, API keys, or secrets. Treat hard_repair_checklist_for_family as literal acceptance gates. Copy the required quoted markers naturally into first_turn.message and align expected_student_action.prompt with the final question.
+
+The repaired first turn must satisfy the family-specific minimums from the generator prompt. It must include exactly one question mark, and that question mark must be the final character. It must include one of these natural concept-explanation phrases: "The key idea is", "A useful way to think", "The core idea is", "The main boundary", "The basic distinction", or "One part describes". It must explicitly connect to the prior response summary using "your earlier responses", "your earlier thinking", or "your earlier explanation". Do not start expected_student_action.prompt with filler words such as "Please"; start with a meaningful verb that also appears in first_turn.message. Match the expected_student_action.prompt verb to the final visible question: use "Explain" for basic grounding, "Compare" for distractor contrast, "Revise" for reasoning-chain repair, "Explain" or "Reconstruct" for independent reconstruction, "Rate" or "Connect" for confidence audit, and "Apply" or "Generate" for transfer/generation. For basic_concept_grounding, include at least six total sentences, with 3 to 5 concrete concept-explanation sentences, the phrase "basic distinction", the terms "theta", "ability scale", "item parameters", and "item information" or "difficulty", a simple thermometer analogy, a connection to the prior response summary, and one final prompt. Set expected_student_action.prompt to start with "Explain" and include "in your own words".
+
+Family repair checklist:
+- basic_concept_grounding must include "basic distinction" or "key distinction", "thermometer", theta/person ability language, item-parameter or item-information language, and an expected prompt beginning with "Explain".
+- distractor_contrast must include "tempting alternative", "hidden assumption", a concrete ability-vs-item boundary, and an expected prompt beginning with "Compare".
+- reasoning_chain_repair must include the exact phrases "useful part" or "useful starting point", "missing link", and "tempting alternative"; the expected prompt must begin with "Revise".
+- independent_reconstruction must include "option choices aside", "current evidence is mixed or unclear", and "in your own words".
+- confidence_evidence_audit must include "confidence", "evidence", "usable understanding", and "low confidence can be worth checking".
+- transfer_and_distractor_generation must include "not another scored question", "Transfer means", "Distractor generation means", and "nearby situation" or "nearby example".
 
 Return exactly one corrected student-formative-activity-v1 JSON object.
 `;
@@ -338,6 +364,58 @@ function selectedFormativeValue(packet: FormativeValueDeterminationPacketV1) {
     : packet.primary_value;
 }
 
+function familyQualityMarkers(family: FormativeActivityPacketV1["activity_family"]) {
+  switch (family) {
+    case "basic_concept_grounding":
+      return [
+        "\"basic distinction\" or \"key distinction\"",
+        "\"thermometer\"",
+        "\"theta\"",
+        "\"ability scale\"",
+        "\"item parameters\"",
+        "\"item information\" or \"difficulty\"",
+        "expected prompt starts with Explain and includes in your own words"
+      ];
+    case "distractor_contrast":
+      return [
+        "\"tempting alternative\"",
+        "\"hidden assumption\"",
+        "person ability versus item features boundary",
+        "expected prompt starts with Compare"
+      ];
+    case "reasoning_chain_repair":
+      return [
+        "\"useful part\" or \"useful starting point\"",
+        "\"missing link\"",
+        "\"tempting alternative\"",
+        "expected prompt starts with Revise"
+      ];
+    case "independent_reconstruction":
+      return [
+        "\"option choices aside\"",
+        "\"current evidence is mixed or unclear\"",
+        "\"in your own words\"",
+        "expected prompt starts with Explain or Reconstruct"
+      ];
+    case "confidence_evidence_audit":
+      return [
+        "\"confidence\"",
+        "\"evidence\"",
+        "\"usable understanding\"",
+        "\"low confidence can be worth checking\"",
+        "expected prompt starts with Rate or Connect"
+      ];
+    case "transfer_and_distractor_generation":
+      return [
+        "\"not another scored question\"",
+        "\"Transfer means\"",
+        "\"Distractor generation means\"",
+        "\"nearby situation\" or \"nearby example\"",
+        "expected prompt starts with Apply or Generate"
+      ];
+  }
+}
+
 export function buildFormativeActivityLiveAgentInput(input: LiveActivitySourceInput) {
   const designPacket = buildFormativeActivityDesignPacketFromPackets(input);
   const profile = input.profile_integration_packet;
@@ -362,6 +440,7 @@ export function buildFormativeActivityLiveAgentInput(input: LiveActivitySourceIn
     },
     selected_formative_value: selectedFormativeValue(formative),
     required_activity_family: designPacket.activity_family,
+    required_family_quality_markers: familyQualityMarkers(designPacket.activity_family),
     required_activity_mode: designPacket.activity_mode,
     concept_focus: profile.student_safe_message.knowledge_focus,
     student_safe_profile_status: profile.student_facing_status,
@@ -497,6 +576,80 @@ function addAuditGateIssues(
   if (!auditHasTokenUsage(audit)) {
     pushPipelineIssue(issues, `${prefix}_audit`, "missing_token_usage");
   }
+}
+
+function issueCanTriggerRepair(issue: FormativeActivityLivePipelineIssue) {
+  if (issue.rule_code === "generator_deterministic_validation_failed") {
+    return !NON_REPAIRABLE_VALIDATION_RULES.has(
+      issue.blocked_pattern_label as FormativeActivityValidationIssue["rule_code"]
+    );
+  }
+
+  return ["reviewer_repair_needed", "repair_missing"].includes(issue.rule_code);
+}
+
+export function formativeActivityPipelineIssuesAllowRepair(
+  issues: FormativeActivityLivePipelineIssue[]
+) {
+  return issues.length > 0 && issues.every(issueCanTriggerRepair);
+}
+
+export function formativeActivityPipelineNeedsRepair(
+  result: FormativeActivityLivePipelineResult
+) {
+  return result.status === "rejected" &&
+    result.blocked_reason === "formative_activity_repair_missing" &&
+    formativeActivityPipelineIssuesAllowRepair(result.issues);
+}
+
+function repairInstructionForIssue(issue: FormativeActivityLivePipelineIssue) {
+  const label = issue.blocked_pattern_label ?? issue.rule_code;
+  switch (label) {
+    case "missing_concept_explanation":
+    case "missing_concrete_concept_explanation":
+      return "Add concrete student-facing concept explanation before the prompt.";
+    case "missing_family_specific_content":
+      return "Add activity-family-specific content instead of generic feedback.";
+    case "missing_basic_concept_depth":
+      return "For basic concept grounding, include 3 to 5 concrete concept-explanation sentences.";
+    case "missing_response_connection":
+      return "Connect the first turn to the student's prior response pattern in student-safe language.";
+    case "missing_hidden_assumption":
+      return "Name the hidden assumption behind the tempting alternative.";
+    case "weak_generic_tempting_alternative":
+    case "fake_distractor_contrast":
+    case "missing_distractor_contrast":
+    case "missing_concrete_distractor_description":
+      return "Make the distractor contrast concrete, including why it feels tempting and how the target idea differs.";
+    case "generic_feedback":
+    case "generic_feedback_detected":
+      return "Replace generic feedback with specific concept explanation and a response connection.";
+    case "multiple_or_missing_prompts":
+      return "End with exactly one clear student action question.";
+    default:
+      return `Repair safe quality issue: ${label}.`;
+  }
+}
+
+function repairInstructionsFromPipelineIssues(
+  issues: FormativeActivityLivePipelineIssue[],
+  reviewerInstructions: string[]
+) {
+  return Array.from(new Set([
+    ...reviewerInstructions,
+    ...issues
+      .filter((issue) => issue.rule_code === "generator_deterministic_validation_failed")
+      .map(repairInstructionForIssue)
+  ])).slice(0, 10);
+}
+
+function safeReviewIssuesFromPipelineIssues(issues: FormativeActivityLivePipelineIssue[]) {
+  return issues.map((issue) => ({
+    field_path: issue.field_path,
+    rule_code: issue.blocked_pattern_label ?? issue.rule_code,
+    severity: "major" as const,
+    safe_summary: repairInstructionForIssue(issue)
+  }));
 }
 
 export function evaluateFormativeActivityLivePipeline(input: {
@@ -858,6 +1011,9 @@ export type FormativeActivityLiveExecutionResult =
       reviewer_agent_call_id: string;
       repair_agent_call_id?: string;
       repair_attempted: boolean;
+      generator_call_status: "succeeded" | "invalid_output";
+      reviewer_call_status: "succeeded";
+      repair_status: "not_attempted" | "succeeded";
     }
   | {
       status: "failed" | "invalid_output" | "configuration_blocked";
@@ -867,6 +1023,9 @@ export type FormativeActivityLiveExecutionResult =
       reviewer_agent_call_id?: string;
       repair_agent_call_id?: string;
       repair_attempted: boolean;
+      generator_call_status?: "not_started" | "succeeded" | "failed" | "invalid_output";
+      reviewer_call_status?: "not_started" | "succeeded" | "failed" | "invalid_output";
+      repair_status?: "not_attempted" | "succeeded" | "failed" | "invalid_output";
     };
 
 export async function executeLiveFormativeActivityDialogueAgent(input: {
@@ -889,7 +1048,10 @@ export async function executeLiveFormativeActivityDialogueAgent(input: {
         rule_code: "missing_audit_metadata",
         blocked_pattern_label: error instanceof LlmConfigurationError ? error.code : "configuration_error"
       }],
-      repair_attempted: false
+      repair_attempted: false,
+      generator_call_status: "not_started",
+      reviewer_call_status: "not_started",
+      repair_status: "not_attempted"
     };
   }
 
@@ -902,7 +1064,10 @@ export async function executeLiveFormativeActivityDialogueAgent(input: {
         rule_code: "missing_audit_metadata",
         blocked_pattern_label: "live_calls_not_enabled"
       }],
-      repair_attempted: false
+      repair_attempted: false,
+      generator_call_status: "not_started",
+      reviewer_call_status: "not_started",
+      repair_status: "not_attempted"
     };
   }
 
@@ -946,7 +1111,10 @@ export async function executeLiveFormativeActivityDialogueAgent(input: {
         blocked_pattern_label: safeProviderFailureReason(generator.providerResult)
       }],
       generator_agent_call_id: generator.agent_call_id,
-      repair_attempted: false
+      repair_attempted: false,
+      generator_call_status: "failed",
+      reviewer_call_status: "not_started",
+      repair_status: "not_attempted"
     };
   }
 
@@ -991,7 +1159,10 @@ export async function executeLiveFormativeActivityDialogueAgent(input: {
       }],
       generator_agent_call_id: generator.agent_call_id,
       reviewer_agent_call_id: reviewer.agent_call_id,
-      repair_attempted: false
+      repair_attempted: false,
+      generator_call_status: "succeeded",
+      reviewer_call_status: "failed",
+      repair_status: "not_attempted"
     };
   }
 
@@ -1017,20 +1188,24 @@ export async function executeLiveFormativeActivityDialogueAgent(input: {
       quality_review: firstPipeline.quality_review,
       generator_agent_call_id: generator.agent_call_id,
       reviewer_agent_call_id: reviewer.agent_call_id,
-      repair_attempted: false
+      repair_attempted: false,
+      generator_call_status: "succeeded",
+      reviewer_call_status: "succeeded",
+      repair_status: "not_attempted"
     };
   }
 
-  const repairIsAllowed = firstPipeline.issues.every((issue) =>
-    issue.rule_code === "generator_deterministic_validation_failed" ||
-      issue.rule_code === "reviewer_repair_needed" ||
-      issue.rule_code === "repair_missing"
-  );
   const reviewerOutput = FormativeActivityQualityReviewV1Schema.safeParse(
     reviewer.providerResult.parsed_output
   );
 
-  if (!repairIsAllowed || reviewerOutput.data?.review_status !== "repair_needed") {
+  const repairIsAllowed = formativeActivityPipelineIssuesAllowRepair(firstPipeline.issues);
+  const reviewerBlocksRepair = reviewerOutput.data?.review_status === "fail_closed";
+  const generatorHadValidationFailure = firstPipeline.issues.some(
+    (issue) => issue.rule_code === "generator_deterministic_validation_failed"
+  );
+
+  if (!repairIsAllowed || reviewerBlocksRepair) {
     await prisma.agentCall.update({
       where: { id: generator.agent_call_id },
       data: {
@@ -1049,11 +1224,14 @@ export async function executeLiveFormativeActivityDialogueAgent(input: {
       validation_issues: firstPipeline.issues,
       generator_agent_call_id: generator.agent_call_id,
       reviewer_agent_call_id: reviewer.agent_call_id,
-      repair_attempted: false
+      repair_attempted: false,
+      generator_call_status: "invalid_output",
+      reviewer_call_status: "succeeded",
+      repair_status: "not_attempted"
     };
   }
 
-  if (firstPipeline.issues.some((issue) => issue.rule_code === "generator_deterministic_validation_failed")) {
+  if (generatorHadValidationFailure) {
     await prisma.agentCall.update({
       where: { id: generator.agent_call_id },
       data: {
@@ -1071,14 +1249,29 @@ export async function executeLiveFormativeActivityDialogueAgent(input: {
   const repairInput = {
     schema_version: "formative-activity-repair-input-v1",
     source_input: agentInput,
-    candidate_packet: candidateWithGeneratedAt(generator.providerResult.parsed_output),
-    safe_repair_instructions: reviewerOutput.data.repair_instructions,
-    safe_review_issues: reviewerOutput.data.issues.map((issue) => ({
-      field_path: issue.field_path,
-      rule_code: issue.rule_code,
-      severity: issue.severity,
-      safe_summary: issue.safe_summary
-    }))
+    hard_repair_checklist_for_family: familyQualityMarkers(agentInput.required_activity_family),
+    candidate_packet_summary: {
+      output_schema_valid: FormativeActivityPacketV1Schema.safeParse(
+        candidateWithGeneratedAt(generator.providerResult.parsed_output)
+      ).success,
+      validation_issue_count: firstPipeline.issues.length,
+      validation_issue_codes: firstPipeline.issues.map((issue) =>
+        issue.blocked_pattern_label ?? issue.rule_code
+      )
+    },
+    safe_repair_instructions: repairInstructionsFromPipelineIssues(
+      firstPipeline.issues,
+      reviewerOutput.data?.repair_instructions ?? []
+    ),
+    safe_review_issues: [
+      ...(reviewerOutput.data?.issues.map((issue) => ({
+        field_path: issue.field_path,
+        rule_code: issue.rule_code,
+        severity: issue.severity,
+        safe_summary: issue.safe_summary
+      })) ?? []),
+      ...safeReviewIssuesFromPipelineIssues(firstPipeline.issues)
+    ].slice(0, 20)
   };
   const repair = await executeStructuredWithAudit({
     audit_context: auditContext,
@@ -1104,6 +1297,25 @@ export async function executeLiveFormativeActivityDialogueAgent(input: {
       schema_version: FORMATIVE_ACTIVITY_SCHEMA_VERSION
     }
   });
+
+  if (repair.providerResult.status !== "completed") {
+    return {
+      status: "failed",
+      blocked_reason: "formative_activity_repair_provider_failed",
+      validation_issues: [{
+        field_path: "repair_provider",
+        rule_code: "missing_audit_metadata",
+        blocked_pattern_label: safeProviderFailureReason(repair.providerResult)
+      }],
+      generator_agent_call_id: generator.agent_call_id,
+      reviewer_agent_call_id: reviewer.agent_call_id,
+      repair_agent_call_id: repair.agent_call_id,
+      repair_attempted: true,
+      generator_call_status: generatorHadValidationFailure ? "invalid_output" : "succeeded",
+      reviewer_call_status: "succeeded",
+      repair_status: "failed"
+    };
+  }
 
   const repairedPipeline = evaluateFormativeActivityLivePipeline({
     candidate_packet: generator.providerResult.parsed_output,
@@ -1134,9 +1346,25 @@ export async function executeLiveFormativeActivityDialogueAgent(input: {
       generator_agent_call_id: generator.agent_call_id,
       reviewer_agent_call_id: reviewer.agent_call_id,
       repair_agent_call_id: repair.agent_call_id,
-      repair_attempted: true
+      repair_attempted: true,
+      generator_call_status: generatorHadValidationFailure ? "invalid_output" : "succeeded",
+      reviewer_call_status: "succeeded",
+      repair_status: "succeeded"
     };
   }
+
+  await prisma.agentCall.update({
+    where: { id: repair.agent_call_id },
+    data: {
+      output_validated: false,
+      validation_error: validationErrorPayload({
+        category: "formative_activity_pipeline_validation",
+        issues: repairedPipeline.issues
+      }),
+      call_status: "invalid_output",
+      error_category: "formative_activity_pipeline_validation"
+    }
+  });
 
   return {
     status: "invalid_output",
@@ -1145,7 +1373,10 @@ export async function executeLiveFormativeActivityDialogueAgent(input: {
     generator_agent_call_id: generator.agent_call_id,
     reviewer_agent_call_id: reviewer.agent_call_id,
     repair_agent_call_id: repair.agent_call_id,
-    repair_attempted: true
+    repair_attempted: true,
+    generator_call_status: generatorHadValidationFailure ? "invalid_output" : "succeeded",
+    reviewer_call_status: "succeeded",
+    repair_status: "invalid_output"
   };
 }
 
