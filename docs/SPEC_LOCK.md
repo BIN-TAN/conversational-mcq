@@ -1495,6 +1495,23 @@ Phase 6A.5 must not implement:
   meaningful student-safe contrast description, and a hidden-assumption or
   concept-boundary contrast. Generic "surface clue" language alone is not
   sufficient.
+- Human-readable formative activity review samples must include non-null
+  sample IDs, student-safe profile status, distractor role, expected student
+  action, quality checks, and safety checks. Distractor-using samples must
+  include concrete student-safe distractor descriptions. Review samples must
+  not show `None` for required metadata.
+- Basic concept grounding must include a substantive explanation, not only a
+  prompt. It must provide several concept-explanation sentences, one concrete
+  analogy or contrast, a safe connection to prior response evidence, and one
+  own-words prompt.
+- Transfer and distractor-generation samples must say the task is unscored,
+  explain transfer as applying the same distinction in a nearby situation, and
+  frame generated plausible alternatives as concept-boundary checks rather than
+  attempts to trick anyone.
+- Validators must reject colon-spliced field labels, duplicated label
+  sentences, missing hidden assumptions, missing concrete distractor
+  descriptions, weak generic tempting-alternative language, insufficient basic
+  concept depth, and missing transfer or distractor-generation logic.
 - The dialogue protocol must allow continuing the activity, choosing another
   activity, or moving on. Ability evidence, engagement evidence, profile
   integration, and formative value updates require a student response to the

@@ -415,7 +415,7 @@ npm run student:formative-activity-review
 npm run student:formative-activity-review -- --session-public-id <session_public_id>
 ```
 
-The review command writes redacted artifacts under `.data/formative-activity-review/`. A valid packet includes the selected formative value, activity family, complete-explanation-plus-dialogue protocol, safe first turn, expected student action, distractor-use policy, and an evidence-update plan that requires a later student response. Deterministic fallback or no-live packet generation must not be counted as live activity success.
+The review command writes redacted artifacts under `.data/formative-activity-review/`. A valid packet includes the selected formative value, activity family, complete-explanation-plus-dialogue protocol, safe first turn, expected student action, distractor-use policy, and an evidence-update plan that requires a later student response. The command also writes a human-readable first-turn sample artifact covering all six activity families and the current real-session review target when available. The artifact quality scan should report `forbidden_hit_count = 0`, non-null student-safe profile status for every sample, concrete distractor descriptions for distractor-using samples, no colon-splice patterns, no internal labels, and no fake distractor contrast. Deterministic fallback or no-live packet generation must not be counted as live activity success.
 
 ## One-Click Local Launcher
 

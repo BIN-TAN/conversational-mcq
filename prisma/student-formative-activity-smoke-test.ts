@@ -232,8 +232,18 @@ async function main() {
   );
   assertIncludes(
     diagnosticGap.first_turn.message,
-    /\bperson's estimated ability\b[\s\S]{0,180}\bitem\b/i,
+    /\bTheta describes\b[\s\S]{0,260}\bItem parameters describe\b/i,
     "basic_concept_grounding should explain person ability versus item information."
+  );
+  assertIncludes(
+    diagnosticGap.first_turn.message,
+    /\bthermometer\b[\s\S]{0,180}\btemperature\b/i,
+    "basic_concept_grounding should include a concrete analogy or contrast."
+  );
+  assertExcludes(
+    diagnosticGap.first_turn.message,
+    /:\s+Your\b|\bThe missing link is that The\b/i,
+    "basic_concept_grounding should not contain sentence-splice artifacts."
   );
   assertIncludes(
     diagnosticMisconception.first_turn.message,
@@ -241,14 +251,34 @@ async function main() {
     "distractor_contrast should name a hidden assumption and contrast."
   );
   assertIncludes(
+    diagnosticMisconception.distractor_use.student_safe_description,
+    /\bitem\b[\s\S]{0,160}\b(person|ability)\b|\b(person|ability)\b[\s\S]{0,160}\bitem\b/i,
+    "distractor_contrast should include a concrete safe distractor description."
+  );
+  assertIncludes(
     reasoningRepair.first_turn.message,
-    /\buseful starting point\b[\s\S]{0,180}\bmissing link\b/i,
+    /\buseful starting point\b[\s\S]{0,260}\bmissing link\b/i,
     "reasoning_chain_repair should mention useful part and missing link."
+  );
+  assertExcludes(
+    reasoningRepair.first_turn.message,
+    /\bThe missing link is that The\b|:\s+Your\b/i,
+    "reasoning_chain_repair should not splice raw summary sentences."
   );
   assertIncludes(
     independentReconstruction.first_turn.message,
-    /\boption choices aside\b[\s\S]{0,220}\bin your own words\b/i,
-    "independent_reconstruction should set options aside and ask for own words."
+    /\boption choices aside\b/i,
+    "independent_reconstruction should set options aside."
+  );
+  assertIncludes(
+    independentReconstruction.first_turn.message,
+    /\bcurrent evidence is mixed or unclear\b/i,
+    "independent_reconstruction should explain why options are set aside."
+  );
+  assertIncludes(
+    independentReconstruction.first_turn.message,
+    /\bin your own words\b/i,
+    "independent_reconstruction should ask for own words."
   );
   assertExcludes(
     independentReconstruction.first_turn.message,
@@ -257,7 +287,7 @@ async function main() {
   );
   assertIncludes(
     confidenceAudit.first_turn.message,
-    /\busable understanding\b[\s\S]{0,220}\bconfidence\b/i,
+    /\busable understanding\b[\s\S]{0,260}\blow confidence can be worth checking\b/i,
     "confidence_evidence_audit should connect adequate evidence to confidence."
   );
   assertExcludes(
@@ -269,6 +299,16 @@ async function main() {
     transfer.first_turn.message,
     /\bnot another scored question\b/i,
     "transfer_and_distractor_generation should say it is not another scored question."
+  );
+  assertIncludes(
+    transfer.first_turn.message,
+    /\bTransfer means\b[\s\S]{0,180}\bDistractor generation means\b/i,
+    "transfer_and_distractor_generation should explain transfer and distractor-generation logic."
+  );
+  assertIncludes(
+    transfer.distractor_use.student_safe_description,
+    /\bperson ability\b[\s\S]{0,120}\bitem information\b|\bitem information\b[\s\S]{0,120}\bperson ability\b/i,
+    "transfer generated-distractor metadata should be concrete and student-safe."
   );
   for (const packet of [
     diagnosticGap,
@@ -304,6 +344,22 @@ async function main() {
     ),
     "template_splice_artifact",
     "Template splice artifact"
+  );
+  assertInvalid(
+    unsafeFirstTurn(
+      diagnosticGap,
+      "Your earlier responses suggest a next step: Your answers suggest this idea is still forming. Can you continue?"
+    ),
+    "label_sentence_duplication",
+    "Label sentence duplication"
+  );
+  assertInvalid(
+    unsafeFirstTurn(
+      diagnosticGap,
+      "Your earlier responses suggest a next step: Your answers suggest this idea is still forming. Theta is different from item information. Can you continue?"
+    ),
+    "template_colon_splice",
+    "Template colon splice"
   );
   assertInvalid(
     unsafeFirstTurn(
@@ -358,12 +414,46 @@ async function main() {
     "fake_distractor_contrast",
     "Fake distractor contrast"
   );
+  assertInvalid(
+    unsafeFirstTurn(
+      diagnosticMisconception,
+      "A tempting alternative can feel reasonable because it seems familiar. Theta and item information are related. Can you continue?"
+    ),
+    "missing_hidden_assumption",
+    "Distractor contrast without hidden assumption"
+  );
+
+  const weakDistractorDescription = clonePacket(diagnosticMisconception);
+  weakDistractorDescription.distractor_use.student_safe_description = "A tempting alternative.";
+  assertInvalid(
+    weakDistractorDescription,
+    "missing_concrete_distractor_description",
+    "Missing concrete distractor description"
+  );
+
+  assertInvalid(
+    unsafeFirstTurn(
+      diagnosticGap,
+      "Let's start with the basic distinction. Theta and item information are related. Can you explain the idea?"
+    ),
+    "missing_basic_concept_depth",
+    "Basic concept grounding without enough depth"
+  );
+
+  assertInvalid(
+    unsafeFirstTurn(
+      transfer,
+      "Let's extend the idea carefully. This is not another scored question. Can you apply the same idea to a nearby practice example?"
+    ),
+    "missing_transfer_or_generation_logic",
+    "Transfer sample without transfer and generation logic"
+  );
 
   const missingDistractorRole = clonePacket(diagnosticMisconception);
   missingDistractorRole.distractor_use.distractor_role = "none";
   assertInvalid(
     missingDistractorRole,
-    "fake_distractor_contrast",
+    "family_metadata_missing",
     "distractor_contrast family without distractor role"
   );
 
@@ -406,7 +496,7 @@ async function main() {
 
   console.log(JSON.stringify({
     status: "passed",
-    cases_checked: 37,
+    cases_checked: 45,
     example_activity_family: diagnosticMisconception.activity_family,
     redacted_activity_artifact_path: artifactPath,
     openai_calls_made: false,

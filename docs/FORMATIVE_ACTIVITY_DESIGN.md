@@ -44,6 +44,18 @@ The first turn must:
 - end with exactly one clear student action prompt;
 - avoid answer keys, correctness labels, raw distractor metadata, raw misconception IDs, raw process payloads, and internal labels.
 
+For human-review samples, the first turn must also be genuinely readable prose,
+not a sequence of stitched field labels. `basic_concept_grounding` needs a
+short conceptual explanation with several sentences, a concrete analogy or
+contrast, a safe link to the prior response pattern, and one own-words prompt.
+`reasoning_chain_repair` must name the useful part, the missing link, and why a
+tempting alternative becomes plausible when the link is skipped. `confidence_evidence_audit`
+must connect the student's confidence to safe evidence in the explanation,
+not to internal evidence labels. `transfer_and_distractor_generation` must make
+clear that the task is unscored, that transfer means using the same distinction
+in a nearby situation, and that creating a plausible alternative is for showing
+the concept boundary rather than tricking anyone.
+
 The protocol allows up to three turns before a summary. The student can continue the activity, choose another activity, or move on. Evidence updates are planned but gated: ability evidence, engagement evidence, profile integration, and formative value may be updated only after the student responds to the activity. Production post-activity update is intentionally not implemented in Phase 29a.
 
 ## Distractor Policy
@@ -59,6 +71,12 @@ Distractors are diagnostic reasoning paths, not just wrong options to eliminate.
 
 Student-facing text may discuss a "tempting option" or "alternative reasoning path" but must not reveal answer keys, correct options, raw diagnostic metadata, or raw misconception identifiers.
 
+Distractor-focused samples must include a concrete student-safe distractor
+description. Generic language such as "a tempting alternative" or "surface
+clue" is not enough unless the text also explains the safe conceptual contrast,
+why the alternative feels plausible, the hidden assumption, and how the target
+idea differs.
+
 ## Safety
 
 The validator rejects student-facing output containing:
@@ -73,9 +91,9 @@ The validator rejects student-facing output containing:
 - activity-planning leakage that creates a scored item;
 - unstructured wall-of-text output with no next student action.
 
-The validator also rejects broken concept-focus instructions such as "Focus on..." embedded inside an explanation, impersonal student-facing wording such as "the student appears", fake distractor contrast that relies only on generic surface-clue language, and distractor-focused families that have no meaningful distractor role or safe contrast description.
+The validator also rejects broken concept-focus instructions such as "Focus on..." embedded inside an explanation, impersonal student-facing wording such as "the student appears", fake distractor contrast that relies only on generic surface-clue language, missing hidden assumptions, missing basic-concept depth, missing transfer or distractor-generation logic, colon-spliced field labels, duplicated label sentences, and distractor-focused families that have no meaningful distractor role or safe contrast description.
 
-Review artifacts are written under `.data/formative-activity-review/` and are redacted. They include safe packet metadata, activity family, formative value, safe profile status, safe distractor role, first-turn text only if validation passes, quality issues, safety checklist, and limitations.
+Review artifacts are written under `.data/formative-activity-review/` and are redacted. They include safe packet metadata, a non-null sample ID, activity family, formative value, safe profile status, safe distractor role, first-turn text only if validation passes, expected student action, quality issues, safety checklist, and limitations. Human-readable first-turn sample artifacts include all six families and, when available, the current real-session review target.
 
 ## Commands
 

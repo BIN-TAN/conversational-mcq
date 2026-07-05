@@ -179,6 +179,15 @@ export type FormativeActivityValidationIssue = {
     | "missing_response_connection"
     | "missing_next_student_action"
     | "missing_family_specific_content"
+    | "missing_non_null_student_safe_profile_status"
+    | "missing_concrete_distractor_description"
+    | "template_colon_splice"
+    | "label_sentence_duplication"
+    | "missing_basic_concept_depth"
+    | "missing_hidden_assumption"
+    | "missing_transfer_or_generation_logic"
+    | "weak_generic_tempting_alternative"
+    | "family_metadata_missing"
     | "multiple_or_missing_prompts"
     | "missing_distractor_contrast"
     | "fake_distractor_contrast"
@@ -291,11 +300,22 @@ const FORBIDDEN_STUDENT_TEXT_RULES: Array<{
 ];
 
 const TEMPLATE_SPLICE_RULES = [
+  { pattern: /:\s+(Your|The|This|It)\b/, label: "colon_sentence_splice" },
+  { pattern: /\b(The missing link is that\s+The)\b/, label: "missing_link_capitalized_sentence_splice" },
+  { pattern: /\b(is the idea we need to make clearer:\s+in this assessment)\b/i, label: "concept_label_colon_splice" },
   { pattern: /,\s+your\s+/i, label: "comma_repeats_your_clause" },
   { pattern: /summary is that\s+the current evidence/i, label: "summary_is_that_current_evidence" },
   { pattern: /because\s+confidence evidence/i, label: "because_confidence_evidence" },
   { pattern: /the key idea is\s+focus on/i, label: "key_idea_focus_on" },
   { pattern: /in your earlier responses,\s+your responses/i, label: "earlier_responses_your_responses" }
+];
+
+const LABEL_SENTENCE_DUPLICATION_RULES = [
+  { pattern: /\bYour earlier responses suggest[^.?!]*:\s+Your\b/i, label: "earlier_responses_suggests_your" },
+  { pattern: /\bYour earlier responses show[^.?!]*:\s+Your\b/i, label: "earlier_responses_show_your" },
+  { pattern: /\bYour earlier responses give[^.?!]*:\s+Your\b/i, label: "earlier_responses_give_your" },
+  { pattern: /\bYour earlier responses point[^.?!]*:\s+Your\b/i, label: "earlier_responses_point_your" },
+  { pattern: /\bThe missing link is that\s+The\b/i, label: "missing_link_the_sentence" }
 ];
 
 const INTERNAL_PHRASE_REPLACEMENTS: Array<[RegExp, string]> = [
@@ -353,6 +373,79 @@ function normalizeConceptFocus(value: string | null | undefined) {
 
 function safeSummary(value: string | null | undefined, fallback: string, maxLength = 260) {
   return sanitizeStudentSafeSummary(value, fallback, maxLength);
+}
+
+function stripTerminalPunctuation(text: string) {
+  return text.replace(/[.?!]+$/g, "").trim();
+}
+
+function lowerInitial(text: string) {
+  const trimmed = text.trim();
+  return trimmed.length === 0 ? trimmed : `${trimmed[0].toLowerCase()}${trimmed.slice(1)}`;
+}
+
+function safeSentence(value: string | null | undefined, fallback: string, maxLength = 260) {
+  return stripTerminalPunctuation(safeSummary(value, fallback, maxLength));
+}
+
+function responsePatternPhrase(value: string | null | undefined) {
+  const sentence = safeSentence(value, "this boundary needs more support", 220);
+  if (/basic boundary is still forming/i.test(sentence)) {
+    return "the basic boundary is still forming";
+  }
+  if (/tempting alternative is pulling two ideas together/i.test(sentence)) {
+    return "a tempting alternative is pulling the person-side and item-side ideas together";
+  }
+  if (/useful start but needs one clearer connection/i.test(sentence)) {
+    return "your reasoning has a useful start, but the connection between the ideas needs to be clearer";
+  }
+  if (/explanation unclear enough/i.test(sentence)) {
+    return "the explanation is not clear enough yet to show exactly how you connect the ideas";
+  }
+  if (/enough substance to check confidence/i.test(sentence)) {
+    return "your explanation has enough substance to check confidence against what you wrote";
+  }
+  if (/stable base for extending the concept/i.test(sentence)) {
+    return "your answers give a stable base for extending the concept";
+  }
+  if (/needs more work before it is stable/i.test(sentence)) {
+    return "the concept boundary still needs more work before it is stable";
+  }
+  return lowerInitial(sentence);
+}
+
+function reasoningEvidencePhrase(value: string | null | undefined) {
+  const sentence = safeSentence(value, "your explanation needs one clearer connection", 260);
+  if (/names theta and item information but does not yet separate their roles/i.test(sentence)) {
+    return "your explanation names theta and item information, but it does not yet separate their roles";
+  }
+  if (/mixes a person's estimated ability with the information provided by the item/i.test(sentence)) {
+    return "your explanation mixes the person's estimated ability with the information provided by the item";
+  }
+  if (/points toward theta but skips the link to item information/i.test(sentence)) {
+    return "your explanation points toward theta, but it skips the link to item information";
+  }
+  if (/responses vary between option recognition and a partial concept explanation/i.test(sentence)) {
+    return "your responses vary between recognizing an option and explaining the concept directly";
+  }
+  if (/separates the person-side estimate from the item-side information/i.test(sentence)) {
+    return "your explanation separates the person-side estimate from item-side information";
+  }
+  if (/keeps the person-side estimate separate from item information/i.test(sentence)) {
+    return "your explanation keeps the person-side estimate separate from item information";
+  }
+  return lowerInitial(sentence);
+}
+
+function confidenceEvidencePhrase(value: string | null | undefined) {
+  const sentence = safeSentence(value, "your confidence can be checked against your explanation", 220);
+  if (/cautious even though the explanation gives usable evidence/i.test(sentence)) {
+    return "you were cautious even though your explanation gives usable evidence";
+  }
+  if (/confidence can be checked against the explanation/i.test(sentence)) {
+    return "your confidence can be checked against the explanation you give";
+  }
+  return lowerInitial(sentence);
 }
 
 function sanitizeStudentSafeSummary(value: string | null | undefined, fallback: string, maxLength = 260) {
@@ -531,21 +624,21 @@ function expectedPromptFor(input: FormativeActivityDesignInput, selection: Activ
 function distractorDescriptionFor(input: FormativeActivityDesignInput, selection: ActivitySelection) {
   const contrast = safeSummary(
     input.distractor_contrast_summary ?? input.tempting_option_summary,
-    "A tempting alternative can come from treating a person's ability estimate as if it were the same kind of information as an item feature.",
+    "A tempting alternative treats item difficulty or item information as if it directly gives the person's ability estimate.",
     360
   );
 
   switch (selection.distractor_role) {
     case "selected_distractor":
-      return `The activity uses the selected alternative as a student-safe contrast point: ${contrast}`;
+      return `The selected alternative is used as a student-safe contrast point because ${stripTerminalPunctuation(contrast)}.`;
     case "tempting_distractor":
-      return `The activity uses the tempting alternative as a student-safe contrast point: ${contrast}`;
+      return `The tempting alternative treats item difficulty or item information as interchangeable with the person's estimated ability. It can feel plausible because the item response is the observed evidence.`;
     case "contrast_distractor":
-      return `The activity uses one plausible alternative reasoning path to clarify a concept boundary: ${contrast}`;
+      return `A plausible alternative reasoning path treats item information and person ability as interchangeable, which clarifies the target concept boundary.`;
     case "reactivation_distractor":
-      return `The activity reactivates a plausible alternative reasoning path to collect clearer explanation evidence: ${contrast}`;
+      return `A plausible alternative reasoning path is reactivated to check whether the student can separate item information from the person's ability estimate.`;
     case "generated_distractor":
-      return "The activity may ask the student to create a plausible practice alternative that shows the boundary of the concept without turning it into an assessment item.";
+      return "The activity asks for a plausible unscored practice alternative that mixes person ability with item information, so the student can show the concept boundary in a nearby situation without creating a scored assessment item.";
     case "none":
       return "No distractor contrast is required for this activity family.";
   }
@@ -553,21 +646,12 @@ function distractorDescriptionFor(input: FormativeActivityDesignInput, selection
 
 function firstTurnParts(input: FormativeActivityDesignInput, selection: ActivitySelection) {
   const concept = normalizeConceptFocus(input.concept_focus);
-  const responseConnection = safeSummary(
-    input.response_connection_summary,
-    "your answers suggest this idea is still forming"
-  );
-  const reasoning = safeSummary(
-    input.reasoning_summary,
-    "your explanation seems to need a clearer link between the two ideas"
-  );
-  const confidence = safeSummary(
-    input.confidence_summary,
-    "your confidence can be checked against the explanation you give"
-  );
-  const distractorContrast = safeSummary(
+  const responseConnection = responsePatternPhrase(input.response_connection_summary);
+  const reasoning = reasoningEvidencePhrase(input.reasoning_summary);
+  const confidence = confidenceEvidencePhrase(input.confidence_summary);
+  const distractorContrast = safeSentence(
     input.distractor_contrast_summary ?? input.tempting_option_summary,
-    "a tempting alternative can come from mixing up a person's estimated ability with a feature of the item",
+    "the tempting alternative treats item information and the person's estimated ability as interchangeable",
     360
   );
   const prompt = expectedPromptFor(input, selection);
@@ -575,50 +659,59 @@ function firstTurnParts(input: FormativeActivityDesignInput, selection: Activity
   switch (selection.activity_family) {
     case "basic_concept_grounding":
       return [
-        "Let's start from the basic distinction.",
-        `${sentenceCase(concept)} is the idea we need to make clearer: in this assessment, a person's estimated ability and the information provided by an item are related, but they are not the same thing.`,
-        `Your earlier responses suggest that this boundary needs a more concrete explanation before adding more complexity: ${responseConnection}.`,
-        "A useful way to think about it is that one part describes where a person seems to be on the ability scale, while the other describes what the item is like.",
+        "Let's start with the basic distinction.",
+        "Theta describes where a person seems to be on an ability scale.",
+        "Item parameters describe features of the item, such as how difficult or informative the item is.",
+        "Responses connect the two because an item response gives evidence for estimating theta, but theta and item information are not the same object.",
+        "A useful contrast is a thermometer. The reading tells us something about the room, but the thermometer's sensitivity is not the room's temperature.",
+        `Your earlier work suggests ${responseConnection} before we add more complexity.`,
         prompt
       ];
     case "distractor_contrast":
       return [
-        "Let's use the tempting alternative to sharpen the idea rather than just move past it.",
-        `${sentenceCase(concept)} is the main boundary: one side is about the person's estimated ability, and the other side is about information from the item.`,
-        `Your earlier responses point to a contrast worth examining: ${responseConnection}.`,
-        `The tempting alternative could feel reasonable because ${distractorContrast}. The hidden assumption is that those two kinds of information can be swapped, but the target concept keeps them separate.`,
+        "Let's use the tempting alternative to sharpen the idea instead of just moving past it.",
+        "One tempting alternative treats the item's difficulty or information as if it directly tells us the person's ability.",
+        "That can feel reasonable because the item response is what we observe first.",
+        "The hidden assumption is that item information and person ability are interchangeable.",
+        "The target idea keeps them separate. The item provides evidence, while theta describes the person's estimated location on the ability scale.",
+        `Your earlier work suggests ${responseConnection}.`,
         prompt
       ];
     case "reasoning_chain_repair":
       return [
         "Let's keep the useful part of your reasoning and repair the missing link.",
-        `${sentenceCase(concept)} depends on connecting the person-side idea to the item-side idea without treating them as identical.`,
-        `Your earlier responses show a useful starting point: ${responseConnection}.`,
-        `The missing link is that ${reasoning}. When that link is skipped, a tempting alternative can seem plausible because ${distractorContrast}.`,
+        `${sentenceCase(concept)} depends on connecting the person-side estimate to the item-side information without treating them as identical.`,
+        `Your earlier explanation already has a useful starting point because ${responseConnection}.`,
+        `The missing link is how evidence from item responses supports an estimate of ability while remaining different from the item features themselves.`,
+        `When that link is skipped, the tempting alternative becomes plausible because ${distractorContrast}.`,
         prompt
       ];
     case "independent_reconstruction":
       return [
         "Let's set the option choices aside for a moment and rebuild the idea in your own words.",
         `${sentenceCase(concept)} is easier to check when you explain the relationship directly instead of leaning on recognition from the choices.`,
-        `Your earlier responses give a starting point, but they leave some uncertainty about the explanation: ${responseConnection}.`,
-        "A fresh explanation helps show which parts are clear now and which parts still need support.",
+        "The reason for setting the options aside is that the current evidence is mixed or unclear, so a fresh explanation gives a cleaner view of your thinking.",
+        `Your earlier work suggests ${responseConnection}.`,
+        "This is a chance to show the concept in your own language before we decide what kind of support is useful.",
         prompt
       ];
     case "confidence_evidence_audit":
       return [
         "Let's connect your confidence to the evidence in your own explanation.",
         `${sentenceCase(concept)} is already partly supported when you can separate the person-side estimate from item-side information.`,
-        `Your earlier responses suggest there is usable understanding to check: ${responseConnection}.`,
-        `You were cautious, which is reasonable, but we can look at what evidence supports your thinking: ${confidence}. A tempting alternative is useful only if it helps test the same concept boundary.`,
+        `Your earlier work suggests there is usable understanding to check because ${responseConnection}.`,
+        `One piece of evidence is that ${reasoning}.`,
+        `Low confidence can be worth checking when the explanation has some solid pieces but still feels uncertain; here, ${confidence}.`,
         prompt
       ];
     case "transfer_and_distractor_generation":
       return [
         "Let's extend the idea carefully.",
-        `${sentenceCase(concept)} looks stable enough to try in a nearby practice situation: one part of the explanation should stay about the person's estimated ability, and the other should stay about item information.`,
-        `Your earlier responses give a base to build from: ${responseConnection}.`,
-        "This is not another scored question. If you create a plausible wrong alternative, the point is to show the boundary of the concept, not to trick anyone.",
+        `${sentenceCase(concept)} can transfer to a nearby situation when you keep person ability and item information in separate roles.`,
+        "Transfer means using the same distinction in a new example, not memorizing the wording from this one.",
+        "Distractor generation means creating a plausible wrong alternative that shows where the concept boundary is, not trying to trick anyone.",
+        `Your earlier work suggests ${responseConnection}, so this can be an unscored way to test whether the distinction holds in a nearby example.`,
+        "This is not another scored question.",
         prompt
       ];
   }
@@ -822,6 +915,10 @@ function countPrompts(text: string) {
   return (text.match(/\?/g) ?? []).length;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function conceptToken(conceptFocus: string) {
   return conceptFocus
     .toLowerCase()
@@ -846,27 +943,88 @@ function hasConcreteDistractorContrast(text: string) {
   return hasTemptingAlternative && hasHiddenAssumption && hasConcreteBoundary;
 }
 
+function sentenceCount(text: string) {
+  return text
+    .split(/[.!?]+/)
+    .map((part) => part.trim())
+    .filter(Boolean).length;
+}
+
+function basicConceptExplanationSentenceCount(text: string) {
+  return text
+    .split(/[.!?]+/)
+    .map((part) => part.trim())
+    .filter((sentence) =>
+      /\b(theta|ability scale|estimated ability|person ability|item parameters|item information|difficulty|informative|responses connect|item response)\b/i.test(sentence)
+    ).length;
+}
+
+function hasConcreteDistractorDescription(text: string) {
+  return (
+    text.trim().length >= 80 &&
+    /\b(item|difficulty|information|item response)\b/i.test(text) &&
+    /\b(person|ability|theta|ability estimate|ability scale)\b/i.test(text) &&
+    /\b(interchangeable|separate|boundary|evidence|plausible|observed)\b/i.test(text)
+  );
+}
+
 function familyContentPassed(packet: FormativeActivityPacketV1) {
   const text = packet.first_turn.message;
   switch (packet.activity_family) {
     case "basic_concept_grounding":
-      return /\bbasic distinction\b/i.test(text) && /\bin your own words\b/i.test(packet.expected_student_action.prompt);
+      return (
+        /\bbasic distinction\b/i.test(text) &&
+        basicConceptExplanationSentenceCount(text) >= 3 &&
+        /\bthermometer\b/i.test(text) &&
+        /\bin your own words\b/i.test(packet.expected_student_action.prompt)
+      );
     case "distractor_contrast":
-      return hasConcreteDistractorContrast(text);
+      return (
+        hasConcreteDistractorContrast(text) &&
+        /\bhidden assumption\b/i.test(text) &&
+        hasConcreteDistractorDescription(packet.distractor_use.student_safe_description)
+      );
     case "reasoning_chain_repair":
-      return /\buseful (part|starting point)\b/i.test(text) && /\bmissing link\b/i.test(text);
+      return /\buseful (part|starting point)\b/i.test(text) && /\bmissing link\b/i.test(text) && /\btempting alternative\b/i.test(text);
     case "independent_reconstruction":
-      return /\boption choices aside\b/i.test(text) && /\bin your own words\b/i.test(text);
+      return /\boption choices aside\b/i.test(text) && /\bcurrent evidence is mixed or unclear\b/i.test(text) && /\bin your own words\b/i.test(text);
     case "confidence_evidence_audit":
-      return /\bconfidence\b/i.test(text) && /\bevidence\b/i.test(text) && /\busable understanding\b/i.test(text);
+      return /\bconfidence\b/i.test(text) && /\bevidence\b/i.test(text) && /\busable understanding\b/i.test(text) && /\blow confidence can be worth checking\b/i.test(text);
     case "transfer_and_distractor_generation":
-      return /\bnot another scored question\b/i.test(text) && /\bpractice (situation|example|alternative)\b/i.test(text);
+      return (
+        /\bnot another scored question\b/i.test(text) &&
+        /\bTransfer means\b/.test(text) &&
+        /\bDistractor generation means\b/.test(text) &&
+        /\bnearby (situation|example)\b/i.test(text)
+      );
   }
 }
 
 export function validateFormativeActivityPacket(value: unknown) {
   const schemaResult = FormativeActivityPacketV1Schema.safeParse(value);
   const issues: FormativeActivityValidationIssue[] = [];
+
+  if (isRecord(value)) {
+    const personalization = value.personalization_basis;
+    if (isRecord(personalization)) {
+      const status = personalization.student_safe_profile_status;
+      if (status === null || status === undefined || status === "None") {
+        pushIssue(issues, "personalization_basis.student_safe_profile_status", "missing_non_null_student_safe_profile_status");
+      }
+    }
+    const distractorUse = value.distractor_use;
+    const family = value.activity_family;
+    if (family === "distractor_contrast" && isRecord(distractorUse)) {
+      const role = distractorUse.distractor_role;
+      const description = distractorUse.student_safe_description;
+      if (role === null || role === undefined || role === "none" || role === "None") {
+        pushIssue(issues, "distractor_use.distractor_role", "family_metadata_missing", "distractor_family_missing_role");
+      }
+      if (typeof description !== "string" || !hasConcreteDistractorDescription(description)) {
+        pushIssue(issues, "distractor_use.student_safe_description", "missing_concrete_distractor_description");
+      }
+    }
+  }
 
   if (!schemaResult.success) {
     for (const issue of schemaResult.error.issues) {
@@ -887,6 +1045,14 @@ export function validateFormativeActivityPacket(value: unknown) {
       pushIssue(issues, "first_turn.message", "template_splice_artifact", rule.label);
     }
   }
+  for (const rule of LABEL_SENTENCE_DUPLICATION_RULES) {
+    if (rule.pattern.test(message)) {
+      pushIssue(issues, "first_turn.message", "label_sentence_duplication", rule.label);
+    }
+  }
+  if (/:\s+(Your|The|This|It)\b/.test(message)) {
+    pushIssue(issues, "first_turn.message", "template_colon_splice", "colon_before_sentence");
+  }
   if (/\bthe student appears\b/i.test(message)) {
     pushIssue(issues, "first_turn.message", "impersonal_student_reference", "the_student_appears");
   }
@@ -896,14 +1062,36 @@ export function validateFormativeActivityPacket(value: unknown) {
   if (!hasConcreteConceptExplanation(message)) {
     pushIssue(issues, "first_turn.message", "missing_concrete_concept_explanation");
   }
-  if (!/\b(the key idea is|a useful way to think|the core idea is|the main boundary|the basic distinction|one part describes|one side is about|one part of the explanation|depends on connecting|already partly supported|easier to check)\b/i.test(message)) {
+  if (!/\b(the key idea is|a useful way to think|the core idea is|the main boundary|the basic distinction|one part describes|one side is about|one part of the explanation|depends on connecting|already partly supported|easier to check|the target idea keeps|responses connect the two|transfer means)\b/i.test(message)) {
     pushIssue(issues, "first_turn.message", "missing_concept_explanation");
   }
-  if (!/\b(your earlier responses|your prior responses|your earlier thinking|your earlier work)\b/i.test(message)) {
+  if (!/\b(your earlier responses|your prior responses|your earlier thinking|your earlier work|your earlier explanation)\b/i.test(message)) {
     pushIssue(issues, "first_turn.message", "missing_response_connection");
   }
   if (!familyContentPassed(packet)) {
     pushIssue(issues, "first_turn.message", "missing_family_specific_content", packet.activity_family);
+  }
+  if (
+    packet.activity_family === "basic_concept_grounding" &&
+    (basicConceptExplanationSentenceCount(message) < 3 || sentenceCount(message) < 6)
+  ) {
+    pushIssue(issues, "first_turn.message", "missing_basic_concept_depth");
+  }
+  if (packet.activity_family === "distractor_contrast" && !/\bhidden assumption\b/i.test(message)) {
+    pushIssue(issues, "first_turn.message", "missing_hidden_assumption");
+  }
+  if (
+    packet.activity_family === "distractor_contrast" &&
+    /\btempting alternative\b/i.test(message) &&
+    !/\b(item|difficulty|information|person|ability|theta|interchangeable|observed)\b/i.test(message)
+  ) {
+    pushIssue(issues, "first_turn.message", "weak_generic_tempting_alternative");
+  }
+  if (
+    packet.activity_family === "transfer_and_distractor_generation" &&
+    (!/\bTransfer means\b/.test(message) || !/\bDistractor generation means\b/.test(message))
+  ) {
+    pushIssue(issues, "first_turn.message", "missing_transfer_or_generation_logic");
   }
   if (countPrompts(message) !== 1 || !message.trim().endsWith("?")) {
     pushIssue(issues, "first_turn.message", "multiple_or_missing_prompts");
@@ -923,10 +1111,16 @@ export function validateFormativeActivityPacket(value: unknown) {
     pushIssue(issues, "first_turn.message", "fake_distractor_contrast");
   }
   if (
+    packet.distractor_use.distractor_role !== "none" &&
+    !hasConcreteDistractorDescription(packet.distractor_use.student_safe_description)
+  ) {
+    pushIssue(issues, "distractor_use.student_safe_description", "missing_concrete_distractor_description");
+  }
+  if (
     packet.activity_family === "distractor_contrast" &&
     packet.distractor_use.distractor_role === "none"
   ) {
-    pushIssue(issues, "distractor_use.distractor_role", "fake_distractor_contrast", "distractor_contrast_without_role");
+    pushIssue(issues, "distractor_use.distractor_role", "family_metadata_missing", "distractor_contrast_without_role");
   }
   if (
     packet.distractor_use.distractor_role !== "none" &&
@@ -969,6 +1163,12 @@ export function validateFormativeActivityPacket(value: unknown) {
 function redactedReviewArtifact(packet: FormativeActivityPacketV1, validation: ReturnType<typeof validateFormativeActivityPacket>) {
   return {
     artifact_version: FORMATIVE_ACTIVITY_REVIEW_ARTIFACT_VERSION,
+    sample_id: stableId("formative_activity_sample", {
+      session_public_id: packet.session_public_id,
+      activity_family: packet.activity_family,
+      selected_formative_value: packet.selected_formative_value,
+      source_formative_value_packet_id: packet.source_formative_value_packet_id
+    }),
     generated_at: nowIso(),
     schema_version: packet.schema_version,
     session_public_id: packet.session_public_id,
@@ -978,6 +1178,8 @@ function redactedReviewArtifact(packet: FormativeActivityPacketV1, validation: R
     activity_family: packet.activity_family,
     activity_mode: packet.activity_mode,
     student_safe_profile_status: packet.personalization_basis.student_safe_profile_status,
+    distractor_role: packet.distractor_use.distractor_role,
+    distractor_student_safe_description: packet.distractor_use.student_safe_description,
     activity_goal: {
       student_safe_goal: packet.activity_goal.student_safe_goal,
       evidence_goal: packet.activity_goal.evidence_goal
