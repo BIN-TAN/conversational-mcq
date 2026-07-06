@@ -507,6 +507,25 @@ Production post-activity update remains future work. It must use the future
 LLM evaluator for substantive diagnostic judgment. Deterministic code may
 validate schema, safety, privacy, audit, and fail-closed behavior only.
 
+Phase 30d persists post-activity misconception evidence and review snapshots:
+
+```bash
+npm run student:activity-misconception-update-smoke
+npm run student:activity-misconception-update-review
+npm run student:activity-misconception-update-review -- --session-public-id <session_public_id>
+```
+
+Production persistence requires a live LLM evidence packet with evaluator
+`agent_calls` audit metadata, provider request or response metadata, token
+usage, successful output validation, and safe student-facing feedback. No-live
+fixtures and deterministic review packets are allowed only in explicit
+`review_artifact` mode and must not count as production diagnosis.
+
+The review command writes redacted artifacts under
+`.data/activity-misconception-update-review/`. The persisted snapshot is a
+review-layer diagnostic update only; it does not overwrite response packages,
+replace the operational profile, or claim classroom validity.
+
 ## One-Click Local Launcher
 
 The one-click launcher is for daily local use after the full opt-in live LLM smoke has already passed as the backend gate. It does not run paid model-generation smoke tests.

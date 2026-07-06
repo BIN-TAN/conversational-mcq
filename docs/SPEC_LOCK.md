@@ -227,6 +227,37 @@ The diagnostic loop policy is: loop until no actionable distractor-linked miscon
 - Phase 30c does not implement browser activity execution, runtime
   multi-turn dialogue, production profile updates, or diagnosis updates.
 
+## Phase 30d Post-Activity Evidence Persistence Lock
+
+- Phase 30d persists validated post-activity misconception evidence in
+  `activity_misconception_evidence_records` and stores a derived review-layer
+  snapshot in `post_activity_diagnostic_snapshots`.
+- These records are immutable review/audit artifacts. They do not mutate the
+  original response package, overwrite the pre-activity diagnostic state, or
+  replace the operational student profile.
+- Production diagnosis persistence requires `evaluation_source=live_llm`,
+  `review_only=false`, `runtime_servable_to_student=false`, a source evaluator
+  `agent_call`, provider request or response metadata, token usage, successful
+  output validation, and a passing student-facing safety scan.
+- `no_live_fixture`, `review_only`, deterministic final diagnostic decisions,
+  missing evaluator audit, missing provider metadata, missing token usage, and
+  unsafe student-safe feedback must fail closed for production persistence.
+- `no_live_fixture` packets may be persisted only under explicit
+  `review_artifact` mode for no-live review artifacts and tests.
+- The post-activity snapshot may summarize before/after diagnostic state,
+  update strength, evidence quality, next diagnostic purpose, student-safe
+  feedback, and limitations. It must mark `no_actionable_misconception_evidence`
+  as current-hypothesis evidence, not global absence of misconceptions.
+- Move-on and choose-other states are student-choice states and must not be
+  converted into diagnostic improvement.
+- Process, timing, and engagement context may only affect evidence sufficiency
+  or reliability context. They are not direct misconception evidence and are not
+  misconduct evidence.
+- `student:activity-misconception-update-smoke` and
+  `student:activity-misconception-update-review` are no-live commands. The
+  review command writes redacted artifacts under
+  `.data/activity-misconception-update-review/`.
+
 ## Ability Evidence Packet V1
 
 - `ability-evidence-packet-v1` is an internal evidence foundation for future ability profiling. It does not create a final student profile, does not implement engagement profiling, and does not change student-facing UI.

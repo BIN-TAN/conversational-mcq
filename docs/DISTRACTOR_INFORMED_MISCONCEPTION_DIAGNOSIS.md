@@ -173,5 +173,9 @@ Phase 30a does not rename code enums, database fields, scripts, or provider sche
 - `student-activity-misconception-evidence-v1` should be read as the
   post-activity student-response evidence packet for future LLM-evaluated
   misconception updates.
+- `activity_misconception_evidence_records` and
+  `post_activity_diagnostic_snapshots` should be read as persisted review/audit
+  records for post-activity misconception evidence, not as replacement ability
+  profiles or claims of classroom validity.
 
 Future implementation phases may rename or introduce schemas only after migration, compatibility, and audit implications are explicitly approved.

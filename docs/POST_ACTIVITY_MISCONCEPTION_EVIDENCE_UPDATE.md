@@ -290,6 +290,84 @@ A provider/schema-valid output can still fail the smoke if the selected
 misconception evidence status is outside the case's allowed outcome set. Such
 failures are reported as `outcome_mismatch`, not provider failures.
 
+## Phase 30d Persistence and Review Snapshot
+
+Phase 30d adds an audit-backed persistence layer for post-activity
+misconception evidence. It does not implement browser runtime activity
+execution, broad profile replacement, or deterministic production diagnosis.
+
+Persisted records are stored in:
+
+```text
+activity_misconception_evidence_records
+post_activity_diagnostic_snapshots
+```
+
+The evidence record keeps the validated packet, public session/student/
+assessment/concept/activity references, the source evaluator `agent_call`
+reference, evaluation source flags, activity family, response kind, evidence
+elicited types, update status, evidence quality, next diagnostic purpose,
+student-safe feedback, safety flags, limitations, and creation time.
+
+The snapshot is a review-layer diagnostic state summary. It can include:
+
+- `pre_activity_diagnostic_state`;
+- the activity evidence update;
+- `post_activity_diagnostic_state`;
+- update strength;
+- evidence quality;
+- next diagnostic purpose;
+- student-safe feedback;
+- limitations and interpretation boundaries.
+
+The snapshot does not replace an operational profile and does not overwrite the
+pre-activity diagnostic state. The LLM evaluator output is the substantive
+source for production updates; deterministic code maps fields, validates
+safety, enforces audit requirements, and fails closed.
+
+Production persistence requires:
+
+- `evaluation_source=live_llm`;
+- `review_only=false`;
+- `runtime_servable_to_student=false`;
+- no deterministic final diagnostic decision;
+- source evaluator `agent_call` exists;
+- evaluator call succeeded and output validated;
+- provider request or response metadata exists;
+- token usage exists;
+- student-safe feedback passes protected-term validation.
+
+Production persistence rejects:
+
+- `no_live_fixture`;
+- `review_only` packets;
+- deterministic final diagnostic decisions;
+- missing evaluator audit;
+- missing provider metadata;
+- missing token usage;
+- unsafe student-safe feedback.
+
+No-live fixture packets may be persisted only with explicit
+`production_mode=review_artifact` for review artifacts and regression tests.
+
+Review commands:
+
+```bash
+npm run student:activity-misconception-update-smoke
+npm run student:activity-misconception-update-review
+npm run student:activity-misconception-update-review -- --session-public-id <session_public_id>
+```
+
+The review command makes no provider call. It writes redacted artifacts under
+`.data/activity-misconception-update-review/`. If a requested session has no
+persisted post-activity evidence, the command exits with
+`completed_with_limitations` and records the missing-evidence limitation.
+
+Artifacts must not include raw provider output, raw prompts, headers, secrets,
+answer keys, correct options, correctness labels, raw distractor metadata, raw
+misconception IDs, raw process payloads, or raw student responses when they are
+not already represented as a safe summary.
+
 ## Safety And Student-Facing Language
 
 Student-facing text may say:

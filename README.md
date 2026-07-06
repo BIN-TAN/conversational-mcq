@@ -449,6 +449,24 @@ subset locally, set `ACTIVITY_MISCONCEPTION_EVIDENCE_SMOKE_CASES` to a
 comma-separated case list or `MAX_LIVE_ACTIVITY_MISCONCEPTION_EVIDENCE_CASES`
 to a positive integer.
 
+Post-activity misconception evidence persistence and diagnostic update review:
+
+```bash
+npm run student:activity-misconception-update-smoke
+npm run student:activity-misconception-update-review
+npm run student:activity-misconception-update-review -- --session-public-id <session_public_id>
+```
+
+Phase 30d stores validated post-activity evidence in
+`activity_misconception_evidence_records` and stores a review-layer diagnostic
+snapshot in `post_activity_diagnostic_snapshots`. Production diagnosis
+persistence requires a live LLM evidence packet, source evaluator `agent_calls`
+metadata, provider request or response metadata, token usage, successful output
+validation, and safe student-facing feedback. No-live fixtures can be persisted
+only in explicit `review_artifact` mode for local review and tests. The review
+command writes redacted artifacts under
+`.data/activity-misconception-update-review/` and does not call OpenAI.
+
 Profile/formative scenario QA:
 
 ```bash

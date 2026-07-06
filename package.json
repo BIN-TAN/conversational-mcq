@@ -42,6 +42,8 @@
     "student:activity-misconception-evidence-smoke": "tsx prisma/student-activity-misconception-evidence-smoke-test.ts",
     "student:activity-misconception-evidence-review": "tsx prisma/student-activity-misconception-evidence-review.ts",
     "student:activity-misconception-evidence-live-smoke": "tsx prisma/student-activity-misconception-evidence-live-smoke-test.ts",
+    "student:activity-misconception-update-smoke": "tsx prisma/student-activity-misconception-update-smoke-test.ts",
+    "student:activity-misconception-update-review": "tsx prisma/student-activity-misconception-update-review.ts",
     "student:profile-formative-scenario-smoke": "tsx prisma/student-profile-formative-scenario-smoke.ts",
     "student:profile-formative-quota-smoke": "tsx prisma/student-profile-formative-quota-smoke.ts",
     "student:profile-formative-live-trials": "tsx prisma/student-profile-formative-live-trials.ts",

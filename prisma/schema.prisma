@@ -788,6 +788,7 @@ model AgentCall {
   item_verification_runs          ItemVerificationRun[]             @relation("ItemVerificationAgentCall")
   operational_effective_results   OperationalAgentEffectiveResult[]
   operational_live_canary_dispatch_attempts OperationalLiveCanaryDispatchAttempt[]
+  activity_misconception_evidence_records ActivityMisconceptionEvidenceRecord[] @relation("ActivityMisconceptionEvidenceAgentCall")
 
   @@index([assessment_session_db_id, created_at])
   @@index([concept_unit_session_db_id, created_at])
@@ -798,6 +799,77 @@ model AgentCall {
   @@index([blocked_reason, created_at])
   @@index([live_call_allowed, created_at])
   @@map("agent_calls")
+}
+
+model ActivityMisconceptionEvidenceRecord {
+  id                                  String   @id @default(uuid()) @db.Uuid
+  evidence_public_id                  String   @unique @default(cuid())
+  session_public_id                   String
+  student_public_id                   String
+  assessment_public_id                String
+  concept_unit_id                     String
+  activity_attempt_id                 String
+  source_activity_packet_ref          Json?
+  source_evaluator_agent_call_db_id   String?  @db.Uuid
+  schema_version                      String
+  evaluation_source                   String
+  review_only                         Boolean  @default(false)
+  runtime_servable_to_student         Boolean  @default(false)
+  production_mode                     String
+  diagnostic_purpose                  String
+  activity_family                     String
+  student_response_kind               String
+  evidence_elicited_types             Json
+  misconception_update_status         String
+  evidence_quality                    String
+  recommended_next_diagnostic_purpose String
+  student_safe_feedback               Json
+  safety_flags                        Json
+  limitations                         Json
+  evidence_packet                     Json
+  evidence_hash                       String
+  created_at                          DateTime @default(now()) @db.Timestamptz(6)
+
+  source_evaluator_agent_call AgentCall? @relation("ActivityMisconceptionEvidenceAgentCall", fields: [source_evaluator_agent_call_db_id], references: [id], onDelete: SetNull)
+  diagnostic_snapshots        PostActivityDiagnosticSnapshot[]
+
+  @@unique([activity_attempt_id, evidence_hash, production_mode], map: "activity_misconception_evidence_attempt_hash_mode_key")
+  @@index([session_public_id, created_at])
+  @@index([student_public_id, created_at])
+  @@index([assessment_public_id, created_at])
+  @@index([concept_unit_id, created_at])
+  @@index([source_evaluator_agent_call_db_id])
+  @@index([evaluation_source, production_mode])
+  @@map("activity_misconception_evidence_records")
+}
+
+model PostActivityDiagnosticSnapshot {
+  id                             String   @id @default(uuid()) @db.Uuid
+  snapshot_public_id             String   @unique @default(cuid())
+  evidence_record_db_id          String   @db.Uuid
+  session_public_id              String
+  student_public_id              String
+  assessment_public_id           String
+  concept_unit_id                String
+  activity_attempt_id            String
+  pre_activity_diagnostic_state  String?
+  activity_update_status         String
+  post_activity_diagnostic_state String
+  update_strength                String
+  evidence_quality               String
+  next_diagnostic_purpose        String
+  student_safe_feedback          Json
+  limitations                    Json
+  snapshot_payload               Json
+  created_at                     DateTime @default(now()) @db.Timestamptz(6)
+
+  evidence_record ActivityMisconceptionEvidenceRecord @relation(fields: [evidence_record_db_id], references: [id], onDelete: Cascade)
+
+  @@unique([evidence_record_db_id], map: "post_activity_diagnostic_snapshot_evidence_record_key")
+  @@index([session_public_id, created_at])
+  @@index([student_public_id, created_at])
+  @@index([activity_update_status])
+  @@map("post_activity_diagnostic_snapshots")
 }
 
 model OperationalAgentEffectiveResult {
