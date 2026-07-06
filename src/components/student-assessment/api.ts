@@ -5,11 +5,13 @@ import {
   ApiErrorSchema,
   StartSessionResponseSchema,
   StudentReviewResponseSchema,
+  StudentActivityRuntimeProjectionSchema,
   StudentSessionStateSchema,
   StudentTranscriptResponseSchema,
   type AvailableAssessmentsResponse,
   type ConfidenceRating,
   type StartSessionResponse,
+  type StudentActivityRuntimeProjection,
   type StructuredStudentApiError,
   type StudentReviewResponse,
   type StudentSessionState,
@@ -391,6 +393,71 @@ export function sendFormativeActivityResponse(input: {
         state: StudentSessionStateSchema.parse(result.state)
       };
     }
+  );
+}
+
+export function fetchStudentActivityRuntime(
+  sessionPublicId: string
+): Promise<StudentActivityRuntimeProjection> {
+  return get(`/api/student/sessions/${sessionPublicId}/activity-runtime`, (value) =>
+    StudentActivityRuntimeProjectionSchema.parse(
+      (value as { activity_runtime: unknown }).activity_runtime
+    )
+  );
+}
+
+export function startStudentActivityRuntime(
+  sessionPublicId: string
+): Promise<StudentActivityRuntimeProjection> {
+  return post(
+    `/api/student/sessions/${sessionPublicId}/activity-runtime`,
+    {},
+    (value) =>
+      StudentActivityRuntimeProjectionSchema.parse(
+        (value as { activity_runtime: unknown }).activity_runtime
+      )
+  );
+}
+
+export function submitStudentActivityRuntimeResponse(input: {
+  sessionPublicId: string;
+  activityAttemptPublicId: string;
+  responseText: string;
+  clientMessageId?: string;
+}): Promise<StudentActivityRuntimeProjection> {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/activity-runtime/response`,
+    {
+      activity_attempt_public_id: input.activityAttemptPublicId,
+      response_text: input.responseText,
+      client_message_id: input.clientMessageId ?? newClientActionId("activity-runtime-response")
+    },
+    (value) =>
+      StudentActivityRuntimeProjectionSchema.parse(
+        (value as { activity_runtime: unknown }).activity_runtime
+      )
+  );
+}
+
+export function chooseStudentActivityRuntimeAction(input: {
+  sessionPublicId: string;
+  activityAttemptPublicId?: string | null;
+  choiceState: "choose_another_activity" | "move_on";
+  selectedAlternativeActivityFamily?: string | null;
+  clientActionId?: string;
+}): Promise<StudentActivityRuntimeProjection> {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/activity-runtime/choice`,
+    {
+      activity_attempt_public_id: input.activityAttemptPublicId ?? null,
+      choice_state: input.choiceState,
+      selected_alternative_activity_family: input.selectedAlternativeActivityFamily ?? null,
+      client_action_id: input.clientActionId ?? newClientActionId(`activity-runtime-${input.choiceState}`)
+    },
+    (value) =>
+      StudentActivityRuntimeProjectionSchema.parse(
+        (value as { activity_runtime: unknown }).activity_runtime
+      )
   );
 }
 

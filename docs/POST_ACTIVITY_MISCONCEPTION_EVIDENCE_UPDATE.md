@@ -550,6 +550,50 @@ configuration. Review artifacts are written under:
 .data/activity-runtime-loop-live-smoke/
 ```
 
+## Phase 30g Minimal Student Runtime UI
+
+Phase 30g adds the first minimal browser-facing runtime surface for the
+activity loop. The student UI may prepare an activity, show a student-safe
+focus label, show the live activity first turn, collect one activity response,
+show safe post-response feedback, and offer **Choose another activity** or
+**Move on**.
+
+The UI receives only a student-safe projection. It must not expose internal
+activity-family enum labels, diagnostic-purpose enum labels, misconception
+status, evidence-quality labels, engagement or AI labels, provider metadata,
+raw process payloads, raw distractor metadata, answer keys, correct options,
+correctness labels, raw LLM output, or raw student-response audit data.
+
+Runtime start is allowed only from a validated formative activity packet with:
+
+```text
+generation_source = live_llm
+runtime_servable_to_student = true
+review_only = false
+```
+
+Deterministic review packets and no-live evidence fixtures remain QA-only and
+fail closed if used as runtime student-facing content or production
+misconception evidence.
+
+Student activity responses are evaluated through the existing Phase 30f runtime
+loop. A valid response may create an `activity_misconception_evidence_records`
+row and a `post_activity_diagnostic_snapshots` row, but it does not replace the
+student profile, mutate the original response package, change item content, or
+alter scoring. Provider/evaluator failure, unsafe student-facing feedback, or
+missing live provenance produces a safe fail-closed state with options to try
+again, choose another activity, or move on.
+
+New no-live smoke:
+
+```bash
+npm run student:activity-runtime-ui-smoke
+```
+
+The smoke creates synthetic sessions, injects live-shaped activity and
+evaluator outputs, verifies the student projection, confirms deterministic and
+no-live artifacts are rejected for runtime use, and makes no OpenAI call.
+
 ## References
 
 - Mislevy, R. J., Steinberg, L. S., & Almond, R. G. Evidence-centered assessment design.

@@ -8,12 +8,14 @@ import type {
   StructuredStudentApiError,
   StudentReviewItem,
   StudentReviewResponse,
+  StudentActivityRuntimeProjection,
   StudentSafeItem,
   StudentSessionState,
   StudentTranscriptEntry
 } from "@/lib/student-assessment-ui/types";
 import {
   beginConceptUnit,
+  chooseStudentActivityRuntimeAction,
   chooseProgression,
   completeInitialConceptUnit,
   exitSession,
@@ -27,10 +29,11 @@ import {
   saveReasoning,
   saveTemptingOption,
   selectNextChoice,
-  sendFormativeActivityResponse,
   sendFollowupMessage,
   sendRevisionResponse,
+  startStudentActivityRuntime,
   startAssessmentSession,
+  submitStudentActivityRuntimeResponse,
   stopFollowup,
   updateInFlowItem,
   updatePackageReviewItem
@@ -467,7 +470,8 @@ function TextComposer({
   testId,
   sendTestId,
   onChange,
-  onSend
+  onSend,
+  sendLabel = "Send"
 }: {
   label: string;
   placeholder: string;
@@ -478,6 +482,7 @@ function TextComposer({
   sendTestId?: string;
   onChange: (value: string) => void;
   onSend: () => void;
+  sendLabel?: string;
 }) {
   return (
     <div className="ml-auto w-full max-w-[82%] rounded-2xl rounded-br-md border border-line bg-white px-3 py-2.5 shadow-sm sm:max-w-[72%]">
@@ -512,7 +517,7 @@ function TextComposer({
           type="button"
         >
           <Send className="h-4 w-4" aria-hidden="true" />
-          Send
+          {sendLabel}
         </button>
       </div>
     </div>
@@ -1138,40 +1143,154 @@ function FollowupControls({
 }
 
 function FormativeActivityControls({
-  state,
+  activityRuntime,
   isBusy,
   formativeActivityDraft,
   setFormativeActivityDraft,
-  onSendFormativeActivityResponse
+  onChooseActivityRuntimeAction,
+  onSendFormativeActivityResponse,
+  onStartActivityRuntime
 }: {
-  state: StudentSessionState;
+  activityRuntime: StudentActivityRuntimeProjection | null | undefined;
   isBusy: boolean;
   formativeActivityDraft: string;
   setFormativeActivityDraft: (value: string) => void;
+  onChooseActivityRuntimeAction: (choiceState: "choose_another_activity" | "move_on") => void;
   onSendFormativeActivityResponse: () => void;
+  onStartActivityRuntime: () => void;
 }) {
-  if (state.next_step === "formative_response_saved") {
+  const runtime = activityRuntime ?? null;
+
+  if (!runtime || runtime.ui_state === "not_started") {
     return (
       <AgentMessage>
-        <p className="font-medium text-ink">
-          Thanks. Your response has been recorded. Targeted feedback is not available yet in this prototype.
+        <p className="font-medium text-ink">A short activity can be prepared when you are ready.</p>
+        <button
+          className="mt-4 inline-flex items-center justify-center rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="start-activity-runtime"
+          disabled={isBusy}
+          onClick={onStartActivityRuntime}
+          type="button"
+        >
+          Prepare activity
+        </button>
+      </AgentMessage>
+    );
+  }
+
+  const choiceButtons = (
+    <div className="mt-4 flex flex-wrap gap-2">
+      {runtime.can_choose_another_activity ? (
+        <button
+          className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="activity-runtime-choose-another"
+          disabled={isBusy}
+          onClick={() => onChooseActivityRuntimeAction("choose_another_activity")}
+          type="button"
+        >
+          Choose another activity
+        </button>
+      ) : null}
+      {runtime.can_move_on ? (
+        <button
+          className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="activity-runtime-move-on"
+          disabled={isBusy}
+          onClick={() => onChooseActivityRuntimeAction("move_on")}
+          type="button"
+        >
+          Move on
+        </button>
+      ) : null}
+    </div>
+  );
+
+  if (
+    runtime.ui_state === "could_not_prepare_activity_safely" ||
+    runtime.ui_state === "could_not_review_response_safely"
+  ) {
+    return (
+      <AgentMessage>
+        <p className="font-medium text-ink">{runtime.feedback?.message ?? runtime.status_message}</p>
+        {choiceButtons}
+      </AgentMessage>
+    );
+  }
+
+  if (runtime.ui_state === "reviewing_your_response") {
+    return (
+      <AgentMessage>
+        <p className="font-medium text-ink">I am reviewing your response.</p>
+      </AgentMessage>
+    );
+  }
+
+  if (
+    runtime.ui_state === "feedback_ready" ||
+    runtime.ui_state === "alternative_requested" ||
+    runtime.ui_state === "moved_on"
+  ) {
+    return (
+      <AgentMessage>
+        {runtime.focus_label ? (
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{runtime.focus_label}</p>
+        ) : null}
+        <p className="mt-2 whitespace-pre-wrap font-medium text-ink">
+          {runtime.feedback?.message ?? runtime.status_message}
         </p>
+        {runtime.next_recommendation_label ? (
+          <p className="mt-3 text-sm text-muted">{runtime.next_recommendation_label}</p>
+        ) : null}
+        {runtime.ui_state === "alternative_requested" ? (
+          <div className="mt-4 rounded-xl border border-line bg-[#fbfcfa] px-3 py-2.5">
+            <p className="text-sm font-semibold text-ink">Available choices for a future version</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
+              {runtime.alternative_activity_labels.map((label) => (
+                <li key={label}>{label}</li>
+              ))}
+            </ul>
+            <p className="mt-2 text-sm text-muted">
+              Alternative activity selection is recorded for this version. You can continue with the current activity or move on.
+            </p>
+          </div>
+        ) : null}
+        {runtime.can_continue ? (
+          <p className="mt-3 text-sm text-muted">
+            You can continue by responding to the next prompt when it is available, or choose another activity.
+          </p>
+        ) : null}
+        {choiceButtons}
       </AgentMessage>
     );
   }
 
   return (
-    <TextComposer
-      disabled={isBusy || !state.formative_activity?.can_send}
-      label="Formative activity response"
-      maxLength={state.formative_activity?.message_max_chars ?? 5000}
-      onChange={setFormativeActivityDraft}
-      onSend={onSendFormativeActivityResponse}
-      placeholder="Write your response..."
-      sendTestId="send-formative-activity-response"
-      testId="formative-activity-response-input"
-      value={formativeActivityDraft}
-    />
+    <>
+      <AgentMessage>
+        {runtime.focus_label ? (
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{runtime.focus_label}</p>
+        ) : null}
+        <p className="mt-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-ink">
+          {runtime.first_turn_message ?? runtime.status_message}
+        </p>
+        {runtime.response_prompt ? (
+          <p className="mt-3 text-sm font-medium text-ink">{runtime.response_prompt}</p>
+        ) : null}
+        {choiceButtons}
+      </AgentMessage>
+      <TextComposer
+        disabled={isBusy || !runtime.can_submit_response}
+        label="Activity response"
+        maxLength={runtime.message_max_chars}
+        onChange={setFormativeActivityDraft}
+        onSend={onSendFormativeActivityResponse}
+        placeholder="Write your response..."
+        sendLabel="Submit response"
+        sendTestId="send-formative-activity-response"
+        testId="formative-activity-response-input"
+        value={formativeActivityDraft}
+      />
+    </>
   );
 }
 
@@ -1353,6 +1472,7 @@ function shouldShowLearningProfile(state: StudentSessionState) {
 
 function activeItemPrompt(input: {
   state: StudentSessionState;
+  activityRuntime: StudentActivityRuntimeProjection | null;
   review: StudentReviewResponse | null;
   isBusy: boolean;
   reasoningDraft: string;
@@ -1384,7 +1504,9 @@ function activeItemPrompt(input: {
   onContinuePackage: () => void;
   onSaveReviewEdit: () => void;
   onStartReviewEdit: (item: StudentReviewItem) => void;
+  onChooseActivityRuntimeAction: (choiceState: "choose_another_activity" | "move_on") => void;
   onSendFormativeActivityResponse: () => void;
+  onStartActivityRuntime: () => void;
   onSendRevision: () => void;
   onNextChoice: (choice: "move_next" | "try_another") => void;
   onSendFollowup: () => void;
@@ -1582,11 +1704,13 @@ function activeItemPrompt(input: {
   ) {
     return (
       <FormativeActivityControls
+        activityRuntime={input.activityRuntime}
         formativeActivityDraft={input.formativeActivityDraft}
         isBusy={isBusy}
+        onChooseActivityRuntimeAction={input.onChooseActivityRuntimeAction}
         onSendFormativeActivityResponse={input.onSendFormativeActivityResponse}
+        onStartActivityRuntime={input.onStartActivityRuntime}
         setFormativeActivityDraft={input.setFormativeActivityDraft}
-        state={state}
       />
     );
   }
@@ -1661,6 +1785,7 @@ export function AssessmentSessionClient({
   const router = useRouter();
   const resolvedInitialSessionPublicId = initialSessionPublicId ?? sessionPublicId;
   const [state, setState] = useState<StudentSessionState | null>(null);
+  const [activityRuntime, setActivityRuntime] = useState<StudentActivityRuntimeProjection | null>(null);
   const [transcript, setTranscript] = useState<StudentTranscriptEntry[]>([]);
   const [review, setReview] = useState<StudentReviewResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -1719,6 +1844,7 @@ export function AssessmentSessionClient({
     try {
       const nextState = await action();
       setState(nextState);
+      setActivityRuntime(nextState.activity_runtime ?? null);
       await refreshSecondaryData(nextState.session_public_id);
     } catch (errorValue) {
       handleError(errorValue, label, () => {
@@ -1758,6 +1884,7 @@ export function AssessmentSessionClient({
         }
 
         setState(nextState);
+        setActivityRuntime(nextState.activity_runtime ?? null);
         await refreshSecondaryData(nextState.session_public_id);
       } catch (errorValue) {
         if (mounted) {
@@ -1794,6 +1921,10 @@ export function AssessmentSessionClient({
       setFormativeActivityDraft("");
     }
   }, [state?.next_step]);
+
+  useEffect(() => {
+    setActivityRuntime(state?.activity_runtime ?? null);
+  }, [state?.activity_runtime]);
 
   useEffect(() => {
     if (state?.assessment_state !== "REVISION") {
@@ -2073,10 +2204,63 @@ export function AssessmentSessionClient({
       setFollowupDraft("");
       const nextState = await fetchSessionState(result.state.session_public_id);
       setState(nextState);
+      setActivityRuntime(nextState.activity_runtime ?? null);
       await refreshSecondaryData(nextState.session_public_id);
     } catch (errorValue) {
       handleError(errorValue, "Send follow-up response", () => {
         void handleSendFollowup();
+      });
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function handleStartActivityRuntime() {
+    if (!state) {
+      return;
+    }
+
+    setIsBusy(true);
+    setError(null);
+    setFailedAction(null);
+
+    try {
+      const nextActivityRuntime = await startStudentActivityRuntime(state.session_public_id);
+      setActivityRuntime(nextActivityRuntime);
+      const nextState = await fetchSessionState(state.session_public_id);
+      setState(nextState);
+      await refreshSecondaryData(nextState.session_public_id);
+    } catch (errorValue) {
+      handleError(errorValue, "Prepare activity", () => {
+        void handleStartActivityRuntime();
+      });
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function handleChooseActivityRuntimeAction(choiceState: "choose_another_activity" | "move_on") {
+    if (!state) {
+      return;
+    }
+
+    setIsBusy(true);
+    setError(null);
+    setFailedAction(null);
+
+    try {
+      const nextActivityRuntime = await chooseStudentActivityRuntimeAction({
+        sessionPublicId: state.session_public_id,
+        activityAttemptPublicId: activityRuntime?.activity_attempt_public_id ?? null,
+        choiceState
+      });
+      setActivityRuntime(nextActivityRuntime);
+      const nextState = await fetchSessionState(state.session_public_id);
+      setState(nextState);
+      await refreshSecondaryData(nextState.session_public_id);
+    } catch (errorValue) {
+      handleError(errorValue, choiceState === "move_on" ? "Move on" : "Choose another activity", () => {
+        void handleChooseActivityRuntimeAction(choiceState);
       });
     } finally {
       setIsBusy(false);
@@ -2090,7 +2274,7 @@ export function AssessmentSessionClient({
       return;
     }
 
-    const maxChars = state.formative_activity?.message_max_chars ?? 5000;
+    const maxChars = activityRuntime?.message_max_chars ?? 5000;
 
     if (trimmed.length > maxChars) {
       setError({
@@ -2106,14 +2290,24 @@ export function AssessmentSessionClient({
     setFailedAction(null);
 
     try {
-      const result = await sendFormativeActivityResponse({
+      if (!activityRuntime?.activity_attempt_public_id) {
+        throw {
+          code: "activity_not_ready",
+          message: "Prepare the activity before sending a response.",
+          status: 409
+        } satisfies StructuredStudentApiError;
+      }
+      const nextActivityRuntime = await submitStudentActivityRuntimeResponse({
         sessionPublicId: state.session_public_id,
-        message: trimmed,
+        activityAttemptPublicId: activityRuntime.activity_attempt_public_id,
+        responseText: trimmed,
         clientMessageId: newClientActionId("formative-activity")
       });
       setFormativeActivityDraft("");
-      setState(result.state);
-      await refreshSecondaryData(result.state.session_public_id);
+      setActivityRuntime(nextActivityRuntime);
+      const nextState = await fetchSessionState(state.session_public_id);
+      setState(nextState);
+      await refreshSecondaryData(nextState.session_public_id);
     } catch (errorValue) {
       handleError(errorValue, "Send activity response", () => {
         void handleSendFormativeActivityResponse();
@@ -2153,6 +2347,7 @@ export function AssessmentSessionClient({
       });
       setRevisionDraft("");
       setState(result.state);
+      setActivityRuntime(result.state.activity_runtime ?? null);
       await refreshSecondaryData(result.state.session_public_id);
     } catch (errorValue) {
       handleError(errorValue, "Send revision", () => {
@@ -2179,6 +2374,7 @@ export function AssessmentSessionClient({
         clientActionId: newClientActionId(`next-choice-${choice}`)
       });
       setState(result.state);
+      setActivityRuntime(result.state.activity_runtime ?? null);
       await refreshSecondaryData(result.state.session_public_id);
     } catch (errorValue) {
       handleError(errorValue, "Choose next step", () => {
@@ -2213,6 +2409,7 @@ export function AssessmentSessionClient({
       await requestProgression(state.session_public_id);
       const nextState = await fetchSessionState(state.session_public_id);
       setState(nextState);
+      setActivityRuntime(nextState.activity_runtime ?? null);
       await refreshSecondaryData(nextState.session_public_id);
     } catch (errorValue) {
       handleError(errorValue, "Show next choice", () => {
@@ -2248,6 +2445,7 @@ export function AssessmentSessionClient({
       });
       const nextState = await fetchSessionState(state.session_public_id);
       setState(nextState);
+      setActivityRuntime(nextState.activity_runtime ?? null);
       await refreshSecondaryData(nextState.session_public_id);
     } catch (errorValue) {
       handleError(errorValue, "Choose next step", () => {
@@ -2287,6 +2485,7 @@ export function AssessmentSessionClient({
 
   const activePrompt = activeItemPrompt({
     state,
+    activityRuntime,
     review,
     isBusy,
     reasoningDraft,
@@ -2318,7 +2517,9 @@ export function AssessmentSessionClient({
     onContinuePackage: handleCompletePackage,
     onSaveReviewEdit: handleSaveReviewEdit,
     onStartReviewEdit: handleStartReviewEdit,
+    onChooseActivityRuntimeAction: handleChooseActivityRuntimeAction,
     onSendFormativeActivityResponse: handleSendFormativeActivityResponse,
+    onStartActivityRuntime: handleStartActivityRuntime,
     onSendRevision: handleSendRevision,
     onNextChoice: handleNextChoice,
     onSendFollowup: handleSendFollowup,

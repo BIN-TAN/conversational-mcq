@@ -259,6 +259,35 @@ The diagnostic loop policy is: loop until no actionable distractor-linked miscon
 - Phase 30c does not implement browser activity execution, runtime
   multi-turn dialogue, production profile updates, or diagnosis updates.
 
+## Phase 30g Minimal Student Activity Runtime UI Lock
+
+- Phase 30g adds a minimal student-facing UI/API surface for the Phase 30f
+  activity runtime loop.
+- The UI must use a student-safe projection, not raw activity packets or raw
+  evaluator packets.
+- Student-visible activity runtime fields may include a safe focus label, live
+  first-turn message, expected response prompt, safe feedback, response limit,
+  and allowed actions.
+- Student-visible activity runtime fields must not include internal activity
+  family enum values, diagnostic-purpose enum values, misconception status,
+  evidence-quality labels, engagement or AI labels, provider/debug metadata,
+  raw process payloads, raw distractor metadata, answer keys, correct options,
+  correctness labels, raw LLM output, or secret-like data.
+- Runtime start must still require a source formative activity packet with
+  `generation_source=live_llm`, `runtime_servable_to_student=true`, and
+  `review_only=false`.
+- Deterministic review activity packets and no-live evaluator fixtures remain
+  review/test artifacts and must fail closed if used as runtime student-facing
+  content or production misconception evidence.
+- Student responses may create activity misconception evidence and
+  post-activity diagnostic snapshots only after live-shaped evaluator output
+  passes production persistence guards.
+- The runtime UI must not replace operational student profiles, mutate original
+  response packages, alter item content, change answer keys, or change scoring.
+- Choosing another activity or moving on records safe runtime state and must
+  not force diagnostic improvement.
+- `student:activity-runtime-ui-smoke` is no-live and must not call OpenAI.
+
 ## Phase 30d Post-Activity Evidence Persistence Lock
 
 - Phase 30d persists validated post-activity misconception evidence in

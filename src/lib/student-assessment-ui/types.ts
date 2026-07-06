@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { ChatNativeAssessmentStateSchema } from "@/lib/student-assessment/state-machine";
+import { StudentActivityRuntimeProjectionSchema } from "@/lib/student-assessment/activity-runtime-projection";
+
+export { StudentActivityRuntimeProjectionSchema };
+export type { StudentActivityRuntimeProjection } from "@/lib/student-assessment/activity-runtime-projection";
 
 export const MissingEvidenceFieldSchema = z.enum(["answer", "reasoning", "confidence"]);
 export type MissingEvidenceField = z.infer<typeof MissingEvidenceFieldSchema>;
@@ -155,6 +159,7 @@ export const StudentSessionStateSchema = z.object({
     })
     .nullable()
     .optional(),
+  activity_runtime: StudentActivityRuntimeProjectionSchema.nullable().optional(),
   progression: StudentProgressionSchema.nullable().optional(),
   learning_profile: StudentLearningProfileSchema.nullable().optional(),
   session: z

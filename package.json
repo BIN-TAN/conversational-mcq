@@ -48,6 +48,7 @@
     "student:activity-runtime-loop-smoke": "tsx prisma/student-activity-runtime-loop-smoke-test.ts",
     "student:activity-runtime-loop-review": "tsx prisma/student-activity-runtime-loop-review.ts",
     "student:activity-runtime-loop-live-smoke": "tsx prisma/student-activity-runtime-loop-live-smoke-test.ts",
+    "student:activity-runtime-ui-smoke": "tsx prisma/student-activity-runtime-ui-smoke-test.ts",
     "student:profile-formative-scenario-smoke": "tsx prisma/student-profile-formative-scenario-smoke.ts",
     "student:profile-formative-quota-smoke": "tsx prisma/student-profile-formative-quota-smoke.ts",
     "student:profile-formative-live-trials": "tsx prisma/student-profile-formative-live-trials.ts",

@@ -585,6 +585,41 @@ The live smoke uses synthetic activity attempts and calls the live
 does not add browser UI, replace operational profiles, mutate response
 packages, or claim classroom validity.
 
+## Phase 30g Minimal Activity Runtime UI
+
+Phase 30g adds a minimal browser-facing surface for the Phase 30f activity
+runtime loop. When the session is in `FORMATIVE_ACTIVITY`, the state payload may
+include `activity_runtime`, a student-safe projection containing:
+
+- a safe focus label;
+- the live activity first-turn message;
+- the expected response prompt;
+- response length limit and allowed actions;
+- safe post-response feedback and next-action labels.
+
+The projection is deliberately not the raw activity packet. It hides internal
+activity-family names, diagnostic-purpose enum labels, misconception status,
+evidence-quality labels, engagement/AI labels, provider metadata, raw process
+payloads, raw distractor metadata, answer keys, correct options, correctness
+labels, and raw LLM output.
+
+Runtime start still requires a source activity packet with
+`generation_source=live_llm`, `runtime_servable_to_student=true`, and
+`review_only=false`. Deterministic review packets and no-live evaluator
+fixtures remain non-runtime QA artifacts. Evaluator failure or unsafe
+student-facing feedback fails closed with a safe message and choices to try
+again, choose another activity, or move on.
+
+No-live UI/service smoke:
+
+```bash
+npm run student:activity-runtime-ui-smoke
+```
+
+The smoke uses injected live-shaped packets/evaluator outputs and makes no
+OpenAI call. The optional paid live smokes remain skipped by default unless
+their explicit `RUN_LIVE_*` variables are set.
+
 ## One-Click Local Launcher
 
 The one-click launcher is for daily local use after the full opt-in live LLM smoke has already passed as the backend gate. It does not run paid model-generation smoke tests.

@@ -204,11 +204,16 @@ npm run student:formative-activity-review -- --session-public-id sess_20260701_v
 ## Future Phases
 
 Phase 30b adds the post-activity misconception evidence design and no-live QA
-fixtures; it does not execute a runtime activity or update profiles. A future
-phase may add live activity-response evaluation, profile integration updates,
-and formative value updates after the student responds. Phase 29d may add the
-student UI dialogue. Runtime execution and browser display remain outside Phase
-29b and Phase 30b.
+fixtures; it does not execute a runtime activity or update profiles. Phase 30g
+adds a minimal student-facing runtime UI, but it may serve only validated
+`live_llm` activity packets marked `runtime_servable_to_student=true` and
+`review_only=false`. The UI consumes a student-safe projection with a focus
+label, first turn, expected response prompt, safe feedback, and choice/move-on
+actions. It must not expose internal family names, diagnostic-purpose enums,
+misconception labels, evidence-quality labels, provider/debug metadata, answer
+keys, correctness, or raw distractor metadata. Future phases may add richer
+multi-turn activity execution, profile integration updates, and formative value
+updates after the student responds.
 
 Under the Phase 30a framing, post-activity evidence updates should update misconception evidence conservatively: persisted, weakened, unsupported, or unclear. The loop should continue only while actionable distractor-linked misconception evidence remains and the student has not chosen to move on.
 

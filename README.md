@@ -529,6 +529,19 @@ The live smoke uses one or two synthetic activity attempts and calls only the
 not add browser UI, replace operational profiles, mutate response packages, or
 claim classroom validity.
 
+Minimal student activity runtime UI:
+
+```bash
+npm run student:activity-runtime-ui-smoke
+```
+
+Phase 30g adds the first student-facing activity runtime surface. It prepares
+and displays only validated live activity packets through a student-safe
+projection, accepts one activity response, shows safe feedback, and records
+choose-another or move-on choices. Deterministic review packets and no-live
+fixtures are rejected for production runtime use. The smoke injects live-shaped
+packets and evaluator outputs and makes no OpenAI call.
+
 Profile/formative scenario QA:
 
 ```bash

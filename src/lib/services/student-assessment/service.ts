@@ -39,6 +39,7 @@ import {
   persistProfileIntegrationSnapshotForSession,
   projectStoredStudentProfileIntegration
 } from "@/lib/services/student-assessment/profile-integration";
+import { getStudentActivityRuntimeState } from "@/lib/services/student-assessment/activity-runtime-ui";
 import {
   assertChatNativeActionAllowed,
   type ChatNativeAssessmentAction,
@@ -2042,6 +2043,12 @@ export async function getStudentSessionState(input: {
           item_db_id: currentItem.id
         })
       : null;
+  const activityRuntime = assessmentState === "FORMATIVE_ACTIVITY"
+    ? await getStudentActivityRuntimeState({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: input.session_public_id
+      })
+    : null;
   const result = {
     session: serializeStudentSessionSummary(session),
     session_public_id: session.session_public_id,
@@ -2102,6 +2109,7 @@ export async function getStudentSessionState(input: {
             message_max_chars: followupConfig.message_max_chars
           }
         : null,
+    activity_runtime: activityRuntime,
     progression,
     learning_profile: shouldExposeLearningProfileToStudent({
       assessment_state: assessmentState,
