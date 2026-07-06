@@ -43,6 +43,17 @@ function makePacketForSmoke(
   });
 }
 
+function assertAllowedBeforePersistence(input: {
+  packet: ActivityMisconceptionEvidencePacketV1;
+  allowedStatuses: string[];
+  label: string;
+}) {
+  assert(
+    input.allowedStatuses.includes(input.packet.misconception_evidence_update.status),
+    `${input.label}: disallowed live evaluator status must fail before persistence.`
+  );
+}
+
 async function createSyntheticAgentCall(suffix: string, overrides: {
   provider_request_id?: string | null;
   provider_response_id?: string | null;
@@ -265,6 +276,30 @@ async function main() {
     label: "unsafe student-safe feedback"
   });
 
+  let disallowedStatusBlocked = false;
+  try {
+    assertAllowedBeforePersistence({
+      packet: makePacketForSmoke(packetByStatus(noLivePackets, "misconception_persisted"), "disallowed_status"),
+      allowedStatuses: ["misconception_weakened", "misconception_unsupported", "no_actionable_misconception_evidence"],
+      label: "disallowed strong distractor outcome"
+    });
+  } catch (error) {
+    disallowedStatusBlocked = error instanceof Error &&
+      /disallowed live evaluator status/.test(error.message);
+  }
+  assert(disallowedStatusBlocked, "Live evaluator output with disallowed status should fail before persistence.");
+
+  const failedAgentCall = await createSyntheticAgentCall("failed_call", {
+    call_status: "failed",
+    output_validated: false
+  });
+  await expectGuardRejects({
+    packet: makePacketForSmoke(packetByStatus(noLivePackets, "misconception_weakened"), "failed_call"),
+    agentCall: failedAgentCall,
+    expectedRule: "evaluator_agent_call_failed",
+    label: "failed evaluator call"
+  });
+
   const reviewModeRecord = await persistActivityMisconceptionEvidenceUpdate({
     packet: {
       ...noLivePackets[1]!,
@@ -322,6 +357,7 @@ async function main() {
     session_public_id: validPacket.session_public_id
   });
   assert(reviewSummary.records_reviewed >= 1, "Review command should find persisted evidence for the valid smoke session.");
+  assert(reviewSummary.evidence_record_source === "live_llm", "Review summary should expose live_llm record source.");
   assert(reviewSummary.post_activity_snapshot_generated, "Review summary should report generated post-activity snapshot.");
   assert(reviewSummary.student_safe_feedback_present, "Review summary should report student-safe feedback availability.");
   const reviewArtifact = JSON.parse(await readFile(reviewSummary.artifact_path, "utf8")) as unknown;

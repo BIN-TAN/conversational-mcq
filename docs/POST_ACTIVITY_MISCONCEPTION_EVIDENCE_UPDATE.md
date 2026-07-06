@@ -368,6 +368,66 @@ answer keys, correct options, correctness labels, raw distractor metadata, raw
 misconception IDs, raw process payloads, or raw student responses when they are
 not already represented as a safe summary.
 
+## Phase 30e Live Persistence Smoke
+
+Phase 30e adds a backend-only paid-live smoke that proves the live evaluator
+output can pass production persistence guards and create a diagnostic update
+snapshot without browser runtime execution.
+
+Default command:
+
+```bash
+npm run student:activity-misconception-live-persistence-smoke
+```
+
+The default command skips and makes no provider call. Manual paid execution
+requires explicit live configuration:
+
+```bash
+RUN_LIVE_ACTIVITY_MISCONCEPTION_PERSISTENCE_SMOKE=1 \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
+OPENAI_MODEL_PROFILE_INTEGRATION=<model> \
+OPENAI_MODEL_PLANNING=<model> \
+OPENAI_MODEL_FOLLOWUP=<model> \
+npm run student:activity-misconception-live-persistence-smoke
+```
+
+The smoke uses three synthetic, redacted cases:
+
+- conceptual-entry partial distinction;
+- strong distractor-probe response;
+- student move-on response.
+
+Each successful case must:
+
+- call the live `formative_activity_response_evaluator_agent`;
+- validate the `student-activity-misconception-evidence-v1` packet;
+- confirm the selected update status is allowed for the case;
+- pass the Phase 30d production persistence guard;
+- persist an `activity_misconception_evidence_records` row;
+- create a `post_activity_diagnostic_snapshots` row;
+- preserve the pre-activity diagnostic state as snapshot context;
+- avoid replacing operational profiles or mutating response packages;
+- generate a redacted review artifact.
+
+Outcome mismatches fail before persistence. Deterministic fixtures,
+review-only packets, missing evaluator audit, missing provider metadata,
+missing token usage, failed evaluator calls, unsafe feedback, and deterministic
+final decisions fail closed.
+
+Live persistence smoke artifacts are written under:
+
+```text
+.data/activity-misconception-live-persistence-smoke/
+```
+
+Artifacts include run status, case summaries, evaluator call summaries,
+persistence guard status, persisted public record IDs, snapshot public IDs,
+update status, evidence quality, next diagnostic purpose, student-safe feedback
+summary, safety flags, and token usage. They do not include raw provider
+output, raw prompts, raw protected assessment content, secrets, or headers.
+
 ## Safety And Student-Facing Language
 
 Student-facing text may say:

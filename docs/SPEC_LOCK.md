@@ -258,6 +258,31 @@ The diagnostic loop policy is: loop until no actionable distractor-linked miscon
   review command writes redacted artifacts under
   `.data/activity-misconception-update-review/`.
 
+## Phase 30e Live Persistence Smoke Lock
+
+- Phase 30e adds the opt-in command
+  `student:activity-misconception-live-persistence-smoke`.
+- The command must skip safely unless
+  `RUN_LIVE_ACTIVITY_MISCONCEPTION_PERSISTENCE_SMOKE=1` and live provider
+  configuration are explicitly set.
+- When enabled, it uses a minimal synthetic set covering conceptual-entry
+  partial distinction, strong distractor-probe response, and student move-on.
+- Successful cases must call the live
+  `formative_activity_response_evaluator_agent`, validate the
+  `student-activity-misconception-evidence-v1` packet, pass the Phase 30d
+  production persistence guard, persist an evidence record, create a
+  post-activity diagnostic snapshot, and generate a redacted review artifact.
+- Live persistence must not mutate response packages, operational profiles,
+  scores, item content, or classroom workflow state.
+- Outcome-mismatched live evaluator statuses must fail before persistence.
+- The live persistence artifact must not include raw provider output, raw
+  prompts, raw student text, answer keys, correct options, correctness labels,
+  raw distractor metadata, raw misconception IDs, raw process payloads, API
+  keys, headers, cookies, or secrets.
+- This phase is backend-only. It does not implement browser UI, runtime
+  multi-turn activity execution, broad profile updates, or classroom validity
+  claims.
+
 ## Ability Evidence Packet V1
 
 - `ability-evidence-packet-v1` is an internal evidence foundation for future ability profiling. It does not create a final student profile, does not implement engagement profiling, and does not change student-facing UI.

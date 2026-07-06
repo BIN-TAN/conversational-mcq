@@ -467,6 +467,31 @@ only in explicit `review_artifact` mode for local review and tests. The review
 command writes redacted artifacts under
 `.data/activity-misconception-update-review/` and does not call OpenAI.
 
+Backend live persistence smoke for post-activity misconception evidence:
+
+```bash
+npm run student:activity-misconception-live-persistence-smoke
+```
+
+The default command skips safely. Manual paid execution requires:
+
+```bash
+RUN_LIVE_ACTIVITY_MISCONCEPTION_PERSISTENCE_SMOKE=1 \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
+OPENAI_MODEL_PROFILE_INTEGRATION=<model> \
+OPENAI_MODEL_PLANNING=<model> \
+OPENAI_MODEL_FOLLOWUP=<model> \
+npm run student:activity-misconception-live-persistence-smoke
+```
+
+Phase 30e uses three synthetic, redacted cases to call the live response
+evaluator, validate the output, persist production `live_llm` evidence through
+the Phase 30d guard, create a post-activity diagnostic snapshot, and write a
+redacted artifact under `.data/activity-misconception-live-persistence-smoke/`.
+It does not implement browser runtime activity execution, update operational
+profiles, mutate response packages, or claim classroom validity.
+
 Profile/formative scenario QA:
 
 ```bash

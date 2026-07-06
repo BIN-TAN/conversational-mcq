@@ -526,6 +526,23 @@ The review command writes redacted artifacts under
 review-layer diagnostic update only; it does not overwrite response packages,
 replace the operational profile, or claim classroom validity.
 
+Phase 30e adds a backend-only live persistence smoke:
+
+```bash
+npm run student:activity-misconception-live-persistence-smoke
+```
+
+The default command skips and makes no provider call. Manual paid execution
+requires `RUN_LIVE_ACTIVITY_MISCONCEPTION_PERSISTENCE_SMOKE=1` plus live
+provider configuration. When enabled, it runs three synthetic, redacted cases,
+persists only allowed `live_llm` evaluator outputs through the production
+guard, creates post-activity diagnostic snapshots, and writes redacted artifacts
+under `.data/activity-misconception-live-persistence-smoke/`.
+
+The smoke is not a browser-runtime loop. It does not update operational
+profiles, mutate response packages, change item content or scoring, or claim
+classroom validity.
+
 ## One-Click Local Launcher
 
 The one-click launcher is for daily local use after the full opt-in live LLM smoke has already passed as the backend gate. It does not run paid model-generation smoke tests.

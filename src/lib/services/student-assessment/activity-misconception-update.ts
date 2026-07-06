@@ -75,6 +75,7 @@ export type ActivityMisconceptionUpdateReviewSummary = {
   status: "passed" | "completed_with_limitations" | "failed";
   session_public_id: string | null;
   records_reviewed: number;
+  evidence_record_source: string | null;
   post_activity_snapshot_generated: boolean;
   production_persistence_guard_passed: boolean;
   diagnostic_state_before: string | null;
@@ -487,6 +488,7 @@ function summaryFromRecords(input: {
     status: input.records.length > 0 ? "passed" : "completed_with_limitations",
     session_public_id: input.session_public_id,
     records_reviewed: input.records.length,
+    evidence_record_source: first?.evaluation_source ?? null,
     post_activity_snapshot_generated: Boolean(snapshot),
     production_persistence_guard_passed: input.records.some((record) => record.production_mode === "production_diagnosis"),
     diagnostic_state_before: snapshot?.pre_activity_diagnostic_state ?? null,
@@ -531,6 +533,7 @@ export async function writePostActivityMisconceptionUpdateReview(input: {
         status: "passed",
         session_public_id: input.session_public_id ?? null,
         records_reviewed: records.length,
+        evidence_record_source: records[0]?.evaluation_source ?? null,
         post_activity_snapshot_generated: records.some((record) => Boolean(record.snapshot)),
         production_persistence_guard_passed: records.some((record) => record.production_mode === "production_diagnosis"),
         diagnostic_state_before: records[0]?.snapshot?.pre_activity_diagnostic_state ?? null,
@@ -563,6 +566,7 @@ export async function writePostActivityMisconceptionUpdateReview(input: {
         status: "completed_with_limitations",
         session_public_id: input.session_public_id,
         records_reviewed: 0,
+        evidence_record_source: null,
         post_activity_snapshot_generated: false,
         production_persistence_guard_passed: false,
         diagnostic_state_before: null,
@@ -580,6 +584,7 @@ export async function writePostActivityMisconceptionUpdateReview(input: {
       status: "completed_with_limitations",
       session_public_id: input.session_public_id,
       records_reviewed: 0,
+      evidence_record_source: null,
       post_activity_snapshot_generated: false,
       production_persistence_guard_passed: false,
       diagnostic_state_before: null,
@@ -637,6 +642,7 @@ export async function writePostActivityMisconceptionUpdateReview(input: {
         status: "completed_with_limitations",
         session_public_id: null,
         records_reviewed: 0,
+        evidence_record_source: null,
         post_activity_snapshot_generated: false,
         production_persistence_guard_passed: false,
         diagnostic_state_before: null,
@@ -654,6 +660,7 @@ export async function writePostActivityMisconceptionUpdateReview(input: {
       status: "completed_with_limitations",
       session_public_id: null,
       records_reviewed: 0,
+      evidence_record_source: null,
       post_activity_snapshot_generated: false,
       production_persistence_guard_passed: false,
       diagnostic_state_before: null,
@@ -674,6 +681,7 @@ export async function writePostActivityMisconceptionUpdateReview(input: {
       status: "completed_with_limitations",
       session_public_id: null,
       records_reviewed: records.length,
+      evidence_record_source: records[0]?.evaluation_source ?? null,
       post_activity_snapshot_generated: true,
       production_persistence_guard_passed: false,
       diagnostic_state_before: null,
@@ -693,6 +701,7 @@ export async function writePostActivityMisconceptionUpdateReview(input: {
     status: "completed_with_limitations",
     session_public_id: null,
     records_reviewed: records.length,
+    evidence_record_source: records[0]?.evaluation_source ?? null,
     post_activity_snapshot_generated: true,
     production_persistence_guard_passed: false,
     diagnostic_state_before: null,
