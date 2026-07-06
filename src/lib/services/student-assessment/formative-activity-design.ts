@@ -1034,7 +1034,9 @@ function familyContentPassed(packet: FormativeActivityPacketV1) {
         /\bmissing link\b/i.test(text) &&
         /\b(tempting alternative|tempting option|plausible alternative)\b/i.test(text);
     case "independent_reconstruction":
-      return /\boption choices aside\b/i.test(text) && /\bcurrent evidence is mixed or unclear\b/i.test(text) && /\bin your own words\b/i.test(text);
+      return /\b(set|sets|setting) the option choices aside\b/i.test(text) &&
+        /\bcurrent evidence is mixed or unclear\b/i.test(text) &&
+        /\bin your own words\b/i.test(text);
     case "confidence_evidence_audit":
       return /\bconfidence\b/i.test(text) && /\bevidence\b/i.test(text) && /\busable understanding\b/i.test(text) && /\blow confidence can be worth checking\b/i.test(text);
     case "transfer_and_distractor_generation":

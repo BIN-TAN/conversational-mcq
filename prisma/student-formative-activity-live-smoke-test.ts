@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import {
   FORMATIVE_ACTIVITY_LIVE_SMOKE_FAMILIES,
   executeLiveFormativeActivityDialogueAgent,
+  summarizeFormativeActivityQualityReviewForArtifact,
   type FormativeActivityLiveExecutionResult
 } from "../src/lib/services/student-assessment/formative-activity-live";
 import {
@@ -196,10 +197,49 @@ async function agentCallSummary(agentCallId?: string) {
   };
 }
 
+async function reviewerSummary(agentCallId?: string, directReview?: unknown) {
+  if (directReview) {
+    return summarizeFormativeActivityQualityReviewForArtifact(directReview);
+  }
+
+  if (!agentCallId) {
+    return summarizeFormativeActivityQualityReviewForArtifact(
+      undefined,
+      "reviewer_call_not_started"
+    );
+  }
+
+  const call = await prisma.agentCall.findUnique({
+    where: { id: agentCallId },
+    select: {
+      call_status: true,
+      output_payload: true
+    }
+  });
+
+  if (!call) {
+    return summarizeFormativeActivityQualityReviewForArtifact(
+      undefined,
+      "reviewer_call_missing"
+    );
+  }
+
+  return summarizeFormativeActivityQualityReviewForArtifact(
+    call.output_payload,
+    call.output_payload
+      ? "reviewer_output_invalid"
+      : `reviewer_output_unavailable_${call.call_status ?? "unknown"}`
+  );
+}
+
 async function resultSummary(caseId: string, result: FormativeActivityLiveExecutionResult) {
   const generator = await agentCallSummary(result.generator_agent_call_id);
   const reviewer = await agentCallSummary(result.reviewer_agent_call_id);
   const repair = await agentCallSummary(result.repair_agent_call_id);
+  const reviewer_summary = await reviewerSummary(
+    result.reviewer_agent_call_id,
+    result.status === "succeeded" ? result.quality_review : undefined
+  );
 
   if (result.status !== "succeeded") {
     return {
@@ -209,6 +249,7 @@ async function resultSummary(caseId: string, result: FormativeActivityLiveExecut
       validation_issues: result.validation_issues,
       generator,
       reviewer,
+      reviewer_summary,
       repair,
       repair_attempted: result.repair_attempted,
       repair_status: result.repair_status ?? "not_attempted"
@@ -225,6 +266,7 @@ async function resultSummary(caseId: string, result: FormativeActivityLiveExecut
     review_only: result.packet.review_only,
     review_status: result.quality_review.review_status,
     quality_score: result.quality_review.quality_score,
+    reviewer_summary,
     repair_attempted: result.repair_attempted,
     repair_status: result.repair_status,
     generator,

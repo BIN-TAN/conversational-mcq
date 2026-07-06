@@ -10,12 +10,15 @@ import {
   type FormativeActivityPacketV1
 } from "../src/lib/services/student-assessment/formative-activity-design";
 import {
+  FORMATIVE_ACTIVITY_PROMPT_INSTRUCTIONS,
+  FORMATIVE_ACTIVITY_REPAIR_PROMPT_INSTRUCTIONS,
   evaluateFormativeActivityLivePipeline,
   formativeActivityPipelineIssuesAllowRepair,
   formativeActivityPipelineNeedsRepair,
   makeFormativeActivityAuditForTest,
   makeLiveActivityPacketForTest,
-  makePassingActivityQualityReviewForTest
+  makePassingActivityQualityReviewForTest,
+  summarizeFormativeActivityQualityReviewForArtifact
 } from "../src/lib/services/student-assessment/formative-activity-live";
 import { prisma } from "../src/lib/db";
 import { buildSyntheticActivitySourcePackets } from "./student-formative-activity-fixtures";
@@ -333,8 +336,13 @@ async function main() {
   );
   assertIncludes(
     independentReconstruction.first_turn.message,
-    /\boption choices aside\b/i,
-    "independent_reconstruction should set options aside."
+    /\b(set|sets|setting) the option choices aside\b/i,
+    "independent_reconstruction should set options aside with natural wording."
+  );
+  assertExcludes(
+    independentReconstruction.first_turn.message,
+    /^option choices aside\b/i,
+    "independent_reconstruction should not start with the awkward bare phrase."
   );
   assertIncludes(
     independentReconstruction.first_turn.message,
@@ -431,6 +439,62 @@ async function main() {
   assert(
     repairedLivePipeline.status === "accepted" && repairedLivePipeline.repair_attempted,
     `Reviewer repair_needed + valid repair should pass exactly once: ${JSON.stringify(repairedLivePipeline)}`
+  );
+
+  const reviewerSummary = summarizeFormativeActivityQualityReviewForArtifact(repairNeededReview);
+  assert(reviewerSummary.available, "Reviewer artifact summary should be available for valid reviewer output.");
+  assert(reviewerSummary.review_status === "repair_needed", "Reviewer artifact summary should expose review_status.");
+  assert(reviewerSummary.quality_score === "weak", "Reviewer artifact summary should expose quality_score.");
+  assert(reviewerSummary.student_specificity === "weak", "Reviewer artifact summary should expose student_specificity.");
+  assert(reviewerSummary.conceptual_depth === "weak", "Reviewer artifact summary should expose conceptual_depth.");
+  assert(
+    reviewerSummary.distractor_use_quality === "adequate",
+    "Reviewer artifact summary should expose distractor_use_quality."
+  );
+  assert(
+    reviewerSummary.formative_value_alignment === "strong",
+    "Reviewer artifact summary should expose formative_value_alignment."
+  );
+  assert(
+    reviewerSummary.activity_family_alignment === "strong",
+    "Reviewer artifact summary should expose activity_family_alignment."
+  );
+  assert(reviewerSummary.overclaiming_risk === "none", "Reviewer artifact summary should expose overclaiming_risk.");
+  assert(reviewerSummary.student_safety_risk === "none", "Reviewer artifact summary should expose student_safety_risk.");
+  assert(reviewerSummary.issue_count === 1, "Reviewer artifact summary should expose issue_count.");
+  assert(
+    reviewerSummary.issue_codes.includes("needs_more_specificity"),
+    "Reviewer artifact summary should expose issue_codes."
+  );
+  const unavailableReviewerSummary = summarizeFormativeActivityQualityReviewForArtifact(
+    undefined,
+    "reviewer_call_not_started"
+  );
+  assert(!unavailableReviewerSummary.available, "Unavailable reviewer summary should be marked unavailable.");
+  assert(
+    unavailableReviewerSummary.unavailable_reason === "reviewer_call_not_started",
+    "Unavailable reviewer summary should explain why it is unavailable."
+  );
+
+  assertIncludes(
+    FORMATIVE_ACTIVITY_PROMPT_INSTRUCTIONS,
+    /Setting the option choices aside/,
+    "Live prompt should use polished independent-reconstruction wording."
+  );
+  assertIncludes(
+    FORMATIVE_ACTIVITY_REPAIR_PROMPT_INSTRUCTIONS,
+    /Setting the option choices aside/,
+    "Repair prompt should use polished independent-reconstruction wording."
+  );
+  assertExcludes(
+    FORMATIVE_ACTIVITY_PROMPT_INSTRUCTIONS,
+    /use the phrase "option choices aside"/i,
+    "Live prompt should not require the awkward bare phrase."
+  );
+  assertExcludes(
+    FORMATIVE_ACTIVITY_REPAIR_PROMPT_INSTRUCTIONS,
+    /must include "option choices aside"/i,
+    "Repair prompt should not require the awkward bare phrase."
   );
 
   const basicGroundingSynonym = makeLiveActivityPacketForTest(unsafeFirstTurn(

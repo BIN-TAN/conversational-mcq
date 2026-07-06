@@ -75,7 +75,7 @@ Family-specific minimums:
 - basic_concept_grounding: include 3 to 5 concrete concept-explanation sentences before the prompt. Use the phrase "basic distinction". Include the concrete terms "theta", "ability scale", "item parameters", and "item information" or "difficulty". Include a simple thermometer analogy to separate a learner estimate from item features. Explain the idea from basic parts, connect to the student's prior response pattern in student-safe language, and ask one own-words prompt. Set expected_student_action.prompt to start with "Explain" and include the phrase "in your own words". Do not merely tell the student to explain the concept.
 - distractor_contrast: describe the safe tempting alternative or distractor, explain why it can feel tempting, name the hidden assumption, contrast it with the target concept boundary, and ask one compare prompt. The final question and expected_student_action.prompt must both use the verb "Compare".
 - reasoning_chain_repair: name the "useful part" or "useful starting point" of the student's reasoning, explain the "missing link", explain how skipping that link makes a "tempting alternative" plausible, and ask one revision prompt. The final question and expected_student_action.prompt must both use the verb "Revise".
-- independent_reconstruction: use the phrase "option choices aside", explain why "current evidence is mixed or unclear", include "in your own words", avoid AI/external-assistance wording, and ask one own-words prompt. The final question and expected_student_action.prompt must both use the verb "Explain" or "Reconstruct".
+- independent_reconstruction: use the phrase "Setting the option choices aside", explain why "current evidence is mixed or unclear", include "in your own words", avoid AI/external-assistance wording, and ask one own-words prompt. The final question and expected_student_action.prompt must both use the verb "Explain" or "Reconstruct".
 - confidence_evidence_audit: connect "confidence" to "evidence", include the phrases "usable understanding" and "low confidence can be worth checking", use underconfidence only when adequate understanding evidence is present, and ask one evidence-plus-confidence prompt. The final question and expected_student_action.prompt must both use the verb "Rate" or "Connect".
 - transfer_and_distractor_generation: frame the task as "not another scored question", include "Transfer means" and "Distractor generation means", ask for a "nearby situation" or "nearby example" or plausible wrong alternative, explain that the goal is showing a concept boundary rather than tricking anyone, and ask one transfer or generation prompt. The final question and expected_student_action.prompt must both use the verb "Apply" or "Generate".
 
@@ -119,7 +119,7 @@ Family repair checklist:
 - basic_concept_grounding must include "basic distinction" or "key distinction", "thermometer", theta/person ability language, item-parameter or item-information language, and an expected prompt beginning with "Explain".
 - distractor_contrast must include "tempting alternative", "hidden assumption", a concrete ability-vs-item boundary, and an expected prompt beginning with "Compare".
 - reasoning_chain_repair must include the exact phrases "useful part" or "useful starting point", "missing link", and "tempting alternative"; the expected prompt must begin with "Revise".
-- independent_reconstruction must include "option choices aside", "current evidence is mixed or unclear", and "in your own words".
+- independent_reconstruction must include "Setting the option choices aside", "current evidence is mixed or unclear", and "in your own words".
 - confidence_evidence_audit must include "confidence", "evidence", "usable understanding", and "low confidence can be worth checking".
 - transfer_and_distractor_generation must include "not another scored question", "Transfer means", "Distractor generation means", and "nearby situation" or "nearby example".
 
@@ -165,6 +165,62 @@ export const FormativeActivityQualityReviewV1Schema = z.object({
 export type FormativeActivityQualityReviewV1 = z.infer<
   typeof FormativeActivityQualityReviewV1Schema
 >;
+
+export type FormativeActivityReviewerArtifactSummary = {
+  available: boolean;
+  unavailable_reason: string | null;
+  review_status: FormativeActivityQualityReviewV1["review_status"] | null;
+  quality_score: FormativeActivityQualityReviewV1["quality_score"] | null;
+  student_specificity: FormativeActivityQualityReviewV1["student_specificity"] | null;
+  conceptual_depth: FormativeActivityQualityReviewV1["conceptual_depth"] | null;
+  distractor_use_quality: FormativeActivityQualityReviewV1["distractor_use_quality"] | null;
+  formative_value_alignment: FormativeActivityQualityReviewV1["formative_value_alignment"] | null;
+  activity_family_alignment: FormativeActivityQualityReviewV1["activity_family_alignment"] | null;
+  overclaiming_risk: FormativeActivityQualityReviewV1["overclaiming_risk"] | null;
+  student_safety_risk: FormativeActivityQualityReviewV1["student_safety_risk"] | null;
+  issue_count: number;
+  issue_codes: string[];
+};
+
+export function summarizeFormativeActivityQualityReviewForArtifact(
+  review: unknown,
+  unavailableReason = "reviewer_output_unavailable"
+): FormativeActivityReviewerArtifactSummary {
+  const parsed = FormativeActivityQualityReviewV1Schema.safeParse(review);
+  if (!parsed.success) {
+    return {
+      available: false,
+      unavailable_reason: unavailableReason,
+      review_status: null,
+      quality_score: null,
+      student_specificity: null,
+      conceptual_depth: null,
+      distractor_use_quality: null,
+      formative_value_alignment: null,
+      activity_family_alignment: null,
+      overclaiming_risk: null,
+      student_safety_risk: null,
+      issue_count: 0,
+      issue_codes: []
+    };
+  }
+
+  return {
+    available: true,
+    unavailable_reason: null,
+    review_status: parsed.data.review_status,
+    quality_score: parsed.data.quality_score,
+    student_specificity: parsed.data.student_specificity,
+    conceptual_depth: parsed.data.conceptual_depth,
+    distractor_use_quality: parsed.data.distractor_use_quality,
+    formative_value_alignment: parsed.data.formative_value_alignment,
+    activity_family_alignment: parsed.data.activity_family_alignment,
+    overclaiming_risk: parsed.data.overclaiming_risk,
+    student_safety_risk: parsed.data.student_safety_risk,
+    issue_count: parsed.data.issues.length,
+    issue_codes: parsed.data.issues.map((issue) => issue.rule_code)
+  };
+}
 
 type ProviderLabel = "mock" | "openai";
 
@@ -392,7 +448,7 @@ function familyQualityMarkers(family: FormativeActivityPacketV1["activity_family
       ];
     case "independent_reconstruction":
       return [
-        "\"option choices aside\"",
+        "\"Setting the option choices aside\"",
         "\"current evidence is mixed or unclear\"",
         "\"in your own words\"",
         "expected prompt starts with Explain or Reconstruct"
