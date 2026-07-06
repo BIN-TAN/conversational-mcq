@@ -2,6 +2,8 @@
 
 Phase 29a added the no-live design layer for the formative activity that follows profile integration and formative value determination. Phase 29b adds a live-capable first-turn generation and quality-review path for controlled smoke testing. It still does not render a browser UI, execute a full runtime activity, or update the profile after the activity.
 
+Phase 30a reframes this layer as **misconception/distractor-aware activity dialogue**. Activities are not broad tutoring templates. Their purpose is to elicit new evidence that can later support, weaken, or reject a distractor-linked misconception hypothesis, or establish that the current evidence is better described as a conceptual entry gap or insufficient evidence.
+
 ## Scope
 
 Formative value determination chooses the broad purpose of the next interaction. The formative activity layer implements that purpose through a complete explanation plus multi-turn dialogue. It is not a single feedback string and it is not a new scored item. It should eventually help the student revise thinking, produce new evidence, choose another activity, or move on.
@@ -86,6 +88,15 @@ the family set for local diagnostics.
 | `confidence_evidence_audit` | `confidence_calibration` | adequate understanding evidence with underconfidence or inconsistent confidence | optional contrast | connect confidence to evidence, not to a feeling alone |
 | `transfer_and_distractor_generation` | `consolidation_and_transfer` | stable understanding and student-safe status of Mostly understood | generated distractor or near transfer | extend the idea without creating a scored item |
 
+Phase 30a reframing:
+
+- `basic_concept_grounding` supports `conceptual_entry_grounding` when the student lacks enough conceptual access to diagnose a specific misconception.
+- `distractor_contrast` supports `distractor_misconception_probe` when selected option, tempting option, reasoning, or confidence suggests a distractor-linked misconception.
+- `reasoning_chain_repair` supports `reasoning_boundary_repair` when the student partially understands the target idea but has not separated it from distractor logic.
+- `independent_reconstruction` supports `independent_misconception_verification` when evidence is weak, mixed, polished, or reliability-limited.
+- `confidence_evidence_audit` is a confidence alignment modifier, not a central diagnostic purpose.
+- `transfer_and_distractor_generation` is an exit or extension path, not the central misconception diagnosis taxonomy.
+
 ## Dialogue Protocol
 
 The mode is `complete_explanation_plus_dialogue`.
@@ -136,6 +147,8 @@ clue" is not enough unless the text also explains the safe conceptual contrast,
 why the alternative feels plausible, the hidden assumption, and how the target
 idea differs.
 
+Activities should be distractor-aware by design, but not always distractor-focused. Basic grounding may be appropriate when the evidence shows a conceptual entry gap rather than a specific distractor-linked misconception. Independent reconstruction may be appropriate when a correct or polished response has weak distractor evidence or low reliability. Activity output itself does not update the diagnosis; only the student's response to the activity can provide new misconception evidence.
+
 ## Safety
 
 The validator rejects student-facing output containing:
@@ -184,6 +197,8 @@ npm run student:formative-activity-review -- --session-public-id sess_20260701_v
 
 Phase 29c may add post-activity evidence, profile integration, and formative value updates after the student responds. Phase 29d may add the student UI dialogue. Runtime execution and browser display remain outside Phase 29b.
 
+Under the Phase 30a framing, post-activity evidence updates should update misconception evidence conservatively: persisted, weakened, unsupported, or unclear. The loop should continue only while actionable distractor-linked misconception evidence remains and the student has not chosen to move on.
+
 ## Research-Facing Rationale
 
-The design follows the idea that useful formative feedback is specific, supportive, and aimed at helping the learner modify thinking. The activity can target task understanding, reasoning process, or self-regulation. Self-explanation and dialogue are used because they ask the student to produce new evidence rather than simply read feedback. Distractors can represent plausible alternative reasoning paths; using them safely can help the student contrast assumptions and refine the concept boundary.
+The Phase 30a rationale is narrower than broad formative feedback. The activity dialogue exists to recover or extend diagnostic evidence around distractor-linked misconception hypotheses. Self-explanation and dialogue are used because they ask the student to produce new evidence rather than simply read feedback. Distractors can represent plausible alternative reasoning paths; using them safely can help the student contrast assumptions, repair reasoning boundaries, and show whether a misconception hypothesis persists, weakens, or remains unsupported.

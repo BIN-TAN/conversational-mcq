@@ -4,6 +4,8 @@
 
 The student assessment should be chat-native. The platform should present the assessment as a conversation while the application controls the state machine, allowed actions, persistence, and answer-key protection.
 
+Phase 30a reframes the purpose of the flow as distractor-informed misconception diagnosis. The flow still collects the same answer, reasoning, confidence, and tempting-option evidence, but the design rationale is now to form, test, weaken, or reject distractor-linked misconception hypotheses rather than to produce a broad ability profile or broad adaptive tutoring path.
+
 ## Initial Item Administration
 
 For each of the first three items:
@@ -111,11 +113,11 @@ Allow package-level review or edit if supported. Review should be at the package
 
 ### PACKAGE_ANALYSIS
 
-Construct a response package from item responses, transcript turns, and process events. Use the LLM to infer a provisional learning state and formative need after the protected initial item package is complete.
+Construct a response package from item responses, transcript turns, and process events. Use the LLM to support misconception diagnostic integration after the protected initial item package is complete. Selected options, tempting options, reasoning, and confidence can anchor distractor-linked misconception hypotheses. Process data qualify evidence reliability only and must not become student-facing engagement or misconduct labels.
 
 ### FORMATIVE_ACTIVITY
 
-Present one matched formative activity based on the response package and formative need.
+Present one matched misconception/distractor-aware activity dialogue based on the response package and diagnostic purpose. The activity may directly contrast a distractor when misconception evidence warrants it, or it may ground the basic concept or request independent reconstruction when evidence is too weak, mixed, or low reliability.
 
 ### FOLLOWUP_RESPONSE
 
@@ -123,7 +125,7 @@ Collect the student's response to the formative activity.
 
 ### TARGETED_FEEDBACK
 
-Give brief targeted feedback. This feedback occurs after initial administration and should be matched to the student's response package and formative need.
+Give brief targeted feedback. This feedback occurs after initial administration and should be matched to the student's response package and distractor-informed diagnostic purpose.
 
 ### REVISION
 
@@ -168,3 +170,7 @@ The application owns:
 - completion.
 
 The LLM may produce language and structured interpretations, but backend validation must decide what is stored, shown, and used for progression.
+
+## Phase 30a Loop Policy
+
+The diagnostic loop should be described as continuing until no actionable distractor-linked misconception evidence remains, until the current misconception hypothesis is weakened or unsupported, until evidence becomes insufficient, until the student chooses to move on, or until a runtime guard stops the loop. It should not be described as looping until all misconceptions are eliminated.

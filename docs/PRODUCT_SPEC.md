@@ -4,6 +4,8 @@
 
 This project is a web-based, chat-native conversation-based MCQ formative assessment platform.
 
+Phase 30a narrows the dissertation and system framing to **distractor-informed misconception diagnosis in AI-assisted MCQ assessment**. The platform should be understood as an evidence-centered conversational assessment system that uses distractors as diagnostic representations of plausible but non-target reasoning paths. It is not a general ability profiling product or a broad adaptive tutoring system.
+
 The student experience should feel like a chat between an assessment agent and a student, not like a survey, form, or step-by-step questionnaire. The platform should embed an LLM in backend workflows while preserving application control over assessment state, answer-key protection, persistence, process-data logging, and submission logic.
 
 The MVP uses one fixed IRT item set focused on theta invariance and item parameters. Teacher upload can be added later, but the item-set schema should be designed so teacher-prepared item sets can be added without changing the core assessment architecture.
@@ -68,9 +70,9 @@ The LLM may be used for:
 
 - conversational agent messages;
 - response-package interpretation;
-- provisional learning-state interpretation;
-- formative need determination;
-- matched formative activity generation;
+- distractor-informed misconception diagnostic interpretation;
+- distractor-informed diagnostic purpose determination;
+- matched misconception/distractor-aware activity generation;
 - targeted feedback after protected initial administration;
 - follow-up conversation.
 
@@ -91,11 +93,22 @@ The MVP should support:
 - a three-item initial package;
 - answer, reasoning, confidence, and tempting-option collection for each item;
 - package-level response construction;
-- LLM-supported interpretation after the initial package;
-- one matched formative activity;
+- LLM-supported misconception diagnostic interpretation after the initial package;
+- one matched distractor-aware formative activity;
 - targeted feedback;
 - revision;
 - student choice to move forward or try a transfer item;
 - complete conversation and process-data logging.
 
 Teacher-prepared item upload can be added later. The data model should remain compatible with imported or teacher-authored item sets.
+
+## Phase 30a Framing Boundary
+
+The main research construct is now the **misconception diagnosis profile**, not a general ability profile. Engagement/process data should be interpreted as evidence-quality context that qualifies the confidence of a diagnosis. Formative value language remains in code for compatibility, but the dissertation framing is a four-purpose distractor-informed diagnostic taxonomy:
+
+- `conceptual_entry_grounding`
+- `distractor_misconception_probe`
+- `reasoning_boundary_repair`
+- `independent_misconception_verification`
+
+Confidence calibration is a modifier. Consolidation and transfer are exit or extension paths. The product must not claim to prove complete learning gain, detect cheating, or prove that no misconceptions exist when no actionable distractor-linked evidence is visible.

@@ -9,6 +9,8 @@ Profile Integration Interpretation v1 combines two internal evidence streams:
 
 The output is `profile-integration-interpretation-v1`.
 
+Phase 30a reframes this layer as **misconception diagnostic integration**. The historical name `profile-integration-interpretation-v1` remains for code and artifact compatibility, but the layer should be understood as integrating distractor-linked evidence, reasoning quality, confidence, and evidence-quality context into a conservative misconception diagnosis profile. It is not a broad ability profile.
+
 This layer is interpretation only. It does not determine a formative value, choose a formative activity, recommend an intervention, advance assessment state, score a student, or claim classroom validity.
 
 The agent contract is:
@@ -23,10 +25,12 @@ Phase 27c implements the schema, input builder, deterministic mock output, valid
 
 Ability and engagement remain separate evidence streams:
 
-- ability evidence summarizes current knowledge-state evidence from responses, reasoning, confidence, and internal item metadata;
+- ability evidence summarizes current knowledge-state and distractor-linked evidence from responses, reasoning, confidence, and internal item metadata;
 - engagement evidence summarizes participation and evidence-reliability context from response presence, timing bands, revision evidence, process-event counts, and safe contextual signals.
 
 Engagement does not directly change the ability category. It can affect interpretation confidence, reliability context, and uncertainty.
+
+In Phase 30a terms, engagement/evidence-quality context can lower confidence or motivate independent reconstruction, but it cannot directly create a misconception diagnosis. A conceptual entry gap is also not a misconception; it means the student has not yet shown enough conceptual access to diagnose a specific distractor-linked path.
 
 ## Input Policy
 
@@ -148,6 +152,8 @@ Students must not see:
 - formative value direction;
 - activity recommendation.
 
+Student-facing messages should also avoid exposing internal diagnosis labels such as `strong_distractor_linked_misconception`, `suspected_distractor_linked_misconception`, `conceptual_entry_gap`, or evidence-quality context labels. Students see only the safe status, short message, and knowledge focus.
+
 ## Validation
 
 Validation is deterministic. It rejects outputs that:
@@ -180,6 +186,8 @@ High `status_confidence` is not allowed when:
 - metadata limitations are substantial.
 
 `likely_misconception` requires multiple aligned sources. A single wrong answer, by itself, is not enough.
+
+The same rule applies under the distractor-informed framing: strong or suspected misconception language requires a plausible distractor-linked reasoning path. Wrong answers, low confidence, rapid timing, or sparse responses alone should not be interpreted as misconception evidence.
 
 Student-facing `knowledge_focus` may name the knowledge point that is unclear, such as "Separating theta as person ability from item difficulty." It must not tell the student to do an activity or prescribe what the tutor should show next.
 
@@ -287,3 +295,5 @@ Student-facing projection validation blocks answer keys, correctness labels, dis
 ## Future Use
 
 A later formative layer may consume this packet. That later layer must remain separate from this interpretation packet and must not infer activity selection from engagement context alone.
+
+Under the Phase 30a framing, that later layer should consume this packet as misconception diagnostic integration and select a distractor-informed diagnostic purpose. It should avoid overclaiming when evidence is mixed, low reliability, or insufficient, and it should treat conceptual entry gaps separately from distractor-linked misconceptions.

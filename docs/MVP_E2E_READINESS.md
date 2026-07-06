@@ -15,6 +15,18 @@ session start
 -> session complete
 ```
 
+## Phase 30a Framing Note
+
+The MVP should now be understood as a distractor-informed misconception diagnosis prototype. Existing script and artifact names still use implementation-layer terms such as ability evidence, engagement evidence, profile integration, formative value, and formative activity. For dissertation framing:
+
+- ability evidence supports a misconception diagnosis profile and must not be claimed as general ability measurement;
+- engagement evidence is evidence-quality context and must not determine misconception by itself;
+- profile integration is misconception diagnostic integration;
+- formative value determination is distractor-informed diagnostic purpose selection;
+- formative activity is misconception/distractor-aware dialogue.
+
+The MVP remains structurally the same. Phase 30a does not change runtime behavior, provider behavior, item content, scoring, UI, or database schema.
+
 ## Mock E2E Smoke
 
 Run the default full-path smoke with:
@@ -63,6 +75,8 @@ npm run student:ability-evidence-smoke
 
 The packet is a profiling foundation, not a student-facing profile and not a calibrated theta estimate. It uses concept/item metadata, internal correctness evidence, distractor diagnostic notes, reasoning, confidence, tempting-option evidence, timings, and process-data confidence modifiers. Numeric item difficulty and discrimination are optional future calibration fields; missing values do not block packet generation.
 
+Under Phase 30a, this packet is a misconception-diagnosis evidence foundation. Its distractor maps, tempting-option evidence, and reasoning analysis are central because they can anchor or reactivate distractor-linked misconception hypotheses.
+
 Do not expose the full packet to students. If a later phase renders the student-safe projection, it must continue to hide answer keys, correctness labels, distractor metadata, misconception IDs, raw reasoning, raw provider output, and internal evidence traces.
 
 For a redacted review artifact and item diagnostic metadata completeness report, run:
@@ -83,6 +97,8 @@ npm run student:engagement-evidence-smoke
 
 The packet is a profiling foundation, not a confirmed GenAI-use claim, motivation diagnosis, accusation, or student-facing profile. It uses response presence, reasoning length bands, item timing bands, focus-adjusted task timing bands, response-production timing bands, reasoning typing bands, revisions, repair events, focus/visibility events, paste detection, typing activity summaries, pause/inactivity events, and uncertainty markers. Process data are contextual evidence about participation and evidence sufficiency; they do not directly determine ability. The packet includes provisional v1 threshold metadata and item/session decision traces so teacher/research review can see which deterministic rules matched, which did not, and why other categories were not selected. Initial three-item packages with active ultra/extreme rapid timing plus repeated sparse or low-information evidence can support `disengaged`; rapid-warning timing is weaker and requires convergent weak-engagement signals. Reasoning typing time is a supporting process signal only and never classifies disengagement by itself. Completed items remain baseline completion context, observed process events remain data-quality context, and substantive reasoning requires task relevance or quality evidence rather than length alone.
 
+Under Phase 30a, engagement evidence is evidence-quality context. It can lower diagnostic confidence or support independent reconstruction, but it must not directly create a misconception diagnosis or appear as a student-facing label.
+
 For a redacted review artifact and process-data inventory report, run:
 
 ```bash
@@ -100,6 +116,8 @@ npm run student:profile-integration-smoke
 ```
 
 This packet interprets current knowledge-state evidence and engagement context. It is not formative value determination, not an activity recommendation, not a final student profile, and not classroom validation. Engagement context can lower interpretation confidence or add limitations, but it does not directly change the ability evidence category.
+
+Under Phase 30a, this packet should be read as misconception diagnostic integration. It integrates distractor-linked evidence, reasoning, confidence, and evidence-quality context. A conceptual entry gap is not a misconception; insufficient or low-reliability evidence should remain uncertain.
 
 The teacher/research summary inside the packet is also current-evidence-only. It may summarize what the evidence suggests, what is uncertain, and what should not be overclaimed. It must not recommend next steps, activities, interventions, or tutor actions.
 
@@ -157,6 +175,8 @@ The packet recommends exactly one broad formative value from:
 - `consolidation_and_transfer`
 
 This is value determination only. It does not generate an activity, task, item, explanation, or tutoring script, and it does not advance assessment state. The student choice policy must allow accepting the recommendation, choosing an alternative, or moving on. Confidence calibration may be recommended but cannot be forced.
+
+Under Phase 30a, this layer is distractor-informed diagnostic purpose selection. The central purposes are conceptual entry grounding, distractor misconception probing, reasoning boundary repair, and independent misconception verification. Confidence calibration is a modifier, while consolidation and transfer are exit or extension paths.
 
 Profile integration patterns are decision priors rather than a fixed mapping. Likely knowledge gaps generally support `diagnostic_clarification`; mixed or conflicting evidence generally supports `independent_understanding_verification`; stable understanding generally supports `consolidation_and_transfer`. `confidence_calibration` is reserved for cases where understanding evidence is adequate or strong but the student is underconfident or confidence is inconsistent across adequate evidence. Conceptual gaps, weak reasoning, wrong models, and likely misconceptions take priority over calibration. High confidence with wrong or weak evidence is recorded as a secondary consideration, not as the primary value. Low confidence by itself is not a confidence-calibration need.
 

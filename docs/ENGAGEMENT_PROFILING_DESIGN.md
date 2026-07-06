@@ -4,6 +4,8 @@
 
 Engagement evidence v1 is an internal evidence-packet foundation for future engagement profiling. It does not create a final engagement profile, does not call an LLM, does not label misconduct, and does not change student-facing UI.
 
+Phase 30a reframes this layer as **engagement/evidence-quality context**, not the dissertation's primary profile. The historical `EngagementEvidencePacketV1` name remains for compatibility, but the packet's role is to qualify how reliable, sparse, or interpretable the distractor-linked response evidence is. Engagement does not determine misconception by itself.
+
 The current output is `EngagementEvidencePacketV1` with schema version:
 
 ```text
@@ -71,6 +73,8 @@ Rules are conservative:
 - missing responses or too little usable process evidence can remain `insufficient_evidence`.
 
 These categories describe participation evidence in the session. They are not ability categories and do not directly change the ability evidence packet.
+
+Under the distractor-informed misconception diagnosis framing, these categories should be used only to qualify diagnostic confidence and evidence sufficiency. They must not be used as student-facing labels, direct ability labels, or direct misconception labels.
 
 ## Provisional V1 Thresholds And Decision Trace
 
@@ -169,6 +173,8 @@ This signal is behavioral process context only. AI assistance is allowed, and th
 
 The signal should be compared with future student self-report when that feature exists. Phase 27b-refine does not implement self-report collection.
 
+In Phase 30a terminology, AI or external-assistance context is an evidence-reliability context. It may explain why a polished answer needs independent reconstruction or distractor reactivation, but it must not become a cheating, misconduct, provenance, or authenticity claim.
+
 Packet limitations use stable labels:
 
 ```text
@@ -260,4 +266,6 @@ A future LLM may help phrase possible interpretations from redacted structured s
 - Paste detection does not inspect or store clipboard content.
 - Process signals can be ambiguous and must not be overinterpreted.
 - Engagement evidence is not direct ability evidence.
+- Engagement evidence is not direct misconception evidence.
+- Engagement or process labels must not be shown to students.
 - The v1 AI-assistance signal is behavioral only and should be compared with student self-report when self-report is implemented.

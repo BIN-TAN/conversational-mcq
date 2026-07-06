@@ -2,7 +2,28 @@
 
 Phase 28a adds a narrow formative-value determination layer after profile integration. It converts a validated `profile-integration-interpretation-v1` packet into a `formative-value-determination-v1` packet.
 
+Phase 30a reframes this layer as **distractor-informed diagnostic purpose selection**. The existing `formative-value-determination-v1` name and five code enum values remain for compatibility in this phase. The dissertation framing should not treat those five values as an all-purpose feedback taxonomy. Instead, they map onto four distractor-informed diagnostic purposes plus modifiers or exit paths.
+
 This layer does not generate activities, tasks, items, explanations, tutoring scripts, scoring changes, or state transitions. It only recommends the broad purpose of the next formative interaction and records the student's preference.
+
+## Phase 30a Reframing Crosswalk
+
+| Previous formative value | New role |
+|---|---|
+| `diagnostic_clarification` | `conceptual_entry_grounding` or `distractor_misconception_probe` |
+| `reasoning_refinement` | `reasoning_boundary_repair` |
+| `confidence_calibration` | confidence alignment modifier |
+| `independent_understanding_verification` | `independent_misconception_verification` |
+| `consolidation_and_transfer` | exit/extension path |
+
+The four central diagnostic purposes are:
+
+- `conceptual_entry_grounding`
+- `distractor_misconception_probe`
+- `reasoning_boundary_repair`
+- `independent_misconception_verification`
+
+Confidence calibration can still be recorded as an important condition, but it is not the central purpose taxonomy for the dissertation. Consolidation and transfer can remain valuable after no actionable distractor-linked misconception evidence remains, but they are not the central diagnostic construct.
 
 ## Allowed Values
 
@@ -22,7 +43,11 @@ The profile-integration pattern is a decision prior, not a hard deterministic ma
 
 `diagnostic_clarification` is the default fit when evidence suggests a likely knowledge gap, missing basic concept access, an "I don't know" pattern, vague reasoning due to lack of understanding, or unclear conceptual confusion.
 
+In Phase 30a terms, this may mean `conceptual_entry_grounding` when the student lacks a basic conceptual foothold, or `distractor_misconception_probe` when a selected or tempting distractor anchors a plausible misconception hypothesis.
+
 `reasoning_refinement` fits partial understanding where the student's reasoning is incomplete, unstable, or poorly connected.
+
+In Phase 30a terms, this is primarily `reasoning_boundary_repair`: the student may have part of the target idea but has not clearly separated it from distractor logic.
 
 `confidence_calibration` means the primary need is aligning confidence with already adequate or strong understanding evidence. It is not the same as low confidence. Low confidence can be appropriate when the evidence is weak, unknown, or gap-like.
 
@@ -36,7 +61,11 @@ Conceptual gaps, wrong models, weak reasoning, and likely misconceptions take pr
 
 `independent_understanding_verification` fits mixed, conflicting, insufficient, or reliability-limited evidence that needs a clearer in-platform expression of the student's own understanding. Student-facing text must not mention AI assistance, process data, engagement, provenance, integrity, or authenticity.
 
+In Phase 30a terms, this is `independent_misconception_verification`: the system asks for a fresh own-words expression because selected-option evidence, polished reasoning, or reliability context does not yet support a clear distractor-linked diagnosis.
+
 `consolidation_and_transfer` fits stable understanding where the next broad value is to stabilize or extend the idea.
+
+In Phase 30a terms, consolidation and transfer are exit or extension paths after the current misconception hypothesis is weakened, unsupported, or no longer actionable.
 
 ## Evidence Sources
 

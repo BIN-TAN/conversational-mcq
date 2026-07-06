@@ -76,6 +76,61 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - Deterministic formative fallback remains valid for mock, test, disabled, or explicit fallback paths, but it must not be counted as a successful live formative profile or targeted-feedback result.
 - Live formative output validation may canonicalize clearly equivalent labels or known field aliases before strict schema validation, but it must not accept unsafe, ambiguous, or student-visible internal labels. Harmless rigid visible heading prefixes such as "What you did well:", "Reasoning detail:", "Earlier:", "Current focus:", or "Still developing:" may be removed before validation while preserving the content. These headings must not appear in student-facing formative feedback after validation.
 
+## Phase 30a Distractor-Informed Misconception Diagnosis Lock
+
+Phase 30a narrows the dissertation and system framing to **distractor-informed misconception diagnosis in AI-assisted MCQ assessment**. The system should be represented as an evidence-centered, distractor-informed conversational assessment system for misconception diagnosis. Distractors are diagnostic representations of plausible but non-target reasoning paths.
+
+The system should be represented as:
+
+- a system that uses distractors to anchor, reactivate, and update misconception evidence;
+- a system that uses selected options, tempting options, reasoning, confidence, and dialogue responses to form, test, weaken, or reject distractor-linked misconception hypotheses;
+- a system that uses engagement/process data only as evidence-quality context.
+
+The system must not be represented as:
+
+- a general ability profiling system;
+- a broad adaptive tutoring system;
+- a complete learning gain intervention;
+- a cheating detection system;
+- an all-purpose feedback taxonomy;
+- a system where all activity families are equally central;
+- a system that proves the absence of all misconceptions when no actionable evidence is found.
+
+Internal diagnosis-state language for the new framing:
+
+- `strong_distractor_linked_misconception`
+- `suspected_distractor_linked_misconception`
+- `conceptual_entry_gap`
+- `insufficient_or_low_reliability_evidence`
+- `misconception_weakened_after_activity`
+- `no_actionable_misconception_evidence`
+
+Conceptual entry gap means the student lacks enough conceptual model to diagnose a specific misconception. It is not itself a distractor-linked misconception. No actionable misconception evidence is not proof that no misconception exists.
+
+The four central distractor-informed diagnostic purposes are:
+
+- `conceptual_entry_grounding`
+- `distractor_misconception_probe`
+- `reasoning_boundary_repair`
+- `independent_misconception_verification`
+
+Confidence calibration is a confidence-alignment modifier, not a central diagnostic purpose. Consolidation and transfer are exit or extension paths, not the central dissertation construct. Existing code enums and schema names remain unchanged in Phase 30a for compatibility.
+
+Terminology crosswalk:
+
+| Previous term | New dissertation framing | Notes |
+|---|---|---|
+| ability profile | misconception diagnosis profile | Do not claim general ability. |
+| engagement profile | evidence-quality context | Supports confidence in diagnosis. |
+| profile integration | misconception diagnostic integration | Integrates distractor, reasoning, confidence, and process context. |
+| formative value | distractor-informed diagnostic purpose | Four-purpose taxonomy. |
+| formative activity | misconception/distractor-aware dialogue | Collects new diagnostic evidence. |
+| AI assistance signal | evidence reliability context | Not cheating detection. |
+| confidence calibration | confidence alignment modifier | Not core taxonomy. |
+| consolidation and transfer | exit/extension path | Not central dissertation construct. |
+
+The diagnostic loop policy is: loop until no actionable distractor-linked misconception evidence remains, until the current misconception hypothesis is weakened or unsupported, until evidence becomes insufficient, until the student chooses to move on, or until a runtime guard stops the loop. Do not describe the system as looping until all misconceptions are eliminated.
+
 ## Ability Evidence Packet V1
 
 - `ability-evidence-packet-v1` is an internal evidence foundation for future ability profiling. It does not create a final student profile, does not implement engagement profiling, and does not change student-facing UI.

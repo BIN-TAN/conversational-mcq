@@ -4,6 +4,8 @@
 
 Ability profiling v1 is an internal evidence-packet foundation for future ability profiling. It does not create a final ability profile, does not integrate a new LLM agent, and does not render new student-facing UI.
 
+Phase 30a reframes this layer as an internal **misconception diagnosis evidence packet** rather than the dissertation's central construct. The historical name `AbilityEvidencePacketV1` remains for code/schema compatibility, but the packet should not be presented as a general ability profile. Its main research role is to organize response, reasoning, confidence, correctness-as-internal-evidence, and distractor-linked evidence so the system can form, test, weaken, or reject misconception hypotheses.
+
 The current output is `AbilityEvidencePacketV1` with schema version:
 
 ```text
@@ -87,6 +89,8 @@ The rules are conservative:
 - Wrong answer with correct tempting option and partial reasoning becomes `emerging_understanding`.
 - Conflicting evidence remains `ambiguous_mixed_evidence` or `insufficient_evidence`.
 
+Under the Phase 30a framing, `misconception_signal` should be read as distractor-linked misconception evidence. A misconception claim requires a plausible non-target reasoning path, not simply an incorrect answer or low score. `knowledge_gap` should be read as a possible conceptual entry gap when the student lacks enough conceptual access to diagnose a specific distractor path.
+
 ## Reasoning Analysis
 
 Phase 27a uses a deterministic v1 analyzer. It compares student reasoning against expected solution actions and safe diagnostic notes. The analyzer records:
@@ -111,6 +115,8 @@ Confidence is used as evidence about calibration, not as a direct ability score.
 - insufficient evidence.
 
 Tempting options are diagnostic evidence. A diagnostic tempting option can reveal a misconception risk even when the selected answer is correct. A correct tempting option after a wrong answer can indicate partial access rather than complete lack of understanding.
+
+Tempting-option evidence is central to the distractor-informed framing because it can anchor or reactivate a distractor-linked misconception hypothesis even when selected-option evidence is weak or correct.
 
 ## Process Data Boundary
 
@@ -202,4 +208,4 @@ Metadata status meanings:
 
 Incomplete metadata does not block packet generation when the packet can still be interpreted cautiously. Missing subskills, expected solution actions, or distractor diagnostics are limitations because they reduce the defensibility of ability interpretation. Missing numeric difficulty or discrimination does not reduce status by itself because those fields are optional future calibration fields, not required v1 evidence.
 
-Use the review output to decide what teacher/researcher metadata should be filled before moving from evidence packets to stronger ability-profile inference. Engagement evidence should be designed separately; process data in this packet remains only an evidence-confidence modifier.
+Use the review output to decide what teacher/researcher metadata should be filled before moving from evidence packets to stronger misconception diagnostic interpretation. Engagement evidence should be designed separately; process data in this packet remains only an evidence-confidence modifier. For Phase 30a and later, stronger inference should not be described as broad ability-profile inference unless a later phase explicitly approves a calibrated ability-measurement claim.
