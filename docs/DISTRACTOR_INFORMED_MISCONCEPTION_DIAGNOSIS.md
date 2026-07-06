@@ -106,6 +106,14 @@ When a student gives a correct or polished answer with weak distractor evidence,
 
 After activity dialogue, the system updates whether the misconception persisted, weakened, was unsupported, or remains unclear. Activity output itself is not evidence of learning. Only the student's response to the activity can update the diagnosis.
 
+Phase 30b defines this post-activity update as a separate evidence layer in
+`docs/POST_ACTIVITY_MISCONCEPTION_EVIDENCE_UPDATE.md`. The update uses the
+student's activity response as evidence, not the tutor's activity message. A
+single high-quality distractor-focused response can support a meaningful
+current-hypothesis update, but the system must use
+`no_actionable_misconception_evidence` rather than claiming the absence of all
+misconceptions.
+
 ## Formative Purposes
 
 The dissertation framing replaces broad formative-value language with four distractor-informed diagnostic purposes:
@@ -162,5 +170,8 @@ Phase 30a does not rename code enums, database fields, scripts, or provider sche
 - `profile-integration-interpretation-v1` should be read as misconception diagnostic integration.
 - `formative-value-determination-v1` should be read as distractor-informed diagnostic purpose selection.
 - `student-formative-activity-v1` should be read as misconception/distractor-aware dialogue output.
+- `student-activity-misconception-evidence-v1` should be read as the
+  post-activity student-response evidence packet for future LLM-evaluated
+  misconception updates.
 
 Future implementation phases may rename or introduce schemas only after migration, compatibility, and audit implications are explicitly approved.

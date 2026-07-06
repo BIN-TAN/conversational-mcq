@@ -446,6 +446,37 @@ requires provider metadata and token usage, and writes redacted summaries under
 `.data/formative-activity-live-smoke/`. A deterministic packet or deterministic
 fallback must not count as live activity success.
 
+## Post-Activity Misconception Evidence Readiness
+
+Phase 30b adds a no-live design contract for evaluating the student's response
+to a formative activity:
+
+```bash
+npm run student:activity-misconception-evidence-smoke
+npm run student:activity-misconception-evidence-review
+npm run student:activity-misconception-evidence-review -- --session-public-id <session_public_id>
+```
+
+The packet schema is `student-activity-misconception-evidence-v1`. The future
+production evaluator is `formative_activity_response_evaluator_agent` with
+schema `formative-activity-response-evaluation-v1`. Phase 30b fixtures are
+no-live review artifacts only: `evaluation_source=no_live_fixture`,
+`runtime_servable_to_student=false`, and `review_only=true`. They must not be
+used as production misconception updates or student-facing runtime activity
+content.
+
+The review command writes redacted artifacts under
+`.data/activity-misconception-evidence-review/`. Artifacts include safe response
+summaries, evidence-elicitation targets, evidence quality, update status,
+student-safe feedback, and safety flags. They must not include raw student
+responses, answer keys, correct option values, correctness labels, raw
+distractor metadata, raw misconception IDs, raw process payloads, raw provider
+output, prompts, headers, API keys, or secrets.
+
+Production post-activity update remains future work. It must use the future
+LLM evaluator for substantive diagnostic judgment. Deterministic code may
+validate schema, safety, privacy, audit, and fail-closed behavior only.
+
 ## One-Click Local Launcher
 
 The one-click launcher is for daily local use after the full opt-in live LLM smoke has already passed as the backend gate. It does not run paid model-generation smoke tests.

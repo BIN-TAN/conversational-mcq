@@ -390,6 +390,36 @@ usage, and writes redacted summaries under `.data/formative-activity-live-smoke/
 It does not render a browser UI, execute runtime activity dialogue, update
 profiles, or treat deterministic review templates as live success.
 
+Post-activity misconception evidence packet verification:
+
+```bash
+npm run student:activity-misconception-evidence-smoke
+```
+
+This Phase 30b no-live smoke builds `student-activity-misconception-evidence-v1`
+fixtures for student responses to formative activities. These packets model how
+a future LLM evaluator will update distractor-linked misconception evidence
+after the student responds. Fixture packets are marked
+`evaluation_source=no_live_fixture`, `runtime_servable_to_student=false`, and
+`review_only=true`; production update guards reject them. The smoke verifies
+schema, safety, evidence-quality states, no-actionable-evidence wording, and no
+OpenAI calls.
+
+Post-activity misconception evidence review artifact generation:
+
+```bash
+npm run student:activity-misconception-evidence-review
+npm run student:activity-misconception-evidence-review -- --session-public-id <session_public_id>
+```
+
+The command writes redacted artifacts under
+`.data/activity-misconception-evidence-review/` and prints the activity family,
+diagnostic purpose, response kind, evidence quality, update status, and safety
+status. Phase 30b does not execute runtime activity dialogue or evaluate real
+activity responses; the optional session argument reports that limitation when
+post-activity evidence is unavailable. See
+`docs/POST_ACTIVITY_MISCONCEPTION_EVIDENCE_UPDATE.md`.
+
 Profile/formative scenario QA:
 
 ```bash

@@ -149,6 +149,14 @@ idea differs.
 
 Activities should be distractor-aware by design, but not always distractor-focused. Basic grounding may be appropriate when the evidence shows a conceptual entry gap rather than a specific distractor-linked misconception. Independent reconstruction may be appropriate when a correct or polished response has weak distractor evidence or low reliability. Activity output itself does not update the diagnosis; only the student's response to the activity can provide new misconception evidence.
 
+Phase 30b adds the no-live design contract for that response evidence:
+`student-activity-misconception-evidence-v1`. The future production evaluator is
+`formative_activity_response_evaluator_agent`; it must make the substantive
+post-activity misconception evidence judgment from redacted activity and
+student-response evidence. Deterministic code may validate schema, safety,
+privacy, audit fields, and fail-closed behavior, but it must not be the final
+production misconception updater.
+
 ## Safety
 
 The validator rejects student-facing output containing:
@@ -195,7 +203,12 @@ npm run student:formative-activity-review -- --session-public-id sess_20260701_v
 
 ## Future Phases
 
-Phase 29c may add post-activity evidence, profile integration, and formative value updates after the student responds. Phase 29d may add the student UI dialogue. Runtime execution and browser display remain outside Phase 29b.
+Phase 30b adds the post-activity misconception evidence design and no-live QA
+fixtures; it does not execute a runtime activity or update profiles. A future
+phase may add live activity-response evaluation, profile integration updates,
+and formative value updates after the student responds. Phase 29d may add the
+student UI dialogue. Runtime execution and browser display remain outside Phase
+29b and Phase 30b.
 
 Under the Phase 30a framing, post-activity evidence updates should update misconception evidence conservatively: persisted, weakened, unsupported, or unclear. The loop should continue only while actionable distractor-linked misconception evidence remains and the student has not chosen to move on.
 

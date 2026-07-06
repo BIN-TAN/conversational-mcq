@@ -131,6 +131,38 @@ Terminology crosswalk:
 
 The diagnostic loop policy is: loop until no actionable distractor-linked misconception evidence remains, until the current misconception hypothesis is weakened or unsupported, until evidence becomes insufficient, until the student chooses to move on, or until a runtime guard stops the loop. Do not describe the system as looping until all misconceptions are eliminated.
 
+## Phase 30b Post-Activity Misconception Evidence Update Lock
+
+- Phase 30b adds `student-activity-misconception-evidence-v1`, an internal
+  post-activity evidence packet for future misconception evidence updates.
+- The activity output does not update diagnosis. The student's response to the
+  activity is the evidence source.
+- Activity dialogue must be evidence-eliciting: it should ask for explanation,
+  contrast, hidden-assumption identification, boundary explanation, reasoning
+  repair, independent reconstruction, or generated-distractor explanation.
+- Substantive production misconception updates must be evaluated by the future
+  LLM evaluator `formative_activity_response_evaluator_agent` using schema
+  `formative-activity-response-evaluation-v1`.
+- Deterministic code may enforce schema, required fields, safety, privacy,
+  redaction, audit, and fail-closed behavior only. It must not make the final
+  production decision about misconception status, hidden-assumption
+  interpretation, conceptual-boundary judgment, or response-substance
+  diagnosis.
+- No deterministic production misconception update decision is allowed.
+  No-live fixtures must be marked `evaluation_source=no_live_fixture`,
+  `runtime_servable_to_student=false`, and `review_only=true`, and production
+  update guards must reject them.
+- A high-quality single activity response can support a meaningful update when
+  it explains why a distractor is tempting, identifies the hidden assumption,
+  contrasts the target idea, and uses the student's own words.
+- The system must not claim absence of all misconceptions. Use
+  `no_actionable_misconception_evidence` when the current targeted hypothesis
+  is unsupported by the available response evidence.
+- `student:activity-misconception-evidence-smoke` and
+  `student:activity-misconception-evidence-review` are no-live commands. They
+  must not create `agent_calls`, call OpenAI, mutate operational classroom
+  records, or make deterministic review output student-facing.
+
 ## Ability Evidence Packet V1
 
 - `ability-evidence-packet-v1` is an internal evidence foundation for future ability profiling. It does not create a final student profile, does not implement engagement profiling, and does not change student-facing UI.
