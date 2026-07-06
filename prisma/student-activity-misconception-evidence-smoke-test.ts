@@ -11,9 +11,11 @@ import {
   type MisconceptionUpdateStatus
 } from "../src/lib/services/student-assessment/activity-misconception-evidence";
 import {
+  ACTIVITY_MISCONCEPTION_EVIDENCE_LIVE_SMOKE_EXPECTED_STATUSES,
   evaluateActivityMisconceptionEvidenceLivePipeline,
   makeActivityMisconceptionEvidenceAuditForTest,
-  makeLiveActivityMisconceptionEvidencePacketForTest
+  makeLiveActivityMisconceptionEvidencePacketForTest,
+  summarizeActivityMisconceptionEvidenceLiveSmokeOutcome
 } from "../src/lib/services/student-assessment/activity-misconception-evidence-live";
 import { prisma } from "../src/lib/db";
 import { assert } from "./student-mvp-smoke-helpers";
@@ -192,6 +194,38 @@ async function main() {
   assert(futureLiveValidation.valid, `Future live packet should validate: ${JSON.stringify(futureLiveValidation.issues)}`);
   assertActivityMisconceptionEvidencePacketIsLiveEvaluatedForProductionUpdate(futureLivePacket);
 
+  assert(
+    ACTIVITY_MISCONCEPTION_EVIDENCE_LIVE_SMOKE_EXPECTED_STATUSES
+      .activity_misconception_live_001_conceptual_entry_no_usable_distinction.length === 1 &&
+      ACTIVITY_MISCONCEPTION_EVIDENCE_LIVE_SMOKE_EXPECTED_STATUSES
+        .activity_misconception_live_001_conceptual_entry_no_usable_distinction[0] === "conceptual_entry_gap_remains",
+    "No usable conceptual-entry distinction should allow only conceptual_entry_gap_remains."
+  );
+  assert(
+    ACTIVITY_MISCONCEPTION_EVIDENCE_LIVE_SMOKE_EXPECTED_STATUSES
+      .activity_misconception_live_002_conceptual_entry_partial_improvement.includes("conceptual_entry_improved"),
+    "Emerging conceptual distinction should allow conceptual_entry_improved."
+  );
+  assert(
+    ACTIVITY_MISCONCEPTION_EVIDENCE_LIVE_SMOKE_EXPECTED_STATUSES
+      .activity_misconception_live_003_conceptual_entry_ready_for_probe.includes("conceptual_entry_improved") &&
+      ACTIVITY_MISCONCEPTION_EVIDENCE_LIVE_SMOKE_EXPECTED_STATUSES
+        .activity_misconception_live_003_conceptual_entry_ready_for_probe.includes("ready_for_distractor_probe"),
+    "Strong conceptual entry should allow either high-quality improvement or ready_for_distractor_probe."
+  );
+  assert(
+    ACTIVITY_MISCONCEPTION_EVIDENCE_LIVE_SMOKE_EXPECTED_STATUSES
+      .activity_misconception_live_004_strong_distractor_boundary.includes("misconception_weakened"),
+    "Strong distractor boundary evidence may conservatively weaken the hypothesis."
+  );
+  assert(
+    ACTIVITY_MISCONCEPTION_EVIDENCE_LIVE_SMOKE_EXPECTED_STATUSES
+      .activity_misconception_live_009_low_information_understand.includes("conceptual_entry_gap_remains") &&
+      ACTIVITY_MISCONCEPTION_EVIDENCE_LIVE_SMOKE_EXPECTED_STATUSES
+        .activity_misconception_live_009_low_information_understand.includes("insufficient_new_evidence"),
+    "Low-information understand-now evidence may be insufficient or leave conceptual entry gap in place."
+  );
+
   const liveAudit = makeActivityMisconceptionEvidenceAuditForTest();
   const livePipeline = evaluateActivityMisconceptionEvidenceLivePipeline({
     candidate_packet: futureLivePacket,
@@ -262,6 +296,15 @@ async function main() {
   assert(protectedLeakPipeline.status === "rejected", "Protected content leakage must reject live pipeline.");
   assert(protectedLeakPipeline.repair_attempted === false, "Protected content leakage must not be repaired.");
 
+  const protectedCategorySafeReferencePacket = makeFutureLivePacket(base);
+  protectedCategorySafeReferencePacket.misconception_evidence_update.safe_internal_rationale =
+    "Student response evidence is evaluated from redacted summaries; protected assessment details are not repeated.";
+  const safeReferenceValidation = validateActivityMisconceptionEvidencePacket(protectedCategorySafeReferencePacket);
+  assert(
+    safeReferenceValidation.valid,
+    `Safe protected-category wording should validate: ${JSON.stringify(safeReferenceValidation.issues)}`
+  );
+
   const genericFeedbackLivePacket = makeFutureLivePacket(base);
   genericFeedbackLivePacket.student_safe_feedback.message = "Good job.";
   const repairMissingPipeline = evaluateActivityMisconceptionEvidenceLivePipeline({
@@ -304,6 +347,18 @@ async function main() {
     "Process context alone should not create persisted misconception evidence."
   );
 
+  const processOnlyConceptualImproved = makeFutureLivePacket(packetByStatus(packets, "insufficient_new_evidence"));
+  processOnlyConceptualImproved.misconception_evidence_update.status = "conceptual_entry_improved";
+  processOnlyConceptualImproved.misconception_evidence_update.limitations = [
+    "process_context_is_evidence_quality_context_only",
+    "no_direct_misconception_update_from_process_data"
+  ];
+  assertInvalid(
+    processOnlyConceptualImproved,
+    "invalid_conceptual_entry_improvement_claim",
+    "Process context alone should not create conceptual_entry_improved."
+  );
+
   const understandNowNoActionable = makeFutureLivePacket(packetByStatus(packets, "insufficient_new_evidence"));
   understandNowNoActionable.student_activity_response.student_response_text_redacted_or_safe_summary =
     "Student only says I understand now.";
@@ -312,6 +367,54 @@ async function main() {
     understandNowNoActionable,
     "invalid_no_actionable_claim",
     "Low-information understand-now response should not become no-actionable evidence."
+  );
+
+  const understandNowConceptualImproved = makeFutureLivePacket(packetByStatus(packets, "insufficient_new_evidence"));
+  understandNowConceptualImproved.student_activity_response.student_response_text_redacted_or_safe_summary =
+    "Student only says I understand now.";
+  understandNowConceptualImproved.misconception_evidence_update.status = "conceptual_entry_improved";
+  assertInvalid(
+    understandNowConceptualImproved,
+    "invalid_conceptual_entry_improvement_claim",
+    "Low-information understand-now response should not become conceptual_entry_improved."
+  );
+
+  const failedOutcome = summarizeActivityMisconceptionEvidenceLiveSmokeOutcome([
+    { case_id: "failed_case", status: "failed" }
+  ]);
+  assert(
+    failedOutcome.overall_status === "failed" && failedOutcome.failed_case_ids.includes("failed_case"),
+    "Live smoke summary must not report overall_status=passed when a required case failed."
+  );
+
+  const mismatchOutcome = summarizeActivityMisconceptionEvidenceLiveSmokeOutcome([
+    {
+      case_id: "outcome_mismatch_case",
+      status: "succeeded",
+      status_allowed: false,
+      status_disallowed: false,
+      output_validated: true
+    }
+  ]);
+  assert(
+    mismatchOutcome.overall_status === "failed" &&
+      mismatchOutcome.outcome_mismatch_count === 1 &&
+      mismatchOutcome.failed_case_ids.includes("outcome_mismatch_case"),
+    "A validated output with status_allowed=false should be classified as outcome_mismatch."
+  );
+
+  const disallowedOutcome = summarizeActivityMisconceptionEvidenceLiveSmokeOutcome([
+    {
+      case_id: "disallowed_case",
+      status: "succeeded",
+      status_allowed: true,
+      status_disallowed: true
+    }
+  ]);
+  assert(
+    disallowedOutcome.overall_status === "failed" &&
+      disallowedOutcome.failed_case_ids.includes("disallowed_case"),
+    "A disallowed selected status should fail live-smoke summary."
   );
 
   const artifactPath = await writeRedactedActivityMisconceptionEvidenceReviewArtifact({

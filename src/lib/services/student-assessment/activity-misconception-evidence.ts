@@ -186,6 +186,7 @@ export type ActivityMisconceptionEvidenceValidationIssue = {
     | "misconduct_language_detected"
     | "invalid_no_actionable_claim"
     | "process_context_only_misconception_claim"
+    | "invalid_conceptual_entry_improvement_claim"
     | "generic_student_feedback_detected"
     | "missing_evidence_type"
     | "unsafe_student_facing_text";
@@ -535,6 +536,34 @@ export function validateActivityMisconceptionEvidencePacket(value: unknown) {
       "misconception_evidence_update.status",
       "process_context_only_misconception_claim",
       "process_context_cannot_create_misconception_update"
+    );
+  }
+
+  if (
+    (packet.misconception_evidence_update.status === "conceptual_entry_improved" ||
+      packet.misconception_evidence_update.status === "ready_for_distractor_probe") &&
+    (!packet.evidence_elicited.elicited ||
+      evidenceTypes.includes("none") ||
+      /process_context_is_evidence_quality_context_only|no_direct_misconception_update_from_process_data/i.test(limitationsText))
+  ) {
+    pushIssue(
+      issues,
+      "misconception_evidence_update.status",
+      "invalid_conceptual_entry_improvement_claim",
+      "conceptual_entry_improvement_requires_response_evidence"
+    );
+  }
+
+  if (
+    packet.student_activity_response.response_kind === "low_information" &&
+    (packet.misconception_evidence_update.status === "conceptual_entry_improved" ||
+      packet.misconception_evidence_update.status === "ready_for_distractor_probe")
+  ) {
+    pushIssue(
+      issues,
+      "misconception_evidence_update.status",
+      "invalid_conceptual_entry_improvement_claim",
+      "low_information_response_cannot_improve_conceptual_entry"
     );
   }
 

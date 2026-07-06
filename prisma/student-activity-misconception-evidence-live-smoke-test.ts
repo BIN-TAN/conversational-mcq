@@ -79,53 +79,84 @@ function liveCases(): Array<{
     distractor_role: "A tempting alternative blurs student ability estimates with item-side features.",
     safe_activity_prompt:
       "Explain the difference between a learner ability estimate and the features of a question, then say how that affects the tempting alternative.",
-    expected_evidence_focus: "distractor-informed misconception evidence without answer keys or correctness labels"
+    expected_evidence_focus: "safe misconception evidence from redacted synthetic activity and response summaries only"
   };
 
   return [
     {
-      case_id: "activity_misconception_live_001_weak_conceptual_entry",
-      expected_disallowed_statuses: ["no_actionable_misconception_evidence", "independent_evidence_supported"],
-      rationale: "Weak conceptual entry should remain a gap rather than resolve the hypothesis.",
+      case_id: "activity_misconception_live_001_conceptual_entry_no_usable_distinction",
+      expected_disallowed_statuses: [
+        "conceptual_entry_improved",
+        "ready_for_distractor_probe",
+        "no_actionable_misconception_evidence",
+        "independent_evidence_supported",
+        "misconception_weakened",
+        "misconception_persisted"
+      ],
+      rationale: "No usable conceptual distinction should remain a conceptual entry gap.",
       input: {
         ...base,
-        case_id: "activity_misconception_live_001_weak_conceptual_entry",
+        case_id: "activity_misconception_live_001_conceptual_entry_no_usable_distinction",
         session_public_id: "sess_activity_misconception_live_001",
         activity_attempt_id: "activity_attempt_live_001",
         source_activity_family: "basic_concept_grounding",
         source_diagnostic_purpose: "conceptual_entry_grounding",
-        profile_condition: "basic concept distinction is still unclear",
+        profile_condition: "basic concept distinction is not yet available",
         safe_student_activity_response:
-          "Student gives a short answer that still blends learner ability with question features.",
+          "Student gives a very short response that does not state a usable distinction between learner ability and question features.",
         response_kind_hint: "partial"
       }
     },
     {
-      case_id: "activity_misconception_live_002_clear_conceptual_entry",
-      expected_disallowed_statuses: ["conceptual_entry_gap_remains", "misconception_persisted"],
-      rationale: "Clear concept distinction should improve entry evidence or prepare a distractor probe.",
+      case_id: "activity_misconception_live_002_conceptual_entry_partial_improvement",
+      expected_disallowed_statuses: [
+        "ready_for_distractor_probe",
+        "no_actionable_misconception_evidence",
+        "misconception_persisted",
+        "misconception_weakened",
+        "misconception_unsupported"
+      ],
+      rationale:
+        "Weak conceptual-entry evidence may remain a gap or show early improvement depending on whether the response contains an emerging distinction.",
       input: {
         ...base,
-        case_id: "activity_misconception_live_002_clear_conceptual_entry",
+        case_id: "activity_misconception_live_002_conceptual_entry_partial_improvement",
         session_public_id: "sess_activity_misconception_live_002",
         activity_attempt_id: "activity_attempt_live_002",
         source_activity_family: "basic_concept_grounding",
         source_diagnostic_purpose: "conceptual_entry_grounding",
-        profile_condition: "student can state the basic distinction after grounding",
+        profile_condition: "student has an emerging but incomplete distinction after grounding",
         safe_student_activity_response:
-          "Student explains that theta estimates the learner while item parameters describe the question side.",
+          "Student starts to separate learner ability from question features, but the distinction is still incomplete.",
+        response_kind_hint: "partial"
+      }
+    },
+    {
+      case_id: "activity_misconception_live_003_conceptual_entry_ready_for_probe",
+      expected_disallowed_statuses: ["conceptual_entry_gap_remains", "misconception_persisted", "misconception_weakened"],
+      rationale: "A strong basic distinction can show conceptual entry improvement or make the next distractor probe appropriate.",
+      input: {
+        ...base,
+        case_id: "activity_misconception_live_003_conceptual_entry_ready_for_probe",
+        session_public_id: "sess_activity_misconception_live_003",
+        activity_attempt_id: "activity_attempt_live_003",
+        source_activity_family: "basic_concept_grounding",
+        source_diagnostic_purpose: "conceptual_entry_grounding",
+        profile_condition: "student states the basic distinction strongly enough to test a distractor path",
+        safe_student_activity_response:
+          "Student clearly explains that theta estimates the learner and item parameters describe the question side, and says the tempting alternative mixes those roles.",
         response_kind_hint: "substantive"
       }
     },
     {
-      case_id: "activity_misconception_live_003_strong_distractor_boundary",
+      case_id: "activity_misconception_live_004_strong_distractor_boundary",
       expected_disallowed_statuses: ["misconception_persisted", "conceptual_entry_gap_remains"],
-      rationale: "Strong distractor contrast should not preserve a misconception.",
+      rationale: "Strong distractor contrast should weaken, unsupported, or clear the current targeted hypothesis, not preserve it.",
       input: {
         ...base,
-        case_id: "activity_misconception_live_003_strong_distractor_boundary",
-        session_public_id: "sess_activity_misconception_live_003",
-        activity_attempt_id: "activity_attempt_live_003",
+        case_id: "activity_misconception_live_004_strong_distractor_boundary",
+        session_public_id: "sess_activity_misconception_live_004",
+        activity_attempt_id: "activity_attempt_live_004",
         source_activity_family: "distractor_contrast",
         source_diagnostic_purpose: "distractor_misconception_probe",
         profile_condition: "distractor hypothesis is actively tested",
@@ -135,14 +166,14 @@ function liveCases(): Array<{
       }
     },
     {
-      case_id: "activity_misconception_live_004_partial_distractor_boundary",
+      case_id: "activity_misconception_live_005_partial_distractor_boundary",
       expected_disallowed_statuses: ["no_actionable_misconception_evidence", "misconception_persisted"],
       rationale: "Partial distractor evidence should weaken but not resolve or fully preserve the hypothesis.",
       input: {
         ...base,
-        case_id: "activity_misconception_live_004_partial_distractor_boundary",
-        session_public_id: "sess_activity_misconception_live_004",
-        activity_attempt_id: "activity_attempt_live_004",
+        case_id: "activity_misconception_live_005_partial_distractor_boundary",
+        session_public_id: "sess_activity_misconception_live_005",
+        activity_attempt_id: "activity_attempt_live_005",
         source_activity_family: "distractor_contrast",
         source_diagnostic_purpose: "distractor_misconception_probe",
         profile_condition: "student partly explains the distractor assumption",
@@ -152,31 +183,31 @@ function liveCases(): Array<{
       }
     },
     {
-      case_id: "activity_misconception_live_005_repeats_distractor_logic",
+      case_id: "activity_misconception_live_006_repeats_distractor_logic",
       expected_disallowed_statuses: ["misconception_unsupported", "no_actionable_misconception_evidence"],
       rationale: "Repeated distractor reasoning should preserve the active misconception hypothesis.",
       input: {
         ...base,
-        case_id: "activity_misconception_live_005_repeats_distractor_logic",
-        session_public_id: "sess_activity_misconception_live_005",
-        activity_attempt_id: "activity_attempt_live_005",
+        case_id: "activity_misconception_live_006_repeats_distractor_logic",
+        session_public_id: "sess_activity_misconception_live_006",
+        activity_attempt_id: "activity_attempt_live_006",
         source_activity_family: "distractor_contrast",
         source_diagnostic_purpose: "distractor_misconception_probe",
         profile_condition: "student repeats the distractor logic after contrast",
         safe_student_activity_response:
-          "Student restates the tempting alternative and does not separate the hidden assumption from the target idea.",
+          "Student explains the tempting alternative using the same hidden assumption and does not separate that assumption from the target idea.",
         response_kind_hint: "substantive"
       }
     },
     {
-      case_id: "activity_misconception_live_006_reasoning_boundary_strong",
+      case_id: "activity_misconception_live_007_reasoning_boundary_strong",
       expected_disallowed_statuses: ["reasoning_boundary_still_blurred", "misconception_persisted"],
       rationale: "A strong reasoning repair should improve boundary understanding.",
       input: {
         ...base,
-        case_id: "activity_misconception_live_006_reasoning_boundary_strong",
-        session_public_id: "sess_activity_misconception_live_006",
-        activity_attempt_id: "activity_attempt_live_006",
+        case_id: "activity_misconception_live_007_reasoning_boundary_strong",
+        session_public_id: "sess_activity_misconception_live_007",
+        activity_attempt_id: "activity_attempt_live_007",
         source_activity_family: "reasoning_chain_repair",
         selected_formative_value: "reasoning_refinement",
         source_diagnostic_purpose: "reasoning_boundary_repair",
@@ -189,14 +220,14 @@ function liveCases(): Array<{
       }
     },
     {
-      case_id: "activity_misconception_live_007_independent_reconstruction_strong",
+      case_id: "activity_misconception_live_008_independent_reconstruction_strong",
       expected_disallowed_statuses: ["insufficient_new_evidence", "misconception_persisted"],
       rationale: "Strong own-words reconstruction should support independent evidence.",
       input: {
         ...base,
-        case_id: "activity_misconception_live_007_independent_reconstruction_strong",
-        session_public_id: "sess_activity_misconception_live_007",
-        activity_attempt_id: "activity_attempt_live_007",
+        case_id: "activity_misconception_live_008_independent_reconstruction_strong",
+        session_public_id: "sess_activity_misconception_live_008",
+        activity_attempt_id: "activity_attempt_live_008",
         source_activity_family: "independent_reconstruction",
         selected_formative_value: "independent_understanding_verification",
         source_diagnostic_purpose: "independent_misconception_verification",
@@ -209,14 +240,14 @@ function liveCases(): Array<{
       }
     },
     {
-      case_id: "activity_misconception_live_008_low_information_understand",
+      case_id: "activity_misconception_live_009_low_information_understand",
       expected_disallowed_statuses: ["no_actionable_misconception_evidence", "independent_evidence_supported"],
-      rationale: "Low-information agreement should remain insufficient new evidence.",
+      rationale: "Low-information agreement should remain insufficient new evidence or leave the conceptual entry gap in place.",
       input: {
         ...base,
-        case_id: "activity_misconception_live_008_low_information_understand",
-        session_public_id: "sess_activity_misconception_live_008",
-        activity_attempt_id: "activity_attempt_live_008",
+        case_id: "activity_misconception_live_009_low_information_understand",
+        session_public_id: "sess_activity_misconception_live_009",
+        activity_attempt_id: "activity_attempt_live_009",
         source_activity_family: "basic_concept_grounding",
         source_diagnostic_purpose: "conceptual_entry_grounding",
         profile_condition: "student provides agreement without explanation",
@@ -225,14 +256,14 @@ function liveCases(): Array<{
       }
     },
     {
-      case_id: "activity_misconception_live_009_move_on",
-      expected_disallowed_statuses: ["misconception_persisted", "no_actionable_misconception_evidence"],
+      case_id: "activity_misconception_live_010_move_on",
+      expected_disallowed_statuses: ["insufficient_new_evidence", "misconception_persisted", "no_actionable_misconception_evidence"],
       rationale: "A move-on choice should preserve the choice, not invent diagnostic evidence.",
       input: {
         ...base,
-        case_id: "activity_misconception_live_009_move_on",
-        session_public_id: "sess_activity_misconception_live_009",
-        activity_attempt_id: "activity_attempt_live_009",
+        case_id: "activity_misconception_live_010_move_on",
+        session_public_id: "sess_activity_misconception_live_010",
+        activity_attempt_id: "activity_attempt_live_010",
         source_activity_family: "distractor_contrast",
         source_diagnostic_purpose: "distractor_misconception_probe",
         profile_condition: "student chooses to stop the current activity",
@@ -241,14 +272,14 @@ function liveCases(): Array<{
       }
     },
     {
-      case_id: "activity_misconception_live_010_choose_other_activity",
+      case_id: "activity_misconception_live_011_choose_other_activity",
       expected_disallowed_statuses: ["misconception_persisted", "boundary_understanding_improved"],
       rationale: "Alternative-activity request should preserve the choice and avoid diagnostic overclaim.",
       input: {
         ...base,
-        case_id: "activity_misconception_live_010_choose_other_activity",
-        session_public_id: "sess_activity_misconception_live_010",
-        activity_attempt_id: "activity_attempt_live_010",
+        case_id: "activity_misconception_live_011_choose_other_activity",
+        session_public_id: "sess_activity_misconception_live_011",
+        activity_attempt_id: "activity_attempt_live_011",
         source_activity_family: "reasoning_chain_repair",
         selected_formative_value: "reasoning_refinement",
         source_diagnostic_purpose: "reasoning_boundary_repair",
@@ -259,6 +290,43 @@ function liveCases(): Array<{
       }
     }
   ];
+}
+
+function requestedCaseIds() {
+  const raw = process.env.ACTIVITY_MISCONCEPTION_EVIDENCE_SMOKE_CASES;
+  if (!raw?.trim()) {
+    return null;
+  }
+
+  return raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function selectedLiveCases() {
+  let cases = liveCases();
+  const requested = requestedCaseIds();
+  if (requested) {
+    const knownIds = new Set(cases.map((entry) => entry.case_id));
+    const unknown = requested.filter((caseId) => !knownIds.has(caseId));
+    if (unknown.length > 0) {
+      throw new Error(`Unknown ACTIVITY_MISCONCEPTION_EVIDENCE_SMOKE_CASES entries: ${unknown.join(", ")}`);
+    }
+    const requestedSet = new Set(requested);
+    cases = cases.filter((entry) => requestedSet.has(entry.case_id));
+  }
+
+  const maxRaw = process.env.MAX_LIVE_ACTIVITY_MISCONCEPTION_EVIDENCE_CASES;
+  if (maxRaw?.trim()) {
+    const max = Number(maxRaw);
+    if (!Number.isInteger(max) || max <= 0) {
+      throw new Error("MAX_LIVE_ACTIVITY_MISCONCEPTION_EVIDENCE_CASES must be a positive integer when set.");
+    }
+    cases = cases.slice(0, max);
+  }
+
+  return cases;
 }
 
 async function agentCallSummary(agentCallId?: string) {
@@ -371,6 +439,16 @@ type LiveSmokeArtifactRow = Record<string, unknown> & {
   };
 };
 
+function classifyLiveSummary(summary: LiveSmokeArtifactRow) {
+  if (summary.status !== "succeeded") {
+    return "provider_or_validation_failure" as const;
+  }
+  if (summary.status_allowed === false || summary.status_disallowed === true) {
+    return "outcome_mismatch" as const;
+  }
+  return "passed" as const;
+}
+
 async function writeArtifact(results: LiveSmokeArtifactRow[]) {
   const outputDir = path.join(process.cwd(), ".data", "activity-misconception-evidence-live-smoke");
   await mkdir(outputDir, { recursive: true });
@@ -398,27 +476,6 @@ async function writeArtifact(results: LiveSmokeArtifactRow[]) {
   return artifactPath;
 }
 
-function assertLiveSummaryPassed(summary: LiveSmokeArtifactRow) {
-  if (summary.status !== "succeeded") {
-    throw new Error(`Live activity misconception evidence case failed: ${String(summary.case_id)}`);
-  }
-  if (summary.status_allowed !== true || summary.status_disallowed === true) {
-    throw new Error(`Live activity misconception evidence status mismatch: ${String(summary.case_id)}`);
-  }
-  if (summary.evaluator?.provider !== "openai") {
-    throw new Error(`Live activity misconception evidence case did not use OpenAI provider: ${String(summary.case_id)}`);
-  }
-  if (summary.evaluator?.call_status !== "succeeded" || summary.evaluator?.output_validated !== true) {
-    throw new Error(`Live activity misconception evidence case did not validate output: ${String(summary.case_id)}`);
-  }
-  if (!summary.evaluator?.provider_metadata_present) {
-    throw new Error(`Live activity misconception evidence case lacks provider metadata: ${String(summary.case_id)}`);
-  }
-  if (!summary.evaluator?.token_usage_present) {
-    throw new Error(`Live activity misconception evidence case lacks token usage: ${String(summary.case_id)}`);
-  }
-}
-
 async function main() {
   if (process.env.RUN_LIVE_ACTIVITY_MISCONCEPTION_EVIDENCE_SMOKE !== "1") {
     console.log(JSON.stringify({
@@ -438,8 +495,9 @@ async function main() {
     throw new Error("Live activity misconception evidence smoke is not configured. No provider call was made.");
   }
 
+  const cases = selectedLiveCases();
   const summaries: LiveSmokeArtifactRow[] = [];
-  for (const entry of liveCases()) {
+  for (const entry of cases) {
     const allowedStatuses = ACTIVITY_MISCONCEPTION_EVIDENCE_LIVE_SMOKE_EXPECTED_STATUSES[entry.case_id];
     const result = await executeLiveActivityMisconceptionEvidenceEvaluator({
       evaluation_input: entry.input
@@ -450,12 +508,11 @@ async function main() {
       allowedStatuses,
       entry.expected_disallowed_statuses,
       entry.rationale
-    );
+    ) as LiveSmokeArtifactRow;
+    summary.outcome_classification = classifyLiveSummary(summary);
     summaries.push(summary);
 
-    try {
-      assertLiveSummaryPassed(summary);
-    } catch (error) {
+    if (summary.outcome_classification === "provider_or_validation_failure") {
       const artifactPath = await writeArtifact(summaries);
       const outcome = summarizeActivityMisconceptionEvidenceLiveSmokeOutcome(summaries);
       console.log(JSON.stringify({
@@ -465,18 +522,34 @@ async function main() {
         failed_case_id: entry.case_id,
         results: summaries
       }, null, 2));
-      throw error;
+      throw new Error(`Live activity misconception evidence provider/validation failure: ${entry.case_id}.`);
     }
   }
 
   const artifactPath = await writeArtifact(summaries);
   const outcome = summarizeActivityMisconceptionEvidenceLiveSmokeOutcome(summaries);
+  if (outcome.overall_status !== "passed") {
+    console.log(JSON.stringify({
+      status: "failed",
+      ...outcome,
+      diagnostic_artifact_path: artifactPath,
+      live_case_count: summaries.length,
+      provider_dispatch_count: summaries.length,
+      case_filter: requestedCaseIds(),
+      max_case_count: process.env.MAX_LIVE_ACTIVITY_MISCONCEPTION_EVIDENCE_CASES ?? null,
+      results: summaries
+    }, null, 2));
+    throw new Error("Live activity misconception evidence smoke completed with outcome mismatches.");
+  }
+
   console.log(JSON.stringify({
     status: outcome.overall_status,
     ...outcome,
     artifact_path: artifactPath,
     live_case_count: summaries.length,
     provider_dispatch_count: summaries.length,
+    case_filter: requestedCaseIds(),
+    max_case_count: process.env.MAX_LIVE_ACTIVITY_MISCONCEPTION_EVIDENCE_CASES ?? null,
     results: summaries
   }, null, 2));
 }

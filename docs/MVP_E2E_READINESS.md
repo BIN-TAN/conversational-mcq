@@ -491,13 +491,17 @@ OPENAI_MODEL_FOLLOWUP=<model> \
 npm run student:activity-misconception-evidence-live-smoke
 ```
 
-The live smoke uses ten synthetic, redacted activity-response cases and writes a
-redacted artifact under `.data/activity-misconception-evidence-live-smoke/`.
+The live smoke uses eleven synthetic, redacted activity-response cases and writes
+a redacted artifact under `.data/activity-misconception-evidence-live-smoke/`.
 Success requires `evaluation_source=live_llm`, a valid
 `student-activity-misconception-evidence-v1` packet, persisted `agent_calls`
 audit metadata, provider request or response metadata, token usage, and no
 protected leakage. It does not implement runtime activity execution or profile
 updates.
+
+Conceptual-entry boundary cases are split into no usable distinction, partial
+improvement, and ready-for-probe cases. A provider/schema-valid output outside a
+case's allowed status set is reported as `outcome_mismatch`.
 
 Production post-activity update remains future work. It must use the future
 LLM evaluator for substantive diagnostic judgment. Deterministic code may

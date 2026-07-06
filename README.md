@@ -439,12 +439,15 @@ OPENAI_MODEL_FOLLOWUP=<model> \
 npm run student:activity-misconception-evidence-live-smoke
 ```
 
-The live smoke uses ten synthetic, redacted activity-response cases and writes
-redacted results under `.data/activity-misconception-evidence-live-smoke/`.
+The live smoke uses eleven synthetic, redacted activity-response cases and
+writes redacted results under `.data/activity-misconception-evidence-live-smoke/`.
 Successful packets must use `evaluation_source=live_llm`,
 `runtime_servable_to_student=false`, and `review_only=false`, with persisted
 agent-call provider metadata and token usage. The smoke does not implement
-browser runtime activity execution or production profile updates.
+browser runtime activity execution or production profile updates. To run a
+subset locally, set `ACTIVITY_MISCONCEPTION_EVIDENCE_SMOKE_CASES` to a
+comma-separated case list or `MAX_LIVE_ACTIVITY_MISCONCEPTION_EVIDENCE_CASES`
+to a positive integer.
 
 Profile/formative scenario QA:
 

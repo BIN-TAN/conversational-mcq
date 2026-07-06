@@ -183,6 +183,47 @@ The diagnostic loop policy is: loop until no actionable distractor-linked miscon
   issues. Protected leakage, wrong source, deterministic final diagnostic
   decisions, missing provider metadata, missing token usage, and missing audit
   metadata must fail closed.
+- Free-text evaluator fields must not repeat protected category labels such as
+  answer-key terms, correctness terms, raw metadata terms, raw model-output
+  terms, or secret/header terms. Use generic wording such as "protected
+  assessment details" when a boundary must be referenced.
+- Phase 30c conceptual-entry smoke cases must distinguish no usable distinction,
+  partial improvement, and ready-for-distractor-probe evidence. Weak
+  conceptual-entry evidence may remain a gap or show early improvement when an
+  emerging distinction is present. Stronger entry evidence may still be
+  conservatively labeled `conceptual_entry_improved` instead of
+  `ready_for_distractor_probe` when the evaluator separates improvement from
+  next-step readiness.
+- For `conceptual_entry_grounding`, the evaluator must stay in the conceptual
+  entry status family: `conceptual_entry_gap_remains`,
+  `conceptual_entry_improved`, or `ready_for_distractor_probe`. It must not use
+  distractor-update statuses such as `misconception_weakened` for
+  conceptual-entry grounding evidence.
+- Strong distractor-boundary evidence may be classified as
+  `misconception_weakened`, `misconception_unsupported`, or
+  `no_actionable_misconception_evidence`, but it must not preserve the targeted
+  misconception hypothesis.
+- For `distractor_misconception_probe`, partial evidence that names some
+  tempting-assumption evidence but leaves the target boundary incomplete should
+  remain in the distractor-update family, normally `misconception_weakened`.
+  `boundary_understanding_improved` is reserved for
+  `reasoning_boundary_repair`.
+- Process-context-only limitation wording must not be combined with a
+  substantive response-evidence update such as `misconception_persisted`.
+- A response that restates the targeted tempting assumption is still elicited
+  response evidence, even when the reasoning remains problematic. It may
+  support `misconception_persisted`; it must not be marked as `none` evidence
+  solely because the misconception appears to persist.
+- Move-on and choose-other-activity responses are student-choice states. The
+  evaluator must preserve them as `student_chose_move_on` or
+  `student_requested_alternative_activity` rather than converting them into
+  concept-evidence states such as `insufficient_new_evidence`.
+- Low-information agreement may remain `insufficient_new_evidence` or
+  `conceptual_entry_gap_remains`; it must not become conceptual improvement,
+  independent support, or no-actionable evidence by itself.
+- Provider/schema-valid outputs whose update status is outside the case's
+  allowed outcome set must be classified as `outcome_mismatch`; top-level
+  `status` and `overall_status` must agree.
 - Phase 30c does not implement browser activity execution, runtime
   multi-turn dialogue, production profile updates, or diagnosis updates.
 

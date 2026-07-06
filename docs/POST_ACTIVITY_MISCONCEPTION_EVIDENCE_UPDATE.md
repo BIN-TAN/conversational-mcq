@@ -209,11 +209,60 @@ OPENAI_MODEL_FOLLOWUP=<model>
 npm run student:activity-misconception-evidence-live-smoke
 ```
 
-The live smoke runs ten synthetic, redacted activity-response cases covering
-weak and clear conceptual entry, strong and partial distractor reasoning,
-persisted distractor logic, reasoning-boundary repair, independent
-reconstruction, low-information agreement, move-on, and alternative-activity
-requests.
+The live smoke runs eleven synthetic, redacted activity-response cases covering
+conceptual entry with no usable distinction, conceptual entry with partial
+improvement, conceptual entry ready for a distractor probe, strong and partial
+distractor reasoning, persisted distractor logic, reasoning-boundary repair,
+independent reconstruction, low-information agreement, move-on, and
+alternative-activity requests.
+
+Weak conceptual-entry evidence may remain a gap or show early improvement
+depending on whether the response contains an emerging distinction. Stronger
+conceptual-entry evidence may be reported as high-quality
+`conceptual_entry_improved` or as `ready_for_distractor_probe`, depending on how
+conservatively the evaluator separates improvement from next-step readiness.
+The live smoke therefore keeps separate cases for no usable distinction,
+partial improvement, and ready-for-probe evidence.
+
+For `conceptual_entry_grounding`, the evaluator must stay in the conceptual
+entry status family: `conceptual_entry_gap_remains`,
+`conceptual_entry_improved`, or `ready_for_distractor_probe`. It must not use
+distractor-update statuses such as `misconception_weakened` for conceptual-entry
+grounding evidence.
+
+Strong distractor-boundary evidence may conservatively weaken the current
+hypothesis before fully marking it unsupported or no longer actionable.
+Low-information agreement may remain `insufficient_new_evidence` or leave the
+`conceptual_entry_gap_remains` state in place. It must not become conceptual
+improvement, independent evidence, or no-actionable misconception evidence by
+itself.
+
+For `distractor_misconception_probe`, partial evidence that names some tempting
+assumption evidence but leaves the target boundary incomplete should remain in
+the distractor-update family, normally `misconception_weakened`. Reserve
+`boundary_understanding_improved` for `reasoning_boundary_repair`. Process-only
+limitation wording must not be combined with a substantive response-evidence
+update such as `misconception_persisted`.
+
+A response that restates the targeted tempting assumption is still elicited
+response evidence, even when the reasoning remains problematic. It may support
+`misconception_persisted`; it should not be marked as `none` evidence solely
+because the misconception appears to persist.
+
+Move-on and choose-other-activity responses are student-choice states. The
+evaluator should preserve them as `student_chose_move_on` or
+`student_requested_alternative_activity` rather than converting them into
+concept-evidence states such as `insufficient_new_evidence`.
+
+Optional local controls:
+
+```text
+ACTIVITY_MISCONCEPTION_EVIDENCE_SMOKE_CASES=<comma-separated case IDs>
+MAX_LIVE_ACTIVITY_MISCONCEPTION_EVIDENCE_CASES=<positive integer>
+```
+
+By default, the opt-in live smoke covers all planned representative cases unless
+a hard provider, quota, configuration, or validation failure stops execution.
 
 Each live success must have:
 
@@ -230,6 +279,16 @@ One live repair attempt is allowed only for repairable schema or safe wording
 issues. Protected leaks, no-live source mismatch, deterministic final decisions,
 missing provider metadata, missing token usage, and missing audit metadata fail
 closed and are not repaired.
+
+Free-text evaluator fields must not repeat protected category names such as
+answer-key terms, correctness terms, raw metadata terms, raw model-output terms,
+or secret/header terms. When the evaluator needs to refer to these boundaries,
+it should use a generic phrase such as "protected assessment details." This
+keeps the safety scanner strict while avoiding self-referential blocked output.
+
+A provider/schema-valid output can still fail the smoke if the selected
+misconception evidence status is outside the case's allowed outcome set. Such
+failures are reported as `outcome_mismatch`, not provider failures.
 
 ## Safety And Student-Facing Language
 

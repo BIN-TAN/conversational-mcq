@@ -29,9 +29,9 @@ import type { FormativeValue } from "./formative-value-determination";
 export const ACTIVITY_RESPONSE_EVALUATOR_AGENT_VERSION =
   "formative-activity-response-evaluator-v1" as const;
 export const ACTIVITY_RESPONSE_EVALUATOR_PROMPT_VERSION =
-  "formative-activity-response-evaluator-prompt-v1" as const;
+  "formative-activity-response-evaluator-prompt-v6" as const;
 export const ACTIVITY_RESPONSE_EVALUATOR_REPAIR_PROMPT_VERSION =
-  "formative-activity-response-evaluator-repair-prompt-v1" as const;
+  "formative-activity-response-evaluator-repair-prompt-v2" as const;
 export const ACTIVITY_RESPONSE_EVALUATOR_INPUT_SCHEMA_VERSION =
   "formative-activity-response-evaluator-input-v1" as const;
 export const ACTIVITY_MISCONCEPTION_EVIDENCE_LIVE_SMOKE_ARTIFACT_VERSION =
@@ -43,8 +43,15 @@ export const ACTIVITY_RESPONSE_EVALUATOR_PROMPT_INSTRUCTIONS = [
   "Your output is an internal evidence packet, not a student-facing activity and not a profile update.",
   "Set evaluation_source to live_llm, runtime_servable_to_student to false, review_only to false, and deterministic_final_diagnostic_decision_used to false.",
   "Do not expose answer keys, correct options, correctness labels, distractor metadata, misconception IDs, raw student text, raw process payloads, raw LLM output, or secret-like content.",
+  "In free-text fields, do not name forbidden categories such as answer-key terms, correctness terms, raw metadata terms, raw model terms, or secret/header terms. If needed, say protected assessment details.",
   "Do not claim misconduct, cheating, GenAI use, response provenance, or authenticity.",
   "Process context may only affect evidence quality or limitations. It must never create a misconception status by itself.",
+  "Do not use process-context-only limitation wording when the update status is based on the student's response evidence.",
+  "For source_diagnostic_purpose=conceptual_entry_grounding, use conceptual_entry_gap_remains, conceptual_entry_improved, or ready_for_distractor_probe. Do not use distractor-update statuses for conceptual-entry grounding.",
+  "For source_diagnostic_purpose=distractor_misconception_probe, use misconception_persisted, misconception_weakened, misconception_unsupported, or no_actionable_misconception_evidence. Reserve boundary_understanding_improved for source_diagnostic_purpose=reasoning_boundary_repair.",
+  "For partial distractor evidence that names some tempting-assumption evidence but leaves the target boundary incomplete, use misconception_weakened rather than boundary_understanding_improved.",
+  "A response that restates the targeted tempting assumption is elicited response evidence even when the reasoning remains problematic. Do not set evidence types to none solely because the misconception appears to persist.",
+  "If response_kind_hint is move_on or the response explicitly chooses to move on, use student_chose_move_on. If response_kind_hint is choose_other_activity or the response asks for a different activity, use student_requested_alternative_activity. These are student-choice states, not concept-evidence states.",
   "A low-information response such as 'I understand now' is insufficient new evidence unless the response also explains a concept boundary, hidden assumption, reasoning link, or independent reconstruction.",
   "Use conservative status labels when evidence is incomplete or conflicting.",
   "Return only the required JSON schema."
@@ -55,6 +62,7 @@ export const ACTIVITY_RESPONSE_EVALUATOR_REPAIR_PROMPT_INSTRUCTIONS = [
   "Use only the original synthetic evaluator input and safe repair instructions.",
   "Make one corrected student-activity misconception evidence packet.",
   "Do not add answer keys, correctness labels, raw metadata, raw student text, process payloads, or secrets.",
+  "In free-text fields, do not name forbidden categories such as answer-key terms, correctness terms, raw metadata terms, raw model terms, or secret/header terms. If needed, say protected assessment details.",
   "Do not change to no_live_fixture or any deterministic source. The repaired packet must use evaluation_source live_llm.",
   "Return only the required JSON schema."
 ].join("\n");
@@ -399,6 +407,7 @@ const NON_REPAIRABLE_VALIDATION_RULES = new Set<ActivityMisconceptionEvidenceVal
   "secret_or_header_exposed",
   "misconduct_language_detected",
   "invalid_no_actionable_claim",
+  "invalid_conceptual_entry_improvement_claim",
   "process_context_only_misconception_claim"
 ]);
 
@@ -1002,14 +1011,28 @@ export function makeActivityMisconceptionEvidenceAuditForTest(
 }
 
 export function summarizeActivityMisconceptionEvidenceLiveSmokeOutcome(
-  results: Array<Record<string, unknown> & { status?: unknown; case_id?: unknown }>
+  results: Array<Record<string, unknown> & {
+    status?: unknown;
+    case_id?: unknown;
+    status_allowed?: unknown;
+    status_disallowed?: unknown;
+    optional?: unknown;
+  }>
 ) {
-  const completed = results.filter((result) => result.status === "succeeded");
-  const failed = results.filter((result) => result.status !== "succeeded");
+  const required = results.filter((result) => result.optional !== true && result.status !== "skipped");
+  const completed = required.filter((result) => result.status === "succeeded");
+  const outcomeMismatches = required.filter((result) =>
+    result.status === "succeeded" &&
+    (result.status_allowed === false || result.status_disallowed === true)
+  );
+  const hardFailures = required.filter((result) => result.status !== "succeeded");
+  const failed = [...hardFailures, ...outcomeMismatches];
   return {
     overall_status: failed.length === 0 ? "passed" : "failed",
     case_count: results.length,
     completed_count: completed.length,
+    outcome_mismatch_count: outcomeMismatches.length,
+    hard_failure_count: hardFailures.length,
     failed_case_ids: failed.map((result) => String(result.case_id ?? "unknown"))
   };
 }
@@ -1018,20 +1041,28 @@ export const ACTIVITY_MISCONCEPTION_EVIDENCE_LIVE_SMOKE_EXPECTED_STATUSES: Recor
   string,
   MisconceptionUpdateStatus[]
 > = {
-  activity_misconception_live_001_weak_conceptual_entry: ["conceptual_entry_gap_remains"],
-  activity_misconception_live_002_clear_conceptual_entry: [
+  activity_misconception_live_001_conceptual_entry_no_usable_distinction: ["conceptual_entry_gap_remains"],
+  activity_misconception_live_002_conceptual_entry_partial_improvement: [
+    "conceptual_entry_gap_remains",
+    "conceptual_entry_improved"
+  ],
+  activity_misconception_live_003_conceptual_entry_ready_for_probe: [
     "conceptual_entry_improved",
     "ready_for_distractor_probe"
   ],
-  activity_misconception_live_003_strong_distractor_boundary: [
+  activity_misconception_live_004_strong_distractor_boundary: [
+    "misconception_weakened",
     "no_actionable_misconception_evidence",
     "misconception_unsupported"
   ],
-  activity_misconception_live_004_partial_distractor_boundary: ["misconception_weakened"],
-  activity_misconception_live_005_repeats_distractor_logic: ["misconception_persisted"],
-  activity_misconception_live_006_reasoning_boundary_strong: ["boundary_understanding_improved"],
-  activity_misconception_live_007_independent_reconstruction_strong: ["independent_evidence_supported"],
-  activity_misconception_live_008_low_information_understand: ["insufficient_new_evidence"],
-  activity_misconception_live_009_move_on: ["student_chose_move_on"],
-  activity_misconception_live_010_choose_other_activity: ["student_requested_alternative_activity"]
+  activity_misconception_live_005_partial_distractor_boundary: ["misconception_weakened"],
+  activity_misconception_live_006_repeats_distractor_logic: ["misconception_persisted"],
+  activity_misconception_live_007_reasoning_boundary_strong: ["boundary_understanding_improved"],
+  activity_misconception_live_008_independent_reconstruction_strong: ["independent_evidence_supported"],
+  activity_misconception_live_009_low_information_understand: [
+    "conceptual_entry_gap_remains",
+    "insufficient_new_evidence"
+  ],
+  activity_misconception_live_010_move_on: ["student_chose_move_on"],
+  activity_misconception_live_011_choose_other_activity: ["student_requested_alternative_activity"]
 };
