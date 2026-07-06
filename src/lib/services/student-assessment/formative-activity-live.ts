@@ -70,6 +70,8 @@ Hard requirements:
 17. Do not use more than one sentence ending in a question mark.
 18. Do not start expected_student_action.prompt with filler words such as "Please". Start with a meaningful verb that also appears in first_turn.message, such as "Explain", "Compare", "Revise", "Rate", "Apply", or "Generate".
 19. Treat the family-specific quoted phrases below as hard acceptance gates, not style suggestions. Copy the required quoted phrases naturally into first_turn.message for the requested family.
+20. Do not include rhetorical questions or multiple student-facing prompts in the explanation body. The only question mark in first_turn.message must be the final student action prompt.
+21. expected_student_action.prompt must match or safely extract the final student action in first_turn.message. It must not introduce a second different student task.
 
 Family-specific minimums:
 - basic_concept_grounding: include 3 to 5 concrete concept-explanation sentences before the prompt. Use the phrase "basic distinction". Include the concrete terms "theta", "ability scale", "item parameters", and "item information" or "difficulty". Include a simple thermometer analogy to separate a learner estimate from item features. Explain the idea from basic parts, connect to the student's prior response pattern in student-safe language, and ask one own-words prompt. Set expected_student_action.prompt to start with "Explain" and include the phrase "in your own words". Do not merely tell the student to explain the concept.
@@ -102,7 +104,7 @@ Evaluate:
 9. Answer-key or correctness leakage.
 
 Use review_status=pass only if the packet is ready for deterministic final checks.
-Use repair_needed for text-quality issues that can be safely repaired without revealing protected content, including: first turn too short, missing concrete concept explanation, missing family-specific content, missing response connection, basic grounding without depth, distractor family without concrete contrast, generic feedback, or no clear prompt.
+Use repair_needed for text-quality issues that can be safely repaired without revealing protected content, including: first turn too short, missing concrete concept explanation, missing family-specific content, missing response connection, basic grounding without depth, distractor family without concrete contrast, generic feedback, colon-spliced template fragments, no clear prompt, missing final prompt, multiple student-facing prompts, rhetorical questions that look like prompts, or expected_student_action.prompt that does not match the final student-facing action.
 Use fail_closed for protected leaks, unsafe claims, unsupported source flags, missing provenance requirements, or severe mismatch.
 
 Return only the required formative-activity-quality-review-v1 JSON object.
@@ -115,11 +117,15 @@ You may repair only safe text-quality issues from the supplied validation issue 
 
 The repaired first turn must satisfy the family-specific minimums from the generator prompt. It must include exactly one question mark, and that question mark must be the final character. It must include one of these natural concept-explanation phrases: "The key idea is", "A useful way to think", "The core idea is", "The main boundary", "The basic distinction", or "One part describes". It must explicitly connect to the prior response summary using "your earlier responses", "your earlier thinking", or "your earlier explanation". Do not start expected_student_action.prompt with filler words such as "Please"; start with a meaningful verb that also appears in first_turn.message. Match the expected_student_action.prompt verb to the final visible question: use "Explain" for basic grounding, "Compare" for distractor contrast, "Revise" for reasoning-chain repair, "Explain" or "Reconstruct" for independent reconstruction, "Rate" or "Connect" for confidence audit, and "Apply" or "Generate" for transfer/generation. For basic_concept_grounding, include at least six total sentences, with 3 to 5 concrete concept-explanation sentences, the phrase "basic distinction", the terms "theta", "ability scale", "item parameters", and "item information" or "difficulty", a simple thermometer analogy, a connection to the prior response summary, and one final prompt. Set expected_student_action.prompt to start with "Explain" and include "in your own words".
 
+Prompt-count repair rule: first_turn.message must end with exactly one student-facing question. Do not put the only prompt in expected_student_action.prompt while leaving first_turn.message as a statement. Do not include rhetorical questions or a list of questions in first_turn.message. Do not use "Can you..., and also..." or any combined multi-action question. If unsure, make the final sentence exactly: "Can you explain in your own words what theta is and how it is different from item parameters?"
+
+Clean wording repair rule: write complete sentences. Do not use colon-spliced template fragments such as "Your earlier responses: The...", "The idea is: This...", or "in your own words: ...".
+
 Family repair checklist:
 - basic_concept_grounding must include "basic distinction" or "key distinction", "thermometer", theta/person ability language, item-parameter or item-information language, and an expected prompt beginning with "Explain".
 - distractor_contrast must include "tempting alternative", "hidden assumption", a concrete ability-vs-item boundary, and an expected prompt beginning with "Compare".
 - reasoning_chain_repair must include the exact phrases "useful part" or "useful starting point", "missing link", and "tempting alternative"; the expected prompt must begin with "Revise".
-- independent_reconstruction must include "Setting the option choices aside", "current evidence is mixed or unclear", and "in your own words".
+- independent_reconstruction must include "Setting the option choices aside", "current evidence is mixed or unclear", and "in your own words". A safe structure is: "Setting the option choices aside helps us rebuild the idea without leaning on recognition from the choices. The current evidence is mixed or unclear, so your own explanation gives a cleaner view of your thinking. Your earlier responses suggest the relationship between theta and item parameters still needs to be stated directly. Can you explain in your own words how theta is different from item parameters?"
 - confidence_evidence_audit must include "confidence", "evidence", "usable understanding", and "low confidence can be worth checking".
 - transfer_and_distractor_generation must include "not another scored question", "Transfer means", "Distractor generation means", and "nearby situation" or "nearby example".
 
@@ -219,6 +225,48 @@ export function summarizeFormativeActivityQualityReviewForArtifact(
     student_safety_risk: parsed.data.student_safety_risk,
     issue_count: parsed.data.issues.length,
     issue_codes: parsed.data.issues.map((issue) => issue.rule_code)
+  };
+}
+
+export type FormativeActivityLiveSmokeOutcome = {
+  overall_status: "passed" | "failed";
+  synthetic_cases_passed: boolean;
+  real_session_included: boolean;
+  real_session_case_passed: boolean | null;
+  failed_case_ids: string[];
+};
+
+export function summarizeFormativeActivityLiveSmokeOutcome(
+  results: Array<{ case_id?: unknown; status?: unknown }>
+): FormativeActivityLiveSmokeOutcome {
+  const syntheticResults = results.filter((result) =>
+    typeof result.case_id === "string" && result.case_id.startsWith("activity_live_")
+  );
+  const realSessionResults = results.filter((result) =>
+    typeof result.case_id === "string" && result.case_id.startsWith("real_session_")
+  );
+  const executedRealSessionResults = realSessionResults.filter((result) =>
+    result.status !== "skipped"
+  );
+  const failedCaseIds = results
+    .filter((result) => result.status !== "succeeded" && result.status !== "skipped")
+    .map((result) => typeof result.case_id === "string" ? result.case_id : "unknown_case");
+  const syntheticCasesPassed = syntheticResults.length > 0 &&
+    syntheticResults.every((result) => result.status === "succeeded");
+  const realSessionIncluded = executedRealSessionResults.length > 0;
+  const realSessionCasePassed = realSessionIncluded
+    ? executedRealSessionResults.every((result) => result.status === "succeeded")
+    : null;
+
+  return {
+    overall_status:
+      syntheticCasesPassed && (!realSessionIncluded || realSessionCasePassed === true)
+        ? "passed"
+        : "failed",
+    synthetic_cases_passed: syntheticCasesPassed,
+    real_session_included: realSessionIncluded,
+    real_session_case_passed: realSessionCasePassed,
+    failed_case_ids: failedCaseIds
   };
 }
 
@@ -680,7 +728,14 @@ function repairInstructionForIssue(issue: FormativeActivityLivePipelineIssue) {
     case "generic_feedback":
     case "generic_feedback_detected":
       return "Replace generic feedback with specific concept explanation and a response connection.";
+    case "template_splice_artifact":
+    case "label_sentence_duplication":
+      return "Remove colon-spliced template fragments and write complete natural sentences.";
     case "multiple_or_missing_prompts":
+    case "missing_student_prompt":
+      return "End first_turn.message with exactly one final student-facing question mark; do not put the only prompt in expected_student_action.prompt.";
+    case "multiple_student_prompts":
+    case "duplicate_first_turn_and_action_prompt":
       return "End with exactly one clear student action question.";
     default:
       return `Repair safe quality issue: ${label}.`;

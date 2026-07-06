@@ -201,6 +201,9 @@ export type FormativeActivityValidationIssue = {
     | "family_metadata_missing"
     | "invalid_generation_source_metadata"
     | "multiple_or_missing_prompts"
+    | "missing_student_prompt"
+    | "multiple_student_prompts"
+    | "duplicate_first_turn_and_action_prompt"
     | "missing_distractor_contrast"
     | "fake_distractor_contrast"
     | "missing_student_safe_profile_status"
@@ -960,6 +963,10 @@ function countPrompts(text: string) {
   return (text.match(/\?/g) ?? []).length;
 }
 
+function hasQuestionBeforeFinalPrompt(text: string) {
+  return /\?\s+\S/.test(text.trim());
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -1155,8 +1162,19 @@ export function validateFormativeActivityPacket(value: unknown) {
   ) {
     pushIssue(issues, "first_turn.message", "missing_transfer_or_generation_logic");
   }
-  if (countPrompts(message) !== 1 || !message.trim().endsWith("?")) {
-    pushIssue(issues, "first_turn.message", "multiple_or_missing_prompts");
+  const firstTurnPromptCount = countPrompts(message);
+  if (firstTurnPromptCount === 0 || !message.trim().endsWith("?")) {
+    pushIssue(issues, "first_turn.message", "missing_student_prompt");
+  } else if (firstTurnPromptCount > 1 || hasQuestionBeforeFinalPrompt(message)) {
+    pushIssue(issues, "first_turn.message", "multiple_student_prompts");
+  }
+
+  const expectedActionPromptCount = countPrompts(packet.expected_student_action.prompt);
+  if (
+    expectedActionPromptCount > 1 ||
+    (expectedActionPromptCount === 1 && !packet.expected_student_action.prompt.trim().endsWith("?"))
+  ) {
+    pushIssue(issues, "expected_student_action.prompt", "multiple_student_prompts");
   }
   if (!packet.first_turn.message_structure.includes("next_student_action")) {
     pushIssue(issues, "first_turn.message_structure", "missing_next_student_action");

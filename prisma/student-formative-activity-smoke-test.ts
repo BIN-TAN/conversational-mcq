@@ -18,6 +18,7 @@ import {
   makeFormativeActivityAuditForTest,
   makeLiveActivityPacketForTest,
   makePassingActivityQualityReviewForTest,
+  summarizeFormativeActivityLiveSmokeOutcome,
   summarizeFormativeActivityQualityReviewForArtifact
 } from "../src/lib/services/student-assessment/formative-activity-live";
 import { prisma } from "../src/lib/db";
@@ -496,6 +497,21 @@ async function main() {
     /must include "option choices aside"/i,
     "Repair prompt should not require the awkward bare phrase."
   );
+  assertIncludes(
+    FORMATIVE_ACTIVITY_REPAIR_PROMPT_INSTRUCTIONS,
+    /Prompt-count repair rule[\s\S]*exactly one student-facing question/i,
+    "Repair prompt should include explicit one-prompt repair guidance."
+  );
+  assertIncludes(
+    FORMATIVE_ACTIVITY_REPAIR_PROMPT_INSTRUCTIONS,
+    /Clean wording repair rule[\s\S]*colon-spliced template fragments/i,
+    "Repair prompt should explicitly forbid colon-spliced template fragments."
+  );
+  assertIncludes(
+    FORMATIVE_ACTIVITY_REPAIR_PROMPT_INSTRUCTIONS,
+    /independent_reconstruction[\s\S]*Setting the option choices aside[\s\S]*current evidence is mixed or unclear[\s\S]*in your own words/i,
+    "Repair prompt should include independent-reconstruction hard-gate wording."
+  );
 
   const basicGroundingSynonym = makeLiveActivityPacketForTest(unsafeFirstTurn(
     diagnosticGap,
@@ -510,6 +526,108 @@ async function main() {
   assert(
     synonymPipeline.status === "accepted",
     `Basic grounding should accept equivalent key/core distinction wording: ${JSON.stringify(synonymPipeline)}`
+  );
+
+  const duplicateExpectedPromptPacket = makeLiveActivityPacketForTest(diagnosticGap);
+  duplicateExpectedPromptPacket.expected_student_action.prompt = duplicateExpectedPromptPacket.first_turn.message
+    .match(/([^.!?]+\?)\s*$/)?.[1]?.trim() ?? "Can you explain that distinction in your own words?";
+  const duplicateExpectedPromptValidation = validateFormativeActivityPacket(duplicateExpectedPromptPacket);
+  assert(
+    duplicateExpectedPromptValidation.valid,
+    `Duplicated final prompt in expected_student_action metadata should not double-count visible prompts: ${JSON.stringify(duplicateExpectedPromptValidation.issues)}`
+  );
+
+  const twoPromptPacket = makeLiveActivityPacketForTest(unsafeFirstTurn(
+    diagnosticGap,
+    "Your earlier responses suggest the basic distinction is still forming. Theta is a person estimate and item parameters describe the item. What does theta mean? Can you explain the distinction in your own words?"
+  ));
+  assertInvalid(twoPromptPacket, "multiple_student_prompts", "First turn with two student-facing questions");
+  const twoPromptPipeline = evaluateFormativeActivityLivePipeline({
+    candidate_packet: twoPromptPacket,
+    generator_audit: makeFormativeActivityAuditForTest(),
+    reviewer_output: makePassingActivityQualityReviewForTest(),
+    reviewer_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    twoPromptPipeline.status === "rejected" &&
+      twoPromptPipeline.issues.some((issue) => issue.blocked_pattern_label === "multiple_student_prompts"),
+    "Reviewer pass must not override multiple student-facing prompts."
+  );
+
+  const missingPromptPacket = makeLiveActivityPacketForTest(unsafeFirstTurn(
+    diagnosticGap,
+    "Your earlier responses suggest the basic distinction is still forming. The key idea is that theta is a person estimate on an ability scale, while item parameters describe the item. A thermometer analogy helps separate the thing being estimated from the measuring tool. Item information or difficulty belongs to the item side, not the person side. The basic distinction is that person ability and item features work together but are not the same."
+  ));
+  assertInvalid(missingPromptPacket, "missing_student_prompt", "First turn with no final student prompt");
+
+  const realSessionLikeRepair = makeLiveActivityPacketForTest(unsafeFirstTurn(
+    diagnosticGap,
+    "Your earlier responses show that this idea still needs a clearer starting point, so let’s slow down and build the basic distinction. The core idea is that theta is a person’s position on an ability scale, while item parameters describe how a question behaves. A useful way to think about it is a thermometer: the thermometer gives a reading of temperature, but the thing being measured is not the thermometer itself. In the same way, theta is about the student, and item parameters are about the item. Item information and difficulty help us understand how useful a question is for measuring different parts of the ability scale. So the key distinction is between the ability estimate for the person and the measurement properties of the item, and that separation is what keeps the interpretation clear. Can you explain in your own words what theta is and how it is different from item parameters?"
+  ));
+  const realSessionLikeRepairValidation = validateFormativeActivityPacket(realSessionLikeRepair);
+  assert(
+    realSessionLikeRepairValidation.valid,
+    `Real-session-like repaired packet should validate with exactly one prompt: ${JSON.stringify(realSessionLikeRepairValidation.issues)}`
+  );
+  const repairedMissingPromptPipeline = evaluateFormativeActivityLivePipeline({
+    candidate_packet: missingPromptPacket,
+    generator_audit: makeFormativeActivityAuditForTest(),
+    reviewer_output: makePassingActivityQualityReviewForTest(),
+    reviewer_audit: makeFormativeActivityAuditForTest(),
+    repair_packet: realSessionLikeRepair,
+    repair_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    repairedMissingPromptPipeline.status === "accepted" &&
+      repairedMissingPromptPipeline.repair_attempted,
+    `Real-session-like repair should accept exactly one final prompt: ${JSON.stringify(repairedMissingPromptPipeline)}`
+  );
+
+  const independentFamilyMissingPacket = makeLiveActivityPacketForTest(unsafeFirstTurn(
+    independentReconstruction,
+    "Your earlier responses suggest the explanation is unclear. The key idea is that theta and item parameters are related but not the same. Can you explain this in your own words?"
+  ));
+  const independentFamilyRepair = makeLiveActivityPacketForTest(unsafeFirstTurn(
+    independentReconstruction,
+    "Setting the option choices aside helps us rebuild the idea without leaning on recognition from the choices. The key idea is that theta describes a person's position on an ability scale, while item parameters describe how the item behaves. The current evidence is mixed or unclear, so a fresh explanation gives a cleaner view of your thinking. Your earlier responses suggest the relationship between theta and item parameters still needs to be stated directly. This rebuild is not about picking a choice; it is about showing the concept in your own words. Can you explain in your own words how theta is different from item parameters?"
+  ));
+  independentFamilyRepair.expected_student_action.prompt =
+    "Explain in your own words how theta is different from item parameters?";
+  const independentFamilyRepairValidation = validateFormativeActivityPacket(independentFamilyRepair);
+  assert(
+    independentFamilyRepairValidation.valid,
+    `Independent-reconstruction repair packet should satisfy family and prompt gates: ${JSON.stringify(independentFamilyRepairValidation.issues)}`
+  );
+  const independentFamilyRepairPipeline = evaluateFormativeActivityLivePipeline({
+    candidate_packet: independentFamilyMissingPacket,
+    generator_audit: makeFormativeActivityAuditForTest(),
+    reviewer_output: makePassingActivityQualityReviewForTest({ review_status: "repair_needed" }),
+    reviewer_audit: makeFormativeActivityAuditForTest(),
+    repair_packet: independentFamilyRepair,
+    repair_audit: makeFormativeActivityAuditForTest()
+  });
+  assert(
+    independentFamilyRepairPipeline.status === "accepted" &&
+      independentFamilyRepairPipeline.repair_attempted,
+    `Independent-reconstruction family-specific repair should be accepted: ${JSON.stringify(independentFamilyRepairPipeline)}`
+  );
+
+  const liveSmokeFailedOutcome = summarizeFormativeActivityLiveSmokeOutcome([
+    { case_id: "activity_live_basic_concept_grounding", status: "succeeded" },
+    { case_id: "activity_live_distractor_contrast", status: "succeeded" },
+    { case_id: "real_session_sess_20260701_v2n-8a0", status: "invalid_output" }
+  ]);
+  assert(liveSmokeFailedOutcome.synthetic_cases_passed, "Synthetic pass status should remain visible.");
+  assert(liveSmokeFailedOutcome.real_session_case_passed === false, "Real-session failure should be explicit.");
+  assert(liveSmokeFailedOutcome.overall_status === "failed", "Synthetic pass + real-session fail must fail overall.");
+  const liveSmokeSkippedOutcome = summarizeFormativeActivityLiveSmokeOutcome([
+    { case_id: "activity_live_basic_concept_grounding", status: "succeeded" },
+    { case_id: "real_session_sess_20260701_v2n-8a0", status: "skipped" }
+  ]);
+  assert(
+    liveSmokeSkippedOutcome.overall_status === "passed" &&
+      liveSmokeSkippedOutcome.real_session_included === false,
+    "Explicitly skipped optional real-session row should not fail synthetic smoke."
   );
 
   const remediableQualityCases: Array<{

@@ -6,6 +6,7 @@ import {
   FORMATIVE_ACTIVITY_LIVE_SMOKE_FAMILIES,
   executeLiveFormativeActivityDialogueAgent,
   summarizeFormativeActivityQualityReviewForArtifact,
+  summarizeFormativeActivityLiveSmokeOutcome,
   type FormativeActivityLiveExecutionResult
 } from "../src/lib/services/student-assessment/formative-activity-live";
 import {
@@ -85,6 +86,10 @@ function requestedFamilies() {
   }
 
   return requested as typeof FORMATIVE_ACTIVITY_LIVE_SMOKE_FAMILIES;
+}
+
+function includeRealSessionCase() {
+  return process.env.FORMATIVE_ACTIVITY_INCLUDE_REAL_SESSION !== "0";
 }
 
 function syntheticCases() {
@@ -278,16 +283,23 @@ async function resultSummary(caseId: string, result: FormativeActivityLiveExecut
   };
 }
 
-async function writeArtifact(results: unknown[]) {
+type LiveSmokeArtifactRow = Record<string, unknown> & {
+  case_id?: unknown;
+  status?: unknown;
+};
+
+async function writeArtifact(results: LiveSmokeArtifactRow[]) {
   const outputDir = path.join(process.cwd(), ".data", "formative-activity-live-smoke");
   await mkdir(outputDir, { recursive: true });
   const artifactPath = path.join(outputDir, `formative-activity-live-smoke-${timestampSlug()}.json`);
+  const outcome = summarizeFormativeActivityLiveSmokeOutcome(results);
   await writeFile(
     artifactPath,
     `${JSON.stringify({
       artifact_type: "formative_activity_live_smoke",
       artifact_version: "formative-activity-live-smoke-v1",
       generated_at: new Date().toISOString(),
+      ...outcome,
       results
     }, null, 2)}\n`,
     "utf8"
@@ -317,7 +329,7 @@ async function main() {
 
   const familyFilter = new Set(requestedFamilies());
   const cases = syntheticCases().filter((entry) => familyFilter.has(entry.expected_family));
-  const summaries: unknown[] = [];
+  const summaries: LiveSmokeArtifactRow[] = [];
 
   for (const entry of cases) {
     const source = buildSyntheticActivitySourcePackets({
@@ -331,8 +343,10 @@ async function main() {
     summaries.push(await resultSummary(entry.case_id, result));
     if (result.status !== "succeeded") {
       const artifactPath = await writeArtifact(summaries);
+      const outcome = summarizeFormativeActivityLiveSmokeOutcome(summaries);
       console.log(JSON.stringify({
         status: "failed",
+        ...outcome,
         diagnostic_artifact_path: artifactPath,
         failed_case_id: entry.case_id,
         results: summaries
@@ -341,7 +355,7 @@ async function main() {
     }
   }
 
-  try {
+  if (includeRealSessionCase()) {
     const profile = await buildProfileIntegrationInterpretationPacketForSession(
       REVIEW_SESSION_FALLBACK,
       { execution_mode: "deterministic_mock" }
@@ -357,25 +371,29 @@ async function main() {
     summaries.push(await resultSummary(`real_session_${REVIEW_SESSION_FALLBACK}`, result));
     if (result.status !== "succeeded") {
       const artifactPath = await writeArtifact(summaries);
+      const outcome = summarizeFormativeActivityLiveSmokeOutcome(summaries);
       console.log(JSON.stringify({
         status: "failed",
+        ...outcome,
         diagnostic_artifact_path: artifactPath,
         failed_case_id: `real_session_${REVIEW_SESSION_FALLBACK}`,
         results: summaries
       }, null, 2));
       throw new Error(`Live formative activity failed for real session ${REVIEW_SESSION_FALLBACK}.`);
     }
-  } catch (error) {
+  } else {
     summaries.push({
       case_id: `real_session_${REVIEW_SESSION_FALLBACK}`,
-      status: "skipped_or_failed",
-      safe_error: error instanceof Error ? error.message.slice(0, 300) : "unknown"
+      status: "skipped",
+      safe_reason: "FORMATIVE_ACTIVITY_INCLUDE_REAL_SESSION=0"
     });
   }
 
   const artifactPath = await writeArtifact(summaries);
+  const outcome = summarizeFormativeActivityLiveSmokeOutcome(summaries);
   console.log(JSON.stringify({
-    status: "passed",
+    status: outcome.overall_status,
+    ...outcome,
     artifact_path: artifactPath,
     synthetic_case_count: cases.length,
     requested_families: [...familyFilter],
