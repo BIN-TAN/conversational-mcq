@@ -473,6 +473,83 @@ The review command writes redacted artifacts under:
 
 The optional session argument reports whether post-activity response evidence appears available. Phase 30b does not execute runtime activity dialogue and therefore does not evaluate real activity responses yet.
 
+## Phase 30f Backend Runtime Loop Skeleton
+
+Phase 30f adds a backend-only activity runtime loop skeleton. It coordinates
+live-servable formative activity packets, student activity responses, the
+`formative_activity_response_evaluator_agent`, Phase 30d persistence, and
+post-activity diagnostic snapshots. It does not add browser UI, does not update
+the operational profile, and does not mutate original response packages.
+
+Runtime attempts are stored in `activity_runtime_attempts`. Each attempt records
+public session/student/assessment/concept identifiers, a safe source activity
+packet reference, activity family, diagnostic purpose, generation source,
+first-turn/reviewer/repair agent-call references, current backend state, a safe
+latest student-response reference, latest evidence/snapshot public IDs, and
+limitations. The source activity packet must be `generation_source=live_llm`,
+`runtime_servable_to_student=true`, and `review_only=false`; deterministic
+review packets and no-live fixtures are rejected.
+
+The runtime loop states are:
+
+```text
+activity_ready
+activity_first_turn_generated
+awaiting_student_activity_response
+student_activity_response_received
+evidence_evaluation_pending
+evidence_evaluated
+evidence_persisted
+post_activity_snapshot_created
+continue_recommended
+choose_alternative_recommended
+move_on_recommended
+failed_closed
+```
+
+Deterministic runtime code maps already-evaluated fields into backend state and
+next-action options only. It does not decide whether a misconception persisted,
+weakened, or became unsupported. The LLM evaluator remains the substantive
+source for production misconception evidence updates, and Phase 30d production
+guards still reject no-live fixtures, review-only packets, missing provider
+metadata, missing token usage, failed agent calls, unsafe feedback, and
+deterministic final diagnostic decisions.
+
+Runtime routing policy:
+
+- `move_on_or_exit` and `student_chose_move_on` recommend move-on.
+- `student_requested_alternative_activity` recommends choosing another
+  activity.
+- `conceptual_entry_gap_remains` recommends continuing conceptual entry
+  grounding.
+- `conceptual_entry_improved` and `ready_for_distractor_probe` recommend a
+  distractor misconception probe.
+- `misconception_persisted` recommends continued distractor probing.
+- `misconception_weakened`, `boundary_understanding_improved`, and
+  `reasoning_boundary_still_blurred` recommend reasoning-boundary repair.
+- `no_actionable_misconception_evidence` recommends move-on or optional
+  extension, depending on evaluator next-purpose output.
+- `insufficient_new_evidence` recommends retrying, choosing another activity,
+  or moving on without claiming improvement.
+
+New commands:
+
+```bash
+npm run student:activity-runtime-loop-smoke
+npm run student:activity-runtime-loop-review
+npm run student:activity-runtime-loop-live-smoke
+```
+
+The no-live smoke uses injected synthetic live-shaped evaluator outputs and
+makes no OpenAI call. The live smoke skips unless
+`RUN_LIVE_ACTIVITY_RUNTIME_LOOP_SMOKE=1` is set with explicit live provider
+configuration. Review artifacts are written under:
+
+```text
+.data/activity-runtime-loop-review/
+.data/activity-runtime-loop-live-smoke/
+```
+
 ## References
 
 - Mislevy, R. J., Steinberg, L. S., & Almond, R. G. Evidence-centered assessment design.

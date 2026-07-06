@@ -492,6 +492,43 @@ redacted artifact under `.data/activity-misconception-live-persistence-smoke/`.
 It does not implement browser runtime activity execution, update operational
 profiles, mutate response packages, or claim classroom validity.
 
+Backend activity runtime loop skeleton:
+
+```bash
+npm run student:activity-runtime-loop-smoke
+npm run student:activity-runtime-loop-review
+npm run student:activity-runtime-loop-review -- --session-public-id <session_public_id>
+npm run student:activity-runtime-loop-live-smoke
+```
+
+Phase 30f adds backend-only `activity_runtime_attempts` records and a service
+that accepts safe student activity responses, runs or injects the live
+post-activity evidence evaluator, persists validated evidence and snapshots,
+and maps evaluator output into next-action recommendations. The deterministic
+mapping is routing policy only; it does not decide misconception status. The
+no-live smoke uses synthetic live-shaped evaluator outputs and makes no OpenAI
+call. The review command writes redacted artifacts under
+`.data/activity-runtime-loop-review/` and reports `completed_with_limitations`
+when no attempts exist.
+
+The optional live runtime loop smoke skips by default. Manual paid execution
+requires:
+
+```bash
+RUN_LIVE_ACTIVITY_RUNTIME_LOOP_SMOKE=1 \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
+OPENAI_MODEL_PROFILE_INTEGRATION=<model> \
+OPENAI_MODEL_PLANNING=<model> \
+OPENAI_MODEL_FOLLOWUP=<model> \
+npm run student:activity-runtime-loop-live-smoke
+```
+
+The live smoke uses one or two synthetic activity attempts and calls only the
+`formative_activity_response_evaluator_agent` after explicit opt-in. It does
+not add browser UI, replace operational profiles, mutate response packages, or
+claim classroom validity.
+
 Profile/formative scenario QA:
 
 ```bash

@@ -218,6 +218,38 @@ The diagnostic loop policy is: loop until no actionable distractor-linked miscon
   evaluator must preserve them as `student_chose_move_on` or
   `student_requested_alternative_activity` rather than converting them into
   concept-evidence states such as `insufficient_new_evidence`.
+
+## Phase 30f Backend Activity Runtime Loop Lock
+
+- Phase 30f adds a backend-only runtime loop skeleton for distractor-informed
+  formative activity response handling.
+- The loop persists `activity_runtime_attempts` records and references
+  validated `activity_misconception_evidence_records` and
+  `post_activity_diagnostic_snapshots`.
+- No browser UI is added in Phase 30f.
+- No operational student profile, original response package, item content,
+  correct answer, scoring rule, or broad ability profile is changed.
+- A production runtime attempt must start from a source formative activity
+  packet with `generation_source=live_llm`,
+  `runtime_servable_to_student=true`, and `review_only=false`.
+- Deterministic review activity packets, no-live fixtures, review-only packets,
+  missing source activity agent calls, and unsafe student-safe feedback must
+  fail closed.
+- The `formative_activity_response_evaluator_agent` remains the substantive
+  source of post-activity misconception evidence. Deterministic runtime code
+  may validate, persist, and route already-evaluated fields, but it must not
+  decide the misconception update itself.
+- Runtime next-action policy must respect student choice. `student_chose_move_on`
+  recommends move-on, and `student_requested_alternative_activity` recommends
+  choosing another activity.
+- `no_actionable_misconception_evidence` applies only to the current targeted
+  hypothesis. It is not a claim that the student has no misconceptions.
+- `student:activity-runtime-loop-smoke` and
+  `student:activity-runtime-loop-review` are no-live commands and must not call
+  OpenAI.
+- `student:activity-runtime-loop-live-smoke` must skip by default unless
+  `RUN_LIVE_ACTIVITY_RUNTIME_LOOP_SMOKE=1` and live provider configuration are
+  explicitly set.
 - Low-information agreement may remain `insufficient_new_evidence` or
   `conceptual_entry_gap_remains`; it must not become conceptual improvement,
   independent support, or no-actionable evidence by itself.

@@ -543,6 +543,48 @@ The smoke is not a browser-runtime loop. It does not update operational
 profiles, mutate response packages, change item content or scoring, or claim
 classroom validity.
 
+## Activity Runtime Loop Skeleton
+
+Phase 30f adds the backend runtime loop skeleton that will later sit behind the
+student activity UI:
+
+```bash
+npm run student:activity-runtime-loop-smoke
+npm run student:activity-runtime-loop-review
+npm run student:activity-runtime-loop-live-smoke
+```
+
+The no-live smoke creates synthetic live-shaped activity attempts, submits safe
+student activity responses through an injected evaluator result, persists
+validated evidence and snapshots, checks next-action routing, confirms
+operational profiles and response packages are unchanged, and cleans up
+temporary database rows. It makes no OpenAI call.
+
+The review command inspects `activity_runtime_attempts`,
+`activity_misconception_evidence_records`, and
+`post_activity_diagnostic_snapshots`, then writes a redacted artifact under:
+
+```text
+.data/activity-runtime-loop-review/
+```
+
+If no attempts exist, the review completes with limitations rather than
+failing. The optional live smoke is skipped by default. Manual paid execution
+requires:
+
+```text
+RUN_LIVE_ACTIVITY_RUNTIME_LOOP_SMOKE=1
+LLM_PROVIDER=openai
+LLM_LIVE_CALLS_ENABLED=true
+OPENAI_API_KEY or OPENAI_API_KEY_FILE
+OPENAI_MODEL_PROFILE_INTEGRATION or OPENAI_MODEL_PLANNING or OPENAI_MODEL_FOLLOWUP
+```
+
+The live smoke uses synthetic activity attempts and calls the live
+`formative_activity_response_evaluator_agent` only after explicit opt-in. It
+does not add browser UI, replace operational profiles, mutate response
+packages, or claim classroom validity.
+
 ## One-Click Local Launcher
 
 The one-click launcher is for daily local use after the full opt-in live LLM smoke has already passed as the backend gate. It does not run paid model-generation smoke tests.

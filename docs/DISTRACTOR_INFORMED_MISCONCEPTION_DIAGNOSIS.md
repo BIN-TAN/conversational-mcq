@@ -148,6 +148,13 @@ The loop policy is:
 
 The system must not be described as looping until all misconceptions are eliminated.
 
+Phase 30f implements this as a backend runtime loop skeleton only. The loop
+stores activity attempts, accepts a safe student activity response, invokes the
+live response evaluator only through explicit runtime paths, persists validated
+post-activity evidence and snapshots, and maps evaluator output into next-action
+recommendations. The mapping is routing policy, not diagnostic inference. It
+must respect student choices to move on or choose another activity.
+
 ## Terminology Crosswalk
 
 | Previous term | New dissertation framing | Notes |
@@ -177,5 +184,9 @@ Phase 30a does not rename code enums, database fields, scripts, or provider sche
   `post_activity_diagnostic_snapshots` should be read as persisted review/audit
   records for post-activity misconception evidence, not as replacement ability
   profiles or claims of classroom validity.
+- `activity_runtime_attempts` should be read as backend attempt lifecycle
+  records for the post-activity runtime loop skeleton. They are not browser UI
+  records, not operational profile replacements, and not classroom-validity
+  evidence.
 
 Future implementation phases may rename or introduce schemas only after migration, compatibility, and audit implications are explicitly approved.

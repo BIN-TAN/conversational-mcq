@@ -801,6 +801,39 @@ model AgentCall {
   @@map("agent_calls")
 }
 
+model ActivityRuntimeAttempt {
+  id                                  String    @id @default(uuid()) @db.Uuid
+  activity_attempt_public_id          String    @unique @default(cuid())
+  session_public_id                   String
+  student_public_id                   String
+  assessment_public_id                String
+  concept_unit_id                     String
+  source_activity_packet_ref          Json
+  activity_family                     String
+  diagnostic_purpose                  String
+  generation_source                   String
+  first_turn_agent_call_db_id         String?   @db.Uuid
+  reviewer_agent_call_db_id           String?   @db.Uuid
+  repair_agent_call_db_id             String?   @db.Uuid
+  status                              String
+  started_at                          DateTime  @default(now()) @db.Timestamptz(6)
+  completed_at                        DateTime? @db.Timestamptz(6)
+  latest_activity_response_reference  Json?
+  latest_evidence_record_public_id    String?
+  latest_snapshot_public_id           String?
+  limitations                         Json
+  created_at                          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                          DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([session_public_id, created_at])
+  @@index([student_public_id, created_at])
+  @@index([assessment_public_id, created_at])
+  @@index([concept_unit_id, created_at])
+  @@index([status, created_at])
+  @@index([latest_evidence_record_public_id])
+  @@map("activity_runtime_attempts")
+}
+
 model ActivityMisconceptionEvidenceRecord {
   id                                  String   @id @default(uuid()) @db.Uuid
   evidence_public_id                  String   @unique @default(cuid())
