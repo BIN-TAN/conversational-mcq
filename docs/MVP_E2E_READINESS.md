@@ -473,6 +473,32 @@ responses, answer keys, correct option values, correctness labels, raw
 distractor metadata, raw misconception IDs, raw process payloads, raw provider
 output, prompts, headers, API keys, or secrets.
 
+Phase 30c adds a live-capable smoke for the post-activity response evaluator:
+
+```bash
+npm run student:activity-misconception-evidence-live-smoke
+```
+
+It skips by default and makes no provider call. Manual paid execution requires:
+
+```bash
+RUN_LIVE_ACTIVITY_MISCONCEPTION_EVIDENCE_SMOKE=1 \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
+OPENAI_MODEL_PROFILE_INTEGRATION=<model> \
+OPENAI_MODEL_PLANNING=<model> \
+OPENAI_MODEL_FOLLOWUP=<model> \
+npm run student:activity-misconception-evidence-live-smoke
+```
+
+The live smoke uses ten synthetic, redacted activity-response cases and writes a
+redacted artifact under `.data/activity-misconception-evidence-live-smoke/`.
+Success requires `evaluation_source=live_llm`, a valid
+`student-activity-misconception-evidence-v1` packet, persisted `agent_calls`
+audit metadata, provider request or response metadata, token usage, and no
+protected leakage. It does not implement runtime activity execution or profile
+updates.
+
 Production post-activity update remains future work. It must use the future
 LLM evaluator for substantive diagnostic judgment. Deterministic code may
 validate schema, safety, privacy, audit, and fail-closed behavior only.

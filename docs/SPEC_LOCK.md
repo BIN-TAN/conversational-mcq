@@ -163,6 +163,29 @@ The diagnostic loop policy is: loop until no actionable distractor-linked miscon
   must not create `agent_calls`, call OpenAI, mutate operational classroom
   records, or make deterministic review output student-facing.
 
+## Phase 30c Live Post-Activity Evidence Evaluator Smoke Lock
+
+- Phase 30c adds an opt-in live smoke path for
+  `formative_activity_response_evaluator_agent` with schema
+  `formative-activity-response-evaluation-v1`.
+- The default command `student:activity-misconception-evidence-live-smoke`
+  must skip safely unless `RUN_LIVE_ACTIVITY_MISCONCEPTION_EVIDENCE_SMOKE=1`
+  and live provider configuration are explicitly set.
+- Successful live evaluator packets must use
+  `evaluation_source=live_llm`, `runtime_servable_to_student=false`, and
+  `review_only=false`.
+- Deterministic fixtures, deterministic fallbacks, and `no_live_fixture`
+  packets must never count as live evaluator success.
+- The live smoke is synthetic only. It must not use real student data,
+  deidentified classroom data, summative outcomes, answer keys, raw distractor
+  metadata, raw process payloads, raw provider output, or secrets in artifacts.
+- One repair attempt may be made only for repairable schema or safe wording
+  issues. Protected leakage, wrong source, deterministic final diagnostic
+  decisions, missing provider metadata, missing token usage, and missing audit
+  metadata must fail closed.
+- Phase 30c does not implement browser activity execution, runtime
+  multi-turn dialogue, production profile updates, or diagnosis updates.
+
 ## Ability Evidence Packet V1
 
 - `ability-evidence-packet-v1` is an internal evidence foundation for future ability profiling. It does not create a final student profile, does not implement engagement profiling, and does not change student-facing UI.

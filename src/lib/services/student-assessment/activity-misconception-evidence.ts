@@ -71,7 +71,7 @@ export const ActivityEvidenceQualitySchema = z.enum([
   "insufficient"
 ]);
 
-const EvaluationSourceSchema = z.enum(["no_live_fixture", "live_llm_future"]);
+const EvaluationSourceSchema = z.enum(["no_live_fixture", "live_llm", "live_llm_future"]);
 const ActivityGenerationSourceSchema = z.enum(["live_llm", "deterministic_review"]);
 const ResponseLengthBandSchema = z.enum(["empty", "very_short", "short", "medium", "long"]);
 const YesNoPartialSchema = z.enum(["yes", "no", "partial", "not_applicable"]);
@@ -185,6 +185,8 @@ export type ActivityMisconceptionEvidenceValidationIssue = {
     | "secret_or_header_exposed"
     | "misconduct_language_detected"
     | "invalid_no_actionable_claim"
+    | "process_context_only_misconception_claim"
+    | "generic_student_feedback_detected"
     | "missing_evidence_type"
     | "unsafe_student_facing_text";
   blocked_pattern_label?: string;
@@ -486,7 +488,7 @@ export function validateActivityMisconceptionEvidencePacket(value: unknown) {
   if (packet.evaluation_source === "no_live_fixture" && (!packet.review_only || packet.runtime_servable_to_student)) {
     pushIssue(issues, "evaluation_source", "invalid_generation_source_metadata", "no_live_fixture_must_be_review_only");
   }
-  if (packet.evaluation_source === "live_llm_future" && packet.review_only) {
+  if ((packet.evaluation_source === "live_llm" || packet.evaluation_source === "live_llm_future") && packet.review_only) {
     pushIssue(issues, "evaluation_source", "deterministic_fixture_not_production_evaluation", "live_evaluator_output_must_not_be_review_only_for_production_update");
   }
   if (packet.evidence_elicited.types.length === 0 || packet.evidence_elicited.types.includes("none") && packet.evidence_elicited.types.length > 1) {
@@ -520,6 +522,62 @@ export function validateActivityMisconceptionEvidencePacket(value: unknown) {
     scanText(issues, field.field_path, field.text);
   }
 
+  const evidenceTypes = packet.evidence_elicited.types;
+  const limitationsText = packet.misconception_evidence_update.limitations.join(" ");
+  if (
+    packet.misconception_evidence_update.status === "misconception_persisted" &&
+    (!packet.evidence_elicited.elicited ||
+      evidenceTypes.includes("none") ||
+      /process_context_is_evidence_quality_context_only|no_direct_misconception_update_from_process_data/i.test(limitationsText))
+  ) {
+    pushIssue(
+      issues,
+      "misconception_evidence_update.status",
+      "process_context_only_misconception_claim",
+      "process_context_cannot_create_misconception_update"
+    );
+  }
+
+  if (
+    packet.student_activity_response.response_kind === "low_information" &&
+    packet.misconception_evidence_update.status === "no_actionable_misconception_evidence"
+  ) {
+    pushIssue(
+      issues,
+      "misconception_evidence_update.status",
+      "invalid_no_actionable_claim",
+      "low_information_response_cannot_rule_out_actionable_evidence"
+    );
+  }
+
+  if (
+    packet.student_activity_response.response_kind === "low_information" &&
+    /\b(i understand|understand now|got it|makes sense)\b/i.test(
+      packet.student_activity_response.student_response_text_redacted_or_safe_summary
+    ) &&
+    packet.misconception_evidence_update.status === "no_actionable_misconception_evidence"
+  ) {
+    pushIssue(
+      issues,
+      "student_activity_response.student_response_text_redacted_or_safe_summary",
+      "invalid_no_actionable_claim",
+      "understand_now_is_not_misconception_resolution_evidence"
+    );
+  }
+
+  if (
+    /^(good job|nice work|great work|try again|review the concept|keep going)[.! ]*$/i.test(
+      packet.student_safe_feedback.message.trim()
+    )
+  ) {
+    pushIssue(
+      issues,
+      "student_safe_feedback.message",
+      "generic_student_feedback_detected",
+      "generic_feedback_without_diagnostic_next_step"
+    );
+  }
+
   return issues.length === 0
     ? { valid: true as const, issues: [] }
     : { valid: false as const, issues };
@@ -533,7 +591,7 @@ export function assertActivityMisconceptionEvidencePacketIsLiveEvaluatedForProdu
     throw new Error("activity_misconception_evidence_packet_invalid");
   }
   const packet = ActivityMisconceptionEvidencePacketV1Schema.parse(value);
-  if (packet.evaluation_source !== "live_llm_future") {
+  if (packet.evaluation_source !== "live_llm" && packet.evaluation_source !== "live_llm_future") {
     throw new Error("activity_misconception_evidence_runtime_rejected_no_live_fixture");
   }
   if (packet.review_only) {

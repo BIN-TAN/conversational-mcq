@@ -10,6 +10,11 @@ import {
   type ActivityMisconceptionEvidencePacketV1,
   type MisconceptionUpdateStatus
 } from "../src/lib/services/student-assessment/activity-misconception-evidence";
+import {
+  evaluateActivityMisconceptionEvidenceLivePipeline,
+  makeActivityMisconceptionEvidenceAuditForTest,
+  makeLiveActivityMisconceptionEvidencePacketForTest
+} from "../src/lib/services/student-assessment/activity-misconception-evidence-live";
 import { prisma } from "../src/lib/db";
 import { assert } from "./student-mvp-smoke-helpers";
 import { activityMisconceptionEvidenceFixtureCases } from "./student-activity-misconception-evidence-fixtures";
@@ -41,10 +46,7 @@ function packetByStatus(
 }
 
 function makeFutureLivePacket(packet: ActivityMisconceptionEvidencePacketV1) {
-  const livePacket = clonePacket(packet);
-  livePacket.evaluation_source = "live_llm_future";
-  livePacket.review_only = false;
-  return livePacket;
+  return makeLiveActivityMisconceptionEvidencePacketForTest(packet);
 }
 
 function assertProductionGuardRejectsNoLive(packet: ActivityMisconceptionEvidencePacketV1) {
@@ -189,6 +191,128 @@ async function main() {
   const futureLiveValidation = validateActivityMisconceptionEvidencePacket(futureLivePacket);
   assert(futureLiveValidation.valid, `Future live packet should validate: ${JSON.stringify(futureLiveValidation.issues)}`);
   assertActivityMisconceptionEvidencePacketIsLiveEvaluatedForProductionUpdate(futureLivePacket);
+
+  const liveAudit = makeActivityMisconceptionEvidenceAuditForTest();
+  const livePipeline = evaluateActivityMisconceptionEvidenceLivePipeline({
+    candidate_packet: futureLivePacket,
+    evaluator_audit: liveAudit
+  });
+  assert(livePipeline.status === "accepted", "Live-shaped packet with complete provider audit should be accepted.");
+  assert(
+    livePipeline.status === "accepted" && livePipeline.packet.evaluation_source === "live_llm",
+    "Accepted live-shaped packet must use evaluation_source=live_llm."
+  );
+
+  const noLivePipeline = evaluateActivityMisconceptionEvidenceLivePipeline({
+    candidate_packet: base,
+    evaluator_audit: liveAudit,
+    repair_packet: futureLivePacket,
+    repair_audit: makeActivityMisconceptionEvidenceAuditForTest()
+  });
+  assert(noLivePipeline.status === "rejected", "No-live fixture must not count as live success.");
+  assert(noLivePipeline.repair_attempted === false, "No-live source mismatch must not be repaired.");
+
+  const deterministicLivePacket = {
+    ...futureLivePacket,
+    safety_check: {
+      ...futureLivePacket.safety_check,
+      deterministic_final_diagnostic_decision_used: true
+    }
+  };
+  const deterministicPipeline = evaluateActivityMisconceptionEvidenceLivePipeline({
+    candidate_packet: deterministicLivePacket,
+    evaluator_audit: liveAudit,
+    repair_packet: futureLivePacket,
+    repair_audit: makeActivityMisconceptionEvidenceAuditForTest()
+  });
+  assert(deterministicPipeline.status === "rejected", "Deterministic final diagnostic decision must be rejected.");
+  assert(deterministicPipeline.repair_attempted === false, "Deterministic final diagnostic decision must not be repaired.");
+
+  for (const [label, audit] of [
+    ["missing provider metadata", makeActivityMisconceptionEvidenceAuditForTest({
+      provider_request_id: undefined,
+      provider_response_id: undefined
+    })],
+    ["missing token usage", makeActivityMisconceptionEvidenceAuditForTest({
+      input_tokens: undefined,
+      output_tokens: undefined,
+      total_tokens: undefined
+    })],
+    ["missing audit metadata", makeActivityMisconceptionEvidenceAuditForTest({
+      agent_call_id: undefined,
+      client_request_id: undefined
+    })]
+  ] as const) {
+    const auditPipeline = evaluateActivityMisconceptionEvidenceLivePipeline({
+      candidate_packet: futureLivePacket,
+      evaluator_audit: audit
+    });
+    assert(auditPipeline.status === "rejected", `${label} should reject live pipeline.`);
+    assert(auditPipeline.repair_attempted === false, `${label} should not trigger repair.`);
+  }
+
+  const protectedLeakLivePacket = makeFutureLivePacket(base);
+  protectedLeakLivePacket.student_safe_feedback.message = "The correct answer is A.";
+  const protectedLeakPipeline = evaluateActivityMisconceptionEvidenceLivePipeline({
+    candidate_packet: protectedLeakLivePacket,
+    evaluator_audit: liveAudit,
+    repair_packet: futureLivePacket,
+    repair_audit: makeActivityMisconceptionEvidenceAuditForTest()
+  });
+  assert(protectedLeakPipeline.status === "rejected", "Protected content leakage must reject live pipeline.");
+  assert(protectedLeakPipeline.repair_attempted === false, "Protected content leakage must not be repaired.");
+
+  const genericFeedbackLivePacket = makeFutureLivePacket(base);
+  genericFeedbackLivePacket.student_safe_feedback.message = "Good job.";
+  const repairMissingPipeline = evaluateActivityMisconceptionEvidenceLivePipeline({
+    candidate_packet: genericFeedbackLivePacket,
+    evaluator_audit: liveAudit
+  });
+  assert(repairMissingPipeline.status === "rejected", "Repairable generic feedback should reject without repair packet.");
+  assert(
+    repairMissingPipeline.blocked_reason === "activity_misconception_evidence_repair_missing",
+    "Repairable generic feedback should request one repair."
+  );
+
+  const repairedPipeline = evaluateActivityMisconceptionEvidenceLivePipeline({
+    candidate_packet: genericFeedbackLivePacket,
+    evaluator_audit: liveAudit,
+    repair_packet: futureLivePacket,
+    repair_audit: makeActivityMisconceptionEvidenceAuditForTest()
+  });
+  assert(repairedPipeline.status === "accepted", "Valid live LLM repair should be accepted.");
+  assert(repairedPipeline.repair_attempted === true, "Repair success should record repair_attempted=true.");
+
+  const repairFailurePipeline = evaluateActivityMisconceptionEvidenceLivePipeline({
+    candidate_packet: genericFeedbackLivePacket,
+    evaluator_audit: liveAudit,
+    repair_packet: genericFeedbackLivePacket,
+    repair_audit: makeActivityMisconceptionEvidenceAuditForTest()
+  });
+  assert(repairFailurePipeline.status === "rejected", "Invalid repair should fail closed.");
+  assert(repairFailurePipeline.repair_attempted === true, "Invalid repair should record repair attempt.");
+
+  const processOnlyPersisted = makeFutureLivePacket(packetByStatus(packets, "insufficient_new_evidence"));
+  processOnlyPersisted.misconception_evidence_update.status = "misconception_persisted";
+  processOnlyPersisted.misconception_evidence_update.limitations = [
+    "process_context_is_evidence_quality_context_only",
+    "no_direct_misconception_update_from_process_data"
+  ];
+  assertInvalid(
+    processOnlyPersisted,
+    "process_context_only_misconception_claim",
+    "Process context alone should not create persisted misconception evidence."
+  );
+
+  const understandNowNoActionable = makeFutureLivePacket(packetByStatus(packets, "insufficient_new_evidence"));
+  understandNowNoActionable.student_activity_response.student_response_text_redacted_or_safe_summary =
+    "Student only says I understand now.";
+  understandNowNoActionable.misconception_evidence_update.status = "no_actionable_misconception_evidence";
+  assertInvalid(
+    understandNowNoActionable,
+    "invalid_no_actionable_claim",
+    "Low-information understand-now response should not become no-actionable evidence."
+  );
 
   const artifactPath = await writeRedactedActivityMisconceptionEvidenceReviewArtifact({
     packets: packets.slice(0, 6)

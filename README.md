@@ -420,6 +420,32 @@ activity responses; the optional session argument reports that limitation when
 post-activity evidence is unavailable. See
 `docs/POST_ACTIVITY_MISCONCEPTION_EVIDENCE_UPDATE.md`.
 
+Post-activity misconception evidence live smoke:
+
+```bash
+npm run student:activity-misconception-evidence-live-smoke
+```
+
+The command skips safely by default and makes no provider call. Manual paid
+execution requires explicit live configuration:
+
+```bash
+RUN_LIVE_ACTIVITY_MISCONCEPTION_EVIDENCE_SMOKE=1 \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
+OPENAI_MODEL_PROFILE_INTEGRATION=<model> \
+OPENAI_MODEL_PLANNING=<model> \
+OPENAI_MODEL_FOLLOWUP=<model> \
+npm run student:activity-misconception-evidence-live-smoke
+```
+
+The live smoke uses ten synthetic, redacted activity-response cases and writes
+redacted results under `.data/activity-misconception-evidence-live-smoke/`.
+Successful packets must use `evaluation_source=live_llm`,
+`runtime_servable_to_student=false`, and `review_only=false`, with persisted
+agent-call provider metadata and token usage. The smoke does not implement
+browser runtime activity execution or production profile updates.
+
 Profile/formative scenario QA:
 
 ```bash

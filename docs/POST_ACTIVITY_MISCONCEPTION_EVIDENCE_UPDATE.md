@@ -173,15 +173,63 @@ runtime_servable_to_student = false
 review_only = true
 ```
 
-Production future live evaluator output should use:
+Phase 30c live evaluator smoke output uses:
 
 ```text
-evaluation_source = live_llm_future
+evaluation_source = live_llm
 runtime_servable_to_student = false
 review_only = false
 ```
 
 The packet is internal and not directly student-servable. Student-facing UI may use only the separate `student_safe_feedback` projection after validation.
+
+## Phase 30c Live Evaluator Smoke
+
+Phase 30c adds an opt-in live smoke path for the
+`formative_activity_response_evaluator_agent`. It does not wire the evaluator
+into browser runtime activity execution, does not update profiles or diagnosis,
+and does not mutate operational classroom records.
+
+Default command:
+
+```bash
+npm run student:activity-misconception-evidence-live-smoke
+```
+
+The default command skips safely and makes no provider call. Paid live execution
+requires explicitly setting:
+
+```bash
+RUN_LIVE_ACTIVITY_MISCONCEPTION_EVIDENCE_SMOKE=1
+LLM_PROVIDER=openai
+LLM_LIVE_CALLS_ENABLED=true
+OPENAI_MODEL_PROFILE_INTEGRATION=<model>
+OPENAI_MODEL_PLANNING=<model>
+OPENAI_MODEL_FOLLOWUP=<model>
+npm run student:activity-misconception-evidence-live-smoke
+```
+
+The live smoke runs ten synthetic, redacted activity-response cases covering
+weak and clear conceptual entry, strong and partial distractor reasoning,
+persisted distractor logic, reasoning-boundary repair, independent
+reconstruction, low-information agreement, move-on, and alternative-activity
+requests.
+
+Each live success must have:
+
+- `evaluation_source=live_llm`;
+- `runtime_servable_to_student=false`;
+- `review_only=false`;
+- a valid `student-activity-misconception-evidence-v1` packet;
+- persisted `agent_calls` audit metadata;
+- provider request or response ID metadata;
+- token usage;
+- no protected student-facing or artifact leakage.
+
+One live repair attempt is allowed only for repairable schema or safe wording
+issues. Protected leaks, no-live source mismatch, deterministic final decisions,
+missing provider metadata, missing token usage, and missing audit metadata fail
+closed and are not repaired.
 
 ## Safety And Student-Facing Language
 
@@ -237,4 +285,3 @@ The optional session argument reports whether post-activity response evidence ap
 - Chi, M. T. H., & Wylie, R. The ICAP framework.
 - Shute, V. J. Focus on formative feedback.
 - Hattie, J., & Timperley, H. The power of feedback.
-
