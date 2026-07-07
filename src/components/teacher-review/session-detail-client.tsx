@@ -900,6 +900,10 @@ function ReadableTranscriptSection({
               correctness labels, provider output, process payloads, and internal metadata are
               omitted here.
             </p>
+            <p className="mt-1">
+              Item response time and prompt-to-response latency are different: latency is measured
+              from a prompt being shown to the next recorded student response or action.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <a
@@ -964,6 +968,14 @@ function ReadableTranscriptSection({
             {turn.has_structured_payload_available_elsewhere ? (
               <p className="mt-2 text-xs text-muted">
                 Structured metadata is available in the Structured event log.
+              </p>
+            ) : null}
+            {turn.next_student_response_latency_seconds !== null ? (
+              <p className="mt-2 text-xs text-muted">
+                Next student response/action after: {formatDuration(turn.next_student_response_latency_ms)}
+                {turn.next_student_response_latency_source
+                  ? ` (${turn.next_student_response_latency_source})`
+                  : ""}
               </p>
             ) : null}
           </article>
@@ -1238,6 +1250,10 @@ function SessionEvidenceAuditSection({ data }: { data: SessionDataAuditResponse 
         <p className="mt-1">
           This teacher/research panel summarizes data completeness. It does not expose raw
           process payloads, provider output, answer keys, or correctness labels.
+        </p>
+        <p className="mt-1">
+          Item response time summarizes a full item interval; prompt-to-response latency measures
+          the next response/action after a specific prompt and may include reading, thinking, or idle time.
         </p>
       </section>
 

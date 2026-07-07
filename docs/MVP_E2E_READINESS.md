@@ -734,10 +734,16 @@ Bulk all-session research ZIP:
 
 Default research ZIP exports include a manifest, README, data dictionary,
 students, sessions, item responses, readable transcripts, redacted structured
-turns, response-package summaries, process summaries/counts, engagement/profile
-and formative summaries, activity runtime/evidence/snapshot summaries,
-agent-call summaries, completeness audits, and limitations. Restricted item
-keys are excluded by default.
+turns, turn-level response latencies, response-package summaries, process
+summaries/counts, a redacted process-event timeline, engagement/profile and
+formative summaries, activity runtime/evidence/snapshot summaries, agent-call
+summaries, completeness audits, and limitations. Restricted item keys are
+excluded by default.
+
+`item_response_time_ms` and `turn_response_latency_ms` are separate measures.
+Item response time covers a full item interval. Prompt-to-response latency
+covers the next recorded student response or action after a prompt and may
+include reading, thinking, or idle time.
 
 No OpenAI call is made by export or transcript commands. Verify locally with:
 

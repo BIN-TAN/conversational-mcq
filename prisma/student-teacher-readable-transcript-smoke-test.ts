@@ -116,6 +116,14 @@ async function main() {
       "Readable transcript should include available activity dialogue turns."
     );
     assert(
+      readable.turns.some((turn) =>
+        turn.speaker === "agent" &&
+        typeof turn.next_student_response_latency_ms === "number" &&
+        turn.next_student_response_latency_ms >= 0
+      ),
+      "Readable transcript should expose safe prompt-to-response latency when available."
+    );
+    assert(
       readable.turns.every((turn, index, turns) =>
         index === 0 || turn.turn_index > turns[index - 1].turn_index
       ),

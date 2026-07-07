@@ -1897,3 +1897,30 @@ Phase 6A.5 must not implement:
   assessment sessions, item responses, response packages, process events,
   activity runtime records, evidence records, diagnostic snapshots, agent calls,
   or operational classroom data, and they must not call OpenAI.
+
+## Phase 30j Turn-Level Latency And Process Timeline Export Lock
+
+- Teacher/research bulk exports must include `turn_response_latencies.csv` and
+  `turn_response_latencies.jsonl` with prompt-to-next-student-response/action
+  rows derived only from safe conversation-turn and process-event timestamps.
+- `turn_response_latency_ms` means elapsed wall-clock time from an agent/system
+  prompt shown to the first subsequent student response turn or safe recorded
+  student action in the same session context. It may include reading, thinking,
+  and idle time. It is not pure cognitive processing time.
+- `item_response_time_ms` remains a full item interval from item presentation to
+  item response completion and must be documented as distinct from
+  prompt-to-response latency.
+- If no next student turn/action is available, latency must be null and the row
+  must include a limitation such as
+  `next_student_response_or_action_missing`.
+- Default research exports may include `process_events_redacted.jsonl` as a
+  payload-free process-event timeline with public context, event
+  type/category/source, timestamps, safe scope, and item order when available.
+- Turn-latency and redacted process timeline exports must not expose raw process
+  payloads, raw keystrokes, raw clipboard text, raw browser URLs, raw provider
+  output, answer keys, correct options, correctness labels, raw distractor
+  metadata, raw misconception IDs, API keys, headers, cookies, database URLs, or
+  secrets.
+- The readable transcript may show a small non-intrusive
+  "Next student response/action after" field when latency is safely available.
+  It must remain teacher/research-only and must not expose internal payloads.

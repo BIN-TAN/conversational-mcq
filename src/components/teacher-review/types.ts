@@ -467,6 +467,9 @@ export type ReadableTranscriptResponse = {
     safe_context_label: string | null;
     message_text: string;
     has_structured_payload_available_elsewhere: boolean;
+    next_student_response_latency_ms: number | null;
+    next_student_response_latency_seconds: number | null;
+    next_student_response_latency_source: string | null;
   }>;
   limitations: string[];
 };

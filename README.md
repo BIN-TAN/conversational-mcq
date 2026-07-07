@@ -1821,3 +1821,11 @@ outputs, answer keys, correct options, correctness labels, raw distractor
 metadata, raw misconception IDs, internal database UUIDs, or secrets. Process
 data are evidence-quality context only and should not be used alone to infer
 misconception, ability, cheating, or misconduct.
+
+Teacher/research bulk exports also include `turn_response_latencies.csv`,
+`turn_response_latencies.jsonl`, and `process_events_redacted.jsonl`. Turn
+latency is measured from a prompt being shown to the next recorded student
+response/action; it is distinct from `item_response_time_ms` and may include
+reading, thinking, or idle time. The process-event timeline is payload-free and
+does not include raw keystrokes, clipboard text, browser URLs, provider output,
+answer keys, correctness labels, or secrets.

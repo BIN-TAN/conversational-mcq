@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { TeacherReviewServiceError } from "./errors";
 import { asRecord, serializeDate } from "./serializers";
+import { buildTurnResponseLatencyRows } from "./turn-response-latencies";
 
 export type TeacherReadableTranscriptTurn = {
   turn_index: number;
@@ -10,6 +11,9 @@ export type TeacherReadableTranscriptTurn = {
   safe_context_label: string | null;
   message_text: string;
   has_structured_payload_available_elsewhere: boolean;
+  next_student_response_latency_ms: number | null;
+  next_student_response_latency_seconds: number | null;
+  next_student_response_latency_source: string | null;
 };
 
 export type TeacherReadableTranscriptProjection = {
@@ -193,7 +197,7 @@ export async function getTeacherReadableTranscript(
       id: true,
       session_public_id: true,
       user: { select: { user_id: true, display_name: true } },
-      assessment: { select: { title: true } }
+      assessment: { select: { assessment_public_id: true, title: true } }
     }
   });
 
@@ -206,13 +210,14 @@ export async function getTeacherReadableTranscript(
     );
   }
 
-  const [turns, responses] = await Promise.all([
+  const [turns, processEvents, responses] = await Promise.all([
     prisma.conversationTurn.findMany({
       where: { assessment_session_db_id: session.id },
       orderBy: [{ created_at: "asc" }],
       select: {
         phase: true,
         actor_type: true,
+        agent_name: true,
         message_text: true,
         structured_payload: true,
         created_at: true,
@@ -243,6 +248,33 @@ export async function getTeacherReadableTranscript(
         }
       }
     }),
+    prisma.processEvent.findMany({
+      where: { assessment_session_db_id: session.id },
+      orderBy: [{ occurred_at: "asc" }],
+      select: {
+        event_type: true,
+        event_category: true,
+        event_source: true,
+        occurred_at: true,
+        created_at: true,
+        item: {
+          select: {
+            item_public_id: true,
+            item_order: true,
+            concept_unit: {
+              select: { concept_unit_public_id: true }
+            }
+          }
+        },
+        concept_unit_session: {
+          select: {
+            concept_unit: {
+              select: { concept_unit_public_id: true }
+            }
+          }
+        }
+      }
+    }),
     prisma.itemResponse.findMany({
       where: {
         concept_unit_session: {
@@ -269,8 +301,44 @@ export async function getTeacherReadableTranscript(
     ])
   );
   const limitations = new Set<string>();
+  const latencyRows = buildTurnResponseLatencyRows({
+    turns: turns.map((turn, index) => ({
+      session_public_id: session.session_public_id,
+      student_user_id: session.user.user_id,
+      assessment_public_id: session.assessment.assessment_public_id,
+      turn_index: index + 1,
+      actor_type: turn.actor_type,
+      phase: turn.phase,
+      agent_name: turn.agent_name,
+      message_text: turn.message_text,
+      structured_payload: turn.structured_payload,
+      created_at: turn.created_at,
+      concept_unit_public_id:
+        turn.concept_unit_session?.concept_unit.concept_unit_public_id ??
+        turn.item?.concept_unit.concept_unit_public_id ??
+        null,
+      item_public_id: turn.item?.item_public_id ?? null,
+      item_order: turn.item?.item_order ?? null
+    })),
+    processEvents: processEvents.map((event) => ({
+      session_public_id: session.session_public_id,
+      concept_unit_public_id:
+        event.concept_unit_session?.concept_unit.concept_unit_public_id ??
+        event.item?.concept_unit.concept_unit_public_id ??
+        null,
+      item_public_id: event.item?.item_public_id ?? null,
+      item_order: event.item?.item_order ?? null,
+      event_type: event.event_type,
+      event_category: event.event_category,
+      event_source: event.event_source,
+      occurred_at: event.occurred_at,
+      created_at: event.created_at
+    }))
+  });
+  const latencyByPromptTurnIndex = new Map(latencyRows.map((row) => [row.prompt_turn_index, row]));
 
   const projectedTurns = turns.flatMap((turn, index) => {
+    const turnIndex = index + 1;
     const reconstructedText = reconstructEditedResponseText({
       message_text: turn.message_text,
       structured_payload: turn.structured_payload,
@@ -283,7 +351,7 @@ export async function getTeacherReadableTranscript(
     }
 
     return [{
-      turn_index: index + 1,
+      turn_index: turnIndex,
       speaker: speakerLabel(turn.actor_type),
       timestamp: serializeDate(turn.created_at),
       phase_label: phaseLabel(turn.phase),
@@ -298,7 +366,13 @@ export async function getTeacherReadableTranscript(
         followup_round_index: turn.followup_round?.round_index ?? null
       }),
       message_text: sanitizeReadableMessageText(reconstructedText.trim()),
-      has_structured_payload_available_elsewhere: hasStructuredPayload(turn.structured_payload)
+      has_structured_payload_available_elsewhere: hasStructuredPayload(turn.structured_payload),
+      next_student_response_latency_ms:
+        latencyByPromptTurnIndex.get(turnIndex)?.response_latency_ms ?? null,
+      next_student_response_latency_seconds:
+        latencyByPromptTurnIndex.get(turnIndex)?.response_latency_seconds ?? null,
+      next_student_response_latency_source:
+        latencyByPromptTurnIndex.get(turnIndex)?.latency_source ?? null
     }];
   });
 
@@ -331,6 +405,9 @@ export function renderTeacherReadableTranscriptMarkdown(
       `## ${turn.turn_index}. ${turn.speaker} · ${turn.phase_label}${context}`,
       "",
       `Timestamp: ${turn.timestamp ?? "Not recorded"}`,
+      turn.next_student_response_latency_seconds !== null
+        ? `Next student response/action after: ${turn.next_student_response_latency_seconds}s`
+        : "",
       "",
       turn.message_text,
       ""

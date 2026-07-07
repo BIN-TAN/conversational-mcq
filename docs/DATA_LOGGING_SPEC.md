@@ -309,8 +309,11 @@ The default ZIP contains:
 - `item_responses.csv`
 - `conversation_turns_readable.jsonl`
 - `conversation_turns_structured_redacted.jsonl`
+- `turn_response_latencies.csv`
+- `turn_response_latencies.jsonl`
 - `response_packages.jsonl`
 - `process_events_summary.jsonl`
+- `process_events_redacted.jsonl`
 - `process_event_counts.csv`
 - `engagement_evidence_packets.jsonl`
 - `misconception_diagnosis_or_profile_packets.jsonl`
@@ -332,6 +335,21 @@ definitions, units, collection sources, and interpretation limits. Timing
 definitions include:
 
 - `item_response_time_ms`: item wall-clock response time, including idle time.
+- `turn_response_latency_ms`: wall-clock time from an agent/system prompt being
+  shown to the first subsequent student response turn or recorded student
+  action in the same safe session context. It may include reading, thinking, or
+  idle time and is unavailable when no next event is recorded.
+- `prompt_to_next_student_turn_latency_ms`: prompt-to-next-student conversation
+  turn latency when no safe process-event action timestamp is available.
+- `prompt_to_next_student_action_latency_ms`: prompt-to-next-student process
+  action latency when a safe process-event action timestamp is available.
+- `item_prompt_to_first_action_latency_ms`,
+  `reasoning_prompt_to_reasoning_response_latency_ms`,
+  `confidence_prompt_to_confidence_action_latency_ms`,
+  `tempting_option_prompt_to_response_latency_ms`, and
+  `activity_prompt_to_activity_response_latency_ms`: scope-specific
+  prompt-to-response/action latencies inferred from safe prompt labels,
+  conversation turns, and process-event timestamps.
 - `package_wall_clock_duration_ms`: first item presentation to package
   completion/submission.
 - `package_active_response_duration_ms`: first recorded student response action
@@ -347,3 +365,15 @@ raw process payloads, answer-key/correct-option markers in default data files,
 raw distractor metadata, and raw misconception IDs. Missing optional sources
 are represented in `limitations.jsonl` and session data completeness rows
 rather than causing the whole export to fail.
+
+`item_response_time_ms` and `turn_response_latency_ms` are intentionally
+different. Item response time summarizes a full item interval from item
+presentation to item response completion. Turn latency summarizes the next
+student response/action after a specific prompt. Both are wall-clock measures;
+neither should be interpreted as pure cognitive processing time.
+
+`process_events_redacted.jsonl` is a payload-free process-event timeline. It
+contains public session/concept/item context, event type/category/source,
+timestamps, safe scope, and item order when available. It does not export raw
+process payloads, raw keystrokes, clipboard text, browser URLs, provider
+output, answer keys, correct options, correctness labels, or secrets.

@@ -5,6 +5,7 @@ import {
   type TeacherReadableTranscriptProjection
 } from "@/lib/services/teacher-review/readable-transcript";
 import { asArray, asRecord, stripInternalKeys } from "@/lib/services/teacher-review/serializers";
+import { buildTurnResponseLatencyRows } from "@/lib/services/teacher-review/turn-response-latencies";
 import { createStoreOnlyZip, type ZipEntryInput } from "./zip";
 
 export const TEACHER_RESEARCH_EXPORT_VERSION = "teacher-research-export-v1" as const;
@@ -186,8 +187,11 @@ function dataDictionary() {
       "item_responses.csv": "Student item responses without answer keys, correct options, or correctness labels.",
       "conversation_turns_readable.jsonl": "Conversation-only teacher/research transcript projections with no structured payload.",
       "conversation_turns_structured_redacted.jsonl": "Structured conversation metadata after public-ID and protected-field redaction.",
+      "turn_response_latencies.csv": "Prompt-to-next-student-response/action latency rows. These are wall-clock latencies and may include reading, thinking, or idle time.",
+      "turn_response_latencies.jsonl": "JSONL mirror of prompt-to-response/action latency rows with per-row limitations.",
       "response_packages.jsonl": "Package-level evidence summaries. Raw response-package JSON and item keys are not exported by default.",
       "process_events_summary.jsonl": "Session-level process-event counts and timing availability. Raw process payloads are excluded.",
+      "process_events_redacted.jsonl": "Redacted process-event timeline without payloads, browser URLs, clipboard text, raw keystrokes, or secrets.",
       "process_event_counts.csv": "One row per session and event type.",
       "engagement_evidence_packets.jsonl": "Teacher/research engagement evidence summaries only; process data are contextual evidence.",
       "misconception_diagnosis_or_profile_packets.jsonl": "Profile and diagnostic summaries with raw misconception IDs removed.",
@@ -201,7 +205,23 @@ function dataDictionary() {
     },
     response_time_definitions: {
       item_response_time_ms:
-        "Elapsed wall-clock time from item presentation to item response submission/completion. Includes answer selection, reasoning, confidence, tempting-option response, and idle time.",
+        "Elapsed wall-clock time from item presentation to item response submission/completion. Includes answer selection, reasoning, confidence, tempting-option response, and idle time. This is not equivalent to prompt-to-response latency.",
+      turn_response_latency_ms:
+        "Elapsed wall-clock time from an agent/system prompt being shown to the first subsequent student response turn or recorded student action in the same safe session context. This may include reading, thinking, or idle time and is unavailable when no next event exists.",
+      prompt_to_next_student_turn_latency_ms:
+        "Prompt-to-next-student conversation turn latency when no safe process action timestamp is available.",
+      prompt_to_next_student_action_latency_ms:
+        "Prompt-to-next-student process action latency when a safe process event is available.",
+      item_prompt_to_first_action_latency_ms:
+        "Latency from an item-scoped prompt to the first item-scoped student action.",
+      reasoning_prompt_to_reasoning_response_latency_ms:
+        "Latency from a reasoning prompt to the next reasoning response/action when inferable from safe prompt and event labels.",
+      confidence_prompt_to_confidence_action_latency_ms:
+        "Latency from a confidence prompt to the next confidence action when inferable from safe prompt and event labels.",
+      tempting_option_prompt_to_response_latency_ms:
+        "Latency from a tempting-option prompt to the next tempting-option response/action when inferable from safe prompt and event labels.",
+      activity_prompt_to_activity_response_latency_ms:
+        "Latency from an activity prompt to the next activity response/action when inferable from safe prompt and event labels.",
       package_wall_clock_duration_ms:
         "Elapsed wall-clock time from first item presentation in the package to package completion/submission.",
       package_active_response_duration_ms:
@@ -251,6 +271,8 @@ function readme() {
     "Process data are contextual evidence for engagement and evidence sufficiency. They must not be interpreted as cheating, GenAI use, or misconduct evidence.",
     "",
     "If restricted item-key files are present, they were explicitly requested and are marked in manifest.json.",
+    "",
+    "Item response time and prompt-to-response latency are different. Item response time summarizes a full item interval; prompt-to-response latency measures the next recorded student response or action after a specific prompt.",
     ""
   ].join("\n");
 }
@@ -480,6 +502,38 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
       structured_payload_redacted: safeJson(stripInternalKeys(turn.structured_payload))
     }))
   );
+  const turnResponseLatencyRows = sessions.flatMap((session) =>
+    buildTurnResponseLatencyRows({
+      turns: session.conversation_turns.map((turn, index) => ({
+        session_public_id: session.session_public_id,
+        student_user_id: session.user.user_id,
+        assessment_public_id: session.assessment.assessment_public_id,
+        turn_index: index + 1,
+        actor_type: turn.actor_type,
+        phase: turn.phase,
+        agent_name: turn.agent_name,
+        message_text: turn.message_text,
+        structured_payload: turn.structured_payload,
+        created_at: turn.created_at,
+        concept_unit_public_id:
+          turn.concept_unit_session?.concept_unit.concept_unit_public_id ?? null,
+        item_public_id: turn.item?.item_public_id ?? null,
+        item_order: turn.item?.item_order ?? null
+      })),
+      processEvents: session.process_events.map((event) => ({
+        session_public_id: session.session_public_id,
+        concept_unit_public_id:
+          event.concept_unit_session?.concept_unit.concept_unit_public_id ?? null,
+        item_public_id: event.item?.item_public_id ?? null,
+        item_order: event.item?.item_order ?? null,
+        event_type: event.event_type,
+        event_category: event.event_category,
+        event_source: event.event_source,
+        occurred_at: event.occurred_at,
+        created_at: event.created_at
+      }))
+    })
+  );
 
   const responsePackageRows = sessions.flatMap((session) =>
     session.concept_unit_sessions.flatMap((conceptUnitSession) =>
@@ -509,6 +563,20 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
       session_public_id: session.session_public_id,
       event_type: eventType,
       event_count: count
+    }))
+  );
+  const processEventRedactedRows = sessions.flatMap((session) =>
+    session.process_events.map((event) => ({
+      session_public_id: session.session_public_id,
+      concept_unit_public_id: event.concept_unit_session?.concept_unit.concept_unit_public_id ?? null,
+      item_public_id: event.item?.item_public_id ?? null,
+      item_order: event.item?.item_order ?? null,
+      event_type: event.event_type,
+      event_category: event.event_category,
+      event_source: event.event_source,
+      occurred_at: iso(event.occurred_at),
+      created_at: iso(event.created_at),
+      safe_scope: event.item ? "item" : event.concept_unit_session ? "concept_unit" : "session"
     }))
   );
 
@@ -700,8 +768,37 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
     ),
     makeEntry("conversation_turns_readable.jsonl", jsonl(readableRows), readableRows.length),
     makeEntry("conversation_turns_structured_redacted.jsonl", jsonl(structuredTurnRows), structuredTurnRows.length),
+    makeEntry(
+      "turn_response_latencies.csv",
+      csv([
+        "session_public_id",
+        "student_user_id",
+        "assessment_public_id",
+        "concept_unit_public_id",
+        "item_public_id",
+        "item_order",
+        "prompt_turn_index",
+        "prompt_actor",
+        "prompt_phase",
+        "prompt_type",
+        "prompt_shown_at",
+        "next_student_turn_index",
+        "next_student_event_type",
+        "next_student_response_at",
+        "response_latency_ms",
+        "response_latency_seconds",
+        "latency_source",
+        "latency_scope",
+        "student_response_text_present",
+        "structured_payload_available_elsewhere",
+        "limitations"
+      ], turnResponseLatencyRows),
+      turnResponseLatencyRows.length
+    ),
+    makeEntry("turn_response_latencies.jsonl", jsonl(turnResponseLatencyRows), turnResponseLatencyRows.length),
     makeEntry("response_packages.jsonl", jsonl(responsePackageRows), responsePackageRows.length),
     makeEntry("process_events_summary.jsonl", jsonl(processSummaryRows), processSummaryRows.length),
+    makeEntry("process_events_redacted.jsonl", jsonl(processEventRedactedRows), processEventRedactedRows.length),
     makeEntry(
       "process_event_counts.csv",
       csv(["session_public_id", "event_type", "event_count"], processCountRows),
