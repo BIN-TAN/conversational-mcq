@@ -1794,3 +1794,26 @@ conversation column with a read-only response record panel. Initial item deliver
 is deterministic from persisted item content; no model generates item stems,
 options, or answer keys during initial administration. See
 `docs/PRIVATE_STAGING_WALKTHROUGH.md`.
+
+## Teacher/Research Session Data Audit
+
+For a redacted, aggregate-only review of one student session's evidence
+completeness, run:
+
+```bash
+npm run student:session-data-completeness-review
+npm run student:session-data-completeness-review -- --session-public-id <session_public_id>
+```
+
+The command writes artifacts to `.data/session-data-completeness-review/`.
+Teacher/research users can view the same aggregate projection in the teacher
+session page under **Session evidence audit**.
+
+The audit reports response-package completeness, process-event inventory,
+engagement-evidence availability, activity runtime counts, post-activity
+misconception evidence counts, diagnostic snapshot counts, agent-audit metadata
+presence, and limitations. It does not expose raw process payloads, raw provider
+outputs, answer keys, correct options, correctness labels, raw distractor
+metadata, raw misconception IDs, internal database UUIDs, or secrets. Process
+data are evidence-quality context only and should not be used alone to infer
+misconception, ability, cheating, or misconduct.

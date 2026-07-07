@@ -594,6 +594,31 @@ The smoke creates synthetic sessions, injects live-shaped activity and
 evaluator outputs, verifies the student projection, confirms deterministic and
 no-live artifacts are rejected for runtime use, and makes no OpenAI call.
 
+## Teacher/Research Completeness Visibility
+
+Phase 30h adds a read-only session data audit that summarizes post-activity
+runtime and evidence-update completeness without changing runtime behavior. It
+reports:
+
+- `activity_runtime_attempts` count, latest state, generation-source counts,
+  student choice-state counts, failed-closed count, and limitations.
+- `activity_misconception_evidence_records` count, evaluation-source counts,
+  production-mode counts, update-status counts, evidence-quality counts, safe
+  safety-flag key counts, and recommended next-purpose counts.
+- `post_activity_diagnostic_snapshots` count, before/after state availability,
+  update-status counts, and recommended next-purpose counts.
+
+The audit is available from:
+
+```bash
+npm run student:session-data-completeness-review -- --session-public-id <session_public_id>
+```
+
+and from the teacher session-review **Session evidence audit** tab. It is
+aggregate-only and must not expose raw student responses, raw process payloads,
+raw provider outputs, answer keys, correct options, correctness labels,
+distractor metadata, raw misconception IDs, internal database UUIDs, or secrets.
+
 ## References
 
 - Mislevy, R. J., Steinberg, L. S., & Almond, R. G. Evidence-centered assessment design.

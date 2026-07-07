@@ -681,3 +681,31 @@ npm run prisma:generate
 npm run prisma:migrate
 npm run prisma:seed
 ```
+
+## Session Data Completeness Review
+
+Teacher/research process-data visibility is available without live provider
+calls:
+
+```bash
+npm run student:session-data-completeness-review
+npm run student:session-data-completeness-review -- --session-public-id <session_public_id>
+npm run student:teacher-session-data-audit-smoke
+```
+
+The review writes redacted artifacts under:
+
+```text
+.data/session-data-completeness-review/
+```
+
+The teacher session-review page includes **Session evidence audit**. It shows
+response-package completeness, process-event inventory, engagement-evidence
+availability, activity runtime state counts, post-activity misconception
+evidence counts, diagnostic snapshot counts, agent-audit metadata presence, and
+limitations. It intentionally hides raw process payloads, raw provider outputs,
+answer keys, correct options, correctness labels, raw distractor metadata, raw
+misconception IDs, internal database UUIDs, and secrets.
+
+Process data are evidence-quality context. They should not be used alone to
+infer misconception, ability, cheating, or misconduct.

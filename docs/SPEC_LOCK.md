@@ -1842,3 +1842,23 @@ Phase 6A.5 must not implement:
 - `student:formative-activity-live-smoke` must skip by default. Paid provider
   dispatch requires `RUN_LIVE_FORMATIVE_ACTIVITY_SMOKE=1` and live LLM
   readiness. Normal tests must not call OpenAI.
+
+## Phase 30h Session Data Completeness Audit Lock
+
+- Teacher/research session evidence audit is a read-only visibility layer over
+  existing records. It must not mutate assessment sessions, item responses,
+  response packages, process events, activity runtime attempts, post-activity
+  evidence, diagnostic snapshots, agent calls, or operational classroom data.
+- The audit may expose aggregate counts, public IDs, timestamps, safe labels,
+  provider metadata presence, token-usage presence, and explicit limitations.
+- The audit must not expose raw process payloads, raw keystrokes, raw typed
+  text, clipboard text, raw URLs, raw provider output, answer keys, correct
+  options, correctness labels, raw distractor metadata, raw misconception IDs,
+  internal database UUIDs, API keys, cookies, authorization headers, database
+  URLs, or session secrets.
+- Process data are evidence-quality context only. They must not be used alone
+  to infer misconception, ability, cheating, or misconduct.
+- The command `npm run student:session-data-completeness-review` writes redacted
+  artifacts under `.data/session-data-completeness-review/` and must not make
+  OpenAI calls. The teacher session page may show the same aggregate projection
+  in a read-only Session evidence audit panel.

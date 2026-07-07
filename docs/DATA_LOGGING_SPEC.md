@@ -233,3 +233,37 @@ Logging must not store:
 - hidden prompts in student-visible payloads.
 
 Exports and teacher views should use public or research-facing IDs where appropriate and avoid exposing internal database UUIDs unless explicitly needed for backend debugging.
+
+## Teacher/Research Session Data Audit
+
+Phase 30h adds a read-only data-completeness audit for teacher/research review.
+It uses existing tables before proposing schema changes:
+
+- `item_responses` for selected answers, reasoning presence, confidence, timing bands, and revision counts.
+- `conversation_turns` for transcript-turn counts and tempting-option evidence references.
+- `process_events` for event-type counts, timestamps, focus/visibility availability, paste-summary availability, typing-summary availability, pause/inactivity availability, and item/session scoping.
+- `response_packages` for the package-level evidence object after the initial three-item package.
+- `activity_runtime_attempts`, `activity_misconception_evidence_records`, and `post_activity_diagnostic_snapshots` for post-activity runtime and diagnostic-update completeness.
+- `agent_calls` for provider/audit metadata presence, token-usage presence, call statuses, and prompt-hash inventory.
+
+Run:
+
+```bash
+npm run student:session-data-completeness-review
+npm run student:session-data-completeness-review -- --session-public-id <session_public_id>
+```
+
+The command writes a redacted artifact under:
+
+```text
+.data/session-data-completeness-review/
+```
+
+The teacher session page also includes a read-only **Session evidence audit**
+tab. It reports counts and limitations only. It does not expose raw process
+payloads, raw provider outputs, answer keys, correct options, correctness
+labels, raw distractor metadata, raw misconception IDs, internal database UUIDs,
+or secrets.
+
+Process data remain evidence-quality context. They should not be used alone to
+infer misconception, ability, cheating, or misconduct.

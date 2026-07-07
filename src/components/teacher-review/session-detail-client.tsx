@@ -10,6 +10,7 @@ import {
   fetchProcessEvents,
   fetchResponsePackages,
   fetchSessionDetail,
+  fetchSessionDataAudit,
   fetchTranscript,
   pauseAutomation,
   resumeAutomation,
@@ -24,6 +25,7 @@ import type {
   ItemResponsesResponse,
   ProcessEventsResponse,
   ResponsePackagesResponse,
+  SessionDataAuditResponse,
   SessionDetailResponse,
   StructuredApiError,
   TeacherConceptProgressionRecord,
@@ -50,6 +52,7 @@ const tabs = [
   "item_responses",
   "conversation_transcript",
   "process_events",
+  "session_evidence_audit",
   "response_packages",
   "future_agent_data"
 ] as const;
@@ -184,6 +187,7 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
   const [itemResponses, setItemResponses] = useState<ItemResponsesResponse | null>(null);
   const [transcript, setTranscript] = useState<TranscriptResponse | null>(null);
   const [responsePackages, setResponsePackages] = useState<ResponsePackagesResponse | null>(null);
+  const [dataAudit, setDataAudit] = useState<SessionDataAuditResponse | null>(null);
   const [processEvents, setProcessEvents] = useState<ProcessEventsResponse | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [processError, setProcessError] = useState<StructuredApiError | null>(null);
@@ -222,18 +226,20 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
     setError(null);
 
     try {
-      const [detailResult, itemResult, transcriptResult, packageResult] =
+      const [detailResult, itemResult, transcriptResult, packageResult, dataAuditResult] =
         await Promise.all([
           fetchSessionDetail(sessionPublicId),
           fetchItemResponses(sessionPublicId),
           fetchTranscript(sessionPublicId),
-          fetchResponsePackages(sessionPublicId)
+          fetchResponsePackages(sessionPublicId),
+          fetchSessionDataAudit(sessionPublicId)
         ]);
 
       setDetail(detailResult);
       setItemResponses(itemResult);
       setTranscript(transcriptResult);
       setResponsePackages(packageResult);
+      setDataAudit(dataAuditResult);
     } catch (requestError) {
       setError(errorFromUnknown(requestError));
     } finally {
@@ -488,6 +494,9 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
               loading={processLoading}
               onUpdateFilter={updateProcessFilter}
             />
+          ) : null}
+          {activeTab === "session_evidence_audit" && dataAudit ? (
+            <SessionEvidenceAuditSection data={dataAudit} />
           ) : null}
           {activeTab === "response_packages" && responsePackages ? (
             <ResponsePackagesSection data={responsePackages} />
@@ -1058,6 +1067,180 @@ function ProcessEventsSection({
           </div>
         </>
       ) : null}
+    </section>
+  );
+}
+
+function CountList({ counts }: { counts: Record<string, number> }) {
+  const entries = Object.entries(counts).sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]));
+
+  if (entries.length === 0) {
+    return <p className="mt-2 text-sm text-muted">No counts recorded.</p>;
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-2">
+      {entries.map(([key, count]) => (
+        <span
+          className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700"
+          key={key}
+        >
+          {label(key)}: {count}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function AvailabilityPill({ labelText, value }: { labelText: string; value: boolean }) {
+  return (
+    <div className="rounded-lg border border-line bg-white p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{labelText}</p>
+      <div className="mt-2">
+        <StatusPill value={value ? "available" : "not observed"} tone={value ? "good" : "warn"} />
+      </div>
+    </div>
+  );
+}
+
+function SessionEvidenceAuditSection({ data }: { data: SessionDataAuditResponse }) {
+  return (
+    <section className="space-y-4">
+      <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+        <h3 className="font-semibold text-amber-950">Session evidence audit</h3>
+        <p className="mt-1">{data.interpretation_boundary}</p>
+        <p className="mt-1">
+          This teacher/research panel summarizes data completeness. It does not expose raw
+          process payloads, provider output, answer keys, or correctness labels.
+        </p>
+      </section>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <Fact labelText="Item attempts" value={data.data_completeness.response_package.item_attempt_count} />
+        <Fact labelText="Answers recorded" value={data.data_completeness.response_package.submitted_answer_count} />
+        <Fact labelText="Reasoning responses" value={data.data_completeness.response_package.reasoning_response_count} />
+        <Fact labelText="Confidence ratings" value={data.data_completeness.response_package.confidence_response_count} />
+        <Fact labelText="Tempting-option evidence" value={data.data_completeness.response_package.tempting_option_response_count} />
+        <Fact labelText="Conversation turns" value={data.data_completeness.response_package.conversation_turns_count} />
+        <Fact labelText="Initial packages" value={data.data_completeness.response_package.initial_package_count} />
+        <Fact labelText="Package state" value={<StatusPill value={data.data_completeness.response_package.package_completion_state} />} />
+      </div>
+
+      <section className="rounded-lg border border-line bg-white p-5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="font-semibold text-ink">Process data summary</h3>
+            <p className="mt-1 text-sm text-muted">
+              Counts and availability only. Raw process payloads stay out of this audit panel.
+            </p>
+          </div>
+          <StatusPill
+            value={`${data.process_data_summary.observed_event_type_count} observed event types`}
+            tone={data.process_data_summary.process_event_count > 0 ? "good" : "warn"}
+          />
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <Fact labelText="Process events" value={data.process_data_summary.process_event_count} />
+          <Fact labelText="Item-scoped events" value={data.process_data_summary.item_scoped_event_count} />
+          <Fact labelText="Session-scoped events" value={data.process_data_summary.session_scoped_event_count} />
+          <Fact labelText="Supported event types" value={data.process_data_summary.supported_process_event_type_count} />
+          <AvailabilityPill
+            labelText="Focus/visibility"
+            value={data.process_data_summary.availability.focus_visibility_events_available}
+          />
+          <AvailabilityPill
+            labelText="Paste context"
+            value={data.process_data_summary.availability.paste_events_available}
+          />
+          <AvailabilityPill
+            labelText="Typing summary"
+            value={data.process_data_summary.availability.typing_summary_events_available}
+          />
+          <AvailabilityPill
+            labelText="Pause/inactivity"
+            value={data.process_data_summary.availability.pause_or_inactivity_events_available}
+          />
+        </div>
+        <JsonDetails
+          value={{
+            observed_event_counts: data.process_data_summary.observed_event_counts,
+            missing_expected_initial_event_types:
+              data.process_data_summary.missing_expected_initial_event_types,
+            event_source_counts: data.process_data_summary.event_source_counts,
+            first_event_at: data.process_data_summary.first_event_at,
+            last_event_at: data.process_data_summary.last_event_at
+          }}
+          labelText="Process data inventory summary"
+        />
+      </section>
+
+      <section className="rounded-lg border border-line bg-white p-5">
+        <h3 className="font-semibold text-ink">Evidence packet and runtime summaries</h3>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <Fact
+            labelText="Engagement packet"
+            value={
+              <StatusPill
+                value={data.engagement_evidence_summary.engagement_packet_available ? "available" : "missing"}
+                tone={data.engagement_evidence_summary.engagement_packet_available ? "good" : "warn"}
+              />
+            }
+          />
+          <Fact
+            labelText="Internal engagement category"
+            value={data.engagement_evidence_summary.internal_only_engagement_category ?? "Not available"}
+          />
+          <Fact labelText="Activity attempts" value={data.activity_runtime_summary.attempt_count} />
+          <Fact labelText="Post-activity evidence records" value={data.misconception_evidence_summary.record_count} />
+          <Fact labelText="Diagnostic snapshots" value={data.diagnostic_snapshot_summary.snapshot_count} />
+          <Fact labelText="Failed-closed activity attempts" value={data.activity_runtime_summary.failed_closed_count} />
+          <Fact labelText="Agent calls" value={data.agent_audit_summary.call_count} />
+          <Fact labelText="Failed agent calls" value={data.agent_audit_summary.failed_call_count} />
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-line p-4">
+            <h4 className="text-sm font-semibold text-ink">Activity runtime states</h4>
+            <CountList counts={data.activity_runtime_summary.status_counts} />
+          </div>
+          <div className="rounded-lg border border-line p-4">
+            <h4 className="text-sm font-semibold text-ink">Activity student choices</h4>
+            <CountList counts={data.activity_runtime_summary.student_choice_state_counts} />
+          </div>
+          <div className="rounded-lg border border-line p-4">
+            <h4 className="text-sm font-semibold text-ink">Evidence update statuses</h4>
+            <CountList counts={data.misconception_evidence_summary.update_status_counts} />
+          </div>
+          <div className="rounded-lg border border-line p-4">
+            <h4 className="text-sm font-semibold text-ink">Agent calls by name</h4>
+            <CountList counts={data.agent_audit_summary.agent_name_counts} />
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-line bg-white p-5">
+        <h3 className="font-semibold text-ink">Limitations</h3>
+        {data.limitations.length === 0 ? (
+          <p className="mt-2 text-sm text-muted">No completeness limitations detected by this audit.</p>
+        ) : (
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted">
+            {data.limitations.map((limitation) => (
+              <li key={limitation}>{limitation}</li>
+            ))}
+          </ul>
+        )}
+        <JsonDetails
+          value={{
+            response_evidence_summary: data.response_evidence_summary,
+            engagement_process_data_limitations:
+              data.engagement_evidence_summary.process_data_limitation_flags,
+            activity_runtime_limitations: data.activity_runtime_summary.limitations,
+            agent_audit_summary: data.agent_audit_summary,
+            no_live_provider_call_made: data.no_live_provider_call_made,
+            generated_at: data.generated_at
+          }}
+          labelText="Read-only audit details"
+        />
+      </section>
     </section>
   );
 }

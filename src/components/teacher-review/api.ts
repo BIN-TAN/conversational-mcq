@@ -12,6 +12,7 @@ import type {
   RunPlanningResponse,
   RunProfilingResponse,
   SessionDetailResponse,
+  SessionDataAuditResponse,
   StartFollowupResponse,
   SessionListResponse,
   StructuredApiError,
@@ -73,6 +74,13 @@ export function fetchProcessEvents(
 export function fetchResponsePackages(sessionPublicId: string) {
   return apiRequest<ResponsePackagesResponse>(
     `/api/teacher/sessions/${sessionPublicId}/response-packages`,
+    { method: "GET" }
+  );
+}
+
+export function fetchSessionDataAudit(sessionPublicId: string) {
+  return apiRequest<SessionDataAuditResponse>(
+    `/api/teacher/sessions/${sessionPublicId}/data-audit`,
     { method: "GET" }
   );
 }

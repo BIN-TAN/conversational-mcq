@@ -269,3 +269,26 @@ A future LLM may help phrase possible interpretations from redacted structured s
 - Engagement evidence is not direct misconception evidence.
 - Engagement or process labels must not be shown to students.
 - The v1 AI-assistance signal is behavioral only and should be compared with student self-report when self-report is implemented.
+
+## Session Data Completeness Audit
+
+Phase 30h exposes engagement evidence availability through a teacher/research
+audit projection. The projection reports whether an engagement packet can be
+built, the internal-only provisional engagement category, process-data
+limitation flags, threshold policy, and event inventory counts.
+
+This is a visibility layer over existing evidence. It does not change the
+engagement category, does not add misconduct detection, and does not expose raw
+reasoning, raw process-event payloads, raw typed text, clipboard text, answer
+keys, correct options, distractor metadata, raw LLM output, provider payloads,
+or secrets.
+
+Run:
+
+```bash
+npm run student:session-data-completeness-review -- --session-public-id <session_public_id>
+```
+
+The teacher session page shows the same aggregate information in **Session
+evidence audit**. Process data are evidence-quality context only and should not
+be used alone to infer misconception, ability, cheating, or misconduct.

@@ -502,10 +502,143 @@ export type ResponsePackagesResponse = {
   }>;
 };
 
+export type SessionDataAuditResponse = {
+  artifact_version: string;
+  generated_at: string;
+  no_live_provider_call_made: boolean;
+  interpretation_boundary: string;
+  session_public_id: string;
+  artifact_path: string | null;
+  data_completeness: {
+    session: {
+      session_public_id: string;
+      status: string;
+      current_phase: string;
+      started_at: string | null;
+      last_activity_at: string | null;
+      completed_at: string | null;
+    };
+    assessment: {
+      assessment_public_id: string;
+      title: string;
+    };
+    student: {
+      user_id: string;
+      display_name_present: boolean;
+    };
+    response_package: {
+      concept_unit_session_count: number;
+      item_attempt_count: number;
+      submitted_answer_count: number;
+      reasoning_response_count: number;
+      confidence_response_count: number;
+      tempting_option_response_count: number;
+      revisions_count: number;
+      conversation_turns_count: number;
+      package_count: number;
+      initial_package_count: number;
+      latest_initial_package_created_at: string | null;
+      package_completion_state: string;
+    };
+  };
+  process_data_summary: {
+    process_event_count: number;
+    observed_event_type_count: number;
+    observed_event_counts: Record<string, number>;
+    expected_initial_administration_event_types: string[];
+    missing_expected_initial_event_types: string[];
+    supported_process_event_type_count: number;
+    item_scoped_event_count: number;
+    session_scoped_event_count: number;
+    concept_unit_scoped_counts: Record<string, number>;
+    event_source_counts: Record<string, number>;
+    first_event_at: string | null;
+    last_event_at: string | null;
+    availability: {
+      focus_visibility_events_available: boolean;
+      paste_events_available: boolean;
+      typing_summary_events_available: boolean;
+      pause_or_inactivity_events_available: boolean;
+    };
+    inventory_summary: {
+      observed_event_types: string[];
+      unobserved_supported_event_types: string[];
+    };
+  };
+  response_evidence_summary: {
+    latest_initial_package_available: boolean;
+    latest_initial_package_summary: unknown;
+    response_package_evidence_complete_for_initial_three: boolean;
+    answer_choices_present: boolean;
+    reasoning_present: boolean;
+    confidence_present: boolean;
+    tempting_option_evidence_present: boolean;
+    fixed_item_metadata_present: Record<string, boolean>;
+  };
+  engagement_evidence_summary: {
+    engagement_packet_available: boolean;
+    internal_only_engagement_category: string | null;
+    category_confidence: string | null;
+    ai_assistance_signal: string | null;
+    evidence_item_count: number;
+    process_data_limitation_flags: string[];
+    threshold_policy: string | null;
+  };
+  activity_runtime_summary: {
+    attempt_count: number;
+    status_counts: Record<string, number>;
+    activity_family_counts: Record<string, number>;
+    generation_source_counts: Record<string, number>;
+    latest_state: string | null;
+    latest_activity_response_reference_count: number;
+    student_choice_state_counts: Record<string, number>;
+    failed_closed_count: number;
+    limitations: string[];
+  };
+  misconception_evidence_summary: {
+    record_count: number;
+    evaluation_source_counts: Record<string, number>;
+    production_mode_counts: Record<string, number>;
+    live_record_count: number;
+    no_live_record_count: number;
+    safety_flag_key_counts: Record<string, number>;
+    update_status_counts: Record<string, number>;
+    evidence_quality_counts: Record<string, number>;
+    recommended_next_purpose_counts: Record<string, number>;
+  };
+  diagnostic_snapshot_summary: {
+    snapshot_count: number;
+    before_state_available_count: number;
+    after_state_available_count: number;
+    update_status_counts: Record<string, number>;
+    recommended_next_purpose_counts: Record<string, number>;
+  };
+  agent_audit_summary: {
+    call_count: number;
+    agent_name_counts: Record<string, number>;
+    provider_counts: Record<string, number>;
+    call_status_counts: Record<string, number>;
+    provider_metadata_present_count: number;
+    token_usage_present_count: number;
+    failed_call_count: number;
+    failed_call_summaries: Array<{
+      agent_name: string;
+      call_status: string;
+      output_validated: boolean;
+      created_at: string | null;
+      completed_at: string | null;
+    }>;
+    repair_call_count: number;
+    unique_prompt_hash_count: number;
+  };
+  limitations: string[];
+};
+
 export type TeacherReviewBundle = {
   detail: SessionDetailResponse;
   itemResponses: ItemResponsesResponse;
   transcript: TranscriptResponse;
   processEvents: ProcessEventsResponse;
   responsePackages: ResponsePackagesResponse;
+  dataAudit?: SessionDataAuditResponse;
 };
