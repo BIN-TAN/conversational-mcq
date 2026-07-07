@@ -6,6 +6,8 @@ See `docs/DISTRACTOR_INFORMED_MISCONCEPTION_DIAGNOSIS.md` for the current framin
 
 The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, Phase 7B complete master CSV export coverage for persisted platform records, Phase 7C Response Collection Agent integration for student free-text messages during initial administration, Phase 7D Item Verification Agent governance for teacher-authored item sets, Phase 7E1 internal mock evaluation harness for the five active agents, Phase 7E2A guarded live-evaluation canary support with annotation adjudication, Phase 7E2B full-pilot evaluation infrastructure, Phase 7E2C targeted remediation/regression tooling, Phase 8A default-off guarded operational agent integration with disabled/mock/guarded-live modes, and later chat-native fixed IRT MVP profiling/formative activity tooling. Item generation, item rewriting, classroom live model activation, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, student self-registration, and claims of classroom validity remain intentionally unimplemented.
 
+Teacher/research review includes both a readable conversation-only transcript and a separate structured event log. The teacher data area also provides a default research-safe ZIP export for all sessions. Default research exports include manifests and data dictionaries while excluding secrets, raw provider data, raw process payloads, answer keys, correct options, raw distractor metadata, and raw misconception IDs. Restricted item-key exports require an explicit teacher/research request.
+
 ## Local Setup
 
 ### Prerequisites
@@ -178,6 +180,8 @@ npm run student:logging-smoke
 npm run student:formative-profile-smoke
 npm run student:ability-evidence-smoke
 npm run student:ability-evidence-review
+npm run student:teacher-readable-transcript-smoke
+npm run student:teacher-bulk-export-smoke
 npm run student:engagement-evidence-smoke
 npm run student:engagement-evidence-review
 npm run student:profile-integration-smoke

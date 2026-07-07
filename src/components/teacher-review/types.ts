@@ -455,6 +455,22 @@ export type TranscriptResponse = {
   }>;
 };
 
+export type ReadableTranscriptResponse = {
+  session_public_id: string;
+  student_display_label: string;
+  assessment_label: string;
+  turns: Array<{
+    turn_index: number;
+    speaker: "agent" | "student" | "system";
+    timestamp: string | null;
+    phase_label: string;
+    safe_context_label: string | null;
+    message_text: string;
+    has_structured_payload_available_elsewhere: boolean;
+  }>;
+  limitations: string[];
+};
+
 export type ProcessEventsResponse = {
   session_public_id: string;
   aggregates: Record<string, unknown> & {

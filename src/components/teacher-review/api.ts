@@ -7,6 +7,7 @@ import {
 import type {
   ItemResponsesResponse,
   ProcessEventsResponse,
+  ReadableTranscriptResponse,
   ResponsePackagesResponse,
   RunFollowupUpdateResponse,
   RunPlanningResponse,
@@ -57,6 +58,13 @@ export function fetchItemResponses(sessionPublicId: string) {
 export function fetchTranscript(sessionPublicId: string) {
   return apiRequest<TranscriptResponse>(
     `/api/teacher/sessions/${sessionPublicId}/transcript`,
+    { method: "GET" }
+  );
+}
+
+export function fetchReadableTranscript(sessionPublicId: string) {
+  return apiRequest<ReadableTranscriptResponse>(
+    `/api/teacher/sessions/${sessionPublicId}/readable-transcript`,
     { method: "GET" }
   );
 }

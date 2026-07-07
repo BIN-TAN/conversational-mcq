@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileUp, Table2 } from "lucide-react";
+import { Archive, FileUp, Table2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { DataNav } from "@/components/teacher-data/ui";
 import { getCurrentUser } from "@/lib/auth";
@@ -31,7 +31,7 @@ export default async function TeacherDataPage() {
           </p>
         </header>
 
-        <section className="mt-6 grid gap-4 md:grid-cols-2">
+        <section className="mt-6 grid gap-4 md:grid-cols-3">
           <Link
             className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
             href="/teacher/data/summative-outcomes"
@@ -56,6 +56,19 @@ export default async function TeacherDataPage() {
               workflow records, and active summative outcomes.
             </p>
           </Link>
+
+          <a
+            className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
+            href="/api/teacher/research-export"
+          >
+            <Archive className="h-5 w-5 text-accent" aria-hidden="true" />
+            <h2 className="mt-4 text-lg font-semibold text-ink">Download all research data</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Generate a teacher/research ZIP with readable transcripts, redacted structured
+              records, data dictionary, manifest, process summaries, and evidence summaries.
+              Restricted item keys are excluded by default.
+            </p>
+          </a>
         </section>
       </div>
     </main>

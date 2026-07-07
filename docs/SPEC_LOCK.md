@@ -1862,3 +1862,38 @@ Phase 6A.5 must not implement:
   artifacts under `.data/session-data-completeness-review/` and must not make
   OpenAI calls. The teacher session page may show the same aggregate projection
   in a read-only Session evidence audit panel.
+
+## Phase 30i Readable Transcript And Research Export Lock
+
+- Teacher/research session review must keep two separate transcript surfaces:
+  a conversation-only **Readable transcript** and the existing payload-heavy
+  **Structured event log**. The readable transcript omits structured payloads,
+  raw JSON, internal UUIDs, answer keys, correct options, correctness labels,
+  raw distractor metadata, raw misconception IDs, process payloads, raw provider
+  data, and secrets.
+- Readable transcript projections may show speaker, timestamp, safe phase
+  labels, safe concept/item context labels, message text, and a boolean that
+  structured payload is available elsewhere. Legacy edited-response placeholder
+  turns must be rendered with safe reconstructed revised content when available.
+- Teacher/research-only downloads may export a readable session transcript and
+  a session-scoped research ZIP. A bulk **Download all research data** ZIP is
+  available from teacher data management. Students must not access these
+  routes.
+- The default research ZIP must include a manifest, README, data dictionary,
+  students, sessions, item responses, readable and redacted structured
+  transcript data, response-package summaries, process summaries/counts,
+  engagement/profile/formative/activity summaries, agent-call summaries,
+  completeness audits, and limitations.
+- The default ZIP must not include restricted item-key files. A restricted
+  item-key export may be generated only through an explicit
+  `include_restricted_item_keys=true` request and must include a restricted
+  metadata manifest warning.
+- Export safety scanning must block API keys, authorization headers, bearer
+  tokens, database URLs, session secrets, raw provider output/request payloads,
+  raw process payloads, answer-key/correct-option markers in default data
+  files, raw distractor metadata, raw misconception IDs, and internal database
+  UUID fields.
+- Research exports are read-only derived artifacts. They must not mutate
+  assessment sessions, item responses, response packages, process events,
+  activity runtime records, evidence records, diagnostic snapshots, agent calls,
+  or operational classroom data, and they must not call OpenAI.

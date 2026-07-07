@@ -190,3 +190,15 @@ Phase 30a does not rename code enums, database fields, scripts, or provider sche
   evidence.
 
 Future implementation phases may rename or introduce schemas only after migration, compatibility, and audit implications are explicitly approved.
+
+## Teacher/Research Export Boundary
+
+Phase 30i research exports support misconception-diagnosis analysis without
+dumping raw diagnostic metadata. Default exports include safe summaries of
+profile, formative-purpose, activity, post-activity evidence, and diagnostic
+snapshot records. They do not include raw misconception IDs, raw distractor
+rationales, raw provider outputs, answer keys, or correct options.
+
+If a researcher needs item keys for separate controlled analysis, they must use
+the explicit restricted item-key export option. The default ZIP manifest marks
+`restricted_item_keys_included=false`.

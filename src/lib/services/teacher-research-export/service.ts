@@ -1,0 +1,830 @@
+import { prisma } from "@/lib/db";
+import { buildTeacherSessionDataAudit } from "@/lib/services/teacher-review/session-data-audit";
+import {
+  getTeacherReadableTranscript,
+  type TeacherReadableTranscriptProjection
+} from "@/lib/services/teacher-review/readable-transcript";
+import { asArray, asRecord, stripInternalKeys } from "@/lib/services/teacher-review/serializers";
+import { createStoreOnlyZip, type ZipEntryInput } from "./zip";
+
+export const TEACHER_RESEARCH_EXPORT_VERSION = "teacher-research-export-v1" as const;
+
+type ResearchExportEntry = ZipEntryInput & {
+  row_count: number;
+};
+
+type BuildTeacherResearchBulkExportInput = {
+  session_public_id?: string;
+  generated_by_role?: string;
+  include_restricted_item_keys?: boolean;
+};
+
+type Row = Record<string, unknown>;
+
+function iso(value?: Date | null) {
+  return value ? value.toISOString() : null;
+}
+
+function stringValue(value: unknown) {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function spreadsheetSafe(value: string) {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
+function csvEscape(value: unknown) {
+  const text = spreadsheetSafe(stringValue(value));
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function csv(columns: string[], rows: Row[]) {
+  return `${[
+    columns.join(","),
+    ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))
+  ].join("\n")}\n`;
+}
+
+function jsonl(rows: unknown[]) {
+  return `${rows.map((row) => JSON.stringify(row)).join("\n")}${rows.length > 0 ? "\n" : ""}`;
+}
+
+function countBy<T extends string>(values: T[]) {
+  const counts: Record<string, number> = {};
+  for (const value of values) {
+    counts[value] = (counts[value] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function safeJson(value: unknown, options: { includeRestrictedItemKeys: boolean } = { includeRestrictedItemKeys: false }): unknown {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (typeof value === "string") {
+    if (options.includeRestrictedItemKeys) {
+      return value;
+    }
+
+    return value
+      .replace(/answer[_ -]?keys?/gi, "restricted item keys")
+      .replace(/correct[_ -]?options?/gi, "restricted item keys")
+      .replace(/distractor[_ -]?rationales?/gi, "restricted item metadata")
+      .replace(/possible[_ -]?misconception[_ -]?indicators?/gi, "restricted diagnostic metadata")
+      .replace(/expected[_ -]?reasoning[_ -]?patterns?/gi, "restricted item metadata");
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => safeJson(entry, options));
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const output: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    const normalized = key.toLowerCase();
+    const isSecret =
+      normalized.includes("password") ||
+      normalized.includes("access_code") ||
+      normalized.includes("authorization") ||
+      normalized.includes("cookie") ||
+      normalized.includes("token") ||
+      normalized.includes("secret") ||
+      normalized.includes("api_key") ||
+      normalized.includes("database_url") ||
+      normalized.includes("header");
+    const isInternalId =
+      key === "id" ||
+      key === "agent_call_id" ||
+      key.endsWith("_db_id") ||
+      key.endsWith("_db_ids");
+    const isRawProvider =
+      normalized === "raw_output" ||
+      normalized.includes("raw_provider") ||
+      normalized.includes("provider_request") ||
+      normalized.includes("provider_response_body");
+    const isInternalPromptState =
+      normalized === "prompt_state_packet" ||
+      normalized === "allowed_behavior" ||
+      normalized === "disallowed_behavior" ||
+      normalized === "system_prompt";
+    const isRestrictedItemMetadata =
+      !options.includeRestrictedItemKeys &&
+      (normalized.includes("correct_option") ||
+        normalized.includes("answer_key") ||
+        normalized.includes("distractor_rationale") ||
+        normalized.includes("possible_misconception_indicator") ||
+        normalized.includes("expected_reasoning_pattern"));
+    const isRawMisconceptionId =
+      normalized.includes("misconception_id") ||
+      normalized.includes("misconception_ids");
+
+    if (
+      isSecret ||
+      isInternalId ||
+      isRawProvider ||
+      isInternalPromptState ||
+      isRestrictedItemMetadata ||
+      isRawMisconceptionId
+    ) {
+      continue;
+    }
+
+    output[key] = safeJson(entry, options);
+  }
+
+  return output;
+}
+
+function responsePackageSummary(payload: unknown) {
+  const record = asRecord(payload);
+  const itemResponses = asArray(record.item_responses).map(asRecord);
+  const includedItems = asArray(record.included_items).map(asRecord);
+  const processCounts = asRecord(record.process_counts);
+
+  return {
+    item_response_count: itemResponses.length,
+    included_item_count: includedItems.length,
+    item_public_ids: itemResponses
+      .map((response) => response.item_public_id)
+      .filter((value): value is string => typeof value === "string"),
+    answer_choice_count: itemResponses.filter((response) =>
+      typeof response.selected_answer_final === "string" || typeof response.selected_option === "string"
+    ).length,
+    reasoning_count: itemResponses.filter((response) =>
+      typeof response.reasoning_text_final === "string" || typeof response.reasoning_text === "string"
+    ).length,
+    confidence_count: itemResponses.filter((response) =>
+      typeof response.confidence_final === "string" || typeof response.confidence_rating === "string"
+    ).length,
+    tempting_option_evidence_count: itemResponses.filter((response) =>
+      response.no_tempting_option === true || typeof response.tempting_option === "string"
+    ).length,
+    timing_field_counts: {
+      item_started_at: itemResponses.filter((response) => typeof response.item_started_at === "string").length,
+      item_completed_at: itemResponses.filter((response) => typeof response.item_completed_at === "string").length,
+      reasoning_submitted_at: itemResponses.filter((response) =>
+        typeof response.reasoning_submitted_at === "string"
+      ).length
+    },
+    process_counts: safeJson(processCounts)
+  };
+}
+
+function dataDictionary() {
+  return {
+    export_version: TEACHER_RESEARCH_EXPORT_VERSION,
+    files: {
+      "students.csv": "Student accounts represented by public classroom/research user_id values.",
+      "sessions.csv": "Assessment-session public identifiers, student linkage, assessment linkage, phase/status, and timestamps.",
+      "item_responses.csv": "Student item responses without answer keys, correct options, or correctness labels.",
+      "conversation_turns_readable.jsonl": "Conversation-only teacher/research transcript projections with no structured payload.",
+      "conversation_turns_structured_redacted.jsonl": "Structured conversation metadata after public-ID and protected-field redaction.",
+      "response_packages.jsonl": "Package-level evidence summaries. Raw response-package JSON and item keys are not exported by default.",
+      "process_events_summary.jsonl": "Session-level process-event counts and timing availability. Raw process payloads are excluded.",
+      "process_event_counts.csv": "One row per session and event type.",
+      "engagement_evidence_packets.jsonl": "Teacher/research engagement evidence summaries only; process data are contextual evidence.",
+      "misconception_diagnosis_or_profile_packets.jsonl": "Profile and diagnostic summaries with raw misconception IDs removed.",
+      "formative_purpose_or_value_packets.jsonl": "Persisted formative-purpose/value records and safe mapping summaries.",
+      "activity_runtime_attempts.jsonl": "Activity runtime attempt summaries without raw source packet payloads.",
+      "activity_misconception_evidence_records.jsonl": "Post-activity evidence record summaries without raw evidence packets.",
+      "post_activity_diagnostic_snapshots.jsonl": "Post-activity diagnostic snapshot summaries without raw snapshot payloads.",
+      "agent_calls_summary.jsonl": "Agent call audit summaries without raw input/output payloads.",
+      "session_data_completeness.jsonl": "Per-session teacher/research data completeness audit summaries.",
+      "limitations.jsonl": "Per-session and export-level limitations."
+    },
+    response_time_definitions: {
+      item_response_time_ms:
+        "Elapsed wall-clock time from item presentation to item response submission/completion. Includes answer selection, reasoning, confidence, tempting-option response, and idle time.",
+      package_wall_clock_duration_ms:
+        "Elapsed wall-clock time from first item presentation in the package to package completion/submission.",
+      package_active_response_duration_ms:
+        "Elapsed time from first recorded student response action in the package to package completion/submission.",
+      focus_adjusted_duration_ms:
+        "Wall-clock time minus safely detected hidden/blur/pause/inactivity intervals when available. If unavailable, marked unavailable.",
+      reasoning_input_elapsed_time_ms:
+        "Elapsed time from first recorded input/key event in a reasoning field to reasoning summary flush, field submission, or item completion. This is not pure active typing time.",
+      active_typing_time_ms:
+        "Only available if explicitly instrumented. If not instrumented, marked unavailable; elapsed time is not used as a proxy."
+    },
+    process_event_definitions: {
+      page_switch_count: "Count of page visibility hidden/visible events; contextual evidence only.",
+      long_pause_count: "Count of long pause events; contextual evidence only.",
+      inactivity_count: "Count of inactivity-detected events; contextual evidence only.",
+      navigation_event_count: "Count of navigation events recorded by frontend instrumentation.",
+      invalid_help_request_count: "Count of help requests disallowed during protected administration.",
+      prompt_injection_attempt_count: "Count of detected prompt-injection attempts.",
+      procedural_clarification_count: "Count of procedural clarification requests.",
+      emotional_response_count: "Count of emotional or frustration responses.",
+      reasoning_revision_count: "Count of reasoning revision events.",
+      option_revision_count: "Count of option revision events.",
+      validation_failure_count: "Count of schema or validation failure events.",
+      agent_retry_count: "Count of recorded agent retry scheduling events.",
+      response_collection_agent_call_count: "Count of response-collection agent invocation events.",
+      response_collection_fallback_count: "Count of response-collection fallback events.",
+      response_collection_reasoning_extraction_count: "Count of successful reasoning extraction events.",
+      response_collection_reasoning_extraction_failure_count: "Count of reasoning extraction failure events.",
+      followup_turn_count: "Count of follow-up or activity dialogue turns where available."
+    },
+    interpretation_limits: [
+      "Process data are evidence-quality context only and do not establish misconduct.",
+      "Default export omits answer keys, correct options, raw distractor metadata, raw misconception IDs, provider raw outputs, and secrets.",
+      "Timing metrics may include idle time unless a field is explicitly marked focus-adjusted or active typing."
+    ]
+  };
+}
+
+function readme() {
+  return [
+    "# Teacher/research export",
+    "",
+    "This ZIP is a local teacher/research export from the normalized assessment database.",
+    "",
+    "The default export is research-safe: it omits API keys, headers, secrets, raw provider input/output, raw process payloads, answer keys, correct options, raw distractor metadata, and raw misconception IDs.",
+    "",
+    "Process data are contextual evidence for engagement and evidence sufficiency. They must not be interpreted as cheating, GenAI use, or misconduct evidence.",
+    "",
+    "If restricted item-key files are present, they were explicitly requested and are marked in manifest.json.",
+    ""
+  ].join("\n");
+}
+
+function makeEntry(path: string, data: string, rowCount: number): ResearchExportEntry {
+  return { path, data, row_count: rowCount };
+}
+
+function assertResearchExportSafety(entries: ResearchExportEntry[], includeRestrictedItemKeys: boolean) {
+  const secretPatterns = [
+    /sk-[A-Za-z0-9_-]{20,}/,
+    /authorization\s*:/i,
+    /bearer\s+[A-Za-z0-9._-]{10,}/i,
+    /database_url/i,
+    /session_secret/i
+  ];
+  const protectedDataPatterns = [
+    /\bcorrect_option\b/i,
+    /\bcorrect_option_snapshot\b/i,
+    /\banswer_key\b/i,
+    /\bdistractor_rationales\b/i,
+    /\bpossible_misconception_indicators\b/i,
+    /\bexpected_reasoning_patterns\b/i,
+    /\braw_output\b/i,
+    /\binput_payload\b/i,
+    /\boutput_payload\b/i,
+    /\bmisconception_ids?\b/i
+  ];
+  const documentationFiles = new Set(["manifest.json", "README_EXPORT.md", "data_dictionary.json"]);
+  const restrictedFiles = new Set(["restricted_item_keys.csv", "restricted_item_metadata_manifest.json"]);
+
+  for (const entry of entries) {
+    const data = Buffer.isBuffer(entry.data) ? entry.data.toString("utf8") : entry.data;
+    for (const pattern of secretPatterns) {
+      if (pattern.test(data)) {
+        throw new Error(`Research export safety scan blocked ${entry.path}.`);
+      }
+    }
+
+    if (
+      documentationFiles.has(entry.path) ||
+      (includeRestrictedItemKeys && restrictedFiles.has(entry.path))
+    ) {
+      continue;
+    }
+
+    for (const pattern of protectedDataPatterns) {
+      if (pattern.test(data)) {
+        throw new Error(`Research export safety scan blocked protected data in ${entry.path}.`);
+      }
+    }
+  }
+}
+
+function fileRowCounts(entries: ResearchExportEntry[]) {
+  return Object.fromEntries(entries.map((entry) => [entry.path, entry.row_count]));
+}
+
+function safeTranscriptRows(transcripts: TeacherReadableTranscriptProjection[]) {
+  return transcripts.flatMap((transcript) =>
+    transcript.turns.map((turn) => ({
+      session_public_id: transcript.session_public_id,
+      student_display_label: transcript.student_display_label,
+      assessment_label: transcript.assessment_label,
+      ...turn
+    }))
+  );
+}
+
+export async function buildTeacherResearchBulkExport(input: BuildTeacherResearchBulkExportInput = {}) {
+  const includeRestrictedItemKeys = input.include_restricted_item_keys === true;
+  const generatedAt = new Date().toISOString();
+  const where = input.session_public_id ? { session_public_id: input.session_public_id } : {};
+
+  const sessions = await prisma.assessmentSession.findMany({
+    where,
+    orderBy: [{ created_at: "asc" }],
+    include: {
+      user: { select: { user_id: true, display_name: true, role: true, account_status: true } },
+      assessment: { select: { assessment_public_id: true, title: true } },
+      current_concept_unit: { select: { concept_unit_public_id: true, title: true } },
+      concept_unit_sessions: {
+        orderBy: [{ created_at: "asc" }],
+        include: {
+          concept_unit: { select: { concept_unit_public_id: true, title: true, order_index: true } },
+          item_responses: {
+            orderBy: [{ item: { item_order: "asc" } }],
+            include: {
+              item: {
+                select: {
+                  item_public_id: true,
+                  item_order: true,
+                  item_stem: true,
+                  options: true,
+                  correct_option: true
+                }
+              }
+            }
+          },
+          response_packages: { orderBy: [{ created_at: "asc" }] },
+          student_profiles: { orderBy: [{ created_at: "asc" }] },
+          formative_decisions: { orderBy: [{ created_at: "asc" }] }
+        }
+      },
+      conversation_turns: {
+        orderBy: [{ created_at: "asc" }],
+        include: {
+          item: { select: { item_public_id: true, item_order: true } },
+          concept_unit_session: {
+            select: {
+              concept_unit: { select: { concept_unit_public_id: true, title: true } }
+            }
+          }
+        }
+      },
+      process_events: {
+        orderBy: [{ occurred_at: "asc" }],
+        include: {
+          item: { select: { item_public_id: true, item_order: true } },
+          concept_unit_session: {
+            select: {
+              concept_unit: { select: { concept_unit_public_id: true, title: true } }
+            }
+          }
+        }
+      },
+      agent_calls: { orderBy: [{ created_at: "asc" }] }
+    }
+  });
+
+  const sessionPublicIds = sessions.map((session) => session.session_public_id);
+  const [activityAttempts, evidenceRecords, diagnosticSnapshots] = await Promise.all([
+    prisma.activityRuntimeAttempt.findMany({
+      where: { session_public_id: { in: sessionPublicIds } },
+      orderBy: [{ created_at: "asc" }]
+    }),
+    prisma.activityMisconceptionEvidenceRecord.findMany({
+      where: { session_public_id: { in: sessionPublicIds } },
+      orderBy: [{ created_at: "asc" }]
+    }),
+    prisma.postActivityDiagnosticSnapshot.findMany({
+      where: { session_public_id: { in: sessionPublicIds } },
+      orderBy: [{ created_at: "asc" }]
+    })
+  ]);
+
+  const [readableTranscripts, audits] = await Promise.all([
+    Promise.all(sessionPublicIds.map((sessionPublicId) => getTeacherReadableTranscript(sessionPublicId))),
+    Promise.all(
+      sessionPublicIds.map((sessionPublicId) =>
+        buildTeacherSessionDataAudit({
+          session_public_id: sessionPublicId,
+          write_artifact: false
+        }).catch((error) => ({
+          session_public_id: sessionPublicId,
+          audit_unavailable: true,
+          limitation: error instanceof Error ? error.message : "audit_unavailable"
+        }))
+      )
+    )
+  ]);
+
+  const students = new Map<string, Row>();
+  for (const session of sessions) {
+    students.set(session.user.user_id, {
+      user_id: session.user.user_id,
+      display_name: session.user.display_name ?? "",
+      active: session.user.account_status === "active",
+      represented_session_count:
+        (Number(students.get(session.user.user_id)?.represented_session_count ?? 0) || 0) + 1
+    });
+  }
+
+  const sessionRows = sessions.map((session) => ({
+    session_public_id: session.session_public_id,
+    student_user_id: session.user.user_id,
+    student_display_label: session.user.display_name ?? session.user.user_id,
+    assessment_public_id: session.assessment.assessment_public_id,
+    assessment_title: session.assessment.title,
+    attempt_number: session.attempt_number,
+    status: session.status,
+    current_phase: session.current_phase,
+    current_concept_unit_public_id: session.current_concept_unit?.concept_unit_public_id ?? "",
+    started_at: iso(session.started_at),
+    last_activity_at: iso(session.last_activity_at),
+    completed_at: iso(session.completed_at)
+  }));
+
+  const itemResponseRows = sessions.flatMap((session) =>
+    session.concept_unit_sessions.flatMap((conceptUnitSession) =>
+      conceptUnitSession.item_responses.map((response) => ({
+        session_public_id: session.session_public_id,
+        student_user_id: session.user.user_id,
+        assessment_public_id: session.assessment.assessment_public_id,
+        concept_unit_public_id: conceptUnitSession.concept_unit.concept_unit_public_id,
+        concept_unit_title: conceptUnitSession.concept_unit.title,
+        item_public_id: response.item.item_public_id,
+        item_order: response.item.item_order,
+        selected_option: response.selected_option ?? "",
+        reasoning_text: response.reasoning_text ?? "",
+        confidence_rating: response.confidence_rating ?? "",
+        skipped_item: response.skipped_item,
+        skipped_reasoning: response.skipped_reasoning,
+        skipped_confidence: response.skipped_confidence,
+        revision_count: response.revision_count,
+        missing_evidence_repair_offered: response.missing_evidence_repair_offered,
+        item_response_time_ms: response.item_response_time_ms ?? "",
+        item_started_at: iso(response.item_started_at),
+        item_submitted_at: iso(response.item_submitted_at),
+        item_version_snapshot: response.item_version_snapshot
+      }))
+    )
+  );
+
+  const structuredTurnRows = sessions.flatMap((session) =>
+    session.conversation_turns.map((turn, index) => ({
+      session_public_id: session.session_public_id,
+      turn_index: index + 1,
+      actor_type: turn.actor_type,
+      agent_name: turn.agent_name,
+      phase: turn.phase,
+      message_text: turn.message_text ?? "",
+      created_at: iso(turn.created_at),
+      concept_unit_public_id: turn.concept_unit_session?.concept_unit.concept_unit_public_id ?? null,
+      item_public_id: turn.item?.item_public_id ?? null,
+      item_order: turn.item?.item_order ?? null,
+      structured_payload_redacted: safeJson(stripInternalKeys(turn.structured_payload))
+    }))
+  );
+
+  const responsePackageRows = sessions.flatMap((session) =>
+    session.concept_unit_sessions.flatMap((conceptUnitSession) =>
+      conceptUnitSession.response_packages.map((responsePackage, index) => ({
+        session_public_id: session.session_public_id,
+        concept_unit_public_id: conceptUnitSession.concept_unit.concept_unit_public_id,
+        package_type: responsePackage.package_type,
+        package_sequence: index + 1,
+        created_at: iso(responsePackage.created_at),
+        payload_summary: responsePackageSummary(responsePackage.payload)
+      }))
+    )
+  );
+
+  const processSummaryRows = sessions.map((session) => {
+    const counts = countBy(session.process_events.map((event) => event.event_type));
+    return {
+      session_public_id: session.session_public_id,
+      event_count: session.process_events.length,
+      event_type_counts: counts,
+      first_event_at: iso(session.process_events[0]?.occurred_at),
+      last_event_at: iso(session.process_events.at(-1)?.occurred_at)
+    };
+  });
+  const processCountRows = sessions.flatMap((session) =>
+    Object.entries(countBy(session.process_events.map((event) => event.event_type))).map(([eventType, count]) => ({
+      session_public_id: session.session_public_id,
+      event_type: eventType,
+      event_count: count
+    }))
+  );
+
+  const profileRows = sessions.flatMap((session) =>
+    session.concept_unit_sessions.flatMap((conceptUnitSession) =>
+      conceptUnitSession.student_profiles.map((profile) => ({
+        session_public_id: session.session_public_id,
+        concept_unit_public_id: conceptUnitSession.concept_unit.concept_unit_public_id,
+        created_at: iso(profile.created_at),
+        profile_type: profile.profile_type,
+        diagnostic_profile: profile.integrated_diagnostic_profile,
+        profile_confidence: profile.profile_confidence,
+        evidence_sufficiency: profile.evidence_sufficiency,
+        confidence_alignment: profile.confidence_alignment,
+        independence_interpretability: profile.independence_interpretability,
+        misconception_indicator_count: asArray(profile.misconception_indicators).length,
+        item_level_evidence_available: asArray(profile.item_level_evidence).length > 0,
+        process_caution_count: asArray(profile.process_interpretation_cautions).length
+      }))
+    )
+  );
+
+  const formativeRows = sessions.flatMap((session) =>
+    session.concept_unit_sessions.flatMap((conceptUnitSession) =>
+      conceptUnitSession.formative_decisions.map((decision) => ({
+        session_public_id: session.session_public_id,
+        concept_unit_public_id: conceptUnitSession.concept_unit.concept_unit_public_id,
+        created_at: iso(decision.created_at),
+        formative_value: decision.formative_value,
+        mapping_followed: decision.mapping_followed,
+        mapping_deviation_recorded: Boolean(decision.mapping_deviation_reason),
+        target_evidence_summary: safeJson(decision.target_evidence),
+        success_criteria_summary: safeJson(decision.success_criteria)
+      }))
+    )
+  );
+
+  const activityRows = activityAttempts.map((attempt) => ({
+    activity_attempt_public_id: attempt.activity_attempt_public_id,
+    session_public_id: attempt.session_public_id,
+    student_public_id: attempt.student_public_id,
+    assessment_public_id: attempt.assessment_public_id,
+    concept_unit_id: attempt.concept_unit_id,
+    activity_family: attempt.activity_family,
+    diagnostic_purpose: attempt.diagnostic_purpose,
+    generation_source: attempt.generation_source,
+    status: attempt.status,
+    started_at: iso(attempt.started_at),
+    completed_at: iso(attempt.completed_at),
+    latest_evidence_record_public_id: attempt.latest_evidence_record_public_id,
+    latest_snapshot_public_id: attempt.latest_snapshot_public_id,
+    limitations: safeJson(attempt.limitations)
+  }));
+
+  const evidenceRows = evidenceRecords.map((record) => ({
+    evidence_public_id: record.evidence_public_id,
+    session_public_id: record.session_public_id,
+    student_public_id: record.student_public_id,
+    activity_attempt_id: record.activity_attempt_id,
+    schema_version: record.schema_version,
+    evaluation_source: record.evaluation_source,
+    review_only: record.review_only,
+    runtime_servable_to_student: record.runtime_servable_to_student,
+    production_mode: record.production_mode,
+    diagnostic_purpose: record.diagnostic_purpose,
+    activity_family: record.activity_family,
+    student_response_kind: record.student_response_kind,
+    misconception_update_status: record.misconception_update_status,
+    evidence_quality: record.evidence_quality,
+    recommended_next_diagnostic_purpose: record.recommended_next_diagnostic_purpose,
+    student_safe_feedback: safeJson(record.student_safe_feedback),
+    safety_flags: safeJson(record.safety_flags),
+    limitations: safeJson(record.limitations),
+    created_at: iso(record.created_at)
+  }));
+
+  const snapshotRows = diagnosticSnapshots.map((snapshot) => ({
+    snapshot_public_id: snapshot.snapshot_public_id,
+    session_public_id: snapshot.session_public_id,
+    student_public_id: snapshot.student_public_id,
+    activity_attempt_id: snapshot.activity_attempt_id,
+    pre_activity_diagnostic_state: snapshot.pre_activity_diagnostic_state,
+    activity_update_status: snapshot.activity_update_status,
+    post_activity_diagnostic_state: snapshot.post_activity_diagnostic_state,
+    update_strength: snapshot.update_strength,
+    evidence_quality: snapshot.evidence_quality,
+    next_diagnostic_purpose: snapshot.next_diagnostic_purpose,
+    student_safe_feedback: safeJson(snapshot.student_safe_feedback),
+    limitations: safeJson(snapshot.limitations),
+    created_at: iso(snapshot.created_at)
+  }));
+
+  const agentRows = sessions.flatMap((session) =>
+    session.agent_calls.map((call) => ({
+      session_public_id: session.session_public_id,
+      agent_name: call.agent_name,
+      agent_version: call.agent_version,
+      provider: call.provider,
+      model_name: call.model_name,
+      prompt_version: call.prompt_version,
+      schema_version: call.schema_version,
+      prompt_hash: call.prompt_hash,
+      call_status: call.call_status,
+      output_validated: call.output_validated,
+      validation_error_present: Boolean(call.validation_error),
+      blocked_reason: call.blocked_reason,
+      retry_count: call.retry_count,
+      live_call_allowed: call.live_call_allowed,
+      latency_ms: call.latency_ms,
+      input_tokens: call.input_tokens,
+      output_tokens: call.output_tokens,
+      total_tokens: call.total_tokens,
+      estimated_cost: call.estimated_cost ? String(call.estimated_cost) : null,
+      started_at: iso(call.started_at),
+      completed_at: iso(call.completed_at),
+      created_at: iso(call.created_at)
+    }))
+  );
+
+  const limitationRows = [
+    ...readableTranscripts.flatMap((transcript) =>
+      transcript.limitations.map((limitation) => ({
+        session_public_id: transcript.session_public_id,
+        limitation
+      }))
+    ),
+    ...audits.flatMap((audit) =>
+      asArray(asRecord(audit).limitations).map((limitation) => ({
+        session_public_id: asRecord(audit).session_public_id,
+        limitation
+      }))
+    ),
+    ...(sessions.length === 0
+      ? [{ session_public_id: null, limitation: "no_sessions_matched_export_filter" }]
+      : [])
+  ];
+
+  const readableRows = safeTranscriptRows(readableTranscripts);
+  const entries: ResearchExportEntry[] = [
+    makeEntry("README_EXPORT.md", readme(), 0),
+    makeEntry("data_dictionary.json", `${JSON.stringify(dataDictionary(), null, 2)}\n`, 1),
+    makeEntry(
+      "students.csv",
+      csv(["user_id", "display_name", "active", "represented_session_count"], [...students.values()]),
+      students.size
+    ),
+    makeEntry(
+      "sessions.csv",
+      csv([
+        "session_public_id",
+        "student_user_id",
+        "student_display_label",
+        "assessment_public_id",
+        "assessment_title",
+        "attempt_number",
+        "status",
+        "current_phase",
+        "current_concept_unit_public_id",
+        "started_at",
+        "last_activity_at",
+        "completed_at"
+      ], sessionRows),
+      sessionRows.length
+    ),
+    makeEntry(
+      "item_responses.csv",
+      csv([
+        "session_public_id",
+        "student_user_id",
+        "assessment_public_id",
+        "concept_unit_public_id",
+        "concept_unit_title",
+        "item_public_id",
+        "item_order",
+        "selected_option",
+        "reasoning_text",
+        "confidence_rating",
+        "skipped_item",
+        "skipped_reasoning",
+        "skipped_confidence",
+        "revision_count",
+        "missing_evidence_repair_offered",
+        "item_response_time_ms",
+        "item_started_at",
+        "item_submitted_at",
+        "item_version_snapshot"
+      ], itemResponseRows),
+      itemResponseRows.length
+    ),
+    makeEntry("conversation_turns_readable.jsonl", jsonl(readableRows), readableRows.length),
+    makeEntry("conversation_turns_structured_redacted.jsonl", jsonl(structuredTurnRows), structuredTurnRows.length),
+    makeEntry("response_packages.jsonl", jsonl(responsePackageRows), responsePackageRows.length),
+    makeEntry("process_events_summary.jsonl", jsonl(processSummaryRows), processSummaryRows.length),
+    makeEntry(
+      "process_event_counts.csv",
+      csv(["session_public_id", "event_type", "event_count"], processCountRows),
+      processCountRows.length
+    ),
+    makeEntry(
+      "engagement_evidence_packets.jsonl",
+      jsonl(audits.map((audit) => ({
+        session_public_id: asRecord(audit).session_public_id,
+        engagement_evidence_summary: safeJson(asRecord(audit).engagement_evidence_summary)
+      }))),
+      audits.length
+    ),
+    makeEntry("misconception_diagnosis_or_profile_packets.jsonl", jsonl(profileRows), profileRows.length),
+    makeEntry("formative_purpose_or_value_packets.jsonl", jsonl(formativeRows), formativeRows.length),
+    makeEntry("activity_runtime_attempts.jsonl", jsonl(activityRows), activityRows.length),
+    makeEntry("activity_misconception_evidence_records.jsonl", jsonl(evidenceRows), evidenceRows.length),
+    makeEntry("post_activity_diagnostic_snapshots.jsonl", jsonl(snapshotRows), snapshotRows.length),
+    makeEntry("agent_calls_summary.jsonl", jsonl(agentRows), agentRows.length),
+    makeEntry("session_data_completeness.jsonl", jsonl(audits.map((audit) => safeJson(audit))), audits.length),
+    makeEntry("limitations.jsonl", jsonl(limitationRows), limitationRows.length)
+  ];
+
+  if (includeRestrictedItemKeys) {
+    const restrictedRows = sessions.flatMap((session) =>
+      session.concept_unit_sessions.flatMap((conceptUnitSession) =>
+        conceptUnitSession.item_responses.map((response) => ({
+          session_public_id: session.session_public_id,
+          assessment_public_id: session.assessment.assessment_public_id,
+          concept_unit_public_id: conceptUnitSession.concept_unit.concept_unit_public_id,
+          item_public_id: response.item.item_public_id,
+          item_order: response.item.item_order,
+          correct_option: response.item.correct_option
+        }))
+      )
+    );
+    entries.push(
+      makeEntry(
+        "restricted_item_keys.csv",
+        csv([
+          "session_public_id",
+          "assessment_public_id",
+          "concept_unit_public_id",
+          "item_public_id",
+          "item_order",
+          "correct_option"
+        ], restrictedRows),
+        restrictedRows.length
+      ),
+      makeEntry(
+        "restricted_item_metadata_manifest.json",
+        `${JSON.stringify({
+          included: true,
+          warning:
+            "This restricted file contains item-key data. It is teacher/research-only and must not be shared with students.",
+          generated_at: generatedAt
+        }, null, 2)}\n`,
+        1
+      )
+    );
+  }
+
+  const manifestBase = {
+    export_version: TEACHER_RESEARCH_EXPORT_VERSION,
+    generated_at: generatedAt,
+    generated_by_role: input.generated_by_role ?? "teacher_researcher",
+    filters: {
+      session_public_id: input.session_public_id ?? null
+    },
+    included_tables_or_sources: entries.map((entry) => entry.path),
+    redaction_policy: {
+      public_ids_preferred: true,
+      raw_provider_output_excluded: true,
+      raw_provider_requests_excluded: true,
+      raw_process_payloads_excluded: true,
+      raw_misconception_ids_excluded: true,
+      raw_distractor_metadata_excluded: true,
+      default_answer_keys_excluded: !includeRestrictedItemKeys
+    },
+    restricted_item_keys_included: includeRestrictedItemKeys,
+    safety_exclusions: [
+      "API keys",
+      "headers",
+      "secrets",
+      "raw provider output",
+      "raw provider requests",
+      "raw keystrokes",
+      "raw clipboard text",
+      "raw browser URLs",
+      "raw process payloads unless explicitly summarized",
+      "raw internal database UUIDs",
+      "student-facing hidden answer keys unless restricted export is selected"
+    ],
+    limitations: [
+      "Synchronous local MVP export; very large datasets may need a background job in a later phase.",
+      "Process data are contextual evidence only and cannot infer misconduct.",
+      "Default export omits restricted item keys and raw diagnostic metadata."
+    ]
+  };
+
+  const manifestEntry = makeEntry(
+    "manifest.json",
+    `${JSON.stringify({ ...manifestBase, row_counts: { "manifest.json": 1, ...fileRowCounts(entries) } }, null, 2)}\n`,
+    1
+  );
+  const entriesWithManifest = [
+    manifestEntry,
+    ...entries
+  ];
+
+  assertResearchExportSafety(entriesWithManifest, includeRestrictedItemKeys);
+
+  const zipBuffer = createStoreOnlyZip(entriesWithManifest);
+  const filename = input.session_public_id
+    ? `${input.session_public_id}-research-export.zip`
+    : `teacher-research-export-${generatedAt.replace(/[:.]/g, "-")}.zip`;
+
+  return {
+    filename,
+    content_type: "application/zip",
+    buffer: zipBuffer,
+    files: entriesWithManifest,
+    manifest: { ...manifestBase, row_counts: fileRowCounts(entriesWithManifest) },
+    no_live_provider_call_made: true
+  };
+}

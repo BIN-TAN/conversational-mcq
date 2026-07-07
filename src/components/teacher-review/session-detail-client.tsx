@@ -8,6 +8,7 @@ import {
   errorFromUnknown,
   fetchItemResponses,
   fetchProcessEvents,
+  fetchReadableTranscript,
   fetchResponsePackages,
   fetchSessionDetail,
   fetchSessionDataAudit,
@@ -24,6 +25,7 @@ import {
 import type {
   ItemResponsesResponse,
   ProcessEventsResponse,
+  ReadableTranscriptResponse,
   ResponsePackagesResponse,
   SessionDataAuditResponse,
   SessionDetailResponse,
@@ -50,6 +52,7 @@ import {
 const tabs = [
   "overview",
   "item_responses",
+  "readable_transcript",
   "conversation_transcript",
   "process_events",
   "session_evidence_audit",
@@ -140,6 +143,18 @@ const eventTypes = [
 
 type Tab = (typeof tabs)[number];
 
+function tabLabel(tab: Tab) {
+  if (tab === "readable_transcript") {
+    return "Readable transcript";
+  }
+
+  if (tab === "conversation_transcript") {
+    return "Structured event log";
+  }
+
+  return label(tab);
+}
+
 function responseStateTone(value: string) {
   if (value === "answered_correctly") {
     return "good" as const;
@@ -185,6 +200,7 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [detail, setDetail] = useState<SessionDetailResponse | null>(null);
   const [itemResponses, setItemResponses] = useState<ItemResponsesResponse | null>(null);
+  const [readableTranscript, setReadableTranscript] = useState<ReadableTranscriptResponse | null>(null);
   const [transcript, setTranscript] = useState<TranscriptResponse | null>(null);
   const [responsePackages, setResponsePackages] = useState<ResponsePackagesResponse | null>(null);
   const [dataAudit, setDataAudit] = useState<SessionDataAuditResponse | null>(null);
@@ -226,10 +242,11 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
     setError(null);
 
     try {
-      const [detailResult, itemResult, transcriptResult, packageResult, dataAuditResult] =
+      const [detailResult, itemResult, readableTranscriptResult, transcriptResult, packageResult, dataAuditResult] =
         await Promise.all([
           fetchSessionDetail(sessionPublicId),
           fetchItemResponses(sessionPublicId),
+          fetchReadableTranscript(sessionPublicId),
           fetchTranscript(sessionPublicId),
           fetchResponsePackages(sessionPublicId),
           fetchSessionDataAudit(sessionPublicId)
@@ -237,6 +254,7 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
 
       setDetail(detailResult);
       setItemResponses(itemResult);
+      setReadableTranscript(readableTranscriptResult);
       setTranscript(transcriptResult);
       setResponsePackages(packageResult);
       setDataAudit(dataAuditResult);
@@ -468,7 +486,7 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
                 onClick={() => setActiveTab(tab)}
                 type="button"
               >
-                {label(tab)}
+                {tabLabel(tab)}
               </button>
             ))}
           </div>
@@ -482,6 +500,12 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
           ) : null}
           {activeTab === "item_responses" && itemResponses ? (
             <ItemResponsesSection data={itemResponses} />
+          ) : null}
+          {activeTab === "readable_transcript" && readableTranscript ? (
+            <ReadableTranscriptSection
+              data={readableTranscript}
+              sessionPublicId={sessionPublicId}
+            />
           ) : null}
           {activeTab === "conversation_transcript" && transcript ? (
             <TranscriptSection data={transcript} />
@@ -854,6 +878,101 @@ function ItemResponsesSection({ data }: { data: ItemResponsesResponse }) {
   );
 }
 
+function ReadableTranscriptSection({
+  data,
+  sessionPublicId
+}: {
+  data: ReadableTranscriptResponse;
+  sessionPublicId: string;
+}) {
+  if (data.turns.length === 0) {
+    return <EmptyState title="No readable transcript turns are recorded yet." />;
+  }
+
+  return (
+    <section className="space-y-4">
+      <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="font-semibold text-emerald-950">Readable transcript</h3>
+            <p className="mt-1">
+              Conversation-only teacher/research view. Structured payloads, answer keys,
+              correctness labels, provider output, process payloads, and internal metadata are
+              omitted here.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <a
+              className="inline-flex h-9 items-center rounded-md border border-emerald-300 bg-white px-3 text-sm font-semibold text-emerald-950 hover:border-emerald-500"
+              href={`/api/teacher/sessions/${sessionPublicId}/readable-transcript/download`}
+            >
+              Download readable transcript
+            </a>
+            <a
+              className="inline-flex h-9 items-center rounded-md border border-emerald-300 bg-white px-3 text-sm font-semibold text-emerald-950 hover:border-emerald-500"
+              href={`/api/teacher/sessions/${sessionPublicId}/research-export`}
+            >
+              Download session research data
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-line bg-white p-4">
+        <dl className="grid gap-3 text-sm md:grid-cols-3">
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Student</dt>
+            <dd className="mt-1 text-ink">{data.student_display_label}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Assessment</dt>
+            <dd className="mt-1 text-ink">{data.assessment_label}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Turns</dt>
+            <dd className="mt-1 text-ink">{data.turns.length}</dd>
+          </div>
+        </dl>
+        {data.limitations.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {data.limitations.map((limitation) => (
+              <StatusPill key={limitation} value={limitation} tone="warn" />
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="space-y-3">
+        {data.turns.map((turn) => (
+          <article
+            className={`rounded-lg border border-line bg-white p-4 ${
+              turn.speaker === "student" ? "ml-auto max-w-4xl" : "mr-auto max-w-4xl"
+            }`}
+            key={`${turn.turn_index}-${turn.timestamp}`}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusPill value={turn.speaker} />
+              <StatusPill value={turn.phase_label} tone="warn" />
+              <span className="text-xs text-muted">{formatDate(turn.timestamp)}</span>
+            </div>
+            {turn.safe_context_label ? (
+              <p className="mt-2 text-xs font-medium text-muted">{turn.safe_context_label}</p>
+            ) : null}
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink">
+              {turn.message_text}
+            </p>
+            {turn.has_structured_payload_available_elsewhere ? (
+              <p className="mt-2 text-xs text-muted">
+                Structured metadata is available in the Structured event log.
+              </p>
+            ) : null}
+          </article>
+        ))}
+      </section>
+    </section>
+  );
+}
+
 function TranscriptSection({ data }: { data: TranscriptResponse }) {
   if (data.turns.length === 0) {
     return <EmptyState title="No transcript turns are recorded yet." />;
@@ -861,6 +980,13 @@ function TranscriptSection({ data }: { data: TranscriptResponse }) {
 
   return (
     <section className="space-y-3">
+      <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+        <h3 className="font-semibold">Structured event log</h3>
+        <p className="mt-1">
+          Audit view with redacted structured payloads. Use the Readable transcript tab for a
+          conversation-only view.
+        </p>
+      </section>
       {data.turns.map((turn, index) => (
         <article className="rounded-lg border border-line bg-white p-4" key={`${turn.created_at}-${index}`}>
           <div className="flex flex-wrap items-center gap-2">

@@ -709,3 +709,39 @@ misconception IDs, internal database UUIDs, and secrets.
 
 Process data are evidence-quality context. They should not be used alone to
 infer misconception, ability, cheating, or misconduct.
+
+## Teacher/Research Readable Transcript And Bulk Export
+
+Teacher/research session review now separates:
+
+- **Readable transcript**: conversation-only view with speaker, timestamp,
+  safe phase/context labels, and message text.
+- **Structured event log**: the existing audit view with redacted structured
+  payload blocks.
+
+Per-session downloads:
+
+```bash
+/api/teacher/sessions/<session_public_id>/readable-transcript/download
+/api/teacher/sessions/<session_public_id>/research-export
+```
+
+Bulk all-session research ZIP:
+
+```bash
+/api/teacher/research-export
+```
+
+Default research ZIP exports include a manifest, README, data dictionary,
+students, sessions, item responses, readable transcripts, redacted structured
+turns, response-package summaries, process summaries/counts, engagement/profile
+and formative summaries, activity runtime/evidence/snapshot summaries,
+agent-call summaries, completeness audits, and limitations. Restricted item
+keys are excluded by default.
+
+No OpenAI call is made by export or transcript commands. Verify locally with:
+
+```bash
+npm run student:teacher-readable-transcript-smoke
+npm run student:teacher-bulk-export-smoke
+```

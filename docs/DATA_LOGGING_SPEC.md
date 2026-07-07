@@ -267,3 +267,83 @@ or secrets.
 
 Process data remain evidence-quality context. They should not be used alone to
 infer misconception, ability, cheating, or misconduct.
+
+## Teacher/Research Readable Transcript And Bulk Export
+
+Phase 30i adds two read-only teacher/research data surfaces over existing
+tables before proposing any schema changes.
+
+### Readable Transcript
+
+The teacher session detail page includes a **Readable transcript** tab separate
+from the existing structured transcript audit view, now labelled **Structured
+event log**. The readable transcript projection contains:
+
+- `session_public_id`
+- `student_display_label`
+- `assessment_label`
+- ordered turns with `speaker`, `timestamp`, `phase_label`,
+  `safe_context_label`, `message_text`, and
+  `has_structured_payload_available_elsewhere`
+- limitations, such as hidden empty-text turns
+
+It uses `conversation_turns` plus safe item/concept labels and current
+`item_responses` for legacy edited-response reconstruction. It does not expose
+structured payloads, raw JSON, answer keys, correct options, correctness
+labels, distractor metadata, misconception IDs, process payloads, provider raw
+output, or secrets.
+
+### Research ZIP Export
+
+The teacher data area provides **Download all research data**. Per-session
+teacher review also provides **Download readable transcript** and **Download
+session research data**.
+
+The default ZIP contains:
+
+- `manifest.json`
+- `README_EXPORT.md`
+- `data_dictionary.json`
+- `students.csv`
+- `sessions.csv`
+- `item_responses.csv`
+- `conversation_turns_readable.jsonl`
+- `conversation_turns_structured_redacted.jsonl`
+- `response_packages.jsonl`
+- `process_events_summary.jsonl`
+- `process_event_counts.csv`
+- `engagement_evidence_packets.jsonl`
+- `misconception_diagnosis_or_profile_packets.jsonl`
+- `formative_purpose_or_value_packets.jsonl`
+- `activity_runtime_attempts.jsonl`
+- `activity_misconception_evidence_records.jsonl`
+- `post_activity_diagnostic_snapshots.jsonl`
+- `agent_calls_summary.jsonl`
+- `session_data_completeness.jsonl`
+- `limitations.jsonl`
+
+Default exports exclude restricted item-key files. Explicit restricted export
+requests can add `restricted_item_keys.csv` and
+`restricted_item_metadata_manifest.json`; the manifest marks that restricted
+keys were included.
+
+The data dictionary defines response-time fields, process-event count
+definitions, units, collection sources, and interpretation limits. Timing
+definitions include:
+
+- `item_response_time_ms`: item wall-clock response time, including idle time.
+- `package_wall_clock_duration_ms`: first item presentation to package
+  completion/submission.
+- `package_active_response_duration_ms`: first recorded student response action
+  to package completion/submission.
+- `focus_adjusted_duration_ms`: wall-clock duration minus safely detected
+  hidden/blur/pause intervals when available.
+- `reasoning_input_elapsed_time_ms`: first recorded reasoning input/key event to
+  summary flush, field submission, or item completion; not pure active typing.
+- `active_typing_time_ms`: available only if explicitly instrumented.
+
+The export service redacts internal IDs, secrets, raw provider input/output,
+raw process payloads, answer-key/correct-option markers in default data files,
+raw distractor metadata, and raw misconception IDs. Missing optional sources
+are represented in `limitations.jsonl` and session data completeness rows
+rather than causing the whole export to fail.
