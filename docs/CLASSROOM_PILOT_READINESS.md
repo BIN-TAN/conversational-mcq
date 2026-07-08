@@ -138,21 +138,23 @@ Before using a public URL with students:
 3. Run `npm run student:render-staging-readiness-smoke`.
 4. Run `npm run student:production-deployment-readiness-smoke`.
 5. Confirm Render pre-deploy ran `npm run prisma:migrate:deploy` against the deployment database.
-6. Verify `GET /api/health` returns a safe healthy response.
-7. Verify teacher login on the public URL.
-8. Create or import the classroom.
-9. Create or import approved student accounts or access codes.
-10. Copy the public HTTPS Conversational MCQ URL.
-11. Add the URL to a Canvas assignment page or Canvas module item.
-12. Test the link from a non-development student device or browser profile.
-13. Student signs in with classroom ID and access code/password inside Conversational MCQ.
-14. Student completes the three-item package.
-15. Student completes one activity response path.
-16. Teacher opens session detail.
-17. Teacher reviews readable transcript, structured event log, process events, and session evidence audit.
-18. Teacher downloads all research data.
-19. Run `npm run student:research-export-integrity-smoke`.
-20. Complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`.
+6. On a fresh database, run `npm run staging:bootstrap-pilot` once with explicit `BOOTSTRAP_*` environment variables.
+7. Store the generated access-code CSV securely and delete transient copies when no longer needed.
+8. Verify `GET /api/health` returns a safe healthy response.
+9. Verify teacher login on the public URL.
+10. Create or import the classroom if a later schema adds classroom records; in this schema version, use the bootstrap classroom ID as the course/access label.
+11. Create or import approved student accounts or access codes.
+12. Copy the public HTTPS Conversational MCQ URL.
+13. Add the URL to a Canvas assignment page or Canvas module item.
+14. Test the link from a non-development student device or browser profile.
+15. Student signs in with classroom ID and access code/password inside Conversational MCQ.
+16. Student completes the three-item package.
+17. Student completes one activity response path.
+18. Teacher opens session detail.
+19. Teacher reviews readable transcript, structured event log, process events, and session evidence audit.
+20. Teacher downloads all research data.
+21. Run `npm run student:research-export-integrity-smoke`.
+22. Complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`.
 
 Canvas assignment/module wording:
 
@@ -165,3 +167,18 @@ The public deployment must preserve the same protected-data boundaries as local 
 Canvas gradebook will not automatically receive completion or scores. Teacher/research review and exports remain inside Conversational MCQ.
 
 Render staging resources should use non-free, classroom-pilot-appropriate plans. Store `OPENAI_API_KEY`, `DATABASE_URL`, `SESSION_SECRET`, and any other credentials only in Render's server-side environment variable UI; never in `NEXT_PUBLIC_` variables.
+
+First-run bootstrap command:
+
+```bash
+BOOTSTRAP_ENABLED=true \
+BOOTSTRAP_TEACHER_USERNAME=<teacher-user-id> \
+BOOTSTRAP_TEACHER_PASSWORD=<teacher-password> \
+BOOTSTRAP_CLASSROOM_ID=<classroom-id> \
+BOOTSTRAP_CLASSROOM_NAME=<classroom-name> \
+BOOTSTRAP_STUDENT_COUNT=<number-of-students> \
+BOOTSTRAP_DEFAULT_ASSESSMENT_ID=assessment_mvp_irt_theta_invariance \
+npm run staging:bootstrap-pilot
+```
+
+Use `BOOTSTRAP_STUDENT_ROSTER_PATH=<csv>` instead of `BOOTSTRAP_STUDENT_COUNT` when the approved pilot roster is ready. The command writes newly generated student access codes under ignored `.data/bootstrap/` and does not print them in terminal output.

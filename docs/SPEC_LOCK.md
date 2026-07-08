@@ -2111,3 +2111,25 @@ Phase 6A.5 must not implement:
   roster sync, Developer Key configuration, or Canvas API integration.
 - Phase 31c does not create Render accounts, connect GitHub, deploy the app,
   provision cloud resources, run provider calls, or claim classroom validity.
+
+## Phase 31d Fresh Staging Bootstrap Lock
+
+- Fresh staging database bootstrap must be an explicit operator command after
+  migrations, not an automatic Render pre-deploy step.
+- `staging:bootstrap-pilot` may create or reuse the first teacher/researcher
+  account, create only missing pilot student accounts, ensure the fixed IRT MVP
+  assessment is published, and write newly generated student access codes under
+  ignored `.data/bootstrap/`.
+- The bootstrap command must require `BOOTSTRAP_ENABLED=true` and explicit
+  `BOOTSTRAP_*` variables. It must not silently create accounts from defaults.
+- The bootstrap command must not print raw passwords, access codes, database
+  URLs, OpenAI keys, session secrets, cookies, or tokens. Terminal output may
+  include counts, public user IDs, assessment public IDs, classroom label, and
+  the ignored local credential-output path.
+- The current schema has no dedicated classroom table. `BOOTSTRAP_CLASSROOM_ID`
+  is a deployment/course access label stored in safe bootstrap metadata and
+  access-code distribution materials; student login remains `user_id` plus
+  roster-issued access code/password.
+- `student:staging-bootstrap-smoke` is no-live and must not call OpenAI, deploy
+  the app, contact Render, mutate item content, change scoring, edit prompts, or
+  expose generated credentials in logs.

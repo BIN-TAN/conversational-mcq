@@ -145,6 +145,48 @@ npm run prisma:migrate:deploy
 
 If migrations fail, stop and investigate before allowing students to open the link.
 
+## Step 10b: Bootstrap the Fresh Database
+
+Render `preDeployCommand` runs migrations only. It should not create users or access codes automatically on every deploy.
+
+After the first successful deploy against a fresh Render Postgres database, run the bootstrap command once as an explicit operator step from Render Shell or a one-off manual command with temporary environment variables set for that command:
+
+```bash
+BOOTSTRAP_ENABLED=true \
+BOOTSTRAP_TEACHER_USERNAME=<teacher-user-id> \
+BOOTSTRAP_TEACHER_PASSWORD=<teacher-password> \
+BOOTSTRAP_CLASSROOM_ID=<classroom-id> \
+BOOTSTRAP_CLASSROOM_NAME=<classroom-name> \
+BOOTSTRAP_STUDENT_COUNT=<number-of-students> \
+BOOTSTRAP_DEFAULT_ASSESSMENT_ID=assessment_mvp_irt_theta_invariance \
+npm run staging:bootstrap-pilot
+```
+
+For a roster file instead of generated student IDs, set:
+
+```text
+BOOTSTRAP_STUDENT_ROSTER_PATH=<path-to-csv-with-user_id,display_name>
+```
+
+and omit `BOOTSTRAP_STUDENT_COUNT`.
+
+The command is idempotent:
+
+- existing teacher accounts are reused;
+- existing student accounts are reused;
+- the fixed IRT MVP assessment is created or refreshed as published;
+- student access codes are generated only for newly created students.
+
+The command does not print raw passwords or access codes. If new student access codes are generated, it writes a CSV under:
+
+```text
+.data/bootstrap/
+```
+
+That directory is ignored by Git. Copy the access-code CSV to an approved secure location, then delete it from the shell environment if required by your data-handling plan.
+
+Screenshot placeholder: Render Shell bootstrap command with secrets hidden.
+
 ## Step 11: Open the Render URL
 
 Open the public Render URL, usually:
@@ -175,7 +217,7 @@ Screenshot placeholder: Teacher dashboard.
 
 ## Step 14: Create or Check Classroom and Student Codes
 
-Create or verify the classroom and approved student accounts/access codes for the staging pilot. Do not import a real roster unless the pilot approval explicitly covers it.
+Create or verify the classroom and approved student accounts/access codes for the staging pilot. In this schema version, the classroom ID is a deployment/course access label recorded in bootstrap metadata and access-code distribution materials; student login uses the existing `user_id` plus roster-issued access code/password flow. Do not import a real roster unless the pilot approval explicitly covers it.
 
 Screenshot placeholder: Classroom/student account management.
 

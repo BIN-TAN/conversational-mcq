@@ -197,6 +197,33 @@ Before each deployment:
 
 Do not reset a production database. Do not run local seed commands against production unless a specific production seed procedure has been reviewed.
 
+## First-Run Staging Bootstrap
+
+Migrations create the database schema but do not automatically create the first pilot teacher account or student access codes. For Render staging, bootstrap must be a separate explicit operator command after migrations, not a Render pre-deploy command that runs on every deploy.
+
+Use:
+
+```bash
+npm run staging:bootstrap-pilot
+```
+
+with these environment variables set for that command:
+
+```text
+BOOTSTRAP_ENABLED=true
+BOOTSTRAP_TEACHER_USERNAME=<teacher-user-id>
+BOOTSTRAP_TEACHER_PASSWORD=<teacher-password>
+BOOTSTRAP_CLASSROOM_ID=<classroom-id>
+BOOTSTRAP_CLASSROOM_NAME=<classroom-name>
+BOOTSTRAP_STUDENT_COUNT=<number-of-students>
+BOOTSTRAP_STUDENT_ROSTER_PATH=<optional-csv-path>
+BOOTSTRAP_DEFAULT_ASSESSMENT_ID=assessment_mvp_irt_theta_invariance
+```
+
+Use either `BOOTSTRAP_STUDENT_COUNT` or `BOOTSTRAP_STUDENT_ROSTER_PATH`, not both. The current schema has no separate classroom table; `BOOTSTRAP_CLASSROOM_ID` is stored as safe bootstrap metadata and used in generated student IDs/access-code distribution. Student login continues to use `user_id` plus roster-issued access code/password.
+
+The command is idempotent, creates or reuses the first teacher, creates only missing students, ensures the fixed IRT MVP assessment is published, and writes newly generated access codes under ignored `.data/bootstrap/`. It does not print raw passwords or access codes.
+
 ## Health Checks
 
 ### App Health
@@ -243,22 +270,23 @@ Generated export artifacts remain under ignored local paths and must not be comm
 2. Run `npm run student:render-staging-readiness-smoke`.
 3. Run `npm run student:production-deployment-readiness-smoke`.
 4. Confirm Render pre-deploy ran `npm run prisma:migrate:deploy`.
-5. Confirm `/api/health` returns `200`.
-6. Confirm `npm run llm:readiness` reports the intended server-side live readiness before a live pilot.
-7. Log in as `teacher_researcher`.
-8. Create or import the classroom.
-9. Create or import approved student accounts and access codes/passwords.
-10. Copy the public HTTPS Conversational MCQ URL.
-11. Add the URL to a Canvas assignment page or Canvas module item.
-12. Have a student open the URL from a non-development device/browser profile.
-13. Student signs in with classroom ID and access code/password.
-14. Student completes the three protected initial items.
-15. Student completes the activity response and move-on/choose-another path.
-16. Have the teacher inspect session detail, readable transcript, structured event log, process events, session evidence audit, and research export.
-17. Download all research data.
-18. Run export integrity review.
-19. Complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`.
-20. Record only safe pass/fail observations, public IDs, status fields, and limitations.
+5. On a fresh database, run `npm run staging:bootstrap-pilot` once with explicit `BOOTSTRAP_*` values.
+6. Confirm `/api/health` returns `200`.
+7. Confirm `npm run llm:readiness` reports the intended server-side live readiness before a live pilot.
+8. Log in as `teacher_researcher`.
+9. Create or import the classroom if the deployment has a later classroom table; otherwise use the bootstrap classroom ID as the course/access label.
+10. Create or import approved student accounts and access codes/passwords.
+11. Copy the public HTTPS Conversational MCQ URL.
+12. Add the URL to a Canvas assignment page or Canvas module item.
+13. Have a student open the URL from a non-development device/browser profile.
+14. Student signs in with classroom ID and access code/password.
+15. Student completes the three protected initial items.
+16. Student completes the activity response and move-on/choose-another path.
+17. Have the teacher inspect session detail, readable transcript, structured event log, process events, session evidence audit, and research export.
+18. Download all research data.
+19. Run export integrity review.
+20. Complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`.
+21. Record only safe pass/fail observations, public IDs, status fields, and limitations.
 
 Fallback if LLM is unavailable:
 

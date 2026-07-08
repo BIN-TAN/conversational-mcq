@@ -243,6 +243,10 @@ export async function ensureDemoUsers(prisma: PrismaClient) {
 
 export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
   const { teacher } = await ensureDemoUsers(prisma);
+  return ensureFixedIrtMvpAssessment(prisma, teacher.id);
+}
+
+export async function ensureFixedIrtMvpAssessment(prisma: PrismaClient, createdByUserDbId: string) {
   const existing = await prisma.assessment.findUnique({
     where: { assessment_public_id: demoAssessmentPublicId },
     include: {
@@ -252,8 +256,8 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
     }
   });
 
-  if (existing?._count.assessment_sessions) {
-    if (existing.status !== "published") {
+  if (existing) {
+    if (existing._count.assessment_sessions && existing.status !== "published") {
       throw new Error(
         "The demo assessment has existing sessions but is not published. Run npm run demo:student-assessment:cleanup before recreating it."
       );
@@ -265,6 +269,7 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
         title: "IRT Theta Invariance and Item Parameters",
         description:
           "Fixed MVP assessment for theta invariance, item difficulty, and item discrimination.",
+        status: "published",
         workflow_mode: "automatic",
         release_at: null,
         close_at: null
@@ -276,19 +281,8 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
     return updatedAssessment;
   }
 
-  const assessment = await prisma.assessment.upsert({
-    where: { assessment_public_id: demoAssessmentPublicId },
-    update: {
-      title: "IRT Theta Invariance and Item Parameters",
-      description:
-        "Fixed MVP assessment for theta invariance, item difficulty, and item discrimination.",
-      status: "published",
-      workflow_mode: "automatic",
-      release_at: null,
-      close_at: null,
-      created_by_user_db_id: teacher.id
-    },
-    create: {
+  const assessment = await prisma.assessment.create({
+    data: {
       assessment_public_id: demoAssessmentPublicId,
       title: "IRT Theta Invariance and Item Parameters",
       description:
@@ -297,7 +291,7 @@ export async function ensureDemoStudentAssessment(prisma: PrismaClient) {
       workflow_mode: "automatic",
       release_at: null,
       close_at: null,
-      created_by_user_db_id: teacher.id
+      created_by_user_db_id: createdByUserDbId
     }
   });
   const conceptUnit = await prisma.conceptUnit.upsert({

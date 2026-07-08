@@ -45,6 +45,21 @@ Canvas gradebook will not automatically receive completion or scores. Teacher/re
 
 After deployment, complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md` before sharing the Canvas link with students.
 
+For a fresh Render database, run the explicit bootstrap command after migrations and before teacher/student login checks:
+
+```bash
+BOOTSTRAP_ENABLED=true \
+BOOTSTRAP_TEACHER_USERNAME=<teacher-user-id> \
+BOOTSTRAP_TEACHER_PASSWORD=<teacher-password> \
+BOOTSTRAP_CLASSROOM_ID=<classroom-id> \
+BOOTSTRAP_CLASSROOM_NAME=<classroom-name> \
+BOOTSTRAP_STUDENT_COUNT=<number-of-students> \
+BOOTSTRAP_DEFAULT_ASSESSMENT_ID=assessment_mvp_irt_theta_invariance \
+npm run staging:bootstrap-pilot
+```
+
+The command is not part of Render pre-deploy and should not run automatically on every deploy. It writes new student access codes under ignored `.data/bootstrap/` and does not print them by default.
+
 ## Local Run Commands
 
 Start from a clean working tree and run the database and application setup used by the project:

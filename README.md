@@ -97,6 +97,21 @@ Never put OpenAI keys, database URLs, session secrets, cookies, or auth tokens i
 
 Render setup is documented for non-developer operation in `docs/RENDER_STAGING_DEPLOYMENT_RUNBOOK.md`. Secrets and deployment-specific values marked `sync: false` in `render.yaml` must be filled in the Render Dashboard only.
 
+After Render migrations complete on a fresh database, run the first-run bootstrap as a separate explicit operator step, not as an automatic deploy step:
+
+```bash
+BOOTSTRAP_ENABLED=true \
+BOOTSTRAP_TEACHER_USERNAME=<teacher-user-id> \
+BOOTSTRAP_TEACHER_PASSWORD=<teacher-password> \
+BOOTSTRAP_CLASSROOM_ID=<classroom-id> \
+BOOTSTRAP_CLASSROOM_NAME=<classroom-name> \
+BOOTSTRAP_STUDENT_COUNT=<number-of-students> \
+BOOTSTRAP_DEFAULT_ASSESSMENT_ID=assessment_mvp_irt_theta_invariance \
+npm run staging:bootstrap-pilot
+```
+
+Use `BOOTSTRAP_STUDENT_ROSTER_PATH=<csv>` instead of `BOOTSTRAP_STUDENT_COUNT` for an approved roster CSV with `user_id` and `display_name` columns. The bootstrap reuses existing records, writes new access codes under ignored `.data/bootstrap/`, and does not print raw passwords or access codes. Run `npm run student:staging-bootstrap-smoke` locally to verify the bootstrap path without provider calls.
+
 Canvas gradebook does not automatically receive completion or scores. Use Conversational MCQ teacher/research exports for completion review and research data. Canvas LTI 1.3 may be considered later only after public-link pilots are stable and after Canvas administrator support, Developer Key configuration, OIDC launch handling, deployment IDs, user/course mapping, and separate privacy review.
 
 ### Database
