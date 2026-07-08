@@ -1,6 +1,6 @@
 # Production Deployment Readiness
 
-Phase 31b prepares the fixed IRT, chat-native MVP for a future public HTTPS deployment. It is not a public launch approval, classroom-validity claim, Canvas LTI implementation, or authorization to use real student data before institutional approval.
+Phase 31b prepares the fixed IRT, chat-native MVP for a future public HTTPS deployment. The classroom access plan is Canvas-link only: Canvas may host a hyperlink to the public Conversational MCQ website, but Conversational MCQ owns login, activity delivery, teacher review, and export. This is not a public launch approval, classroom-validity claim, Canvas LTI implementation, or authorization to use real student data before institutional approval.
 
 Run the no-live readiness smoke:
 
@@ -9,6 +9,17 @@ npm run student:production-deployment-readiness-smoke
 ```
 
 The smoke prints only safe booleans, variable names, status labels, counts, and output hashes. It must not print `DATABASE_URL`, OpenAI keys, session secrets, raw provider output, raw prompts, answer keys, correct options, or correctness labels. Missing production-only values are reported as documented gaps rather than leaked values.
+
+The smoke also reports:
+
+```json
+{
+  "canvas_access_mode": "external_link",
+  "canvas_lti_required": false,
+  "canvas_grade_passback_supported": false,
+  "public_https_required_for_classroom": true
+}
+```
 
 ## Recommended Architecture
 
@@ -39,6 +50,8 @@ Staging should mirror production infrastructure with synthetic accounts and synt
 ### Production
 
 Production should use a managed database, HTTPS, server-managed secrets, backups, and explicit classroom/IRB/school approval before real students use the system. Production should not use local demo secrets, local database passwords, `.env.local` files copied from development, or generated `.data/` artifacts.
+
+Production `APP_BASE_URL` must be a public HTTPS URL. `localhost`, `127.0.0.1`, and non-HTTPS origins are not valid for classroom access.
 
 ## Required Environment Variables
 
@@ -81,6 +94,59 @@ WORKFLOW_JOB_POLL_INTERVAL_MS
 ```
 
 Use `.env.example` only as a template. Do not commit real values.
+
+`NEXT_PUBLIC_APP_BASE_URL` is allowed only because it is harmless browser-visible public URL configuration. Do not put OpenAI keys, database URLs, session secrets, cookies, access-code hashes, authorization headers, or auth tokens in any `NEXT_PUBLIC_` variable.
+
+## Canvas-Link Classroom Access
+
+Canvas is used only as a place to post the public Conversational MCQ URL.
+
+Access model:
+
+```text
+Canvas assignment page or Canvas module item
+-> public HTTPS Conversational MCQ URL
+-> student enters classroom ID and access code/password
+-> student completes activity inside Conversational MCQ
+-> teacher/researcher reviews and exports data inside Conversational MCQ
+```
+
+Supported boundaries:
+
+- Students leave Canvas and open the public Conversational MCQ website.
+- Students authenticate in Conversational MCQ with the classroom ID and access code/password supplied by the instructor.
+- Teacher/research data review happens in Conversational MCQ, not Canvas.
+- Teacher/research export happens in Conversational MCQ, not Canvas.
+- Canvas gradebook does not automatically receive completion, scores, statuses, or research data.
+- No Canvas LTI, Canvas OAuth, Canvas grade passback, Canvas roster sync, Canvas Developer Key setup, or Canvas API integration is implemented in this phase.
+
+### Canvas Assignment Page
+
+1. Open the Canvas course.
+2. Create or edit the assignment.
+3. In the assignment description, use the Canvas Rich Content Editor.
+4. Add an external hyperlink to the public HTTPS Conversational MCQ URL.
+5. Include the classroom ID and access-code/password instructions approved for the pilot.
+6. Tell students that completion and research review happen inside Conversational MCQ, not through Canvas grade passback.
+
+Suggested wording:
+
+```text
+Open the Conversational MCQ activity using the link below. Use the classroom ID and access code provided by your instructor. Complete the activity in one sitting if possible. If the page says it could not safely review a response, follow the on-screen options to try again, choose another activity, or move on. Your teacher will review completion and research data inside the Conversational MCQ system, not through Canvas grade passback.
+```
+
+### Canvas Module Item
+
+1. Open the Canvas module.
+2. Add an item to the module.
+3. Choose `External URL`.
+4. Paste the public HTTPS Conversational MCQ URL.
+5. Use `load in new tab` if desired.
+6. Tell students to return to Canvas only after finishing the Conversational MCQ activity.
+
+## Future Canvas LTI
+
+Canvas LTI 1.3 may be considered later only after public-link classroom pilots are stable. LTI would require Canvas administrator support, Developer Key configuration, OIDC launch handling, deployment IDs, user/course mapping, grade/service decisions, and separate privacy review. It is not part of the current classroom pilot.
 
 ## Secret Rules
 
@@ -150,20 +216,24 @@ Generated export artifacts remain under ignored local paths and must not be comm
 
 ## Classroom Web Access Plan
 
-1. Deploy a staging HTTPS URL.
+1. Deploy a staging or production HTTPS URL.
 2. Run `npm run student:production-deployment-readiness-smoke`.
 3. Run `npm run prisma:migrate:deploy`.
 4. Confirm `/api/health` returns `200`.
 5. Confirm `npm run llm:readiness` reports the intended server-side live readiness before a live pilot.
 6. Log in as `teacher_researcher`.
-7. Create or import approved student accounts.
-8. Give students the public HTTPS URL and approved login/access-code instructions.
-9. Have a student open the URL from a non-development device/network.
-10. Complete the three protected initial items.
-11. Complete the activity response and move-on/choose-another path.
-12. Have the teacher inspect readable transcript, structured event log, session evidence audit, and research export.
-13. Download research data and run export integrity checks.
-14. Record only safe pass/fail observations, public IDs, status fields, and limitations.
+7. Create or import the classroom.
+8. Create or import approved student accounts and access codes/passwords.
+9. Copy the public HTTPS Conversational MCQ URL.
+10. Add the URL to a Canvas assignment page or Canvas module item.
+11. Have a student open the URL from a non-development device/browser profile.
+12. Student signs in with classroom ID and access code/password.
+13. Student completes the three protected initial items.
+14. Student completes the activity response and move-on/choose-another path.
+15. Have the teacher inspect session detail, readable transcript, structured event log, process events, session evidence audit, and research export.
+16. Download all research data.
+17. Run export integrity review.
+18. Record only safe pass/fail observations, public IDs, status fields, and limitations.
 
 Fallback if LLM is unavailable:
 
@@ -218,4 +288,4 @@ npm run prisma:migrate:deploy
 
 ## Phase 31b Boundary
 
-Phase 31b adds readiness checks and deployment documentation. It does not implement Canvas LTI, email/SMS delivery, public self-registration, production monitoring integrations, cloud-provider provisioning, or classroom validity. Those require separate approval.
+Phase 31b adds readiness checks and deployment documentation for Canvas-link access. It does not implement Canvas LTI, Canvas OAuth, grade passback, roster sync, Canvas Developer Key configuration, Canvas API integration, email/SMS delivery, public self-registration, production monitoring integrations, cloud-provider provisioning, or classroom validity. Those require separate approval.

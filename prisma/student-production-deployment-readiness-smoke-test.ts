@@ -37,6 +37,7 @@ const REQUIRED_ENV_VARS = [
 
 const BASE_URL_ENV_VARS = ["APP_BASE_URL", "NEXT_PUBLIC_APP_BASE_URL", "NEXTAUTH_URL", "VERCEL_URL"] as const;
 const PUBLIC_SECRET_NAME_PATTERN = /(?:SECRET|TOKEN|KEY|PASSWORD|DATABASE|OPENAI|AUTH|COOKIE)/iu;
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
 const SECRET_VALUE_PATTERNS = [
   /sk-(?:proj|svcacct)-[A-Za-z0-9_-]{20,}/u,
   /OPENAI_API_KEY\s*=\s*["']?sk-(?:proj|svcacct)-[A-Za-z0-9_-]{20,}/u,
@@ -54,6 +55,29 @@ function configured(name: string) {
 
 function configuredEither(names: readonly string[]) {
   return names.some((name) => configured(name));
+}
+
+function appEnvironment() {
+  const value = process.env.APP_ENV || process.env.NODE_ENV || "local";
+  return value === "production" || value === "staging" || value === "local"
+    ? value
+    : "local";
+}
+
+function isProductionMode() {
+  return appEnvironment() === "production" || process.env.NODE_ENV === "production";
+}
+
+function parseUrl(value?: string) {
+  if (!value || value.trim().length === 0) {
+    return null;
+  }
+
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
 }
 
 function redactKnownSensitiveValues(value: string) {
@@ -163,19 +187,64 @@ async function checkBaseUrlConfig() {
     new RegExp(`^${name}=`, "mu").test(envExample)
   );
   const runtimeConfigured = configuredEither(BASE_URL_ENV_VARS);
+  const productionMode = isProductionMode();
+  const appBaseUrl = parseUrl(process.env.APP_BASE_URL);
+  const publicBaseUrl = parseUrl(process.env.NEXT_PUBLIC_APP_BASE_URL);
+  const appBaseHttps = appBaseUrl?.protocol === "https:";
+  const appBaseLocalhost = appBaseUrl ? LOCAL_HOSTNAMES.has(appBaseUrl.hostname) : null;
+  const publicBaseUrlSafe =
+    !configured("NEXT_PUBLIC_APP_BASE_URL") ||
+    (Boolean(publicBaseUrl) &&
+      (publicBaseUrl?.protocol === "https:" ||
+        (publicBaseUrl?.protocol === "http:" && LOCAL_HOSTNAMES.has(publicBaseUrl.hostname))));
+  const productionBaseUrlOk = !productionMode || (Boolean(appBaseUrl) && appBaseHttps && appBaseLocalhost === false);
+  const status = !exampleDefinesBaseUrl || !publicBaseUrlSafe || !productionBaseUrlOk
+    ? productionMode
+      ? "fail"
+      : "warning"
+    : "pass";
 
   addCheck({
     name: "base_url_config",
-    status: exampleDefinesBaseUrl ? "pass" : "warning",
-    detail: runtimeConfigured
-      ? "A staging/production base URL variable is configured in the effective environment."
-      : exampleDefinesBaseUrl
-        ? "Base URL variables are present in .env.example; configure one for staging/production."
-        : "Base URL variables are not present in .env.example.",
+    status,
+    detail: productionMode
+      ? productionBaseUrlOk
+        ? "Production base URL is configured as public HTTPS and is not localhost."
+        : "Production mode requires APP_BASE_URL to be a public HTTPS URL, not localhost."
+      : runtimeConfigured
+        ? "Base URL variables are configured for this environment; localhost is allowed only outside production."
+        : exampleDefinesBaseUrl
+          ? "Base URL variables are present in .env.example; configure public HTTPS values for staging/production."
+          : "Base URL variables are not present in .env.example.",
     data: {
       supported_variable_names: BASE_URL_ENV_VARS,
       runtime_configured: runtimeConfigured,
-      documented_in_env_example: exampleDefinesBaseUrl
+      documented_in_env_example: exampleDefinesBaseUrl,
+      app_environment: appEnvironment(),
+      production_mode: productionMode,
+      app_base_url_present: configured("APP_BASE_URL"),
+      app_base_url_protocol: appBaseUrl?.protocol.replace(":", "") ?? null,
+      app_base_url_is_localhost: appBaseLocalhost,
+      app_base_url_public_https_ready: Boolean(appBaseUrl) && appBaseHttps && appBaseLocalhost === false,
+      next_public_app_base_url_present: configured("NEXT_PUBLIC_APP_BASE_URL"),
+      next_public_app_base_url_harmless_public_config: publicBaseUrlSafe,
+      raw_values_suppressed: true
+    }
+  });
+}
+
+function checkCanvasAccessMode() {
+  addCheck({
+    name: "canvas_link_access_mode",
+    status: "pass",
+    detail: "Canvas is treated only as an external-link host; no LTI/OAuth/grade-passback integration is required.",
+    data: {
+      canvas_access_mode: "external_link",
+      canvas_lti_required: false,
+      canvas_oauth_supported: false,
+      canvas_grade_passback_supported: false,
+      canvas_roster_sync_supported: false,
+      public_https_required_for_classroom: true
     }
   });
 }
@@ -266,14 +335,20 @@ async function checkHealthEndpointExists() {
   const exists = await fileExists(routePath);
   const text = exists ? await readFile(routePath, "utf8") : "";
   const hasGet = /export\s+async\s+function\s+GET/u.test(text);
+  const exposesSecrets = /DATABASE_URL|OPENAI_API_KEY|SESSION_SECRET|provider_response|raw_output|authorization|cookie/iu.test(
+    text.replace(/import[^\n]+/giu, "")
+  );
 
   addCheck({
     name: "health_endpoint_exists",
-    status: exists && hasGet ? "pass" : "fail",
-    detail: exists && hasGet ? "GET /api/health is implemented." : "GET /api/health is missing.",
+    status: exists && hasGet && !exposesSecrets ? "pass" : "fail",
+    detail: exists && hasGet && !exposesSecrets
+      ? "GET /api/health is implemented and does not expose known secret fields."
+      : "GET /api/health is missing or references secret-like fields.",
     data: {
       route_path: "src/app/api/health/route.ts",
-      exports_get: hasGet
+      exports_get: hasGet,
+      health_endpoint_secret_exposure_detected: exposesSecrets
     }
   });
 }
@@ -454,6 +529,7 @@ async function checkGeneratedDirs() {
 async function main() {
   await checkRequiredEnvironment();
   await checkBaseUrlConfig();
+  checkCanvasAccessMode();
   checkPublicSecretEnvNames();
   checkDatabaseUrlNotPrinted();
   await checkMigrationsExist();
@@ -474,8 +550,13 @@ async function main() {
     smoke_version: "production-deployment-readiness-smoke-v1",
     status: failed.length > 0 ? "failed" : warnings.length > 0 ? "passed_with_warnings" : "passed",
     generated_at: new Date().toISOString(),
+    canvas_access_mode: "external_link",
+    canvas_lti_required: false,
+    canvas_grade_passback_supported: false,
+    public_https_required_for_classroom: true,
     no_openai_call_occurred: true,
     raw_secret_values_printed: false,
+    raw_env_values_printed: false,
     database_url_printed: false,
     summary: {
       passed: checks.filter((check) => check.status === "pass").length,

@@ -24,6 +24,23 @@ This checklist supports a small local human usability pilot of the fixed IRT cha
 - For intentional local mock walkthroughs, set `ITEM_ADMIN_TUTOR_MODE=mock` and `ALLOW_LOCAL_MOCK_RUNTIME=true`; deterministic item administration is not the intended real student experience.
 - Record only status fields from live runs, not raw prompts, raw provider payloads, answer keys, or full student text.
 
+## Canvas-Link Pilot Setup
+
+Canvas is used only to post the public Conversational MCQ URL. Do not configure Canvas LTI, OAuth, grade passback, roster sync, Developer Keys, or Canvas API access for the first classroom pilot.
+
+Supported Canvas placements:
+
+- Assignment page: edit the assignment description in the Canvas Rich Content Editor and add an external hyperlink to the public HTTPS Conversational MCQ URL.
+- Module item: add an `External URL` item to a module, paste the public HTTPS Conversational MCQ URL, and use `load in new tab` if desired.
+
+Suggested Canvas wording:
+
+```text
+Open the Conversational MCQ activity using the link below. Use the classroom ID and access code provided by your instructor. Complete the activity in one sitting if possible. If the page says it could not safely review a response, follow the on-screen options to try again, choose another activity, or move on. Your teacher will review completion and research data inside the Conversational MCQ system, not through Canvas grade passback.
+```
+
+Canvas gradebook will not automatically receive completion or scores. Teacher/research completion review and exports happen inside Conversational MCQ.
+
 ## Local Run Commands
 
 Start from a clean working tree and run the database and application setup used by the project:

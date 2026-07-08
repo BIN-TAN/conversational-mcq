@@ -2052,6 +2052,21 @@ Phase 6A.5 must not implement:
   package scripts, Docker packaging, and production migration guidance. It must
   not implement Canvas LTI, public self-registration, email/SMS delivery, cloud
   provisioning, or public deployment.
+- Canvas access for the first classroom web pilot is external-link only:
+  Canvas may host the public HTTPS Conversational MCQ URL, students leave
+  Canvas and authenticate in Conversational MCQ with classroom ID and access
+  code/password, and teacher/research review plus exports remain in
+  Conversational MCQ.
+- Phase 31b must not implement Canvas LTI, Canvas OAuth, Canvas grade passback,
+  Canvas roster sync, Canvas Developer Key configuration, or Canvas API
+  integration. Canvas gradebook must not be described as automatically
+  receiving completion, scores, or research data.
+- Production readiness checks must report `canvas_access_mode=external_link`,
+  `canvas_lti_required=false`, `canvas_grade_passback_supported=false`, and
+  `public_https_required_for_classroom=true`.
+- In production mode, `APP_BASE_URL` must be a public HTTPS URL and must not be
+  `localhost`, `127.0.0.1`, `::1`, or another local-only origin. Localhost is
+  acceptable only for local development.
 - Production readiness checks may report missing environment-variable names,
   safe booleans, safe status labels, counts, and hashes. They must not print
   `DATABASE_URL`, OpenAI API keys, credential-file contents, session secrets,

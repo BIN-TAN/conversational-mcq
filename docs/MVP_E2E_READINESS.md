@@ -853,3 +853,27 @@ three-item package and activity response path, inspect teacher/research review
 surfaces, download research data, and run export integrity checks. Keep real
 OpenAI keys, database URLs, session secrets, generated exports, backups, and
 logs out of Git.
+
+### Canvas-Link Classroom Access
+
+Canvas is a link host only. A Canvas assignment page or module item should link
+to the public HTTPS Conversational MCQ URL. Students leave Canvas, authenticate
+inside Conversational MCQ with a classroom ID and access code/password, complete
+the activity inside Conversational MCQ, and then return to Canvas if instructed.
+
+Conversational MCQ remains the system of record for activity completion,
+teacher/research review, readable transcript, structured event log, process
+events, session evidence audit, and research export. Canvas gradebook does not
+receive automatic completion, scores, or research data.
+
+Current pilot exclusions:
+
+- no Canvas LTI;
+- no Canvas OAuth;
+- no Canvas grade passback;
+- no Canvas roster sync;
+- no Canvas Developer Key configuration;
+- no Canvas API integration.
+
+Canvas LTI 1.3 may be considered later only after public-link classroom pilots
+are stable and after separate administrator support and privacy review.

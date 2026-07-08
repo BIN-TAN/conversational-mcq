@@ -12,7 +12,7 @@ Phase 30k adds internal/research-only safeguards against correctness inflation. 
 
 Phase 31a adds a no-live classroom pilot readiness audit for the fixed IRT MVP workflow. It verifies synthetic student session start, protected initial package completion, activity runtime projections, injected post-activity evidence handling, teacher review, readable and structured transcripts, bulk research export, export-integrity review, and protected-data boundaries. It does not call OpenAI and does not claim classroom validity. See `docs/CLASSROOM_PILOT_READINESS.md`.
 
-Phase 31b adds production web deployment readiness for a future HTTPS classroom pilot. It adds a safe `/api/health` response, deployment scripts, a no-live production readiness smoke, Docker packaging, and deployment documentation. It does not deploy publicly, implement Canvas LTI, or claim classroom validity. See `docs/PRODUCTION_DEPLOYMENT_READINESS.md`.
+Phase 31b adds production web deployment readiness for a future HTTPS classroom pilot. It adds a safe `/api/health` response, deployment scripts, a no-live production readiness smoke, Docker packaging, and deployment documentation. Canvas is link-only for the pilot: Canvas may host the public Conversational MCQ URL, but login, activity completion, teacher review, and export happen inside Conversational MCQ. It does not deploy publicly, implement Canvas LTI/OAuth/grade passback/roster sync, or claim classroom validity. See `docs/PRODUCTION_DEPLOYMENT_READINESS.md`.
 
 ## Local Setup
 
@@ -88,9 +88,11 @@ npm run build
 npm run start
 ```
 
-Before a classroom web pilot, deploy a staging URL, verify `/api/health`, run the production readiness smoke, run migrations, verify teacher login, create or import approved student accounts, have a student open the public URL from a non-development device, complete the three-item package and activity response path, inspect teacher/research review surfaces, download all research data, and run export integrity checks.
+Before a classroom web pilot, deploy a staging URL, verify `/api/health`, run the production readiness smoke, run migrations, verify teacher login, create or import the classroom and approved student accounts/access codes, copy the public HTTPS URL into a Canvas assignment or module item, have a student open the link from a non-development device or browser profile, sign in with the classroom ID and access code/password, complete the three-item package and activity response path, inspect teacher/research review surfaces, download all research data, and run export integrity checks.
 
 Never put OpenAI keys, database URLs, session secrets, cookies, or auth tokens in `NEXT_PUBLIC_` variables. Public variables may contain only harmless browser-visible configuration such as `NEXT_PUBLIC_APP_BASE_URL`.
+
+Canvas gradebook does not automatically receive completion or scores. Use Conversational MCQ teacher/research exports for completion review and research data. Canvas LTI 1.3 may be considered later only after public-link pilots are stable and after Canvas administrator support, Developer Key configuration, OIDC launch handling, deployment IDs, user/course mapping, and separate privacy review.
 
 ### Database
 
