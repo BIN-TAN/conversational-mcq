@@ -202,3 +202,37 @@ rationales, raw provider outputs, answer keys, or correct options.
 If a researcher needs item keys for separate controlled analysis, they must use
 the explicit restricted item-key export option. The default ZIP manifest marks
 `restricted_item_keys_included=false`.
+
+## Phase 30k Correctness-Inflation Safeguard
+
+Correct option selection is not sufficient evidence of understanding. A
+target-aligned answer can be strong evidence only when reasoning, confidence,
+and conceptual-boundary or distractor-boundary evidence support it.
+
+Phase 30k adds internal/research-only evidence-quality indicators:
+
+- `unsupported_correct_response`
+- `correctness_support_level`
+- `estimated_guessing_risk`
+- `estimated_guessing_risk_basis`
+- `answer_selection_evidence_weight`
+- `uncertainty_marker_present`
+- `uncertainty_marker_types`
+
+These indicators prevent the system from treating a target-aligned selection
+with weak reasoning, low confidence, uncertainty markers, or missing
+distractor-boundary explanation as stable understanding. Such cases should be
+routed toward conceptual entry grounding, distractor misconception probing, or
+independent misconception verification rather than consolidation/transfer.
+
+The indicators are not shown to students. Student-facing language may say that
+the explanation needs clearer reasoning or that the idea still needs
+clarification. It must not say the student guessed, has a guessing risk, has an
+unsupported correct response, has a correctness support level, selected the
+correct answer, or reveal answer keys/correctness.
+
+These safeguards are not cheating detection, misconduct detection, direct
+ability estimates, or final misconception evaluations. Deterministic code may
+enforce evidence sufficiency and anti-overclaiming; substantive misconception
+evaluation remains the role of validated LLM/evidence workflows where
+approved.

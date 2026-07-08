@@ -311,6 +311,8 @@ The default ZIP contains:
 - `conversation_turns_structured_redacted.jsonl`
 - `turn_response_latencies.csv`
 - `turn_response_latencies.jsonl`
+- `engagement_process_features.csv`
+- `engagement_process_features.jsonl`
 - `response_packages.jsonl`
 - `process_events_summary.jsonl`
 - `process_events_redacted.jsonl`
@@ -331,8 +333,9 @@ requests can add `restricted_item_keys.csv` and
 keys were included.
 
 The data dictionary defines response-time fields, process-event count
-definitions, units, collection sources, and interpretation limits. Timing
-definitions include:
+definitions, engagement process features, correctness-inflation safeguards,
+units, collection sources, and interpretation limits. Timing definitions
+include:
 
 - `item_response_time_ms`: item wall-clock response time, including idle time.
 - `turn_response_latency_ms`: wall-clock time from an agent/system prompt being
@@ -359,6 +362,59 @@ definitions include:
 - `reasoning_input_elapsed_time_ms`: first recorded reasoning input/key event to
   summary flush, field submission, or item completion; not pure active typing.
 - `active_typing_time_ms`: available only if explicitly instrumented.
+
+Phase 30k adds derived engagement/process features for teacher/research export:
+
+- `time_to_first_action_ms`
+- `first_action_to_submission_ms`
+- `last_action_to_submission_ms`
+- `prompt_to_final_submission_ms`
+- `active_interaction_time_ms`
+- `idle_time_ms`
+- `idle_ratio`
+- `focus_adjusted_time_ms`
+- `confidence_selection_latency_ms`
+- `reasoning_input_elapsed_time_ms`
+- `pre_submit_pause_ms`
+- `activity_prompt_to_first_action_ms`
+- `activity_response_elapsed_ms`
+- `activity_move_on_latency_ms`
+- `choose_another_activity_latency_ms`
+- `student_action_count`
+- `substantive_action_count`
+- `action_density_per_minute`
+- `option_revision_count`
+- `option_changed_after_reasoning`
+- `reasoning_revision_count`
+- `confidence_revision_count`
+- `copy_paste_event_count`
+- `typed_vs_paste_indicator`
+
+Every feature is derived from existing safe process events, conversation/item
+timestamps, or response records. If a feature cannot be computed from available
+instrumentation, it is exported as `null` with a limitation rather than
+approximated. In particular, `active_interaction_time_ms` requires explicit
+active-interval instrumentation; elapsed typing/input time is not used as a
+proxy for active typing.
+
+Phase 30k also adds internal/research-only correctness-inflation safeguards to
+ability/profile evidence:
+
+- `unsupported_correct_response`
+- `correctness_support_level`
+- `estimated_guessing_risk`
+- `estimated_guessing_risk_basis`
+- `answer_selection_evidence_weight`
+- `uncertainty_marker_present`
+- `uncertainty_marker_types`
+
+These are evidence-quality indicators. They are not student-facing labels, not
+misconduct labels, not cheating detection, not direct ability estimates, and not
+final misconception evaluations. Correct option selection is not sufficient
+evidence of understanding; target-aligned answers with weak reasoning, low
+confidence, uncertainty markers, or missing distractor-boundary explanation are
+handled conservatively until reasoning, conceptual-boundary evidence, or
+distractor-boundary evidence is available.
 
 The export service redacts internal IDs, secrets, raw provider input/output,
 raw process payloads, answer-key/correct-option markers in default data files,

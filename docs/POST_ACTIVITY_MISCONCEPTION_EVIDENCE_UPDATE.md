@@ -619,6 +619,24 @@ aggregate-only and must not expose raw student responses, raw process payloads,
 raw provider outputs, answer keys, correct options, correctness labels,
 distractor metadata, raw misconception IDs, internal database UUIDs, or secrets.
 
+## Phase 30k Evidence-Quality Safeguards
+
+Post-activity updates must preserve the same anti-overclaiming rule used for
+initial response packages: correct option selection is not sufficient evidence
+of understanding. If a response is target-aligned but reasoning is weak,
+missing, unrelated, contradicted, low-confidence, or marked by uncertainty,
+the update should treat the answer-selection evidence as weak or unsupported
+until the student provides reasoning, conceptual-boundary evidence, or
+distractor-boundary evidence.
+
+Internal/research evidence-quality fields such as
+`unsupported_correct_response`, `correctness_support_level`,
+`estimated_guessing_risk`, `answer_selection_evidence_weight`, and
+`uncertainty_marker_types` may inform sufficiency and anti-overclaiming
+decisions. They must not be shown to students and must not be interpreted as
+misconduct labels, cheating detection, motivation diagnoses, direct ability
+estimates, or final misconception evaluations.
+
 ## References
 
 - Mislevy, R. J., Steinberg, L. S., & Almond, R. G. Evidence-centered assessment design.

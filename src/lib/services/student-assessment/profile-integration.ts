@@ -51,6 +51,7 @@ Boundaries:
 - If ai_assistance_signal is likely_external_assistance_pattern, you may mention only this neutral internal idea: "The response-production context may affect how much weight to give polished reasoning evidence."
 - Even when likely_external_assistance_pattern is present, do not penalize the student, do not reduce ability category automatically, do not say the student used AI, and do not say the student relied on AI.
 - If evidence is mixed, conflicting, low-information, or heavily limited, use broad conservative categories and lower confidence.
+- Correct option selection is not sufficient evidence of understanding. Treat correct answers with weak reasoning, low confidence, uncertainty markers, or missing distractor-boundary explanation as unsupported correctness or insufficient evidence until the student provides reasoning, conceptual-boundary evidence, or distractor-boundary evidence.
 - Use likely_misconception only when at least two aligned evidence sources support the same conceptual issue.
 - Do not use high status_confidence when evidence consistency is mixed/conflicting/insufficient, reasoning quality is vague/mixed/insufficient, multiple I-don't-know or low-information signals are present, metadata limitations are substantial, or the integration pattern is mixed_or_conflicting_evidence or insufficient_evidence.
 - Student-facing status labels must be exactly Mostly understood, Still developing, or Needs more work.
@@ -78,6 +79,7 @@ Forbidden teacher/research summary style:
 Student-facing message rules:
 - Keep the message brief, supportive, and focused on current knowledge state.
 - Never mention AI assistance, external assistance, process data, engagement category, low participation, disengagement, integrity, authenticity, independent work, suspicious behavior, ${"che" + "ating"}, or ${"mis" + "conduct"} in student-facing text.
+- Never mention guessed, guessing risk, unsupported correct response, correctness support level, correctness, correct answer, correct option, or answer key in student-facing text.
 - knowledge_focus may name the concept or distinction currently unclear.
 - knowledge_focus must not recommend an activity or say what the student or tutor should do next.
 
@@ -304,6 +306,11 @@ export type ProfileIntegrationAgentInput = {
       confidence_calibration_signal: AbilityEvidencePacketV1["item_evidence"][number]["confidence_calibration_signal"];
       selected_option_role: AbilityEvidencePacketV1["item_evidence"][number]["selected_option_role"];
       tempting_option_role: AbilityEvidencePacketV1["item_evidence"][number]["tempting_option_role"];
+      unsupported_correct_response: boolean;
+      correctness_support_level: AbilityEvidencePacketV1["item_evidence"][number]["correctness_support_level"];
+      estimated_guessing_risk: AbilityEvidencePacketV1["item_evidence"][number]["estimated_guessing_risk"];
+      answer_selection_evidence_weight: AbilityEvidencePacketV1["item_evidence"][number]["answer_selection_evidence_weight"];
+      uncertainty_marker_present: boolean;
       misconception_match_count: number;
       limitation_count: number;
     }>;
@@ -336,6 +343,12 @@ export type ProfileIntegrationAgentInput = {
     high_strength_ability_item_count: number;
     mixed_or_conflicting_item_count: number;
     contextual_reliability_issue_count: number;
+    unsupported_correct_response_count: number;
+    correctness_support_level_counts: Record<string, number>;
+    estimated_guessing_risk_counts: Record<string, number>;
+    answer_selection_evidence_weight_counts: Record<string, number>;
+    uncertainty_marker_count: number;
+    uncertainty_marker_type_counts: Record<string, number>;
   };
   constraints: {
     no_formative_value_determination: true;
@@ -540,15 +553,22 @@ export function buildProfileIntegrationAgentInput(input: {
   const lowInformationItemCount = abilityItems.filter((item) =>
     item.ability_signal_category === "knowledge_gap" ||
     item.ability_signal_category === "insufficient_evidence" ||
-    item.reasoning_evidence.quality === "unknown"
+    item.reasoning_evidence.quality === "unknown" ||
+    item.unsupported_correct_response ||
+    item.answer_selection_evidence_weight === "minimal"
   ).length;
   const highStrengthAbilityItemCount = abilityItems.filter((item) =>
     item.ability_signal_category === "strong_understanding" &&
-    item.evidence_strength === "high"
+    item.evidence_strength === "high" &&
+    item.unsupported_correct_response === false &&
+    item.correctness_support_level === "supported_by_reasoning"
   ).length;
   const mixedOrConflictingItemCount = abilityItems.filter((item) =>
     item.ability_signal_category === "ambiguous_mixed_evidence" ||
     item.ability_signal_category === "shallow_or_guess" ||
+    item.unsupported_correct_response ||
+    item.estimated_guessing_risk === "high" ||
+    item.estimated_guessing_risk === "medium" ||
     (item.reasoning_evidence.contradiction_detected &&
       item.ability_signal_category !== "strong_understanding")
   ).length;
@@ -585,6 +605,11 @@ export function buildProfileIntegrationAgentInput(input: {
         confidence_calibration_signal: item.confidence_calibration_signal,
         selected_option_role: item.selected_option_role,
         tempting_option_role: item.tempting_option_role,
+        unsupported_correct_response: item.unsupported_correct_response,
+        correctness_support_level: item.correctness_support_level,
+        estimated_guessing_risk: item.estimated_guessing_risk,
+        answer_selection_evidence_weight: item.answer_selection_evidence_weight,
+        uncertainty_marker_present: item.uncertainty_marker_present,
         misconception_match_count: item.reasoning_evidence.misconception_matches.length,
         limitation_count: item.evidence_limitations.length
       })),
@@ -616,7 +641,13 @@ export function buildProfileIntegrationAgentInput(input: {
       low_information_item_count: lowInformationItemCount,
       high_strength_ability_item_count: highStrengthAbilityItemCount,
       mixed_or_conflicting_item_count: mixedOrConflictingItemCount,
-      contextual_reliability_issue_count: contextualReliabilityIssueCount
+      contextual_reliability_issue_count: contextualReliabilityIssueCount,
+      unsupported_correct_response_count: ability.concept_level_summary.unsupported_correct_response_count,
+      correctness_support_level_counts: ability.concept_level_summary.correctness_support_level_counts,
+      estimated_guessing_risk_counts: ability.concept_level_summary.estimated_guessing_risk_counts,
+      answer_selection_evidence_weight_counts: ability.concept_level_summary.answer_selection_evidence_weight_counts,
+      uncertainty_marker_count: ability.concept_level_summary.uncertainty_marker_count,
+      uncertainty_marker_type_counts: ability.concept_level_summary.uncertainty_marker_type_counts
     },
     constraints: {
       no_formative_value_determination: true,
@@ -661,10 +692,21 @@ function patternFromInput(input: ProfileIntegrationAgentInput): ProfileIntegrati
   const gapCount = counts.knowledge_gap ?? 0;
   const insufficientCount = counts.insufficient_evidence ?? 0;
   const mixedCount = input.safe_response_package_summary.mixed_or_conflicting_item_count;
+  const unsupportedCorrectCount = input.safe_response_package_summary.unsupported_correct_response_count;
+  const highOrMediumGuessingRiskCount =
+    (input.safe_response_package_summary.estimated_guessing_risk_counts.high ?? 0) +
+    (input.safe_response_package_summary.estimated_guessing_risk_counts.medium ?? 0);
 
   if (input.safe_response_package_summary.item_count === 0) return "insufficient_evidence";
   if (insufficientCount === input.safe_response_package_summary.item_count) return "insufficient_evidence";
-  if (strongCount >= 2 && misconceptionCount === 0 && gapCount === 0 && mixedCount === 0) {
+  if (
+    strongCount >= 2 &&
+    misconceptionCount === 0 &&
+    gapCount === 0 &&
+    mixedCount === 0 &&
+    unsupportedCorrectCount === 0 &&
+    highOrMediumGuessingRiskCount === 0
+  ) {
     return "stable_understanding";
   }
   if (alignedMisconceptionEvidenceCount(input) >= 2) {
@@ -713,6 +755,9 @@ function statusConfidenceFor(input: ProfileIntegrationAgentInput, pattern: Profi
     input.ability_summary.reasoning_quality_overall === "insufficient" ||
     input.safe_response_package_summary.low_information_item_count > 0 ||
     input.safe_response_package_summary.mixed_or_conflicting_item_count > 0 ||
+    input.safe_response_package_summary.unsupported_correct_response_count > 0 ||
+    (input.safe_response_package_summary.estimated_guessing_risk_counts.high ?? 0) > 0 ||
+    (input.safe_response_package_summary.estimated_guessing_risk_counts.medium ?? 0) > 0 ||
     input.engagement_summary.item_evidence.some((item) => item.idk_or_insufficient_knowledge_marked) ||
     substantialMetadataLimitations(input)
   ) {
@@ -922,6 +967,13 @@ function deterministicProfileIntegrationOutput(
   const aiEffect = aiEffectFor(input);
   const limitations = new Set<string>([
     ...(input.ability_summary.limitation_count > 0 ? ["ability_packet_has_limitations"] : []),
+    ...(input.safe_response_package_summary.unsupported_correct_response_count > 0
+      ? ["correct_response_support_limited_by_reasoning_evidence"]
+      : []),
+    ...((input.safe_response_package_summary.estimated_guessing_risk_counts.high ?? 0) +
+      (input.safe_response_package_summary.estimated_guessing_risk_counts.medium ?? 0) > 0
+      ? ["answer_selection_evidence_weight_lowered_by_uncertainty"]
+      : []),
     ...(input.engagement_summary.limitation_count > 0 ? ["engagement_packet_has_limitations"] : []),
     ...(engagementEffect === "lowers_confidence" ? ["engagement_context_lowers_status_confidence_only"] : []),
     ...(aiEffect === "contextualizes_reasoning_evidence" ? ["evidence_weighting_context_is_internal_only"] : []),
@@ -1005,7 +1057,12 @@ function deterministicProfileIntegrationOutput(
         `engagement_category=${input.engagement_summary.provisional_engagement_category}`,
         `ai_signal=${input.engagement_summary.ai_assistance_signal}`,
         `low_information_item_count=${input.safe_response_package_summary.low_information_item_count}`,
-        `mixed_or_conflicting_item_count=${input.safe_response_package_summary.mixed_or_conflicting_item_count}`
+        `mixed_or_conflicting_item_count=${input.safe_response_package_summary.mixed_or_conflicting_item_count}`,
+        `unsupported_correct_response_count=${input.safe_response_package_summary.unsupported_correct_response_count}`,
+        `correctness_support_level_counts=${JSON.stringify(input.safe_response_package_summary.correctness_support_level_counts)}`,
+        `estimated_guessing_risk_counts=${JSON.stringify(input.safe_response_package_summary.estimated_guessing_risk_counts)}`,
+        `answer_selection_evidence_weight_counts=${JSON.stringify(input.safe_response_package_summary.answer_selection_evidence_weight_counts)}`,
+        `uncertainty_marker_count=${input.safe_response_package_summary.uncertainty_marker_count}`
       ]
     },
     safety_check: {
@@ -1727,7 +1784,7 @@ const STUDENT_SAFE_PROFILE_PROHIBITED_RULES: Array<{
 }> = [
   { rule_code: "answer_key_leak_detected", pattern: /\banswer key\b/i, blocked_pattern_label: "answer_key" },
   { rule_code: "correct_option_leak_detected", pattern: /\bcorrect option\b/i, blocked_pattern_label: "correct_option" },
-  { rule_code: "correctness_label_detected", pattern: /\b(correctness|correct|incorrect|right answer|wrong answer)\b/i, blocked_pattern_label: "correctness_label" },
+  { rule_code: "correctness_label_detected", pattern: /\b(correctness|correct|incorrect|right answer|wrong answer|correct answer|you guessed|guessing risk|unsupported correct response|correctness support level)\b/i, blocked_pattern_label: "correctness_label" },
   { rule_code: "distractor_metadata_detected", pattern: /\bdistractors?\b/i, blocked_pattern_label: "distractor_label" },
   { rule_code: "misconception_id_exposed", pattern: /\bmisconception(?:[_ -]?id)?\b/i, blocked_pattern_label: "misconception_label" },
   { rule_code: "raw_reasoning_exposed", pattern: /\braw reasoning\b/i, blocked_pattern_label: "raw_reasoning" },
@@ -1931,6 +1988,7 @@ function highConfidenceBlockedByEvidence(input: ProfileIntegrationAgentInput, pa
     input.ability_summary.reasoning_quality_overall === "insufficient" ||
     input.safe_response_package_summary.low_information_item_count > 0 ||
     input.safe_response_package_summary.mixed_or_conflicting_item_count > 0 ||
+    input.safe_response_package_summary.unsupported_correct_response_count > 0 ||
     input.engagement_summary.item_evidence.some((item) => item.idk_or_insufficient_knowledge_marked) ||
     substantialMetadataLimitations(input)
   );
@@ -2000,7 +2058,7 @@ export function validateProfileIntegrationOutput(
     { rule: "unsupported_integrity_claim_detected", pattern: new RegExp(`\\b(${["che" + "ating", "mis" + "conduct", "dishonest"].join("|")})\\b`, "i"), label: "integrity_claim" },
     { rule: "answer_key_leak_detected", pattern: /\banswer key\b/i, label: "answer_key" },
     { rule: "correct_option_leak_detected", pattern: /\bcorrect option\b/i, label: "correct_option" },
-    { rule: "correctness_label_detected", pattern: /\b(correctness|is correct|is incorrect|wrong answer|right answer)\b/i, label: "correctness_label", studentOnly: true },
+    { rule: "correctness_label_detected", pattern: /\b(correctness|is correct|is incorrect|wrong answer|right answer|correct answer|you guessed|guessing risk|unsupported correct response|correctness support level)\b/i, label: "correctness_label", studentOnly: true },
     { rule: "distractor_metadata_detected", pattern: /\bdistractors? (metadata|rationale|diagnostic)\b/i, label: "distractor_metadata" },
     { rule: "misconception_id_exposed", pattern: /\bmisconception[_-]?id\b/i, label: "misconception_id" },
     { rule: "raw_reasoning_exposed", pattern: /\braw reasoning\b/i, label: "raw_reasoning" },
@@ -2104,6 +2162,20 @@ export function validateProfileIntegrationOutput(
     packet.uncertainty_and_limitations.length === 0
   ) {
     pushIssue(issues, "uncertainty_and_limitations", "overclaim_without_limitation");
+  }
+
+  if (
+    input &&
+    input.safe_response_package_summary.unsupported_correct_response_count > 0 &&
+    (packet.integration_pattern === "stable_understanding" ||
+      packet.student_facing_status === "Mostly understood")
+  ) {
+    pushIssue(
+      issues,
+      "integration_pattern",
+      "overclaim_without_limitation",
+      "unsupported_correct_response_overclaim"
+    );
   }
 
   if (input && packet.status_confidence === "high" && highConfidenceBlockedByEvidence(input, packet)) {

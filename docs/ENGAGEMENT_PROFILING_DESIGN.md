@@ -292,3 +292,50 @@ npm run student:session-data-completeness-review -- --session-public-id <session
 The teacher session page shows the same aggregate information in **Session
 evidence audit**. Process data are evidence-quality context only and should not
 be used alone to infer misconception, ability, cheating, or misconduct.
+
+## Phase 30k Process Feature Export
+
+Phase 30k adds teacher/research export files:
+
+- `engagement_process_features.csv`
+- `engagement_process_features.jsonl`
+
+These files contain derived process features only. They use public session,
+concept, and item IDs; they exclude raw process payloads, browser URLs,
+clipboard text, typed text, raw response text, answer keys, correct options,
+raw distractor metadata, raw misconception IDs, provider outputs, and secrets.
+
+Feature names are intentionally explicit about the interval being measured:
+
+- `time_to_first_action_ms`: item prompt/presentation to first safe student
+  action.
+- `first_action_to_submission_ms`: first safe student action to item
+  completion/submission.
+- `last_action_to_submission_ms` and `pre_submit_pause_ms`: last substantive
+  safe action to item completion/submission.
+- `prompt_to_final_submission_ms`: item prompt/presentation to final
+  completion/submission.
+- `idle_time_ms` and `idle_ratio`: based only on available pause durations.
+- `focus_adjusted_time_ms`: wall-clock time minus available pause/hidden
+  durations.
+- `confidence_selection_latency_ms`: item prompt/presentation to confidence
+  selection when inferable.
+- `reasoning_input_elapsed_time_ms`: safe aggregate input elapsed time, not
+  active typing time.
+- `activity_prompt_to_first_action_ms`, `activity_response_elapsed_ms`,
+  `activity_move_on_latency_ms`, and `choose_another_activity_latency_ms`:
+  activity-scope timings when activity process events exist.
+
+Action/revision features include `student_action_count`,
+`substantive_action_count`, `action_density_per_minute`,
+`option_revision_count`, `option_changed_after_reasoning`,
+`reasoning_revision_count`, `confidence_revision_count`,
+`copy_paste_event_count`, and `typed_vs_paste_indicator`.
+
+Unavailable features are exported as `null` with limitations. The system must
+not invent active interaction time, active typing time, activity timings, or
+revision counts when safe source events are unavailable.
+
+These features are evidence-quality/process context only. They must not be
+interpreted as ability estimates, misconception labels, cheating detection,
+misconduct labels, motivation diagnoses, or confirmed GenAI-use claims.

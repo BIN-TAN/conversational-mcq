@@ -5,6 +5,7 @@ import {
   type TeacherReadableTranscriptProjection
 } from "@/lib/services/teacher-review/readable-transcript";
 import { asArray, asRecord, stripInternalKeys } from "@/lib/services/teacher-review/serializers";
+import { buildEngagementProcessFeatureRows } from "@/lib/services/teacher-review/engagement-process-features";
 import { buildTurnResponseLatencyRows } from "@/lib/services/teacher-review/turn-response-latencies";
 import { createStoreOnlyZip, type ZipEntryInput } from "./zip";
 
@@ -189,6 +190,8 @@ function dataDictionary() {
       "conversation_turns_structured_redacted.jsonl": "Structured conversation metadata after public-ID and protected-field redaction.",
       "turn_response_latencies.csv": "Prompt-to-next-student-response/action latency rows. These are wall-clock latencies and may include reading, thinking, or idle time.",
       "turn_response_latencies.jsonl": "JSONL mirror of prompt-to-response/action latency rows with per-row limitations.",
+      "engagement_process_features.csv": "Derived process-feature rows for teacher/research review. These are evidence-quality and process-context indicators only, not ability, misconduct, cheating, or GenAI-use indicators.",
+      "engagement_process_features.jsonl": "JSONL mirror of derived engagement process features. Raw process payloads, browser URLs, clipboard text, typed text, and secrets are excluded.",
       "response_packages.jsonl": "Package-level evidence summaries. Raw response-package JSON and item keys are not exported by default.",
       "process_events_summary.jsonl": "Session-level process-event counts and timing availability. Raw process payloads are excluded.",
       "process_events_redacted.jsonl": "Redacted process-event timeline without payloads, browser URLs, clipboard text, raw keystrokes, or secrets.",
@@ -232,6 +235,46 @@ function dataDictionary() {
         "Elapsed time from first recorded input/key event in a reasoning field to reasoning summary flush, field submission, or item completion. This is not pure active typing time.",
       active_typing_time_ms:
         "Only available if explicitly instrumented. If not instrumented, marked unavailable; elapsed time is not used as a proxy."
+    },
+    engagement_process_feature_definitions: {
+      time_to_first_action_ms: "Item prompt or presentation to first safe student action.",
+      first_action_to_submission_ms: "First safe student action to item completion/submission.",
+      last_action_to_submission_ms: "Last substantive safe student action to item completion/submission.",
+      prompt_to_final_submission_ms: "Item prompt or presentation to final item submission/completion.",
+      active_interaction_time_ms: "Active interaction intervals only when explicitly instrumented. Null when unavailable; elapsed timing is not used as a proxy.",
+      idle_time_ms: "Sum of safe pause-duration fields where available.",
+      idle_ratio: "idle_time_ms divided by prompt_to_final_submission_ms when both are available.",
+      focus_adjusted_time_ms: "Wall-clock item time minus observed pause/hidden durations when safe durations are available.",
+      confidence_selection_latency_ms: "Item prompt or presentation to confidence selection when inferable.",
+      reasoning_input_elapsed_time_ms: "Safe aggregate input elapsed timing from typing summary events. It is not active typing time and stores no typed text.",
+      pre_submit_pause_ms: "Last substantive safe student action to item completion/submission.",
+      activity_prompt_to_first_action_ms: "Formative/activity prompt to first safe student activity action when activity events exist.",
+      activity_response_elapsed_ms: "Activity prompt to last safe substantive activity response when activity events exist.",
+      activity_move_on_latency_ms: "Activity prompt to move-on request when available.",
+      choose_another_activity_latency_ms: "Activity prompt to choose-another-activity request when available.",
+      student_action_count: "Count of safe student action events in scope.",
+      substantive_action_count: "Count of safe substantive action events in scope.",
+      action_density_per_minute: "Substantive actions per minute over the prompt-to-submission interval.",
+      option_revision_count: "Count of answer/option revision events in scope.",
+      option_changed_after_reasoning: "Whether an option revision occurred after a reasoning event when inferable.",
+      reasoning_revision_count: "Count of reasoning revision/edit events plus safe item revision count context.",
+      confidence_revision_count: "Count of confidence revision events.",
+      copy_paste_event_count: "Count of paste-detected events. Pasted content is never exported.",
+      typed_vs_paste_indicator: "Coarse presence indicator for typing summaries and paste events; it is not misconduct evidence."
+    },
+    correctness_inflation_definitions: {
+      unsupported_correct_response:
+        "Internal/research flag for target-aligned answer selection that is not sufficiently supported by reasoning, confidence, or conceptual-boundary evidence. Not student-facing.",
+      correctness_support_level:
+        "Internal/research support level for target-aligned answer selection. This is evidence-quality context, not a student-facing label.",
+      estimated_guessing_risk:
+        "Internal/research uncertainty-risk band derived from weak reasoning, low confidence, uncertainty language, and sparse process context. It is not a misconduct label and is not shown to students.",
+      answer_selection_evidence_weight:
+        "Internal/research weighting for answer selection as evidence of understanding.",
+      uncertainty_marker_present:
+        "Whether safe uncertainty-language markers were detected in reasoning text summaries.",
+      uncertainty_marker_types:
+        "Safe categories of uncertainty language; raw reasoning is not included."
     },
     process_event_definitions: {
       page_switch_count: "Count of page visibility hidden/visible events; contextual evidence only.",
@@ -534,6 +577,41 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
       }))
     })
   );
+  const engagementProcessFeatureRows = sessions.flatMap((session) => {
+    const itemResponses = session.concept_unit_sessions.flatMap((conceptUnitSession) =>
+      conceptUnitSession.item_responses.map((response) => ({
+        session_public_id: session.session_public_id,
+        student_user_id: session.user.user_id,
+        assessment_public_id: session.assessment.assessment_public_id,
+        concept_unit_public_id: conceptUnitSession.concept_unit.concept_unit_public_id,
+        item_public_id: response.item.item_public_id,
+        item_order: response.item.item_order,
+        item_started_at: response.item_started_at,
+        item_submitted_at: response.item_submitted_at,
+        item_response_time_ms: response.item_response_time_ms,
+        revision_count: response.revision_count
+      }))
+    );
+
+    return buildEngagementProcessFeatureRows({
+      itemResponses,
+      processEvents: session.process_events.map((event) => ({
+        session_public_id: session.session_public_id,
+        concept_unit_public_id:
+          event.concept_unit_session?.concept_unit.concept_unit_public_id ?? null,
+        item_public_id: event.item?.item_public_id ?? null,
+        item_order: event.item?.item_order ?? null,
+        event_type: event.event_type,
+        event_category: event.event_category,
+        event_source: event.event_source,
+        visibility_duration_ms: event.visibility_duration_ms,
+        pause_duration_ms: event.pause_duration_ms,
+        payload: event.payload,
+        occurred_at: event.occurred_at,
+        created_at: event.created_at
+      }))
+    });
+  });
 
   const responsePackageRows = sessions.flatMap((session) =>
     session.concept_unit_sessions.flatMap((conceptUnitSession) =>
@@ -796,6 +874,49 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
       turnResponseLatencyRows.length
     ),
     makeEntry("turn_response_latencies.jsonl", jsonl(turnResponseLatencyRows), turnResponseLatencyRows.length),
+    makeEntry(
+      "engagement_process_features.csv",
+      csv([
+        "session_public_id",
+        "student_user_id",
+        "assessment_public_id",
+        "concept_unit_public_id",
+        "item_public_id",
+        "item_order",
+        "feature_scope",
+        "time_to_first_action_ms",
+        "first_action_to_submission_ms",
+        "last_action_to_submission_ms",
+        "prompt_to_final_submission_ms",
+        "active_interaction_time_ms",
+        "idle_time_ms",
+        "idle_ratio",
+        "focus_adjusted_time_ms",
+        "confidence_selection_latency_ms",
+        "reasoning_input_elapsed_time_ms",
+        "pre_submit_pause_ms",
+        "activity_prompt_to_first_action_ms",
+        "activity_response_elapsed_ms",
+        "activity_move_on_latency_ms",
+        "choose_another_activity_latency_ms",
+        "student_action_count",
+        "substantive_action_count",
+        "action_density_per_minute",
+        "option_revision_count",
+        "option_changed_after_reasoning",
+        "reasoning_revision_count",
+        "confidence_revision_count",
+        "copy_paste_event_count",
+        "typed_vs_paste_indicator",
+        "limitations"
+      ], engagementProcessFeatureRows),
+      engagementProcessFeatureRows.length
+    ),
+    makeEntry(
+      "engagement_process_features.jsonl",
+      jsonl(engagementProcessFeatureRows),
+      engagementProcessFeatureRows.length
+    ),
     makeEntry("response_packages.jsonl", jsonl(responsePackageRows), responsePackageRows.length),
     makeEntry("process_events_summary.jsonl", jsonl(processSummaryRows), processSummaryRows.length),
     makeEntry("process_events_redacted.jsonl", jsonl(processEventRedactedRows), processEventRedactedRows.length),
@@ -808,7 +929,8 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
       "engagement_evidence_packets.jsonl",
       jsonl(audits.map((audit) => ({
         session_public_id: asRecord(audit).session_public_id,
-        engagement_evidence_summary: safeJson(asRecord(audit).engagement_evidence_summary)
+        engagement_evidence_summary: safeJson(asRecord(audit).engagement_evidence_summary),
+        correctness_inflation_summary: safeJson(asRecord(audit).correctness_inflation_summary)
       }))),
       audits.length
     ),

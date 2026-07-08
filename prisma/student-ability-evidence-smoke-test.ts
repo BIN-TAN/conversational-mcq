@@ -102,6 +102,9 @@ function runPureEvidenceAssertions() {
     no_tempting_option: true
   });
   assert(strong.ability_signal_category === "strong_understanding", "Correct detailed reasoning should be strong understanding.");
+  assert(strong.unsupported_correct_response === false, "Correct detailed reasoning should not be marked unsupported.");
+  assert(strong.correctness_support_level === "supported_by_reasoning", "Correct detailed reasoning should be supported by reasoning.");
+  assert(strong.answer_selection_evidence_weight === "high", "Correct detailed reasoning should have high answer-selection evidence weight.");
 
   const shallow = evidence({
     selected_option: "C",
@@ -111,6 +114,12 @@ function runPureEvidenceAssertions() {
     no_tempting_option: true
   });
   assert(shallow.ability_signal_category === "shallow_or_guess", "Correct vague high-confidence reasoning should not be strong.");
+  assert(shallow.unsupported_correct_response, "Correct vague reasoning should be flagged as unsupported correctness.");
+  assert(shallow.correctness_support_level === "unsupported", "Correct vague reasoning should have unsupported support level.");
+  assert(
+    shallow.estimated_guessing_risk === "medium" || shallow.estimated_guessing_risk === "high",
+    "Correct vague reasoning should carry medium/high uncertainty risk."
+  );
 
   const misconception = evidence({
     selected_option: "A",
@@ -150,8 +159,17 @@ function runPureEvidenceAssertions() {
       "Theta is the person's location on the latent trait scale, while item difficulty describes item behavior.",
     no_tempting_option: true
   });
-  assert(underconfident.ability_signal_category === "emerging_understanding", "Correct low-confidence evidence should be emerging.");
+  assert(
+    underconfident.ability_signal_category === "knowledge_gap" ||
+      underconfident.ability_signal_category === "emerging_understanding",
+    "Correct low-confidence evidence should not be strong without stronger support."
+  );
   assert(underconfident.confidence_calibration_signal === "underconfident", "Correct low-confidence evidence should be underconfident.");
+  assert(underconfident.unsupported_correct_response, "Correct low-confidence evidence should be marked as unsupported correctness.");
+  assert(
+    underconfident.estimated_guessing_risk_basis.includes("low_confidence"),
+    "Low confidence should be recorded as a safe uncertainty-risk basis."
+  );
 
   const temptingRisk = evidence({
     selected_option: "C",
@@ -260,10 +278,32 @@ function runPureEvidenceAssertions() {
   assert(normalPace.ability_signal_category === rapidPace.ability_signal_category, "Process data must not directly change ability category.");
   assert(rapidPace.evidence_confidence_modifier.effect === "lower_confidence", "Rapid response should lower inference confidence only.");
 
-  const summary = summarizeConceptAbilityEvidence([strong, shallow, temptingRisk]);
-  const projection = projectStudentSafeAbilityStatus(summary);
+  const mixedSummary = summarizeConceptAbilityEvidence([strong, shallow, temptingRisk]);
+  assert(
+    mixedSummary.provisional_category !== "Mostly understood",
+    "A package with unsupported correct evidence should not summarize as Mostly understood."
+  );
+  assert(
+    mixedSummary.unsupported_correct_response_count >= 1,
+    "Concept summary should count unsupported correct responses."
+  );
+  assert(
+    mixedSummary.estimated_guessing_risk_counts.high >= 1 ||
+      mixedSummary.estimated_guessing_risk_counts.medium >= 1,
+    "Concept summary should count medium/high uncertainty-risk bands."
+  );
+  const supportedSummary = summarizeConceptAbilityEvidence([strong, strong, strong]);
+  const projection = projectStudentSafeAbilityStatus(supportedSummary);
   assertStudentSafeProjectionIsSafe(projection);
-  assert(summary.evidence_limitations.length > 0, "Concept summary should carry item-level evidence limitations.");
+  assert(
+    supportedSummary.provisional_category === "Mostly understood",
+    "Multiple supported strong items should summarize as Mostly understood."
+  );
+  assert(
+    supportedSummary.correctness_support_level_counts.supported_by_reasoning >= 2,
+    "Concept summary should count reasoning-supported answers."
+  );
+  assert(mixedSummary.evidence_limitations.length > 0, "Concept summary should carry item-level evidence limitations.");
 }
 
 async function runResponsePackagePacketAssertion() {

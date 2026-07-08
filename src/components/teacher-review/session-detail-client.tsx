@@ -1332,6 +1332,14 @@ function SessionEvidenceAuditSection({ data }: { data: SessionDataAuditResponse 
             labelText="Internal engagement category"
             value={data.engagement_evidence_summary.internal_only_engagement_category ?? "Not available"}
           />
+          <Fact
+            labelText="Unsupported correct responses"
+            value={data.correctness_inflation_summary.unsupported_correct_response_count}
+          />
+          <Fact
+            labelText="Uncertainty markers"
+            value={data.correctness_inflation_summary.uncertainty_marker_count}
+          />
           <Fact labelText="Activity attempts" value={data.activity_runtime_summary.attempt_count} />
           <Fact labelText="Post-activity evidence records" value={data.misconception_evidence_summary.record_count} />
           <Fact labelText="Diagnostic snapshots" value={data.diagnostic_snapshot_summary.snapshot_count} />
@@ -1340,6 +1348,22 @@ function SessionEvidenceAuditSection({ data }: { data: SessionDataAuditResponse 
           <Fact labelText="Failed agent calls" value={data.agent_audit_summary.failed_call_count} />
         </div>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-line p-4">
+            <h4 className="text-sm font-semibold text-ink">Evidence-quality indicators</h4>
+            <p className="mt-1 text-xs text-muted">
+              These are internal evidence-quality indicators. They should not be interpreted as misconduct labels or as direct ability estimates.
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Support levels</p>
+                <CountList counts={data.correctness_inflation_summary.correctness_support_level_counts} />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Uncertainty-risk bands</p>
+                <CountList counts={data.correctness_inflation_summary.estimated_guessing_risk_counts} />
+              </div>
+            </div>
+          </div>
           <div className="rounded-lg border border-line p-4">
             <h4 className="text-sm font-semibold text-ink">Activity runtime states</h4>
             <CountList counts={data.activity_runtime_summary.status_counts} />

@@ -62,6 +62,8 @@ Boundaries:
 31. Keep the student-facing message supportive and specific.
 32. Do not include activity recommendation, specific task, example, specific question, or intervention plan.
 33. If later explanation depth is needed, only set implementation guidance for the next stage.
+34. Correct option selection is not sufficient evidence of understanding. Treat correct answers with weak reasoning, low confidence, uncertainty markers, or missing distractor-boundary explanation as unsupported correctness or insufficient evidence until the student provides reasoning, conceptual-boundary evidence, or distractor-boundary evidence.
+35. Student-facing text must not say guessed, guessing risk, unsupported correct response, correctness support level, you guessed, correct answer, correct option, correctness, answer key, ${"che" + "ating"}, ${"mis" + "conduct"}, integrity, or authenticity.
 
 Allowed values:
 - diagnostic_clarification

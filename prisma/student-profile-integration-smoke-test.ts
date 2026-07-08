@@ -121,7 +121,11 @@ function assertNoForbiddenStudentText(value: unknown) {
     "independent work",
     "suspicious",
     "formative value",
-    "activity recommendation"
+    "activity recommendation",
+    "guessing risk",
+    "unsupported correct response",
+    "correctness support level",
+    "you guessed"
   ];
 
   for (const term of forbidden) {
@@ -312,8 +316,20 @@ async function runPureIntegrationAssertions() {
     ],
     engagements: [engagedEvidence(1), engagedEvidence(2), engagedEvidence(3)]
   }));
-  assert(developing.integration_pattern === "developing_understanding", "Partial evidence should be developing.");
-  assert(developing.student_facing_status === "Still developing", "Partial evidence should map to Still developing.");
+  assert(
+    developing.integration_pattern === "likely_knowledge_gap",
+    "Correct answers with weak reasoning, low confidence, and uncertainty markers should not be treated as stable or merely developing."
+  );
+  assert(
+    developing.student_facing_status === "Needs more work",
+    "Unsupported correct evidence should map to a conservative student status."
+  );
+  assert(
+    developing.teacher_research_summary.evidence_trace_summary.some((entry) =>
+      entry.includes("unsupported_correct_response_count=2")
+    ),
+    "Unsupported correct response count should be visible to teacher/research review."
+  );
 
   const gap = await packetFor(inputFromEvidence({
     abilities: [
@@ -368,8 +384,9 @@ async function runPureIntegrationAssertions() {
     engagements: [engagedEvidence(1), engagedEvidence(2), engagedEvidence(3)]
   }));
   assert(
-    mixed.integration_pattern === "mixed_or_conflicting_evidence" || mixed.integration_pattern === "developing_understanding",
-    "Mixed evidence should not be forced into a stronger gap or misconception claim."
+    mixed.integration_pattern !== "stable_understanding" &&
+      mixed.student_facing_status !== "Mostly understood",
+    "Mixed weak/unsupported evidence should not be treated as stable understanding."
   );
 
   const disengagedContext = await packetFor(inputFromEvidence({

@@ -124,6 +124,8 @@ async function main() {
       "conversation_turns_structured_redacted.jsonl",
       "turn_response_latencies.csv",
       "turn_response_latencies.jsonl",
+      "engagement_process_features.csv",
+      "engagement_process_features.jsonl",
       "response_packages.jsonl",
       "process_events_summary.jsonl",
       "process_events_redacted.jsonl",
@@ -177,8 +179,27 @@ async function main() {
     const processEventsRedacted = entryText(exportResult, "process_events_redacted.jsonl");
     assert(processEventsRedacted.length > 0, "Redacted process-event timeline should be exported.");
     assert(!processEventsRedacted.includes('"payload"'), "Redacted process-event timeline should not include payloads.");
+    const processFeatureRows = parseJsonl<{
+      feature_scope: string;
+      limitations: string[];
+      student_action_count: number;
+    }>(entryText(exportResult, "engagement_process_features.jsonl"));
+    assert(processFeatureRows.length > 0, "Engagement process feature rows should be exported.");
+    assert(
+      processFeatureRows.some((row) => row.feature_scope === "initial_item"),
+      "Engagement process features should include item-scoped rows."
+    );
+    assert(
+      processFeatureRows.every((row) =>
+        Array.isArray(row.limitations) &&
+        row.limitations.includes("process_features_are_evidence_quality_context_not_ability_or_misconduct_labels")
+      ),
+      "Process feature rows should carry the evidence-quality boundary."
+    );
     const dictionary = entryText(exportResult, "data_dictionary.json");
     assert(dictionary.includes("turn_response_latency_ms"), "Data dictionary should define turn_response_latency_ms.");
+    assert(dictionary.includes("engagement_process_feature_definitions"), "Data dictionary should define engagement process features.");
+    assert(dictionary.includes("correctness_inflation_definitions"), "Data dictionary should define correctness-inflation indicators.");
     assert(
       dictionary.includes("This is not equivalent to prompt-to-response latency"),
       "Data dictionary should distinguish item_response_time_ms from prompt-to-response latency."

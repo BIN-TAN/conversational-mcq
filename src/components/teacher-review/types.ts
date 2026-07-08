@@ -603,6 +603,17 @@ export type SessionDataAuditResponse = {
     process_data_limitation_flags: string[];
     threshold_policy: string | null;
   };
+  correctness_inflation_summary: {
+    ability_packet_available: boolean;
+    unsupported_correct_response_count: number;
+    estimated_guessing_risk_counts: Record<string, number>;
+    correctness_support_level_counts: Record<string, number>;
+    answer_selection_evidence_weight_distribution: Record<string, number>;
+    uncertainty_marker_count: number;
+    uncertainty_marker_type_counts: Record<string, number>;
+    interpretation_boundary: string;
+    limitations: string[];
+  };
   activity_runtime_summary: {
     attempt_count: number;
     status_counts: Record<string, number>;

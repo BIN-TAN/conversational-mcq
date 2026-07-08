@@ -124,6 +124,18 @@ async function main() {
       audit.engagement_evidence_summary.engagement_packet_available,
       "Expected engagement packet to be buildable from response package."
     );
+    assert(
+      audit.correctness_inflation_summary.ability_packet_available,
+      "Expected correctness-inflation aggregate summary to be buildable from ability evidence."
+    );
+    assert(
+      typeof audit.correctness_inflation_summary.unsupported_correct_response_count === "number",
+      "Unsupported correct response count should be present."
+    );
+    assert(
+      audit.correctness_inflation_summary.interpretation_boundary.includes("internal evidence-quality indicators"),
+      "Correctness-inflation summary should carry the research-only boundary."
+    );
     assert(audit.activity_runtime_summary.attempt_count === 0, "Fixture should not fabricate activity attempts.");
     assert(
       audit.limitations.includes("activity_runtime_attempts_missing"),

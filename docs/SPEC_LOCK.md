@@ -1924,3 +1924,42 @@ Phase 6A.5 must not implement:
 - The readable transcript may show a small non-intrusive
   "Next student response/action after" field when latency is safely available.
   It must remain teacher/research-only and must not expose internal payloads.
+
+## Phase 30k Engagement Process Features And Correctness-Inflation Lock
+
+- Teacher/research bulk exports must include
+  `engagement_process_features.csv` and
+  `engagement_process_features.jsonl`.
+- Engagement process features must be derived only from existing safe process
+  events, conversation/item timestamps, item responses, and activity lifecycle
+  events. They must not store raw process payloads, raw typed text, raw
+  keystrokes, clipboard text, browser URLs, answer keys, correct options,
+  correctness labels, raw distractor metadata, raw misconception IDs, raw
+  provider output, API keys, headers, cookies, database URLs, or secrets.
+- Features that cannot be computed from available instrumentation must be null
+  with explicit limitations. The system must not approximate active
+  interaction time or active typing time from elapsed text-input timing.
+- Process features are evidence-quality context only. They must not be used as
+  ability estimates, misconception labels, cheating detection, misconduct
+  labels, motivation diagnoses, or confirmed GenAI-use claims.
+- Internal/research ability/profile evidence may include
+  `unsupported_correct_response`, `correctness_support_level`,
+  `estimated_guessing_risk`, `estimated_guessing_risk_basis`,
+  `answer_selection_evidence_weight`, `uncertainty_marker_present`, and
+  `uncertainty_marker_types`.
+- Correct option selection is not sufficient evidence of understanding. Correct
+  answers with weak reasoning, low confidence, uncertainty markers, or missing
+  distractor-boundary explanation must be treated as unsupported correctness or
+  insufficient evidence until reasoning, conceptual-boundary evidence, or
+  distractor-boundary evidence supports the interpretation.
+- Such evidence must not support stable understanding, a student-facing
+  "Mostly understood" status, consolidation/transfer as the primary path, or
+  no-actionable-misconception evidence from that item alone.
+- Student-facing text must not say guessed, guessing risk, unsupported correct
+  response, correctness support level, you guessed, correct answer, correct
+  option, correctness, answer key, cheating, misconduct, integrity, or
+  authenticity.
+- No student self-report guessing field is introduced. The system must not ask
+  "Did you guess?"
+- Deterministic code may enforce evidence sufficiency and anti-overclaiming.
+  It must not become the final substantive misconception evaluator.

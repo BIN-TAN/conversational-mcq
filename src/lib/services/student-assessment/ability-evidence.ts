@@ -37,6 +37,39 @@ const ConfidenceCalibrationSignalSchema = z.enum([
 
 const EvidenceStrengthSchema = z.enum(["high", "medium", "low"]);
 
+const CorrectnessSupportLevelSchema = z.enum([
+  "supported_by_reasoning",
+  "weakly_supported",
+  "unsupported",
+  "contradicted_by_reasoning",
+  "not_applicable"
+]);
+
+const EstimatedGuessingRiskSchema = z.enum(["none", "low", "medium", "high", "unavailable"]);
+
+const EstimatedGuessingRiskBasisSchema = z.enum([
+  "low_confidence",
+  "weak_reasoning",
+  "minimal_reasoning",
+  "uncertainty_marker",
+  "guessed_language_marker",
+  "answer_reasoning_mismatch",
+  "no_tempting_option_explanation",
+  "rapid_sparse_response",
+  "process_evidence_limited",
+  "other"
+]);
+
+const AnswerSelectionEvidenceWeightSchema = z.enum(["high", "medium", "low", "minimal"]);
+
+const UncertaintyMarkerTypeSchema = z.enum([
+  "not_sure_language",
+  "dont_know_language",
+  "guessed_language",
+  "low_confidence_language",
+  "other_uncertainty_language"
+]);
+
 const EvidenceConfidenceModifierSchema = z.object({
   source: z.literal("process_data"),
   effect: z.enum(["increase_confidence", "lower_confidence", "neutral"]),
@@ -107,6 +140,13 @@ export const AbilityItemEvidenceV1Schema = z.object({
     ])
   }),
   confidence_calibration_signal: ConfidenceCalibrationSignalSchema,
+  unsupported_correct_response: z.boolean(),
+  correctness_support_level: CorrectnessSupportLevelSchema,
+  estimated_guessing_risk: EstimatedGuessingRiskSchema,
+  estimated_guessing_risk_basis: z.array(EstimatedGuessingRiskBasisSchema),
+  answer_selection_evidence_weight: AnswerSelectionEvidenceWeightSchema,
+  uncertainty_marker_present: z.boolean(),
+  uncertainty_marker_types: z.array(UncertaintyMarkerTypeSchema),
   ability_signal_category: AbilitySignalCategorySchema,
   evidence_strength: EvidenceStrengthSchema,
   evidence_confidence_modifier: EvidenceConfidenceModifierSchema,
@@ -142,6 +182,12 @@ export const AbilityEvidencePacketV1Schema = z.object({
       "mixed",
       "insufficient"
     ]),
+    unsupported_correct_response_count: z.number().int().nonnegative(),
+    correctness_support_level_counts: z.record(z.number().int().nonnegative()),
+    estimated_guessing_risk_counts: z.record(z.number().int().nonnegative()),
+    answer_selection_evidence_weight_counts: z.record(z.number().int().nonnegative()),
+    uncertainty_marker_count: z.number().int().nonnegative(),
+    uncertainty_marker_type_counts: z.record(z.number().int().nonnegative()),
     evidence_limitations: z.array(z.string())
   }),
   student_safe_projection: z.object({
@@ -479,14 +525,14 @@ function analyzeReasoning(input: {
   const keyIdeasMissing = input.expected_solution_actions
     .filter((action) => !keyIdeasPresent.includes(action))
     .slice(0, 6);
-  const reasoningMisconceptions = input.possible_misconception_indicators
+  const reasoningMisconceptions = (keyIdeasPresent.length === 0 ? input.possible_misconception_indicators : [])
     .filter((indicator) => overlapScore(lower, indicator) >= 0.25)
     .map((indicator) => ({
       misconception_id: `reasoning_${slug(indicator)}`,
       support: "medium" as const,
       source: "reasoning" as const
     }));
-  const noteMisconceptions = Object.entries(input.option_diagnostic_notes)
+  const noteMisconceptions = (keyIdeasPresent.length === 0 ? Object.entries(input.option_diagnostic_notes) : [])
     .filter(([, note]) => overlapScore(lower, note) >= 0.25)
     .map(([option, note]) => ({
       misconception_id: `reasoning_${option}_${slug(note)}`,
@@ -509,7 +555,9 @@ function analyzeReasoning(input: {
     ...reasoningMisconceptions,
     ...noteMisconceptions
   ];
-  const contradictionDetected = keyIdeasPresent.length > 0 && misconception_matches.length > 0;
+  const contradictionDetected =
+    keyIdeasPresent.length > 0 &&
+    [...selectedMatches, ...reasoningMisconceptions, ...noteMisconceptions].length > 0;
   const quality = offTrack
     ? "off_track"
     : saysUnknown
@@ -568,6 +616,158 @@ function confidenceCalibration(input: {
   return "well_calibrated";
 }
 
+function uncertaintyMarkers(input: {
+  reasoning_text?: string | null;
+  confidence: z.infer<typeof ConfidenceLabelSchema> | null;
+}): Array<z.infer<typeof UncertaintyMarkerTypeSchema>> {
+  const text = input.reasoning_text?.trim() ?? "";
+  const markers = new Set<z.infer<typeof UncertaintyMarkerTypeSchema>>();
+
+  if (/\b(not sure|unsure|maybe|might be|could be|i think|i guess)\b/i.test(text)) {
+    markers.add("not_sure_language");
+  }
+  if (/\b(i do not know|i don't know|dont know|no idea|idk)\b/i.test(text)) {
+    markers.add("dont_know_language");
+  }
+  if (/\b(guess|guessed|guessing|random|randomly)\b/i.test(text)) {
+    markers.add("guessed_language");
+  }
+  if (
+    input.confidence === "Low" ||
+    /\b(low confidence|not confident|not very confident)\b/i.test(text)
+  ) {
+    markers.add("low_confidence_language");
+  }
+  if (/\b(hard to tell|can't tell|cannot tell|unclear)\b/i.test(text)) {
+    markers.add("other_uncertainty_language");
+  }
+
+  return [...markers];
+}
+
+function reasoningIsMinimal(input: { reasoning_text?: string | null; quality: z.infer<typeof ReasoningQualitySchema> }) {
+  const text = input.reasoning_text?.trim() ?? "";
+  return text.length < 28 || text.split(/\s+/).filter(Boolean).length < 5 || input.quality === "vague";
+}
+
+function correctnessSupportLevel(input: {
+  is_correct: boolean | null;
+  reasoning: ReasoningEvidenceV1;
+  confidence: z.infer<typeof ConfidenceLabelSchema> | null;
+  uncertainty_marker_types: Array<z.infer<typeof UncertaintyMarkerTypeSchema>>;
+}): z.infer<typeof CorrectnessSupportLevelSchema> {
+  if (input.is_correct !== true) return "not_applicable";
+  if (input.reasoning.contradiction_detected || input.reasoning.quality === "off_track") {
+    return "contradicted_by_reasoning";
+  }
+  if (!input.reasoning.available || input.reasoning.quality === "unknown" || input.reasoning.quality === "vague") {
+    return "unsupported";
+  }
+  if (
+    input.reasoning.quality === "adequate" &&
+    input.reasoning.key_ideas_present.length >= 1 &&
+    input.confidence !== "Low" &&
+    input.uncertainty_marker_types.length === 0
+  ) {
+    return "supported_by_reasoning";
+  }
+  return "weakly_supported";
+}
+
+function estimatedGuessingRisk(input: {
+  is_correct: boolean | null;
+  correctness_support_level: z.infer<typeof CorrectnessSupportLevelSchema>;
+  reasoning_text?: string | null;
+  reasoning_quality: z.infer<typeof ReasoningQualitySchema>;
+  confidence: z.infer<typeof ConfidenceLabelSchema> | null;
+  uncertainty_marker_types: Array<z.infer<typeof UncertaintyMarkerTypeSchema>>;
+  no_tempting_option?: boolean | null;
+  tempting_option_reason?: string | null;
+  total_item_time_ms?: number | null;
+  modifier: z.infer<typeof EvidenceConfidenceModifierSchema>;
+}) {
+  const basis = new Set<z.infer<typeof EstimatedGuessingRiskBasisSchema>>();
+  const minimalReasoning = reasoningIsMinimal({
+    reasoning_text: input.reasoning_text,
+    quality: input.reasoning_quality
+  });
+
+  if (input.confidence === "Low") basis.add("low_confidence");
+  if (["partial", "vague", "unknown", "off_track"].includes(input.reasoning_quality)) {
+    basis.add("weak_reasoning");
+  }
+  if (minimalReasoning) basis.add("minimal_reasoning");
+  if (input.uncertainty_marker_types.some((marker) => marker !== "guessed_language")) {
+    basis.add("uncertainty_marker");
+  }
+  if (input.uncertainty_marker_types.includes("guessed_language")) {
+    basis.add("guessed_language_marker");
+  }
+  if (input.correctness_support_level === "contradicted_by_reasoning") {
+    basis.add("answer_reasoning_mismatch");
+  }
+  if (
+    input.is_correct === true &&
+    input.no_tempting_option === true &&
+    !(input.tempting_option_reason?.trim()) &&
+    input.correctness_support_level !== "supported_by_reasoning"
+  ) {
+    basis.add("no_tempting_option_explanation");
+  }
+  if (
+    input.is_correct === true &&
+    typeof input.total_item_time_ms === "number" &&
+    input.total_item_time_ms > 0 &&
+    input.total_item_time_ms < 25_000 &&
+    (minimalReasoning || input.correctness_support_level !== "supported_by_reasoning")
+  ) {
+    basis.add("rapid_sparse_response");
+  }
+  if (input.modifier.reason_code === "insufficient_data" || input.modifier.reason_code === "interrupted_session") {
+    basis.add("process_evidence_limited");
+  }
+
+  let risk: z.infer<typeof EstimatedGuessingRiskSchema> = "none";
+  if (input.is_correct === null) {
+    risk = "unavailable";
+  } else if (input.is_correct === true) {
+    if (
+      basis.has("guessed_language_marker") ||
+      input.correctness_support_level === "contradicted_by_reasoning" ||
+      (input.correctness_support_level === "unsupported" && (basis.has("low_confidence") || basis.has("minimal_reasoning")))
+    ) {
+      risk = "high";
+    } else if (
+      input.correctness_support_level === "unsupported" ||
+      input.correctness_support_level === "weakly_supported" ||
+      basis.has("uncertainty_marker") ||
+      basis.has("rapid_sparse_response")
+    ) {
+      risk = "medium";
+    } else {
+      risk = "low";
+    }
+  }
+
+  return {
+    estimated_guessing_risk: risk,
+    estimated_guessing_risk_basis: [...basis]
+  };
+}
+
+function answerEvidenceWeight(input: {
+  correctness_support_level: z.infer<typeof CorrectnessSupportLevelSchema>;
+  estimated_guessing_risk: z.infer<typeof EstimatedGuessingRiskSchema>;
+}): z.infer<typeof AnswerSelectionEvidenceWeightSchema> {
+  if (input.correctness_support_level === "supported_by_reasoning" && input.estimated_guessing_risk !== "high") {
+    return "high";
+  }
+  if (input.correctness_support_level === "weakly_supported") return "medium";
+  if (input.correctness_support_level === "unsupported") return "low";
+  if (input.correctness_support_level === "contradicted_by_reasoning") return "minimal";
+  return "minimal";
+}
+
 export function classifyAbilitySignal(input: {
   is_correct: boolean | null;
   selected_role: AbilityItemEvidenceV1["selected_option_role"];
@@ -576,12 +776,26 @@ export function classifyAbilitySignal(input: {
   confidence: z.infer<typeof ConfidenceLabelSchema> | null;
   misconception_match_count: number;
   contradiction_detected?: boolean;
+  correctness_support_level?: z.infer<typeof CorrectnessSupportLevelSchema>;
+  unsupported_correct_response?: boolean;
 }): z.infer<typeof AbilitySignalCategorySchema> {
   if (input.selected_role === "missing") return "insufficient_evidence";
   if (input.selected_role === "unscored" && input.confidence === "Low") return "knowledge_gap";
   if (input.selected_role === "unscored") return "insufficient_evidence";
 
   if (input.is_correct === true) {
+    if (
+      input.correctness_support_level === "contradicted_by_reasoning" ||
+      (input.unsupported_correct_response && input.confidence === "Low")
+    ) {
+      return "knowledge_gap";
+    }
+    if (input.unsupported_correct_response || input.correctness_support_level === "unsupported") {
+      return "shallow_or_guess";
+    }
+    if (input.correctness_support_level === "weakly_supported") {
+      return "emerging_understanding";
+    }
     if (input.confidence === "Low") return "emerging_understanding";
     if (input.tempting_role === "diagnostic_distractor") return "emerging_understanding";
     if (["vague", "unknown", "off_track"].includes(input.reasoning_quality) && input.confidence === "High") {
@@ -613,6 +827,7 @@ function evidenceStrength(input: {
   category: z.infer<typeof AbilitySignalCategorySchema>;
   reasoning_quality: z.infer<typeof ReasoningQualitySchema>;
   modifier: z.infer<typeof EvidenceConfidenceModifierSchema>;
+  answer_selection_evidence_weight?: z.infer<typeof AnswerSelectionEvidenceWeightSchema>;
 }) {
   let strength: z.infer<typeof EvidenceStrengthSchema> =
     input.category === "strong_understanding" || input.category === "misconception_signal"
@@ -626,6 +841,11 @@ function evidenceStrength(input: {
   }
   if (input.modifier.effect === "lower_confidence") {
     strength = strength === "high" ? "medium" : "low";
+  }
+  if (input.answer_selection_evidence_weight === "minimal") {
+    strength = "low";
+  } else if (input.answer_selection_evidence_weight === "low" && strength === "high") {
+    strength = "medium";
   }
   if (input.modifier.effect === "increase_confidence" && strength === "medium") {
     strength = "high";
@@ -679,6 +899,35 @@ export function buildItemAbilityEvidence(input: BuildItemAbilityEvidenceInput): 
     reasoning_quality: reasoning.quality,
     confidence
   });
+  const uncertaintyMarkerTypes = uncertaintyMarkers({
+    reasoning_text: input.reasoning_text,
+    confidence
+  });
+  const supportLevel = correctnessSupportLevel({
+    is_correct: isCorrect,
+    reasoning,
+    confidence,
+    uncertainty_marker_types: uncertaintyMarkerTypes
+  });
+  const unsupportedCorrectResponse =
+    isCorrect === true && supportLevel !== "supported_by_reasoning";
+  const modifier = processModifier(input);
+  const guessingRisk = estimatedGuessingRisk({
+    is_correct: isCorrect,
+    correctness_support_level: supportLevel,
+    reasoning_text: input.reasoning_text,
+    reasoning_quality: reasoning.quality,
+    confidence,
+    uncertainty_marker_types: uncertaintyMarkerTypes,
+    no_tempting_option: input.no_tempting_option,
+    tempting_option_reason: input.tempting_option_reason,
+    total_item_time_ms: input.total_item_time_ms,
+    modifier
+  });
+  const evidenceWeight = answerEvidenceWeight({
+    correctness_support_level: supportLevel,
+    estimated_guessing_risk: guessingRisk.estimated_guessing_risk
+  });
   const category = classifyAbilitySignal({
     is_correct: isCorrect,
     selected_role: selectedRole,
@@ -686,9 +935,10 @@ export function buildItemAbilityEvidence(input: BuildItemAbilityEvidenceInput): 
     reasoning_quality: reasoning.quality,
     confidence,
     misconception_match_count: reasoning.misconception_matches.length,
-    contradiction_detected: reasoning.contradiction_detected
+    contradiction_detected: reasoning.contradiction_detected,
+    correctness_support_level: supportLevel,
+    unsupported_correct_response: unsupportedCorrectResponse
   });
-  const modifier = processModifier(input);
   const limitations: string[] = [];
 
   if (input.metadata.expected_solution_actions.length === 0) {
@@ -709,6 +959,12 @@ export function buildItemAbilityEvidence(input: BuildItemAbilityEvidenceInput): 
   if (modifier.effect === "lower_confidence") {
     limitations.push(`process_data_${modifier.reason_code}_lowers_inference_confidence_only`);
   }
+  if (unsupportedCorrectResponse) {
+    limitations.push("target_answer_selection_unsupported_by_reasoning");
+  }
+  if (guessingRisk.estimated_guessing_risk === "medium" || guessingRisk.estimated_guessing_risk === "high") {
+    limitations.push("answer_selection_weight_lowered_by_uncertainty_or_weak_reasoning");
+  }
 
   return AbilityItemEvidenceV1Schema.parse({
     item_public_id: input.item_public_id,
@@ -726,11 +982,19 @@ export function buildItemAbilityEvidence(input: BuildItemAbilityEvidenceInput): 
     confidence,
     reasoning_evidence: reasoning,
     confidence_calibration_signal: calibration,
+    unsupported_correct_response: unsupportedCorrectResponse,
+    correctness_support_level: supportLevel,
+    estimated_guessing_risk: guessingRisk.estimated_guessing_risk,
+    estimated_guessing_risk_basis: guessingRisk.estimated_guessing_risk_basis,
+    answer_selection_evidence_weight: evidenceWeight,
+    uncertainty_marker_present: uncertaintyMarkerTypes.length > 0,
+    uncertainty_marker_types: uncertaintyMarkerTypes,
     ability_signal_category: category,
     evidence_strength: evidenceStrength({
       category,
       reasoning_quality: reasoning.quality,
-      modifier
+      modifier,
+      answer_selection_evidence_weight: evidenceWeight
     }),
     evidence_confidence_modifier: modifier,
     evidence_limitations: limitations,
@@ -756,12 +1020,23 @@ function summarizeCalibration(items: AbilityItemEvidenceV1[]) {
   return first === "uncertain" ? "mixed" : first;
 }
 
+function countField<T extends string>(values: T[]) {
+  return values.reduce<Record<string, number>>((counts, value) => {
+    counts[value] = (counts[value] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
 export function summarizeConceptAbilityEvidence(items: AbilityItemEvidenceV1[]): AbilityEvidencePacketV1["concept_level_summary"] {
   const counts = items.reduce<Record<string, number>>((accumulator, item) => {
     accumulator[item.ability_signal_category] = (accumulator[item.ability_signal_category] ?? 0) + 1;
     return accumulator;
   }, {});
   const highStrengthCount = items.filter((item) => item.evidence_strength === "high").length;
+  const unsupportedCorrectResponseCount = items.filter((item) => item.unsupported_correct_response).length;
+  const highOrMediumGuessingRiskCount = items.filter((item) =>
+    item.estimated_guessing_risk === "high" || item.estimated_guessing_risk === "medium"
+  ).length;
   const misconceptionIds = new Map<string, number>();
   const limitations = new Set<string>();
 
@@ -775,7 +1050,10 @@ export function summarizeConceptAbilityEvidence(items: AbilityItemEvidenceV1[]):
   const provisionalCategory =
     items.length === 0 || counts.insufficient_evidence === items.length
       ? "Insufficient evidence"
-      : (counts.strong_understanding ?? 0) >= 2 && (counts.misconception_signal ?? 0) === 0
+      : (counts.strong_understanding ?? 0) >= 2 &&
+          (counts.misconception_signal ?? 0) === 0 &&
+          unsupportedCorrectResponseCount === 0 &&
+          highOrMediumGuessingRiskCount === 0
         ? "Mostly understood"
         : (counts.knowledge_gap ?? 0) + (counts.misconception_signal ?? 0) >= 2
           ? "Needs more work"
@@ -796,6 +1074,12 @@ export function summarizeConceptAbilityEvidence(items: AbilityItemEvidenceV1[]):
       .slice(0, 5),
     reasoning_quality_overall: summarizeReasoningQuality(items),
     confidence_calibration_overall: summarizeCalibration(items),
+    unsupported_correct_response_count: unsupportedCorrectResponseCount,
+    correctness_support_level_counts: countField(items.map((item) => item.correctness_support_level)),
+    estimated_guessing_risk_counts: countField(items.map((item) => item.estimated_guessing_risk)),
+    answer_selection_evidence_weight_counts: countField(items.map((item) => item.answer_selection_evidence_weight)),
+    uncertainty_marker_count: items.filter((item) => item.uncertainty_marker_present).length,
+    uncertainty_marker_type_counts: countField(items.flatMap((item) => item.uncertainty_marker_types)),
     evidence_limitations: [...limitations]
   };
 }
@@ -936,7 +1220,7 @@ export async function buildAbilityEvidencePacketForSession(sessionPublicId: stri
       safe_internal_summary:
         "Ability evidence packet generated from response package, item metadata, reasoning, confidence, tempting-option evidence, and process-data confidence modifiers.",
       evidence_trace: itemEvidence.map((item) =>
-        `${item.item_public_id}:${item.ability_signal_category}:${item.evidence_strength}`
+        `${item.item_public_id}:${item.ability_signal_category}:${item.evidence_strength}:support=${item.correctness_support_level}:weight=${item.answer_selection_evidence_weight}`
       )
     }
   };

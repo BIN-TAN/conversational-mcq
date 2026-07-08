@@ -3,6 +3,10 @@ import path from "node:path";
 import { prisma } from "@/lib/db";
 import { processEventTypes } from "@/lib/domain/enums";
 import {
+  buildAbilityEvidencePacketForSession,
+  type AbilityEvidencePacketV1
+} from "@/lib/services/student-assessment/ability-evidence";
+import {
   buildEngagementEvidencePacketForSession,
   type EngagementEvidencePacketV1
 } from "@/lib/services/student-assessment/engagement-evidence";
@@ -173,6 +177,42 @@ function summarizeEngagementPacket(packet: EngagementEvidencePacketV1 | null, er
   };
 }
 
+function summarizeCorrectnessInflation(packet: AbilityEvidencePacketV1 | null, error: unknown) {
+  if (!packet) {
+    return {
+      ability_packet_available: false,
+      unsupported_correct_response_count: 0,
+      estimated_guessing_risk_counts: {},
+      correctness_support_level_counts: {},
+      answer_selection_evidence_weight_distribution: {},
+      uncertainty_marker_count: 0,
+      uncertainty_marker_type_counts: {},
+      interpretation_boundary:
+        "These are internal evidence-quality indicators. They should not be interpreted as misconduct labels or as direct ability estimates.",
+      limitations: [error instanceof Error ? error.message : "ability_packet_unavailable"]
+    };
+  }
+
+  return {
+    ability_packet_available: true,
+    unsupported_correct_response_count:
+      packet.concept_level_summary.unsupported_correct_response_count,
+    estimated_guessing_risk_counts:
+      packet.concept_level_summary.estimated_guessing_risk_counts,
+    correctness_support_level_counts:
+      packet.concept_level_summary.correctness_support_level_counts,
+    answer_selection_evidence_weight_distribution:
+      packet.concept_level_summary.answer_selection_evidence_weight_counts,
+    uncertainty_marker_count:
+      packet.concept_level_summary.uncertainty_marker_count,
+    uncertainty_marker_type_counts:
+      packet.concept_level_summary.uncertainty_marker_type_counts,
+    interpretation_boundary:
+      "These are internal evidence-quality indicators. They should not be interpreted as misconduct labels or as direct ability estimates.",
+    limitations: packet.concept_level_summary.evidence_limitations
+  };
+}
+
 function summarizeActivityResponseChoices(attempts: Array<{ latest_activity_response_reference: unknown }>) {
   const counts: CountMap = { continue: 0, choose_another_activity: 0, move_on: 0, missing: 0 };
 
@@ -340,10 +380,17 @@ export async function buildTeacherSessionDataAudit(input: {
 
   let engagementPacket: EngagementEvidencePacketV1 | null = null;
   let engagementPacketError: unknown = null;
+  let abilityPacket: AbilityEvidencePacketV1 | null = null;
+  let abilityPacketError: unknown = null;
   try {
     engagementPacket = await buildEngagementEvidencePacketForSession(session.session_public_id);
   } catch (error) {
     engagementPacketError = error;
+  }
+  try {
+    abilityPacket = await buildAbilityEvidencePacketForSession(session.session_public_id);
+  } catch (error) {
+    abilityPacketError = error;
   }
 
   const activityAttempts = await prisma.activityRuntimeAttempt.findMany({
@@ -475,6 +522,10 @@ export async function buildTeacherSessionDataAudit(input: {
     engagementPacket,
     engagementPacketError
   );
+  const correctnessInflationSummary = summarizeCorrectnessInflation(
+    abilityPacket,
+    abilityPacketError
+  );
 
   const activityRuntimeSummary = {
     attempt_count: activityAttempts.length,
@@ -590,6 +641,7 @@ export async function buildTeacherSessionDataAudit(input: {
     process_data_summary: processDataSummary,
     response_evidence_summary: responseEvidenceSummary,
     engagement_evidence_summary: engagementEvidenceSummary,
+    correctness_inflation_summary: correctnessInflationSummary,
     activity_runtime_summary: activityRuntimeSummary,
     misconception_evidence_summary: misconceptionEvidenceSummary,
     diagnostic_snapshot_summary: diagnosticSnapshotSummary,
