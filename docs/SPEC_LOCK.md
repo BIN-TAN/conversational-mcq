@@ -2040,3 +2040,32 @@ Phase 6A.5 must not implement:
 - Phase 31a readiness is an engineering and workflow audit only. It must not be
   described as classroom validity, psychometric validity, learning-gain
   evidence, deployment approval, or public-launch readiness.
+
+## Phase 31b Production Web Deployment Readiness Lock
+
+- `student:production-deployment-readiness-smoke` and `production:readiness`
+  are no-live deployment-readiness commands. They must not call OpenAI, change
+  item content, change scoring, edit diagnosis/evaluator prompts, change
+  classroom assessment logic, mutate classroom operational records, or deploy
+  the application.
+- Phase 31b may add deployment documentation, safe health/readiness checks,
+  package scripts, Docker packaging, and production migration guidance. It must
+  not implement Canvas LTI, public self-registration, email/SMS delivery, cloud
+  provisioning, or public deployment.
+- Production readiness checks may report missing environment-variable names,
+  safe booleans, safe status labels, counts, and hashes. They must not print
+  `DATABASE_URL`, OpenAI API keys, credential-file contents, session secrets,
+  cookies, authorization headers, raw provider payloads, raw prompts, answer
+  keys, correct options, correctness labels, raw distractor metadata, raw
+  misconception IDs, or internal database UUIDs.
+- `/api/health` may expose only safe status fields such as app status,
+  database-reachable boolean, readiness indicators, server time, and environment
+  name. It must not expose secrets, raw env values, provider metadata, user data,
+  answer keys, or raw diagnostic payloads.
+- Production database changes must use `prisma migrate deploy` after backup.
+  Production must not use `prisma migrate dev`, database reset, or local seed
+  commands unless a later reviewed production procedure explicitly permits it.
+- Phase 31b readiness remains an engineering deployment-preparation check. It
+  must not be described as classroom validity, psychometric validity,
+  learning-gain evidence, public-launch approval, or authorization to use real
+  student data.

@@ -816,3 +816,40 @@ available.
 These commands make no OpenAI calls and do not claim classroom validity. Older
 or partial sessions may be reported as ready with limitations when activity
 runtime, post-activity evidence, or diagnostic snapshots are absent.
+
+## Production Deployment Readiness
+
+Phase 31b adds a production web deployment readiness layer for a future HTTPS
+classroom pilot. It prepares deployment checks and documentation; it does not
+start public deployment, implement Canvas LTI, or establish classroom validity.
+
+Run:
+
+```bash
+npm run student:production-deployment-readiness-smoke
+npm run production:readiness
+```
+
+The readiness smoke checks environment-variable presence by name, base URL
+configuration, Prisma migrations, `npx prisma validate`, safe invocation of
+`npx prisma migrate status`, `/api/health`, LLM readiness in no-live mode,
+ignored export directories, unstaged local env files, committed-config secret
+patterns, Docker packaging, and required deployment scripts. It makes no OpenAI
+call and suppresses raw command output so database URLs and secrets are not
+printed.
+
+Production deployment should use:
+
+```bash
+npm run prisma:generate
+npm run prisma:migrate:deploy
+npm run build
+npm run start
+```
+
+For a classroom web pilot, deploy staging first, verify the public HTTPS URL
+from a non-development device, confirm teacher and student login, complete the
+three-item package and activity response path, inspect teacher/research review
+surfaces, download research data, and run export integrity checks. Keep real
+OpenAI keys, database URLs, session secrets, generated exports, backups, and
+logs out of Git.

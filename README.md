@@ -12,6 +12,8 @@ Phase 30k adds internal/research-only safeguards against correctness inflation. 
 
 Phase 31a adds a no-live classroom pilot readiness audit for the fixed IRT MVP workflow. It verifies synthetic student session start, protected initial package completion, activity runtime projections, injected post-activity evidence handling, teacher review, readable and structured transcripts, bulk research export, export-integrity review, and protected-data boundaries. It does not call OpenAI and does not claim classroom validity. See `docs/CLASSROOM_PILOT_READINESS.md`.
 
+Phase 31b adds production web deployment readiness for a future HTTPS classroom pilot. It adds a safe `/api/health` response, deployment scripts, a no-live production readiness smoke, Docker packaging, and deployment documentation. It does not deploy publicly, implement Canvas LTI, or claim classroom validity. See `docs/PRODUCTION_DEPLOYMENT_READINESS.md`.
+
 ## Local Setup
 
 ### Prerequisites
@@ -67,6 +69,28 @@ If either command is missing, update your shell PATH according to your Node inst
 10. Keep `EVAL_LIVE_CALLS_ENABLED=false` for Phase 7E1. `EVAL_TARGET_MODEL=gpt-5.4-mini` is future live-evaluation metadata only and does not trigger OpenAI calls.
 
 Do not commit `.env`, `.env.local`, real session secrets, or real API keys.
+
+### Production Web Deployment Readiness
+
+Phase 31b prepares the app for a future public HTTPS deployment without starting deployment. The production readiness smoke makes no OpenAI calls and prints only safe status fields:
+
+```bash
+npm run student:production-deployment-readiness-smoke
+npm run production:readiness
+```
+
+Production deployment should use migration deployment instead of development migrations:
+
+```bash
+npm run prisma:generate
+npm run prisma:migrate:deploy
+npm run build
+npm run start
+```
+
+Before a classroom web pilot, deploy a staging URL, verify `/api/health`, run the production readiness smoke, run migrations, verify teacher login, create or import approved student accounts, have a student open the public URL from a non-development device, complete the three-item package and activity response path, inspect teacher/research review surfaces, download all research data, and run export integrity checks.
+
+Never put OpenAI keys, database URLs, session secrets, cookies, or auth tokens in `NEXT_PUBLIC_` variables. Public variables may contain only harmless browser-visible configuration such as `NEXT_PUBLIC_APP_BASE_URL`.
 
 ### Database
 

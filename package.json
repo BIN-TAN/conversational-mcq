@@ -56,6 +56,7 @@
     "student:research-export-integrity-review": "tsx prisma/student-research-export-integrity-review.ts",
     "student:research-export-integrity-smoke": "tsx prisma/student-research-export-integrity-smoke-test.ts",
     "student:classroom-pilot-readiness-smoke": "tsx prisma/student-classroom-pilot-readiness-smoke-test.ts",
+    "student:production-deployment-readiness-smoke": "tsx prisma/student-production-deployment-readiness-smoke-test.ts",
     "student:classroom-pilot-workflow-review": "tsx prisma/student-classroom-pilot-workflow-review.ts",
     "student:profile-formative-scenario-smoke": "tsx prisma/student-profile-formative-scenario-smoke.ts",
     "student:profile-formative-quota-smoke": "tsx prisma/student-profile-formative-quota-smoke.ts",
@@ -297,8 +298,10 @@
     "operational:live-canary-auth-classification-smoke": "tsx prisma/operational-live-canary-smoke-test.ts --suite auth-classification",
     "operational:live-canary-retry-prevention-smoke": "tsx prisma/operational-live-canary-smoke-test.ts --suite retry-prevention",
     "operational:live-canary-ready-status-smoke": "tsx prisma/operational-live-canary-smoke-test.ts --suite ready-status",
+    "production:readiness": "tsx prisma/student-production-deployment-readiness-smoke-test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {

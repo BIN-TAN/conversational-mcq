@@ -126,3 +126,25 @@ Readiness is a local engineering and workflow check. It does not establish learn
 14. Confirm no protected data leaks.
 
 Record only pass/fail observations, session public IDs, artifact paths, status fields, and limitations. Do not record secrets, raw provider payloads, answer keys, raw process payloads, or raw student text outside approved research artifacts.
+
+## Production Web Pilot Checklist
+
+Phase 31b adds deployment readiness checks for a future public HTTPS classroom pilot. It does not authorize public deployment or claim classroom validity. See `docs/PRODUCTION_DEPLOYMENT_READINESS.md`.
+
+Before using a public URL with students:
+
+1. Deploy a staging HTTPS URL.
+2. Configure server-side secrets through the hosting provider, not browser-visible variables.
+3. Run `npm run student:production-deployment-readiness-smoke`.
+4. Run `npm run prisma:migrate:deploy` against the deployment database.
+5. Verify `GET /api/health` returns a safe healthy response.
+6. Verify teacher login on the public URL.
+7. Create or import approved student accounts.
+8. Open the student URL from a non-development device.
+9. Complete the three-item package.
+10. Complete one activity response path.
+11. Open teacher review, readable transcript, session evidence audit, and structured event log.
+12. Download all research data.
+13. Run `npm run student:research-export-integrity-smoke`.
+
+The public deployment must preserve the same protected-data boundaries as local readiness: no answer keys, correct options, correctness labels, raw provider payloads, raw process payloads, raw distractor metadata, raw misconception IDs, credentials, cookies, database URLs, API keys, or session secrets in student-facing UI or public logs.
