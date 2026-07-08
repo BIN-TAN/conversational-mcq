@@ -433,3 +433,57 @@ contains public session/concept/item context, event type/category/source,
 timestamps, safe scope, and item order when available. It does not export raw
 process payloads, raw keystrokes, clipboard text, browser URLs, provider
 output, answer keys, correct options, correctness labels, or secrets.
+
+### Research Export Integrity Review
+
+Phase 30l adds a no-live integrity review command:
+
+```bash
+npm run student:research-export-integrity-review
+npm run student:research-export-integrity-smoke
+```
+
+The review builds the default teacher/research ZIP and verifies:
+
+- every required file is present;
+- `manifest.json` includes generated time, export version, redaction policy,
+  `restricted_item_keys_included`, included sources, row counts, and
+  limitations;
+- manifest row counts match actual CSV/JSONL rows;
+- every exported file is described in `data_dictionary.json`;
+- exported top-level columns/fields are defined;
+- public-ID joins work through `session_public_id`, `student_user_id`,
+  `activity_attempt_public_id`, and `evidence_public_id`;
+- turn latencies are non-negative, use allowed scopes/sources, and null
+  latency rows include an explicit limitation;
+- engagement process features are non-negative, keep `idle_ratio` between 0
+  and 1, and leave `active_interaction_time_ms`/`active_typing_time_ms` null
+  unless explicitly instrumented;
+- correctness-inflation values use approved internal/research enums;
+- readable transcripts and default data files do not expose answer keys,
+  correct options, correctness labels, raw process payloads, raw provider
+  output, raw distractor metadata, raw misconception IDs, secrets, or internal
+  database UUID fields.
+
+The command writes redacted local artifacts under:
+
+```text
+.data/research-export-integrity-review/
+```
+
+The generated `research-analysis-readiness-summary.md` is research-facing. It
+summarizes available datasets, recommended analysis tables, join keys, timing
+variables and caveats, process-feature caveats, correctness-inflation
+safeguards, missing activity/post-activity evidence, null latency rows, and
+dissertation limitations.
+
+Important interpretation boundaries:
+
+- `item_response_time_ms` is a full item interval and is not equivalent to
+  prompt-to-response/action latency.
+- Turn-level latency may include reading, thinking, idle time, or off-task
+  time.
+- Process features are evidence-quality context only.
+- Estimated guessing risk is an internal evidence-quality estimate, not a
+  student-facing label and not a misconduct label.
+- Correctness alone is not evidence of understanding.

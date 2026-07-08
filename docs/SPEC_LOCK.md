@@ -1963,3 +1963,49 @@ Phase 6A.5 must not implement:
   "Did you guess?"
 - Deterministic code may enforce evidence sufficiency and anti-overclaiming.
   It must not become the final substantive misconception evaluator.
+
+## Phase 30l Research Export Integrity And Analysis-Readiness Lock
+
+- `student:research-export-integrity-review` and
+  `student:research-export-integrity-smoke` are no-live commands. They must not
+  call OpenAI, mutate student assessment workflow records, modify item content,
+  or change prompts, scoring, profile logic, or evaluator logic.
+- The default teacher/research ZIP must include `manifest.json`,
+  `README_EXPORT.md`, `data_dictionary.json`, students, sessions, item
+  responses, readable and structured-redacted transcripts, response-package
+  summaries, process counts/summaries/redacted timelines, turn-response
+  latencies, engagement process features, engagement/profile/formative/activity
+  summaries, post-activity evidence/snapshot summaries, agent-call summaries,
+  session completeness rows, and limitations.
+- `manifest.json` must list every exported file, include row counts matching
+  actual rows, include generated time, export version, redaction policy,
+  included sources, limitations, and mark
+  `restricted_item_keys_included=false` for the default export.
+- `data_dictionary.json` must describe every exported file and define exported
+  top-level columns/fields, timing variables, process metrics,
+  correctness-inflation fields, and interpretation boundaries.
+- Public-ID joins must be checkable through `session_public_id`,
+  `student_user_id`, `activity_attempt_public_id`, and `evidence_public_id`
+  where those references exist. Old or pre-activity sessions missing activity
+  runtime or post-activity evidence are limitations, not integrity failures.
+- Turn-level latency checks must enforce non-negative durations, allowed
+  latency scopes/sources, seconds/milliseconds consistency, and explicit
+  limitation labels for null latency rows.
+- Engagement process feature checks must enforce non-negative timing values,
+  valid `idle_ratio`, explicit unavailable limitations, and no approximation of
+  active interaction or active typing from elapsed timing.
+- Correctness-inflation indicators remain internal/research-only
+  evidence-quality safeguards. Default student-facing/readable transcript
+  exports must not expose estimated guessing risk, unsupported correctness,
+  correctness support level, answer keys, correct options, or correctness
+  labels.
+- Safety scanning must block API keys, authorization headers, bearer tokens,
+  secrets, raw provider input/output, raw process payloads, raw keystrokes, raw
+  clipboard text, raw browser URLs, answer keys, correct options, raw
+  distractor metadata, raw misconception IDs, and internal database UUID fields
+  in default export files where prohibited.
+- The analysis-readiness summary under
+  `.data/research-export-integrity-review/` is a local ignored
+  teacher/research artifact. It may describe available datasets, join keys,
+  timing caveats, missingness, and dissertation limitations, but it must not
+  claim classroom validity.

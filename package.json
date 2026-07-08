@@ -53,6 +53,8 @@
     "student:teacher-session-data-audit-smoke": "tsx prisma/student-teacher-session-data-audit-smoke-test.ts",
     "student:teacher-readable-transcript-smoke": "tsx prisma/student-teacher-readable-transcript-smoke-test.ts",
     "student:teacher-bulk-export-smoke": "tsx prisma/student-teacher-bulk-export-smoke-test.ts",
+    "student:research-export-integrity-review": "tsx prisma/student-research-export-integrity-review.ts",
+    "student:research-export-integrity-smoke": "tsx prisma/student-research-export-integrity-smoke-test.ts",
     "student:profile-formative-scenario-smoke": "tsx prisma/student-profile-formative-scenario-smoke.ts",
     "student:profile-formative-quota-smoke": "tsx prisma/student-profile-formative-quota-smoke.ts",
     "student:profile-formative-live-trials": "tsx prisma/student-profile-formative-live-trials.ts",

@@ -203,6 +203,21 @@ If a researcher needs item keys for separate controlled analysis, they must use
 the explicit restricted item-key export option. The default ZIP manifest marks
 `restricted_item_keys_included=false`.
 
+Phase 30l adds an automated no-live integrity review for the default
+teacher/research ZIP:
+
+```bash
+npm run student:research-export-integrity-review
+```
+
+The review verifies required files, manifest row counts, data-dictionary
+coverage, public-ID joins, latency/process feature validity,
+correctness-inflation safeguards, missingness, and protected-content
+boundaries. It writes ignored research-facing artifacts under
+`.data/research-export-integrity-review/`, including an analysis-readiness
+summary. The summary may support dissertation data preparation, but it is not a
+classroom-validity claim.
+
 ## Phase 30k Correctness-Inflation Safeguard
 
 Correct option selection is not sufficient evidence of understanding. A

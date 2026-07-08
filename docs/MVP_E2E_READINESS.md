@@ -65,6 +65,35 @@ These files are ignored by Git. Each snapshot includes:
 
 The export is for local development and audit checks only. It is not student-facing UI and should not be committed.
 
+## Research Export Integrity QA
+
+The teacher/research ZIP export can be checked for analysis readiness without
+calling any provider:
+
+```bash
+npm run student:research-export-integrity-review
+npm run student:research-export-integrity-smoke
+```
+
+The review command validates the default research ZIP file set, manifest row
+counts, data dictionary coverage, public-ID joinability, latency values,
+engagement process features, correctness-inflation safeguards, missingness, and
+protected-content boundaries. It writes ignored artifacts under:
+
+```text
+.data/research-export-integrity-review/
+```
+
+The generated `research-analysis-readiness-summary.md` is research-facing. It
+lists datasets, primary analysis tables, join keys, timing caveats, process
+feature caveats, correctness-inflation boundaries, sessions with missing
+activity/post-activity evidence, null latency rows, and dissertation
+limitations. A `ready_with_limitations` result is acceptable when the only
+findings are expected missingness from old or pre-activity sessions.
+
+The integrity review does not make OpenAI calls and does not mutate operational
+records. It must not be used to claim classroom validity.
+
 ## Ability Evidence Packet
 
 The fixed IRT MVP can build an internal `ability-evidence-packet-v1` from the existing response package:

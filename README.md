@@ -1831,3 +1831,28 @@ response/action; it is distinct from `item_response_time_ms` and may include
 reading, thinking, or idle time. The process-event timeline is payload-free and
 does not include raw keystrokes, clipboard text, browser URLs, provider output,
 answer keys, correctness labels, or secrets.
+
+Run the no-live integrity QA for the default teacher/research ZIP with:
+
+```bash
+npm run student:research-export-integrity-review
+npm run student:research-export-integrity-smoke
+```
+
+The review command builds the research export, validates required files,
+manifest row counts, public-ID joins, data-dictionary coverage, latency values,
+engagement process features, correctness-inflation safeguards, and protected
+content boundaries, then writes ignored artifacts under
+`.data/research-export-integrity-review/`. The companion
+`research-analysis-readiness-summary.md` summarizes available datasets, primary
+analysis tables, join keys, timing caveats, missing activity/post-activity
+evidence, and dissertation limitations.
+
+Default exports remain research-safe. Restricted item keys are excluded unless
+an explicit restricted export is requested, and the manifest must record
+`restricted_item_keys_included=false` for the default ZIP. Correctness-inflation
+fields such as `estimated_guessing_risk`,
+`unsupported_correct_response`, and `correctness_support_level` are
+teacher/research evidence-quality indicators only. They must not be shown to
+students and must not be treated as misconduct, cheating, or direct ability
+labels.

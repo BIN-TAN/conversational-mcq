@@ -46,6 +46,7 @@ export type EngagementProcessFeatureRow = {
   focus_adjusted_time_ms: number | null;
   confidence_selection_latency_ms: number | null;
   reasoning_input_elapsed_time_ms: number | null;
+  active_typing_time_ms: number | null;
   pre_submit_pause_ms: number | null;
   activity_prompt_to_first_action_ms: number | null;
   activity_response_elapsed_ms: number | null;
@@ -299,6 +300,7 @@ function buildItemRow(input: {
     focus_adjusted_time_ms: focusAdjustedMs,
     confidence_selection_latency_ms: nonnegativeDiff(promptTime, confidenceEventTime),
     reasoning_input_elapsed_time_ms: reasoningElapsedMs,
+    active_typing_time_ms: null,
     pre_submit_pause_ms: nonnegativeDiff(lastActionTime, finalSubmissionTime),
     activity_prompt_to_first_action_ms: null,
     activity_response_elapsed_ms: null,
@@ -365,6 +367,7 @@ function buildActivityRows(input: {
     focus_adjusted_time_ms: null,
     confidence_selection_latency_ms: null,
     reasoning_input_elapsed_time_ms: null,
+    active_typing_time_ms: null,
     pre_submit_pause_ms: null,
     activity_prompt_to_first_action_ms: nonnegativeDiff(promptTime, firstActionTime),
     activity_response_elapsed_ms: totalMs,
