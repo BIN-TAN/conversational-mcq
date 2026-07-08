@@ -780,3 +780,39 @@ No OpenAI call is made by export or transcript commands. Verify locally with:
 npm run student:teacher-readable-transcript-smoke
 npm run student:teacher-bulk-export-smoke
 ```
+
+## Classroom Pilot Readiness Audit
+
+Phase 31a adds a no-live engineering readiness layer for a small classroom pilot
+of the fixed IRT MVP. It checks the complete local teacher-student workflow
+without changing item content, scoring, core misconception logic, prompts, or
+provider schemas.
+
+Run:
+
+```bash
+npm run student:classroom-pilot-readiness-smoke
+npm run student:classroom-pilot-workflow-review
+```
+
+The smoke creates synthetic sessions, completes the protected three-item
+package, prepares a live-shaped activity runtime projection with injected
+no-live evaluator output, checks move-on and choose-another paths, verifies
+teacher review and export surfaces, and confirms activity runtime does not
+overwrite operational profiles or response packages.
+
+The workflow review inspects the latest completed and incomplete sessions when
+available, writes a redacted artifact under:
+
+```text
+.data/classroom-pilot-workflow-review/
+```
+
+and reports whether student flow, activity runtime, teacher review, session
+evidence audit, readable transcript, structured event log, bulk export, export
+integrity review, student-safe projection, and teacher-export safety are
+available.
+
+These commands make no OpenAI calls and do not claim classroom validity. Older
+or partial sessions may be reported as ready with limitations when activity
+runtime, post-activity evidence, or diagnostic snapshots are absent.

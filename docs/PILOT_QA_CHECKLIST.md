@@ -87,6 +87,8 @@ Run non-live verification:
 npm run typecheck
 npm run lint
 npm run build
+npm run student:classroom-pilot-readiness-smoke
+npm run student:classroom-pilot-workflow-review
 npm run student:mvp-e2e-smoke
 npm run student:ui-smoke
 npm run student:initial-chat-ui-smoke
@@ -237,6 +239,7 @@ No logs, exports, screenshots, or notes should contain API keys, cookies, auth t
 - Any student-facing error messages or stalled states.
 - For developer audit, whether process-event or conversation-turn payloads show `item_admin_tutor_source` as `live_llm`, `deterministic_mock`, `safe_block_after_live_failure`, or `configuration_blocked`.
 - Whether teacher review and exports show the expected synthetic records after the session.
+- Whether `npm run student:classroom-pilot-workflow-review` reports `passed` or `completed_with_limitations`, and which limitations remain.
 
 ## Known Limitations
 
@@ -245,4 +248,5 @@ No logs, exports, screenshots, or notes should contain API keys, cookies, auth t
 - The fixed IRT MVP uses a limited item set.
 - Teacher upload is not implemented in this rewrite phase.
 - Transfer-item feedback is not implemented in this phase.
+- Older or incomplete sessions may lack activity runtime attempts, post-activity evidence records, or diagnostic snapshots; the classroom pilot workflow review reports these as limitations.
 - Human review of usability, safety, timing, and data quality remains required before broader classroom use.

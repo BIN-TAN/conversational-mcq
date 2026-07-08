@@ -2009,3 +2009,34 @@ Phase 6A.5 must not implement:
   teacher/research artifact. It may describe available datasets, join keys,
   timing caveats, missingness, and dissertation limitations, but it must not
   claim classroom validity.
+
+## Phase 31a Classroom Pilot Readiness Audit Lock
+
+- `student:classroom-pilot-readiness-smoke` and
+  `student:classroom-pilot-workflow-review` are no-live commands. They must not
+  call OpenAI, change item content, change scoring, modify core misconception
+  logic, edit prompts or provider schemas, or mutate completed evaluation
+  evidence.
+- The readiness smoke may create synthetic sessions and injected live-shaped
+  activity/evaluator records for local verification, then clean them up. It
+  must not use real student data or deidentified classroom data.
+- The workflow review is a redacted status artifact over latest completed and
+  incomplete sessions when available. It may report counts, safe public IDs,
+  safe availability flags, and limitations. It must not include raw student
+  text, raw provider payloads, answer keys, correct options, raw distractor
+  metadata, raw misconception IDs, raw process payloads, internal database
+  UUIDs, API keys, cookies, authorization headers, database URLs, or session
+  secrets.
+- Readiness criteria cover synthetic teacher/student account availability,
+  protected initial package completion, student-safe activity runtime
+  projection, injected evaluator response handling, move-on and choose-another
+  paths, teacher review, session evidence audit, readable transcript,
+  structured event log, bulk research export, export-integrity review,
+  student projection safety, teacher/research export safety, and preservation
+  of operational profiles and response packages.
+- Missing activity runtime attempts, post-activity evidence, or diagnostic
+  snapshots in old or incomplete sessions are limitations, not automatic
+  validity failures.
+- Phase 31a readiness is an engineering and workflow audit only. It must not be
+  described as classroom validity, psychometric validity, learning-gain
+  evidence, deployment approval, or public-launch readiness.

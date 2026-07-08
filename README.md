@@ -10,6 +10,8 @@ Teacher/research review includes both a readable conversation-only transcript an
 
 Phase 30k adds internal/research-only safeguards against correctness inflation. Correct option selection is not sufficient evidence of understanding: target-aligned answers with weak reasoning, low confidence, uncertainty markers, or missing distractor-boundary explanation are treated conservatively until reasoning, conceptual-boundary evidence, or distractor-boundary evidence supports the interpretation. These indicators are not shown to students and are not cheating, misconduct, motivation, GenAI-use, or direct ability labels.
 
+Phase 31a adds a no-live classroom pilot readiness audit for the fixed IRT MVP workflow. It verifies synthetic student session start, protected initial package completion, activity runtime projections, injected post-activity evidence handling, teacher review, readable and structured transcripts, bulk research export, export-integrity review, and protected-data boundaries. It does not call OpenAI and does not claim classroom validity. See `docs/CLASSROOM_PILOT_READINESS.md`.
+
 ## Local Setup
 
 ### Prerequisites
@@ -184,6 +186,8 @@ npm run student:ability-evidence-smoke
 npm run student:ability-evidence-review
 npm run student:teacher-readable-transcript-smoke
 npm run student:teacher-bulk-export-smoke
+npm run student:classroom-pilot-readiness-smoke
+npm run student:classroom-pilot-workflow-review
 npm run student:engagement-evidence-smoke
 npm run student:engagement-evidence-review
 npm run student:profile-integration-smoke
