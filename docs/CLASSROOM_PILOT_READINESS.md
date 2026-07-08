@@ -133,24 +133,26 @@ Phase 31b adds deployment readiness checks for a future public HTTPS classroom p
 
 Before using a public URL with students:
 
-1. Deploy a staging or production HTTPS URL.
+1. Deploy a Render staging HTTPS URL with `render.yaml` as the recommended first path.
 2. Configure server-side secrets through the hosting provider, not browser-visible variables.
-3. Run `npm run student:production-deployment-readiness-smoke`.
-4. Run `npm run prisma:migrate:deploy` against the deployment database.
-5. Verify `GET /api/health` returns a safe healthy response.
-6. Verify teacher login on the public URL.
-7. Create or import the classroom.
-8. Create or import approved student accounts or access codes.
-9. Copy the public HTTPS Conversational MCQ URL.
-10. Add the URL to a Canvas assignment page or Canvas module item.
-11. Test the link from a non-development student device or browser profile.
-12. Student signs in with classroom ID and access code/password inside Conversational MCQ.
-13. Student completes the three-item package.
-14. Student completes one activity response path.
-15. Teacher opens session detail.
-16. Teacher reviews readable transcript, structured event log, process events, and session evidence audit.
-17. Teacher downloads all research data.
-18. Run `npm run student:research-export-integrity-smoke`.
+3. Run `npm run student:render-staging-readiness-smoke`.
+4. Run `npm run student:production-deployment-readiness-smoke`.
+5. Confirm Render pre-deploy ran `npm run prisma:migrate:deploy` against the deployment database.
+6. Verify `GET /api/health` returns a safe healthy response.
+7. Verify teacher login on the public URL.
+8. Create or import the classroom.
+9. Create or import approved student accounts or access codes.
+10. Copy the public HTTPS Conversational MCQ URL.
+11. Add the URL to a Canvas assignment page or Canvas module item.
+12. Test the link from a non-development student device or browser profile.
+13. Student signs in with classroom ID and access code/password inside Conversational MCQ.
+14. Student completes the three-item package.
+15. Student completes one activity response path.
+16. Teacher opens session detail.
+17. Teacher reviews readable transcript, structured event log, process events, and session evidence audit.
+18. Teacher downloads all research data.
+19. Run `npm run student:research-export-integrity-smoke`.
+20. Complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`.
 
 Canvas assignment/module wording:
 
@@ -161,3 +163,5 @@ Open the Conversational MCQ activity using the link below. Use the classroom ID 
 The public deployment must preserve the same protected-data boundaries as local readiness: no answer keys, correct options, correctness labels, raw provider payloads, raw process payloads, raw distractor metadata, raw misconception IDs, credentials, cookies, database URLs, API keys, or session secrets in student-facing UI or public logs.
 
 Canvas gradebook will not automatically receive completion or scores. Teacher/research review and exports remain inside Conversational MCQ.
+
+Render staging resources should use non-free, classroom-pilot-appropriate plans. Store `OPENAI_API_KEY`, `DATABASE_URL`, `SESSION_SECRET`, and any other credentials only in Render's server-side environment variable UI; never in `NEXT_PUBLIC_` variables.

@@ -2084,3 +2084,30 @@ Phase 6A.5 must not implement:
   must not be described as classroom validity, psychometric validity,
   learning-gain evidence, public-launch approval, or authorization to use real
   student data.
+
+## Phase 31c Render Staging Deployment Package Lock
+
+- The recommended first public HTTPS staging path is Render Web Service plus
+  Render Postgres using the root `render.yaml` Blueprint.
+- `student:render-staging-readiness-smoke` is a no-live, no-Render-API,
+  no-deployment readiness command. It must not call OpenAI, contact Render,
+  mutate classroom records, change item content, change scoring, edit prompts,
+  or modify deployment databases.
+- The Render Blueprint must define one native Node Web Service, one Render
+  Postgres database, `DATABASE_URL` sourced from the Render database connection
+  string, `npm run prisma:migrate:deploy` before deploy, and `npm run start` as
+  the app start command.
+- Secret and deployment-specific values must be marked `sync: false` or entered
+  manually in the Render Dashboard. `OPENAI_API_KEY`, `DATABASE_URL`,
+  `SESSION_SECRET`, cookies, access-code hashes, bearer tokens, and credential
+  files must never be committed or exposed through `NEXT_PUBLIC_` variables.
+- `APP_ENV=staging`, `APP_BASE_URL`, and `NEXT_PUBLIC_APP_BASE_URL` are required
+  for Render staging. `NEXT_PUBLIC_APP_BASE_URL` may contain only the public
+  HTTPS origin.
+- Render staging for a classroom pilot must not silently use free or sleep-prone
+  resources. The operator must confirm current non-free Render plan choices in
+  the Render Dashboard.
+- Canvas remains external-link only: no Canvas LTI, OAuth, grade passback,
+  roster sync, Developer Key configuration, or Canvas API integration.
+- Phase 31c does not create Render accounts, connect GitHub, deploy the app,
+  provision cloud resources, run provider calls, or claim classroom validity.

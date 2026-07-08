@@ -1,0 +1,93 @@
+# Render Blueprint for the first classroom-pilot staging deployment.
+# This blueprint uses a native Node Web Service instead of Docker because the
+# app already builds cleanly with npm, Prisma generate, and Next.js build.
+# Before classroom use, confirm the current paid Render plan names and sizes in
+# the Render Dashboard; do not use free resources for a classroom pilot.
+
+services:
+  - type: web
+    name: conversational-mcq-staging
+    runtime: node
+    plan: starter
+    region: oregon
+    branch: main
+    autoDeploy: false
+    healthCheckPath: /api/health
+    buildCommand: npm ci && npm run prisma:generate && npm run build
+    preDeployCommand: npm run prisma:migrate:deploy
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: APP_ENV
+        value: staging
+      - key: APP_BASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_APP_BASE_URL
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: conversational-mcq-staging-db
+          property: connectionString
+      - key: SESSION_SECRET
+        sync: false
+      - key: COURSE_TIMEZONE
+        value: America/Edmonton
+      - key: LLM_PROVIDER
+        value: openai
+      - key: LLM_LIVE_CALLS_ENABLED
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL_ITEM_ADMIN
+        sync: false
+      - key: OPENAI_MODEL_PROFILE_INTEGRATION
+        sync: false
+      - key: OPENAI_MODEL_PLANNING
+        sync: false
+      - key: OPENAI_MODEL_FOLLOWUP
+        sync: false
+      - key: ALLOW_LOCAL_MOCK_RUNTIME
+        value: "false"
+      - key: ITEM_ADMIN_TUTOR_MODE
+        value: auto
+      - key: OPENAI_REQUEST_TIMEOUT_MS
+        value: "60000"
+      - key: OPENAI_MAX_RETRIES
+        value: "2"
+      - key: LLM_DAILY_CLASS_CALL_LIMIT
+        sync: false
+      - key: LLM_DAILY_CLASS_TOKEN_LIMIT
+        sync: false
+      - key: LLM_DAILY_STUDENT_CALL_LIMIT
+        sync: false
+      - key: LLM_DAILY_STUDENT_TOKEN_LIMIT
+        sync: false
+      - key: LLM_SESSION_CALL_LIMIT
+        sync: false
+      - key: LLM_SESSION_TOKEN_LIMIT
+        sync: false
+      - key: LLM_AGENT_CALL_LIMIT_PER_SESSION
+        sync: false
+      - key: WORKFLOW_JOB_MAX_ATTEMPTS
+        value: "3"
+      - key: WORKFLOW_JOB_BASE_RETRY_MS
+        value: "30000"
+      - key: WORKFLOW_JOB_MAX_RETRY_MS
+        value: "300000"
+      - key: WORKFLOW_JOB_LEASE_TIMEOUT_MS
+        value: "600000"
+      - key: WORKFLOW_JOB_POLL_INTERVAL_MS
+        value: "5000"
+
+databases:
+  - name: conversational-mcq-staging-db
+    databaseName: conversational_mcq_staging
+    user: conversational_mcq_staging
+    region: oregon
+    plan: basic-256mb
+    postgresMajorVersion: "16"

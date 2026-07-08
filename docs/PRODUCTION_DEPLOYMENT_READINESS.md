@@ -6,6 +6,7 @@ Run the no-live readiness smoke:
 
 ```bash
 npm run student:production-deployment-readiness-smoke
+npm run student:render-staging-readiness-smoke
 ```
 
 The smoke prints only safe booleans, variable names, status labels, counts, and output hashes. It must not print `DATABASE_URL`, OpenAI keys, session secrets, raw provider output, raw prompts, answer keys, correct options, or correctness labels. Missing production-only values are reported as documented gaps rather than leaked values.
@@ -24,6 +25,8 @@ The smoke also reports:
 ## Recommended Architecture
 
 Use one deployment instance per course or pilot cohort unless a later multi-course tenancy layer is explicitly designed.
+
+For the first public HTTPS staging deployment, the recommended path is Render Web Service plus Render Postgres using the checked-in `render.yaml` Blueprint. This is the shortest supported path for Canvas-link classroom access because it provides a public HTTPS URL, a managed Node runtime, and managed PostgreSQL without adding Canvas integration code.
 
 Recommended production shape:
 
@@ -45,7 +48,7 @@ Local development uses Docker PostgreSQL, `.env.local`, and `npm run dev` or the
 
 ### Staging
 
-Staging should mirror production infrastructure with synthetic accounts and synthetic or approved pilot-test data only. Run migrations with `npm run prisma:migrate:deploy`, seed only safe staging accounts, run the production readiness smoke, and perform a browser walkthrough from a non-developer device.
+Staging should mirror production infrastructure with synthetic accounts and synthetic or approved pilot-test data only. For Phase 31c, use Render Web Service plus Render Postgres as the first staging path. Run migrations with `npm run prisma:migrate:deploy` through Render's pre-deploy step, seed only safe staging accounts, run the production and Render readiness smokes, and perform a browser walkthrough from a non-developer device.
 
 ### Production
 
@@ -96,6 +99,26 @@ WORKFLOW_JOB_POLL_INTERVAL_MS
 Use `.env.example` only as a template. Do not commit real values.
 
 `NEXT_PUBLIC_APP_BASE_URL` is allowed only because it is harmless browser-visible public URL configuration. Do not put OpenAI keys, database URLs, session secrets, cookies, access-code hashes, authorization headers, or auth tokens in any `NEXT_PUBLIC_` variable.
+
+## Render Staging Deployment
+
+The repository includes `render.yaml` for a Render Blueprint staging deployment:
+
+- Web Service: native Node runtime, `npm ci && npm run prisma:generate && npm run build`, `npm run start`.
+- Database: Render Postgres, wired to `DATABASE_URL` with `fromDatabase.connectionString`.
+- Migration step: `npm run prisma:migrate:deploy` in Render pre-deploy.
+- Health check: `/api/health`.
+- Secret and deployment-specific fields: marked `sync: false` for Render Dashboard entry.
+
+Run the no-network Render config smoke locally:
+
+```bash
+npm run student:render-staging-readiness-smoke
+```
+
+Use non-free, staging-friendly Render plans for classroom pilot testing. Free or sleep-prone resources can interrupt student sessions and should not be used for a classroom dry run. Confirm current Render plan names and limits in the Render Dashboard before applying the Blueprint.
+
+For step-by-step Dashboard instructions, see `docs/RENDER_STAGING_DEPLOYMENT_RUNBOOK.md`.
 
 ## Canvas-Link Classroom Access
 
@@ -216,24 +239,26 @@ Generated export artifacts remain under ignored local paths and must not be comm
 
 ## Classroom Web Access Plan
 
-1. Deploy a staging or production HTTPS URL.
-2. Run `npm run student:production-deployment-readiness-smoke`.
-3. Run `npm run prisma:migrate:deploy`.
-4. Confirm `/api/health` returns `200`.
-5. Confirm `npm run llm:readiness` reports the intended server-side live readiness before a live pilot.
-6. Log in as `teacher_researcher`.
-7. Create or import the classroom.
-8. Create or import approved student accounts and access codes/passwords.
-9. Copy the public HTTPS Conversational MCQ URL.
-10. Add the URL to a Canvas assignment page or Canvas module item.
-11. Have a student open the URL from a non-development device/browser profile.
-12. Student signs in with classroom ID and access code/password.
-13. Student completes the three protected initial items.
-14. Student completes the activity response and move-on/choose-another path.
-15. Have the teacher inspect session detail, readable transcript, structured event log, process events, session evidence audit, and research export.
-16. Download all research data.
-17. Run export integrity review.
-18. Record only safe pass/fail observations, public IDs, status fields, and limitations.
+1. Deploy a Render staging HTTPS URL with `render.yaml`.
+2. Run `npm run student:render-staging-readiness-smoke`.
+3. Run `npm run student:production-deployment-readiness-smoke`.
+4. Confirm Render pre-deploy ran `npm run prisma:migrate:deploy`.
+5. Confirm `/api/health` returns `200`.
+6. Confirm `npm run llm:readiness` reports the intended server-side live readiness before a live pilot.
+7. Log in as `teacher_researcher`.
+8. Create or import the classroom.
+9. Create or import approved student accounts and access codes/passwords.
+10. Copy the public HTTPS Conversational MCQ URL.
+11. Add the URL to a Canvas assignment page or Canvas module item.
+12. Have a student open the URL from a non-development device/browser profile.
+13. Student signs in with classroom ID and access code/password.
+14. Student completes the three protected initial items.
+15. Student completes the activity response and move-on/choose-another path.
+16. Have the teacher inspect session detail, readable transcript, structured event log, process events, session evidence audit, and research export.
+17. Download all research data.
+18. Run export integrity review.
+19. Complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`.
+20. Record only safe pass/fail observations, public IDs, status fields, and limitations.
 
 Fallback if LLM is unavailable:
 
@@ -289,3 +314,7 @@ npm run prisma:migrate:deploy
 ## Phase 31b Boundary
 
 Phase 31b adds readiness checks and deployment documentation for Canvas-link access. It does not implement Canvas LTI, Canvas OAuth, grade passback, roster sync, Canvas Developer Key configuration, Canvas API integration, email/SMS delivery, public self-registration, production monitoring integrations, cloud-provider provisioning, or classroom validity. Those require separate approval.
+
+## Phase 31c Render Package Boundary
+
+Phase 31c adds a Render staging Blueprint, Render readiness smoke, Render Dashboard runbook, and post-deployment dry-run checklist. It does not create a Render account, connect to Render, deploy the app, provision cloud resources, call provider APIs, modify runtime assessment logic, implement Canvas LTI, or claim classroom validity.

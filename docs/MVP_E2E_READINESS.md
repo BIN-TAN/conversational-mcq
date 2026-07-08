@@ -877,3 +877,37 @@ Current pilot exclusions:
 
 Canvas LTI 1.3 may be considered later only after public-link classroom pilots
 are stable and after separate administrator support and privacy review.
+
+## Render Staging Deployment Package
+
+Phase 31c adds a Render-specific staging package for Canvas-link classroom
+access. The recommended first deployment path is Render Web Service plus Render
+Postgres through the root `render.yaml` Blueprint. Render supplies the public
+HTTPS URL that Canvas links to; Canvas does not authenticate users, pass grades,
+sync rosters, or call the app API.
+
+Run:
+
+```bash
+npm run student:render-staging-readiness-smoke
+```
+
+The Render smoke makes no OpenAI call, no Render API call, no deployment, and no
+database mutation. It checks that `render.yaml` defines a native Node Web
+Service, Render Postgres, `DATABASE_URL` from the database connection string,
+`npm run prisma:migrate:deploy` as pre-deploy, `npm run start`, required
+environment variable names, `APP_ENV=staging`, manual public base URL entry,
+and no obvious committed secrets.
+
+Render staging requires non-free, classroom-pilot-appropriate resources.
+Secrets and deployment-specific values belong only in the Render Dashboard:
+`SESSION_SECRET`, `OPENAI_API_KEY`, model names when selected by the operator,
+usage limits, and public base URLs marked `sync: false`. Do not put
+`DATABASE_URL`, OpenAI keys, session secrets, cookies, or auth tokens in
+`NEXT_PUBLIC_` variables. `NEXT_PUBLIC_APP_BASE_URL` may contain only the
+public HTTPS origin.
+
+Operator docs:
+
+- `docs/RENDER_STAGING_DEPLOYMENT_RUNBOOK.md`
+- `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`
