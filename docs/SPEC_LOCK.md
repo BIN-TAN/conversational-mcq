@@ -2148,6 +2148,14 @@ Phase 6A.5 must not implement:
   or a password-reset channel in this phase.
 - New or reset temporary credentials set `must_change_password=true`. Students
   must choose a new password before accessing assessment routes.
+- Student assessment pages and student assessment APIs must fail closed while
+  `must_change_password=true`; only the student password-change route remains
+  available.
+- Existing staging accounts created before this flag existed may be repaired
+  with `MARK_STUDENT_PASSWORD_CHANGE_ENABLED=true npm run
+  staging:mark-students-must-change-password`. The repair may only mark active
+  student accounts that still have temporary credentials and no permanent
+  password; it must not print passwords/access codes or affect teacher accounts.
 - Students may change their own password after login. Normal password changes
   require the current password; first-login temporary-password sessions may set a
   new password without re-entering the temporary credential.

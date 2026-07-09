@@ -20,9 +20,10 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
 
 4a. Fresh database bootstrap:
     - Expected: if the Render database was fresh, `npm run staging:bootstrap-pilot` has been run once after migrations, temporary credentials were stored securely, and no raw passwords/access codes were left in Render logs or committed files.
+    - If the database had older temporary-credential students from before the first-login gate, run `MARK_STUDENT_PASSWORD_CHANGE_ENABLED=true npm run staging:mark-students-must-change-password` once. Optional filters are `MARK_STUDENT_USER_ID=<student-user-id>` and `MARK_STUDENT_CLASSROOM_ID=<classroom-id>`.
 
 4b. Teacher-managed account check:
-    - Expected: teacher can create a student with `user_id`, optional display name, optional email, and a generated or set temporary password; student is prompted to choose a new password; teacher can reset a forgotten password without seeing any current password.
+    - Expected: teacher can create a student with `user_id`, optional display name, optional email, and a generated or set temporary password; student is prompted to choose a new password and cannot start or continue assessments until changing it; teacher can reset a forgotten password without seeing any current password.
 
 5. Complete a session:
    - Expected: the student can start the fixed IRT MVP, complete the three protected initial items, review the package, and enter the activity path.
@@ -65,6 +66,7 @@ Stop the dry run and do not share the Canvas link if any of these occur:
 - teacher or student login fails;
 - first-run bootstrap was not completed on a fresh database;
 - teacher-managed student-account creation, password change, or reset fails;
+- temporary-credential students can reach assessment start/continue before changing password;
 - migrations did not run;
 - student UI exposes answer keys, correctness, distractor metadata, internal labels, or provider/audit metadata;
 - live provider failures show unsafe messages to students;

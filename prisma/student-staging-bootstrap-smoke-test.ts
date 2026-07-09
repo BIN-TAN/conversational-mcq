@@ -109,7 +109,7 @@ async function main() {
           { user_id: { startsWith: `${prefix}_student_` } }
         ]
       },
-      select: { user_id: true, password_hash: true, access_code_hash: true }
+      select: { user_id: true, role: true, password_hash: true, access_code_hash: true, must_change_password: true }
     });
     assert(createdUsers.length === 4, "Smoke bootstrap should create exactly one teacher and three students.");
     assert(
@@ -119,6 +119,12 @@ async function main() {
     assert(
       createdUsers.every((user) => !user.access_code_hash?.includes("temporary_access_code")),
       "Access codes must not be stored in plaintext."
+    );
+    assert(
+      createdUsers
+        .filter((user) => user.role === "student")
+        .every((user) => user.must_change_password),
+      "Bootstrap-created students must be required to change temporary passwords."
     );
 
     console.log(

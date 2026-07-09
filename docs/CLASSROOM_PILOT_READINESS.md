@@ -183,4 +183,12 @@ npm run staging:bootstrap-pilot
 
 Use `BOOTSTRAP_STUDENT_ROSTER_PATH=<csv>` instead of `BOOTSTRAP_STUDENT_COUNT` when the approved pilot roster is ready. The command writes newly generated student temporary credentials under ignored `.data/bootstrap/` and does not print them in terminal output.
 
+If a staging database already has active temporary-credential student accounts that were created before the first-login password-change gate, repair the gate without rotating credentials:
+
+```bash
+MARK_STUDENT_PASSWORD_CHANGE_ENABLED=true npm run staging:mark-students-must-change-password
+```
+
+Use `MARK_STUDENT_USER_ID=<student-user-id>` for a single student or `MARK_STUDENT_CLASSROOM_ID=<classroom-id>` for a bootstrap classroom label. The repair command marks only active student accounts with temporary credentials and no permanent password, does not affect teachers, and does not print passwords or access codes.
+
 Teacher-managed student account pages support manual `user_id` creation, optional display name, optional email, generated or teacher-set temporary password/access code, reset of forgotten student passwords, and deactivation/reactivation. Students must choose a new password after temporary-credential login. Current passwords and credential hashes are never viewable. Email is optional teacher/research-facing PII and is not used for login or reset.

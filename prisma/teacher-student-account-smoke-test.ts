@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { verifySecret } from "../src/lib/password";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 import { ensureRosterDemoTeacher } from "./demo-roster-fixture";
+import { markStudentsMustChangePassword } from "./staging-mark-students-must-change-password-core";
 
 const prisma = new PrismaClient();
 const port = 3238;
@@ -87,6 +88,17 @@ async function jsonRequest<T>(path: string, cookie: string, init?: RequestInit):
   const body = text ? (JSON.parse(text) as T) : null;
 
   return { response, body, text };
+}
+
+async function textRequest(path: string, cookie: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers: {
+      cookie,
+      ...(init?.headers ?? {})
+    },
+    redirect: "manual"
+  });
 }
 
 function assertNoPrivateAccountData(text: string, secrets: string[] = []) {
@@ -204,10 +216,54 @@ async function main() {
     assert(tempLogin.response.status === 200, "Student should log in with temporary credential.");
     assert(tempLogin.body?.user?.must_change_password === true, "Temporary login should indicate password change.");
 
+    const studentPasswordPage = await textRequest("/student/assessment", tempLogin.cookie);
+    assert(
+      studentPasswordPage.status === 307 || studentPasswordPage.status === 308,
+      "Student assessment page should redirect temporary-credential students."
+    );
+    assert(
+      studentPasswordPage.headers.get("location")?.includes("/student/account/password"),
+      "Temporary-credential students should be sent to password change before assessment access."
+    );
+
+    const blockedAssessmentList = await jsonRequest<{ error?: { code?: string } }>(
+      "/api/student/assessments/available",
+      tempLogin.cookie
+    );
+    assert(
+      blockedAssessmentList.response.status === 403 &&
+        blockedAssessmentList.body?.error?.code === "password_change_required",
+      "Assessment list API should block students who must change password."
+    );
+
+    const blockedAssessmentStart = await jsonRequest<{ error?: { code?: string } }>(
+      "/api/student/assessments/assessment_mvp_irt_theta_invariance/sessions/start",
+      tempLogin.cookie,
+      {
+        method: "POST",
+        body: JSON.stringify({})
+      }
+    );
+    assert(
+      blockedAssessmentStart.response.status === 403 &&
+        blockedAssessmentStart.body?.error?.code === "password_change_required",
+      "Assessment start API should block students who must change password."
+    );
+
     const teacherApiWithStudent = await fetch(`${baseUrl}/api/teacher/students`, {
       headers: { cookie: tempLogin.cookie }
     });
     assert(teacherApiWithStudent.status === 403, "Student should receive 403 from teacher student-management API.");
+
+    const teacherPasswordPage = await textRequest("/student/account/password", teacher.cookie);
+    assert(
+      teacherPasswordPage.status === 307 || teacherPasswordPage.status === 308,
+      "Teacher users should not be routed through the student password-change page."
+    );
+    assert(
+      teacherPasswordPage.headers.get("location")?.includes("/teacher/dashboard"),
+      "Teacher users should be redirected to the teacher dashboard from student password-change page."
+    );
 
     const permanentPassword = `${prefix}_PermanentPass9`;
     const passwordChange = await jsonRequest<{
@@ -226,6 +282,15 @@ async function main() {
 
     assert((await login({ user_id: generatedStudentId, access_code: generatedCredential })).response.status === 401, "Old temporary credential should fail after password change.");
     assert((await login({ user_id: generatedStudentId, password: permanentPassword })).response.status === 200, "Permanent password should work.");
+
+    const allowedAssessmentList = await jsonRequest<unknown>(
+      "/api/student/assessments/available",
+      changedCookie
+    );
+    assert(
+      allowedAssessmentList.response.status === 200,
+      "Student assessment list should be available after password change."
+    );
 
     const afterChange = await prisma.user.findUniqueOrThrow({
       where: { user_id_normalized: normalizeUserId(generatedStudentId) },
@@ -265,6 +330,34 @@ async function main() {
     });
     assert(secondStudent.response.status === 201, "Email should be optional on create.");
     assert(secondStudent.body?.student.email === null, "Missing email should serialize as null.");
+
+    const secondStored = await prisma.user.findUniqueOrThrow({
+      where: { user_id_normalized: normalizeUserId(`${prefix}_no_email`) },
+      select: {
+        id: true,
+        password_hash: true,
+        access_code_hash: true,
+        must_change_password: true
+      }
+    });
+    assert(secondStored.must_change_password, "Second teacher-created student should require password change.");
+    await prisma.user.update({
+      where: { id: secondStored.id },
+      data: { must_change_password: false }
+    });
+    const repairSummary = await markStudentsMustChangePassword(prisma, {
+      enabled: true,
+      studentUserId: `${prefix}_no_email`
+    });
+    assert(repairSummary.matched_student_count === 1, "Repair command should find the selected student.");
+    assert(repairSummary.updated_student_count === 1, "Repair command should mark selected temporary student.");
+    const repairedSecond = await prisma.user.findUniqueOrThrow({
+      where: { id: secondStored.id },
+      select: { must_change_password: true, password_hash: true, access_code_hash: true }
+    });
+    assert(repairedSecond.must_change_password, "Repair command should set must_change_password.");
+    assert(repairedSecond.password_hash === null, "Repair command should not create or alter a password.");
+    assert(repairedSecond.access_code_hash === secondStored.access_code_hash, "Repair command should not rotate temporary credentials.");
 
     await jsonRequest(`/api/teacher/students/${encodeURIComponent(generatedStudentId)}/deactivate`, teacher.cookie, {
       method: "POST"

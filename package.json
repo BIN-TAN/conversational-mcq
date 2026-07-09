@@ -302,6 +302,7 @@
     "operational:live-canary-ready-status-smoke": "tsx prisma/operational-live-canary-smoke-test.ts --suite ready-status",
     "production:readiness": "tsx prisma/student-production-deployment-readiness-smoke-test.ts",
     "staging:bootstrap-pilot": "tsx prisma/staging-bootstrap-pilot.ts",
+    "staging:mark-students-must-change-password": "tsx prisma/staging-mark-students-must-change-password.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",

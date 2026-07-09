@@ -66,7 +66,15 @@ Before a human pilot, verify teacher-managed account handling:
 npm run student:teacher-student-account-smoke
 ```
 
-Expected account behavior: `user_id` remains the login identifier, first-login temporary credentials require the student to choose a new password, teachers can reset forgotten student passwords but cannot view current passwords, and inactive students cannot log in or start assessments.
+Expected account behavior: `user_id` remains the login identifier, first-login temporary credentials require the student to choose a new password before assessment access, teachers can reset forgotten student passwords but cannot view current passwords, and inactive students cannot log in or start assessments.
+
+If older staging accounts existed before the first-login gate, repair only active temporary-credential students with:
+
+```bash
+MARK_STUDENT_PASSWORD_CHANGE_ENABLED=true npm run staging:mark-students-must-change-password
+```
+
+Add `MARK_STUDENT_USER_ID=<student-user-id>` or `MARK_STUDENT_CLASSROOM_ID=<classroom-id>` to narrow the repair. The command does not print passwords/access codes and does not touch teacher accounts.
 
 ## Local Run Commands
 

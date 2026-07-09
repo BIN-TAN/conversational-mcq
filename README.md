@@ -112,6 +112,14 @@ npm run staging:bootstrap-pilot
 
 Use `BOOTSTRAP_STUDENT_ROSTER_PATH=<csv>` instead of `BOOTSTRAP_STUDENT_COUNT` for an approved roster CSV with `user_id`, optional `display_name`, and optional `email` columns. The bootstrap reuses existing records, writes new temporary credentials under ignored `.data/bootstrap/`, and does not print raw passwords or access codes. Run `npm run student:staging-bootstrap-smoke` locally to verify the bootstrap path without provider calls.
 
+If a staging database already contained temporary-credential student accounts before the first-login password-change gate existed, repair only active students that still have temporary credentials and no permanent password:
+
+```bash
+MARK_STUDENT_PASSWORD_CHANGE_ENABLED=true npm run staging:mark-students-must-change-password
+```
+
+Optional filters are `MARK_STUDENT_USER_ID=<student-user-id>` and `MARK_STUDENT_CLASSROOM_ID=<classroom-id>`. The repair command does not print passwords or access codes and does not affect teacher accounts.
+
 Canvas gradebook does not automatically receive completion or scores. Use Conversational MCQ teacher/research exports for completion review and research data. Canvas LTI 1.3 may be considered later only after public-link pilots are stable and after Canvas administrator support, Developer Key configuration, OIDC launch handling, deployment IDs, user/course mapping, and separate privacy review.
 
 ### Database
@@ -703,7 +711,7 @@ npm run student:teacher-student-account-smoke
 npm run auth:account-status-smoke
 ```
 
-Students are created by the teacher_researcher. Students do not self-register and do not need email addresses. Student login uses `user_id` plus an assigned temporary password/access code or a student-changed password. Optional email is teacher/research-facing PII only and is not a login identifier. Temporary credentials and passwords are stored only as hashes, shown only immediately after create/import/reset, and never shown as current passwords.
+Students are created by the teacher_researcher. Students do not self-register and do not need email addresses. Student login uses `user_id` plus an assigned temporary password/access code or a student-changed password. Optional email is teacher/research-facing PII only and is not a login identifier. Temporary credentials and passwords are stored only as hashes, shown only immediately after create/import/reset, and never shown as current passwords. Students with temporary credentials are redirected to choose a new password and cannot start or continue assessments until that password is changed.
 
 Model evaluation routes:
 

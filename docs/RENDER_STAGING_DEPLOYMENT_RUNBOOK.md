@@ -185,6 +185,21 @@ The command does not print raw passwords or access codes. If new student tempora
 
 That directory is ignored by Git. Copy the credential CSV to an approved secure location, then delete it from the shell environment if required by your data-handling plan.
 
+If this database already had temporary-credential student accounts from an older deployment, run the repair command once after migrations/bootstrap:
+
+```bash
+MARK_STUDENT_PASSWORD_CHANGE_ENABLED=true npm run staging:mark-students-must-change-password
+```
+
+Optional filters are:
+
+```text
+MARK_STUDENT_USER_ID=<student-user-id>
+MARK_STUDENT_CLASSROOM_ID=<classroom-id>
+```
+
+The repair marks only active student accounts that still have a temporary credential and no permanent password. It does not print passwords, access codes, hashes, database URLs, session secrets, or provider keys, and it does not affect teacher accounts.
+
 Screenshot placeholder: Render Shell bootstrap command with secrets hidden.
 
 ## Step 11: Open the Render URL
@@ -217,7 +232,7 @@ Screenshot placeholder: Teacher dashboard.
 
 ## Step 14: Create or Check Classroom and Student Codes
 
-Create or verify the classroom and approved student accounts/temporary credentials for the staging pilot. In this schema version, the classroom ID is a deployment/course access label recorded in bootstrap metadata and credential-distribution materials; student login uses the existing `user_id` plus roster-issued temporary password/access code or a student-changed password. Teachers can add students, optionally record display name and email, reset forgotten temporary passwords, and deactivate/reactivate accounts from the student-account management pages. Email is optional teacher/research PII and is not a login identifier. Do not import a real roster unless the pilot approval explicitly covers it.
+Create or verify the classroom and approved student accounts/temporary credentials for the staging pilot. In this schema version, the classroom ID is a deployment/course access label recorded in bootstrap metadata and credential-distribution materials; student login uses the existing `user_id` plus roster-issued temporary password/access code or a student-changed password. Temporary-credential students must choose a new password before assessment access. Teachers can add students, optionally record display name and email, reset forgotten temporary passwords, and deactivate/reactivate accounts from the student-account management pages. Email is optional teacher/research PII and is not a login identifier. Do not import a real roster unless the pilot approval explicitly covers it.
 
 Screenshot placeholder: Classroom/student account management.
 
