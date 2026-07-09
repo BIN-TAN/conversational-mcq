@@ -79,7 +79,6 @@ async function loginStudent() {
 
 function assertLandingIsCourseFacing(html: string) {
   assert(html.includes("EDPY 507: Measurement Theory"), "Landing page should show the course title.");
-  assert(html.includes("EDPY 507 course activity"), "Landing page should show the course activity label.");
   assert(html.includes("University of Alberta"), "Landing page should include accessible UAlberta logo alt text.");
   assert(
     html.includes("ualberta-logo.png") || html.includes("%2Fbrand%2Fualberta-logo.png"),
@@ -89,10 +88,18 @@ function assertLandingIsCourseFacing(html: string) {
   assert(html.includes("Instructor Dashboard"), "Landing page should include the instructor dashboard entry.");
 
   for (const forbidden of [
+    "Conversational MCQ activity for measurement theory practice",
+    "This site supports",
+    "course formative assessment activity",
+    "Course access instruction",
+    "student account management",
+    "evidence audit",
+    "research-data export",
     "prototype",
     "project shell",
     "scaffold",
     "placeholder",
+    "Phase 1",
     "Assessment Shell",
     "later phases",
     "answer key",
