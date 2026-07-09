@@ -260,9 +260,12 @@ async function createStudentAccount(input: {
       role: "student",
       account_status: "active",
       auth_version: 1,
+      must_change_password: true,
       password_hash: null,
       access_code_hash: credential.access_code_hash,
-      credential_updated_at: new Date()
+      credential_updated_at: new Date(),
+      credential_reset_at: new Date(),
+      created_by_teacher_user_id: input.teacher.id
     }
   });
 
@@ -272,7 +275,7 @@ async function createStudentAccount(input: {
       event_public_id: generatePublicId("student_account_event"),
       student_user_db_id: created.id,
       performed_by_user_db_id: input.teacher.id,
-      event_type: "student_created_manually",
+      event_type: "teacher_student_account_created",
       metadata: {
         source: "staging_bootstrap_pilot",
         classroom_id: input.classroomId,
@@ -288,7 +291,8 @@ async function createStudentAccount(input: {
     credential: {
       user_id: created.user_id,
       display_name: created.display_name,
-      temporary_access_code: credential.access_code
+      temporary_access_code: credential.access_code,
+      temporary_password: credential.access_code
     } satisfies OneTimeCredential
   };
 }

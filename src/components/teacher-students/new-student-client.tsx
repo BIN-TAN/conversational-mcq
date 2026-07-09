@@ -9,6 +9,8 @@ import { CredentialResult, ErrorPanel } from "./ui";
 export function NewStudentClient() {
   const [userId, setUserId] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState("");
   const [credentials, setCredentials] = useState<CredentialResponse | null>(null);
   const [createdUserId, setCreatedUserId] = useState<string | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
@@ -23,7 +25,10 @@ export function NewStudentClient() {
     try {
       const result = await createStudent({
         user_id: userId,
-        display_name: displayName
+        display_name: displayName,
+        email,
+        temporary_password: temporaryPassword || undefined,
+        generate_password: !temporaryPassword
       });
       setCredentials({
         one_time_credentials: result.one_time_credentials,
@@ -33,6 +38,8 @@ export function NewStudentClient() {
       setCreatedUserId(result.student.user_id);
       setUserId("");
       setDisplayName("");
+      setEmail("");
+      setTemporaryPassword("");
     } catch (requestError) {
       setError(errorFromUnknown(requestError));
     } finally {
@@ -40,7 +47,8 @@ export function NewStudentClient() {
     }
   }
 
-  const firstCode = credentials?.one_time_credentials[0]?.temporary_access_code;
+  const firstCode = credentials?.one_time_credentials[0]?.temporary_password
+    ?? credentials?.one_time_credentials[0]?.temporary_access_code;
 
   return (
     <div className="space-y-5">
@@ -67,6 +75,26 @@ export function NewStudentClient() {
               onChange={(event) => setDisplayName(event.target.value)}
               placeholder="Optional"
               value={displayName}
+            />
+          </label>
+          <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+            Email
+            <input
+              className="h-10 rounded-md border border-line px-3 text-sm"
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="Optional teacher/research contact field"
+              type="email"
+              value={email}
+            />
+          </label>
+          <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+            Temporary password
+            <input
+              className="h-10 rounded-md border border-line px-3 text-sm"
+              onChange={(event) => setTemporaryPassword(event.target.value)}
+              placeholder="Leave blank to generate"
+              type="password"
+              value={temporaryPassword}
             />
           </label>
         </div>
@@ -96,7 +124,7 @@ export function NewStudentClient() {
           type="button"
         >
           <Clipboard className="h-4 w-4" aria-hidden="true" />
-          Copy temporary access code
+          Copy temporary password
         </button>
       ) : null}
 

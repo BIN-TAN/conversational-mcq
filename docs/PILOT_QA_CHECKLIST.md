@@ -58,7 +58,15 @@ BOOTSTRAP_DEFAULT_ASSESSMENT_ID=assessment_mvp_irt_theta_invariance \
 npm run staging:bootstrap-pilot
 ```
 
-The command is not part of Render pre-deploy and should not run automatically on every deploy. It writes new student access codes under ignored `.data/bootstrap/` and does not print them by default.
+The command is not part of Render pre-deploy and should not run automatically on every deploy. It writes new student temporary password/access-code credentials under ignored `.data/bootstrap/` and does not print them by default. Teachers can also create students manually from `/teacher/students/new`, optionally record display name and email, and reset a temporary password later. Email is optional teacher/research PII and is not used for login or password reset.
+
+Before a human pilot, verify teacher-managed account handling:
+
+```bash
+npm run student:teacher-student-account-smoke
+```
+
+Expected account behavior: `user_id` remains the login identifier, first-login temporary credentials require the student to choose a new password, teachers can reset forgotten student passwords but cannot view current passwords, and inactive students cannot log in or start assessments.
 
 ## Local Run Commands
 

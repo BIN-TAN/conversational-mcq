@@ -36,7 +36,8 @@ export async function POST(request: Request) {
         password_hash: true,
         access_code_hash: true,
         account_status: true,
-        auth_version: true
+        auth_version: true,
+        must_change_password: true
       }
     });
 
@@ -51,7 +52,8 @@ export async function POST(request: Request) {
       ? await verifySecret(payload.access_code, user.access_code_hash)
       : false;
 
-    const isAllowed = user.role === "teacher_researcher" ? passwordMatches : accessCodeMatches;
+    const isAllowed =
+      user.role === "teacher_researcher" ? passwordMatches : passwordMatches || accessCodeMatches;
 
     if (!isAllowed) {
       return jsonError("Invalid user ID or access code.", 401);

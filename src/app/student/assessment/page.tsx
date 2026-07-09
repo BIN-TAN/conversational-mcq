@@ -13,5 +13,9 @@ export default async function StudentAssessmentPage() {
     redirect("/teacher/dashboard");
   }
 
+  if (user.must_change_password) {
+    redirect("/student/account/password");
+  }
+
   return <AvailableAssessmentsClient userId={user.user_id} />;
 }

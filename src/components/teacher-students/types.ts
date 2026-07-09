@@ -5,7 +5,9 @@ export type { StructuredApiError };
 export type OneTimeCredential = {
   user_id: string;
   display_name: string | null;
+  email?: string | null;
   temporary_access_code: string;
+  temporary_password?: string;
 };
 
 export type CredentialResponse = {
@@ -17,11 +19,15 @@ export type CredentialResponse = {
 export type StudentListRow = {
   user_id: string;
   display_name: string | null;
+  email: string | null;
   account_status: "active" | "inactive";
+  must_change_password: boolean;
   created_at: string | null;
   updated_at: string | null;
   last_login_at: string | null;
   deactivated_at: string | null;
+  credential_reset_at: string | null;
+  password_changed_at: string | null;
   assessment_session_count: number;
   completed_session_count: number;
   active_session_count: number;
@@ -41,12 +47,16 @@ export type StudentListResponse = {
 export type StudentDetail = {
   user_id: string;
   display_name: string | null;
+  email: string | null;
   account_status: "active" | "inactive";
+  must_change_password: boolean;
   created_at: string | null;
   updated_at: string | null;
   last_login_at: string | null;
   deactivated_at: string | null;
   credential_updated_at: string | null;
+  credential_reset_at: string | null;
+  password_changed_at: string | null;
   assessment_sessions: Array<{
     session_public_id: string;
     assessment_public_id: string;

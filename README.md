@@ -110,7 +110,7 @@ BOOTSTRAP_DEFAULT_ASSESSMENT_ID=assessment_mvp_irt_theta_invariance \
 npm run staging:bootstrap-pilot
 ```
 
-Use `BOOTSTRAP_STUDENT_ROSTER_PATH=<csv>` instead of `BOOTSTRAP_STUDENT_COUNT` for an approved roster CSV with `user_id` and `display_name` columns. The bootstrap reuses existing records, writes new access codes under ignored `.data/bootstrap/`, and does not print raw passwords or access codes. Run `npm run student:staging-bootstrap-smoke` locally to verify the bootstrap path without provider calls.
+Use `BOOTSTRAP_STUDENT_ROSTER_PATH=<csv>` instead of `BOOTSTRAP_STUDENT_COUNT` for an approved roster CSV with `user_id`, optional `display_name`, and optional `email` columns. The bootstrap reuses existing records, writes new temporary credentials under ignored `.data/bootstrap/`, and does not print raw passwords or access codes. Run `npm run student:staging-bootstrap-smoke` locally to verify the bootstrap path without provider calls.
 
 Canvas gradebook does not automatically receive completion or scores. Use Conversational MCQ teacher/research exports for completion review and research data. Canvas LTI 1.3 may be considered later only after public-link pilots are stable and after Canvas administrator support, Developer Key configuration, OIDC launch handling, deployment IDs, user/course mapping, and separate privacy review.
 
@@ -699,10 +699,11 @@ npm run demo:roster:cleanup
 npm run roster:import-smoke
 npm run student:account-smoke
 npm run student:account-ui-smoke
+npm run student:teacher-student-account-smoke
 npm run auth:account-status-smoke
 ```
 
-Students are created by the teacher_researcher. Students do not self-register and do not need email addresses. Student login uses `user_id` plus an assigned access code. Access codes are stored only as hashes and plaintext codes are shown only immediately after create/import/reset.
+Students are created by the teacher_researcher. Students do not self-register and do not need email addresses. Student login uses `user_id` plus an assigned temporary password/access code or a student-changed password. Optional email is teacher/research-facing PII only and is not a login identifier. Temporary credentials and passwords are stored only as hashes, shown only immediately after create/import/reset, and never shown as current passwords.
 
 Model evaluation routes:
 

@@ -24,8 +24,8 @@ export default async function NewTeacherStudentPage() {
           </p>
           <h1 className="mt-2 text-3xl font-semibold text-ink">Create student</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-            Create one student account and generate a one-time access code. Students do not
-            self-register in this prototype.
+            Create one student account and generate or set a one-time temporary password. Students
+            do not self-register in this prototype.
           </p>
         </header>
         <section className="mt-6">

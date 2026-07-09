@@ -147,7 +147,7 @@ If migrations fail, stop and investigate before allowing students to open the li
 
 ## Step 10b: Bootstrap the Fresh Database
 
-Render `preDeployCommand` runs migrations only. It should not create users or access codes automatically on every deploy.
+Render `preDeployCommand` runs migrations only. It should not create users or temporary credentials automatically on every deploy.
 
 After the first successful deploy against a fresh Render Postgres database, run the bootstrap command once as an explicit operator step from Render Shell or a one-off manual command with temporary environment variables set for that command:
 
@@ -165,7 +165,7 @@ npm run staging:bootstrap-pilot
 For a roster file instead of generated student IDs, set:
 
 ```text
-BOOTSTRAP_STUDENT_ROSTER_PATH=<path-to-csv-with-user_id,display_name>
+BOOTSTRAP_STUDENT_ROSTER_PATH=<path-to-csv-with-user_id,display_name,email>
 ```
 
 and omit `BOOTSTRAP_STUDENT_COUNT`.
@@ -175,15 +175,15 @@ The command is idempotent:
 - existing teacher accounts are reused;
 - existing student accounts are reused;
 - the fixed IRT MVP assessment is created or refreshed as published;
-- student access codes are generated only for newly created students.
+- student temporary passwords/access codes are generated only for newly created students.
 
-The command does not print raw passwords or access codes. If new student access codes are generated, it writes a CSV under:
+The command does not print raw passwords or access codes. If new student temporary credentials are generated, it writes a CSV under:
 
 ```text
 .data/bootstrap/
 ```
 
-That directory is ignored by Git. Copy the access-code CSV to an approved secure location, then delete it from the shell environment if required by your data-handling plan.
+That directory is ignored by Git. Copy the credential CSV to an approved secure location, then delete it from the shell environment if required by your data-handling plan.
 
 Screenshot placeholder: Render Shell bootstrap command with secrets hidden.
 
@@ -217,7 +217,7 @@ Screenshot placeholder: Teacher dashboard.
 
 ## Step 14: Create or Check Classroom and Student Codes
 
-Create or verify the classroom and approved student accounts/access codes for the staging pilot. In this schema version, the classroom ID is a deployment/course access label recorded in bootstrap metadata and access-code distribution materials; student login uses the existing `user_id` plus roster-issued access code/password flow. Do not import a real roster unless the pilot approval explicitly covers it.
+Create or verify the classroom and approved student accounts/temporary credentials for the staging pilot. In this schema version, the classroom ID is a deployment/course access label recorded in bootstrap metadata and credential-distribution materials; student login uses the existing `user_id` plus roster-issued temporary password/access code or a student-changed password. Teachers can add students, optionally record display name and email, reset forgotten temporary passwords, and deactivate/reactivate accounts from the student-account management pages. Email is optional teacher/research PII and is not a login identifier. Do not import a real roster unless the pilot approval explicitly covers it.
 
 Screenshot placeholder: Classroom/student account management.
 

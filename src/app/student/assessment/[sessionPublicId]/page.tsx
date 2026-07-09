@@ -17,6 +17,10 @@ export default async function StudentAssessmentSessionPage({
     redirect("/teacher/dashboard");
   }
 
+  if (user.must_change_password) {
+    redirect("/student/account/password");
+  }
+
   const { sessionPublicId } = await params;
 
   return <AssessmentSessionClient sessionPublicId={sessionPublicId} />;

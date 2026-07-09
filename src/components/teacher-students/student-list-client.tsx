@@ -7,7 +7,7 @@ import { errorFromUnknown, fetchStudents } from "./api";
 import type { StructuredApiError, StudentListResponse } from "./types";
 import { EmptyPanel, ErrorPanel, formatDate, LoadingPanel, StatusPill } from "./ui";
 
-type SortField = "user_id" | "created_at" | "updated_at" | "last_login_at";
+type SortField = "user_id" | "created_at" | "updated_at" | "last_login_at" | "password_changed_at";
 
 export function StudentListClient() {
   const [filters, setFilters] = useState({
@@ -162,7 +162,9 @@ export function StudentListClient() {
                     </button>
                   </th>
                   <th className="px-4 py-3">Display name</th>
+                  <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Password</th>
                   <th className="px-4 py-3">Sessions</th>
                   <th className="px-4 py-3">Completed</th>
                   <th className="px-4 py-3">Outcomes</th>
@@ -184,8 +186,16 @@ export function StudentListClient() {
                   <tr className="align-top" key={student.user_id}>
                     <td className="px-4 py-3 font-semibold text-ink">{student.user_id}</td>
                     <td className="px-4 py-3 text-muted">{student.display_name ?? "No display name"}</td>
+                    <td className="px-4 py-3 text-muted">{student.email ?? ""}</td>
                     <td className="px-4 py-3">
                       <StatusPill value={student.account_status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      {student.must_change_password ? (
+                        <StatusPill value="temporary_pending" />
+                      ) : (
+                        formatDate(student.password_changed_at)
+                      )}
                     </td>
                     <td className="px-4 py-3">{student.assessment_session_count}</td>
                     <td className="px-4 py-3">{student.completed_session_count}</td>

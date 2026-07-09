@@ -8,8 +8,8 @@ import {
   errorFromUnknown,
   fetchStudent,
   reactivateStudent,
-  resetStudentAccessCode,
-  updateStudentDisplayName
+  resetStudentPassword,
+  updateStudentProfile
 } from "./api";
 import type { CredentialResponse, StructuredApiError, StudentDetailResponse } from "./types";
 import {
@@ -24,6 +24,8 @@ import {
 export function StudentDetailClient({ userId }: { userId: string }) {
   const [data, setData] = useState<StudentDetailResponse | null>(null);
   const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState("");
   const [credentials, setCredentials] = useState<CredentialResponse | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
@@ -37,6 +39,7 @@ export function StudentDetailClient({ userId }: { userId: string }) {
       const result = await fetchStudent(userId);
       setData(result);
       setDisplayName(result.student.display_name ?? "");
+      setEmail(result.student.email ?? "");
     } catch (requestError) {
       setError(errorFromUnknown(requestError));
     } finally {
@@ -48,24 +51,24 @@ export function StudentDetailClient({ userId }: { userId: string }) {
     void load();
   }, [load]);
 
-  async function saveDisplayName() {
+  async function saveProfile() {
     setError(null);
     setMessage(null);
     setCredentials(null);
 
     try {
-      await updateStudentDisplayName(userId, displayName);
-      setMessage("Display name updated.");
+      await updateStudentProfile(userId, { display_name: displayName, email });
+      setMessage("Student profile updated.");
       await load();
     } catch (requestError) {
       setError(errorFromUnknown(requestError));
     }
   }
 
-  async function resetCode() {
+  async function resetPassword() {
     if (
       !window.confirm(
-        "The previous access code will stop working, and active login sessions will be invalidated."
+        "The previous student password or access code will stop working, and active login sessions will be invalidated."
       )
     ) {
       return;
@@ -75,13 +78,17 @@ export function StudentDetailClient({ userId }: { userId: string }) {
     setMessage(null);
 
     try {
-      const result = await resetStudentAccessCode(userId);
+      const result = await resetStudentPassword(userId, {
+        temporary_password: temporaryPassword || undefined,
+        generate_password: !temporaryPassword
+      });
       setCredentials({
         one_time_credentials: result.one_time_credentials,
         credential_csv: result.credential_csv,
         credential_warning: result.credential_warning
       });
-      setMessage("Access code reset. Record the new code now.");
+      setTemporaryPassword("");
+      setMessage("Temporary password reset. Record the new credential now.");
       await load();
     } catch (requestError) {
       setError(errorFromUnknown(requestError));
@@ -92,7 +99,7 @@ export function StudentDetailClient({ userId }: { userId: string }) {
     const prompt =
       nextStatus === "inactive"
         ? "The student will not be able to log in until the account is reactivated. Existing assessment and research data will be preserved."
-        : "The student will be able to log in again using the current access code.";
+        : "The student will be able to log in again using the current password or reset credential.";
 
     if (!window.confirm(prompt)) {
       return;
@@ -117,7 +124,8 @@ export function StudentDetailClient({ userId }: { userId: string }) {
   }
 
   const student = data?.student;
-  const firstCode = credentials?.one_time_credentials[0]?.temporary_access_code;
+  const firstCode = credentials?.one_time_credentials[0]?.temporary_password
+    ?? credentials?.one_time_credentials[0]?.temporary_access_code;
 
   return (
     <div className="space-y-5">
@@ -137,6 +145,10 @@ export function StudentDetailClient({ userId }: { userId: string }) {
               <p className="mt-2 font-semibold text-ink">{student.user_id}</p>
             </div>
             <div className="rounded-lg border border-line bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Email</p>
+              <p className="mt-2 text-sm text-ink">{student.email ?? "Not recorded"}</p>
+            </div>
+            <div className="rounded-lg border border-line bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">Status</p>
               <p className="mt-2">
                 <StatusPill value={student.account_status} />
@@ -148,15 +160,29 @@ export function StudentDetailClient({ userId }: { userId: string }) {
             </div>
             <div className="rounded-lg border border-line bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Password status
+              </p>
+              <p className="mt-2 text-sm text-ink">
+                {student.must_change_password ? "Temporary password pending" : "Password set"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-line bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                 Credential updated
               </p>
               <p className="mt-2 text-sm text-ink">{formatDate(student.credential_updated_at)}</p>
+            </div>
+            <div className="rounded-lg border border-line bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Password changed
+              </p>
+              <p className="mt-2 text-sm text-ink">{formatDate(student.password_changed_at)}</p>
             </div>
           </section>
 
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <h2 className="text-xl font-semibold text-ink">Account actions</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+            <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
               <label className="flex flex-col gap-2 text-sm font-medium text-ink">
                 Display name
                 <input
@@ -165,24 +191,46 @@ export function StudentDetailClient({ userId }: { userId: string }) {
                   value={displayName}
                 />
               </label>
+              <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                Email
+                <input
+                  className="h-10 rounded-md border border-line px-3 text-sm"
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="Optional"
+                  type="email"
+                  value={email}
+                />
+              </label>
               <button
                 className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink hover:border-accent"
-                onClick={() => void saveDisplayName()}
+                onClick={() => void saveProfile()}
                 type="button"
               >
                 <Save className="h-4 w-4" aria-hidden="true" />
-                Save display name
+                Save profile
               </button>
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+              <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                New temporary password
+                <input
+                  className="h-10 rounded-md border border-line px-3 text-sm"
+                  onChange={(event) => setTemporaryPassword(event.target.value)}
+                  placeholder="Leave blank to generate"
+                  type="password"
+                  value={temporaryPassword}
+                />
+              </label>
               <button
                 className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink hover:border-accent"
-                onClick={() => void resetCode()}
+                onClick={() => void resetPassword()}
                 type="button"
               >
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                Reset access code
+                Reset password
               </button>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
               {student.account_status === "active" ? (
                 <button
                   className="inline-flex h-10 items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-950 hover:border-amber-500"
@@ -216,7 +264,7 @@ export function StudentDetailClient({ userId }: { userId: string }) {
               type="button"
             >
               <Clipboard className="h-4 w-4" aria-hidden="true" />
-              Copy temporary access code
+              Copy temporary password
             </button>
           ) : null}
           {credentials ? (

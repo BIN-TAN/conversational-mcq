@@ -132,7 +132,8 @@ export function CredentialResult({
             <tr>
               <th className="px-3 py-2">user_id</th>
               <th className="px-3 py-2">Display name</th>
-              <th className="px-3 py-2">Temporary access code</th>
+              <th className="px-3 py-2">Email</th>
+              <th className="px-3 py-2">Temporary password/access code</th>
             </tr>
           </thead>
           <tbody>
@@ -140,7 +141,10 @@ export function CredentialResult({
               <tr className="border-b border-line last:border-b-0" key={credential.user_id}>
                 <td className="px-3 py-2 font-medium text-ink">{credential.user_id}</td>
                 <td className="px-3 py-2 text-muted">{credential.display_name ?? ""}</td>
-                <td className="px-3 py-2 font-mono text-ink">{credential.temporary_access_code}</td>
+                <td className="px-3 py-2 text-muted">{credential.email ?? ""}</td>
+                <td className="px-3 py-2 font-mono text-ink">
+                  {credential.temporary_password ?? credential.temporary_access_code}
+                </td>
               </tr>
             ))}
           </tbody>

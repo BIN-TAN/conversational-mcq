@@ -24,8 +24,8 @@ export default async function TeacherStudentsPage() {
           </p>
           <h1 className="mt-2 text-3xl font-semibold text-ink">Student accounts</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-            Search and manage roster-created student accounts. This area never displays current
-            plaintext access codes or credential hashes.
+            Search and manage pilot student accounts. This area never displays current plaintext
+            passwords, access codes, or credential hashes.
           </p>
         </header>
         <section className="mt-6">

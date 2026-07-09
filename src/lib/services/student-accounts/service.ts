@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { parse } from "csv-parse/sync";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { hashSecret, verifySecret } from "@/lib/password";
 import { toPrismaJson } from "@/lib/services/json";
 import { generatePublicId } from "@/lib/services/ids";
 import { generateHashedAccessCode, type AccessCodeGenerator } from "./access-codes";
@@ -11,7 +12,10 @@ import {
   displayNameValidationError,
   normalizeUserId,
   parseDisplayName,
+  parseStudentEmail,
+  parseStudentPassword,
   parseUserId,
+  studentEmailValidationError,
   userIdValidationError
 } from "./validation";
 
@@ -19,11 +23,21 @@ const pageSizeMax = 100;
 
 const createStudentSchema = z.object({
   user_id: z.unknown(),
-  display_name: z.unknown().optional().nullable()
+  display_name: z.unknown().optional().nullable(),
+  email: z.unknown().optional().nullable(),
+  temporary_password: z.unknown().optional().nullable(),
+  generate_password: z.boolean().optional()
 }).strict();
 
 const updateStudentSchema = z.object({
-  display_name: z.unknown().optional().nullable()
+  display_name: z.unknown().optional().nullable(),
+  email: z.unknown().optional().nullable()
+}).strict();
+
+const changePasswordSchema = z.object({
+  current_password: z.string().optional(),
+  new_password: z.unknown(),
+  confirm_new_password: z.unknown()
 }).strict();
 
 const rosterPreviewSchema = z.object({
@@ -39,7 +53,7 @@ export const studentListQuerySchema = z.object({
   search: z.string().trim().optional(),
   account_status: z.enum(["active", "inactive"]).optional(),
   has_sessions: z.coerce.boolean().optional(),
-  sort: z.enum(["user_id", "created_at", "updated_at", "last_login_at"]).default("user_id"),
+  sort: z.enum(["user_id", "created_at", "updated_at", "last_login_at", "password_changed_at"]).default("user_id"),
   direction: z.enum(["asc", "desc"]).default("asc"),
   page: z.coerce.number().int().positive().default(1),
   page_size: z.coerce.number().int().positive().max(pageSizeMax).default(25)
@@ -58,7 +72,9 @@ type RosterNormalizedRow = {
   user_id: string;
   user_id_normalized: string;
   display_name: string | null;
+  email: string | null;
   existing_display_name?: string | null;
+  existing_email?: string | null;
   row_status: RosterRowStatus;
   validation_errors: Array<{ code: string; message: string; column?: string }>;
 };
@@ -72,7 +88,9 @@ function publicRosterRow(row: RosterNormalizedRow) {
     source_row_number: row.source_row_number,
     user_id: row.user_id,
     display_name: row.display_name,
+    email: row.email,
     existing_display_name: row.existing_display_name ?? null,
+    existing_email: row.existing_email ?? null,
     row_status: row.row_status,
     validation_errors: row.validation_errors
   };
@@ -138,7 +156,12 @@ async function createAccountEvent(
       | "display_name_updated"
       | "access_code_reset"
       | "student_deactivated"
-      | "student_reactivated";
+      | "student_reactivated"
+      | "teacher_student_account_created"
+      | "teacher_student_password_reset"
+      | "teacher_student_deactivated"
+      | "teacher_student_reactivated"
+      | "student_password_changed";
     roster_import_batch_db_id?: string | null;
     metadata?: Record<string, unknown>;
   }
@@ -161,6 +184,52 @@ function serializeCredentialResult(credentials: OneTimeCredential[]) {
     one_time_credentials: credentials,
     credential_csv: credentialCsv(credentials),
     credential_warning: oneTimeCredentialWarning
+  };
+}
+
+function credentialRecord(input: {
+  user_id: string;
+  display_name: string | null;
+  email?: string | null;
+  temporary_password: string;
+}): OneTimeCredential {
+  return {
+    user_id: input.user_id,
+    display_name: input.display_name,
+    email: input.email ?? null,
+    temporary_access_code: input.temporary_password,
+    temporary_password: input.temporary_password
+  };
+}
+
+async function buildTemporaryCredential(input: {
+  user_id: string;
+  temporary_password?: unknown;
+  generate_password?: boolean;
+  accessCodeGenerator?: AccessCodeGenerator;
+}) {
+  if (input.temporary_password !== undefined && input.temporary_password !== null) {
+    const temporaryPassword = parseStudentPassword(input.temporary_password, input.user_id);
+
+    return {
+      temporary_password: temporaryPassword,
+      temporary_password_hash: await hashSecret(temporaryPassword)
+    };
+  }
+
+  if (input.generate_password === false) {
+    throw new StudentAccountServiceError(
+      "temporary_password_required",
+      "A temporary password is required when password generation is disabled.",
+      400
+    );
+  }
+
+  const credential = await generateHashedAccessCode(input.accessCodeGenerator);
+
+  return {
+    temporary_password: credential.access_code,
+    temporary_password_hash: credential.access_code_hash
   };
 }
 
@@ -231,12 +300,16 @@ function serializeStudentDetail(user: Awaited<ReturnType<typeof findStudentByUse
     student: {
       user_id: user.user_id,
       display_name: user.display_name,
+      email: user.email,
       account_status: user.account_status,
+      must_change_password: user.must_change_password,
       created_at: serializeDate(user.created_at),
       updated_at: serializeDate(user.updated_at),
       last_login_at: serializeDate(user.last_login_at),
       deactivated_at: serializeDate(user.deactivated_at),
       credential_updated_at: serializeDate(user.credential_updated_at),
+      credential_reset_at: serializeDate(user.credential_reset_at),
+      password_changed_at: serializeDate(user.password_changed_at),
       assessment_sessions: user.assessment_sessions.map((session) => ({
         session_public_id: session.session_public_id,
         assessment_public_id: session.assessment.assessment_public_id,
@@ -285,7 +358,8 @@ export async function listStudents(input: z.input<typeof studentListQuerySchema>
       ? {
           OR: [
             { user_id_normalized: { contains: normalizedSearch } },
-            { display_name: { contains: query.search, mode: "insensitive" } }
+            { display_name: { contains: query.search, mode: "insensitive" } },
+            { email: { contains: query.search, mode: "insensitive" } }
           ]
         }
       : {})
@@ -324,11 +398,15 @@ export async function listStudents(input: z.input<typeof studentListQuerySchema>
       return {
         user_id: student.user_id,
         display_name: student.display_name,
+        email: student.email,
         account_status: student.account_status,
+        must_change_password: student.must_change_password,
         created_at: serializeDate(student.created_at),
         updated_at: serializeDate(student.updated_at),
         last_login_at: serializeDate(student.last_login_at),
         deactivated_at: serializeDate(student.deactivated_at),
+        credential_reset_at: serializeDate(student.credential_reset_at),
+        password_changed_at: serializeDate(student.password_changed_at),
         assessment_session_count: student.assessment_sessions.length,
         completed_session_count: completedSessionCount,
         active_session_count: activeSessionCount,
@@ -357,6 +435,7 @@ export async function createStudentAccount(input: {
   const userId = parseUserId(parsed.user_id);
   const userIdNormalized = normalizeUserId(userId);
   const displayName = parseDisplayName(parsed.display_name);
+  const email = parseStudentEmail(parsed.email);
   const existing = await prisma.user.findUnique({
     where: { user_id_normalized: userIdNormalized },
     select: { role: true }
@@ -372,7 +451,13 @@ export async function createStudentAccount(input: {
     );
   }
 
-  const credential = await generateHashedAccessCode(input.accessCodeGenerator);
+  const credential = await buildTemporaryCredential({
+    user_id: userId,
+    temporary_password: parsed.temporary_password,
+    generate_password: parsed.generate_password,
+    accessCodeGenerator: input.accessCodeGenerator
+  });
+  const now = new Date();
   const user = await prisma.$transaction(async (tx) => {
     const created = await tx.user.create({
       data: {
@@ -380,19 +465,28 @@ export async function createStudentAccount(input: {
         user_id: userId,
         user_id_normalized: userIdNormalized,
         display_name: displayName,
+        email,
         role: "student",
-        access_code_hash: credential.access_code_hash,
+        access_code_hash: credential.temporary_password_hash,
         password_hash: null,
         account_status: "active",
         auth_version: 1,
-        credential_updated_at: new Date()
+        must_change_password: true,
+        credential_updated_at: now,
+        credential_reset_at: now,
+        created_by_teacher_user_id: input.teacher_user_db_id
       }
     });
     await createAccountEvent(tx, {
       student_user_db_id: created.id,
       performed_by_user_db_id: input.teacher_user_db_id,
-      event_type: "student_created_manually",
-      metadata: { user_id: created.user_id, display_name: created.display_name }
+      event_type: "teacher_student_account_created",
+      metadata: {
+        user_id: created.user_id,
+        display_name: created.display_name,
+        email_present: Boolean(created.email),
+        temporary_credential_generated: parsed.temporary_password === undefined || parsed.temporary_password === null
+      }
     });
     return created;
   });
@@ -401,15 +495,18 @@ export async function createStudentAccount(input: {
     student: {
       user_id: user.user_id,
       display_name: user.display_name,
+      email: user.email,
       account_status: user.account_status,
+      must_change_password: user.must_change_password,
       created_at: serializeDate(user.created_at)
     },
     ...serializeCredentialResult([
-      {
+      credentialRecord({
         user_id: user.user_id,
         display_name: user.display_name,
-        temporary_access_code: credential.access_code
-      }
+        email: user.email,
+        temporary_password: credential.temporary_password
+      })
     ])
   };
 }
@@ -420,23 +517,33 @@ export async function updateStudentAccount(input: {
   data: z.input<typeof updateStudentSchema>;
 }) {
   const parsed = updateStudentSchema.parse(input.data);
-  const displayName = parseDisplayName(parsed.display_name);
+  const nextDisplayName =
+    Object.prototype.hasOwnProperty.call(parsed, "display_name")
+      ? parseDisplayName(parsed.display_name)
+      : undefined;
+  const nextEmail =
+    Object.prototype.hasOwnProperty.call(parsed, "email")
+      ? parseStudentEmail(parsed.email)
+      : undefined;
   const student = await findStudentByUserIdOrThrow(input.user_id);
 
   const updated = await prisma.$transaction(async (tx) => {
     const result = await tx.user.update({
       where: { id: student.id },
-      data: { display_name: displayName }
+      data: {
+        ...(nextDisplayName !== undefined ? { display_name: nextDisplayName } : {}),
+        ...(nextEmail !== undefined ? { email: nextEmail } : {})
+      }
     });
 
-    if ((student.display_name ?? null) !== displayName) {
+    if (nextDisplayName !== undefined && (student.display_name ?? null) !== nextDisplayName) {
       await createAccountEvent(tx, {
         student_user_db_id: student.id,
         performed_by_user_db_id: input.teacher_user_db_id,
         event_type: "display_name_updated",
         metadata: {
           previous_display_name: student.display_name,
-          new_display_name: displayName
+          new_display_name: nextDisplayName
         }
       });
     }
@@ -448,33 +555,49 @@ export async function updateStudentAccount(input: {
     student: {
       user_id: updated.user_id,
       display_name: updated.display_name,
+      email: updated.email,
       account_status: updated.account_status,
+      must_change_password: updated.must_change_password,
       updated_at: serializeDate(updated.updated_at)
     }
   };
 }
 
-export async function resetStudentAccessCode(input: {
+export async function resetStudentPassword(input: {
   teacher_user_db_id: string;
   user_id: string;
+  temporary_password?: unknown;
+  generate_password?: boolean;
   accessCodeGenerator?: AccessCodeGenerator;
 }) {
   const student = await findStudentByUserIdOrThrow(input.user_id);
-  const credential = await generateHashedAccessCode(input.accessCodeGenerator);
+  const credential = await buildTemporaryCredential({
+    user_id: student.user_id,
+    temporary_password: input.temporary_password,
+    generate_password: input.generate_password,
+    accessCodeGenerator: input.accessCodeGenerator
+  });
+  const now = new Date();
   const updated = await prisma.$transaction(async (tx) => {
     const result = await tx.user.update({
       where: { id: student.id },
       data: {
-        access_code_hash: credential.access_code_hash,
+        access_code_hash: credential.temporary_password_hash,
+        password_hash: null,
+        must_change_password: true,
         auth_version: { increment: 1 },
-        credential_updated_at: new Date()
+        credential_updated_at: now,
+        credential_reset_at: now
       }
     });
     await createAccountEvent(tx, {
       student_user_db_id: student.id,
       performed_by_user_db_id: input.teacher_user_db_id,
-      event_type: "access_code_reset",
-      metadata: { user_id: student.user_id }
+      event_type: "teacher_student_password_reset",
+      metadata: {
+        user_id: student.user_id,
+        temporary_credential_generated: input.temporary_password === undefined || input.temporary_password === null
+      }
     });
     return result;
   });
@@ -483,17 +606,29 @@ export async function resetStudentAccessCode(input: {
     student: {
       user_id: updated.user_id,
       display_name: updated.display_name,
+      email: updated.email,
       account_status: updated.account_status,
-      credential_updated_at: serializeDate(updated.credential_updated_at)
+      must_change_password: updated.must_change_password,
+      credential_updated_at: serializeDate(updated.credential_updated_at),
+      credential_reset_at: serializeDate(updated.credential_reset_at)
     },
     ...serializeCredentialResult([
-      {
+      credentialRecord({
         user_id: updated.user_id,
         display_name: updated.display_name,
-        temporary_access_code: credential.access_code
-      }
+        email: updated.email,
+        temporary_password: credential.temporary_password
+      })
     ])
   };
+}
+
+export async function resetStudentAccessCode(input: {
+  teacher_user_db_id: string;
+  user_id: string;
+  accessCodeGenerator?: AccessCodeGenerator;
+}) {
+  return resetStudentPassword(input);
 }
 
 export async function setStudentAccountStatus(input: {
@@ -515,7 +650,10 @@ export async function setStudentAccountStatus(input: {
     await createAccountEvent(tx, {
       student_user_db_id: student.id,
       performed_by_user_db_id: input.teacher_user_db_id,
-      event_type: input.account_status === "inactive" ? "student_deactivated" : "student_reactivated",
+      event_type:
+        input.account_status === "inactive"
+          ? "teacher_student_deactivated"
+          : "teacher_student_reactivated",
       metadata: { user_id: student.user_id }
     });
     return result;
@@ -525,9 +663,104 @@ export async function setStudentAccountStatus(input: {
     student: {
       user_id: updated.user_id,
       display_name: updated.display_name,
+      email: updated.email,
       account_status: updated.account_status,
+      must_change_password: updated.must_change_password,
       deactivated_at: serializeDate(updated.deactivated_at),
       updated_at: serializeDate(updated.updated_at)
+    }
+  };
+}
+
+export async function changeStudentPassword(input: {
+  student_user_db_id: string;
+  data: z.input<typeof changePasswordSchema>;
+}) {
+  const parsed = changePasswordSchema.parse(input.data);
+  const student = await prisma.user.findUnique({
+    where: { id: input.student_user_db_id },
+    select: {
+      id: true,
+      user_id: true,
+      role: true,
+      account_status: true,
+      password_hash: true,
+      access_code_hash: true,
+      must_change_password: true
+    }
+  });
+
+  if (!student || student.role !== "student" || student.account_status !== "active") {
+    throw new StudentAccountServiceError(
+      "account_unavailable",
+      "This account is currently unavailable.",
+      403
+    );
+  }
+
+  const newPassword = parseStudentPassword(parsed.new_password, student.user_id);
+  const confirmation = String(parsed.confirm_new_password ?? "");
+
+  if (newPassword !== confirmation) {
+    throw new StudentAccountServiceError(
+      "password_confirmation_mismatch",
+      "New password and confirmation do not match.",
+      400
+    );
+  }
+
+  if (!student.must_change_password) {
+    if (!parsed.current_password) {
+      throw new StudentAccountServiceError(
+        "current_password_required",
+        "Current password is required.",
+        400
+      );
+    }
+
+    const currentMatches =
+      (await verifySecret(parsed.current_password, student.password_hash)) ||
+      (await verifySecret(parsed.current_password, student.access_code_hash));
+
+    if (!currentMatches) {
+      throw new StudentAccountServiceError(
+        "current_password_invalid",
+        "Current password was not accepted.",
+        403
+      );
+    }
+  }
+
+  const now = new Date();
+  const passwordHash = await hashSecret(newPassword);
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.user.update({
+      where: { id: student.id },
+      data: {
+        password_hash: passwordHash,
+        access_code_hash: null,
+        must_change_password: false,
+        password_changed_at: now,
+        credential_updated_at: now,
+        auth_version: { increment: 1 }
+      }
+    });
+
+    await createAccountEvent(tx, {
+      student_user_db_id: student.id,
+      performed_by_user_db_id: student.id,
+      event_type: "student_password_changed",
+      metadata: { user_id: student.user_id }
+    });
+
+    return result;
+  });
+
+  return {
+    student: {
+      user_id: updated.user_id,
+      must_change_password: updated.must_change_password,
+      password_changed_at: serializeDate(updated.password_changed_at)
     }
   };
 }
@@ -541,8 +774,10 @@ export async function previewRosterImport(input: {
     const rawUserId = record.user_id ?? "";
     const userIdError = userIdValidationError(rawUserId);
     const displayNameError = displayNameValidationError(record.display_name ?? "");
+    const emailError = studentEmailValidationError(record.email ?? "");
     const userId = userIdError ? String(rawUserId ?? "").trim() : parseUserId(rawUserId);
     const displayName = displayNameError ? null : parseDisplayName(record.display_name ?? "");
+    const email = emailError ? null : parseStudentEmail(record.email ?? "");
     const validationErrors: RosterNormalizedRow["validation_errors"] = [];
 
     if (!("user_id" in record)) {
@@ -565,11 +800,20 @@ export async function previewRosterImport(input: {
       });
     }
 
+    if (emailError) {
+      validationErrors.push({
+        code: "invalid_email",
+        column: "email",
+        message: emailError
+      });
+    }
+
     return {
       source_row_number: rowNumber,
       user_id: userId,
       user_id_normalized: userIdError ? "" : normalizeUserId(userId),
       display_name: displayName,
+      email,
       row_status: validationErrors.length > 0 ? "invalid" : "new_student",
       validation_errors: validationErrors
     };
@@ -597,7 +841,7 @@ export async function previewRosterImport(input: {
   const users = candidateIds.length
     ? await prisma.user.findMany({
         where: { user_id_normalized: { in: candidateIds } },
-        select: { id: true, user_id: true, user_id_normalized: true, display_name: true, role: true }
+        select: { id: true, user_id: true, user_id_normalized: true, display_name: true, email: true, role: true }
       })
     : [];
   const usersByNormalizedId = new Map(users.map((user) => [user.user_id_normalized, user]));
@@ -611,6 +855,7 @@ export async function previewRosterImport(input: {
       continue;
     }
     row.existing_display_name = existing.display_name;
+    row.existing_email = existing.email;
     if (existing.role !== "student") {
       row.row_status = "role_conflict";
       row.validation_errors.push({
@@ -622,7 +867,8 @@ export async function previewRosterImport(input: {
     }
 
     row.row_status =
-      (existing.display_name ?? null) === (row.display_name ?? null)
+      (existing.display_name ?? null) === (row.display_name ?? null) &&
+      (existing.email ?? null) === (row.email ?? null)
         ? "existing_unchanged"
         : "display_name_change";
   }
@@ -727,12 +973,16 @@ export async function commitRosterImport(input: {
             user_id: row.user_id,
             user_id_normalized: row.user_id_normalized,
             display_name: row.display_name,
+            email: row.email,
             role: "student",
             account_status: "active",
             auth_version: 1,
+            must_change_password: true,
             password_hash: null,
             access_code_hash: credential.access_code_hash,
-            credential_updated_at: new Date()
+            credential_updated_at: new Date(),
+            credential_reset_at: new Date(),
+            created_by_teacher_user_id: input.teacher_user_db_id
           }
         });
         await createAccountEvent(tx, {
@@ -740,27 +990,32 @@ export async function commitRosterImport(input: {
           performed_by_user_db_id: input.teacher_user_db_id,
           roster_import_batch_db_id: batch.id,
           event_type: "student_created_by_roster",
-          metadata: { user_id: created.user_id, display_name: created.display_name }
+          metadata: {
+            user_id: created.user_id,
+            display_name: created.display_name,
+            email_present: Boolean(created.email)
+          }
         });
-        credentials.push({
+        credentials.push(credentialRecord({
           user_id: created.user_id,
           display_name: created.display_name,
-          temporary_access_code: credential.access_code
-        });
+          email: created.email,
+          temporary_password: credential.access_code
+        }));
         committedNewStudents += 1;
       }
 
       if (row.row_status === "display_name_change" && commitOptions.apply_display_name_updates) {
         const existing = await tx.user.findUnique({
           where: { user_id_normalized: row.user_id_normalized },
-          select: { id: true, role: true, display_name: true }
+          select: { id: true, role: true, display_name: true, email: true }
         });
         if (!existing || existing.role !== "student") {
           continue;
         }
         await tx.user.update({
           where: { id: existing.id },
-          data: { display_name: row.display_name }
+          data: { display_name: row.display_name, email: row.email }
         });
         await createAccountEvent(tx, {
           student_user_db_id: existing.id,
@@ -769,7 +1024,9 @@ export async function commitRosterImport(input: {
           event_type: "display_name_updated",
           metadata: {
             previous_display_name: existing.display_name,
-            new_display_name: row.display_name
+            new_display_name: row.display_name,
+            previous_email_present: Boolean(existing.email),
+            new_email_present: Boolean(row.email)
           }
         });
         committedDisplayNameUpdates += 1;

@@ -4,7 +4,24 @@ import { jsonApiError, requireRoleApi } from "@/lib/http";
 import { StudentAssessmentServiceError } from "./errors";
 
 export async function requireStudent() {
-  return requireRoleApi("student");
+  const auth = await requireRoleApi("student");
+
+  if (!auth.ok) {
+    return auth;
+  }
+
+  if (auth.user.must_change_password) {
+    return {
+      ok: false as const,
+      response: jsonApiError(
+        "password_change_required",
+        "Choose a new password before continuing.",
+        403
+      )
+    };
+  }
+
+  return auth;
 }
 
 export function studentAssessmentRouteError(error: unknown): NextResponse {

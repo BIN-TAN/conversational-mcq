@@ -24,7 +24,11 @@ import {
   downloadTextFile
 } from "./ui";
 
-const sampleRoster = ["user_id,display_name", "student_alpha,Avery Student", "student_beta,"].join("\n");
+const sampleRoster = [
+  "user_id,display_name,email",
+  "student_alpha,Avery Student,avery@example.edu",
+  "student_beta,,"
+].join("\n");
 
 function numberCard(label: string, value: number) {
   return (
@@ -128,7 +132,7 @@ export function RosterImportClient() {
         <h2 className="text-xl font-semibold text-ink">Roster CSV preview</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
           Preview validates normalized user IDs and stores an audit batch, but it does not create
-          students or generate access codes.
+          students or generate temporary passwords/access codes. Email is optional and teacher-facing.
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <label className="flex flex-col gap-2 text-sm font-medium text-ink">
@@ -212,7 +216,9 @@ export function RosterImportClient() {
                   <th className="px-3 py-2">Row</th>
                   <th className="px-3 py-2">user_id</th>
                   <th className="px-3 py-2">Display name</th>
+                  <th className="px-3 py-2">Email</th>
                   <th className="px-3 py-2">Existing name</th>
+                  <th className="px-3 py-2">Existing email</th>
                   <th className="px-3 py-2">Status</th>
                   <th className="px-3 py-2">Validation</th>
                 </tr>
@@ -223,7 +229,9 @@ export function RosterImportClient() {
                     <td className="px-3 py-2">{String(row.source_row_number)}</td>
                     <td className="px-3 py-2 font-semibold text-ink">{String(row.user_id ?? "")}</td>
                     <td className="px-3 py-2">{String(row.display_name ?? "")}</td>
+                    <td className="px-3 py-2">{String(row.email ?? "")}</td>
                     <td className="px-3 py-2">{String(row.existing_display_name ?? "")}</td>
+                    <td className="px-3 py-2">{String(row.existing_email ?? "")}</td>
                     <td className="px-3 py-2">
                       <StatusPill value={String(row.row_status)} />
                     </td>

@@ -16,10 +16,13 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
    - Expected: approved teacher/research account can sign in.
 
 4. Student login:
-   - Expected: approved test student can sign in with classroom ID and access code/password.
+   - Expected: approved test student can sign in with classroom ID and temporary password/access code or a student-changed password.
 
 4a. Fresh database bootstrap:
-    - Expected: if the Render database was fresh, `npm run staging:bootstrap-pilot` has been run once after migrations, access codes were stored securely, and no raw passwords/access codes were left in Render logs or committed files.
+    - Expected: if the Render database was fresh, `npm run staging:bootstrap-pilot` has been run once after migrations, temporary credentials were stored securely, and no raw passwords/access codes were left in Render logs or committed files.
+
+4b. Teacher-managed account check:
+    - Expected: teacher can create a student with `user_id`, optional display name, optional email, and a generated or set temporary password; student is prompted to choose a new password; teacher can reset a forgotten password without seeing any current password.
 
 5. Complete a session:
    - Expected: the student can start the fixed IRT MVP, complete the three protected initial items, review the package, and enter the activity path.
@@ -61,6 +64,7 @@ Stop the dry run and do not share the Canvas link if any of these occur:
 - `/api/health` fails;
 - teacher or student login fails;
 - first-run bootstrap was not completed on a fresh database;
+- teacher-managed student-account creation, password change, or reset fails;
 - migrations did not run;
 - student UI exposes answer keys, correctness, distractor metadata, internal labels, or provider/audit metadata;
 - live provider failures show unsafe messages to students;

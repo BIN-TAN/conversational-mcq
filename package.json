@@ -305,7 +305,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/seed.ts",
+    "student:teacher-student-account-smoke": "tsx prisma/teacher-student-account-smoke-test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.9.0",

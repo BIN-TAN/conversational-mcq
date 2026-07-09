@@ -30,13 +30,21 @@ export function fetchStudents(input: {
   return apiRequest<StudentListResponse>(`/api/teacher/students?${params.toString()}`);
 }
 
-export function createStudent(input: { user_id: string; display_name?: string }) {
+export function createStudent(input: {
+  user_id: string;
+  display_name?: string;
+  email?: string;
+  temporary_password?: string;
+  generate_password?: boolean;
+}) {
   return apiRequest<
     {
       student: {
         user_id: string;
         display_name: string | null;
+        email: string | null;
         account_status: string;
+        must_change_password: boolean;
         created_at: string | null;
       };
     } & CredentialResponse
@@ -50,12 +58,12 @@ export function fetchStudent(userId: string) {
   return apiRequest<StudentDetailResponse>(`/api/teacher/students/${encodeURIComponent(userId)}`);
 }
 
-export function updateStudentDisplayName(userId: string, displayName: string) {
-  return apiRequest<{ student: { user_id: string; display_name: string | null } }>(
+export function updateStudentProfile(userId: string, input: { display_name?: string; email?: string }) {
+  return apiRequest<{ student: { user_id: string; display_name: string | null; email: string | null } }>(
     `/api/teacher/students/${encodeURIComponent(userId)}`,
     {
       method: "PATCH",
-      body: JSON.stringify({ display_name: displayName })
+      body: JSON.stringify(input)
     }
   );
 }
@@ -66,12 +74,34 @@ export function resetStudentAccessCode(userId: string) {
       student: {
         user_id: string;
         display_name: string | null;
+        email: string | null;
         account_status: string;
+        must_change_password: boolean;
         credential_updated_at: string | null;
+        credential_reset_at: string | null;
       };
     } & CredentialResponse
   >(`/api/teacher/students/${encodeURIComponent(userId)}/reset-access-code`, {
     method: "POST"
+  });
+}
+
+export function resetStudentPassword(userId: string, input: { temporary_password?: string; generate_password?: boolean } = {}) {
+  return apiRequest<
+    {
+      student: {
+        user_id: string;
+        display_name: string | null;
+        email: string | null;
+        account_status: string;
+        must_change_password: boolean;
+        credential_updated_at: string | null;
+        credential_reset_at: string | null;
+      };
+    } & CredentialResponse
+  >(`/api/teacher/students/${encodeURIComponent(userId)}/reset-password`, {
+    method: "POST",
+    body: JSON.stringify(input)
   });
 }
 

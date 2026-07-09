@@ -41,19 +41,22 @@ export function toPublicUser(user: {
   user_id: string;
   role: AppRole;
   auth_version: number;
+  must_change_password?: boolean;
 }): PublicUser {
   return {
     user_db_id: user.id,
     user_id: user.user_id,
     role: user.role,
-    auth_version: user.auth_version
+    auth_version: user.auth_version,
+    must_change_password: user.role === "student" ? Boolean(user.must_change_password) : undefined
   };
 }
 
 export function toClientUser(user: PublicUser): ClientUser {
   return {
     user_id: user.user_id,
-    role: user.role
+    role: user.role,
+    must_change_password: user.role === "student" ? Boolean(user.must_change_password) : undefined
   };
 }
 
@@ -141,7 +144,8 @@ export async function getUserForSessionToken(token?: string): Promise<PublicUser
         user_id: true,
         role: true,
         account_status: true,
-        auth_version: true
+        auth_version: true,
+        must_change_password: true
       }
     })
     .catch(() => null);

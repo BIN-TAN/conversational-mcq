@@ -27,8 +27,9 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - Teacher researcher login requires a password.
 - Login with `user_id` alone is not allowed.
 - Sessions use secure HTTP-only cookies.
-- Student self-registration, email delivery, SMS delivery, and student-created passwords are not implemented in v1.
-- Access-code reset, student deactivation, and student reactivation increment `users.auth_version` and invalidate old student cookies.
+- Student self-registration, email delivery, SMS delivery, and email-based password reset are not implemented in v1.
+- Students may change their own password after authenticating with a roster-issued temporary credential or current password.
+- Access-code/password reset, student deactivation, and student reactivation increment `users.auth_version` and invalidate old student cookies.
 - Inactive students cannot log in, start assessments, resume sessions, participate in follow-up, or complete assessments. Existing research records remain preserved.
 
 ## Student Account Management
@@ -37,9 +38,12 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - `users.user_id_normalized` supports trim, Unicode normalization, and lowercase matching. Case-only duplicates such as `Student001` and `student001` are forbidden.
 - Canonical `users.user_id` remains unchanged for display, routes, summative outcome linkage, and master CSV export.
 - `users.display_name` is optional and may be updated by the teacher_researcher without changing research linkage.
+- `users.email` is optional teacher/research-facing PII. It is not required, not a login identifier, and not used for email-based reset.
 - `users.account_status` is `active` or `inactive`.
-- Plaintext access codes must never be stored in the database, process events, account audit records, import history, exports, or Git fixtures.
-- Plaintext access codes may be shown only immediately after manual student creation, roster commit for newly created students, or access-code reset.
+- Plaintext temporary passwords/access codes must never be stored in the database, process events, account audit records, import history, exports, or Git fixtures.
+- Plaintext temporary passwords/access codes may be shown only immediately after manual student creation, roster commit for newly created students, or password/access-code reset.
+- Teacher_researcher users may reset a student password but must never view the current password.
+- `must_change_password=true` means the student must choose a new password before assessment access.
 - No hard-delete teacher UI/API exists for students. Use deactivation to preserve longitudinal classroom and research linkage.
 - Roster import is preview-before-commit. Preview does not create users, generate access codes, reset codes, update display names, or deactivate missing students.
 - Missing rows in a later roster import must not automatically deactivate students.
@@ -2133,3 +2137,31 @@ Phase 6A.5 must not implement:
 - `student:staging-bootstrap-smoke` is no-live and must not call OpenAI, deploy
   the app, contact Render, mutate item content, change scoring, edit prompts, or
   expose generated credentials in logs.
+
+## Phase 31e Teacher-Managed Student Account Lock
+
+- Teacher/research users may manually create student accounts with `user_id`,
+  optional display name, optional email, and either a generated or teacher-set
+  one-time temporary password/access code.
+- `user_id` remains the primary student login identifier. Email remains
+  optional teacher/research-facing PII and must not become the default username
+  or a password-reset channel in this phase.
+- New or reset temporary credentials set `must_change_password=true`. Students
+  must choose a new password before accessing assessment routes.
+- Students may change their own password after login. Normal password changes
+  require the current password; first-login temporary-password sessions may set a
+  new password without re-entering the temporary credential.
+- Teachers may reset forgotten student passwords and may deactivate/reactivate
+  student accounts. Teachers must never view current passwords, password hashes,
+  access-code hashes, or prior temporary credentials.
+- Safe account events are required for teacher-created accounts, teacher
+  password resets, deactivation/reactivation, and student password changes. Event
+  metadata must not contain raw passwords, temporary credentials, credential
+  hashes, cookies, session tokens, database URLs, OpenAI keys, or session
+  secrets.
+- Roster import may include optional email but must not require email. Preview
+  must not create accounts or credentials, and later imports must not
+  automatically deactivate missing students.
+- `student:teacher-student-account-smoke` is no-live and must not call OpenAI,
+  mutate item content, change scoring, edit prompts, or print raw generated
+  credentials.

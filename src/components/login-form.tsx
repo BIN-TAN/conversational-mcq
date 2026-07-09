@@ -8,6 +8,7 @@ type LoginResponse = {
   user?: {
     user_id: string;
     role: "student" | "teacher_researcher";
+    must_change_password?: boolean;
   };
   error?: string;
 };
@@ -42,7 +43,11 @@ export function LoginForm() {
       }
 
       router.push(
-        data.user.role === "teacher_researcher" ? "/teacher/dashboard" : "/student/assessment"
+        data.user.role === "teacher_researcher"
+          ? "/teacher/dashboard"
+          : data.user.must_change_password
+            ? "/student/account/password"
+            : "/student/assessment"
       );
     } catch {
       setError("The login request could not be completed.");

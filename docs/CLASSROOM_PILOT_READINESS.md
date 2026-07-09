@@ -139,15 +139,15 @@ Before using a public URL with students:
 4. Run `npm run student:production-deployment-readiness-smoke`.
 5. Confirm Render pre-deploy ran `npm run prisma:migrate:deploy` against the deployment database.
 6. On a fresh database, run `npm run staging:bootstrap-pilot` once with explicit `BOOTSTRAP_*` environment variables.
-7. Store the generated access-code CSV securely and delete transient copies when no longer needed.
+7. Store the generated student temporary-credential CSV securely and delete transient copies when no longer needed.
 8. Verify `GET /api/health` returns a safe healthy response.
 9. Verify teacher login on the public URL.
 10. Create or import the classroom if a later schema adds classroom records; in this schema version, use the bootstrap classroom ID as the course/access label.
-11. Create or import approved student accounts or access codes.
+11. Create or import approved student accounts and temporary credentials.
 12. Copy the public HTTPS Conversational MCQ URL.
 13. Add the URL to a Canvas assignment page or Canvas module item.
 14. Test the link from a non-development student device or browser profile.
-15. Student signs in with classroom ID and access code/password inside Conversational MCQ.
+15. Student signs in with classroom ID and temporary password/access code or a student-changed password inside Conversational MCQ.
 16. Student completes the three-item package.
 17. Student completes one activity response path.
 18. Teacher opens session detail.
@@ -181,4 +181,6 @@ BOOTSTRAP_DEFAULT_ASSESSMENT_ID=assessment_mvp_irt_theta_invariance \
 npm run staging:bootstrap-pilot
 ```
 
-Use `BOOTSTRAP_STUDENT_ROSTER_PATH=<csv>` instead of `BOOTSTRAP_STUDENT_COUNT` when the approved pilot roster is ready. The command writes newly generated student access codes under ignored `.data/bootstrap/` and does not print them in terminal output.
+Use `BOOTSTRAP_STUDENT_ROSTER_PATH=<csv>` instead of `BOOTSTRAP_STUDENT_COUNT` when the approved pilot roster is ready. The command writes newly generated student temporary credentials under ignored `.data/bootstrap/` and does not print them in terminal output.
+
+Teacher-managed student account pages support manual `user_id` creation, optional display name, optional email, generated or teacher-set temporary password/access code, reset of forgotten student passwords, and deactivation/reactivation. Students must choose a new password after temporary-credential login. Current passwords and credential hashes are never viewable. Email is optional teacher/research-facing PII and is not used for login or reset.
