@@ -66,6 +66,11 @@ export default function HomePage() {
             );
           })}
         </section>
+
+        <section className="rounded-lg border border-border-light bg-ualberta-gold-soft p-5 text-sm leading-6 text-ink">
+          <h2 className="font-semibold text-ualberta-green-dark">Course activity</h2>
+          <p className="mt-1 text-muted">This site supports the EDPY 507 formative assessment activity.</p>
+        </section>
       </div>
     </main>
   );

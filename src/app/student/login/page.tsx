@@ -14,10 +14,6 @@ export default function StudentLoginPage() {
             Course access
           </p>
           <h1 className="mt-3 text-2xl font-semibold text-ink">Sign in</h1>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Students enter with the classroom ID and access code or password provided by the
-            instructor. Instructors sign in with their teacher account.
-          </p>
           <div className="mt-6">
             <LoginForm />
           </div>

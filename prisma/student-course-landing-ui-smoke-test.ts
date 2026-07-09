@@ -10,6 +10,7 @@ const port = 3239;
 const baseUrl = `http://localhost:${port}`;
 const tempStudentUserId = `course_landing_password_gate_${Date.now().toString(36)}`;
 const tempStudentCredential = "course-landing-password-gate-temp";
+const courseSupportStatement = "This site supports the EDPY 507 formative assessment activity.";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -78,23 +79,30 @@ async function loginStudent() {
 }
 
 function assertLandingIsCourseFacing(html: string) {
-  assert(html.includes("EDPY 507: Measurement Theory"), "Landing page should show the course title.");
+  const visibleText = visibleHtmlText(html);
+
+  assert(visibleText.includes("EDPY 507: Measurement Theory"), "Landing page should show the course title.");
   assert(html.includes("University of Alberta"), "Landing page should include accessible UAlberta logo alt text.");
   assert(
     html.includes("ualberta-logo.png") || html.includes("%2Fbrand%2Fualberta-logo.png"),
     "Landing page should include the authorized UAlberta logo asset."
   );
-  assert(html.includes("Student Access"), "Landing page should include the student access entry.");
-  assert(html.includes("Instructor Dashboard"), "Landing page should include the instructor dashboard entry.");
+  assert(visibleText.includes("Student Access"), "Landing page should include the student access entry.");
+  assert(visibleText.includes("Instructor Dashboard"), "Landing page should include the instructor dashboard entry.");
+  assert(visibleText.includes(courseSupportStatement), "Landing page should include the exact course support statement.");
+  assert(
+    visibleText.split(courseSupportStatement).length === 2,
+    "Landing page should include the exact course support statement once."
+  );
 
   for (const forbidden of [
     "Conversational MCQ activity for measurement theory practice",
-    "This site supports",
-    "course formative assessment activity",
-    "Course access instruction",
+    "Students enter with the classroom ID and access credential",
+    "Instructor access for student account management",
     "student account management",
     "evidence audit",
     "research-data export",
+    "instructor review workflow",
     "prototype",
     "project shell",
     "scaffold",
@@ -106,7 +114,7 @@ function assertLandingIsCourseFacing(html: string) {
     "correct option",
     "correctness"
   ]) {
-    assert(!html.toLowerCase().includes(forbidden.toLowerCase()), `Landing page still contains ${forbidden}.`);
+    assert(!visibleText.toLowerCase().includes(forbidden.toLowerCase()), `Landing page still contains ${forbidden}.`);
   }
 }
 
@@ -212,6 +220,16 @@ async function main() {
     assert(
       studentLoginHtml.includes("ualberta-logo.png") || studentLoginHtml.includes("%2Fbrand%2Fualberta-logo.png"),
       "Student login should include the authorized UAlberta logo asset."
+    );
+    assert(
+      !studentLoginHtml.includes(
+        "Students enter with the classroom ID and access code or password provided by the instructor"
+      ),
+      "Student login should not include the long explanatory access paragraph."
+    );
+    assert(
+      !studentLoginHtml.includes("Instructors sign in with their teacher account"),
+      "Student login should not include the instructor explanatory sentence."
     );
     assert(!/prototype|project shell|scaffold|placeholder/i.test(studentLoginHtml), "Student login should not contain scaffold copy.");
 
