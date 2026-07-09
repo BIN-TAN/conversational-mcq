@@ -54,6 +54,13 @@ const SECRET_VALUE_PATTERNS = [
   /render_[A-Za-z0-9_-]{16,}/u
 ];
 
+const CSS_BUILD_DEPENDENCIES = ["tailwindcss", "postcss", "autoprefixer"] as const;
+
+type PackageMetadata = {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+
 function addCheck(check: CheckResult) {
   checks.push(check);
 }
@@ -121,6 +128,57 @@ function blockUsesFromDatabase(renderYaml: string, key: string) {
 function blockHasValue(renderYaml: string, key: string) {
   const block = envVarBlock(renderYaml, key);
   return Boolean(block && /^\s*value:\s*/mu.test(block));
+}
+
+function getRenderBuildCommand(renderYaml: string) {
+  const match = renderYaml.match(/^\s*buildCommand:\s*(.+)\s*$/mu);
+  return match?.[1]?.trim() ?? "";
+}
+
+function buildCommandInstallsDevDependencies(buildCommand: string) {
+  return /\bnpm\s+ci\b[^\n&|;]*(?:--include=dev|--production=false)\b/u.test(buildCommand);
+}
+
+async function checkCssBuildDependencies(renderYaml: string) {
+  const packageJsonPath = path.join(projectRoot, "package.json");
+  const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as PackageMetadata;
+  const dependencies = packageJson.dependencies ?? {};
+  const devDependencies = packageJson.devDependencies ?? {};
+  const missingPackageEntries = CSS_BUILD_DEPENDENCIES.filter((dependency) => !dependencies[dependency] && !devDependencies[dependency]);
+  const packageLockPath = path.join(projectRoot, "package-lock.json");
+  const packageLockExists = existsSync(packageLockPath);
+  const packageLock = packageLockExists
+    ? (JSON.parse(await readFile(packageLockPath, "utf8")) as { packages?: Record<string, unknown> })
+    : null;
+  const missingLockPackages = packageLock
+    ? CSS_BUILD_DEPENDENCIES.filter(
+        (dependency) => !Object.prototype.hasOwnProperty.call(packageLock.packages ?? {}, `node_modules/${dependency}`)
+      )
+    : [...CSS_BUILD_DEPENDENCIES];
+  const cssDepsInProductionDependencies = CSS_BUILD_DEPENDENCIES.every((dependency) => Boolean(dependencies[dependency]));
+  const buildCommand = getRenderBuildCommand(renderYaml);
+  const installsDevDependencies = buildCommandInstallsDevDependencies(buildCommand);
+
+  addCheck({
+    name: "css_build_dependencies_available_on_render",
+    status:
+      missingPackageEntries.length === 0 &&
+      packageLockExists &&
+      missingLockPackages.length === 0 &&
+      (cssDepsInProductionDependencies || installsDevDependencies)
+        ? "pass"
+        : "fail",
+    detail:
+      "Tailwind/PostCSS build dependencies must be installed during Render next build, either as production dependencies or through npm ci --include=dev.",
+    data: {
+      required_css_build_dependencies: CSS_BUILD_DEPENDENCIES,
+      missing_package_json_entries: missingPackageEntries,
+      package_lock_present: packageLockExists,
+      missing_package_lock_entries: missingLockPackages,
+      css_dependencies_in_production_dependencies: cssDepsInProductionDependencies,
+      render_build_command_installs_dev_dependencies: installsDevDependencies
+    }
+  });
 }
 
 async function checkRenderBlueprint(renderYaml: string) {
@@ -195,12 +253,14 @@ async function checkRenderBlueprint(renderYaml: string) {
   addCheck({
     name: "render_build_and_migration_commands",
     status:
-      /buildCommand:\s*.*npm run prisma:generate.*npm run build/u.test(renderYaml) &&
+      /buildCommand:\s*.*npm\s+ci\b.*npm run prisma:generate.*npm run build/u.test(renderYaml) &&
       /preDeployCommand:\s*.*prisma:migrate:deploy/u.test(renderYaml)
         ? "pass"
         : "fail",
     detail: "Build generates Prisma client and Next.js output; pre-deploy runs prisma migrate deploy."
   });
+
+  await checkCssBuildDependencies(renderYaml);
 
   addCheck({
     name: "staging_base_url_required",

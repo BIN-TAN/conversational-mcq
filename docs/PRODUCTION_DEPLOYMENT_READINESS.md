@@ -104,7 +104,7 @@ Use `.env.example` only as a template. Do not commit real values.
 
 The repository includes `render.yaml` for a Render Blueprint staging deployment:
 
-- Web Service: native Node runtime, `npm ci && npm run prisma:generate && npm run build`, `npm run start`.
+- Web Service: native Node runtime, `npm ci --include=dev && npm run prisma:generate && npm run build`, `npm run start`.
 - Database: Render Postgres, wired to `DATABASE_URL` with `fromDatabase.connectionString`.
 - Migration step: `npm run prisma:migrate:deploy` in Render pre-deploy.
 - Health check: `/api/health`.

@@ -13,7 +13,7 @@ services:
     branch: main
     autoDeploy: false
     healthCheckPath: /api/health
-    buildCommand: npm ci && npm run prisma:generate && npm run build
+    buildCommand: npm ci --include=dev && npm run prisma:generate && npm run build
     preDeployCommand: npm run prisma:migrate:deploy
     startCommand: npm run start
     envVars:

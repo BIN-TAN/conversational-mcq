@@ -115,7 +115,7 @@ Screenshot placeholder: Render Environment variables screen with values hidden.
 Apply the Blueprint and start the first deploy. Render should run:
 
 ```bash
-npm ci && npm run prisma:generate && npm run build
+npm ci --include=dev && npm run prisma:generate && npm run build
 npm run prisma:migrate:deploy
 npm run start
 ```
