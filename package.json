@@ -59,6 +59,7 @@
     "student:production-deployment-readiness-smoke": "tsx prisma/student-production-deployment-readiness-smoke-test.ts",
     "student:render-staging-readiness-smoke": "tsx prisma/student-render-staging-readiness-smoke-test.ts",
     "student:staging-bootstrap-smoke": "tsx prisma/student-staging-bootstrap-smoke-test.ts",
+    "student:course-landing-ui-smoke": "tsx prisma/student-course-landing-ui-smoke-test.ts",
     "student:classroom-pilot-workflow-review": "tsx prisma/student-classroom-pilot-workflow-review.ts",
     "student:profile-formative-scenario-smoke": "tsx prisma/student-profile-formative-scenario-smoke.ts",
     "student:profile-formative-quota-smoke": "tsx prisma/student-profile-formative-quota-smoke.ts",

@@ -26,14 +26,14 @@ This checklist supports a small local human usability pilot of the fixed IRT cha
 
 ## Canvas-Link Pilot Setup
 
-Canvas is used only to post the public Conversational MCQ URL. Do not configure Canvas LTI, OAuth, grade passback, roster sync, Developer Keys, or Canvas API access for the first classroom pilot.
+Canvas is used only to post the public EDPY 507 Conversational MCQ landing-page URL. Do not configure Canvas LTI, OAuth, grade passback, roster sync, Developer Keys, or Canvas API access for the first classroom pilot.
 
 For the first public HTTPS staging pilot, use the Render Web Service plus Render Postgres path documented in `docs/RENDER_STAGING_DEPLOYMENT_RUNBOOK.md`. Use non-free, classroom-pilot-appropriate Render resources and store secrets only in Render's server-side environment variable UI.
 
 Supported Canvas placements:
 
-- Assignment page: edit the assignment description in the Canvas Rich Content Editor and add an external hyperlink to the public HTTPS Conversational MCQ URL.
-- Module item: add an `External URL` item to a module, paste the public HTTPS Conversational MCQ URL, and use `load in new tab` if desired.
+- Assignment page: edit the assignment description in the Canvas Rich Content Editor and add an external hyperlink to the public HTTPS EDPY 507 landing-page URL.
+- Module item: add an `External URL` item to a module, paste the public HTTPS EDPY 507 landing-page URL, and use `load in new tab` if desired.
 
 Suggested Canvas wording:
 
@@ -43,7 +43,7 @@ Open the Conversational MCQ activity using the link below. Use the classroom ID 
 
 Canvas gradebook will not automatically receive completion or scores. Teacher/research completion review and exports happen inside Conversational MCQ.
 
-After deployment, complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md` before sharing the Canvas link with students.
+After deployment, complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`, including teacher dashboard logout, before sharing the Canvas link with students.
 
 For a fresh Render database, run the explicit bootstrap command after migrations and before teacher/student login checks:
 

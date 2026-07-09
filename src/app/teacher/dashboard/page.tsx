@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Activity, BrainCircuit, Database, FileJson, FileWarning, History, ListChecks, Microscope, Table2, UserRoundCog, Users } from "lucide-react";
 import { redirect } from "next/navigation";
+import { TeacherLogoutButton } from "@/components/teacher-logout-button";
 import { getCurrentUser } from "@/lib/auth";
 
 const sections = [
@@ -44,8 +45,13 @@ export default async function TeacherDashboardPage() {
           <p className="text-sm font-semibold uppercase tracking-wide text-accent">
             teacher_researcher
           </p>
-          <h1 className="mt-2 text-3xl font-semibold text-ink">Dashboard</h1>
-          <p className="mt-2 text-sm text-muted">Signed in as {user.user_id}</p>
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-semibold text-ink">Dashboard</h1>
+              <p className="mt-2 text-sm text-muted">Signed in as {user.user_id}</p>
+            </div>
+            <TeacherLogoutButton />
+          </div>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
             Use this teacher_researcher area to manage content, review existing student sessions,
             prepare supervised outcome imports and master CSV exports, and monitor automatic

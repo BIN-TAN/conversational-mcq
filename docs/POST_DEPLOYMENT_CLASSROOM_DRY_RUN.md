@@ -7,13 +7,13 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
 ## Checklist
 
 1. Visit the staging URL:
-   - Expected: the public HTTPS Conversational MCQ site loads.
+   - Expected: the public HTTPS EDPY 507: Measurement Theory landing page loads.
 
 2. Visit `/api/health`:
    - Expected: HTTP 200 with safe health fields only.
 
 3. Teacher login:
-   - Expected: approved teacher/research account can sign in.
+   - Expected: approved teacher/research account can sign in, see the dashboard, use Log out, and return to the public landing page.
 
 4. Student login:
    - Expected: approved test student can sign in with classroom ID and temporary password/access code or a student-changed password.
@@ -53,10 +53,10 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
     - Expected: if possible, bring the export ZIP back to the local protected environment and run the export integrity review. Do not commit the ZIP.
 
 14. Add URL to Canvas:
-    - Expected: Canvas assignment or module contains only the external HTTPS Conversational MCQ link and approved login instructions.
+    - Expected: Canvas assignment or module contains only the external HTTPS EDPY 507 landing-page link and approved login instructions.
 
 15. Test Canvas link from student view:
-    - Expected: student view opens the public Conversational MCQ URL in a browser, students authenticate in Conversational MCQ, and Canvas does not receive grade passback or research data.
+    - Expected: student view opens the public EDPY 507 landing page in a browser, students authenticate in Conversational MCQ, and Canvas does not receive grade passback or research data.
 
 ## Stop Conditions
 

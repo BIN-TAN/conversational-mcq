@@ -1,23 +1,17 @@
 import Link from "next/link";
-import { BookOpenCheck, LayoutDashboard, MessageSquareText } from "lucide-react";
+import { BookOpenCheck, LayoutDashboard } from "lucide-react";
 
 const links = [
   {
     href: "/student/login",
     label: "Student Login",
-    description: "Enter with a classroom ID and roster-issued credential.",
+    description: "Students enter with the classroom ID and access credential provided by the instructor.",
     icon: BookOpenCheck
   },
   {
-    href: "/student/assessment",
-    label: "Assessment Shell",
-    description: "Placeholder for the ChatGPT-style student assessment interface.",
-    icon: MessageSquareText
-  },
-  {
     href: "/teacher/dashboard",
-    label: "Teacher Dashboard",
-    description: "Placeholder for teacher_researcher monitoring and review.",
+    label: "Instructor Dashboard",
+    description: "Instructor access for student account management, session review, evidence audit, and research-data export.",
     icon: LayoutDashboard
   }
 ];
@@ -28,17 +22,16 @@ export default function HomePage() {
       <div className="mx-auto flex max-w-5xl flex-col gap-8">
         <header className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-wide text-accent">
-            Conversational MCQ prototype
+            EDPY 507 course activity
           </p>
-          <h1 className="mt-3 text-4xl font-semibold text-ink">Phase 1 project shell</h1>
+          <h1 className="mt-3 text-4xl font-semibold text-ink">EDPY 507: Measurement Theory</h1>
           <p className="mt-4 text-base leading-7 text-muted">
-            This scaffold sets up routing, styling, minimal auth infrastructure, and Prisma
-            connection foundations. Assessment flow, agents, logging tables, and exports are
-            intentionally left for later phases.
+            Access the Measurement Theory practice activity and instructor review tools for this
+            course.
           </p>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-2">
           {links.map((item) => {
             const Icon = item.icon;
 

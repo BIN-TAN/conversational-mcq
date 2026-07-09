@@ -129,7 +129,7 @@ Record only pass/fail observations, session public IDs, artifact paths, status f
 
 ## Production Web Pilot Checklist
 
-Phase 31b adds deployment readiness checks for a future public HTTPS classroom pilot. It does not authorize public deployment or claim classroom validity. Canvas is used only to post a link to the public Conversational MCQ website; Canvas LTI, OAuth, grade passback, roster sync, Developer Key configuration, and Canvas API integration are not part of this pilot. See `docs/PRODUCTION_DEPLOYMENT_READINESS.md`.
+Phase 31b adds deployment readiness checks for a future public HTTPS classroom pilot. It does not authorize public deployment or claim classroom validity. Canvas is used only to post a link to the public EDPY 507 Conversational MCQ landing page; Canvas LTI, OAuth, grade passback, roster sync, Developer Key configuration, and Canvas API integration are not part of this pilot. See `docs/PRODUCTION_DEPLOYMENT_READINESS.md`.
 
 Before using a public URL with students:
 
@@ -141,10 +141,10 @@ Before using a public URL with students:
 6. On a fresh database, run `npm run staging:bootstrap-pilot` once with explicit `BOOTSTRAP_*` environment variables.
 7. Store the generated student temporary-credential CSV securely and delete transient copies when no longer needed.
 8. Verify `GET /api/health` returns a safe healthy response.
-9. Verify teacher login on the public URL.
+9. Verify teacher login and dashboard logout on the public URL.
 10. Create or import the classroom if a later schema adds classroom records; in this schema version, use the bootstrap classroom ID as the course/access label.
 11. Create or import approved student accounts and temporary credentials.
-12. Copy the public HTTPS Conversational MCQ URL.
+12. Copy the public HTTPS EDPY 507 landing-page URL.
 13. Add the URL to a Canvas assignment page or Canvas module item.
 14. Test the link from a non-development student device or browser profile.
 15. Student signs in with classroom ID and temporary password/access code or a student-changed password inside Conversational MCQ.
