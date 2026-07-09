@@ -7,13 +7,14 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
 ## Checklist
 
 1. Visit the staging URL:
-   - Expected: the public HTTPS EDPY 507: Measurement Theory landing page loads.
+   - Expected: the public HTTPS EDPY 507: Measurement Theory landing page loads with a University of Alberta dark green top bar, gold accent, and the authorized official UAlberta logo/wordmark.
+   - Expected: the page still presents itself as the EDPY 507 course activity, not a central University of Alberta login or Canvas integration.
 
 2. Visit `/api/health`:
    - Expected: HTTP 200 with safe health fields only.
 
 3. Teacher login:
-   - Expected: approved teacher/research account can sign in, see the dashboard, use Log out, and return to the public landing page.
+   - Expected: approved teacher/research account can sign in, see the green/gold dashboard shell, use Log out, and return to the public landing page.
 
 4. Student login:
    - Expected: approved test student can sign in with classroom ID and temporary password/access code or a student-changed password.

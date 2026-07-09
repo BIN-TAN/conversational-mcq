@@ -30,6 +30,10 @@ test-results
 # local generated data
 .data/
 
+# operator-provided local brand inputs
+_operator_assets/
+/ualberta-logo.png
+
 # typescript
 *.tsbuildinfo
 
@@ -39,3 +43,4 @@ test-results
 
 # system
 .DS_Store
+.Rhistory

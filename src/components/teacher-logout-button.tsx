@@ -21,7 +21,7 @@ export function TeacherLogoutButton() {
 
   return (
     <button
-      className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex h-9 items-center gap-2 rounded-md border border-ualberta-gold bg-white px-3 text-sm font-semibold text-ualberta-green-dark transition hover:bg-ualberta-gold-soft disabled:cursor-not-allowed disabled:opacity-60"
       disabled={isLoggingOut}
       onClick={onLogout}
       type="button"

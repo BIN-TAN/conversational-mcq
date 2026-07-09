@@ -61,7 +61,7 @@ export function LoginForm() {
       <label className="flex flex-col gap-2 text-sm font-medium text-ink">
         Classroom ID
         <input
-          className="rounded-md border border-line bg-white px-3 py-3 text-base outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          className="rounded-md border border-border-light bg-white px-3 py-3 text-base outline-none transition focus:border-ualberta-green focus:ring-2 focus:ring-ualberta-gold"
           autoComplete="username"
           value={userId}
           onChange={(event) => setUserId(event.target.value)}
@@ -72,7 +72,7 @@ export function LoginForm() {
       <label className="flex flex-col gap-2 text-sm font-medium text-ink">
         Access code or password
         <input
-          className="rounded-md border border-line bg-white px-3 py-3 text-base outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          className="rounded-md border border-border-light bg-white px-3 py-3 text-base outline-none transition focus:border-ualberta-green focus:ring-2 focus:ring-ualberta-gold"
           autoComplete="current-password"
           type="password"
           value={credential}
@@ -81,10 +81,12 @@ export function LoginForm() {
         />
       </label>
 
-      {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+      {error ? (
+        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+      ) : null}
 
       <button
-        className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ualberta-green px-4 text-sm font-semibold text-white transition hover:bg-ualberta-green-dark disabled:cursor-not-allowed disabled:opacity-60"
         disabled={isSubmitting}
         type="submit"
       >

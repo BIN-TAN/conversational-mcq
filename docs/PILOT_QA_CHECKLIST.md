@@ -28,6 +28,8 @@ This checklist supports a small local human usability pilot of the fixed IRT cha
 
 Canvas is used only to post the public EDPY 507 Conversational MCQ landing-page URL. Do not configure Canvas LTI, OAuth, grade passback, roster sync, Developer Keys, or Canvas API access for the first classroom pilot.
 
+The landing page should use a University of Alberta green/gold application style: dark green top bar, small gold accent, light application tiles, and the authorized official UAlberta logo/wordmark supplied by the operator for this course activity. Do not use scraped, hotlinked, or unofficial University of Alberta logo assets.
+
 For the first public HTTPS staging pilot, use the Render Web Service plus Render Postgres path documented in `docs/RENDER_STAGING_DEPLOYMENT_RUNBOOK.md`. Use non-free, classroom-pilot-appropriate Render resources and store secrets only in Render's server-side environment variable UI.
 
 Supported Canvas placements:
@@ -43,7 +45,7 @@ Open the Conversational MCQ activity using the link below. Use the classroom ID 
 
 Canvas gradebook will not automatically receive completion or scores. Teacher/research completion review and exports happen inside Conversational MCQ.
 
-After deployment, complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`, including teacher dashboard logout, before sharing the Canvas link with students.
+After deployment, complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`, including landing-page visual checks and teacher dashboard logout, before sharing the Canvas link with students.
 
 For a fresh Render database, run the explicit bootstrap command after migrations and before teacher/student login checks:
 

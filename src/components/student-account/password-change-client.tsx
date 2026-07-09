@@ -63,7 +63,7 @@ export function PasswordChangeClient({
 
   return (
     <form className="space-y-4" onSubmit={submit}>
-      <p className="rounded-md border border-line bg-slate-50 px-3 py-2 text-sm leading-6 text-muted">
+      <p className="rounded-md border border-border-light bg-ualberta-green-soft px-3 py-2 text-sm leading-6 text-muted">
         {mustChangePassword
           ? "Please choose a new password before continuing."
           : "Choose a new password for your student account."}
@@ -74,7 +74,7 @@ export function PasswordChangeClient({
           Current password
           <input
             autoComplete="current-password"
-            className="rounded-md border border-line bg-white px-3 py-3 text-base outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+            className="rounded-md border border-border-light bg-white px-3 py-3 text-base outline-none transition focus:border-ualberta-green focus:ring-2 focus:ring-ualberta-gold"
             onChange={(event) => setCurrentPassword(event.target.value)}
             type="password"
             value={currentPassword}
@@ -86,7 +86,7 @@ export function PasswordChangeClient({
         New password
         <input
           autoComplete="new-password"
-          className="rounded-md border border-line bg-white px-3 py-3 text-base outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          className="rounded-md border border-border-light bg-white px-3 py-3 text-base outline-none transition focus:border-ualberta-green focus:ring-2 focus:ring-ualberta-gold"
           minLength={8}
           onChange={(event) => setNewPassword(event.target.value)}
           type="password"
@@ -99,7 +99,7 @@ export function PasswordChangeClient({
         Confirm new password
         <input
           autoComplete="new-password"
-          className="rounded-md border border-line bg-white px-3 py-3 text-base outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          className="rounded-md border border-border-light bg-white px-3 py-3 text-base outline-none transition focus:border-ualberta-green focus:ring-2 focus:ring-ualberta-gold"
           minLength={8}
           onChange={(event) => setConfirmPassword(event.target.value)}
           type="password"
@@ -108,13 +108,15 @@ export function PasswordChangeClient({
         />
       </label>
 
-      {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+      {error ? (
+        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+      ) : null}
       {message ? (
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>
       ) : null}
 
       <button
-        className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ualberta-green px-4 text-sm font-semibold text-white transition hover:bg-ualberta-green-dark disabled:cursor-not-allowed disabled:opacity-60"
         disabled={isSubmitting}
         type="submit"
       >

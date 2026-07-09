@@ -2173,3 +2173,24 @@ Phase 6A.5 must not implement:
 - `student:teacher-student-account-smoke` is no-live and must not call OpenAI,
   mutate item content, change scoring, edit prompts, or print raw generated
   credentials.
+
+## Phase 31g Course-Access Visual Identity Lock
+
+- The EDPY 507 course landing page, student login page, first-login
+  password-change page, and teacher dashboard may use the authorized official
+  University of Alberta logo asset supplied by the operator for this deployment.
+- The source operator asset under `_operator_assets/` remains local-only and
+  must not be committed. The approved app copy is stored at
+  `public/brand/ualberta-logo.png`.
+- The UI must preserve dark green institutional headers, gold accent, clear
+  EDPY 507: Measurement Theory course identity, Student Access and Instructor
+  Dashboard entry points, teacher navigation, and teacher Log out.
+- The logo must have useful alt text, must not be distorted or recolored, and
+  must be placed with sufficient contrast and clear space.
+- The course UI must not imply a central University of Alberta SSO page, Canvas
+  LTI/OAuth integration, grade passback, classroom validity, or public launch
+  approval.
+- `student:course-landing-ui-smoke` is no-live and verifies the authorized logo
+  asset, course-facing copy, teacher logout preservation, first-login
+  password-change route, absence of scaffold/prototype wording, and absence of
+  OpenAI calls.

@@ -129,7 +129,7 @@ Record only pass/fail observations, session public IDs, artifact paths, status f
 
 ## Production Web Pilot Checklist
 
-Phase 31b adds deployment readiness checks for a future public HTTPS classroom pilot. It does not authorize public deployment or claim classroom validity. Canvas is used only to post a link to the public EDPY 507 Conversational MCQ landing page; Canvas LTI, OAuth, grade passback, roster sync, Developer Key configuration, and Canvas API integration are not part of this pilot. See `docs/PRODUCTION_DEPLOYMENT_READINESS.md`.
+Phase 31b adds deployment readiness checks for a future public HTTPS classroom pilot. It does not authorize public deployment or claim classroom validity. Canvas is used only to post a link to the public EDPY 507 Conversational MCQ landing page; Canvas LTI, OAuth, grade passback, roster sync, Developer Key configuration, and Canvas API integration are not part of this pilot. The landing page uses a University of Alberta green/gold course-access style and the authorized official UAlberta logo asset supplied by the operator. See `docs/PRODUCTION_DEPLOYMENT_READINESS.md`.
 
 Before using a public URL with students:
 
@@ -141,20 +141,21 @@ Before using a public URL with students:
 6. On a fresh database, run `npm run staging:bootstrap-pilot` once with explicit `BOOTSTRAP_*` environment variables.
 7. Store the generated student temporary-credential CSV securely and delete transient copies when no longer needed.
 8. Verify `GET /api/health` returns a safe healthy response.
-9. Verify teacher login and dashboard logout on the public URL.
-10. Create or import the classroom if a later schema adds classroom records; in this schema version, use the bootstrap classroom ID as the course/access label.
-11. Create or import approved student accounts and temporary credentials.
-12. Copy the public HTTPS EDPY 507 landing-page URL.
-13. Add the URL to a Canvas assignment page or Canvas module item.
-14. Test the link from a non-development student device or browser profile.
-15. Student signs in with classroom ID and temporary password/access code or a student-changed password inside Conversational MCQ.
-16. Student completes the three-item package.
-17. Student completes one activity response path.
-18. Teacher opens session detail.
-19. Teacher reviews readable transcript, structured event log, process events, and session evidence audit.
-20. Teacher downloads all research data.
-21. Run `npm run student:research-export-integrity-smoke`.
-22. Complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`.
+9. Verify the EDPY 507 landing page uses the green/gold course-access style, includes the authorized UAlberta logo, and contains no prototype/scaffold language.
+10. Verify teacher login and dashboard logout on the public URL.
+11. Create or import the classroom if a later schema adds classroom records; in this schema version, use the bootstrap classroom ID as the course/access label.
+12. Create or import approved student accounts and temporary credentials.
+13. Copy the public HTTPS EDPY 507 landing-page URL.
+14. Add the URL to a Canvas assignment page or Canvas module item.
+15. Test the link from a non-development student device or browser profile.
+16. Student signs in with classroom ID and temporary password/access code or a student-changed password inside Conversational MCQ.
+17. Student completes the three-item package.
+18. Student completes one activity response path.
+19. Teacher opens session detail.
+20. Teacher reviews readable transcript, structured event log, process events, and session evidence audit.
+21. Teacher downloads all research data.
+22. Run `npm run student:research-export-integrity-smoke`.
+23. Complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`.
 
 Canvas assignment/module wording:
 
