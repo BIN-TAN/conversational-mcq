@@ -288,6 +288,23 @@ npm run student:live-llm-smoke:cleanup-failures
 - Student-facing learning profile must not show all three status categories simultaneously.
 - Process data must be treated as participation and evidence context, not misconduct evidence.
 
+## Teacher Mini-Test Builder Checklist
+
+- Teacher dashboard cards are actionable links, not static informational cards.
+- `Assessments / Mini tests` opens the mini-test list.
+- Mini tests are grouped by folder/week/module when a folder label is present.
+- Creating a mini test asks for assessment name, diagnostic focus, optional
+  folder/week/module, release date/time, and closing date/time.
+- Workflow mode and response collection mode are not normal teacher-facing
+  selectors in the mini-test path.
+- New mini tests auto-create the internal topic needed by the existing student
+  workflow.
+- Teachers add MCQ items directly from the mini-test page.
+- Student preview shows only stem and options.
+- Teacher preview shows the key and teacher-only diagnostic notes.
+- Publishing gives teacher-friendly validation messages for missing item
+  requirements and keeps diagnostic notes teacher-only.
+
 ## Data Logging Checklist
 
 Verify one completed synthetic session has expected records in:

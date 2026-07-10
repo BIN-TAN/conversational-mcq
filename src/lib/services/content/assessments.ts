@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { parseCourseDateTimeInput } from "@/lib/services/assessment-availability/timezone";
 import { generatePublicId } from "@/lib/services/ids";
+import { toPrismaJson } from "@/lib/services/json";
 import {
   AssessmentDraftInputSchema,
   AssessmentUpdateInputSchema
@@ -12,7 +13,8 @@ import {
   assertAssessmentEditable,
   returnAssessmentToDraft as returnAssessmentToDraftSafely
 } from "./governance";
-import { serializeAssessment, serializeConceptUnit } from "./serializers";
+import { serializeAssessment, serializeConceptUnit, serializeItem } from "./serializers";
+import { mergeTopicDiagnosticNoteIntoRules } from "./teacher-diagnostic-context";
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
@@ -73,10 +75,36 @@ function parseAvailabilityWindow(input: {
   return { release_at, close_at };
 }
 
+function primaryTopicInput(input: {
+  title: string;
+  diagnostic_focus?: string | null;
+  description?: string | null;
+}) {
+  const focus = input.diagnostic_focus?.trim() || input.description?.trim() || input.title;
+
+  return {
+    title: input.title,
+    learning_objective: focus,
+    related_concept_description: focus,
+    administration_rules: mergeTopicDiagnosticNoteIntoRules({
+      administration_rules: {
+        teacher_authoring_mode: "mini_test_primary_topic",
+        hidden_from_standard_teacher_flow: true
+      },
+      topic_diagnostic_note: focus
+    })
+  };
+}
+
 export async function listAssessments(input: { teacher_user_db_id: string }) {
   const assessments = await prisma.assessment.findMany({
     where: { created_by_user_db_id: input.teacher_user_db_id },
-    orderBy: [{ created_at: "desc" }],
+    orderBy: [
+      { folder_order_index: "asc" },
+      { folder_label: "asc" },
+      { assessment_order_index: "asc" },
+      { created_at: "desc" }
+    ],
     include: { _count: { select: { concept_units: true, assessment_sessions: true } } }
   });
 
@@ -91,19 +119,53 @@ export async function createAssessment(input: {
   const availability = parseAvailabilityWindow(data);
 
   try {
-    const assessment = await prisma.assessment.create({
-      data: {
-        assessment_public_id: generatePublicId("assessment"),
-        title: data.title,
-        description: data.description ?? null,
-        workflow_mode: data.workflow_mode,
-        response_collection_mode: data.response_collection_mode,
-        release_at: availability.release_at,
-        close_at: availability.close_at,
-        status: "draft",
-        created_by_user_db_id: input.teacher_user_db_id
-      },
-      include: { _count: { select: { concept_units: true, assessment_sessions: true } } }
+    const assessment = await prisma.$transaction(async (tx) => {
+      const created = await tx.assessment.create({
+        data: {
+          assessment_public_id: generatePublicId("assessment"),
+          title: data.title,
+          description: data.description ?? null,
+          diagnostic_focus: data.diagnostic_focus ?? null,
+          folder_label: data.folder_label ?? null,
+          folder_order_index: data.folder_order_index ?? 0,
+          assessment_order_index: data.assessment_order_index ?? 0,
+          workflow_mode: data.workflow_mode,
+          response_collection_mode: data.response_collection_mode,
+          release_at: availability.release_at,
+          close_at: availability.close_at,
+          status: "draft",
+          created_by_user_db_id: input.teacher_user_db_id
+        },
+        include: { _count: { select: { concept_units: true, assessment_sessions: true } } }
+      });
+
+      if (data.auto_create_primary_topic) {
+        const topic = primaryTopicInput({
+          title: data.title,
+          diagnostic_focus: data.diagnostic_focus,
+          description: data.description
+        });
+        await tx.conceptUnit.create({
+          data: {
+            concept_unit_public_id: generatePublicId("concept_unit"),
+            assessment_db_id: created.id,
+            title: topic.title,
+            learning_objective: topic.learning_objective,
+            related_concept_description: topic.related_concept_description,
+            administration_rules: toPrismaJson(topic.administration_rules),
+            order_index: 1,
+            status: "draft",
+            version: 1
+          }
+        });
+
+        return tx.assessment.findUniqueOrThrow({
+          where: { id: created.id },
+          include: { _count: { select: { concept_units: true, assessment_sessions: true } } }
+        });
+      }
+
+      return created;
     });
 
     return serializeAssessment(assessment);
@@ -138,9 +200,21 @@ export async function getAssessmentDetail(input: {
             }
           },
           items: {
-            select: {
-              status: true,
-              included_in_published_set: true
+            orderBy: [{ item_order: "asc" }, { created_at: "asc" }],
+            include: {
+              concept_unit: {
+                select: {
+                  concept_unit_public_id: true,
+                  status: true,
+                  assessment: {
+                    select: {
+                      assessment_public_id: true,
+                      status: true,
+                      _count: { select: { assessment_sessions: true } }
+                    }
+                  }
+                }
+              }
             }
           },
           _count: { select: { items: true } }
@@ -155,7 +229,10 @@ export async function getAssessmentDetail(input: {
 
   return {
     ...serializeAssessment(assessment),
-    concept_units: assessment.concept_units.map(serializeConceptUnit)
+    concept_units: assessment.concept_units.map(serializeConceptUnit),
+    mini_test_items: assessment.concept_units
+      .flatMap((conceptUnit) => conceptUnit.items)
+      .map(serializeItem)
   };
 }
 
@@ -219,10 +296,14 @@ export async function updateAssessment(input: {
 
   const updated = await prisma.assessment.update({
     where: { id: assessment.id },
-    data: {
-      title: data.title,
-      description: data.description,
-      workflow_mode: data.workflow_mode,
+      data: {
+        title: data.title,
+        description: data.description,
+        diagnostic_focus: data.diagnostic_focus,
+        folder_label: data.folder_label,
+        folder_order_index: data.folder_order_index,
+        assessment_order_index: data.assessment_order_index,
+        workflow_mode: data.workflow_mode,
       response_collection_mode: data.response_collection_mode,
       release_at,
       close_at

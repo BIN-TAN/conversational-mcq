@@ -63,17 +63,33 @@ export function AssessmentListClient() {
     }
   }
 
+  const groupedAssessments = assessments.reduce<Array<{ folder: string; assessments: AssessmentSummary[] }>>(
+    (groups, assessment) => {
+      const folder = assessment.folder_label?.trim() || "Unfiled";
+      const existing = groups.find((group) => group.folder === folder);
+
+      if (existing) {
+        existing.assessments.push(assessment);
+      } else {
+        groups.push({ folder, assessments: [assessment] });
+      }
+
+      return groups;
+    },
+    []
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="content"
-        title="Assessments"
-        description="List, create, publish, and archive teacher-owned assessments."
+        title="Mini tests"
+        description="Create and organize assessment mini tests by folder, week, or module."
         actions={
           <>
             <PrimaryLink href="/teacher/content/assessments/new">
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              New assessment
+              New mini test
             </PrimaryLink>
             <Button disabled={isLoading} onClick={loadAssessments} type="button" variant="secondary">
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
@@ -95,62 +111,72 @@ export function AssessmentListClient() {
       ) : null}
 
       {!isLoading && assessments.length > 0 ? (
-        <section className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] border-collapse text-left text-sm">
-              <thead className="border-b border-line bg-[#fbfcf8] text-xs uppercase tracking-wide text-muted">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Title</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Public ID</th>
-                  <th className="px-4 py-3 font-semibold">Topics</th>
-                  <th className="px-4 py-3 font-semibold">Updated</th>
-                  <th className="px-4 py-3 font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assessments.map((assessment) => (
-                  <tr className="border-b border-line last:border-0" key={assessment.assessment_public_id}>
-                    <td className="px-4 py-4">
-                      <p className="font-semibold text-ink">{assessment.title}</p>
-                      {assessment.description ? (
-                        <p className="mt-1 line-clamp-2 text-muted">{assessment.description}</p>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-4">
-                      <StatusBadge status={assessment.status} />
-                    </td>
-                    <td className="px-4 py-4 font-mono text-xs text-muted">
-                      {assessment.assessment_public_id}
-                    </td>
-                    <td className="px-4 py-4 text-ink">{assessment.concept_unit_count ?? 0}</td>
-                    <td className="px-4 py-4 text-muted">{formatDate(assessment.updated_at)}</td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        <Link
-                          className="inline-flex h-9 items-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-ink transition hover:border-accent"
-                          href={`/teacher/content/assessments/${assessment.assessment_public_id}`}
-                        >
-                          <Eye className="h-4 w-4" aria-hidden="true" />
-                          View
-                        </Link>
-                        <Button
-                          disabled={busyId === assessment.assessment_public_id || assessment.status === "archived"}
-                          onClick={() => archiveAssessment(assessment)}
-                          type="button"
-                          variant="danger"
-                        >
-                          <Archive className="h-4 w-4" aria-hidden="true" />
-                          Archive
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <div className="space-y-6">
+          {groupedAssessments.map((group) => (
+            <section
+              className="overflow-hidden rounded-lg border border-line bg-white shadow-soft"
+              key={group.folder}
+            >
+              <div className="border-b border-line bg-[#fbfcf8] px-4 py-3">
+                <h2 className="font-semibold text-ink">{group.folder}</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+                  <thead className="border-b border-line bg-[#fbfcf8] text-xs uppercase tracking-wide text-muted">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Mini test</th>
+                      <th className="px-4 py-3 font-semibold">Status</th>
+                      <th className="px-4 py-3 font-semibold">Diagnostic focus</th>
+                      <th className="px-4 py-3 font-semibold">Updated</th>
+                      <th className="px-4 py-3 font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.assessments.map((assessment) => (
+                      <tr className="border-b border-line last:border-0" key={assessment.assessment_public_id}>
+                        <td className="px-4 py-4">
+                          <p className="font-semibold text-ink">{assessment.title}</p>
+                          <p className="mt-1 font-mono text-xs text-muted">{assessment.assessment_public_id}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <StatusBadge status={assessment.status} />
+                        </td>
+                        <td className="px-4 py-4">
+                          {assessment.diagnostic_focus ? (
+                            <p className="line-clamp-2 text-muted">{assessment.diagnostic_focus}</p>
+                          ) : (
+                            <p className="text-muted">No diagnostic focus recorded.</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-muted">{formatDate(assessment.updated_at)}</td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            <Link
+                              className="inline-flex h-9 items-center gap-2 rounded-md border border-line px-3 text-sm font-semibold text-ink transition hover:border-accent"
+                              href={`/teacher/content/assessments/${assessment.assessment_public_id}`}
+                            >
+                              <Eye className="h-4 w-4" aria-hidden="true" />
+                              Open builder
+                            </Link>
+                            <Button
+                              disabled={busyId === assessment.assessment_public_id || assessment.status === "archived"}
+                              onClick={() => archiveAssessment(assessment)}
+                              type="button"
+                              variant="danger"
+                            >
+                              <Archive className="h-4 w-4" aria-hidden="true" />
+                              Archive
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))}
+        </div>
       ) : null}
     </div>
   );

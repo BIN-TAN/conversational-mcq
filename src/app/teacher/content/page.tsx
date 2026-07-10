@@ -3,7 +3,7 @@ import { Archive, FileJson, ListChecks, Plus } from "lucide-react";
 import { PageHeader, PrimaryLink, SecondaryLink } from "@/components/teacher-content/ui";
 
 const notes = [
-  "Create assessments, topics, and MCQ items manually.",
+  "Create mini tests and add MCQ items directly.",
   "Publish validation is handled by the backend and cannot be bypassed here.",
   "Archive content instead of deleting research-relevant records.",
   "Item Verification highlights advisory warnings only; it does not generate or rewrite content."
@@ -14,13 +14,13 @@ export default function TeacherContentHomePage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="teacher_researcher content"
-        title="Content management"
-        description="Manual assessment, topic, MCQ item, and JSON import workflows."
+        title="Mini test builder"
+        description="Create classroom mini tests, add MCQ items, and publish when validation passes."
         actions={
           <>
             <PrimaryLink href="/teacher/content/assessments/new">
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              New assessment
+              New mini test
             </PrimaryLink>
             <SecondaryLink href="/teacher/content/import-json">
               <FileJson className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -36,9 +36,9 @@ export default function TeacherContentHomePage() {
           href="/teacher/content/assessments"
         >
           <ListChecks className="h-5 w-5 text-accent" aria-hidden="true" />
-          <h2 className="mt-4 text-lg font-semibold text-ink">Assessment list</h2>
+          <h2 className="mt-4 text-lg font-semibold text-ink">Mini tests</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            View assessment status, topic counts, and content actions.
+            View mini tests by folder/week/module and open the direct MCQ builder.
           </p>
         </Link>
         <Link
@@ -48,7 +48,7 @@ export default function TeacherContentHomePage() {
           <FileJson className="h-5 w-5 text-accent" aria-hidden="true" />
           <h2 className="mt-4 text-lg font-semibold text-ink">JSON import</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Paste a concept-based item set and create public IDs through the backend API.
+            Paste a prepared item set and create public IDs through the backend API.
           </p>
         </Link>
         <section className="rounded-lg border border-line bg-white p-5 shadow-soft">

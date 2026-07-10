@@ -424,6 +424,10 @@ model Assessment {
   assessment_public_id     String                 @unique @default(cuid())
   title                    String
   description              String?                @db.Text
+  diagnostic_focus         String?                @db.Text
+  folder_label             String?
+  folder_order_index       Int                    @default(0)
+  assessment_order_index   Int                    @default(0)
   status                   AssessmentStatus       @default(draft)
   workflow_mode            AssessmentWorkflowMode @default(automatic)
   response_collection_mode ResponseCollectionMode @default(llm_assisted)
@@ -441,6 +445,8 @@ model Assessment {
   @@index([status])
   @@index([workflow_mode])
   @@index([response_collection_mode])
+  @@index([folder_label])
+  @@index([folder_order_index, assessment_order_index])
   @@index([release_at])
   @@index([close_at])
   @@map("assessments")

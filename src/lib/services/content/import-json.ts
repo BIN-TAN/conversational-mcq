@@ -38,6 +38,10 @@ export async function importConceptBasedItemSets(input: {
               assessment_public_id: generatePublicId("assessment"),
               title: data.assessment?.title ?? "Imported assessment",
               description: data.assessment?.description ?? null,
+              diagnostic_focus: data.assessment?.diagnostic_focus ?? null,
+              folder_label: data.assessment?.folder_label ?? null,
+              folder_order_index: data.assessment?.folder_order_index ?? 0,
+              assessment_order_index: data.assessment?.assessment_order_index ?? 0,
               status: "draft",
               created_by_user_db_id: input.teacher_user_db_id
             }

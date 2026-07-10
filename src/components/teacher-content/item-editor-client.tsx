@@ -739,6 +739,67 @@ export function ItemEditorClient(props: ItemEditorProps) {
             </div>
           </details>
 
+          <section className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
+              <h2 className="text-xl font-semibold text-ink">Student preview</h2>
+              <p className="mt-1 text-sm text-muted">
+                Students see only the stem and option text during protected administration.
+              </p>
+              <div className="mt-4 rounded-md border border-line bg-slate-50 p-4">
+                <p className="whitespace-pre-wrap text-sm leading-6 text-ink">
+                  {itemStem || "Item stem will appear here."}
+                </p>
+                <ol className="mt-4 space-y-2">
+                  {options.map((option) => (
+                    <li className="text-sm text-ink" key={`student-preview-${option.label}`}>
+                      <span className="font-semibold">{option.label || "?"}.</span>{" "}
+                      {option.text || "Option text"}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+            <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
+              <h2 className="text-xl font-semibold text-ink">Teacher preview</h2>
+              <p className="mt-1 text-sm text-muted">
+                Teacher-only preview includes the key and diagnostic notes.
+              </p>
+              <dl className="mt-4 space-y-3 text-sm">
+                <div>
+                  <dt className="text-muted">Correct answer/key</dt>
+                  <dd className="font-semibold text-ink">{correctOption || "Not selected"}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Item diagnostic value</dt>
+                  <dd className="whitespace-pre-wrap text-ink">
+                    {itemDiagnosticValueNote || "No item diagnostic note yet."}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Expected / target reasoning</dt>
+                  <dd className="whitespace-pre-wrap text-ink">
+                    {targetReasoningNote || expectedReasoningNote || "No target reasoning note yet."}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Distractor notes</dt>
+                  <dd className="mt-2 space-y-2">
+                    {optionLabels.filter((label) => label !== correctOption).map((label) => (
+                      <div className="rounded-md border border-line bg-slate-50 p-2" key={`teacher-preview-${label}`}>
+                        <p className="font-semibold text-ink">Option {label}</p>
+                        <p className="mt-1 whitespace-pre-wrap text-muted">
+                          {optionNotes[label]?.distractor_diagnostic_value ||
+                            optionNotes[label]?.why_tempting ||
+                            "No distractor note yet."}
+                        </p>
+                      </div>
+                    ))}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </section>
+
           <div className="flex flex-wrap gap-2">
             <Button disabled={!isEditable || isSubmitting} type="submit">
               <Save className="h-4 w-4" aria-hidden="true" />

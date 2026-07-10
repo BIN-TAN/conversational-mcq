@@ -1,32 +1,9 @@
 import Link from "next/link";
-import { Activity, BrainCircuit, Database, FileJson, FileWarning, History, ListChecks, Microscope, Table2, UserRoundCog, Users } from "lucide-react";
+import { BrainCircuit, FileJson, ListChecks, Microscope, Table2, UserRoundCog, Users } from "lucide-react";
 import { redirect } from "next/navigation";
 import { TeacherLogoutButton } from "@/components/teacher-logout-button";
 import { UAlbertaLogo } from "@/components/ualberta-logo";
 import { getCurrentUser } from "@/lib/auth";
-
-const sections = [
-  {
-    title: "Sessions",
-    description: "Read-only review of student sessions, concept progress, transcripts, process context, and response packages.",
-    icon: Activity
-  },
-  {
-    title: "Agent Metadata",
-    description: "Review prompt versions, schema versions, model names, retries, validation errors, and automatic workflow audit records when agent calls exist.",
-    icon: History
-  },
-  {
-    title: "Flags",
-    description: "Needs-review sessions and neutral process-event counts are review context, not misconduct labels.",
-    icon: FileWarning
-  },
-  {
-    title: "Data Foundation",
-    description: "Normalized Prisma/PostgreSQL records use internal UUIDs for relations and public IDs for routes.",
-    icon: Database
-  }
-];
 
 const teacherNavLinks = [
   { href: "/teacher/dashboard", label: "Dashboard" },
@@ -82,9 +59,8 @@ export default async function TeacherDashboardPage() {
       <div className="mx-auto max-w-6xl px-6 py-8">
         <section className="rounded-lg border border-border-light bg-white p-5">
           <p className="max-w-3xl text-sm leading-6 text-muted">
-            Use this teacher_researcher area to manage content, review existing student sessions,
-            prepare supervised outcome imports and master CSV exports, and monitor automatic
-            profiling, planning, and follow-up startup when server-side LLM execution is enabled.
+            Manage student accounts, build mini tests, review student sessions, and export
+            teacher/research data.
           </p>
         </section>
 
@@ -115,13 +91,24 @@ export default async function TeacherDashboardPage() {
           </Link>
           <Link
             className="rounded-lg border border-border-light bg-white p-5 shadow-soft transition hover:border-ualberta-green"
-            href="/teacher/content"
+            href="/teacher/content/assessments"
           >
             <ListChecks className="h-5 w-5 text-ualberta-green" aria-hidden="true" />
             <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
-            <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">Content management</h2>
+            <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">Assessments / Mini tests</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
-              Manage assessments, topics, MCQ items, publish validation, and archive actions.
+              Build mini tests, add MCQ items, review diagnostic notes, and publish.
+            </p>
+          </Link>
+          <Link
+            className="rounded-lg border border-border-light bg-white p-5 shadow-soft transition hover:border-ualberta-green"
+            href="/teacher/data/explorer"
+          >
+            <Table2 className="h-5 w-5 text-ualberta-green" aria-hidden="true" />
+            <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
+            <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">Data Explorer / exports</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Download lightweight CSVs and open the broader data/export tools.
             </p>
           </Link>
           <Link
@@ -132,29 +119,7 @@ export default async function TeacherDashboardPage() {
             <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
             <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">JSON import</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
-              Import manually prepared concept-based item sets through the Phase 3A API.
-            </p>
-          </Link>
-          <Link
-            className="rounded-lg border border-border-light bg-white p-5 shadow-soft transition hover:border-ualberta-green"
-            href="/teacher/data"
-          >
-            <Table2 className="h-5 w-5 text-ualberta-green" aria-hidden="true" />
-            <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
-            <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">Data and outcomes</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Import supervised summative outcomes and generate the merged master assessment CSV.
-            </p>
-          </Link>
-          <Link
-            className="rounded-lg border border-border-light bg-white p-5 shadow-soft transition hover:border-ualberta-green"
-            href="/teacher/content/assessments"
-          >
-            <Database className="h-5 w-5 text-ualberta-green" aria-hidden="true" />
-            <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
-            <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">Assessment list</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Review assessment status, public IDs, topics, and item-set readiness.
+              Import prepared item-set JSON when the guided builder is not the right fit.
             </p>
           </Link>
           <Link
@@ -180,20 +145,6 @@ export default async function TeacherDashboardPage() {
               development-evaluation results before live model testing.
             </p>
           </Link>
-        </section>
-
-        <section className="mt-6 grid gap-4 md:grid-cols-2">
-          {sections.map((section) => {
-            const Icon = section.icon;
-
-            return (
-              <article className="rounded-lg border border-border-light bg-white p-5 shadow-soft" key={section.title}>
-                <Icon className="h-5 w-5 text-ualberta-green" aria-hidden="true" />
-                <h2 className="mt-4 text-lg font-semibold text-ualberta-green-dark">{section.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-muted">{section.description}</p>
-              </article>
-            );
-          })}
         </section>
       </div>
     </main>

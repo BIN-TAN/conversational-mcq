@@ -17,6 +17,11 @@ export const AssessmentDraftInputSchema = z
   .object({
     title: nonEmptyText,
     description: optionalText,
+    diagnostic_focus: optionalText,
+    folder_label: optionalText,
+    folder_order_index: z.number().int().nonnegative().optional(),
+    assessment_order_index: z.number().int().nonnegative().optional(),
+    auto_create_primary_topic: z.boolean().default(false),
     workflow_mode: AssessmentWorkflowModeSchema.default("automatic"),
     response_collection_mode: ResponseCollectionModeSchema.default("llm_assisted"),
     release_at_course_time: optionalText,
@@ -28,6 +33,10 @@ export const AssessmentUpdateInputSchema = z
   .object({
     title: nonEmptyText.optional(),
     description: optionalText,
+    diagnostic_focus: optionalText,
+    folder_label: optionalText,
+    folder_order_index: z.number().int().nonnegative().optional(),
+    assessment_order_index: z.number().int().nonnegative().optional(),
     workflow_mode: AssessmentWorkflowModeSchema.optional(),
     response_collection_mode: ResponseCollectionModeSchema.optional(),
     release_at_course_time: optionalText,

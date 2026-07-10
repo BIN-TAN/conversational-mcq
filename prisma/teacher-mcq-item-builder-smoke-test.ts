@@ -1,16 +1,17 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { ZodError } from "zod";
 import { hashSecret } from "../src/lib/password";
-import { createAssessment } from "../src/lib/services/content/assessments";
+import { createAssessment, getAssessmentDetail } from "../src/lib/services/content/assessments";
 import { createConceptUnit } from "../src/lib/services/content/concept-units";
 import { createItem, getItemDetail } from "../src/lib/services/content/items";
 import { importConceptBasedItemSets } from "../src/lib/services/content/import-json";
-import { validateConceptUnitPublishable } from "../src/lib/services/content/publishing";
+import { publishAssessment, validateConceptUnitPublishable } from "../src/lib/services/content/publishing";
 import {
   buildDistractorRationalesFromTeacherNotes,
   buildItemAdministrationRulesFromTeacherMetadata,
-  mergeTopicDiagnosticNoteIntoRules,
   readTeacherItemMetadata,
   readTopicDiagnosticNote,
   teacherDiagnosticContextForProvider,
@@ -164,6 +165,28 @@ function assertStudentPreviewSafe(item: Awaited<ReturnType<typeof getItemDetail>
   assert(!text.includes("ability_item_parameter_blending"), "Student preview leaked misconception IDs.");
 }
 
+function assertDashboardCardsAreActionable() {
+  const source = readFileSync(path.join(process.cwd(), "src/app/teacher/dashboard/page.tsx"), "utf8");
+
+  assert(source.includes('href="/teacher/sessions"'), "Dashboard sessions card should link to sessions.");
+  assert(source.includes('href="/teacher/students"'), "Dashboard student accounts card should link to student management.");
+  assert(
+    source.includes('href="/teacher/content/assessments"'),
+    "Dashboard mini-test card should link to assessment list."
+  );
+  assert(
+    source.includes('href="/teacher/data/explorer"'),
+    "Dashboard data card should link to Data Explorer."
+  );
+  assert(
+    source.includes('href="/teacher/system/llm"'),
+    "Dashboard LLM status card should remain clickable."
+  );
+  assert(!source.includes("Agent Metadata"), "Dashboard should not show static Agent Metadata card.");
+  assert(!source.includes(">Flags<"), "Dashboard should not show static Flags card.");
+  assert(!source.includes("Data Foundation"), "Dashboard should not show static Data Foundation card.");
+}
+
 async function cleanup(prefix: string) {
   const assessments = await prisma.assessment.findMany({
     where: { title: { contains: prefix } },
@@ -190,29 +213,34 @@ async function main() {
       teacher_user_db_id: teacher.id,
       data: {
         title: `Temporary ${prefix}`,
-        description: "Temporary teacher MCQ item builder smoke assessment."
+        diagnostic_focus: "Distinguish theta as person-side ability from item-side parameters.",
+        folder_label: "Week 31i",
+        workflow_mode: "automatic",
+        response_collection_mode: "llm_assisted",
+        auto_create_primary_topic: true
       }
     });
+    assert(assessment.folder_label === "Week 31i", "Folder/week label was not persisted.");
+    assert(
+      assessment.diagnostic_focus?.includes("person-side ability"),
+      "Diagnostic focus was not persisted."
+    );
+    assert(assessment.workflow_mode === "automatic", "Workflow mode should default to automatic.");
+    assert(
+      assessment.response_collection_mode === "llm_assisted",
+      "Response collection should default to LLM-assisted."
+    );
 
-    const conceptUnit = await createConceptUnit({
+    const assessmentDetail = await getAssessmentDetail({
       teacher_user_db_id: teacher.id,
-      assessment_public_id: assessment.assessment_public_id,
-      data: {
-        title: "Theta interpretation",
-        learning_objective: "Distinguish ability estimates from item parameters.",
-        related_concept_description:
-          "Theta is a person-side location on the IRT latent ability scale.",
-        administration_rules: mergeTopicDiagnosticNoteIntoRules({
-          administration_rules: {},
-          topic_diagnostic_note:
-            "Look for reasoning that separates person-side and item-side quantities."
-        })
-      }
+      assessment_public_id: assessment.assessment_public_id
     });
+    assert(assessmentDetail.concept_units.length === 1, "Mini test should auto-create one internal topic.");
+    const conceptUnit = assessmentDetail.concept_units[0];
 
     assert(
-      readTopicDiagnosticNote(conceptUnit.administration_rules).includes("person-side"),
-      "Topic diagnostic note was not persisted."
+      readTopicDiagnosticNote(conceptUnit.administration_rules).includes("person-side ability"),
+      "Auto-created topic diagnostic note was not persisted."
     );
 
     await assertZodValidationError(
@@ -322,12 +350,24 @@ async function main() {
       "Publish validation did not warn about missing topic diagnostic note."
     );
 
+    const published = await publishAssessment({
+      teacher_user_db_id: teacher.id,
+      assessment_public_id: assessment.assessment_public_id
+    });
+    assert(published.assessment.status === "published", "Mini test assessment should publish directly.");
+    assert(
+      published.publishable_concept_unit_public_ids.includes(conceptUnit.concept_unit_public_id),
+      "Direct publish should publish the auto-created internal topic."
+    );
+
     const imported = await importConceptBasedItemSets({
       teacher_user_db_id: teacher.id,
       data: {
         assessment: {
           title: `Temporary ${prefix} imported`,
-          description: "Temporary JSON import compatibility assessment."
+          description: "Temporary JSON import compatibility assessment.",
+          diagnostic_focus: "Imported diagnostic focus.",
+          folder_label: "Imported folder"
         },
         concept_units: [
           {
@@ -341,12 +381,19 @@ async function main() {
       }
     });
     assert(imported.validation.ok, "JSON import compatibility failed.");
+    assert(imported.assessment.folder_label === "Imported folder", "JSON import folder metadata failed.");
+
+    assertDashboardCardsAreActionable();
 
     console.log(
       JSON.stringify(
         {
           status: "passed",
           created_items: items.length,
+          folder_week_checked: true,
+          auto_topic_checked: true,
+          direct_publish_checked: true,
+          dashboard_cards_checked: true,
           publish_warnings_checked: true,
           json_import_checked: true,
           openai_calls: 0

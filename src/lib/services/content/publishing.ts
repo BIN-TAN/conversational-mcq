@@ -340,7 +340,7 @@ export async function publishAssessment(input: {
     include: {
       _count: { select: { concept_units: true, assessment_sessions: true } },
       concept_units: {
-        where: { status: "published" },
+        where: { status: { not: "archived" } },
         select: { concept_unit_public_id: true }
       }
     }
@@ -350,7 +350,19 @@ export async function publishAssessment(input: {
     throw new ContentServiceError("not_found", "Assessment was not found.", 404);
   }
 
-  const conceptUnitResults = [];
+  if (assessmentWithConceptUnits.concept_units.length === 0) {
+    throw new ContentServiceError(
+      "assessment_has_no_published_concept_units",
+      "Add at least three MCQ items before publishing this mini test.",
+      422,
+      { assessment_public_id: assessment.assessment_public_id }
+    );
+  }
+
+  const conceptUnitResults: Array<{
+    concept_unit_public_id: string;
+    validation: PublishValidationResult;
+  }> = [];
   for (const conceptUnit of assessmentWithConceptUnits.concept_units) {
     const validation = await validateConceptUnitPublishable({
       teacher_user_db_id: input.teacher_user_db_id,
@@ -368,16 +380,48 @@ export async function publishAssessment(input: {
   if (invalidConceptUnits.length > 0) {
     throw new ContentServiceError(
       "publish_validation_failed",
-      "Published concept units must pass publishing validation before the assessment can publish.",
+      "Fix the listed MCQ item issues before publishing this mini test.",
       422,
       { concept_units: conceptUnitResults }
     );
   }
 
-  const published = await prisma.assessment.update({
-    where: { id: assessmentWithConceptUnits.id },
-    data: { status: "published" },
-    include: { _count: { select: { concept_units: true, assessment_sessions: true } } }
+  const published = await prisma.$transaction(async (tx) => {
+    for (const result of conceptUnitResults) {
+      const conceptUnit = await tx.conceptUnit.findFirstOrThrow({
+        where: {
+          concept_unit_public_id: result.concept_unit_public_id,
+          assessment_db_id: assessmentWithConceptUnits.id
+        },
+        select: { id: true }
+      });
+      await tx.item.updateMany({
+        where: {
+          concept_unit_db_id: conceptUnit.id,
+          status: { not: "archived" },
+          included_in_published_set: true
+        },
+        data: { status: "published" }
+      });
+      await tx.item.updateMany({
+        where: {
+          concept_unit_db_id: conceptUnit.id,
+          status: { not: "archived" },
+          included_in_published_set: false
+        },
+        data: { status: "draft" }
+      });
+      await tx.conceptUnit.update({
+        where: { id: conceptUnit.id },
+        data: { status: "published" }
+      });
+    }
+
+    return tx.assessment.update({
+      where: { id: assessmentWithConceptUnits.id },
+      data: { status: "published" },
+      include: { _count: { select: { concept_units: true, assessment_sessions: true } } }
+    });
   });
 
   return {

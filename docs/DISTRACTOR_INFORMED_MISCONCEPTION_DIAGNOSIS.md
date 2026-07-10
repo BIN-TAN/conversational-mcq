@@ -220,6 +220,14 @@ student-facing activity or feedback. The system must continue to interpret
 distractor evidence with student reasoning, confidence, tempting-option
 evidence, process features, and uncertainty safeguards.
 
+Phase 31i-revision makes this authoring path classroom-facing: teachers create
+mini tests organized by folder/week/module and add MCQ items directly. The
+application auto-maintains the internal topic/concept-unit record required by
+the existing student workflow. The assessment diagnostic focus and item-level
+distractor notes can support internal interpretation, but student-facing
+surfaces still receive only item stems, visible options, and validated
+student-safe conversational text.
+
 Phase 30l adds an automated no-live integrity review for the default
 teacher/research ZIP:
 

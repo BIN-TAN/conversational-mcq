@@ -198,10 +198,15 @@ Teacher-managed student account pages support manual `user_id` creation, optiona
 
 Deactivation/reactivation is reversible and preserves assessment/research records. Irreversible student data deletion is available only from teacher account management after previewing associated record counts and typing the exact `student_id` plus `DELETE`. Use deletion carefully for approved staging/test cleanup or approved withdrawal workflows. Deletion removes system-held student account, session, activity, profile, evidence, and linked summative outcome rows; previously downloaded exports or external copies remain outside system control.
 
-Before pilot content changes, teachers may use the guided content builder to add
-topics and MCQ items one by one. Topic diagnostic notes, correct-option
-reasoning notes, and distractor diagnostic notes are teacher-only and may support
-internal LLM interpretation. Student previews and student assessment pages must
-show only the item stem and visible options; they must not expose correct
-options, answer keys, raw diagnostic notes, distractor notes, misconception IDs,
-or internal metadata. JSON import remains available for prepared item sets.
+Before pilot content changes, teachers may use the guided mini-test builder.
+The teacher-facing mental model is Folder/Week/Module -> Mini test -> MCQ items
+-> Publish. The system auto-maintains the internal topic/concept-unit record, so
+teachers do not need to create a topic before adding items. Workflow mode and
+response collection mode are fixed internally for this path.
+
+Diagnostic focus, correct-option reasoning notes, and distractor diagnostic
+notes are teacher-only and may support internal LLM interpretation. Student
+previews and student assessment pages must show only the item stem and visible
+options; they must not expose correct options, answer keys, raw diagnostic
+notes, distractor notes, misconception IDs, or internal metadata. JSON import
+remains available for prepared item sets.

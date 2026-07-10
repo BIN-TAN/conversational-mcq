@@ -27,6 +27,10 @@ export type AssessmentSummary = ContentGovernanceFields & {
   assessment_public_id: string;
   title: string;
   description: string | null;
+  diagnostic_focus: string | null;
+  folder_label: string | null;
+  folder_order_index: number;
+  assessment_order_index: number;
   status: ContentStatus;
   workflow_mode: "manual_review" | "automatic";
   response_collection_mode: "deterministic" | "llm_assisted";
@@ -44,6 +48,7 @@ export type AssessmentSummary = ContentGovernanceFields & {
 
 export type AssessmentDetail = AssessmentSummary & {
   concept_units: ConceptUnitSummary[];
+  mini_test_items?: ItemDetail[];
 };
 
 export type ConceptUnitSummary = ContentGovernanceFields & {

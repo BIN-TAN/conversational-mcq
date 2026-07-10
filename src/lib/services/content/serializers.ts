@@ -20,6 +20,10 @@ export function serializeAssessment(
     | "assessment_public_id"
     | "title"
     | "description"
+    | "diagnostic_focus"
+    | "folder_label"
+    | "folder_order_index"
+    | "assessment_order_index"
     | "status"
     | "workflow_mode"
     | "response_collection_mode"
@@ -37,6 +41,10 @@ export function serializeAssessment(
     assessment_public_id: assessment.assessment_public_id,
     title: assessment.title,
     description: assessment.description,
+    diagnostic_focus: assessment.diagnostic_focus,
+    folder_label: assessment.folder_label,
+    folder_order_index: assessment.folder_order_index,
+    assessment_order_index: assessment.assessment_order_index,
     status: assessment.status,
     workflow_mode: assessment.workflow_mode,
     response_collection_mode: assessment.response_collection_mode,

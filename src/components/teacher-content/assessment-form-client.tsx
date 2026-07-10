@@ -14,10 +14,8 @@ type CreateAssessmentResponse = {
 export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: string }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [workflowMode, setWorkflowMode] = useState<"automatic" | "manual_review">("automatic");
-  const [responseCollectionMode, setResponseCollectionMode] =
-    useState<"llm_assisted" | "deterministic">("llm_assisted");
+  const [diagnosticFocus, setDiagnosticFocus] = useState("");
+  const [folderLabel, setFolderLabel] = useState("");
   const [releaseAt, setReleaseAt] = useState("");
   const [closeAt, setCloseAt] = useState("");
   const [error, setError] = useState<StructuredApiError | null>(null);
@@ -33,9 +31,11 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
         method: "POST",
         body: JSON.stringify({
           title,
-          description: description.trim() ? description : null,
-          workflow_mode: workflowMode,
-          response_collection_mode: responseCollectionMode,
+          diagnostic_focus: diagnosticFocus.trim() ? diagnosticFocus : null,
+          folder_label: folderLabel.trim() ? folderLabel : null,
+          workflow_mode: "automatic",
+          response_collection_mode: "llm_assisted",
+          auto_create_primary_topic: true,
           release_at_course_time: releaseAt || null,
           close_at_course_time: closeAt || null
         })
@@ -51,15 +51,15 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="assessment"
-        title="New assessment"
-        description="Create a top-level assessment container before adding topics."
+        eyebrow="mini test"
+        title="New mini test"
+        description="Create a classroom mini test, then add MCQ items directly."
       />
 
       <ErrorPanel error={error} />
 
       <form className="max-w-2xl space-y-4 rounded-lg border border-line bg-white p-5 shadow-soft" onSubmit={onSubmit}>
-        <Field label="Title">
+        <Field label="Assessment name">
           <input
             className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
             onChange={(event) => setTitle(event.target.value)}
@@ -67,57 +67,24 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
             value={title}
           />
         </Field>
-        <Field label="Description">
+        <Field
+          label="Diagnostic focus"
+          hint="What misconception, cognitive process, or diagnostic framework does this assessment target? Write in plain English. The system uses this as teacher guidance when interpreting student reasoning. Students do not see this note."
+        >
           <textarea
             className="min-h-32 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-            onChange={(event) => setDescription(event.target.value)}
-            value={description}
+            onChange={(event) => setDiagnosticFocus(event.target.value)}
+            value={diagnosticFocus}
           />
         </Field>
-        <Field label="Workflow mode">
-          <select
+        <Field label="Folder / week / module">
+          <input
             className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-            onChange={(event) =>
-              setWorkflowMode(event.target.value as "automatic" | "manual_review")
-            }
-            value={workflowMode}
-          >
-            <option value="automatic">Automatic</option>
-            <option value="manual_review">Manual review</option>
-          </select>
+            onChange={(event) => setFolderLabel(event.target.value)}
+            placeholder="e.g. Week 3"
+            value={folderLabel}
+          />
         </Field>
-        <p className="text-sm leading-6 text-muted">
-          Automatic: The system will automatically run profiling, formative planning, and
-          follow-up startup after the student completes the initial item set.
-        </p>
-        <p className="text-sm leading-6 text-muted">
-          Manual review: The system will wait for the teacher/researcher to review and
-          trigger each AI-supported step.
-        </p>
-        <Field label="Response collection mode">
-          <select
-            className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-            onChange={(event) =>
-              setResponseCollectionMode(event.target.value as "llm_assisted" | "deterministic")
-            }
-            value={responseCollectionMode}
-          >
-            <option value="llm_assisted">LLM-assisted conversation</option>
-            <option value="deterministic">Deterministic collection</option>
-          </select>
-        </Field>
-        {responseCollectionMode === "llm_assisted" ? (
-          <p className="text-sm leading-6 text-muted">
-            Student free-text messages are interpreted by the Response Collection Agent. Option
-            and confidence selections still use structured controls, and no content help is
-            provided during initial administration.
-          </p>
-        ) : (
-          <p className="text-sm leading-6 text-muted">
-            The system uses fixed initial-administration prompts. Free text is collected as
-            reasoning only when the current step explicitly requests reasoning.
-          </p>
-        )}
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Release date/time">
             <input
@@ -142,7 +109,7 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
         </p>
         <Button disabled={isSubmitting} type="submit">
           <Save className="h-4 w-4" aria-hidden="true" />
-          {isSubmitting ? "Creating" : "Create assessment"}
+          {isSubmitting ? "Creating" : "Create mini test"}
         </Button>
       </form>
     </div>

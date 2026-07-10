@@ -34,10 +34,8 @@ export function AssessmentDetailClient({
 }) {
   const [assessment, setAssessment] = useState<AssessmentDetail | null>(null);
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [workflowMode, setWorkflowMode] = useState<"automatic" | "manual_review">("automatic");
-  const [responseCollectionMode, setResponseCollectionMode] =
-    useState<"llm_assisted" | "deterministic">("llm_assisted");
+  const [diagnosticFocus, setDiagnosticFocus] = useState("");
+  const [folderLabel, setFolderLabel] = useState("");
   const [releaseAt, setReleaseAt] = useState("");
   const [closeAt, setCloseAt] = useState("");
   const [error, setError] = useState<StructuredApiError | null>(null);
@@ -57,9 +55,8 @@ export function AssessmentDetailClient({
       );
       setAssessment(data.assessment);
       setTitle(data.assessment.title);
-      setDescription(data.assessment.description ?? "");
-      setWorkflowMode(data.assessment.workflow_mode);
-      setResponseCollectionMode(data.assessment.response_collection_mode);
+      setDiagnosticFocus(data.assessment.diagnostic_focus ?? data.assessment.description ?? "");
+      setFolderLabel(data.assessment.folder_label ?? "");
       setReleaseAt(data.assessment.release_at_course_time_input);
       setCloseAt(data.assessment.close_at_course_time_input);
     } catch (caught) {
@@ -86,7 +83,8 @@ export function AssessmentDetailClient({
           method: "PUT",
           body: JSON.stringify({
             title,
-            description: description.trim() ? description : null
+            diagnostic_focus: diagnosticFocus.trim() ? diagnosticFocus : null,
+            folder_label: folderLabel.trim() ? folderLabel : null
           })
         }
       );
@@ -99,7 +97,7 @@ export function AssessmentDetailClient({
             }
           : previous
       );
-      setSuccess("Assessment metadata saved.");
+      setSuccess("Mini test details saved.");
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
@@ -119,8 +117,6 @@ export function AssessmentDetailClient({
         {
           method: "PUT",
           body: JSON.stringify({
-            workflow_mode: workflowMode,
-            response_collection_mode: responseCollectionMode,
             release_at_course_time: releaseAt || null,
             close_at_course_time: closeAt || null
           })
@@ -135,11 +131,9 @@ export function AssessmentDetailClient({
             }
           : previous
       );
-      setWorkflowMode(data.assessment.workflow_mode);
-      setResponseCollectionMode(data.assessment.response_collection_mode);
       setReleaseAt(data.assessment.release_at_course_time_input);
       setCloseAt(data.assessment.close_at_course_time_input);
-      setSuccess("Assessment availability and workflow saved.");
+      setSuccess("Availability saved.");
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
@@ -245,7 +239,7 @@ export function AssessmentDetailClient({
           })
         }
       );
-      setSuccess("Concept-unit order updated.");
+      setSuccess("Topic order updated.");
       await loadAssessment();
     } catch (caught) {
       setError(errorFromUnknown(caught));
@@ -260,19 +254,25 @@ export function AssessmentDetailClient({
   const isArchived = assessment?.status === "archived";
   const isReadOnly = Boolean(assessment && !isDraftEditable);
   const canReturnToDraft = Boolean(assessment && isPublishedUnused && !assessment.has_student_sessions);
+  const primaryTopic = assessment?.concept_units[0] ?? null;
+  const miniTestItems = assessment?.mini_test_items ?? [];
+
+  function optionCount(value: unknown) {
+    return Array.isArray(value) ? value.length : 0;
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="assessment"
+        eyebrow="mini test"
         title={assessment?.title ?? "Assessment detail"}
-        description="Metadata, topics, publish status, and archive actions."
+        description="Build the MCQ items students will answer in the initial chat administration."
         actions={
           <>
-            {isDraftEditable ? (
-              <PrimaryLink href={`/teacher/content/assessments/${assessmentPublicId}/concept-units/new`}>
+            {isDraftEditable && primaryTopic ? (
+              <PrimaryLink href={`/teacher/content/concept-units/${primaryTopic.concept_unit_public_id}/items/new`}>
                 <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Add topic
+                Add MCQ item
               </PrimaryLink>
             ) : null}
             <Button disabled={isLoading} onClick={loadAssessment} type="button" variant="secondary">
@@ -312,7 +312,7 @@ export function AssessmentDetailClient({
                 </p>
               ) : null}
               <div className="mt-5 grid gap-4">
-                <Field label="Title">
+                <Field label="Assessment name">
                   <input
                     className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                     disabled={isReadOnly}
@@ -321,19 +321,31 @@ export function AssessmentDetailClient({
                     value={title}
                   />
                 </Field>
-                <Field label="Description">
+                <Field
+                  label="Diagnostic focus"
+                  hint="What misconception, cognitive process, or diagnostic framework does this assessment target? Students do not see this note."
+                >
                   <textarea
                     className="min-h-28 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                     disabled={isReadOnly}
-                    onChange={(event) => setDescription(event.target.value)}
-                    value={description}
+                    onChange={(event) => setDiagnosticFocus(event.target.value)}
+                    value={diagnosticFocus}
+                  />
+                </Field>
+                <Field label="Folder / week / module">
+                  <input
+                    className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                    disabled={isReadOnly}
+                    onChange={(event) => setFolderLabel(event.target.value)}
+                    placeholder="e.g. Week 3"
+                    value={folderLabel}
                   />
                 </Field>
               </div>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Button disabled={isReadOnly || isSubmitting} type="submit">
                   <Save className="h-4 w-4" aria-hidden="true" />
-                  {isSubmitting ? "Saving" : "Save metadata"}
+                  {isSubmitting ? "Saving" : "Save mini test"}
                 </Button>
                 <Button
                   disabled={isLocked || isArchived || busyAction === "publish"}
@@ -342,7 +354,7 @@ export function AssessmentDetailClient({
                   variant="secondary"
                 >
                   <CheckCircle className="h-4 w-4" aria-hidden="true" />
-                  Publish assessment
+                  Publish mini test
                 </Button>
                 {canReturnToDraft ? (
                   <Button
@@ -369,56 +381,12 @@ export function AssessmentDetailClient({
 
             <form className="rounded-lg border border-line bg-white p-5 shadow-soft" onSubmit={saveAvailability}>
               <div>
-                <h2 className="text-xl font-semibold text-ink">Availability and workflow</h2>
+                <h2 className="text-xl font-semibold text-ink">Availability</h2>
                 <p className="mt-1 text-sm leading-6 text-muted">
                   Release and closing dates control when new students may start. Students who already started may continue after the closing date.
                 </p>
               </div>
               <div className="mt-5 grid gap-4">
-                <Field label="Workflow mode">
-                  <select
-                    className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                    onChange={(event) =>
-                      setWorkflowMode(event.target.value as "automatic" | "manual_review")
-                    }
-                    value={workflowMode}
-                  >
-                    <option value="automatic">Automatic</option>
-                    <option value="manual_review">Manual review</option>
-                  </select>
-                </Field>
-                <Field label="Response collection mode">
-                  <select
-                    className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:bg-slate-100 disabled:text-muted"
-                    disabled={isLocked}
-                    onChange={(event) =>
-                      setResponseCollectionMode(
-                        event.target.value as "llm_assisted" | "deterministic"
-                      )
-                    }
-                    value={responseCollectionMode}
-                  >
-                    <option value="llm_assisted">LLM-assisted conversation</option>
-                    <option value="deterministic">Deterministic collection</option>
-                  </select>
-                </Field>
-                {responseCollectionMode === "llm_assisted" ? (
-                  <p className="text-sm leading-6 text-muted">
-                    Student free-text messages are interpreted by the Response Collection Agent.
-                    Option and confidence selections still use structured controls, and no content
-                    help is provided during initial administration.
-                  </p>
-                ) : (
-                  <p className="text-sm leading-6 text-muted">
-                    The system uses fixed initial-administration prompts. Free text is collected as
-                    reasoning only when the current step explicitly requests reasoning.
-                  </p>
-                )}
-                {isLocked ? (
-                  <p className="rounded-md border border-line bg-slate-50 px-3 py-2 text-sm text-muted">
-                    Existing student sessions keep their saved response collection mode snapshot.
-                  </p>
-                ) : null}
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label={`Release date/time (${assessment.course_timezone})`}>
                     <input
@@ -437,14 +405,6 @@ export function AssessmentDetailClient({
                     />
                   </Field>
                 </div>
-                <div className="rounded-md border border-line bg-slate-50 p-3 text-sm leading-6 text-muted">
-                  <p>
-                    Automatic: The system will automatically run profiling, formative planning, and follow-up startup after the student completes the initial item set.
-                  </p>
-                  <p className="mt-2">
-                    Manual review: The system will wait for the teacher/researcher to review and trigger each AI-supported step.
-                  </p>
-                </div>
               </div>
               <div className="mt-5">
                 <Button disabled={isAvailabilitySubmitting} type="submit">
@@ -457,21 +417,75 @@ export function AssessmentDetailClient({
             <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
               <div className="flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold text-ink">Topics</h2>
+                  <h2 className="text-xl font-semibold text-ink">MCQ items</h2>
                   <p className="mt-1 text-sm text-muted">
-                    You choose the topics and items. The system checks only the minimum publishing and research-integrity requirements.
+                    Add at least three included MCQ items. The hidden internal topic is maintained automatically.
                   </p>
                 </div>
+                {isDraftEditable && primaryTopic ? (
+                  <PrimaryLink href={`/teacher/content/concept-units/${primaryTopic.concept_unit_public_id}/items/new`}>
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Add MCQ item
+                  </PrimaryLink>
+                ) : null}
+              </div>
+
+              {miniTestItems.length === 0 ? (
+                <p className="mt-5 text-sm text-muted">No MCQ items yet.</p>
+              ) : (
+                <div className="mt-5 space-y-3">
+                  {miniTestItems.map((item) => (
+                    <article className="rounded-lg border border-line p-4" key={item.item_public_id}>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <StatusBadge status={item.status} />
+                            {item.content_state ? <ContentStateBadge state={item.content_state} /> : null}
+                            <span className="text-xs text-muted">Order {item.item_order}</span>
+                            <span className="text-xs text-muted">Options {optionCount(item.options)}</span>
+                            <span className="text-xs text-muted">
+                              {item.included_in_published_set ? "Included" : "Candidate"}
+                            </span>
+                          </div>
+                          <h3 className="mt-3 font-semibold text-ink">
+                            Item {item.item_order}
+                          </h3>
+                          <p className="mt-1 line-clamp-3 text-sm leading-6 text-muted">{item.item_stem}</p>
+                          <p className="mt-2 font-mono text-xs text-muted">{item.item_public_id}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Link
+                            className="inline-flex h-10 items-center rounded-md border border-line px-4 text-sm font-semibold text-ink transition hover:border-accent"
+                            href={`/teacher/content/items/${item.item_public_id}`}
+                          >
+                            Edit / preview
+                          </Link>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <details className="rounded-lg border border-line bg-white p-5 shadow-soft">
+              <summary className="cursor-pointer text-lg font-semibold text-ink">
+                Advanced topic settings
+              </summary>
+              <div className="mt-4 flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-center md:justify-between">
+                <p className="text-sm leading-6 text-muted">
+                  The student workflow still uses internal topic records. Most mini tests need only the auto-created topic.
+                </p>
                 {isDraftEditable ? (
                   <PrimaryLink href={`/teacher/content/assessments/${assessmentPublicId}/concept-units/new`}>
                     <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Add topic
+                    Add advanced topic
                   </PrimaryLink>
                 ) : null}
               </div>
 
               {assessment.concept_units.length === 0 ? (
-                <p className="mt-5 text-sm text-muted">No topics yet.</p>
+                <p className="mt-5 text-sm text-muted">No internal topics yet.</p>
               ) : (
                 <div className="mt-5 space-y-3">
                   {assessment.concept_units.map((unit, index) => (
@@ -514,7 +528,7 @@ export function AssessmentDetailClient({
                             className="inline-flex h-10 items-center rounded-md border border-line px-4 text-sm font-semibold text-ink transition hover:border-accent"
                             href={`/teacher/content/concept-units/${unit.concept_unit_public_id}`}
                           >
-                            View
+                            View topic
                           </Link>
                         </div>
                       </div>
@@ -522,7 +536,7 @@ export function AssessmentDetailClient({
                   ))}
                 </div>
               )}
-            </section>
+            </details>
           </section>
 
           <aside className="space-y-4">
@@ -538,21 +552,23 @@ export function AssessmentDetailClient({
                   <dd className="font-medium text-ink">{formatDate(assessment.updated_at)}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted">Topics</dt>
-                  <dd className="font-medium text-ink">{assessment.concept_unit_count ?? assessment.concept_units.length}</dd>
+                  <dt className="text-muted">Folder / week / module</dt>
+                  <dd className="font-medium text-ink">{assessment.folder_label ?? "Unfiled"}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted">Workflow mode</dt>
+                  <dt className="text-muted">Items</dt>
+                  <dd className="font-medium text-ink">{miniTestItems.length}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Workflow</dt>
                   <dd className="font-medium text-ink">
-                    {assessment.workflow_mode === "automatic" ? "Automatic" : "Manual review"}
+                    Fixed automatic
                   </dd>
                 </div>
                 <div>
                   <dt className="text-muted">Response collection</dt>
                   <dd className="font-medium text-ink">
-                    {assessment.response_collection_mode === "llm_assisted"
-                      ? "LLM-assisted conversation"
-                      : "Deterministic collection"}
+                    Fixed LLM-assisted conversation
                   </dd>
                 </div>
                 <div>

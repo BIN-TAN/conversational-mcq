@@ -10,7 +10,9 @@ import { Button, ErrorPanel, PageHeader, SuccessPanel } from "./ui";
 const sampleImport = {
   assessment: {
     title: "Demo assessment",
-    description: "Optional description"
+    description: "Optional description",
+    diagnostic_focus: "Plain-English diagnostic focus for teacher/research interpretation.",
+    folder_label: "Week 1"
   },
   concept_units: [
     {
@@ -87,7 +89,7 @@ export function ImportJsonClient() {
       <PageHeader
         eyebrow="content import"
         title="JSON import"
-        description="Manual concept-based item-set import. This does not call Item Verification and does not generate or rewrite content."
+        description="Manual prepared item-set import. This does not call Item Verification and does not generate or rewrite content."
       />
 
       <ErrorPanel error={error} />

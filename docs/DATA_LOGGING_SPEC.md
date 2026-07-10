@@ -517,13 +517,30 @@ Important interpretation boundaries:
   student-facing label and not a misconduct label.
 - Correctness alone is not evidence of understanding.
 
-## Teacher-Authored Diagnostic Notes
+## Teacher Mini-Test Builder And Diagnostic Notes
 
-Phase 31i adds teacher-facing topic and MCQ item authoring over the existing
-content tables. No new schema is required:
+Phase 31i-revision simplifies the teacher authoring path around:
 
-- Topic diagnostic notes are stored in `concept_units.administration_rules` as
-  teacher-only diagnostic context.
+- Folder / Week / Module
+- Assessment / Mini test
+- MCQ items
+- Publish
+
+The standard teacher path creates an assessment mini test and auto-maintains a
+single internal topic/concept-unit record for the existing student workflow.
+Teachers do not need to create that topic manually. Folder/week/module labels,
+diagnostic focus, and optional order metadata are stored on `assessments`.
+
+The mini-test diagnostic focus is teacher-authored interpretation guidance. It
+is not shown to students and is not ground truth. It may be included in response
+packages as internal LLM context after protected initial administration.
+
+Teacher-authored diagnostic notes are stored as follows:
+
+- Assessment diagnostic focus is stored in `assessments.diagnostic_focus`.
+- Folder/week/module organization is stored in `assessments.folder_label`.
+- The hidden topic diagnostic note is stored in
+  `concept_units.administration_rules` as teacher-only diagnostic context.
 - Item labels, item purpose/use, expected reasoning notes, item diagnostic value
   notes, correct-option reasoning notes, and option-level distractor diagnostic
   notes are stored in `items.administration_rules` as teacher-only diagnostic

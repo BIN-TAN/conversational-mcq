@@ -94,7 +94,8 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
             select: {
               assessment_public_id: true,
               title: true,
-              description: true
+              description: true,
+              diagnostic_focus: true
             }
           }
         }
@@ -196,7 +197,8 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
       assessment_public_id:
         conceptUnitSession.assessment_session.assessment.assessment_public_id,
       title: conceptUnitSession.assessment_session.assessment.title,
-      description: conceptUnitSession.assessment_session.assessment.description
+      description: conceptUnitSession.assessment_session.assessment.description,
+      diagnostic_focus: conceptUnitSession.assessment_session.assessment.diagnostic_focus
     },
     concept_unit: {
       concept_unit_db_id: conceptUnitSession.concept_unit.id,

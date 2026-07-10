@@ -2210,9 +2210,17 @@ Phase 6A.5 must not implement:
 
 ## Phase 31i Teacher MCQ Item Builder Lock
 
-- Teacher/research users may create topics and MCQ items through guided forms
-  without writing raw JSON in the standard path. Internal database names may
-  remain `concept_unit`, but teacher-facing copy should use `topic`.
+- Teacher/research users author classroom content through the mini-test builder:
+  Folder / Week / Module -> Assessment / Mini test -> MCQ items -> Publish.
+- The standard teacher path must not require manual topic/concept-unit creation.
+  The application may auto-create and maintain the internal topic/concept-unit
+  record needed by the existing student workflow.
+- Workflow mode and response collection mode are fixed internally for the
+  standard mini-test builder: `workflow_mode=automatic` and
+  `response_collection_mode=llm_assisted`. They must not appear as normal
+  teacher-facing selectors.
+- Folder/week/module labels and mini-test order metadata live on `assessments`.
+  Assessment diagnostic focus lives on `assessments.diagnostic_focus`.
 - Topic diagnostic notes, item diagnostic value notes, expected reasoning notes,
   correct-option reasoning notes, and distractor diagnostic notes are
   teacher-only metadata stored in existing content JSON fields.
@@ -2226,10 +2234,14 @@ Phase 6A.5 must not implement:
   raw output, process payloads, credentials, or secrets.
 - JSON import remains supported for prepared item sets. The guided UI must not
   break existing import validation or publishing governance.
+- Teacher dashboard main cards must be actionable links. Static cards such as
+  Agent Metadata, Flags, and Data Foundation must not appear as non-clickable
+  dashboard clutter.
 - `student:teacher-mcq-item-builder-smoke` is no-live and verifies guided topic
-  creation, guided MCQ item creation, validation failures, safe student preview,
-  internal diagnostic context availability, publish warnings, JSON import
-  compatibility, and absence of OpenAI calls.
+  auto-creation, folder/week metadata, guided MCQ item creation, validation
+  failures, safe student preview, teacher preview metadata, direct publish,
+  dashboard card cleanup, internal diagnostic context availability, publish
+  warnings, JSON import compatibility, and absence of OpenAI calls.
 
 ## Phase 31j Simple CSV Data Explorer Lock
 

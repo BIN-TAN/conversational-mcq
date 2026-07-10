@@ -775,7 +775,8 @@ function safePackageForProvider(payload: unknown) {
     created_at: stringValue(record, "created_at"),
     assessment: {
       assessment_public_id: stringValue(jsonRecord(record.assessment), "assessment_public_id"),
-      title: stringValue(jsonRecord(record.assessment), "title")
+      title: stringValue(jsonRecord(record.assessment), "title"),
+      diagnostic_focus: stringValue(jsonRecord(record.assessment), "diagnostic_focus")
     },
     concept_unit: {
       concept_unit_public_id: stringValue(conceptUnit, "concept_unit_public_id"),

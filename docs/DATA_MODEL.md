@@ -656,6 +656,24 @@ Phase 7E1 adds normalized evaluation tables that are separate from classroom wor
 
 All eval API responses use public IDs and omit password hashes, access-code hashes, cookies, API keys, database URLs, and internal UUIDs.
 
+## Phase 31i Mini-Test Assessment Metadata
+
+Phase 31i-revision adds additive assessment metadata for teacher-facing mini-test
+authoring:
+
+- `assessments.diagnostic_focus`: plain-English teacher diagnostic focus used
+  as internal interpretation guidance only.
+- `assessments.folder_label`: teacher-facing folder/week/module grouping label.
+- `assessments.folder_order_index` and `assessments.assessment_order_index`:
+  stable ordering hooks for grouped mini-test lists.
+
+The existing `concept_units` table remains the internal student-workflow item
+set boundary. The standard teacher mini-test path auto-creates one hidden
+internal topic/concept-unit so teachers can add MCQ items directly from the
+assessment page. Student-facing serializers must not expose correct options,
+answer keys, raw diagnostic focus, raw teacher notes, raw distractor metadata,
+or internal topic metadata.
+
 ## Diagram
 
 ```mermaid

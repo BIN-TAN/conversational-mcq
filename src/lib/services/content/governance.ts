@@ -286,22 +286,6 @@ export async function assertAssessmentCanPublish(input: {
     );
   }
 
-  const publishedConceptUnitCount = await prisma.conceptUnit.count({
-    where: {
-      assessment_db_id: assessment.id,
-      status: "published"
-    }
-  });
-
-  if (publishedConceptUnitCount < 1) {
-    throw new ContentServiceError(
-      "assessment_has_no_published_concept_units",
-      "An assessment may be published only after at least one concept unit is actually published.",
-      422,
-      { assessment_public_id: assessment.assessment_public_id }
-    );
-  }
-
   return assessment;
 }
 

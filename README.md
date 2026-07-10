@@ -1940,3 +1940,29 @@ fields such as `estimated_guessing_risk`,
 teacher/research evidence-quality indicators only. They must not be shown to
 students and must not be treated as misconduct, cheating, or direct ability
 labels.
+
+## Teacher Mini-Test Builder
+
+Teachers create classroom content through a simplified mini-test workflow:
+
+```text
+Folder / Week / Module -> Assessment / Mini test -> MCQ items -> Publish
+```
+
+The normal UI no longer asks teachers to choose workflow mode, response
+collection mode, or an internal topic before adding items. New mini tests use
+fixed internal defaults (`automatic` workflow and `llm_assisted` response
+collection) and auto-create the internal topic record required by the student
+workflow.
+
+The mini-test form includes a diagnostic focus box:
+
+```text
+What misconception, cognitive process, or diagnostic framework does this assessment target?
+```
+
+This note, item diagnostic notes, correct-option reasoning notes, and distractor
+notes are teacher-only interpretation guidance. They may support internal LLM
+interpretation through validated context, but students must not see answer keys,
+correct options, raw diagnostic notes, raw distractor metadata, misconception
+IDs, or internal labels. JSON import remains available for prepared item sets.
