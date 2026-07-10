@@ -59,7 +59,7 @@ export function LoginForm() {
   return (
     <form className="flex flex-col gap-4" onSubmit={onSubmit}>
       <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-        Classroom ID
+        Username
         <input
           className="rounded-md border border-border-light bg-white px-3 py-3 text-base outline-none transition focus:border-ualberta-green focus:ring-2 focus:ring-ualberta-gold"
           autoComplete="username"

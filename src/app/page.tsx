@@ -27,7 +27,7 @@ export default function HomePage() {
               <p className="text-xs uppercase tracking-wide text-white/80">Measurement Theory</p>
             </div>
           </div>
-          <nav className="flex flex-wrap gap-2 text-sm font-semibold" aria-label="Course access">
+          <nav className="flex flex-wrap gap-2 text-sm font-semibold" aria-label="Primary navigation">
             <Link className="rounded-md px-3 py-2 text-white/90 hover:bg-white/10 hover:text-white" href="/student/login">
               Student Access
             </Link>
@@ -67,9 +67,11 @@ export default function HomePage() {
           })}
         </section>
 
-        <section className="rounded-lg border border-border-light bg-ualberta-gold-soft p-5 text-sm leading-6 text-ink">
-          <h2 className="font-semibold text-ualberta-green-dark">Course activity</h2>
-          <p className="mt-1 text-muted">This site supports the EDPY 507 formative assessment activity.</p>
+        <section
+          aria-label="Course support"
+          className="rounded-lg border border-border-light bg-ualberta-gold-soft p-5 text-sm leading-6 text-ink"
+        >
+          <p className="text-muted">This site supports the EDPY 507 formative assessment activity.</p>
         </section>
       </div>
     </main>

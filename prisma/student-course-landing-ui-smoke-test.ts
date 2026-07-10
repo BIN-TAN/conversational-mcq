@@ -100,6 +100,7 @@ function assertLandingIsCourseFacing(html: string) {
     "Students enter with the classroom ID and access credential",
     "Instructor access for student account management",
     "student account management",
+    "Course activity",
     "evidence audit",
     "research-data export",
     "instructor review workflow",
@@ -215,12 +216,30 @@ async function main() {
     const studentLogin = await fetch(`${baseUrl}/student/login`);
     assert(studentLogin.status === 200, "Student login page should load.");
     const studentLoginHtml = await studentLogin.text();
-    assert(studentLoginHtml.includes("Course access"), "Student login should use course-facing copy.");
+    const visibleStudentLoginText = visibleHtmlText(studentLoginHtml);
+    assert(visibleStudentLoginText.includes("Sign in"), "Student login should show the sign-in heading.");
+    assert(visibleStudentLoginText.includes("Username"), "Student login first field should be labeled Username.");
+    assert(
+      visibleStudentLoginText.includes("Access code or password"),
+      "Student login should keep the access-code/password field label."
+    );
     assert(studentLoginHtml.includes("University of Alberta"), "Student login should include accessible UAlberta logo alt text.");
     assert(
       studentLoginHtml.includes("ualberta-logo.png") || studentLoginHtml.includes("%2Fbrand%2Fualberta-logo.png"),
       "Student login should include the authorized UAlberta logo asset."
     );
+    for (const forbidden of [
+      "COURSE ACCESS",
+      "EDPY 507 COURSE ACTIVITY",
+      "Students enter with",
+      "Instructors sign in",
+      "Classroom ID"
+    ]) {
+      assert(
+        !visibleStudentLoginText.toLowerCase().includes(forbidden.toLowerCase()),
+        `Student login still contains ${forbidden}.`
+      );
+    }
     assert(
       !studentLoginHtml.includes(
         "Students enter with the classroom ID and access code or password provided by the instructor"
