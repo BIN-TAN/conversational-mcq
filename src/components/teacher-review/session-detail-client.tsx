@@ -572,8 +572,8 @@ function Overview({
         <Fact labelText="Started" value={<time title={detail.session.started_at ?? undefined}>{formatDate(detail.session.started_at)}</time>} />
         <Fact labelText="Last activity" value={<time title={detail.session.last_activity_at ?? undefined}>{formatDate(detail.session.last_activity_at)}</time>} />
         <Fact labelText="Completed" value={<time title={detail.session.completed_at ?? undefined}>{formatDate(detail.session.completed_at)}</time>} />
-        <Fact labelText="Current concept unit" value={detail.current_concept_unit?.title ?? "Not recorded"} />
-        <Fact labelText="Concept-unit progress" value={`${detail.summary.completed_concept_unit_count} / ${detail.summary.concept_unit_count}`} />
+        <Fact labelText="Current topic" value={detail.current_concept_unit?.title ?? "Not recorded"} />
+        <Fact labelText="Topic progress" value={`${detail.summary.completed_concept_unit_count} / ${detail.summary.concept_unit_count}`} />
         <Fact labelText="Item responses" value={detail.summary.item_response_count} />
         <Fact
           labelText="Response collection"
@@ -736,14 +736,14 @@ function Overview({
 
       <section className="overflow-hidden rounded-lg border border-line bg-white">
         <div className="border-b border-line p-4">
-          <h3 className="font-semibold text-ink">Concept-unit progress</h3>
+          <h3 className="font-semibold text-ink">Topic progress</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-line bg-slate-50 text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-4 py-3">Order</th>
-                <th className="px-4 py-3">Concept unit</th>
+                <th className="px-4 py-3">Topic</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Initial completed</th>
                 <th className="px-4 py-3">Follow-up</th>
@@ -787,7 +787,7 @@ function Overview({
 
 function ItemResponsesSection({ data }: { data: ItemResponsesResponse }) {
   if (data.concept_units.length === 0) {
-    return <EmptyState title="No concept-unit responses are recorded yet." />;
+    return <EmptyState title="No topic responses are recorded yet." />;
   }
 
   return (
@@ -1011,7 +1011,7 @@ function TranscriptSection({ data }: { data: TranscriptResponse }) {
             {turn.message_text ?? "No text message recorded."}
           </p>
           <p className="mt-2 text-xs text-muted">
-            {turn.concept_unit_public_id ? `Concept unit: ${turn.concept_unit_public_id}` : "No concept-unit association"}
+            {turn.concept_unit_public_id ? `Topic: ${turn.concept_unit_public_id}` : "No topic association"}
             {turn.item_public_id ? ` · Item: ${turn.item_public_id}` : ""}
             {turn.followup_round_index !== null ? ` · Follow-up round ${turn.followup_round_index}` : ""}
           </p>
@@ -1080,13 +1080,13 @@ function ProcessEventsSection({
             </select>
           </label>
           <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-            Concept unit
+            Topic
             <select
               className="h-10 rounded-md border border-line bg-white px-3 text-sm"
               onChange={(event) => onUpdateFilter("concept_unit_public_id", event.target.value)}
               value={filters.concept_unit_public_id}
             >
-              <option value="">All concept units</option>
+              <option value="">All topics</option>
               {data?.concept_units.map((conceptUnit) => (
                 <option
                   key={conceptUnit.concept_unit_public_id}
@@ -1157,7 +1157,7 @@ function ProcessEventsSection({
                   </div>
                   <dl className="mt-3 grid gap-3 text-sm md:grid-cols-4">
                     <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Concept unit</dt>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Topic</dt>
                       <dd className="mt-1 text-ink">{event.concept_unit_public_id ?? "Not associated"}</dd>
                     </div>
                     <div>
@@ -1819,7 +1819,7 @@ function FutureAgentSection({
                   <p className="mt-4 text-sm text-muted">Profiling pending.</p>
                 ) : (
                   <p className="mt-4 text-sm text-muted">
-                    No student profile has been generated for this concept unit.
+                    No student profile has been generated for this topic.
                   </p>
                 )}
               </article>
@@ -1904,7 +1904,7 @@ function FutureAgentSection({
                   </p>
                 ) : (
                   <p className="mt-4 text-sm text-muted">
-                    No formative decision has been generated for this concept unit.
+                    No formative decision has been generated for this topic.
                   </p>
                 )}
               </article>
@@ -2005,7 +2005,7 @@ function FutureAgentSection({
                   <p className="mt-4 text-sm text-muted">Follow-up ready.</p>
                 ) : (
                   <p className="mt-4 text-sm text-muted">
-                    No follow-up round has been generated for this concept unit.
+                    No follow-up round has been generated for this topic.
                   </p>
                 )}
                 {conceptUnitSession.followup_update_cycles.length > 0 ? (

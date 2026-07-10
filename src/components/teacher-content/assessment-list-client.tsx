@@ -103,7 +103,7 @@ export function AssessmentListClient() {
                   <th className="px-4 py-3 font-semibold">Title</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold">Public ID</th>
-                  <th className="px-4 py-3 font-semibold">Concept units</th>
+                  <th className="px-4 py-3 font-semibold">Topics</th>
                   <th className="px-4 py-3 font-semibold">Updated</th>
                   <th className="px-4 py-3 font-semibold">Actions</th>
                 </tr>

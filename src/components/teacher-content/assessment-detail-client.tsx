@@ -176,7 +176,7 @@ export function AssessmentDetailClient({
         { method: "POST" }
       );
       setSuccess(
-        `Assessment published. Publishable concept units: ${data.publishable_concept_unit_public_ids.join(", ")}`
+        `Assessment published. Publishable topics: ${data.publishable_concept_unit_public_ids.join(", ")}`
       );
       await loadAssessment();
     } catch (caught) {
@@ -493,7 +493,7 @@ export function AssessmentDetailClient({
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Button
-                            aria-label="Move concept unit up"
+                            aria-label="Move topic up"
                             disabled={!isDraftEditable || index === 0 || Boolean(busyAction)}
                             onClick={() => reorderConceptUnit(unit, -1)}
                             type="button"
@@ -502,7 +502,7 @@ export function AssessmentDetailClient({
                             <ArrowUp className="h-4 w-4" aria-hidden="true" />
                           </Button>
                           <Button
-                            aria-label="Move concept unit down"
+                            aria-label="Move topic down"
                             disabled={!isDraftEditable || index === assessment.concept_units.length - 1 || Boolean(busyAction)}
                             onClick={() => reorderConceptUnit(unit, 1)}
                             type="button"

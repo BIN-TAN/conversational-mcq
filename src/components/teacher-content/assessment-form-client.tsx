@@ -53,7 +53,7 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
       <PageHeader
         eyebrow="assessment"
         title="New assessment"
-        description="Create a top-level assessment container before adding concept units."
+        description="Create a top-level assessment container before adding topics."
       />
 
       <ErrorPanel error={error} />

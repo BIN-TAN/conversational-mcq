@@ -14,7 +14,7 @@ const sampleImport = {
   },
   concept_units: [
     {
-      title: "Concept unit title",
+      title: "Topic title",
       learning_objective: "Learning objective",
       related_concept_description: "Related concept description",
       administration_rules: {
@@ -114,7 +114,7 @@ export function ImportJsonClient() {
         <aside className="space-y-4">
           <section className="rounded-lg border border-line bg-white p-5 text-sm leading-6 text-muted shadow-soft">
             Provide either `assessment` for a new assessment or `assessment_public_id` to add
-            concept units under an existing assessment. Writes run through the Phase 3A backend API.
+            topics under an existing assessment. Writes run through the content backend API.
           </section>
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <h2 className="font-semibold text-ink">Sample file</h2>

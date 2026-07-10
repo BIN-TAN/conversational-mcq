@@ -187,7 +187,7 @@ export function ConceptUnitDetailClient({
         }
       );
       setSuccess(
-        `Concept unit published with ${data.validation?.active_item_count ?? "validated"} active items.`
+        `Topic published with ${data.validation?.active_item_count ?? "validated"} active items.`
       );
       await loadConceptUnit();
     } catch (caught) {
@@ -297,7 +297,7 @@ export function ConceptUnitDetailClient({
       await apiRequest(`/api/teacher/concept-units/${conceptUnitPublicId}/archive`, {
         method: "POST"
       });
-      setSuccess("Concept unit archived.");
+      setSuccess("Topic archived.");
       await loadConceptUnit();
     } catch (caught) {
       setError(errorFromUnknown(caught));

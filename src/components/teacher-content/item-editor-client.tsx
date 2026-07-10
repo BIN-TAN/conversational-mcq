@@ -213,7 +213,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
     if (!isEditable) {
       setError({
         code: "published_content_must_return_to_draft_before_editing",
-        message: "Return the concept unit to draft before editing this item."
+        message: "Return the topic to draft before editing this item."
       });
       return;
     }
@@ -354,7 +354,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
   const readOnlyReason = item?.is_content_locked
     ? "Student data collection has started. The administered content is now read-only to preserve research consistency."
     : item?.concept_unit_status === "published"
-      ? "Return the concept unit to draft before editing published items."
+      ? "Return the topic to draft before editing published items."
       : item?.status === "archived"
         ? "Archived items are preserved for records and are not editable."
         : "Return the parent assessment to draft before editing this item.";
