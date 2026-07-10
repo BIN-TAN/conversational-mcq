@@ -7,6 +7,11 @@ import {
   fetchAvailableAssessments,
   startAssessmentSession
 } from "./api";
+import {
+  normalizeAssessmentStartErrorForStudent,
+  shouldDisplayStudentApiErrorCode,
+  startErrorRecoverySessionPublicId
+} from "@/lib/student-assessment-ui/start-errors";
 import type {
   AvailableAssessment,
   StructuredStudentApiError
@@ -96,11 +101,16 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
 
     try {
       const result = await startAssessmentSession(assessment.assessment_public_id, options);
+      void loadAssessments();
       startTransition(() => {
         router.push(`/student/assessment/${result.session.session_public_id}`);
       });
     } catch (caught) {
-      setError(caught as StructuredStudentApiError);
+      const apiError = normalizeAssessmentStartErrorForStudent(
+        caught as StructuredStudentApiError
+      );
+      await loadAssessments();
+      setError(apiError);
       setPendingAssessment(null);
     }
   }
@@ -155,7 +165,26 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <div>
                   <p className="font-semibold">{error.message}</p>
-                  <p className="mt-1 text-xs uppercase tracking-wide text-red-700">{error.code}</p>
+                  {shouldDisplayStudentApiErrorCode(error) ? (
+                    <p className="mt-1 text-xs uppercase tracking-wide text-red-700">
+                      {error.code}
+                    </p>
+                  ) : null}
+                  {startErrorRecoverySessionPublicId(error) ? (
+                    <button
+                      className="mt-3 inline-flex h-9 items-center justify-center rounded-md bg-red-900 px-3 text-xs font-semibold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-300"
+                      onClick={() => {
+                        const sessionPublicId = startErrorRecoverySessionPublicId(error);
+
+                        if (sessionPublicId) {
+                          router.push(`/student/assessment/${sessionPublicId}`);
+                        }
+                      }}
+                      type="button"
+                    >
+                      Resume current attempt
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -175,8 +204,9 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
               const isBusy =
                 pendingAssessment === assessment.assessment_public_id || isPending;
               const canOpen = Boolean(assessment.can_resume && assessment.existing_session_public_id);
+              const canStartNew = assessment.can_start && !canOpen;
               const startLabel =
-                canOpen || assessment.latest_completed_attempt_number ? "Start new attempt" : "Start assessment";
+                assessment.latest_completed_attempt_number ? "Start new attempt" : "Start assessment";
 
               return (
                 <article
@@ -214,12 +244,16 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-2">
-                      {assessment.can_start ? (
+                      {canStartNew ? (
                         <button
                           className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
                           data-testid={`start-assessment-${assessment.assessment_public_id}`}
                           disabled={isBusy}
-                          onClick={() => void handleStart(assessment, { newAttempt: canOpen })}
+                          onClick={() =>
+                            void handleStart(assessment, {
+                              newAttempt: Boolean(assessment.latest_completed_attempt_number)
+                            })
+                          }
                           type="button"
                         >
                           {isBusy ? (
@@ -238,7 +272,11 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                           onClick={() => void handleStart(assessment)}
                           type="button"
                         >
-                          <Play className="h-4 w-4" aria-hidden="true" />
+                          {isBusy ? (
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <Play className="h-4 w-4" aria-hidden="true" />
+                          )}
                           Resume attempt
                         </button>
                       ) : null}

@@ -250,6 +250,28 @@ function isUniqueOrSerializationConflict(error: unknown): boolean {
   );
 }
 
+function isResumableAssessmentSession(session: {
+  status: string;
+  current_phase: string;
+  completed_at: Date | null;
+}) {
+  return !(
+    session.status === "completed" ||
+    session.current_phase === "session_completed" ||
+    Boolean(session.completed_at)
+  );
+}
+
+function findResumableAssessmentSession<
+  T extends {
+    status: string;
+    current_phase: string;
+    completed_at: Date | null;
+  }
+>(sessions: T[]) {
+  return sessions.find(isResumableAssessmentSession) ?? null;
+}
+
 function stableHash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -1080,6 +1102,24 @@ async function validPublishedConceptUnits(
   return conceptUnits;
 }
 
+async function validPublishedConceptUnitsForResume(
+  tx: Prisma.TransactionClient,
+  assessmentDbId: string
+) {
+  try {
+    return await validPublishedConceptUnits(tx, assessmentDbId);
+  } catch (error) {
+    if (
+      error instanceof StudentAssessmentServiceError &&
+      error.code === "assessment_has_no_valid_published_concept_unit"
+    ) {
+      return [];
+    }
+
+    throw error;
+  }
+}
+
 async function getOwnedSession(input: { student_user_db_id: string; session_public_id: string }) {
   await assertActiveStudentAccount(input.student_user_db_id);
   const session = await prisma.assessmentSession.findFirst({
@@ -1220,12 +1260,7 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       },
       orderBy: [{ attempt_number: "desc" }, { created_at: "desc" }]
     });
-    const existingSession = sessions.find(
-      (session) =>
-        session.status !== "completed" &&
-        session.current_phase !== "session_completed" &&
-        !session.completed_at
-    ) ?? null;
+    const existingSession = findResumableAssessmentSession(sessions);
     const latestCompletedSession = sessions.find(
       (session) =>
         session.status === "completed" ||
@@ -1268,7 +1303,7 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       latest_completed_session_public_id: latestCompletedSession?.session_public_id ?? null,
       latest_completed_attempt_number: latestCompletedSession?.attempt_number ?? null,
       can_start:
-        computed.availability_state === "open" &&
+        computed.can_start_new_session &&
         !manualReviewNewStartBlocked &&
         !tutorRuntimeBlocksOpen,
       can_resume: Boolean(
@@ -1349,19 +1384,12 @@ export async function startOrResumeStudentAssessmentSession(input: {
             },
             orderBy: [{ attempt_number: "desc" }, { created_at: "desc" }]
           });
-          const existing = input.new_attempt
-            ? null
-            : sessions.find(
-                (session) =>
-                  session.status !== "completed" &&
-                  session.current_phase !== "session_completed" &&
-                  !session.completed_at
-              ) ?? null;
+          const existing = findResumableAssessmentSession(sessions);
 
           if (existing) {
             const conceptUnits = existing.current_concept_unit_db_id
               ? []
-              : await validPublishedConceptUnits(tx, assessment.id);
+              : await validPublishedConceptUnitsForResume(tx, assessment.id);
             const fallbackConceptUnitId =
               existing.current_concept_unit_db_id ?? conceptUnits[0]?.id;
 
@@ -1612,10 +1640,43 @@ export async function startOrResumeStudentAssessmentSession(input: {
   }
 
   if (isUniqueOrSerializationConflict(lastError)) {
+    const sessions = await prisma.assessmentSession.findMany({
+      where: {
+        user_db_id: input.student_user_db_id,
+        assessment: { assessment_public_id: input.assessment_public_id }
+      },
+      select: {
+        session_public_id: true,
+        status: true,
+        current_phase: true,
+        completed_at: true,
+        attempt_number: true,
+        created_at: true
+      },
+      orderBy: [{ attempt_number: "desc" }, { created_at: "desc" }]
+    });
+    const existing = findResumableAssessmentSession(sessions);
+
+    if (existing) {
+      const state = await getStudentSessionState({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: existing.session_public_id
+      });
+
+      return {
+        session: state.session,
+        state
+      };
+    }
+
     throw new StudentAssessmentServiceError(
       "session_start_conflict",
       "Could not start or resume the assessment session safely.",
-      409
+      409,
+      {
+        assessment_public_id: input.assessment_public_id,
+        recovery: "refresh_assessment_list"
+      }
     );
   }
 

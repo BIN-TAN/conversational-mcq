@@ -21,6 +21,7 @@
     "student:state-machine-smoke": "tsx prisma/student-state-machine-smoke-test.ts",
     "student:ui-smoke": "tsx prisma/student-ui-smoke-test.ts",
     "student:dashboard-availability-smoke": "tsx prisma/student-dashboard-availability-smoke-test.ts",
+    "student:assessment-start-resume-conflict-smoke": "tsx prisma/student-assessment-start-resume-conflict-smoke-test.ts",
     "student:conversational-flow-smoke": "tsx prisma/student-conversational-flow-smoke-test.ts",
     "student:package-review-edit-smoke": "tsx prisma/student-package-review-edit-smoke-test.ts",
     "student:logging-smoke": "tsx prisma/student-logging-smoke-test.ts",
