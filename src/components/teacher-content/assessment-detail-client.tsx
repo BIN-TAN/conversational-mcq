@@ -2,9 +2,16 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Archive, CheckCircle, Download, Plus, RefreshCw, RotateCcw, Save } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Archive, CheckCircle, Download, Plus, RefreshCw, RotateCcw, Save, Trash2 } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
-import type { AssessmentDetail, StructuredApiError } from "./types";
+import type {
+  AssessmentDeletionMode,
+  AssessmentDeletionPreview,
+  AssessmentDeletionSummary,
+  AssessmentDetail,
+  StructuredApiError
+} from "./types";
 import {
   Button,
   ContentStateBadge,
@@ -27,11 +34,20 @@ type PublishAssessmentResponse = {
   publishable_concept_unit_public_ids: string[];
 };
 
+type AssessmentDeletionPreviewResponse = {
+  preview: AssessmentDeletionPreview;
+};
+
+type AssessmentDeletionResponse = {
+  deletion: AssessmentDeletionSummary;
+};
+
 export function AssessmentDetailClient({
   assessmentPublicId
 }: {
   assessmentPublicId: string;
 }) {
+  const router = useRouter();
   const [assessment, setAssessment] = useState<AssessmentDetail | null>(null);
   const [title, setTitle] = useState("");
   const [diagnosticFocus, setDiagnosticFocus] = useState("");
@@ -44,6 +60,11 @@ export function AssessmentDetailClient({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAvailabilitySubmitting, setIsAvailabilitySubmitting] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [deletionPreview, setDeletionPreview] = useState<AssessmentDeletionPreview | null>(null);
+  const [deletionMode, setDeletionMode] = useState<AssessmentDeletionMode>("unused_assessment");
+  const [assessmentConfirmation, setAssessmentConfirmation] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
   const loadAssessment = useCallback(async () => {
     setIsLoading(true);
@@ -165,6 +186,54 @@ export function AssessmentDetailClient({
     }
   }
 
+  async function loadDeletionPreview() {
+    setBusyAction("deletion-preview");
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const data = await apiRequest<AssessmentDeletionPreviewResponse>(
+        `/api/teacher/assessments/${assessmentPublicId}/deletion/preview`
+      );
+      setDeletionPreview(data.preview);
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function deleteAssessment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusyAction("delete-assessment");
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const data = await apiRequest<AssessmentDeletionResponse>(
+        `/api/teacher/assessments/${assessmentPublicId}/deletion`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            deletion_mode: deletionMode,
+            assessment_confirmation: assessmentConfirmation,
+            delete_confirmation: deleteConfirmation,
+            confirm_delete_all_assessment_data: confirmDeleteAll
+          })
+        }
+      );
+      router.push(
+        `/teacher/content/assessments?deleted_assessment=${encodeURIComponent(
+          data.deletion.assessment_public_id
+        )}`
+      );
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function publishAssessment() {
     setBusyAction("publish");
     setError(null);
@@ -228,6 +297,11 @@ export function AssessmentDetailClient({
   function optionCount(value: unknown) {
     return Array.isArray(value) ? value.length : 0;
   }
+
+  const deletionCounts = deletionPreview?.counts;
+  const unusedDeleteAllowed = Boolean(deletionPreview?.deletion_modes.unused_assessment.allowed);
+  const requiredDeletePhrase =
+    deletionMode === "assessment_and_all_data" ? "DELETE ALL ASSESSMENT DATA" : "DELETE";
 
   return (
     <div className="space-y-6">
@@ -512,6 +586,126 @@ export function AssessmentDetailClient({
             <section className="rounded-lg border border-line bg-white p-5 text-sm leading-6 text-muted shadow-soft">
               Archive the assessment to prevent new sessions while preserving existing research records.
             </section>
+            <form
+              className="rounded-lg border border-red-200 bg-white p-5 text-sm leading-6 text-muted shadow-soft"
+              onSubmit={deleteAssessment}
+            >
+              <div className="flex items-start gap-3">
+                <Trash2 className="mt-1 h-5 w-5 text-red-700" aria-hidden="true" />
+                <div>
+                  <h2 className="font-semibold text-red-900">Danger zone</h2>
+                  <p className="mt-1">
+                    Archive is reversible. Permanent deletion removes this assessment from this system and cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <Button
+                  disabled={busyAction === "deletion-preview"}
+                  onClick={loadDeletionPreview}
+                  type="button"
+                  variant="secondary"
+                >
+                  {busyAction === "deletion-preview" ? "Previewing" : "Preview deletion counts"}
+                </Button>
+              </div>
+              {deletionPreview ? (
+                <div className="mt-4 space-y-4">
+                  <div className="rounded-md border border-line bg-slate-50 p-3">
+                    <p className="font-semibold text-ink">Deletion preview</p>
+                    <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <dt className="text-muted">Topics</dt>
+                        <dd className="font-semibold text-ink">{deletionCounts?.concept_unit_count ?? 0}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">Items</dt>
+                        <dd className="font-semibold text-ink">{deletionCounts?.item_count ?? 0}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">Student sessions</dt>
+                        <dd className="font-semibold text-ink">{deletionCounts?.assessment_session_count ?? 0}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">Item responses</dt>
+                        <dd className="font-semibold text-ink">{deletionCounts?.item_response_count ?? 0}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">Conversation turns</dt>
+                        <dd className="font-semibold text-ink">{deletionCounts?.conversation_turn_count ?? 0}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">Process events</dt>
+                        <dd className="font-semibold text-ink">{deletionCounts?.process_event_count ?? 0}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">Agent call summaries</dt>
+                        <dd className="font-semibold text-ink">{deletionCounts?.agent_call_summary_count ?? 0}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">Activity evidence</dt>
+                        <dd className="font-semibold text-ink">{deletionCounts?.post_activity_evidence_count ?? 0}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                  {!unusedDeleteAllowed ? (
+                    <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                      Delete unused assessment is blocked because this assessment is not draft/archived or has associated student/session data.
+                    </p>
+                  ) : null}
+                  <Field label="Deletion mode">
+                    <select
+                      className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                      onChange={(event) => setDeletionMode(event.target.value as AssessmentDeletionMode)}
+                      value={deletionMode}
+                    >
+                      <option value="unused_assessment" disabled={!unusedDeleteAllowed}>
+                        Delete unused assessment
+                      </option>
+                      <option value="assessment_and_all_data">Delete all assessment data</option>
+                    </select>
+                  </Field>
+                  <Field
+                    label="Assessment confirmation"
+                    hint={`Type the exact assessment name or public ID: ${assessment.title} / ${assessment.assessment_public_id}`}
+                  >
+                    <input
+                      className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                      onChange={(event) => setAssessmentConfirmation(event.target.value)}
+                      value={assessmentConfirmation}
+                    />
+                  </Field>
+                  <Field label="Delete confirmation" hint={`Type exactly: ${requiredDeletePhrase}`}>
+                    <input
+                      className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                      onChange={(event) => setDeleteConfirmation(event.target.value)}
+                      value={deleteConfirmation}
+                    />
+                  </Field>
+                  {deletionMode === "assessment_and_all_data" ? (
+                    <label className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-950">
+                      <input
+                        checked={confirmDeleteAll}
+                        className="mt-1"
+                        onChange={(event) => setConfirmDeleteAll(event.target.checked)}
+                        type="checkbox"
+                      />
+                      <span>
+                        I understand this removes associated sessions, responses, process events, agent summaries, and activity evidence for this assessment from this system.
+                      </span>
+                    </label>
+                  ) : null}
+                  <Button
+                    disabled={busyAction === "delete-assessment"}
+                    type="submit"
+                    variant="danger"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    {busyAction === "delete-assessment" ? "Deleting" : "Permanently delete"}
+                  </Button>
+                </div>
+              ) : null}
+            </form>
           </aside>
         </div>
       ) : null}

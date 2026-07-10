@@ -11,7 +11,8 @@ import { ContentServiceError, validationIssue } from "./errors";
 import {
   archiveAssessmentSafely,
   assertAssessmentEditable,
-  returnAssessmentToDraft as returnAssessmentToDraftSafely
+  returnAssessmentToDraft as returnAssessmentToDraftSafely,
+  restoreArchivedAssessment as restoreArchivedAssessmentSafely
 } from "./governance";
 import { serializeAssessment, serializeConceptUnit, serializeItem } from "./serializers";
 import { mergeTopicDiagnosticNoteIntoRules } from "./teacher-diagnostic-context";
@@ -105,10 +106,24 @@ export async function listAssessments(input: { teacher_user_db_id: string }) {
       { assessment_order_index: "asc" },
       { created_at: "desc" }
     ],
-    include: { _count: { select: { concept_units: true, assessment_sessions: true } } }
+    include: {
+      _count: { select: { concept_units: true, assessment_sessions: true } },
+      concept_units: {
+        select: {
+          _count: { select: { items: true } }
+        }
+      }
+    }
   });
 
-  return assessments.map(serializeAssessment);
+  return assessments.map((assessment) => ({
+    ...serializeAssessment(assessment),
+    assessment_session_count: assessment._count.assessment_sessions,
+    item_count: assessment.concept_units.reduce(
+      (total, conceptUnit) => total + conceptUnit._count.items,
+      0
+    )
+  }));
 }
 
 export async function createAssessment(input: {
@@ -376,6 +391,15 @@ export async function returnAssessmentToDraft(input: {
   assessment_public_id: string;
 }) {
   const assessment = await returnAssessmentToDraftSafely(input);
+
+  return serializeAssessment(assessment);
+}
+
+export async function restoreAssessment(input: {
+  teacher_user_db_id: string;
+  assessment_public_id: string;
+}) {
+  const assessment = await restoreArchivedAssessmentSafely(input);
 
   return serializeAssessment(assessment);
 }

@@ -54,6 +54,9 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
 12a. Simple CSV downloads:
     - Expected: `/teacher/data/explorer` downloads the assessment CSV, selected-student CSV, and student-assessment matrix CSV. They should contain safe count/status summaries only and must not include raw responses, answer keys, correct options, correctness labels, raw process payloads, provider output, diagnostic notes, credentials, or secrets.
 
+12b. Assessment lifecycle:
+    - Expected: `/teacher/content/assessments` hides archived mini tests by default, can show archived/all mini tests with filters, and can restore archived mini tests. Permanent assessment deletion is only in the assessment detail danger zone after previewed aggregate counts and exact typed confirmations. Do not use delete-all on pilot data unless there is an approved withdrawal or staging cleanup reason.
+
 13. Export integrity review:
     - Expected: if possible, bring the export ZIP back to the local protected environment and run the export integrity review. Do not commit the ZIP.
 

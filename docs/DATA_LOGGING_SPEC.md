@@ -557,3 +557,24 @@ confidence, tempting-option, and process evidence. Student-facing state,
 conversation messages, activity text, and default research exports must not
 show correct options, answer keys, raw teacher diagnostic notes, raw distractor
 notes, misconception IDs, or internal metadata labels.
+
+## Assessment Deletion Records
+
+Assessment deletion uses existing assessment/session/evidence tables as the
+source of truth until an explicit teacher/research danger-zone action is
+confirmed. The deletion preview reports aggregate row counts only: assessment,
+concept unit, item, option, session, response, conversation, process event,
+response package, agent summary, activity runtime/evidence, diagnostic snapshot,
+workflow, and idempotency counts.
+
+If deletion proceeds, the system writes an `assessment_deletion_events` audit
+row with safe aggregate counts, safe public identifiers or hashes, deletion
+mode, deleting teacher reference, timestamp, warnings, and limitations. The
+audit must not contain deleted item text, student response text, answer keys,
+correct options, correctness labels, raw process payloads, raw provider
+input/output, credentials, cookies, database URLs, or secrets.
+
+Default simple CSV and research exports read current system rows only. Deleted
+assessments and deleted associated session/evidence records should not appear in
+newly generated exports. Previously downloaded exports and external copies are
+outside application control and are documented as deletion limitations.

@@ -139,7 +139,8 @@ export function serializeItem(
     | "updated_at"
   > & {
     concept_unit?: Pick<ConceptUnit, "concept_unit_public_id" | "status"> & {
-      assessment?: Pick<Assessment, "assessment_public_id" | "title" | "status"> & {
+      assessment?: Pick<Assessment, "assessment_public_id" | "status"> & {
+        title?: string;
         _count?: { assessment_sessions?: number };
       };
     };

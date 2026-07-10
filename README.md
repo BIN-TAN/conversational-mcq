@@ -1983,3 +1983,25 @@ features, revisions, and patterns across responses before treating it as
 diagnostically meaningful. Students must not see answer keys, correct options,
 raw diagnostic notes, raw distractor metadata, misconception IDs, or internal
 labels. JSON import remains available for prepared item sets.
+
+### Assessment lifecycle and deletion
+
+Archive is the normal reversible mini-test lifecycle action. Archived
+assessments are hidden from the default teacher library view and can be restored
+without deleting historical records. The teacher library supports search by
+name/public ID/diagnostic focus/folder, status filters, folder filters,
+collapsible folder sections, item/session counts, and sorting by folder order,
+recent update, title, or release date.
+
+Permanent assessment deletion is teacher/research-only and lives in the
+assessment detail danger zone. `Delete unused assessment` is allowed only for
+draft or archived assessments with no student/session/activity records and
+requires previewed counts, the exact assessment name or public ID, and `DELETE`.
+`Delete all assessment data` is reserved for approved cleanup/withdrawal cases;
+it previews associated counts, requires the exact assessment name or public ID,
+the exact phrase `DELETE ALL ASSESSMENT DATA`, and a second confirmation, then
+removes associated sessions, responses, turns, process events, response
+packages, agent summaries, activity evidence, snapshots, items, and topics in a
+transaction. The audit record keeps only safe aggregate counts, safe IDs, and
+limitations. It does not retain deleted item content, student responses, answer
+keys, raw process payloads, provider payloads, credentials, or secrets.

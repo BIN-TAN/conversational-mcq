@@ -2279,6 +2279,45 @@ Phase 6A.5 must not implement:
   duplicate-submission UI guards, automatic item ordering, safe student preview,
   item-list actions, and absence of OpenAI calls.
 
+## Phase 31k Assessment Lifecycle And Deletion Lock
+
+- Archive remains the normal reversible assessment lifecycle action. Archived
+  assessments must be hidden by default in the teacher mini-test library and
+  restorable without deleting historical records.
+- The teacher mini-test library must support search by name, public ID,
+  diagnostic focus, and folder; status filters for Active, Draft, Published,
+  Closed, Archived, and All; folder filtering; collapsible folder/week/module
+  groups; item and session counts; and sorting by folder order, updated time,
+  title, or release date. `Unfiled` groups should sort after named folders.
+- Permanent assessment deletion is teacher/research-only and must be separated
+  from Archive in wording and UI. Normal student or browser runtime paths must
+  not hard-delete assessments.
+- `Delete unused assessment` is allowed only for draft or archived assessments
+  with no associated student/session/activity evidence. It requires a preview,
+  the exact assessment title or public ID, and the exact confirmation `DELETE`.
+- `Delete all assessment data` is a danger-zone operation for approved cleanup
+  or withdrawal workflows. It must preview aggregate counts, require the exact
+  assessment title or public ID, the exact phrase
+  `DELETE ALL ASSESSMENT DATA`, and a second confirmation. It must delete
+  associated assessment sessions, concept-unit sessions, item responses,
+  conversation turns, process events, response packages, profiles, decisions,
+  follow-up records, workflow records, agent summaries, activity attempts,
+  activity evidence, diagnostic snapshots, item verification records, items,
+  concept units, and the assessment in one transaction where possible.
+- Assessment deletion audits must retain only safe aggregate counts, safe
+  identifiers, deletion mode, deleting teacher reference, timestamp, and
+  limitations. They must not retain deleted item content, raw student
+  responses, answer keys, correctness labels, raw process payloads, raw provider
+  input/output, credentials, cookies, database URLs, or secrets.
+- Default teacher/research exports and simple CSVs must exclude deleted
+  assessment rows and deleted associated records. Previously downloaded exports,
+  screenshots, LMS copies, or other external copies remain outside system
+  control.
+- `student:teacher-assessment-deletion-smoke` is no-live and verifies preview
+  counts, confirmation failures, unused deletion, strong-confirmation all-data
+  deletion, no-orphan linked records, unrelated data preservation,
+  archive/restore behavior, safe audit content, and absence of OpenAI calls.
+
 ## Phase 31j Simple CSV Data Explorer Lock
 
 - Teacher/research users may use `/teacher/data/explorer` to download simple

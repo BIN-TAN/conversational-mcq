@@ -492,6 +492,30 @@ export async function returnAssessmentToDraft(input: {
   });
 }
 
+export async function restoreArchivedAssessment(input: {
+  teacher_user_db_id: string;
+  assessment_public_id: string;
+}) {
+  const { assessment } = await getAssessmentContentState(input);
+
+  if (assessment.status !== "archived") {
+    throw new ContentServiceError(
+      "assessment_not_archived",
+      "Only archived assessments can be restored.",
+      409,
+      { assessment_public_id: assessment.assessment_public_id }
+    );
+  }
+
+  const restoredStatus = (assessment._count?.assessment_sessions ?? 0) > 0 ? "published" : "draft";
+
+  return prisma.assessment.update({
+    where: { id: assessment.id },
+    data: { status: restoredStatus },
+    include: { _count: { select: { concept_units: true, assessment_sessions: true } } }
+  });
+}
+
 export async function returnConceptUnitToDraft(input: {
   teacher_user_db_id: string;
   concept_unit_public_id: string;

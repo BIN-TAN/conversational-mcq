@@ -76,6 +76,17 @@ Deletion behavior: deactivation/reactivation is the reversible account-control p
 npm run student:teacher-student-deletion-smoke
 ```
 
+Assessment lifecycle behavior: Archive is the normal reversible mini-test
+control. Archived mini tests are hidden by default in the teacher library and
+can be restored. Permanent assessment deletion is available only in the
+assessment detail danger zone after previewed aggregate counts. Verify unused
+draft/archived deletion, strong-confirmation all-data deletion, no-orphan
+cleanup, and safe aggregate audit records with:
+
+```bash
+npm run student:teacher-assessment-deletion-smoke
+```
+
 Before changing pilot content, verify teacher-managed item authoring:
 
 ```bash
@@ -293,6 +304,9 @@ npm run student:live-llm-smoke:cleanup-failures
 - Teacher dashboard cards are actionable links, not static informational cards.
 - `Assessments / Mini tests` opens the mini-test list.
 - Mini tests are grouped by folder/week/module when a folder label is present.
+- The mini-test list supports search, status/folder filters, collapsible
+  folders, item/session counts, archive/restore, and default hiding of archived
+  mini tests.
 - Creating a mini test asks for assessment name, diagnostic focus, optional
   folder/week/module, release date/time, and closing date/time.
 - Workflow mode and response collection mode are not normal teacher-facing

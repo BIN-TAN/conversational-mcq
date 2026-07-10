@@ -42,6 +42,8 @@ export type AssessmentSummary = ContentGovernanceFields & {
   close_at_course_time_input: string;
   course_timezone: string;
   concept_unit_count?: number;
+  item_count?: number;
+  assessment_session_count?: number;
   created_at: string;
   updated_at: string;
 };
@@ -175,4 +177,66 @@ export type ImportResult = {
   };
   assessment: AssessmentSummary;
   concept_units: Array<ConceptUnitSummary & { items: ItemDetail[] }>;
+};
+
+export type AssessmentDeletionMode = "unused_assessment" | "assessment_and_all_data";
+
+export type AssessmentDeletionCounts = {
+  assessment_count: number;
+  concept_unit_count: number;
+  item_count: number;
+  option_count: number;
+  assessment_session_count: number;
+  distinct_student_count: number;
+  concept_unit_session_count: number;
+  item_response_count: number;
+  conversation_turn_count: number;
+  process_event_count: number;
+  response_package_count: number;
+  student_profile_count: number;
+  formative_decision_count: number;
+  followup_round_count: number;
+  followup_update_cycle_count: number;
+  concept_progression_record_count: number;
+  workflow_job_count: number;
+  workflow_override_count: number;
+  student_action_idempotency_key_count: number;
+  activity_runtime_count: number;
+  post_activity_evidence_count: number;
+  diagnostic_snapshot_count: number;
+  agent_call_summary_count: number;
+  operational_effective_result_count: number;
+  item_verification_run_count: number;
+  summative_outcome_count: number;
+  import_export_reference_count: number;
+};
+
+export type AssessmentDeletionPreview = {
+  assessment_public_id: string;
+  assessment_title: string;
+  status: ContentStatus;
+  folder_label: string | null;
+  counts: AssessmentDeletionCounts;
+  retained_reference_counts: Record<string, number>;
+  deletion_modes: {
+    unused_assessment: {
+      allowed: boolean;
+      required_delete_confirmation: "DELETE";
+      blocked_reasons: string[];
+    };
+    assessment_and_all_data: {
+      allowed: boolean;
+      required_delete_confirmation: "DELETE ALL ASSESSMENT DATA";
+      blocked_reasons: string[];
+    };
+  };
+  warnings: string[];
+  deletion_limitations: string[];
+};
+
+export type AssessmentDeletionSummary = AssessmentDeletionPreview & {
+  deletion_event_public_id: string;
+  deletion_mode: AssessmentDeletionMode;
+  deleted_at: string;
+  deleted_counts: AssessmentDeletionCounts;
 };

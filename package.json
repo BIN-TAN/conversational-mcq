@@ -55,6 +55,7 @@
     "student:teacher-bulk-export-smoke": "tsx prisma/student-teacher-bulk-export-smoke-test.ts",
     "student:teacher-simple-csv-export-smoke": "tsx prisma/student-teacher-simple-csv-export-smoke-test.ts",
     "student:teacher-mcq-authoring-navigation-smoke": "tsx prisma/teacher-mcq-authoring-navigation-smoke-test.ts",
+    "student:teacher-assessment-deletion-smoke": "tsx prisma/teacher-assessment-deletion-smoke-test.ts",
     "student:research-export-integrity-review": "tsx prisma/student-research-export-integrity-review.ts",
     "student:research-export-integrity-smoke": "tsx prisma/student-research-export-integrity-smoke-test.ts",
     "student:classroom-pilot-readiness-smoke": "tsx prisma/student-classroom-pilot-readiness-smoke-test.ts",

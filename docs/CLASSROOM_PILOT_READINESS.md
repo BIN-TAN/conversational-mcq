@@ -198,6 +198,18 @@ Teacher-managed student account pages support manual `user_id` creation, optiona
 
 Deactivation/reactivation is reversible and preserves assessment/research records. Irreversible student data deletion is available only from teacher account management after previewing associated record counts and typing the exact `student_id` plus `DELETE`. Use deletion carefully for approved staging/test cleanup or approved withdrawal workflows. Deletion removes system-held student account, session, activity, profile, evidence, and linked summative outcome rows; previously downloaded exports or external copies remain outside system control.
 
+Assessment archive is the normal reversible way to remove a mini test from new
+student starts. Permanent assessment deletion is separate and teacher/research
+only. Delete unused assessment is available only for draft or archived mini
+tests with no student/session evidence and requires previewed counts, the exact
+assessment title or public ID, and `DELETE`. Delete all assessment data is a
+danger-zone cleanup path that requires the exact phrase
+`DELETE ALL ASSESSMENT DATA`, a second confirmation, and removes associated
+assessment sessions, responses, turns, process events, agent summaries,
+activity evidence, snapshots, items, and topics from this system. The retained
+audit is aggregate-only and does not retain raw student responses, item content,
+answer keys, provider payloads, or secrets.
+
 Before pilot content changes, teachers may use the guided mini-test builder.
 The teacher-facing mental model is Folder/Week/Module -> Mini test -> MCQ items
 -> Publish. The system auto-maintains the internal topic/concept-unit record, so

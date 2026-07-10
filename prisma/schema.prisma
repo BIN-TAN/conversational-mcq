@@ -407,6 +407,7 @@ model User {
   student_account_events                    StudentAccountEvent[]         @relation("StudentAccountEvents")
   performed_student_account_events          StudentAccountEvent[]         @relation("StudentAccountEventPerformer")
   performed_student_account_deletion_events StudentAccountDeletionEvent[] @relation("StudentAccountDeletionEventPerformer")
+  performed_assessment_deletion_events      AssessmentDeletionEvent[]     @relation("AssessmentDeletionEventPerformer")
   acknowledged_item_verification_runs       ItemVerificationRun[]         @relation("ItemVerificationAcknowledgement")
   created_eval_suites                       EvalSuite[]                   @relation("EvalSuiteCreator")
   created_eval_runs                         EvalRun[]                     @relation("EvalRunCreator")
@@ -1820,6 +1821,25 @@ model StudentAccountDeletionEvent {
   @@index([student_user_id_snapshot, created_at])
   @@index([performed_by_user_db_id, created_at])
   @@map("student_account_deletion_events")
+}
+
+model AssessmentDeletionEvent {
+  id                            String   @id @default(uuid()) @db.Uuid
+  deletion_public_id            String   @unique @default(cuid())
+  deleted_assessment_public_id  String
+  deleted_assessment_public_hash String
+  assessment_title_snapshot     String
+  performed_by_user_db_id       String   @db.Uuid
+  deletion_mode                 String
+  deletion_summary              Json
+  created_at                    DateTime @default(now()) @db.Timestamptz(6)
+
+  performed_by User @relation("AssessmentDeletionEventPerformer", fields: [performed_by_user_db_id], references: [id], onDelete: Restrict)
+
+  @@index([deleted_assessment_public_id, created_at])
+  @@index([performed_by_user_db_id, created_at])
+  @@index([deletion_mode, created_at])
+  @@map("assessment_deletion_events")
 }
 
 model ExportJob {
