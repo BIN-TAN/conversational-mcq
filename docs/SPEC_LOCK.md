@@ -761,6 +761,24 @@ Forbidden behavior:
 
 Deterministic validation remains authoritative for structural publishing requirements. LLM semantic findings are advisory warnings only; they never override teacher subject-matter judgment and may be acknowledged without treating the warning as correct.
 
+Phase 31o publication classification:
+
+- Structural blockers include missing item stem, invalid option structure, missing
+  or invalid correct option, invalid included-item count, duplicate publish
+  order, and answer-key/content leakage in student-facing fields.
+- Safety/privacy blockers include student-visible answer keys, correctness
+  labels, unsafe content, raw provider payloads, secrets, or teacher-only
+  diagnostic notes.
+- Version/integrity blockers include stale content fingerprints, missing current
+  verification when the selected path requires it, and content locks after
+  student sessions begin.
+- Advisory quality warnings include current item-verification warnings that a
+  teacher researcher may explicitly acknowledge.
+- Optional teacher-metadata warnings include missing plain-language distractor
+  diagnostic notes, target reasoning notes, strong-reasoning notes, or expected
+  reasoning guidance. These are warning-only unless a later locked phase makes a
+  specific field structurally required.
+
 Spreadsheet formula-injection protection is required for user-controlled text when `spreadsheet_safe_text = true`. The protection is applied only to exported values and must not alter database records. Local export files are stored under `.data/exports`, not public static folders, and downloads require teacher_researcher authorization.
 
 ## Phase 6A LLM Infrastructure
@@ -2392,6 +2410,10 @@ Phase 6A.5 must not implement:
   must be on the approved host allow-list.
 - Every media asset must include accessible description text. Video links must
   include a transcript or content summary when used for interpretation.
+- Media records distinguish student-facing accessible alt text from
+  teacher-only LLM media description. The legacy description field remains a
+  compatibility fallback, but student payloads must use student-safe alt text
+  and must not expose teacher-only LLM descriptions.
 - Student-facing payloads may include only safe media fields: public media ID,
   placement, option label when applicable, media type, display URL, title,
   accessible description, caption, transcript/content summary, and attribution.
@@ -2399,9 +2421,10 @@ Phase 6A.5 must not implement:
   correct options, correctness labels, raw distractor metadata, raw teacher
   diagnostic notes, raw provider payloads, credentials, cookies, database URLs,
   or session secrets.
-- LLM interpretation receives `llm_media_context` from descriptions, captions,
-  transcripts, and summaries. Direct multimodal media input is false in this
-  phase; URLs do not authorize the LLM to infer unseen media content.
+- LLM interpretation receives `llm_media_context` from teacher-only LLM media
+  descriptions, captions, transcripts, summaries, and attribution. Direct
+  multimodal media input is false in this phase; URLs do not authorize the LLM
+  to infer unseen media content.
 - Item response snapshots must freeze the media assets and LLM media context
   present at administration time. Later media edits must not rewrite historical
   response evidence.

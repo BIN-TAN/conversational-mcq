@@ -139,6 +139,8 @@ export type ItemMediaAsset = {
   url: string | null;
   title: string | null;
   alt_text_or_description: string;
+  student_alt_text?: string | null;
+  teacher_llm_media_description?: string | null;
   caption: string | null;
   transcript_or_content_summary: string | null;
   source_attribution: string | null;

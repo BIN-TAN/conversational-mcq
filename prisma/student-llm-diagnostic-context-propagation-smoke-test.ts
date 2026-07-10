@@ -1,6 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import {
   assessmentInterpretationContextAuditMetadata,
+  buildAssessmentInterpretationContextForItemAdministration,
   buildAssessmentInterpretationContextFromResponsePackage,
   hashAssessmentInterpretationContext
 } from "../src/lib/services/student-assessment/assessment-interpretation-context";
@@ -86,15 +88,56 @@ async function main() {
       orderBy: [{ created_at: "desc" }],
       select: { payload: true }
     });
+    const conceptUnitSession = await prisma.conceptUnitSession.findFirstOrThrow({
+      where: {
+        assessment_session: {
+          session_public_id: sample.session_public_id
+        }
+      },
+      select: { concept_unit_db_id: true }
+    });
+    await prisma.item.create({
+      data: {
+        item_public_id: `item_context_scope_${randomUUID().slice(0, 12)}`,
+        concept_unit_db_id: conceptUnitSession.concept_unit_db_id,
+        item_order: 99,
+        item_stem: "UNRELATED_CONTEXT_SCOPE_SENTINEL item must not enter frozen context.",
+        options: [
+          { label: "A", text: "Scope sentinel option A" },
+          { label: "B", text: "Scope sentinel option B" }
+        ],
+        correct_option: "A",
+        distractor_rationales: {},
+        expected_reasoning_patterns: [],
+        possible_misconception_indicators: [],
+        administration_rules: {},
+        included_in_published_set: false,
+        status: "draft",
+        version: 1
+      }
+    });
     const context = buildAssessmentInterpretationContextFromResponsePackage({
       response_package_payload: responsePackage.payload,
       phase: "post_initial_interpretation"
     });
+    const contextText = serialized(context);
     const audit = assessmentInterpretationContextAuditMetadata(context);
 
     assert(context.schema_version === "assessment-interpretation-context-v1", "Unexpected context schema version.");
     assert(Boolean(context.assessment.diagnostic_focus), "Assessment diagnostic focus was missing.");
     assert(context.items.length === 3, "Initial response package should provide three administered items.");
+    assert(
+      context.observed_student_evidence.item_responses.length === 3,
+      "Initial response package should provide exactly three student response records."
+    );
+    assert(
+      !contextText.includes("unrelated_context_scope_sentinel"),
+      "Context should not include unrelated latest item content outside the frozen response package."
+    );
+    assert(
+      JSON.stringify(context).length < 30000,
+      "Shared interpretation context should remain below the no-live token-budget size guard."
+    );
     assert(
       context.items.every((item) => item.stem && Array.isArray(item.visible_options)),
       "Every context item should include stem and visible options."
@@ -152,6 +195,35 @@ async function main() {
     const originalHash = hashAssessmentInterpretationContext(context);
     const firstItemPublicId = context.items[0]?.item_public_id;
     assert(firstItemPublicId, "Context should include a first item.");
+    const firstContextItem = context.items[0];
+    assert(firstContextItem, "First context item should be present.");
+    const itemAdminContext = buildAssessmentInterpretationContextForItemAdministration({
+      assessment_public_id: context.assessment.assessment_public_id,
+      assessment_title: context.assessment.assessment_title,
+      assessment_diagnostic_focus: context.assessment.diagnostic_focus,
+      concept_unit_public_id: context.concept_unit.concept_unit_public_id,
+      concept_unit_title: context.concept_unit.title,
+      concept_unit_learning_objective: context.concept_unit.learning_objective,
+      concept_unit_related_description: context.concept_unit.related_concept_description,
+      item_public_id: firstContextItem.item_public_id,
+      item_order: firstContextItem.item_order,
+      item_role: firstContextItem.item_role,
+      item_stem: firstContextItem.stem ?? "",
+      options: firstContextItem.visible_options,
+      correct_option: firstContextItem.correct_option_internal ?? "",
+      item_version: 1,
+      llm_media_context: firstContextItem.llm_media_context,
+      phase: "initial_administration"
+    });
+    assert(itemAdminContext.items.length === 1, "Item administration context should include only the current item.");
+    assert(
+      itemAdminContext.observed_student_evidence.item_responses.length === 1,
+      "Item administration context should not include unrelated cross-item evidence."
+    );
+    assert(
+      JSON.stringify(itemAdminContext).length < 12000,
+      "Item administration context should remain under the no-live item-level size guard."
+    );
     const currentItem = await prisma.item.findUniqueOrThrow({
       where: { item_public_id: firstItemPublicId },
       select: { item_stem: true }

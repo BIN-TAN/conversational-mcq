@@ -62,6 +62,7 @@
     "student:llm-first-cba-system-audit": "tsx prisma/student-llm-first-cba-system-audit.ts",
     "student:llm-first-cba-system-audit-smoke": "tsx prisma/student-llm-first-cba-system-audit-smoke-test.ts",
     "student:llm-diagnostic-context-propagation-smoke": "tsx prisma/student-llm-diagnostic-context-propagation-smoke-test.ts",
+    "student:llm-first-context-live-smoke": "tsx prisma/student-llm-first-context-live-smoke-test.ts",
     "student:classroom-pilot-readiness-smoke": "tsx prisma/student-classroom-pilot-readiness-smoke-test.ts",
     "student:production-deployment-readiness-smoke": "tsx prisma/student-production-deployment-readiness-smoke-test.ts",
     "student:render-staging-readiness-smoke": "tsx prisma/student-render-staging-readiness-smoke-test.ts",

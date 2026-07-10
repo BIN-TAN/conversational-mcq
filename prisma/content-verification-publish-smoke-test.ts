@@ -33,6 +33,7 @@ async function main() {
   const prefix = `phase7d_verification_publish_${Date.now()}`;
   process.env.LLM_PROVIDER = "mock";
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
+  process.env.OPERATIONAL_AGENT_MODE = "mock";
   await cleanupItemVerificationFixture(prisma, prefix);
 
   try {

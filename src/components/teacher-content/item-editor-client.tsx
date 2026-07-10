@@ -47,6 +47,8 @@ type ItemMediaDraft = {
   external_url: string | null;
   title: string;
   alt_text_or_description: string;
+  student_alt_text: string;
+  teacher_llm_media_description: string;
   caption: string;
   transcript_or_content_summary: string;
   source_attribution: string;
@@ -91,7 +93,10 @@ function draftFromMediaAsset(asset: ItemMediaAsset): ItemMediaDraft {
     public_or_signed_url: asset.source_type === "uploaded" ? asset.url : null,
     external_url: asset.source_type === "external_url" ? asset.url : null,
     title: asset.title ?? "",
-    alt_text_or_description: asset.alt_text_or_description,
+    alt_text_or_description: asset.student_alt_text ?? asset.alt_text_or_description,
+    student_alt_text: asset.student_alt_text ?? asset.alt_text_or_description,
+    teacher_llm_media_description:
+      asset.teacher_llm_media_description ?? asset.alt_text_or_description,
     caption: asset.caption ?? "",
     transcript_or_content_summary: asset.transcript_or_content_summary ?? "",
     source_attribution: asset.source_attribution ?? "",
@@ -110,6 +115,8 @@ function blankMediaDraft(orderIndex: number): ItemMediaDraft {
     external_url: "",
     title: "",
     alt_text_or_description: "",
+    student_alt_text: "",
+    teacher_llm_media_description: "",
     caption: "",
     transcript_or_content_summary: "",
     source_attribution: "",
@@ -119,6 +126,8 @@ function blankMediaDraft(orderIndex: number): ItemMediaDraft {
 }
 
 function mediaDraftToInput(asset: ItemMediaDraft, orderIndex: number) {
+  const studentAltText = asset.student_alt_text.trim() || asset.alt_text_or_description.trim();
+
   return {
     media_public_id: asset.media_public_id,
     placement: asset.placement,
@@ -134,7 +143,10 @@ function mediaDraftToInput(asset: ItemMediaDraft, orderIndex: number) {
         ? asset.external_url.trim()
         : null,
     title: asset.title.trim() || null,
-    alt_text_or_description: asset.alt_text_or_description.trim(),
+    alt_text_or_description: studentAltText,
+    student_alt_text: studentAltText,
+    teacher_llm_media_description:
+      asset.teacher_llm_media_description.trim() || studentAltText,
     caption: asset.caption.trim() || null,
     transcript_or_content_summary: asset.transcript_or_content_summary.trim() || null,
     source_attribution: asset.source_attribution.trim() || null,
@@ -188,7 +200,7 @@ function MediaDraftPreview({
             {asset.media_type === "image" && url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                alt={asset.alt_text_or_description || "Item media preview"}
+                alt={asset.student_alt_text || asset.alt_text_or_description || "Item media preview"}
                 className="mt-2 max-h-56 w-full rounded-md object-contain"
                 src={url}
               />
@@ -197,7 +209,7 @@ function MediaDraftPreview({
             ) : null}
             {asset.title ? <figcaption className="mt-2 font-semibold text-ink">{asset.title}</figcaption> : null}
             <p className="mt-1 leading-6 text-muted">
-              {asset.alt_text_or_description || "Accessible description is required before saving."}
+              {asset.student_alt_text || asset.alt_text_or_description || "Student alt text is required before saving."}
             </p>
             {asset.caption ? <p className="mt-1 text-muted">{asset.caption}</p> : null}
             {asset.transcript_or_content_summary ? (
@@ -974,15 +986,30 @@ export function ItemEditorClient(props: ItemEditorProps) {
                           value={media.title}
                         />
                       </Field>
-                      <Field label="Alt text / content description">
+                      <Field label="Student alt text">
                         <textarea
                           className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                           disabled={!isEditable}
                           onChange={(event) =>
-                            updateMediaAsset(mediaIndex, { alt_text_or_description: event.target.value })
+                            updateMediaAsset(mediaIndex, {
+                              alt_text_or_description: event.target.value,
+                              student_alt_text: event.target.value
+                            })
                           }
                           required
-                          value={media.alt_text_or_description}
+                          value={media.student_alt_text}
+                        />
+                      </Field>
+                      <Field label="Teacher-only LLM media description (optional)">
+                        <textarea
+                          className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                          disabled={!isEditable}
+                          onChange={(event) =>
+                            updateMediaAsset(mediaIndex, {
+                              teacher_llm_media_description: event.target.value
+                            })
+                          }
+                          value={media.teacher_llm_media_description}
                         />
                       </Field>
                       <Field label="Caption (optional)">

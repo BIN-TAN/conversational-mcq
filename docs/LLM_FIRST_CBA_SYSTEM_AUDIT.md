@@ -1,6 +1,6 @@
 # LLM-First CBA System Audit
 
-Audit version: `phase31l-llm-first-cba-system-audit-v1`
+Audit version: `phase31o-llm-first-cba-system-audit-v2`
 
 Phase 31L is a static, no-live audit of the chat-native CBA architecture. It does not claim classroom validity, does not run provider calls, and does not modify production rows. The companion command writes a redacted machine-readable artifact under `.data/llm-first-cba-system-audit/`.
 
@@ -10,11 +10,16 @@ The system has matured into a web-based, chat-native MCQ formative assessment pl
 
 The main architectural gap is not basic chat flow. The main gap is proof that every substantive production LLM receives the same complete, version-bound, authorized assessment-design context. Current code uses several agent-specific packets and prompts. Those packets include many safe evidence summaries, but they are not yet governed by one shared `assessment-interpretation-context-v1` contract that proves assessment diagnostic focus, target reasoning notes, distractor notes, interpretation cautions, student evidence, process summaries, and post-activity evidence are consistently available and clearly separated.
 
-No P0 classroom blocker was identified from static code review. Several P1 issues remain before a stronger pilot claim:
+No P0 classroom blocker was identified from static code review. Phase 31M,
+31N, and 31o partially close the original P1 context/version findings by adding
+the shared interpretation context, proving bounded no-live propagation, adding
+media metadata, and separating student alt text from teacher-only LLM media
+description. Several P1 risks remain before a stronger pilot claim:
 
-- create a shared version-bound assessment interpretation context;
-- prove teacher diagnostic context propagation to all substantive agents;
-- strengthen assessment-level and diagnostic-note snapshot binding;
+- prove teacher diagnostic context propagation to all substantive agents, not
+  only the currently covered no-live profile-integration path;
+- strengthen first-class assessment-level and diagnostic-note snapshot/export
+  identifiers;
 - keep deterministic evidence features as support signals rather than final substantive diagnoses.
 
 ## 2. LLM-First Contract
@@ -265,3 +270,39 @@ npm run student:llm-diagnostic-context-propagation-smoke
 ```
 
 The smoke uses mock provider execution only and reports `openai_calls: 0`.
+An optional paid live context smoke is available but skipped by default:
+
+```bash
+npm run student:llm-first-context-live-smoke
+```
+
+To run the paid version, configure live LLM credentials locally and set
+`RUN_LIVE_LLM_FIRST_CONTEXT_SMOKE=1`. It uses one synthetic/redacted response
+package and verifies provider metadata, token usage, context hash metadata, and
+protected-content boundaries.
+
+## Phase 31o Post-Integration QA Update
+
+Phase 31o reruns the static audit after the teacher diagnostic context,
+media-authoring, and deletion-remediation work. The machine-readable artifact
+now records media context as present, but direct multimodal input remains out of
+scope. The static audit still does not claim classroom validity and still makes
+no OpenAI call.
+
+| Prior finding | Status | Evidence | Remaining risk | Next action |
+|---|---|---|---|---|
+| P0 classroom blocker | resolved | No P0 finding was identified in the original static audit or the Phase 31o rerun. | Browser/staging QA can still reveal runtime blockers. | Continue classroom dry runs with synthetic accounts before pilot use. |
+| `31L-P1-CTX-001` shared LLM context | partially resolved | `assessment-interpretation-context-v1`; `student:llm-diagnostic-context-propagation-smoke`; context hash and presence metadata persisted in profile-integration agent input. | Not every substantive live/runtime agent path is proven to consume the same context object. | Extend context-presence assertions to formative activity generation and post-activity evaluator live paths. |
+| `31L-P1-VER-001` version/snapshot binding | partially resolved | Item responses freeze item snapshots and `llm_media_context`; Phase 31N media context includes media version/hash; Phase 31o separates `student_alt_text` and `teacher_llm_media_description`. | Assessment-level first-class snapshot IDs and export columns remain future work. | Add restricted export columns for context/media snapshot IDs when export follow-up begins. |
+| `31L-P1-LLM-001` deterministic support signals | partially resolved | Product/spec docs frame process and deterministic evidence as reliability/support context; live substantive interpretation remains LLM-mediated in approved paths. | Teacher/research pages may still over-read provisional deterministic categories without careful wording. | Continue teacher/research wording review and keep deterministic labels out of student-facing text. |
+
+Content publication policy was reconciled in this phase:
+
+- Missing item stems, invalid option structure, invalid correct options,
+  answer-key leakage, unsafe student-facing content, and content-lock/version
+  integrity failures remain blockers.
+- Missing teacher distractor diagnostic notes, target-reasoning notes,
+  strong-reasoning notes, or expected reasoning guidance are warning-only unless
+  a later locked spec makes a specific field structurally required.
+- Current item-verification warnings remain advisory quality warnings that can
+  require explicit teacher acknowledgement when that verification path is used.

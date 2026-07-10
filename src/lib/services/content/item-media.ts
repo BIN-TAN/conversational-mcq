@@ -33,6 +33,8 @@ export const ItemMediaAssetInputSchema = z
     external_url: z.string().trim().min(1).optional().nullable(),
     title: z.string().trim().optional().nullable(),
     alt_text_or_description: z.string().trim().min(1),
+    student_alt_text: z.string().trim().optional().nullable(),
+    teacher_llm_media_description: z.string().trim().optional().nullable(),
     caption: z.string().trim().optional().nullable(),
     transcript_or_content_summary: z.string().trim().optional().nullable(),
     source_attribution: z.string().trim().optional().nullable(),
@@ -344,6 +346,9 @@ export function normalizeItemMediaAssetInput(input: unknown): ItemMediaAssetInpu
     external_url: externalUrl,
     public_or_signed_url: publicUrl,
     title: optional(parsed.title),
+    student_alt_text: optional(parsed.student_alt_text) ?? parsed.alt_text_or_description,
+    teacher_llm_media_description:
+      optional(parsed.teacher_llm_media_description) ?? parsed.alt_text_or_description,
     caption: optional(parsed.caption),
     transcript_or_content_summary: optional(parsed.transcript_or_content_summary),
     source_attribution: optional(parsed.source_attribution),
@@ -364,6 +369,8 @@ export function mediaContextHash(input: {
   placement: ItemMediaPlacement | string;
   option_label?: string | null;
   alt_text_or_description: string;
+  student_alt_text?: string | null;
+  teacher_llm_media_description?: string | null;
   caption?: string | null;
   transcript_or_content_summary?: string | null;
   source_attribution?: string | null;
@@ -373,6 +380,9 @@ export function mediaContextHash(input: {
     placement: input.placement,
     option_label: input.option_label ?? null,
     alt_text_or_description: input.alt_text_or_description,
+    student_alt_text: input.student_alt_text ?? input.alt_text_or_description,
+    teacher_llm_media_description:
+      input.teacher_llm_media_description ?? input.alt_text_or_description,
     caption: input.caption ?? null,
     transcript_or_content_summary: input.transcript_or_content_summary ?? null,
     source_attribution: input.source_attribution ?? null
@@ -395,6 +405,9 @@ export function itemMediaCreateData(
     external_url: input.external_url ?? null,
     title: input.title ?? null,
     alt_text_or_description: input.alt_text_or_description,
+    student_alt_text: input.student_alt_text ?? input.alt_text_or_description,
+    teacher_llm_media_description:
+      input.teacher_llm_media_description ?? input.alt_text_or_description,
     caption: input.caption ?? null,
     transcript_or_content_summary: input.transcript_or_content_summary ?? null,
     source_attribution: input.source_attribution ?? null,
@@ -417,6 +430,8 @@ export function serializeItemMediaAsset(
     | "external_url"
     | "title"
     | "alt_text_or_description"
+    | "student_alt_text"
+    | "teacher_llm_media_description"
     | "caption"
     | "transcript_or_content_summary"
     | "source_attribution"
@@ -434,7 +449,10 @@ export function serializeItemMediaAsset(
     source_type: asset.source_type,
     url: asset.public_or_signed_url ?? asset.external_url ?? null,
     title: asset.title,
-    alt_text_or_description: asset.alt_text_or_description,
+    alt_text_or_description: asset.student_alt_text ?? asset.alt_text_or_description,
+    student_alt_text: asset.student_alt_text ?? asset.alt_text_or_description,
+    teacher_llm_media_description:
+      asset.teacher_llm_media_description ?? asset.alt_text_or_description,
     caption: asset.caption,
     transcript_or_content_summary: asset.transcript_or_content_summary,
     source_attribution: asset.source_attribution,
@@ -457,6 +475,8 @@ export function mediaAssetsForInput(
     | "external_url"
     | "title"
     | "alt_text_or_description"
+    | "student_alt_text"
+    | "teacher_llm_media_description"
     | "caption"
     | "transcript_or_content_summary"
     | "source_attribution"
@@ -474,6 +494,9 @@ export function mediaAssetsForInput(
     external_url: asset.external_url,
     title: asset.title,
     alt_text_or_description: asset.alt_text_or_description,
+    student_alt_text: asset.student_alt_text ?? asset.alt_text_or_description,
+    teacher_llm_media_description:
+      asset.teacher_llm_media_description ?? asset.alt_text_or_description,
     caption: asset.caption,
     transcript_or_content_summary: asset.transcript_or_content_summary,
     source_attribution: asset.source_attribution,
@@ -492,6 +515,8 @@ export function llmMediaContextForAssets(
     | "source_type"
     | "title"
     | "alt_text_or_description"
+    | "student_alt_text"
+    | "teacher_llm_media_description"
     | "caption"
     | "transcript_or_content_summary"
     | "source_attribution"
@@ -511,7 +536,9 @@ export function llmMediaContextForAssets(
       placement: asset.placement,
       option_label: asset.option_label,
       title: asset.title,
-      alt_text_or_description: asset.alt_text_or_description,
+      student_alt_text: asset.student_alt_text ?? asset.alt_text_or_description,
+      teacher_llm_media_description:
+        asset.teacher_llm_media_description ?? asset.alt_text_or_description,
       caption: asset.caption,
       transcript_or_content_summary: asset.transcript_or_content_summary,
       source_attribution: asset.source_attribution,

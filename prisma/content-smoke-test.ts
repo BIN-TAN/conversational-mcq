@@ -226,17 +226,17 @@ async function main() {
       "Fewer-than-three validation did not return expected error code."
     );
 
-    const missingRationaleConceptUnit = await createConceptUnit({
+    const missingTeacherMetadataConceptUnit = await createConceptUnit({
       teacher_user_db_id: teacher.id,
       assessment_public_id: assessment.assessment_public_id,
       data: {
-        title: "Temporary invalid rationale concept unit",
-        learning_objective: "Verify missing distractor rationale fails.",
-        related_concept_description: "Temporary invalid rationale concept.",
+        title: "Temporary warning metadata concept unit",
+        learning_objective: "Verify missing teacher diagnostic metadata warns without blocking.",
+        related_concept_description: "Temporary warning metadata concept.",
         administration_rules: {}
       }
     });
-    created.conceptUnitPublicIds.push(missingRationaleConceptUnit.concept_unit_public_id);
+    created.conceptUnitPublicIds.push(missingTeacherMetadataConceptUnit.concept_unit_public_id);
 
     for (const itemOrder of [1, 2, 3]) {
       const itemInput =
@@ -250,21 +250,36 @@ async function main() {
           : validItemInput(itemOrder, `missing-rationale-${itemOrder}`);
       const item = await createItem({
         teacher_user_db_id: teacher.id,
-        concept_unit_public_id: missingRationaleConceptUnit.concept_unit_public_id,
+        concept_unit_public_id: missingTeacherMetadataConceptUnit.concept_unit_public_id,
         data: itemInput
       });
       created.itemPublicIds.push(item.item_public_id);
     }
-    const missingRationaleValidation = await validateConceptUnitPublishable({
+    const missingTeacherMetadataValidation = await validateConceptUnitPublishable({
       teacher_user_db_id: teacher.id,
-      concept_unit_public_id: missingRationaleConceptUnit.concept_unit_public_id
+      concept_unit_public_id: missingTeacherMetadataConceptUnit.concept_unit_public_id
     });
-    assert(!missingRationaleValidation.ok, "Missing rationale should fail publish validation.");
+    assert(missingTeacherMetadataValidation.ok, "Missing teacher metadata should warn, not block publish validation.");
     assert(
-      missingRationaleValidation.errors.some(
-        (error) => error.code === "missing_distractor_rationale"
+      missingTeacherMetadataValidation.warnings.some(
+        (warning) => warning.code === "teacher_distractor_diagnostic_notes_missing"
       ),
-      "Missing rationale validation did not return expected error code."
+      "Missing teacher distractor diagnostic notes did not return expected warning code."
+    );
+    assert(
+      missingTeacherMetadataValidation.warnings.some(
+        (warning) => warning.code === "teacher_expected_reasoning_note_missing"
+      ),
+      "Missing teacher target reasoning did not return expected warning code."
+    );
+    const metadataWarningPublished = await publishConceptUnit({
+      teacher_user_db_id: teacher.id,
+      concept_unit_public_id: missingTeacherMetadataConceptUnit.concept_unit_public_id,
+      confirm_publish_without_current_verification: true
+    });
+    assert(
+      metadataWarningPublished.concept_unit.status === "published",
+      "Teacher metadata warnings should not block publication when structural validation passes."
     );
 
     const archivedConceptUnit = await archiveConceptUnit({

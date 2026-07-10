@@ -900,7 +900,7 @@ Manual UI workflow:
 8. Publish the assessment when allowed.
 9. Use `/teacher/content/import-json` for manual JSON import. See `docs/sample-concept-unit-import.json`.
 
-Teacher-only diagnostic notes are stored in existing content JSON metadata and may be passed to internal LLM interpretation context. They are guidance, not ground truth: correct-option selection alone is never sufficient evidence of understanding. Student-facing pages and default exports must not show correct options, answer keys, raw diagnostic notes, raw distractor notes, misconception IDs, or internal metadata.
+Teacher-only diagnostic notes are stored in existing content JSON metadata and may be passed to internal LLM interpretation context. They are guidance, not ground truth: correct-option selection alone is never sufficient evidence of understanding. Missing teacher diagnostic notes are advisory warnings, not structural publish blockers. Student-facing pages and default exports must not show correct options, answer keys, raw diagnostic notes, raw distractor notes, misconception IDs, or internal metadata.
 
 Verification remains:
 
@@ -2039,18 +2039,21 @@ represented by HTTPS URLs now; uploaded PNG, JPEG, and WebP images are accepted
 only through the server-side media storage interface after S3-compatible
 storage is configured. SVG files and video binary uploads are not accepted.
 
-Every media asset requires an accessible description. Video links also require
-a transcript or content summary. Media may attach to the item stem or to a
-specific option. Student-facing views render only the media URL, title,
-description, caption, transcript/summary, and attribution. They must not expose
-storage keys, media hashes, answer keys, correct options, teacher diagnostic
-notes, distractor metadata, or provider/audit internals.
+Every media asset requires student-facing accessible alt text. Teachers may
+also add a separate teacher-only LLM media description for interpretation.
+Video links also require a transcript or content summary. Media may attach to
+the item stem or to a specific option. Student-facing views render only the
+media URL, title, student alt text, caption, transcript/summary, and
+attribution. They must not expose teacher-only LLM media descriptions, storage
+keys, media hashes, answer keys, correct options, teacher diagnostic notes,
+distractor metadata, or provider/audit internals.
 
-LLM interpretation receives `llm_media_context` made from teacher-authored
-descriptions, captions, transcripts, and summaries. Direct multimodal media is
-not supplied in this phase, and provider prompts must not infer unseen media
-content from URLs alone. Item response snapshots freeze the media context used
-at administration time, so later media edits do not rewrite collected evidence.
+LLM interpretation receives `llm_media_context` made from teacher-only media
+descriptions, captions, transcripts, summaries, and attribution. Direct
+multimodal media is not supplied in this phase, and provider prompts must not
+infer unseen media content from URLs alone. Item response snapshots freeze the
+media context used at administration time, so later media edits do not rewrite
+collected evidence.
 
 Initial teacher-authored MCQs should default toward apply, analyze, and evaluate
 tasks. Basic recall is acceptable only when it has clear diagnostic value.

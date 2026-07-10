@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export const LLM_FIRST_CBA_AUDIT_VERSION = "phase31l-llm-first-cba-system-audit-v1";
+export const LLM_FIRST_CBA_AUDIT_VERSION = "phase31o-llm-first-cba-system-audit-v2";
 
 export type AuditSeverity = "P0 classroom blocker" | "P1 required before pilot" | "P2 usability improvement" | "P3 later enhancement";
 
@@ -10,6 +10,10 @@ export type LlmFirstCbaFinding = {
   id: string;
   category: string;
   severity: AuditSeverity;
+  remediation_status?: "resolved" | "partially_resolved" | "unresolved" | "superseded";
+  remediation_evidence?: string[];
+  remaining_risk?: string;
+  next_action?: string;
   observed_behavior: string;
   code_evidence: string[];
   user_impact: string;
@@ -214,7 +218,17 @@ const findings: LlmFirstCbaFinding[] = [
     recommended_fix: "Create a shared internal assessment-interpretation-context schema and propagate safe presence/hash metadata to every applicable agent call.",
     recommended_phase: "Phase 31M",
     live_llm_testing_required: false,
-    migration_required: false
+    migration_required: false,
+    remediation_status: "partially_resolved",
+    remediation_evidence: [
+      "src/lib/services/student-assessment/assessment-interpretation-context.ts",
+      "prisma/student-llm-diagnostic-context-propagation-smoke-test.ts",
+      "Phase 31M/31o context propagation smoke verifies shared context hash and bounded response-package scope."
+    ],
+    remaining_risk:
+      "All substantive agents are not yet proven to consume the same context object in every runtime path.",
+    next_action:
+      "Continue extending context-presence assertions to formative activity and post-activity evaluator live paths."
   },
   {
     id: "31L-P1-VER-001",
@@ -231,7 +245,17 @@ const findings: LlmFirstCbaFinding[] = [
     recommended_fix: "Bind assessment/concept/item diagnostic context to a versioned context package at session start or fail closed when binding is unavailable.",
     recommended_phase: "Phase 31M / Phase 31N for media context",
     live_llm_testing_required: false,
-    migration_required: true
+    migration_required: true,
+    remediation_status: "partially_resolved",
+    remediation_evidence: [
+      "ItemResponse item_snapshot and llm_media_context remain frozen for administered items.",
+      "Phase 31N added item_media_assets with versioned media_context_hash.",
+      "Phase 31o separates student_alt_text from teacher_llm_media_description."
+    ],
+    remaining_risk:
+      "Assessment-level first-class snapshot IDs and export columns remain future export/model work.",
+    next_action:
+      "Add explicit assessment/context snapshot IDs to restricted exports when export follow-up begins."
   },
   {
     id: "31L-P1-LLM-001",
@@ -248,7 +272,16 @@ const findings: LlmFirstCbaFinding[] = [
     recommended_fix: "Keep deterministic categories as support features; ensure final substantive interpretation remains LLM-mediated and clearly labels uncertainty.",
     recommended_phase: "Phase 31M and later review polish",
     live_llm_testing_required: false,
-    migration_required: false
+    migration_required: false,
+    remediation_status: "partially_resolved",
+    remediation_evidence: [
+      "docs/PRODUCT_SPEC.md frames engagement/process data as evidence-quality context only.",
+      "Profile integration and formative-value smokes keep final substantive interpretation LLM-mediated in live paths."
+    ],
+    remaining_risk:
+      "Teacher/research pages can still show provisional deterministic categories and need continued wording review.",
+    next_action:
+      "Keep deterministic features labeled as process/audit support in teacher/research views."
   },
   {
     id: "31L-P2-UX-001",
@@ -369,13 +402,21 @@ export function buildLlmFirstCbaSystemAuditArtifact(
       },
       assessment_title: {
         status: "partial",
-        evidence: ["Assessment.title", "content serializers include title"],
-        limitation: "Not proven to reach every production LLM call."
+        evidence: [
+          "Assessment.title",
+          "content serializers include title",
+          "assessment-interpretation-context-v1 includes assessment_title"
+        ],
+        limitation: "Still not proven to reach every production LLM call."
       },
       assessment_diagnostic_focus: {
         status: "partial",
-        evidence: ["Assessment.diagnostic_focus", "teacher item builder smoke validates storage"],
-        limitation: "Propagation to every production LLM agent requires Phase 31M context contract."
+        evidence: [
+          "Assessment.diagnostic_focus",
+          "teacher item builder smoke validates storage",
+          "student:llm-diagnostic-context-propagation-smoke proves post-package context propagation"
+        ],
+        limitation: "Not every substantive runtime agent has a context-presence assertion yet."
       },
       item_stem_options_key_snapshot: {
         status: "present",
@@ -383,8 +424,12 @@ export function buildLlmFirstCbaSystemAuditArtifact(
       },
       teacher_target_reasoning_and_distractor_notes: {
         status: "partial",
-        evidence: ["teacher_diagnostic_context metadata utilities", "response package may include internal teacher diagnostic context"],
-        limitation: "No single context-presence audit currently proves every substantive LLM received it."
+        evidence: [
+          "teacher_diagnostic_context metadata utilities",
+          "assessment-interpretation-context-v1 separates item guidance from observed student evidence",
+          "student:llm-diagnostic-context-propagation-smoke verifies target and distractor guidance presence"
+        ],
+        limitation: "The shared context still needs broader live-path coverage."
       },
       safe_process_timing_summaries: {
         status: "present",
@@ -395,9 +440,14 @@ export function buildLlmFirstCbaSystemAuditArtifact(
         evidence: ["ActivityMisconceptionEvidenceRecord", "PostActivityDiagnosticSnapshot", "activity runtime services"]
       },
       media_context: {
-        status: "missing",
-        evidence: ["No item media model exists in prisma/schema.prisma as of this audit."],
-        limitation: "Phase 31N should add version-bound media metadata and LLM media context."
+        status: "present",
+        evidence: [
+          "prisma/schema.prisma: ItemMediaAsset",
+          "src/lib/services/content/item-media.ts: llmMediaContextForAssets",
+          "student:teacher-mcq-media-smoke verifies media context and student-safe serialization"
+        ],
+        limitation:
+          "Direct multimodal media is not sent to providers; LLM media context is teacher-authored text, transcript, caption, and attribution only."
       }
     },
     boundary_inventory: {
@@ -415,13 +465,19 @@ export function buildLlmFirstCbaSystemAuditArtifact(
       },
       teacher_guidance_not_ground_truth: {
         status: "partial",
-        evidence: ["profile integration prompt states evidence limitations"],
-        limitation: "Needs one shared context contract that labels teacher guidance separately from observed evidence."
+        evidence: [
+          "profile integration prompt states evidence limitations",
+          "assessment-interpretation-context-v1 marks guidance_not_ground_truth"
+        ],
+        limitation: "Needs continued context-presence assertions across every substantive live path."
       },
       selected_option_indirect_evidence_only: {
         status: "partial",
-        evidence: ["PRODUCT_SPEC and profile prompts warn correctness is insufficient"],
-        limitation: "Needs context metadata and tests across every substantive agent."
+        evidence: [
+          "PRODUCT_SPEC and profile prompts warn correctness is insufficient",
+          "assessment-interpretation-context-v1 marks selected_option_is_indirect_evidence_only"
+        ],
+        limitation: "Needs tests across every substantive agent."
       },
       no_misconduct_accusation: {
         status: "present",
@@ -447,7 +503,7 @@ export function buildLlmFirstCbaSystemAuditArtifact(
       "Static audit only; no paid live LLM calls were made.",
       "No browser walkthrough, concurrency/load test, or provider stress test was performed.",
       "File evidence is path-level and field-level; it does not include verbatim prompts, verbatim student text, answer keys, secrets, or provider outputs.",
-      "Phase 31M should replace partial context-propagation findings with executable context-presence tests."
+      "Phase 31M/31o added executable context-presence tests for profile integration; remaining agent paths still need broader live-path coverage."
     ]
   } satisfies Omit<LlmFirstCbaAuditArtifact, "artifact_hash">;
 

@@ -100,7 +100,22 @@ function itemInput(order: number) {
       no_feedback_during_initial_administration: true
     },
     included_in_published_set: true,
-    item_order: order
+    item_order: order,
+    media_assets: order === 1
+      ? [
+          {
+            placement: "item_stem",
+            media_type: "image",
+            source_type: "external_url",
+            external_url: "https://example.com/deletion-smoke-image.png",
+            title: "Deletion smoke media",
+            alt_text_or_description: "Safe deletion smoke media description.",
+            caption: "Synthetic media metadata for deletion smoke.",
+            order_index: 0,
+            active: true
+          }
+        ]
+      : []
   };
 }
 
@@ -349,13 +364,21 @@ async function main() {
       teacherUserDbId: teacher.id,
       title: `Unused deletion ${suffix}`
     });
+    const unusedMediaPublicIds = unused.items.flatMap((item) =>
+      item.media_assets.map((asset) => asset.media_public_id)
+    );
     const unusedPreview = await previewAssessmentDeletion({
       teacher_user_db_id: teacher.id,
       assessment_public_id: unused.assessment.assessment_public_id
     });
     assert(unusedPreview.counts.item_count === 3, "Unused preview should count items.");
+    assert(unusedPreview.counts.item_media_asset_count === 1, "Unused preview should count item media assets.");
     assert(unusedPreview.deletion_modes.unused_assessment.allowed, "Unused draft should be deleteable.");
     assert(unusedPreview.counts.assessment_session_count === 0, "Unused draft should have no sessions.");
+    assert(
+      unusedPreview.deletion_limitations.some((limitation) => limitation.includes("Externally hosted URLs")),
+      "Preview should document external media object deletion limitations."
+    );
 
     await assertContentError(
       () =>
@@ -379,11 +402,16 @@ async function main() {
     });
     deletionAuditPublicIds.push(unusedDeletion.deletion_event_public_id);
     assert(unusedDeletion.deleted_counts.item_count === 3, "Unused delete should report item counts.");
+    assert(unusedDeletion.deleted_counts.item_media_asset_count === 1, "Unused delete should report media counts.");
     assert(
       !(await prisma.assessment.findUnique({
         where: { assessment_public_id: unused.assessment.assessment_public_id }
       })),
       "Unused assessment should be deleted."
+    );
+    assert(
+      (await prisma.itemMediaAsset.count({ where: { media_public_id: { in: unusedMediaPublicIds } } })) === 0,
+      "Unused assessment delete should remove item media metadata."
     );
 
     const withData = await createAssessmentWithItems({
@@ -397,12 +425,16 @@ async function main() {
       itemPublicId: withData.items[0].item_public_id,
       studentDbId: student.id
     });
+    const dataMediaPublicIds = withData.items.flatMap((item) =>
+      item.media_assets.map((asset) => asset.media_public_id)
+    );
     const withDataPreview = await previewAssessmentDeletion({
       teacher_user_db_id: teacher.id,
       assessment_public_id: withData.assessment.assessment_public_id
     });
     assert(!withDataPreview.deletion_modes.unused_assessment.allowed, "Data assessment should block unused delete.");
     assert(withDataPreview.counts.assessment_session_count === 1, "Preview should count assessment session.");
+    assert(withDataPreview.counts.item_media_asset_count === 1, "Preview should count data assessment media assets.");
     assert(withDataPreview.counts.item_response_count === 1, "Preview should count item response.");
     assert(withDataPreview.counts.conversation_turn_count === 1, "Preview should count conversation turn.");
     assert(withDataPreview.counts.process_event_count === 1, "Preview should count process event.");
@@ -446,6 +478,7 @@ async function main() {
     deletionAuditPublicIds.push(dataDeletion.deletion_event_public_id);
     assert(dataDeletion.deleted_counts.assessment_session_count === 1, "Delete all should report deleted session.");
     assert(dataDeletion.deleted_counts.item_response_count === 1, "Delete all should report deleted response.");
+    assert(dataDeletion.deleted_counts.item_media_asset_count === 1, "Delete all should report deleted media metadata.");
     assert(dataDeletion.deleted_counts.diagnostic_snapshot_count === 1, "Delete all should report deleted snapshot.");
     assert(
       !(await prisma.assessment.findUnique({
@@ -469,6 +502,10 @@ async function main() {
         where: { assessment_public_id: withData.assessment.assessment_public_id }
       })) === 0,
       "No diagnostic snapshot should remain."
+    );
+    assert(
+      (await prisma.itemMediaAsset.count({ where: { media_public_id: { in: dataMediaPublicIds } } })) === 0,
+      "Delete all assessment data should remove item media metadata."
     );
 
     const archiveCandidate = await createAssessmentWithItems({

@@ -208,6 +208,9 @@ async function main() {
         placement: "item_stem",
         external_url: "https://example.com/theta-boundary.webp",
         alt_text_or_description: "Diagram comparing a person ability location with item parameters.",
+        student_alt_text: "Diagram comparing a person ability location with item parameters.",
+        teacher_llm_media_description:
+          "Teacher-only LLM description: the diagram intentionally contrasts theta with item difficulty without revealing the keyed answer.",
         caption: "Teacher-authored illustration for the stem.",
         source_attribution: "Example course note",
         order_index: 1
@@ -280,6 +283,10 @@ async function main() {
     assert(!text(detail).includes("storage_key"), "Teacher media serialization should not expose storage keys.");
     assert(text(detail.llm_media_context).includes("llm_must_not_infer_unseen_media_content"), "LLM media context should include limitations.");
     assert(text(detail.llm_media_context).includes('"direct_multimodal_input_supplied":false'), "LLM media context should say direct multimodal input is false.");
+    assert(
+      text(detail.llm_media_context).includes("Teacher-only LLM description"),
+      "LLM media context should include teacher-only media descriptions."
+    );
 
     await publishAssessment({
       teacher_user_db_id: teacher.id,
@@ -305,6 +312,14 @@ async function main() {
     assertStudentVisibleTextIsSafe(state);
     assert(!text(state).includes("media_context_hash"), "Student state should not expose media hashes.");
     assert(!text(state).includes("storage_key"), "Student state should not expose storage keys.");
+    assert(
+      !text(state).includes("Teacher-only LLM description"),
+      "Student state should not expose teacher-only media descriptions."
+    );
+    assert(
+      text(state).includes("Diagram comparing a person ability location with item parameters."),
+      "Student state should include the student-facing media alt text."
+    );
 
     const selected = state.current_item.options[0]?.label;
     assert(selected, "Media smoke current item needs an option.");
@@ -331,7 +346,11 @@ async function main() {
     assert(text(response.item_snapshot).includes("theta scale with a student point"), "Item snapshot should include media description.");
     await prisma.itemMediaAsset.updateMany({
       where: { item: { item_public_id: mediaItem.item_public_id }, order_index: 0 },
-      data: { alt_text_or_description: "Edited media description after administration." }
+      data: {
+        alt_text_or_description: "Edited media description after administration.",
+        student_alt_text: "Edited student media description after administration.",
+        teacher_llm_media_description: "Edited teacher media description after administration."
+      }
     });
     const unchangedResponse = await prisma.itemResponse.findFirstOrThrow({
       where: {
@@ -346,6 +365,10 @@ async function main() {
     assert(
       !text(unchangedResponse.item_snapshot).includes("Edited media description after administration"),
       "Later media edits should not rewrite the item response snapshot."
+    );
+    assert(
+      !text(unchangedResponse.item_snapshot).includes("Edited teacher media description after administration"),
+      "Later teacher-only media edits should not rewrite the item response snapshot."
     );
 
     const conceptUnitSession = await prisma.conceptUnitSession.findFirstOrThrow({
@@ -362,6 +385,10 @@ async function main() {
       await prisma.itemMediaAsset.findMany({ where: { item: { item_public_id: mediaItem.item_public_id } } })
     );
     assert(directContext.length === 4, "Direct LLM media context helper should include active assets.");
+    assert(
+      text(directContext).includes("Teacher-only LLM description"),
+      "Direct LLM media context should preserve teacher-only media description."
+    );
 
     console.log(
       JSON.stringify(

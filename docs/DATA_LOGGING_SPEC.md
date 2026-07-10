@@ -588,9 +588,12 @@ metadata labels.
 Phase 31N adds `item_media_assets` for teacher-authored MCQ media. The table
 stores item-linked media metadata, not raw research conclusions. Safe fields may
 include media public ID, placement, option label, media type, source type,
-display URL, title, accessible description, caption, transcript/content
-summary, attribution, order, active status, media version, and a media-context
-hash.
+display URL, title, student-facing accessible alt text, teacher-only LLM media
+description, caption, transcript/content summary, attribution, order, active
+status, media version, and a media-context hash. The legacy
+`alt_text_or_description` field remains a compatibility fallback for older
+records, but new student payloads should read `student_alt_text` while
+LLM-facing context may read `teacher_llm_media_description`.
 
 Image uploads are stored through a provider-neutral storage boundary only when
 server-side storage is configured. Local/course URLs must be HTTPS and must
@@ -600,8 +603,10 @@ options, raw distractor metadata, raw teacher diagnostic notes, raw provider
 payloads, or secrets.
 
 Response packages and item-response snapshots may include safe serialized media
-assets and `llm_media_context`. The LLM media context is built from teacher
-descriptions, captions, transcripts, summaries, and attribution. It must mark
+assets and `llm_media_context`. Student-visible payloads must use only the
+student alt text and safe caption/transcript fields. The LLM media context is
+built from teacher-only LLM media descriptions, captions, transcripts,
+summaries, and attribution. It must mark
 `direct_multimodal_input_supplied=false` unless a future phase explicitly sends
 actual media to the provider. Item-response snapshots freeze the media context
 administered to the student so later media edits do not alter historical
@@ -612,9 +617,9 @@ evidence.
 Assessment deletion uses existing assessment/session/evidence tables as the
 source of truth until an explicit teacher/research danger-zone action is
 confirmed. The deletion preview reports aggregate row counts only: assessment,
-concept unit, item, option, session, response, conversation, process event,
-response package, agent summary, activity runtime/evidence, diagnostic snapshot,
-workflow, and idempotency counts.
+concept unit, item, item media metadata, option, session, response,
+conversation, process event, response package, agent summary, activity
+runtime/evidence, diagnostic snapshot, workflow, and idempotency counts.
 
 If deletion proceeds, the system writes an `assessment_deletion_events` audit
 row with safe aggregate counts, safe public identifiers or hashes, deletion
@@ -622,6 +627,13 @@ mode, deleting teacher reference, timestamp, warnings, and limitations. The
 audit must not contain deleted item text, student response text, answer keys,
 correct options, correctness labels, raw process payloads, raw provider
 input/output, credentials, cookies, database URLs, or secrets.
+
+Assessment deletion removes item-media metadata rows through the item deletion
+graph. Externally hosted URLs are outside this system and require no object
+deletion. Uploaded media object deletion is a storage-layer lifecycle concern;
+when object storage is enabled it should use a retryable cleanup path keyed by
+deleted media metadata rather than embedding raw credentials or object payloads
+in the deletion audit.
 
 Default simple CSV and research exports read current system rows only. Deleted
 assessments and deleted associated session/evidence records should not appear in

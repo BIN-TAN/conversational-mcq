@@ -107,7 +107,7 @@ function serializeStudentSafeMediaAsset(asset: ItemMediaAsset): StudentSafeMedia
     media_type: asset.media_type,
     url: asset.public_or_signed_url ?? asset.external_url ?? null,
     title: asset.title,
-    alt_text_or_description: asset.alt_text_or_description,
+    alt_text_or_description: asset.student_alt_text ?? asset.alt_text_or_description,
     caption: asset.caption,
     transcript_or_content_summary: asset.transcript_or_content_summary,
     source_attribution: asset.source_attribution

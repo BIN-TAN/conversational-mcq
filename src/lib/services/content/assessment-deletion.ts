@@ -25,6 +25,7 @@ export type AssessmentDeletionCounts = {
   assessment_count: number;
   concept_unit_count: number;
   item_count: number;
+  item_media_asset_count: number;
   option_count: number;
   assessment_session_count: number;
   distinct_student_count: number;
@@ -293,6 +294,7 @@ async function buildAssessmentDeletionGraph(
     studentActionIdempotencyKeyCount,
     diagnosticSnapshotCount,
     operationalEffectiveResultCount,
+    itemMediaAssetCount,
     retainedDispatchAttemptReferenceCount,
     exportReferenceCount
   ] = await Promise.all([
@@ -340,6 +342,7 @@ async function buildAssessmentDeletionGraph(
         ]
       }
     }),
+    client.itemMediaAsset.count({ where: { item_db_id: safeIn(itemIds) } }),
     client.operationalLiveCanaryDispatchAttempt.count({ where: { agent_call_db_id: safeIn(agentCallIds) } }),
     client.exportJob.count({
       where: {
@@ -371,6 +374,7 @@ async function buildAssessmentDeletionGraph(
       assessment_count: 1,
       concept_unit_count: conceptUnitIds.length,
       item_count: itemIds.length,
+      item_media_asset_count: itemMediaAssetCount,
       option_count: optionCount,
       assessment_session_count: sessionIds.length,
       distinct_student_count: studentUserDbIds.length,
@@ -441,6 +445,8 @@ function publicPreview(graph: AssessmentDeletionGraph): AssessmentDeletionPrevie
       "Delete all assessment data permanently removes associated sessions, responses, events, agent summaries, and activity evidence for this assessment."
     ],
     deletion_limitations: [
+      "Assessment deletion removes item media metadata stored in this database. Externally hosted URLs are not objects owned by this system and do not require object deletion.",
+      "Uploaded media object cleanup is not part of the database transaction in this local build. When object storage is enabled, cleanup must be handled by a retryable storage-cleanup path keyed by deleted media metadata.",
       "Previously downloaded exports, screenshots, LMS copies, and external files are outside this system and cannot be removed here.",
       "Export and import audit rows without hard assessment foreign keys are retained as safe references when present.",
       "The deletion audit stores aggregate counts and safe IDs only; deleted item content and student responses are not retained in the audit."

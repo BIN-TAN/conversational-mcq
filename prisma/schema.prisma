@@ -542,6 +542,8 @@ model ItemMediaAsset {
   external_url                  String?             @db.Text
   title                         String?
   alt_text_or_description       String              @db.Text
+  student_alt_text              String?             @db.Text
+  teacher_llm_media_description String?             @db.Text
   caption                       String?             @db.Text
   transcript_or_content_summary String?             @db.Text
   source_attribution            String?             @db.Text
