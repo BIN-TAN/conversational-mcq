@@ -14,6 +14,12 @@ import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/typ
 import { toPrismaJson } from "@/lib/services/json";
 import { logProcessEvent } from "@/lib/services/process-events";
 import {
+  assessmentInterpretationContextAuditMetadata,
+  buildAssessmentInterpretationContextFromResponsePackage,
+  type AssessmentInterpretationContextAuditMetadata,
+  type AssessmentInterpretationContextV1
+} from "@/lib/services/student-assessment/assessment-interpretation-context";
+import {
   PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION,
   buildProfileIntegrationInterpretationPacketForSession,
   type ProfileIntegrationInterpretationPacketV1
@@ -317,6 +323,8 @@ export type FormativeValueAgentInput = {
     student_text_must_hide_engagement_and_ai_labels: true;
     answer_key_protection_required: true;
   };
+  assessment_interpretation_context?: AssessmentInterpretationContextV1;
+  assessment_context_audit?: AssessmentInterpretationContextAuditMetadata;
 };
 
 const VALUE_LABELS: Record<FormativeValue, z.infer<typeof FormativeValueLabelSchema>> = {
@@ -999,8 +1007,17 @@ function choicePromptFor(alternatives: Array<{ value: FormativeValue; label: str
 export function buildFormativeValueAgentInput(input: {
   profile_integration_packet: ProfileIntegrationInterpretationPacketV1;
   prior_student_preference?: FormativeValueAgentInput["prior_student_preference"];
+  assessment_interpretation_context?: AssessmentInterpretationContextV1;
 }): FormativeValueAgentInput {
   const packet = input.profile_integration_packet;
+  const contextFields = input.assessment_interpretation_context
+    ? {
+        assessment_interpretation_context: input.assessment_interpretation_context,
+        assessment_context_audit: assessmentInterpretationContextAuditMetadata(
+          input.assessment_interpretation_context
+        )
+      }
+    : {};
 
   return {
     agent_name: FORMATIVE_VALUE_AGENT_NAME,
@@ -1050,7 +1067,8 @@ export function buildFormativeValueAgentInput(input: {
       conceptual_needs_take_priority_over_confidence: true,
       student_text_must_hide_engagement_and_ai_labels: true,
       answer_key_protection_required: true
-    }
+    },
+    ...contextFields
   };
 }
 
@@ -1235,8 +1253,27 @@ export async function buildFormativeValueDeterminationPacketForSession(
     sessionPublicId,
     { execution_mode: options?.execution_mode === "live_provider" ? "live_provider" : "deterministic_mock" }
   );
+  const responsePackage = await prisma.responsePackage.findFirst({
+    where: {
+      package_type: "initial_concept_unit_response_package",
+      concept_unit_session: {
+        assessment_session: {
+          session_public_id: sessionPublicId
+        }
+      }
+    },
+    orderBy: [{ created_at: "desc" }],
+    select: { payload: true }
+  });
+  const assessmentContext = responsePackage
+    ? buildAssessmentInterpretationContextFromResponsePackage({
+        response_package_payload: responsePackage.payload,
+        phase: "formative_value_selection"
+      })
+    : undefined;
   const agentInput = buildFormativeValueAgentInput({
-    profile_integration_packet: profileIntegrationPacket
+    profile_integration_packet: profileIntegrationPacket,
+    assessment_interpretation_context: assessmentContext
   });
 
   if (options?.execution_mode === "live_provider") {

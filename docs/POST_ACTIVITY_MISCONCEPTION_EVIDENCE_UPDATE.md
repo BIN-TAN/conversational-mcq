@@ -473,6 +473,21 @@ The review command writes redacted artifacts under:
 
 The optional session argument reports whether post-activity response evidence appears available. Phase 30b does not execute runtime activity dialogue and therefore does not evaluate real activity responses yet.
 
+## Phase 31M Context Source For Post-Activity Evaluation
+
+The `formative_activity_response_evaluator_agent` receives the shared
+`assessment-interpretation-context-v1` when live/runtime evaluation is prepared.
+For post-activity evaluation, the context includes the original response
+package evidence, teacher diagnostic guidance, administered item snapshot IDs,
+safe process summaries, and a prior activity evidence summary. This preserves
+the boundary that the student's activity response is the new evidence source
+while the original teacher notes remain guidance, not ground truth.
+
+Post-activity evaluator audit metadata may store the context schema version,
+snapshot IDs, context hash, and boolean presence flags. It must not store raw
+teacher notes, raw activity responses, prompts, raw provider output, answer
+keys, correct options in student-visible payloads, API keys, or secrets.
+
 ## Phase 30f Backend Runtime Loop Skeleton
 
 Phase 30f adds a backend-only activity runtime loop skeleton. It coordinates

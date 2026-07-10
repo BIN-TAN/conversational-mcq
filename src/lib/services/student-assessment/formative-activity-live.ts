@@ -11,6 +11,12 @@ import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
 import { toPrismaJson } from "@/lib/services/json";
 import {
+  assessmentInterpretationContextAuditMetadata,
+  buildAssessmentInterpretationContextFromResponsePackage,
+  type AssessmentInterpretationContextAuditMetadata,
+  type AssessmentInterpretationContextV1
+} from "@/lib/services/student-assessment/assessment-interpretation-context";
+import {
   FORMATIVE_VALUE_PACKET_SCHEMA_VERSION,
   type FormativeValueDeterminationPacketV1
 } from "@/lib/services/student-assessment/formative-value-determination";
@@ -323,6 +329,7 @@ export type FormativeActivityLivePipelineResult =
 type LiveActivitySourceInput = {
   profile_integration_packet: ProfileIntegrationInterpretationPacketV1;
   formative_value_packet: FormativeValueDeterminationPacketV1;
+  assessment_interpretation_context?: AssessmentInterpretationContextV1;
 };
 
 export type FormativeActivityLiveAgentInput = ReturnType<typeof buildFormativeActivityLiveAgentInput>;
@@ -461,6 +468,28 @@ async function resolveAuditContext(sessionPublicId: string) {
   };
 }
 
+async function resolveAssessmentContext(sessionPublicId: string) {
+  const responsePackage = await prisma.responsePackage.findFirst({
+    where: {
+      package_type: "initial_concept_unit_response_package",
+      concept_unit_session: {
+        assessment_session: {
+          session_public_id: sessionPublicId
+        }
+      }
+    },
+    orderBy: [{ created_at: "desc" }],
+    select: { payload: true }
+  });
+
+  return responsePackage
+    ? buildAssessmentInterpretationContextFromResponsePackage({
+        response_package_payload: responsePackage.payload,
+        phase: "formative_activity"
+      })
+    : undefined;
+}
+
 function selectedFormativeValue(packet: FormativeValueDeterminationPacketV1) {
   return packet.student_choice_state.selected_value &&
     packet.student_choice_state.selected_value !== "move_on"
@@ -524,6 +553,14 @@ export function buildFormativeActivityLiveAgentInput(input: LiveActivitySourceIn
   const designPacket = buildFormativeActivityDesignPacketFromPackets(input);
   const profile = input.profile_integration_packet;
   const formative = input.formative_value_packet;
+  const contextFields = input.assessment_interpretation_context
+    ? {
+        assessment_interpretation_context: input.assessment_interpretation_context,
+        assessment_context_audit: assessmentInterpretationContextAuditMetadata(
+          input.assessment_interpretation_context
+        ) satisfies AssessmentInterpretationContextAuditMetadata
+      }
+    : {};
 
   const liveInput = {
     schema_version: FORMATIVE_ACTIVITY_LIVE_INPUT_SCHEMA_VERSION,
@@ -573,7 +610,8 @@ export function buildFormativeActivityLiveAgentInput(input: LiveActivitySourceIn
       no_raw_llm_output: true,
       no_secrets_or_headers: true,
       no_scored_item_generation: true
-    }
+    },
+    ...contextFields
   } as const;
 
   assertNoProhibitedProviderInput(liveInput);
@@ -1184,7 +1222,13 @@ export async function executeLiveFormativeActivityDialogueAgent(input: {
 
   const provider = input.provider_override ?? createLlmProvider();
   const providerLabel: ProviderLabel = input.provider_override ? "mock" : "openai";
-  const agentInput = buildFormativeActivityLiveAgentInput(input);
+  const assessmentContext = await resolveAssessmentContext(
+    input.formative_value_packet.session_public_id
+  );
+  const agentInput = buildFormativeActivityLiveAgentInput({
+    ...input,
+    assessment_interpretation_context: assessmentContext
+  });
   const auditContext = await resolveAuditContext(input.formative_value_packet.session_public_id);
 
   const generator = await executeStructuredWithAudit({

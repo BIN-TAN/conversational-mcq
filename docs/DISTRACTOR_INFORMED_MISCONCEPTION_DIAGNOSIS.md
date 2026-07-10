@@ -280,3 +280,26 @@ ability estimates, or final misconception evaluations. Deterministic code may
 enforce evidence sufficiency and anti-overclaiming; substantive misconception
 evaluation remains the role of validated LLM/evidence workflows where
 approved.
+
+## Shared Assessment Interpretation Context
+
+Phase 31M routes distractor-informed assessment design through
+`assessment-interpretation-context-v1` before substantive LLM interpretation.
+The context carries assessment diagnostic focus, item snapshot IDs, target and
+strong-reasoning guidance, plain-language distractor diagnostic guidance, and
+interpretation cautions alongside observed student reasoning, confidence,
+tempting-option evidence, revisions, and safe process summaries.
+
+The context makes the evidence hierarchy explicit:
+
+- observed student evidence takes priority over teacher guidance;
+- selected or tempting distractors are indirect evidence only;
+- correct-option selection is not sufficient evidence of understanding;
+- timing/process features are reliability context, not misconduct labels;
+- alternative explanations such as guessing, misreading, low knowledge,
+  fatigue, or random error must remain possible.
+
+Agent-call audit metadata may prove that the shared context was present by
+storing schema version, snapshot IDs, a context hash, and boolean presence
+flags. It must not duplicate raw teacher notes, raw distractor notes, answer
+keys in student-visible payloads, prompts, provider output, or secrets.

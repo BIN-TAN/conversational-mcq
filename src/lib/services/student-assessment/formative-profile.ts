@@ -14,6 +14,10 @@ import { logProcessEvent } from "@/lib/services/process-events";
 import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
 import { createResponsePackage } from "@/lib/services/response-packages";
 import {
+  attachAssessmentInterpretationContext,
+  buildAssessmentInterpretationContextFromResponsePackage
+} from "@/lib/services/student-assessment/assessment-interpretation-context";
+import {
   evaluateResponseQuality,
   responseQualityAllowsAdvance,
   responseQualityAuditPayload,
@@ -2394,7 +2398,13 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
     followup_round_db_id: input.followup_round_db_id
   });
 
-  const providerInput = {
+  const assessmentContext = buildAssessmentInterpretationContextFromResponsePackage({
+    response_package_payload: responsePackage.payload,
+    phase: "post_activity_evaluation",
+    prior_activity_evidence_summary: "Targeted feedback evaluates the latest formative activity response."
+  });
+
+  const providerInput = attachAssessmentInterpretationContext({
     task: "chat_native_phase12_formative_activity_evaluation",
     response_package: safePackageForProvider(responsePackage.payload),
     formative_profile: safeProfileForProvider(profile),
@@ -2422,7 +2432,7 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
         do_not_claim_mastery_when_guard_closes_loop: true
       }
     }
-  };
+  }, assessmentContext);
   assertNoProhibitedProviderInput(providerInput);
 
   const invocationKey = createHash("sha256")
@@ -2960,8 +2970,12 @@ export async function ensureChatNativeFormativeActivity(input: {
   }
   const safeResponsePackage = safePackageForProvider(responsePackage.payload);
   const deferredStudentConcerns = deferredConcernsFromPackagePayload(responsePackage.payload);
+  const assessmentContext = buildAssessmentInterpretationContextFromResponsePackage({
+    response_package_payload: responsePackage.payload,
+    phase: "post_initial_interpretation"
+  });
 
-  const providerInput = {
+  const providerInput = attachAssessmentInterpretationContext({
     task: "chat_native_phase5_formative_profile",
     response_package: safeResponsePackage,
     deferred_student_concerns: deferredStudentConcerns,
@@ -2972,7 +2986,7 @@ export async function ensureChatNativeFormativeActivity(input: {
       no_internal_labels_in_student_text: true,
       targeted_feedback_deferred_to_next_phase: true
     }
-  };
+  }, assessmentContext);
   assertNoProhibitedProviderInput(providerInput);
   const invocationKey = createHash("sha256")
     .update(

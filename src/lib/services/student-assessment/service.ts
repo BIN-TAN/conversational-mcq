@@ -15,6 +15,7 @@ import { getFollowupContextConfig } from "@/lib/agents/followup/context";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { updateAssessmentSessionPhase, markSessionExited } from "@/lib/services/session-state";
 import { createResponsePackage } from "@/lib/services/response-packages";
+import { buildAssessmentInterpretationContextForItemAdministration } from "@/lib/services/student-assessment/assessment-interpretation-context";
 import { INCLUDED_ITEM_RANGE } from "@/lib/services/content/governance";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 import { getAssessmentTutorRuntimeStatus } from "@/lib/llm/assessment-tutor-readiness";
@@ -2274,7 +2275,14 @@ async function getActionContext(input: {
       user_db_id: input.student_user_db_id
     },
     include: {
-      current_concept_unit: true
+      current_concept_unit: true,
+      assessment: {
+        select: {
+          assessment_public_id: true,
+          title: true,
+          diagnostic_focus: true
+        }
+      }
     }
   });
 
@@ -2491,6 +2499,40 @@ async function getOrCreateItemResponse(input: {
       item_version_snapshot: input.item.version,
       item_snapshot: itemSnapshot(input.item)
     }
+  });
+}
+
+function itemAdministrationContext(input: {
+  session: Awaited<ReturnType<typeof getActionContext>>["session"];
+  item: Awaited<ReturnType<typeof getActionContext>>["item"];
+  response: Pick<ItemResponse, "selected_option" | "reasoning_text" | "confidence_rating">;
+  written_reasoning?: string | null;
+}) {
+  const conceptUnit = input.session.current_concept_unit;
+
+  return buildAssessmentInterpretationContextForItemAdministration({
+    assessment_public_id: input.session.assessment.assessment_public_id,
+    assessment_title: input.session.assessment.title,
+    assessment_diagnostic_focus: input.session.assessment.diagnostic_focus,
+    concept_unit_public_id: conceptUnit?.concept_unit_public_id ?? null,
+    concept_unit_version: conceptUnit?.version ?? null,
+    concept_unit_title: conceptUnit?.title ?? null,
+    concept_unit_learning_objective: conceptUnit?.learning_objective ?? null,
+    concept_unit_related_description: conceptUnit?.related_concept_description ?? null,
+    item_public_id: input.item.item_public_id,
+    item_order: input.item.item_order,
+    item_role: isTransferItemCandidate(input.item) ? "transfer" : "initial",
+    item_stem: input.item.item_stem,
+    options: input.item.options,
+    correct_option: input.item.correct_option,
+    item_version: input.item.version,
+    administration_rules: input.item.administration_rules,
+    distractor_rationales: input.item.distractor_rationales,
+    expected_reasoning_patterns: input.item.expected_reasoning_patterns,
+    possible_misconception_indicators: input.item.possible_misconception_indicators,
+    selected_option: input.response.selected_option,
+    written_reasoning: input.written_reasoning ?? input.response.reasoning_text,
+    confidence: input.response.confidence_rating
   });
 }
 
@@ -3029,7 +3071,13 @@ export async function recordReasoning(input: {
           selected_option: response.selected_option,
           latest_student_message: reasoningText,
           correctness_feedback_prohibited: true,
-          prior_uncertainty: response.skipped_reasoning || response.selected_option === IDK_OPTION_LABEL
+          prior_uncertainty: response.skipped_reasoning || response.selected_option === IDK_OPTION_LABEL,
+          assessment_interpretation_context: itemAdministrationContext({
+            session: context.session,
+            item: context.item,
+            response,
+            written_reasoning: reasoningText
+          })
         },
         stage: qualityStage,
         text: reasoningText,
@@ -3493,7 +3541,13 @@ export async function recordTemptingOption(input: {
             selected_option: temptingOption,
             latest_student_message: temptingOptionReason,
             correctness_feedback_prohibited: true,
-            prior_uncertainty: false
+            prior_uncertainty: false,
+            assessment_interpretation_context: itemAdministrationContext({
+              session: context.session,
+              item: context.item,
+              response,
+              written_reasoning: temptingOptionReason
+            })
           },
           stage: qualityStage,
           text: temptingOptionReason,

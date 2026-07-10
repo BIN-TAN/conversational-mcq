@@ -234,3 +234,34 @@ npm run student:llm-first-cba-system-audit-smoke
 ```
 
 The artifact is written under `.data/llm-first-cba-system-audit/`, which is ignored by Git. It includes file inventories, agent inventories, boundary inventories, finding counts, P0/P1 finding IDs, and `openai_calls_made: 0`.
+
+## Phase 31M Diagnostic Context Propagation Update
+
+Phase 31M addresses the main P1 finding by adding a shared
+`assessment-interpretation-context-v1` contract and proving no-live propagation
+to the substantive LLM interpretation paths. The shared context includes
+assessment diagnostic focus, administered item snapshot IDs, item stems and
+visible options, internal correct-option evidence for provider-side
+interpretation, target/strong reasoning guidance, plain-language distractor
+diagnostic guidance, interpretation cautions, observed student responses, safe
+process summaries, and the current interpretation phase.
+
+Teacher-authored notes remain explicit guidance, not ground truth. The contract
+states that observed student evidence takes priority, selected options are
+indirect evidence only, correctness alone is not understanding, timing alone is
+not guessing or disengagement, and alternative explanations are required.
+
+Safe audit metadata is recorded with agent inputs as context proof: schema
+version, assessment snapshot ID, item snapshot IDs, context hash, and boolean
+presence flags for teacher context, target reasoning, distractor notes,
+interpretation caution, and student evidence. The audit metadata must not carry
+raw teacher notes, prompts, answer keys in student-visible payloads, provider
+secrets, or credentials.
+
+Verification:
+
+```bash
+npm run student:llm-diagnostic-context-propagation-smoke
+```
+
+The smoke uses mock provider execution only and reports `openai_calls: 0`.

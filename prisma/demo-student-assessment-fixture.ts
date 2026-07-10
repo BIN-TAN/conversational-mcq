@@ -19,6 +19,8 @@ const teacherUserId = "teacher_demo";
 const teacherPassword = "teacher_demo_password";
 const studentUserId = "student_demo";
 const studentAccessCode = "student_demo_access_code";
+const demoAssessmentDiagnosticFocus =
+  "Distractor-informed diagnosis of whether students distinguish person ability theta from item difficulty/discrimination parameters and treat selected or tempting distractors as indirect evidence rather than proof.";
 
 type DemoItemSeed = {
   item_public_id: string;
@@ -269,6 +271,7 @@ export async function ensureFixedIrtMvpAssessment(prisma: PrismaClient, createdB
         title: "IRT Theta Invariance and Item Parameters",
         description:
           "Fixed MVP assessment for theta invariance, item difficulty, and item discrimination.",
+        diagnostic_focus: demoAssessmentDiagnosticFocus,
         status: "published",
         workflow_mode: "automatic",
         release_at: null,
@@ -287,6 +290,7 @@ export async function ensureFixedIrtMvpAssessment(prisma: PrismaClient, createdB
       title: "IRT Theta Invariance and Item Parameters",
       description:
         "Fixed MVP assessment for theta invariance, item difficulty, and item discrimination.",
+      diagnostic_focus: demoAssessmentDiagnosticFocus,
       status: "published",
       workflow_mode: "automatic",
       release_at: null,

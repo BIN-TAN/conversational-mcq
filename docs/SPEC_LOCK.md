@@ -2346,3 +2346,33 @@ Phase 6A.5 must not implement:
   row grain, selected assessment/student filters, matrix uniqueness, multiple
   session aggregation, deleted-student exclusion, protected-field absence, and
   absence of OpenAI calls.
+
+## Phase 31M LLM Diagnostic Context Propagation Lock
+
+- Substantive LLM interpretation paths must receive the shared
+  `assessment-interpretation-context-v1` contract when assessment evidence is
+  available. Covered paths include item administration tutor context, profile
+  integration, formative value determination, formative activity
+  generation/review, and post-activity response evaluation.
+- The context must bind assessment diagnostic focus, assessment/item snapshot
+  identifiers, administered item content, teacher target/strong reasoning
+  guidance, teacher distractor diagnostic guidance, interpretation cautions,
+  observed student evidence, safe process summaries, prior activity evidence
+  where applicable, and the current interpretation phase.
+- Teacher notes are guidance, not ground truth. Observed student evidence takes
+  priority. Selected options and selected distractors are indirect evidence
+  only. Correctness alone is not understanding. Timing/process features alone
+  are not guessing, disengagement, cheating, or misconduct. Alternative
+  explanations remain required.
+- Agent-call audit metadata may store context schema version, snapshot IDs,
+  context hash, and boolean presence flags only. It must not duplicate raw
+  teacher notes, raw distractor notes, raw prompts, raw provider payloads,
+  credentials, cookies, database URLs, API keys, session secrets, or
+  student-visible answer keys.
+- Student-facing UI, student previews, activity text, feedback, and default
+  exports must not expose correct options, answer keys, correctness labels, raw
+  teacher diagnostic notes, raw distractor notes, misconception IDs, internal
+  metadata labels, provider raw output, or process payloads.
+- `student:llm-diagnostic-context-propagation-smoke` is no-live and must verify
+  context propagation, safe audit metadata, snapshot stability, and absence of
+  OpenAI calls.

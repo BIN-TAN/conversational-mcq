@@ -558,6 +558,31 @@ conversation messages, activity text, and default research exports must not
 show correct options, answer keys, raw teacher diagnostic notes, raw distractor
 notes, misconception IDs, or internal metadata labels.
 
+## Assessment Interpretation Context Audit
+
+Phase 31M adds the shared `assessment-interpretation-context-v1` contract for
+substantive LLM interpretation. It is built from existing response packages,
+item snapshots, teacher diagnostic guidance, and safe process summaries. The
+context is version-bound and may be embedded in server-side agent inputs for
+item administration, profile integration, formative value selection, formative
+activity generation/review, and post-activity response evaluation.
+
+Agent-call audit metadata may persist only safe proof of context use:
+
+- context schema version;
+- assessment snapshot public ID;
+- item snapshot public IDs;
+- context hash;
+- presence flags for teacher diagnostic context, target reasoning guidance,
+  distractor guidance, interpretation caution, and student evidence.
+
+The audit metadata must not duplicate raw teacher notes, raw distractor notes,
+student-facing answer keys, raw prompts, raw provider payloads, credentials,
+cookies, database URLs, or session secrets. Default student payloads and
+student-visible transcript/activity text must continue to exclude correct
+options, correctness labels, answer keys, raw diagnostic notes, and internal
+metadata labels.
+
 ## Assessment Deletion Records
 
 Assessment deletion uses existing assessment/session/evidence tables as the

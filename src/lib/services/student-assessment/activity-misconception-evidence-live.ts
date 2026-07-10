@@ -11,6 +11,12 @@ import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
 import { toPrismaJson } from "@/lib/services/json";
 import {
+  assessmentInterpretationContextAuditMetadata,
+  buildAssessmentInterpretationContextFromResponsePackage,
+  type AssessmentInterpretationContextAuditMetadata,
+  type AssessmentInterpretationContextV1
+} from "@/lib/services/student-assessment/assessment-interpretation-context";
+import {
   ACTIVITY_MISCONCEPTION_EVIDENCE_SCHEMA_VERSION,
   ACTIVITY_RESPONSE_EVALUATOR_AGENT_NAME,
   ACTIVITY_RESPONSE_EVALUATOR_SCHEMA_VERSION,
@@ -134,6 +140,7 @@ export type ActivityMisconceptionEvidenceLiveEvaluationInput = {
   safe_student_activity_response: string;
   response_kind_hint?: ActivityResponseKind;
   expected_evidence_focus: string;
+  assessment_interpretation_context?: AssessmentInterpretationContextV1;
 };
 
 export type ActivityMisconceptionEvidenceLiveAgentInput =
@@ -267,9 +274,41 @@ async function resolveAuditContext(sessionPublicId: string) {
   };
 }
 
+async function resolveAssessmentContext(sessionPublicId: string) {
+  const responsePackage = await prisma.responsePackage.findFirst({
+    where: {
+      package_type: "initial_concept_unit_response_package",
+      concept_unit_session: {
+        assessment_session: {
+          session_public_id: sessionPublicId
+        }
+      }
+    },
+    orderBy: [{ created_at: "desc" }],
+    select: { payload: true }
+  });
+
+  return responsePackage
+    ? buildAssessmentInterpretationContextFromResponsePackage({
+        response_package_payload: responsePackage.payload,
+        phase: "post_activity_evaluation",
+        prior_activity_evidence_summary:
+          "Activity response evaluator receives the current activity response and prior assessment context."
+      })
+    : undefined;
+}
+
 export function buildActivityMisconceptionEvidenceLiveAgentInput(
   input: ActivityMisconceptionEvidenceLiveEvaluationInput
 ) {
+  const contextFields = input.assessment_interpretation_context
+    ? {
+        assessment_interpretation_context: input.assessment_interpretation_context,
+        assessment_context_audit: assessmentInterpretationContextAuditMetadata(
+          input.assessment_interpretation_context
+        ) satisfies AssessmentInterpretationContextAuditMetadata
+      }
+    : {};
   const liveInput = {
     schema_version: ACTIVITY_RESPONSE_EVALUATOR_INPUT_SCHEMA_VERSION,
     case_id: input.case_id ?? null,
@@ -318,7 +357,8 @@ export function buildActivityMisconceptionEvidenceLiveAgentInput(
       no_raw_llm_output: true,
       no_secrets_or_headers: true,
       no_misconduct_or_genai_accusation: true
-    }
+    },
+    ...contextFields
   } as const;
 
   assertNoProhibitedProviderInput(liveInput);
@@ -770,7 +810,12 @@ export async function executeLiveActivityMisconceptionEvidenceEvaluator(input: {
 
   const provider = input.provider_override ?? createLlmProvider();
   const providerLabel: ProviderLabel = input.provider_override ? "mock" : "openai";
-  const agentInput = buildActivityMisconceptionEvidenceLiveAgentInput(input.evaluation_input);
+  const assessmentContext = input.evaluation_input.assessment_interpretation_context ??
+    await resolveAssessmentContext(input.evaluation_input.session_public_id);
+  const agentInput = buildActivityMisconceptionEvidenceLiveAgentInput({
+    ...input.evaluation_input,
+    assessment_interpretation_context: assessmentContext
+  });
   const auditContext = await resolveAuditContext(input.evaluation_input.session_public_id);
 
   const evaluator = await executeStructuredWithAudit({

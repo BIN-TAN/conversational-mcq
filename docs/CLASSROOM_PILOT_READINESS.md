@@ -236,3 +236,29 @@ previews and student assessment pages must show only the item stem and visible
 options; they must not expose correct options, answer keys, raw diagnostic
 notes, distractor notes, misconception IDs, or internal metadata. JSON import
 remains available for prepared item sets.
+
+## LLM Diagnostic Context Readiness
+
+The pilot build now includes a shared internal
+`assessment-interpretation-context-v1` for substantive LLM interpretation. The
+context carries assessment diagnostic focus, administered item snapshot IDs,
+teacher target/strong reasoning guidance, plain-language distractor diagnostic
+guidance, interpretation cautions, observed student evidence, safe process
+summaries, and the current phase. It is used to keep item administration,
+profile integration, formative value selection, formative activity
+generation/review, and post-activity response evaluation aligned to the same
+authorized assessment design.
+
+This is an engineering readiness control, not a classroom-validity claim. The
+LLM must still treat teacher notes as guidance, not ground truth; it must
+prioritize observed student reasoning and uncertainty; and it must preserve
+alternative explanations. Agent-call audit metadata proves context presence with
+schema version, snapshot IDs, hashes, and boolean flags only. Raw teacher notes,
+answer keys, correct options, raw provider output, prompts, process payloads,
+credentials, and secrets remain excluded from student-facing surfaces.
+
+No-live check:
+
+```bash
+npm run student:llm-diagnostic-context-propagation-smoke
+```

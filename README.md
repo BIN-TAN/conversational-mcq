@@ -2005,3 +2005,28 @@ packages, agent summaries, activity evidence, snapshots, items, and topics in a
 transaction. The audit record keeps only safe aggregate counts, safe IDs, and
 limitations. It does not retain deleted item content, student responses, answer
 keys, raw process payloads, provider payloads, credentials, or secrets.
+
+## Assessment Interpretation Context
+
+Production LLM interpretation paths share the server-side
+`assessment-interpretation-context-v1` contract. The context binds the
+assessment diagnostic focus, administered item snapshots, target/strong
+reasoning guidance, distractor diagnostic guidance, interpretation cautions,
+student response evidence, safe process summaries, and current interpretation
+phase. Teacher notes remain guidance, not ground truth; observed student
+evidence takes priority, selected options are indirect evidence only, and
+alternative explanations remain required.
+
+The no-live propagation smoke verifies that item administration, profile
+integration, formative value selection, formative activity generation/review,
+and post-activity response evaluation can receive the shared context without
+calling OpenAI:
+
+```bash
+npm run student:llm-diagnostic-context-propagation-smoke
+```
+
+Agent-call audit metadata stores only safe context proof such as schema version,
+snapshot IDs, context hash, and boolean presence flags. It must not store raw
+teacher notes, answer keys in student-visible payloads, credentials, prompts,
+or provider secrets.

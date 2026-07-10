@@ -14,6 +14,12 @@ import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/typ
 import { toPrismaJson } from "@/lib/services/json";
 import { logProcessEvent } from "@/lib/services/process-events";
 import {
+  assessmentInterpretationContextAuditMetadata,
+  buildAssessmentInterpretationContextFromResponsePackage,
+  type AssessmentInterpretationContextAuditMetadata,
+  type AssessmentInterpretationContextV1
+} from "@/lib/services/student-assessment/assessment-interpretation-context";
+import {
   ABILITY_EVIDENCE_PACKET_SCHEMA_VERSION,
   buildAbilityEvidencePacketForSession,
   type AbilityEvidencePacketV1
@@ -360,6 +366,8 @@ export type ProfileIntegrationAgentInput = {
     engagement_does_not_directly_change_ability: true;
     student_projection_must_hide_engagement_and_external_assistance_labels: true;
   };
+  assessment_interpretation_context?: AssessmentInterpretationContextV1;
+  assessment_context_audit?: AssessmentInterpretationContextAuditMetadata;
 };
 
 function nowIso() {
@@ -546,6 +554,7 @@ function neutralResponseProductionContextIsAllowed(text: string) {
 export function buildProfileIntegrationAgentInput(input: {
   ability_packet: AbilityEvidencePacketV1;
   engagement_packet: EngagementEvidencePacketV1;
+  assessment_interpretation_context?: AssessmentInterpretationContextV1;
 }): ProfileIntegrationAgentInput {
   const { ability_packet: ability, engagement_packet: engagement } = input;
   const abilityItems = ability.item_evidence;
@@ -577,6 +586,15 @@ export function buildProfileIntegrationAgentInput(input: {
     item.ai_assistance_signal === "likely_external_assistance_pattern" ||
     item.evidence_confidence === "low"
   ).length;
+
+  const contextFields = input.assessment_interpretation_context
+    ? {
+        assessment_interpretation_context: input.assessment_interpretation_context,
+        assessment_context_audit: assessmentInterpretationContextAuditMetadata(
+          input.assessment_interpretation_context
+        )
+      }
+    : {};
 
   return {
     agent_name: PROFILE_INTEGRATION_AGENT_NAME,
@@ -658,7 +676,8 @@ export function buildProfileIntegrationAgentInput(input: {
       process_data_are_context_only: true,
       engagement_does_not_directly_change_ability: true,
       student_projection_must_hide_engagement_and_external_assistance_labels: true
-    }
+    },
+    ...contextFields
   };
 }
 
@@ -2206,9 +2225,28 @@ export async function buildProfileIntegrationInterpretationPacketForSession(
 ): Promise<ProfileIntegrationInterpretationPacketV1> {
   const abilityPacket = await buildAbilityEvidencePacketForSession(sessionPublicId);
   const engagementPacket = await buildEngagementEvidencePacketForSession(sessionPublicId);
+  const responsePackage = await prisma.responsePackage.findFirst({
+    where: {
+      package_type: "initial_concept_unit_response_package",
+      concept_unit_session: {
+        assessment_session: {
+          session_public_id: sessionPublicId
+        }
+      }
+    },
+    orderBy: [{ created_at: "desc" }],
+    select: { payload: true }
+  });
+  const assessmentContext = responsePackage
+    ? buildAssessmentInterpretationContextFromResponsePackage({
+        response_package_payload: responsePackage.payload,
+        phase: "post_initial_interpretation"
+      })
+    : undefined;
   const agentInput = buildProfileIntegrationAgentInput({
     ability_packet: abilityPacket,
-    engagement_packet: engagementPacket
+    engagement_packet: engagementPacket,
+    assessment_interpretation_context: assessmentContext
   });
 
   if (options.execution_mode === "live_provider") {

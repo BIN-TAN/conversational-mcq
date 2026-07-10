@@ -14,6 +14,11 @@ import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
 import { toPrismaJson } from "@/lib/services/json";
 import {
+  assessmentInterpretationContextAuditMetadata,
+  type AssessmentInterpretationContextAuditMetadata,
+  type AssessmentInterpretationContextV1
+} from "@/lib/services/student-assessment/assessment-interpretation-context";
+import {
   RESPONSE_QUALITY_SCHEMA_VERSION,
   detectResponseLanguage,
   deterministicResponseQuality,
@@ -143,6 +148,7 @@ export type ItemAdministrationTutorStatePacket = {
   latest_student_message: string;
   correctness_feedback_prohibited: boolean;
   prior_uncertainty: boolean;
+  assessment_interpretation_context?: AssessmentInterpretationContextV1;
 };
 
 export type ItemAdministrationTutorResult = {
@@ -876,6 +882,15 @@ function liveFailureBlockedTutorResult(input: {
 }
 
 export function buildItemAdministrationTutorStatePacket(input: ItemAdministrationTutorStatePacket) {
+  const contextFields = input.assessment_interpretation_context
+    ? {
+        assessment_interpretation_context: input.assessment_interpretation_context,
+        assessment_context_audit: assessmentInterpretationContextAuditMetadata(
+          input.assessment_interpretation_context
+        ) satisfies AssessmentInterpretationContextAuditMetadata
+      }
+    : {};
+
   return {
     tutor_version: ITEM_ADMINISTRATION_TUTOR_VERSION,
     assessment_state: input.assessment_state,
@@ -907,7 +922,8 @@ export function buildItemAdministrationTutorStatePacket(input: ItemAdministratio
       "give_item_content_hint",
       "skip_required_evidence",
       "change_state_directly"
-    ]
+    ],
+    ...contextFields
   };
 }
 
