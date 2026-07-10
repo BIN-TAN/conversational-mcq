@@ -2230,3 +2230,32 @@ Phase 6A.5 must not implement:
   creation, guided MCQ item creation, validation failures, safe student preview,
   internal diagnostic context availability, publish warnings, JSON import
   compatibility, and absence of OpenAI calls.
+
+## Phase 31j Simple CSV Data Explorer Lock
+
+- Teacher/research users may use `/teacher/data/explorer` to download simple
+  CSV summaries for quick spreadsheet analysis. This is a read-only convenience
+  layer over existing records, not a replacement for the full research ZIP.
+- Assessment CSV uses one row per student-assessment session attempt for one
+  selected assessment and is named `assessment_<assessment_public_id>_students.csv`.
+- Student CSV uses one row per assessment session attempt for one selected
+  student and is named `student_<student_id>_sessions.csv`.
+- Student x Assessment Matrix CSV uses one row per current student and
+  teacher-owned assessment pair and is named `student_assessment_matrix.csv`.
+- Simple CSVs may include public IDs, display name, assessment/session status,
+  attempt number, timestamps, safe row/count aggregates, latest student-safe
+  status when available, latest diagnostic purpose when available, aggregate
+  unsupported-correct count, maximum aggregate estimated guessing risk, data
+  completeness status, and limitations.
+- Simple CSVs must not include email by default, raw response text, raw
+  conversation payloads, raw process payloads, raw provider input/output, answer
+  keys, correct options, correctness labels, raw distractor metadata, raw
+  diagnostic notes, passwords, access-code hashes, cookies, API keys, database
+  URLs, or session secrets.
+- Deleted student accounts and their deleted associated records must not appear
+  in simple CSV exports. Existing previously downloaded files remain outside
+  the app's control.
+- `student:teacher-simple-csv-export-smoke` is no-live and must verify headers,
+  row grain, selected assessment/student filters, matrix uniqueness, multiple
+  session aggregation, deleted-student exclusion, protected-field absence, and
+  absence of OpenAI calls.

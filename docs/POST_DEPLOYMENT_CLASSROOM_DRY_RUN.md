@@ -51,6 +51,9 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
 12. Research download:
     - Expected: export downloads from the app and contains approved research fields.
 
+12a. Simple CSV downloads:
+    - Expected: `/teacher/data/explorer` downloads the assessment CSV, selected-student CSV, and student-assessment matrix CSV. They should contain safe count/status summaries only and must not include raw responses, answer keys, correct options, correctness labels, raw process payloads, provider output, diagnostic notes, credentials, or secrets.
+
 13. Export integrity review:
     - Expected: if possible, bring the export ZIP back to the local protected environment and run the export integrity review. Do not commit the ZIP.
 

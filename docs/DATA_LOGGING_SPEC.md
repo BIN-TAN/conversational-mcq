@@ -273,6 +273,35 @@ infer misconception, ability, cheating, or misconduct.
 Phase 30i adds two read-only teacher/research data surfaces over existing
 tables before proposing any schema changes.
 
+### Simple CSV Data Explorer
+
+The teacher data area also includes `/teacher/data/explorer` for quick
+teacher/research CSV downloads over existing tables. These files are intended
+for lightweight spreadsheet review, not as a replacement for the full research
+ZIP.
+
+- Assessment CSV: `assessment_<assessment_public_id>_students.csv`, one row per
+  student-assessment session attempt for the selected assessment.
+- Student CSV: `student_<student_id>_sessions.csv`, one row per assessment
+  session attempt for the selected student.
+- Matrix CSV: `student_assessment_matrix.csv`, one row per current student and
+  assessment pair.
+
+Simple CSV rows include public assessment/session/student identifiers,
+assessment/session status, attempt number, timestamps, response/package/event
+counts, derived latency/process-feature row counts, activity/post-activity
+aggregate counts, latest student-safe status when available, latest diagnostic
+purpose when available, unsupported-correct aggregate count, maximum estimated
+guessing-risk aggregate, data completeness status, and limitations.
+
+Deleted students are excluded because the exporter reads current `users` rows
+with `role=student`; teacher-deleted student rows and associated deleted
+records are not recreated for export. Simple CSVs exclude email by default, raw
+response text, raw conversation payloads, raw process payloads, raw provider
+input/output, answer keys, correct options, correctness labels, raw distractor
+metadata, diagnostic notes, credentials, API keys, database URLs, cookies, and
+session secrets.
+
 ### Readable Transcript
 
 The teacher session detail page includes a **Readable transcript** tab separate

@@ -298,6 +298,14 @@ Verify one completed synthetic session has expected records in:
 - `response_packages` for the three-item evidence package.
 - `agent_calls`, `student_profiles`, `formative_decisions`, and `followup_rounds` only where the MVP path actually invokes those layers.
 
+Teacher/research quick CSV checks:
+
+- `/teacher/data/explorer` loads for the teacher/research account.
+- `Download assessment CSV` produces `assessment_<id>_students.csv` with one row per student-assessment session attempt for the selected assessment.
+- `Download student CSV` produces `student_<student_id>_sessions.csv` with one row per assessment session attempt for the selected student.
+- `Download matrix CSV` produces `student_assessment_matrix.csv` with one row per current student and assessment pair.
+- Simple CSVs include safe count/status fields and limitations only. They must not include email by default, raw response text, process payloads, provider output, answer keys, correct options, correctness labels, distractor metadata, diagnostic notes, credentials, or secrets.
+
 No logs, exports, screenshots, or notes should contain API keys, cookies, auth tokens, session secrets, password hashes, access-code hashes, hidden prompts, or raw provider payloads.
 
 ## What To Record During A Human Usability Pilot

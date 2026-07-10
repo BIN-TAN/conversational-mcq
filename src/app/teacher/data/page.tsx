@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Archive, FileUp, Table2 } from "lucide-react";
+import { Archive, Download, FileUp, Table2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { DataNav } from "@/components/teacher-data/ui";
 import { getCurrentUser } from "@/lib/auth";
@@ -31,7 +31,19 @@ export default async function TeacherDataPage() {
           </p>
         </header>
 
-        <section className="mt-6 grid gap-4 md:grid-cols-3">
+        <section className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Link
+            className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
+            href="/teacher/data/explorer"
+          >
+            <Download className="h-5 w-5 text-accent" aria-hidden="true" />
+            <h2 className="mt-4 text-lg font-semibold text-ink">Simple CSV explorer</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Download assessment, student, or matrix summary CSV files for quick teacher/research
+              analysis without raw response text or protected item keys.
+            </p>
+          </Link>
+
           <Link
             className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
             href="/teacher/data/summative-outcomes"

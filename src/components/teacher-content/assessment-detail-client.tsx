@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Archive, ArrowDown, ArrowUp, CheckCircle, Plus, RefreshCw, RotateCcw, Save } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, CheckCircle, Download, Plus, RefreshCw, RotateCcw, Save } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import type { AssessmentDetail, ConceptUnitSummary, StructuredApiError } from "./types";
 import {
@@ -279,6 +279,13 @@ export function AssessmentDetailClient({
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
               Refresh
             </Button>
+            <a
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent"
+              href={`/api/teacher/data-explorer/assessments/${encodeURIComponent(assessmentPublicId)}/csv`}
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Download assessment CSV
+            </a>
           </>
         }
       />

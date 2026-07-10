@@ -6,7 +6,7 @@ See `docs/DISTRACTOR_INFORMED_MISCONCEPTION_DIAGNOSIS.md` for the current framin
 
 The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, Phase 7B complete master CSV export coverage for persisted platform records, Phase 7C Response Collection Agent integration for student free-text messages during initial administration, Phase 7D Item Verification Agent governance for teacher-authored item sets, Phase 7E1 internal mock evaluation harness for the five active agents, Phase 7E2A guarded live-evaluation canary support with annotation adjudication, Phase 7E2B full-pilot evaluation infrastructure, Phase 7E2C targeted remediation/regression tooling, Phase 8A default-off guarded operational agent integration with disabled/mock/guarded-live modes, and later chat-native fixed IRT MVP profiling/formative activity tooling. Item generation, item rewriting, classroom live model activation, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, student self-registration, and claims of classroom validity remain intentionally unimplemented.
 
-Teacher/research review includes both a readable conversation-only transcript and a separate structured event log. The teacher data area also provides a default research-safe ZIP export for all sessions. Default research exports include manifests, data dictionaries, turn-level latency rows, engagement process-feature rows, and evidence-quality aggregates while excluding secrets, raw provider data, raw process payloads, answer keys, correct options, raw distractor metadata, and raw misconception IDs. Restricted item-key exports require an explicit teacher/research request.
+Teacher/research review includes both a readable conversation-only transcript and a separate structured event log. The teacher data area also provides simple assessment/student/matrix CSV downloads for quick summaries plus a default research-safe ZIP export for all sessions. Default research exports include manifests, data dictionaries, turn-level latency rows, engagement process-feature rows, and evidence-quality aggregates while excluding secrets, raw provider data, raw process payloads, answer keys, correct options, raw distractor metadata, and raw misconception IDs. Restricted item-key exports require an explicit teacher/research request.
 
 Phase 30k adds internal/research-only safeguards against correctness inflation. Correct option selection is not sufficient evidence of understanding: target-aligned answers with weak reasoning, low confidence, uncertainty markers, or missing distractor-boundary explanation are treated conservatively until reasoning, conceptual-boundary evidence, or distractor-boundary evidence supports the interpretation. These indicators are not shown to students and are not cheating, misconduct, motivation, GenAI-use, or direct ability labels.
 
@@ -1165,8 +1165,26 @@ The export is read-only. It does not call OpenAI, run agents, create profiles, c
 Teacher routes:
 
 - `/teacher/data`
+- `/teacher/data/explorer`
 - `/teacher/data/summative-outcomes`
 - `/teacher/data/export`
+
+Simple CSV explorer APIs:
+
+- `GET /api/teacher/data-explorer/options`
+- `GET /api/teacher/data-explorer/assessments/[assessmentPublicId]/csv`
+- `GET /api/teacher/data-explorer/students/[userId]/csv`
+- `GET /api/teacher/data-explorer/matrix/csv`
+
+The simple CSV explorer is read-only and produces three direct CSV downloads:
+`assessment_<id>_students.csv`, `student_<student_id>_sessions.csv`, and
+`student_assessment_matrix.csv`. Assessment and student CSVs use one row per
+student-assessment session attempt. The matrix CSV uses one row per current
+student and assessment pair. These quick exports include public IDs, session
+status/timestamps, safe counts, latest student-safe status when available,
+post-activity aggregate counts, and limitations. They exclude email by default,
+raw response text, process payloads, provider outputs, answer keys, correct
+options, correctness labels, distractor metadata, diagnostic notes, and secrets.
 
 Summative outcome APIs:
 

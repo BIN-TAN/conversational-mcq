@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Clipboard, RefreshCw, Save, ShieldOff, ShieldCheck } from "lucide-react";
+import { Clipboard, Download, RefreshCw, Save, ShieldOff, ShieldCheck } from "lucide-react";
 import {
   deactivateStudent,
   errorFromUnknown,
@@ -232,6 +232,13 @@ export function StudentDetailClient({ userId }: { userId: string }) {
               </button>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
+              <a
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink hover:border-accent"
+                href={`/api/teacher/data-explorer/students/${encodeURIComponent(student.user_id)}/csv`}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                Download student CSV
+              </a>
               {student.account_status === "active" ? (
                 <button
                   className="inline-flex h-10 items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 text-sm font-semibold text-amber-950 hover:border-amber-500"
