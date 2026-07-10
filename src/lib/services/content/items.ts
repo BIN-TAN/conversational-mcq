@@ -14,7 +14,7 @@ import {
   assertItemCanArchive,
   assertItemEditable
 } from "./governance";
-import { serializeItem } from "./serializers";
+import { itemSerializerInclude, serializeItem } from "./serializers";
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
@@ -61,22 +61,7 @@ export async function listItems(input: {
   const items = await prisma.item.findMany({
     where: { concept_unit_db_id: conceptUnit.id },
     orderBy: [{ item_order: "asc" }, { created_at: "asc" }],
-    include: {
-      concept_unit: {
-        select: {
-          concept_unit_public_id: true,
-          status: true,
-          assessment: {
-            select: {
-              assessment_public_id: true,
-              title: true,
-              status: true,
-              _count: { select: { assessment_sessions: true } }
-            }
-          }
-        }
-      }
-    }
+    include: itemSerializerInclude
   });
 
   return items.map(serializeItem);
@@ -110,22 +95,7 @@ export async function createItem(input: {
         status: "draft",
         version: 1
       },
-      include: {
-        concept_unit: {
-          select: {
-            concept_unit_public_id: true,
-            status: true,
-            assessment: {
-              select: {
-                assessment_public_id: true,
-                title: true,
-                status: true,
-                _count: { select: { assessment_sessions: true } }
-              }
-            }
-          }
-        }
-      }
+      include: itemSerializerInclude
     });
 
     return serializeItem(item);
@@ -168,22 +138,7 @@ export async function getItemDetail(input: {
       item_public_id: input.item_public_id,
       concept_unit: { assessment: { created_by_user_db_id: input.teacher_user_db_id } }
     },
-    include: {
-      concept_unit: {
-        select: {
-          concept_unit_public_id: true,
-          status: true,
-          assessment: {
-            select: {
-              assessment_public_id: true,
-              title: true,
-              status: true,
-              _count: { select: { assessment_sessions: true } }
-            }
-          }
-        }
-      }
-    }
+    include: itemSerializerInclude
   });
 
   if (!item) {
@@ -275,22 +230,7 @@ export async function updateItem(input: {
       included_in_published_set: merged.included_in_published_set,
       version: contentChanged ? { increment: 1 } : undefined
     },
-    include: {
-      concept_unit: {
-        select: {
-          concept_unit_public_id: true,
-          status: true,
-          assessment: {
-            select: {
-              assessment_public_id: true,
-              title: true,
-              status: true,
-              _count: { select: { assessment_sessions: true } }
-            }
-          }
-        }
-      }
-    }
+    include: itemSerializerInclude
   });
 
   return serializeItem(updated);
@@ -366,22 +306,7 @@ export async function archiveItem(input: {
   const archived = await prisma.item.update({
     where: { id: item.id },
     data: { status: "archived" },
-    include: {
-      concept_unit: {
-        select: {
-          concept_unit_public_id: true,
-          status: true,
-          assessment: {
-            select: {
-              assessment_public_id: true,
-              title: true,
-              status: true,
-              _count: { select: { assessment_sessions: true } }
-            }
-          }
-        }
-      }
-    }
+    include: itemSerializerInclude
   });
 
   return serializeItem(archived);

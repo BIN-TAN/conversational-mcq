@@ -14,7 +14,7 @@ import {
   assertConceptUnitEditable,
   returnConceptUnitToDraft as returnConceptUnitToDraftSafely
 } from "./governance";
-import { serializeConceptUnit, serializeItem } from "./serializers";
+import { itemSerializerInclude, serializeConceptUnit, serializeItem } from "./serializers";
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
@@ -156,21 +156,7 @@ export async function getConceptUnitDetail(input: {
       _count: { select: { items: true } },
       items: {
         orderBy: [{ item_order: "asc" }, { created_at: "asc" }],
-        include: {
-          concept_unit: {
-            select: {
-              concept_unit_public_id: true,
-              status: true,
-              assessment: {
-                select: {
-                  assessment_public_id: true,
-                  status: true,
-                  _count: { select: { assessment_sessions: true } }
-                }
-              }
-            }
-          }
-        }
+        include: itemSerializerInclude
       }
     }
   });

@@ -14,7 +14,12 @@ import {
   returnAssessmentToDraft as returnAssessmentToDraftSafely,
   restoreArchivedAssessment as restoreArchivedAssessmentSafely
 } from "./governance";
-import { serializeAssessment, serializeConceptUnit, serializeItem } from "./serializers";
+import {
+  itemSerializerInclude,
+  serializeAssessment,
+  serializeConceptUnit,
+  serializeItem
+} from "./serializers";
 import { mergeTopicDiagnosticNoteIntoRules } from "./teacher-diagnostic-context";
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -263,22 +268,7 @@ export async function getAssessmentDetail(input: {
           },
           items: {
             orderBy: [{ item_order: "asc" }, { created_at: "asc" }],
-            include: {
-              concept_unit: {
-                select: {
-                  concept_unit_public_id: true,
-                  status: true,
-                  assessment: {
-                    select: {
-                      assessment_public_id: true,
-                      title: true,
-                      status: true,
-                      _count: { select: { assessment_sessions: true } }
-                    }
-                  }
-                }
-              }
-            }
+            include: itemSerializerInclude
           },
           _count: { select: { items: true } }
         }

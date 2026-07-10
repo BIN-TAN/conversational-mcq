@@ -1,4 +1,4 @@
-import type { Assessment, ConceptUnit, Item } from "@prisma/client";
+import { Prisma, type Assessment, type ConceptUnit, type Item } from "@prisma/client";
 import {
   serializeAssessmentContentState,
   serializeContentState,
@@ -13,6 +13,27 @@ import {
 function serializeDate(value: Date): string {
   return value.toISOString();
 }
+
+export const itemSerializerAssessmentSelect = Prisma.validator<Prisma.AssessmentSelect>()({
+  assessment_public_id: true,
+  title: true,
+  status: true,
+  _count: { select: { assessment_sessions: true } }
+});
+
+export const itemSerializerConceptUnitSelect = Prisma.validator<Prisma.ConceptUnitSelect>()({
+  concept_unit_public_id: true,
+  status: true,
+  assessment: { select: itemSerializerAssessmentSelect }
+});
+
+export const itemSerializerInclude = Prisma.validator<Prisma.ItemInclude>()({
+  concept_unit: { select: itemSerializerConceptUnitSelect }
+});
+
+type SerializedItemConceptUnit = Prisma.ConceptUnitGetPayload<{
+  select: typeof itemSerializerConceptUnitSelect;
+}>;
 
 export function serializeAssessment(
   assessment: Pick<
@@ -138,12 +159,7 @@ export function serializeItem(
     | "created_at"
     | "updated_at"
   > & {
-    concept_unit?: Pick<ConceptUnit, "concept_unit_public_id" | "status"> & {
-      assessment?: Pick<Assessment, "assessment_public_id" | "status"> & {
-        title?: string;
-        _count?: { assessment_sessions?: number };
-      };
-    };
+    concept_unit?: SerializedItemConceptUnit;
   }
 ) {
   const contentState: SerializedContentState | null = item.concept_unit?.assessment

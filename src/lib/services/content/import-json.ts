@@ -2,7 +2,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
-import { serializeAssessment, serializeConceptUnit, serializeItem } from "./serializers";
+import {
+  itemSerializerInclude,
+  serializeAssessment,
+  serializeConceptUnit,
+  serializeItem
+} from "./serializers";
 import { ContentServiceError } from "./errors";
 import { assertAssessmentEditable } from "./governance";
 import { ConceptUnitImportInputSchema } from "./validation";
@@ -152,21 +157,7 @@ export async function importConceptBasedItemSets(input: {
               status: "draft",
               version: 1
             },
-            include: {
-              concept_unit: {
-                select: {
-                  concept_unit_public_id: true,
-                  status: true,
-                  assessment: {
-                    select: {
-                      assessment_public_id: true,
-                      status: true,
-                      _count: { select: { assessment_sessions: true } }
-                    }
-                  }
-                }
-              }
-            }
+            include: itemSerializerInclude
           });
 
           createdItems.push(serializeItem(item));
