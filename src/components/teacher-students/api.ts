@@ -5,6 +5,8 @@ import type {
   CredentialResponse,
   RosterImportBatchesResponse,
   RosterPreview,
+  StudentDeletionPreview,
+  StudentDeletionSummary,
   StudentDetailResponse,
   StudentListResponse
 } from "./types";
@@ -116,6 +118,25 @@ export function reactivateStudent(userId: string) {
   return apiRequest<{ student: { user_id: string; account_status: string } }>(
     `/api/teacher/students/${encodeURIComponent(userId)}/reactivate`,
     { method: "POST" }
+  );
+}
+
+export function previewStudentDeletion(userId: string) {
+  return apiRequest<StudentDeletionPreview>(
+    `/api/teacher/students/${encodeURIComponent(userId)}/deletion/preview`
+  );
+}
+
+export function deleteStudentData(
+  userId: string,
+  input: { student_id: string; delete_confirmation: string }
+) {
+  return apiRequest<StudentDeletionSummary>(
+    `/api/teacher/students/${encodeURIComponent(userId)}/deletion`,
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    }
   );
 }
 

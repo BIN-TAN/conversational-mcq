@@ -44,7 +44,9 @@ There is no `courses` table in v1. A deployment instance represents one course c
 - Plaintext temporary passwords/access codes may be shown only immediately after manual student creation, roster commit for newly created students, or password/access-code reset.
 - Teacher_researcher users may reset a student password but must never view the current password.
 - `must_change_password=true` means the student must choose a new password before assessment access.
-- No hard-delete teacher UI/API exists for students. Use deactivation to preserve longitudinal classroom and research linkage.
+- Deactivation/reactivation is the reversible student account-control path and preserves longitudinal classroom/research linkage.
+- Irreversible student account deletion is teacher/research only. It must preview associated record counts, require exact typed `student_id` plus `DELETE`, delete associated system session/activity/evidence/profile/agent/summative rows in a transaction where possible, write only a safe deletion audit summary, and never expose passwords, access-code hashes, raw responses, raw process payloads, raw provider output, answer keys, or correctness labels.
+- Deleted accounts and their associated system records must not appear in future student lists or research exports. Previously downloaded exports, screenshots, or external copies are outside system control and cannot be removed by the app.
 - Roster import is preview-before-commit. Preview does not create users, generate access codes, reset codes, update display names, or deactivate missing students.
 - Missing rows in a later roster import must not automatically deactivate students.
 - Teacher accounts must not be manageable through student roster actions.
@@ -2162,6 +2164,12 @@ Phase 6A.5 must not implement:
 - Teachers may reset forgotten student passwords and may deactivate/reactivate
   student accounts. Teachers must never view current passwords, password hashes,
   access-code hashes, or prior temporary credentials.
+- Teachers may irreversibly delete a student account and associated system-held
+  session/activity data only through the previewed deletion flow. The flow must
+  require exact typed `student_id` and `DELETE`, must target only student
+  accounts, must run dependency deletes in a transaction where possible, and
+  must retain only a safe aggregate deletion audit event. Downloaded exports and
+  external copies cannot be removed by the system.
 - Safe account events are required for teacher-created accounts, teacher
   password resets, deactivation/reactivation, and student password changes. Event
   metadata must not contain raw passwords, temporary credentials, credential
@@ -2173,6 +2181,11 @@ Phase 6A.5 must not implement:
 - `student:teacher-student-account-smoke` is no-live and must not call OpenAI,
   mutate item content, change scoring, edit prompts, or print raw generated
   credentials.
+- `student:teacher-student-deletion-smoke` is no-live and must use synthetic
+  data only. It must verify preview counts, exact confirmation, teacher-only
+  authorization, student-account targeting, associated-data deletion, preserved
+  reversible deactivation/reactivation behavior, and absence of raw secrets,
+  raw payloads, answer keys, correctness labels, and OpenAI calls.
 
 ## Phase 31g Course-Access Visual Identity Lock
 

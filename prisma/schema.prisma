@@ -406,6 +406,7 @@ model User {
   uploaded_roster_import_batches            RosterImportBatch[]           @relation("RosterImportUploader")
   student_account_events                    StudentAccountEvent[]         @relation("StudentAccountEvents")
   performed_student_account_events          StudentAccountEvent[]         @relation("StudentAccountEventPerformer")
+  performed_student_account_deletion_events StudentAccountDeletionEvent[] @relation("StudentAccountDeletionEventPerformer")
   acknowledged_item_verification_runs       ItemVerificationRun[]         @relation("ItemVerificationAcknowledgement")
   created_eval_suites                       EvalSuite[]                   @relation("EvalSuiteCreator")
   created_eval_runs                         EvalRun[]                     @relation("EvalRunCreator")
@@ -1798,6 +1799,21 @@ model StudentAccountEvent {
   @@index([roster_import_batch_db_id])
   @@index([event_type, created_at])
   @@map("student_account_events")
+}
+
+model StudentAccountDeletionEvent {
+  id                       String   @id @default(uuid()) @db.Uuid
+  event_public_id          String   @unique @default(cuid())
+  student_user_id_snapshot String
+  performed_by_user_db_id  String   @db.Uuid
+  deletion_summary         Json
+  created_at               DateTime @default(now()) @db.Timestamptz(6)
+
+  performed_by User @relation("StudentAccountDeletionEventPerformer", fields: [performed_by_user_db_id], references: [id], onDelete: Restrict)
+
+  @@index([student_user_id_snapshot, created_at])
+  @@index([performed_by_user_db_id, created_at])
+  @@map("student_account_deletion_events")
 }
 
 model ExportJob {

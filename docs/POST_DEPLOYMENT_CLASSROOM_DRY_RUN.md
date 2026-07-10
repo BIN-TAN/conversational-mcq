@@ -25,6 +25,7 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
 
 4b. Teacher-managed account check:
     - Expected: teacher can create a student with `user_id`, optional display name, optional email, and a generated or set temporary password; student is prompted to choose a new password and cannot start or continue assessments until changing it; teacher can reset a forgotten password without seeing any current password.
+    - Expected: deactivate/reactivate remains reversible. Irreversible deletion is available only after a preview and exact typed `student_id` plus `DELETE`; use it only for approved staging/test cleanup or approved withdrawal workflows. The deletion warning must state that previously downloaded exports are outside this system and cannot be removed here.
 
 5. Complete a session:
    - Expected: the student can start the fixed IRT MVP, complete the three protected initial items, review the package, and enter the activity path.

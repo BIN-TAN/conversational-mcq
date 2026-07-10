@@ -20,6 +20,7 @@ import {
   LoadingPanel,
   StatusPill
 } from "./ui";
+import { StudentDeletionPanel } from "./student-deletion-panel";
 
 export function StudentDetailClient({ userId }: { userId: string }) {
   const [data, setData] = useState<StudentDetailResponse | null>(null);
@@ -252,10 +253,12 @@ export function StudentDetailClient({ userId }: { userId: string }) {
               )}
             </div>
             <p className="mt-4 text-sm leading-6 text-muted">
-              user_id is immutable in this UI. There is no delete action; deactivate incorrect
-              accounts to preserve research linkage.
+              user_id is immutable in this UI. Use deactivate/reactivate for reversible account
+              control. Use deletion only when permanent removal is appropriate.
             </p>
           </section>
+
+          <StudentDeletionPanel userId={student.user_id} />
 
           {firstCode ? (
             <button

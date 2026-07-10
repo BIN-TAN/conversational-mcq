@@ -93,6 +93,52 @@ export type StudentDetailResponse = {
   student: StudentDetail;
 };
 
+export type StudentDeletionCounts = {
+  student_account_count: number;
+  assessment_session_count: number;
+  concept_unit_session_count: number;
+  item_response_count: number;
+  conversation_turn_count: number;
+  process_event_count: number;
+  response_package_count: number;
+  student_profile_count: number;
+  formative_decision_count: number;
+  followup_round_count: number;
+  followup_update_cycle_count: number;
+  concept_progression_record_count: number;
+  workflow_job_count: number;
+  workflow_override_count: number;
+  student_action_idempotency_key_count: number;
+  activity_runtime_count: number;
+  post_activity_evidence_count: number;
+  diagnostic_snapshot_count: number;
+  agent_call_summary_count: number;
+  operational_effective_result_count: number;
+  summative_outcome_count: number;
+  student_account_event_count: number;
+  student_requested_export_job_count: number;
+  student_uploaded_summative_import_batch_count: number;
+  student_uploaded_roster_import_batch_count: number;
+};
+
+export type StudentDeletionPreview = {
+  student_id: string;
+  display_name: string | null;
+  active_status: "active" | "inactive";
+  warning: string;
+  counts: StudentDeletionCounts;
+  other_associated_record_counts: Record<string, number>;
+  retained_reference_counts: Record<string, number>;
+  warnings: string[];
+  deletion_limitations: string[];
+};
+
+export type StudentDeletionSummary = StudentDeletionPreview & {
+  deletion_event_public_id: string;
+  deleted_at: string;
+  deleted_counts: StudentDeletionCounts;
+};
+
 export type RosterPreview = {
   batch_public_id: string;
   source_file_name: string | null;

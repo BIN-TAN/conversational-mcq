@@ -708,10 +708,13 @@ npm run roster:import-smoke
 npm run student:account-smoke
 npm run student:account-ui-smoke
 npm run student:teacher-student-account-smoke
+npm run student:teacher-student-deletion-smoke
 npm run auth:account-status-smoke
 ```
 
 Students are created by the teacher_researcher. Students do not self-register and do not need email addresses. Student login uses `user_id` plus an assigned temporary password/access code or a student-changed password. Optional email is teacher/research-facing PII only and is not a login identifier. Temporary credentials and passwords are stored only as hashes, shown only immediately after create/import/reset, and never shown as current passwords. Students with temporary credentials are redirected to choose a new password and cannot start or continue assessments until that password is changed.
+
+Deactivation/reactivation is the reversible account-control path and preserves associated assessment/research records. The student detail page also provides a teacher-only irreversible deletion path for approved staging cleanup or withdrawal workflows. Deletion requires a preview, exact typed student_id confirmation, and `DELETE`; it removes the student account and associated system session/activity records and writes a safe deletion audit event. Previously downloaded exports, screenshots, or external copies are outside this system and cannot be removed by the app.
 
 Model evaluation routes:
 

@@ -70,6 +70,12 @@ npm run student:teacher-student-account-smoke
 
 Expected account behavior: `user_id` remains the login identifier, first-login temporary credentials require the student to choose a new password before assessment access, teachers can reset forgotten student passwords but cannot view current passwords, and inactive students cannot log in or start assessments.
 
+Deletion behavior: deactivation/reactivation is the reversible account-control path. The irreversible delete action is teacher-only, previewed, and requires typing the exact `student_id` and `DELETE`. It removes the student account and associated system session/activity data, writes a safe deletion audit event, and does not remove previously downloaded exports or copies outside the system. Verify with:
+
+```bash
+npm run student:teacher-student-deletion-smoke
+```
+
 If older staging accounts existed before the first-login gate, repair only active temporary-credential students with:
 
 ```bash
