@@ -178,6 +178,52 @@ export async function createAssessment(input: {
   }
 }
 
+export async function ensureMiniTestPrimaryConceptUnit(input: {
+  teacher_user_db_id: string;
+  assessment_public_id: string;
+}) {
+  const assessment = await assertAssessmentEditable(input);
+  const existing = await prisma.conceptUnit.findFirst({
+    where: {
+      assessment_db_id: assessment.id,
+      status: { not: "archived" }
+    },
+    orderBy: [{ order_index: "asc" }, { created_at: "asc" }],
+    select: { concept_unit_public_id: true }
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  const topic = primaryTopicInput({
+    title: assessment.title,
+    diagnostic_focus: assessment.diagnostic_focus,
+    description: assessment.description
+  });
+  const last = await prisma.conceptUnit.findFirst({
+    where: { assessment_db_id: assessment.id },
+    orderBy: { order_index: "desc" },
+    select: { order_index: true }
+  });
+  const conceptUnit = await prisma.conceptUnit.create({
+    data: {
+      concept_unit_public_id: generatePublicId("concept_unit"),
+      assessment_db_id: assessment.id,
+      title: topic.title,
+      learning_objective: topic.learning_objective,
+      related_concept_description: topic.related_concept_description,
+      administration_rules: toPrismaJson(topic.administration_rules),
+      order_index: (last?.order_index ?? 0) + 1,
+      status: "draft",
+      version: 1
+    },
+    select: { concept_unit_public_id: true }
+  });
+
+  return conceptUnit;
+}
+
 export async function getAssessmentDetail(input: {
   teacher_user_db_id: string;
   assessment_public_id: string;

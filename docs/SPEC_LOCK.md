@@ -2214,11 +2214,15 @@ Phase 6A.5 must not implement:
   Folder / Week / Module -> Assessment / Mini test -> MCQ items -> Publish.
 - The standard teacher path must not require manual topic/concept-unit creation.
   The application may auto-create and maintain the internal topic/concept-unit
-  record needed by the existing student workflow.
+  record needed by the existing student workflow, but the normal mini-test page
+  must not expose advanced topic settings or hidden/internal topic wording.
+- The mini-test detail page must expose a visible `Add MCQ item` action while
+  the mini test is draft-editable, including the zero-item state. The direct
+  item-creation path must resolve or create the backing topic record server-side.
 - Workflow mode and response collection mode are fixed internally for the
   standard mini-test builder: `workflow_mode=automatic` and
   `response_collection_mode=llm_assisted`. They must not appear as normal
-  teacher-facing selectors.
+  teacher-facing selectors or page facts.
 - Folder/week/module labels and mini-test order metadata live on `assessments`.
   Assessment diagnostic focus lives on `assessments.diagnostic_focus`.
 - Topic diagnostic notes, item diagnostic value notes, expected reasoning notes,
@@ -2237,11 +2241,12 @@ Phase 6A.5 must not implement:
 - Teacher dashboard main cards must be actionable links. Static cards such as
   Agent Metadata, Flags, and Data Foundation must not appear as non-clickable
   dashboard clutter.
-- `student:teacher-mcq-item-builder-smoke` is no-live and verifies guided topic
-  auto-creation, folder/week metadata, guided MCQ item creation, validation
-  failures, safe student preview, teacher preview metadata, direct publish,
-  dashboard card cleanup, internal diagnostic context availability, publish
-  warnings, JSON import compatibility, and absence of OpenAI calls.
+- `student:teacher-mcq-item-builder-smoke` is no-live and verifies direct Add
+  MCQ item exposure, server-side topic resolution/creation, folder/week
+  metadata, guided MCQ item creation, validation failures, safe student preview,
+  teacher preview metadata, direct publish, dashboard card cleanup, internal
+  diagnostic context availability, publish warnings, JSON import compatibility,
+  and absence of OpenAI calls.
 
 ## Phase 31j Simple CSV Data Explorer Lock
 

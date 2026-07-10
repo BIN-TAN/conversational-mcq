@@ -7,6 +7,7 @@ import {
   ItemUpdateInputSchema,
   ReorderItemsInputSchema
 } from "./validation";
+import { ensureMiniTestPrimaryConceptUnit } from "./assessments";
 import { ContentServiceError } from "./errors";
 import {
   assertConceptUnitEditable,
@@ -137,6 +138,23 @@ export async function createItem(input: {
 
     throw error;
   }
+}
+
+export async function createAssessmentItem(input: {
+  teacher_user_db_id: string;
+  assessment_public_id: string;
+  data: unknown;
+}) {
+  const conceptUnit = await ensureMiniTestPrimaryConceptUnit({
+    teacher_user_db_id: input.teacher_user_db_id,
+    assessment_public_id: input.assessment_public_id
+  });
+
+  return createItem({
+    teacher_user_db_id: input.teacher_user_db_id,
+    concept_unit_public_id: conceptUnit.concept_unit_public_id,
+    data: input.data
+  });
 }
 
 export async function getItemDetail(input: {

@@ -201,8 +201,10 @@ Deactivation/reactivation is reversible and preserves assessment/research record
 Before pilot content changes, teachers may use the guided mini-test builder.
 The teacher-facing mental model is Folder/Week/Module -> Mini test -> MCQ items
 -> Publish. The system auto-maintains the internal topic/concept-unit record, so
-teachers do not need to create a topic before adding items. Workflow mode and
-response collection mode are fixed internally for this path.
+teachers do not need to see or create a topic before adding items. The mini-test
+detail page exposes a direct `Add MCQ item` action even when no items exist.
+Workflow mode and response collection mode are fixed internally for this path
+and are not normal teacher-facing page facts.
 
 Diagnostic focus, correct-option reasoning notes, and distractor diagnostic
 notes are teacher-only and may support internal LLM interpretation. Student

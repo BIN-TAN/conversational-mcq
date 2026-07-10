@@ -6,7 +6,7 @@ import { ZodError } from "zod";
 import { hashSecret } from "../src/lib/password";
 import { createAssessment, getAssessmentDetail } from "../src/lib/services/content/assessments";
 import { createConceptUnit } from "../src/lib/services/content/concept-units";
-import { createItem, getItemDetail } from "../src/lib/services/content/items";
+import { createAssessmentItem, createItem, getItemDetail } from "../src/lib/services/content/items";
 import { importConceptBasedItemSets } from "../src/lib/services/content/import-json";
 import { publishAssessment, validateConceptUnitPublishable } from "../src/lib/services/content/publishing";
 import {
@@ -187,6 +187,48 @@ function assertDashboardCardsAreActionable() {
   assert(!source.includes("Data Foundation"), "Dashboard should not show static Data Foundation card.");
 }
 
+function assertAssessmentDetailPageIsMiniTestFocused() {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/components/teacher-content/assessment-detail-client.tsx"),
+    "utf8"
+  );
+
+  assert(
+    source.includes("const addItemHref = `/teacher/content/assessments/${assessmentPublicId}/items/new`;"),
+    "Assessment detail should link Add MCQ item through the assessment-level route."
+  );
+  assert(
+    source.includes("Add the MCQ items students will answer in this mini test."),
+    "MCQ helper text should use teacher-facing mini-test wording."
+  );
+  assert(!source.includes("Advanced topic settings"), "Normal mini-test page should not show advanced topic settings.");
+  assert(!source.includes("hidden internal topic"), "Normal mini-test page should not mention hidden internal topics.");
+  assert(!source.includes("Fixed automatic"), "Normal mini-test page should not show fixed workflow implementation facts.");
+  assert(
+    !source.includes("Fixed LLM-assisted conversation"),
+    "Normal mini-test page should not show fixed response-mode implementation facts."
+  );
+}
+
+function assertItemEditorSupportsDynamicOptionsAndSafePreview() {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/components/teacher-content/item-editor-client.tsx"),
+    "utf8"
+  );
+
+  assert(source.includes("Add option"), "Item editor should expose an Add option action.");
+  assert(
+    source.includes("Correct option (teacher-only)"),
+    "Item editor should expose a teacher-only key selector."
+  );
+  assert(source.includes("Student preview"), "Item editor should expose a student preview.");
+  assert(source.includes("Teacher preview"), "Item editor should expose a teacher preview.");
+  assert(
+    source.includes("Students see only the stem and option text"),
+    "Student preview should explicitly hide key and diagnostic notes."
+  );
+}
+
 async function cleanup(prefix: string) {
   const assessments = await prisma.assessment.findMany({
     where: { title: { contains: prefix } },
@@ -245,9 +287,9 @@ async function main() {
 
     await assertZodValidationError(
       () =>
-        createItem({
+        createAssessmentItem({
           teacher_user_db_id: teacher.id,
-          concept_unit_public_id: conceptUnit.concept_unit_public_id,
+          assessment_public_id: assessment.assessment_public_id,
           data: {
             ...validGuidedItem(98),
             correct_option: ""
@@ -258,15 +300,46 @@ async function main() {
 
     await assertZodValidationError(
       () =>
-        createItem({
+        createAssessmentItem({
           teacher_user_db_id: teacher.id,
-          concept_unit_public_id: conceptUnit.concept_unit_public_id,
+          assessment_public_id: assessment.assessment_public_id,
           data: {
             ...validGuidedItem(99),
             options: [{ label: "A", text: "Only one option" }]
           }
         }),
       "Item with too few options should be rejected"
+    );
+
+    const directAssessment = await createAssessment({
+      teacher_user_db_id: teacher.id,
+      data: {
+        title: `Temporary ${prefix} direct no-topic`,
+        diagnostic_focus: "Direct item creation should create internal structure behind the scenes.",
+        folder_label: "Week 31i"
+      }
+    });
+    const directBefore = await getAssessmentDetail({
+      teacher_user_db_id: teacher.id,
+      assessment_public_id: directAssessment.assessment_public_id
+    });
+    assert(directBefore.concept_units.length === 0, "Direct-create fixture should begin with no topic.");
+    const directItem = await createAssessmentItem({
+      teacher_user_db_id: teacher.id,
+      assessment_public_id: directAssessment.assessment_public_id,
+      data: validGuidedItem(1)
+    });
+    const directAfter = await getAssessmentDetail({
+      teacher_user_db_id: teacher.id,
+      assessment_public_id: directAssessment.assessment_public_id
+    });
+    assert(
+      directAfter.concept_units.length === 1,
+      "Direct Add MCQ path should create the hidden topic internally."
+    );
+    assert(
+      directAfter.mini_test_items?.some((item) => item.item_public_id === directItem.item_public_id),
+      "Directly added item should appear in the MCQ items list."
     );
 
     const items = [];
@@ -384,6 +457,8 @@ async function main() {
     assert(imported.assessment.folder_label === "Imported folder", "JSON import folder metadata failed.");
 
     assertDashboardCardsAreActionable();
+    assertAssessmentDetailPageIsMiniTestFocused();
+    assertItemEditorSupportsDynamicOptionsAndSafePreview();
 
     console.log(
       JSON.stringify(
@@ -393,6 +468,9 @@ async function main() {
           folder_week_checked: true,
           auto_topic_checked: true,
           direct_publish_checked: true,
+          direct_add_item_checked: true,
+          normal_page_topic_settings_hidden: true,
+          dynamic_option_builder_checked: true,
           dashboard_cards_checked: true,
           publish_warnings_checked: true,
           json_import_checked: true,

@@ -40,7 +40,8 @@ type OptionNoteDraft = Omit<TeacherDiagnosticOptionNote, "label">;
 type ItemEditorProps =
   | {
       mode: "create";
-      conceptUnitPublicId: string;
+      conceptUnitPublicId?: string;
+      assessmentPublicId?: string;
     }
   | {
       mode: "edit";
@@ -51,6 +52,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
   const router = useRouter();
   const itemPublicId = props.mode === "edit" ? props.itemPublicId : null;
   const conceptUnitPublicId = props.mode === "create" ? props.conceptUnitPublicId : null;
+  const assessmentPublicId = props.mode === "create" ? props.assessmentPublicId : null;
   const [item, setItem] = useState<ItemDetail | null>(null);
   const [itemLabel, setItemLabel] = useState("");
   const [itemPurpose, setItemPurpose] = useState("initial_item");
@@ -288,6 +290,21 @@ export function ItemEditorClient(props: ItemEditorProps) {
         administration_rules,
         included_in_published_set: includedInPublishedSet
       };
+
+      if (assessmentPublicId) {
+        const data = await apiRequest<ItemResponse>(
+          `/api/teacher/assessments/${assessmentPublicId}/items`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              ...payload,
+              item_order: itemOrder ? Number(itemOrder) : undefined
+            })
+          }
+        );
+        router.push(`/teacher/content/items/${data.item.item_public_id}`);
+        return;
+      }
 
       if (conceptUnitPublicId) {
         const data = await apiRequest<ItemResponse>(

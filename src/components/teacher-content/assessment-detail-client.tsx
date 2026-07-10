@@ -2,9 +2,9 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Archive, ArrowDown, ArrowUp, CheckCircle, Download, Plus, RefreshCw, RotateCcw, Save } from "lucide-react";
+import { Archive, CheckCircle, Download, Plus, RefreshCw, RotateCcw, Save } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
-import type { AssessmentDetail, ConceptUnitSummary, StructuredApiError } from "./types";
+import type { AssessmentDetail, StructuredApiError } from "./types";
 import {
   Button,
   ContentStateBadge,
@@ -206,56 +206,14 @@ export function AssessmentDetailClient({
     }
   }
 
-  async function reorderConceptUnit(unit: ConceptUnitSummary, direction: -1 | 1) {
-    if (!assessment) {
-      return;
-    }
-
-    const currentIndex = assessment.concept_units.findIndex(
-      (entry) => entry.concept_unit_public_id === unit.concept_unit_public_id
-    );
-    const nextIndex = currentIndex + direction;
-
-    if (nextIndex < 0 || nextIndex >= assessment.concept_units.length) {
-      return;
-    }
-
-    const reordered = [...assessment.concept_units];
-    const [moved] = reordered.splice(currentIndex, 1);
-    reordered.splice(nextIndex, 0, moved);
-    setBusyAction(`reorder-${unit.concept_unit_public_id}`);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      await apiRequest(
-        `/api/teacher/assessments/${assessmentPublicId}/reorder-concept-units`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            ordered_concept_unit_public_ids: reordered.map(
-              (entry) => entry.concept_unit_public_id
-            )
-          })
-        }
-      );
-      setSuccess("Topic order updated.");
-      await loadAssessment();
-    } catch (caught) {
-      setError(errorFromUnknown(caught));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
   const isDraftEditable = assessment?.content_state === "draft_editable";
   const isPublishedUnused = assessment?.content_state === "published_unused";
   const isLocked = Boolean(assessment?.is_content_locked);
   const isArchived = assessment?.status === "archived";
   const isReadOnly = Boolean(assessment && !isDraftEditable);
   const canReturnToDraft = Boolean(assessment && isPublishedUnused && !assessment.has_student_sessions);
-  const primaryTopic = assessment?.concept_units[0] ?? null;
   const miniTestItems = assessment?.mini_test_items ?? [];
+  const addItemHref = `/teacher/content/assessments/${assessmentPublicId}/items/new`;
 
   function optionCount(value: unknown) {
     return Array.isArray(value) ? value.length : 0;
@@ -269,8 +227,8 @@ export function AssessmentDetailClient({
         description="Build the MCQ items students will answer in the initial chat administration."
         actions={
           <>
-            {isDraftEditable && primaryTopic ? (
-              <PrimaryLink href={`/teacher/content/concept-units/${primaryTopic.concept_unit_public_id}/items/new`}>
+            {isDraftEditable ? (
+              <PrimaryLink href={addItemHref}>
                 <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
                 Add MCQ item
               </PrimaryLink>
@@ -419,11 +377,11 @@ export function AssessmentDetailClient({
                 <div>
                   <h2 className="text-xl font-semibold text-ink">MCQ items</h2>
                   <p className="mt-1 text-sm text-muted">
-                    Add at least three included MCQ items. The hidden internal topic is maintained automatically.
+                    Add the MCQ items students will answer in this mini test.
                   </p>
                 </div>
-                {isDraftEditable && primaryTopic ? (
-                  <PrimaryLink href={`/teacher/content/concept-units/${primaryTopic.concept_unit_public_id}/items/new`}>
+                {isDraftEditable ? (
+                  <PrimaryLink href={addItemHref}>
                     <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
                     Add MCQ item
                   </PrimaryLink>
@@ -468,75 +426,6 @@ export function AssessmentDetailClient({
               )}
             </section>
 
-            <details className="rounded-lg border border-line bg-white p-5 shadow-soft">
-              <summary className="cursor-pointer text-lg font-semibold text-ink">
-                Advanced topic settings
-              </summary>
-              <div className="mt-4 flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-center md:justify-between">
-                <p className="text-sm leading-6 text-muted">
-                  The student workflow still uses internal topic records. Most mini tests need only the auto-created topic.
-                </p>
-                {isDraftEditable ? (
-                  <PrimaryLink href={`/teacher/content/assessments/${assessmentPublicId}/concept-units/new`}>
-                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Add advanced topic
-                  </PrimaryLink>
-                ) : null}
-              </div>
-
-              {assessment.concept_units.length === 0 ? (
-                <p className="mt-5 text-sm text-muted">No internal topics yet.</p>
-              ) : (
-                <div className="mt-5 space-y-3">
-                  {assessment.concept_units.map((unit, index) => (
-                    <article className="rounded-lg border border-line p-4" key={unit.concept_unit_public_id}>
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <StatusBadge status={unit.status} />
-                            <ContentStateBadge state={unit.content_state} />
-                            <span className="text-xs text-muted">Order {unit.order_index}</span>
-                            <span className="text-xs text-muted">Version {unit.version}</span>
-                            <span className="text-xs text-muted">
-                              Included {unit.included_active_item_count ?? 0}
-                            </span>
-                          </div>
-                          <h3 className="mt-3 font-semibold text-ink">{unit.title}</h3>
-                          <p className="mt-1 text-sm leading-6 text-muted">{unit.learning_objective}</p>
-                          <p className="mt-2 font-mono text-xs text-muted">{unit.concept_unit_public_id}</p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            aria-label="Move topic up"
-                            disabled={!isDraftEditable || index === 0 || Boolean(busyAction)}
-                            onClick={() => reorderConceptUnit(unit, -1)}
-                            type="button"
-                            variant="secondary"
-                          >
-                            <ArrowUp className="h-4 w-4" aria-hidden="true" />
-                          </Button>
-                          <Button
-                            aria-label="Move topic down"
-                            disabled={!isDraftEditable || index === assessment.concept_units.length - 1 || Boolean(busyAction)}
-                            onClick={() => reorderConceptUnit(unit, 1)}
-                            type="button"
-                            variant="secondary"
-                          >
-                            <ArrowDown className="h-4 w-4" aria-hidden="true" />
-                          </Button>
-                          <Link
-                            className="inline-flex h-10 items-center rounded-md border border-line px-4 text-sm font-semibold text-ink transition hover:border-accent"
-                            href={`/teacher/content/concept-units/${unit.concept_unit_public_id}`}
-                          >
-                            View topic
-                          </Link>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </details>
           </section>
 
           <aside className="space-y-4">
@@ -558,18 +447,6 @@ export function AssessmentDetailClient({
                 <div>
                   <dt className="text-muted">Items</dt>
                   <dd className="font-medium text-ink">{miniTestItems.length}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted">Workflow</dt>
-                  <dd className="font-medium text-ink">
-                    Fixed automatic
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted">Response collection</dt>
-                  <dd className="font-medium text-ink">
-                    Fixed LLM-assisted conversation
-                  </dd>
                 </div>
                 <div>
                   <dt className="text-muted">Release</dt>

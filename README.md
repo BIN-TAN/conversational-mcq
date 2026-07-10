@@ -1950,10 +1950,11 @@ Folder / Week / Module -> Assessment / Mini test -> MCQ items -> Publish
 ```
 
 The normal UI no longer asks teachers to choose workflow mode, response
-collection mode, or an internal topic before adding items. New mini tests use
-fixed internal defaults (`automatic` workflow and `llm_assisted` response
-collection) and auto-create the internal topic record required by the student
-workflow.
+collection mode, or an internal topic before adding items. The assessment detail
+page always exposes a direct `Add MCQ item` action while the mini test is
+editable. New mini tests use fixed internal defaults (`automatic` workflow and
+`llm_assisted` response collection), and the application resolves or creates the
+internal topic record required by the student workflow behind the scenes.
 
 The mini-test form includes a diagnostic focus box:
 

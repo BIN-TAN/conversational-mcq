@@ -297,9 +297,12 @@ npm run student:live-llm-smoke:cleanup-failures
   folder/week/module, release date/time, and closing date/time.
 - Workflow mode and response collection mode are not normal teacher-facing
   selectors in the mini-test path.
-- New mini tests auto-create the internal topic needed by the existing student
-  workflow.
-- Teachers add MCQ items directly from the mini-test page.
+- The mini-test detail page shows `Add MCQ item` even when the mini test has no
+  items yet.
+- Teachers add MCQ items directly from the mini-test page; internal
+  topic/concept-unit records are not visible in the normal workflow.
+- Advanced topic settings and fixed workflow/response implementation facts are
+  absent from the normal mini-test detail page.
 - Student preview shows only stem and options.
 - Teacher preview shows the key and teacher-only diagnostic notes.
 - Publishing gives teacher-friendly validation messages for missing item
