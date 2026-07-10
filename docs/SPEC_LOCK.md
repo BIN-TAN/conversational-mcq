@@ -2207,3 +2207,26 @@ Phase 6A.5 must not implement:
   asset, course-facing copy, teacher logout preservation, first-login
   password-change route, absence of scaffold/prototype wording, and absence of
   OpenAI calls.
+
+## Phase 31i Teacher MCQ Item Builder Lock
+
+- Teacher/research users may create topics and MCQ items through guided forms
+  without writing raw JSON in the standard path. Internal database names may
+  remain `concept_unit`, but teacher-facing copy should use `topic`.
+- Topic diagnostic notes, item diagnostic value notes, expected reasoning notes,
+  correct-option reasoning notes, and distractor diagnostic notes are
+  teacher-only metadata stored in existing content JSON fields.
+- Teacher-only notes may be included in internal `teacher_diagnostic_context`
+  for validated LLM interpretation. They are guidance, not ground truth, and
+  correct-option selection alone must never be treated as sufficient evidence of
+  understanding.
+- Student-facing pages, student previews, activity text, feedback, and default
+  exports must not expose correct options, answer keys, correctness labels, raw
+  teacher diagnostic notes, raw distractor notes, misconception IDs, provider
+  raw output, process payloads, credentials, or secrets.
+- JSON import remains supported for prepared item sets. The guided UI must not
+  break existing import validation or publishing governance.
+- `student:teacher-mcq-item-builder-smoke` is no-live and verifies guided topic
+  creation, guided MCQ item creation, validation failures, safe student preview,
+  internal diagnostic context availability, publish warnings, JSON import
+  compatibility, and absence of OpenAI calls.

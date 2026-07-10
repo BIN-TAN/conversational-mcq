@@ -203,6 +203,23 @@ If a researcher needs item keys for separate controlled analysis, they must use
 the explicit restricted item-key export option. The default ZIP manifest marks
 `restricted_item_keys_included=false`.
 
+## Teacher Authorship of Distractor Notes
+
+Phase 31i adds a guided teacher MCQ item builder so diagnostic distractor
+metadata can be authored one item at a time instead of only through JSON import.
+For each incorrect option, teachers can record why the option may be tempting,
+the misconception or reasoning pattern it may represent, what evidence would
+strengthen or weaken that hypothesis, and a follow-up probe suggestion. Correct
+option notes separately describe target reasoning, strong reasoning features,
+and weak or unsupported correctness.
+
+These notes are teacher-only interpretation aids. They may be included in
+internal `teacher_diagnostic_context` passed to validated LLM interpretation
+services, but they are not ground truth and must not be copied verbatim into
+student-facing activity or feedback. The system must continue to interpret
+distractor evidence with student reasoning, confidence, tempting-option
+evidence, process features, and uncertainty safeguards.
+
 Phase 30l adds an automated no-live integrity review for the default
 teacher/research ZIP:
 

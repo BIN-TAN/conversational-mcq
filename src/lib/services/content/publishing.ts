@@ -8,6 +8,10 @@ import {
   INCLUDED_ITEM_RANGE
 } from "./governance";
 import { getVerificationPublicationPolicy } from "@/lib/agents/item-verification/publication-policy";
+import {
+  readTeacherItemMetadata,
+  readTopicDiagnosticNote
+} from "./teacher-diagnostic-context";
 import { ItemDraftInputSchema, zodIssuesToContentIssues } from "./validation";
 
 export type PublishValidationResult = {
@@ -16,6 +20,7 @@ export type PublishValidationResult = {
   included_active_item_count: number;
   candidate_item_count: number;
   errors: ContentValidationIssue[];
+  warnings: ContentValidationIssue[];
 };
 
 type PublishableItem = Pick<
@@ -95,6 +100,37 @@ function validatePublishableItem(item: PublishableItem, itemIndex: number): Cont
   return issues;
 }
 
+function validatePublishableItemWarnings(
+  item: PublishableItem,
+  itemIndex: number
+): ContentValidationIssue[] {
+  const pathPrefix = `items.${itemIndex}`;
+  const metadata = readTeacherItemMetadata(item.administration_rules);
+  const warnings: ContentValidationIssue[] = [];
+
+  if (!metadata.expected_reasoning_note && metadata.correct_option_notes.target_reasoning_note === "") {
+    warnings.push(
+      validationIssue(
+        `${pathPrefix}.teacher_diagnostic_context.expected_reasoning_note`,
+        "teacher_expected_reasoning_note_missing",
+        "Teacher expected-reasoning note is recommended for LLM-supported interpretation."
+      )
+    );
+  }
+
+  if (metadata.option_notes.length === 0) {
+    warnings.push(
+      validationIssue(
+        `${pathPrefix}.teacher_diagnostic_context.option_notes`,
+        "teacher_distractor_diagnostic_notes_missing",
+        "Distractor diagnostic notes are recommended for LLM-supported interpretation."
+      )
+    );
+  }
+
+  return warnings;
+}
+
 export async function validateConceptUnitPublishable(input: {
   teacher_user_db_id: string;
   concept_unit_public_id: string;
@@ -121,6 +157,7 @@ export async function validateConceptUnitPublishable(input: {
   }
 
   const issues: ContentValidationIssue[] = [];
+  const warnings: ContentValidationIssue[] = [];
 
   if (isBlank(conceptUnit.title)) {
     issues.push(validationIssue("title", "required", "Title is required."));
@@ -138,6 +175,16 @@ export async function validateConceptUnitPublishable(input: {
         "related_concept_description",
         "required",
         "Related concept description is required."
+      )
+    );
+  }
+
+  if (!readTopicDiagnosticNote(conceptUnit.administration_rules)) {
+    warnings.push(
+      validationIssue(
+        "teacher_diagnostic_context.topic_diagnostic_note",
+        "teacher_topic_diagnostic_note_missing",
+        "A teacher diagnostic note for this topic is recommended."
       )
     );
   }
@@ -168,6 +215,7 @@ export async function validateConceptUnitPublishable(input: {
 
   conceptUnit.items.forEach((item, index) => {
     issues.push(...validatePublishableItem(item, index));
+    warnings.push(...validatePublishableItemWarnings(item, index));
   });
 
   return {
@@ -175,7 +223,8 @@ export async function validateConceptUnitPublishable(input: {
     active_item_count: conceptUnit.items.length,
     included_active_item_count: conceptUnit.items.length,
     candidate_item_count: conceptUnit._count.items,
-    errors: issues
+    errors: issues,
+    warnings
   };
 }
 

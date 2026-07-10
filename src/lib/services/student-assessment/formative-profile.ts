@@ -781,7 +781,8 @@ function safePackageForProvider(payload: unknown) {
       concept_unit_public_id: stringValue(conceptUnit, "concept_unit_public_id"),
       title: stringValue(conceptUnit, "title"),
       learning_objective: stringValue(conceptUnit, "learning_objective"),
-      related_concept_description: stringValue(conceptUnit, "related_concept_description")
+      related_concept_description: stringValue(conceptUnit, "related_concept_description"),
+      teacher_diagnostic_context: conceptUnit.teacher_diagnostic_context
     },
     included_items: arrayValue(record.included_items).map((entry) => {
       const item = jsonRecord(entry);
@@ -795,7 +796,8 @@ function safePackageForProvider(payload: unknown) {
         cognitive_demand: stringValue(item, "cognitive_demand"),
         difficulty: stringValue(item, "difficulty"),
         knowledge_component: stringValue(item, "knowledge_component"),
-        misconception_cluster: stringValue(item, "misconception_cluster")
+        misconception_cluster: stringValue(item, "misconception_cluster"),
+        teacher_diagnostic_context: item.teacher_diagnostic_context
       };
     }),
     item_responses: arrayValue(record.item_responses).map((entry) => {
@@ -807,6 +809,7 @@ function safePackageForProvider(payload: unknown) {
         item_role: stringValue(response, "item_role"),
         cognitive_demand: stringValue(response, "cognitive_demand"),
         difficulty: stringValue(response, "difficulty"),
+        teacher_diagnostic_context: response.teacher_diagnostic_context,
         selected_answer_final: stringValue(response, "selected_answer_final"),
         correctness: stringValue(response, "correctness"),
         reasoning_text_final: stringValue(response, "reasoning_text_final"),

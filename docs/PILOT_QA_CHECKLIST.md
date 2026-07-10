@@ -76,6 +76,20 @@ Deletion behavior: deactivation/reactivation is the reversible account-control p
 npm run student:teacher-student-deletion-smoke
 ```
 
+Before changing pilot content, verify teacher-managed item authoring:
+
+```bash
+npm run student:teacher-mcq-item-builder-smoke
+```
+
+Expected content-authoring behavior: teachers add a topic with a learning
+objective and concept description, add MCQ items one at a time, mark one
+teacher-only correct option, add correct-option and distractor diagnostic notes,
+preview the student view without keys or notes, and publish only after backend
+validation passes. Missing diagnostic notes should warn the teacher but should
+not create student-facing text. JSON import remains available for prepared item
+sets.
+
 If older staging accounts existed before the first-login gate, repair only active temporary-credential students with:
 
 ```bash

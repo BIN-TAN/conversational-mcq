@@ -195,3 +195,11 @@ Use `MARK_STUDENT_USER_ID=<student-user-id>` for a single student or `MARK_STUDE
 Teacher-managed student account pages support manual `user_id` creation, optional display name, optional email, generated or teacher-set temporary password/access code, reset of forgotten student passwords, and deactivation/reactivation. Students must choose a new password after temporary-credential login. Current passwords and credential hashes are never viewable. Email is optional teacher/research-facing PII and is not used for login or reset.
 
 Deactivation/reactivation is reversible and preserves assessment/research records. Irreversible student data deletion is available only from teacher account management after previewing associated record counts and typing the exact `student_id` plus `DELETE`. Use deletion carefully for approved staging/test cleanup or approved withdrawal workflows. Deletion removes system-held student account, session, activity, profile, evidence, and linked summative outcome rows; previously downloaded exports or external copies remain outside system control.
+
+Before pilot content changes, teachers may use the guided content builder to add
+topics and MCQ items one by one. Topic diagnostic notes, correct-option
+reasoning notes, and distractor diagnostic notes are teacher-only and may support
+internal LLM interpretation. Student previews and student assessment pages must
+show only the item stem and visible options; they must not expose correct
+options, answer keys, raw diagnostic notes, distractor notes, misconception IDs,
+or internal metadata. JSON import remains available for prepared item sets.

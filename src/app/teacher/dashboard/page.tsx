@@ -121,7 +121,7 @@ export default async function TeacherDashboardPage() {
             <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
             <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">Content management</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
-              Manage assessments, concept units, MCQ items, publish validation, and archive actions.
+              Manage assessments, topics, MCQ items, publish validation, and archive actions.
             </p>
           </Link>
           <Link
@@ -154,7 +154,7 @@ export default async function TeacherDashboardPage() {
             <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
             <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">Assessment list</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
-              Review assessment status, public IDs, concept units, and item-set readiness.
+              Review assessment status, public IDs, topics, and item-set readiness.
             </p>
           </Link>
           <Link

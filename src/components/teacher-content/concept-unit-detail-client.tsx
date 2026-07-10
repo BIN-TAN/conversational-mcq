@@ -15,6 +15,11 @@ import {
 } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import { parseJsonObject, stringifyJson } from "./form-utils";
+import {
+  mergeTopicDiagnosticNoteIntoRules,
+  readTeacherItemMetadata,
+  readTopicDiagnosticNote
+} from "@/lib/services/content/teacher-diagnostic-context";
 import type {
   ConceptUnitDetail,
   ItemDetail,
@@ -41,6 +46,7 @@ type ConceptUnitResponse = {
     ok: boolean;
     active_item_count?: number;
     errors?: unknown[];
+    warnings?: unknown[];
   };
 };
 
@@ -57,6 +63,38 @@ type RunVerificationResponse = {
   content_fingerprint: string;
 };
 
+function itemOptions(value: unknown): Array<{ label: string; text: string }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const record = entry as Record<string, unknown>;
+      const label = typeof record.label === "string" ? record.label : "";
+      const text = typeof record.text === "string" ? record.text : "";
+      return label && text ? { label, text } : null;
+    })
+    .filter((entry): entry is { label: string; text: string } => Boolean(entry));
+}
+
+function itemNotesPresent(item: ItemDetail): boolean {
+  const metadata = readTeacherItemMetadata(item.administration_rules);
+  return Boolean(
+    metadata.item_label ||
+      metadata.expected_reasoning_note ||
+      metadata.item_diagnostic_value_note ||
+      metadata.correct_option_notes.target_reasoning_note ||
+      metadata.correct_option_notes.strong_reasoning_should_mention ||
+      metadata.correct_option_notes.weak_unsupported_correctness_looks_like ||
+      metadata.option_notes.length > 0
+  );
+}
+
 export function ConceptUnitDetailClient({
   conceptUnitPublicId
 }: {
@@ -66,6 +104,7 @@ export function ConceptUnitDetailClient({
   const [title, setTitle] = useState("");
   const [learningObjective, setLearningObjective] = useState("");
   const [relatedDescription, setRelatedDescription] = useState("");
+  const [teacherDiagnosticNote, setTeacherDiagnosticNote] = useState("");
   const [administrationRules, setAdministrationRules] = useState("{}");
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -86,6 +125,7 @@ export function ConceptUnitDetailClient({
       setTitle(data.concept_unit.title);
       setLearningObjective(data.concept_unit.learning_objective);
       setRelatedDescription(data.concept_unit.related_concept_description);
+      setTeacherDiagnosticNote(readTopicDiagnosticNote(data.concept_unit.administration_rules));
       setAdministrationRules(stringifyJson(data.concept_unit.administration_rules));
       const verificationData = await apiRequest<VerificationResponse>(
         `/api/teacher/concept-units/${conceptUnitPublicId}/verification`
@@ -109,16 +149,20 @@ export function ConceptUnitDetailClient({
     setIsSubmitting(true);
 
     try {
+      const rules = mergeTopicDiagnosticNoteIntoRules({
+        administration_rules: parseJsonObject(administrationRules, "Advanced settings"),
+        topic_diagnostic_note: teacherDiagnosticNote
+      });
       await apiRequest<ConceptUnitResponse>(`/api/teacher/concept-units/${conceptUnitPublicId}`, {
         method: "PUT",
         body: JSON.stringify({
           title,
           learning_objective: learningObjective,
           related_concept_description: relatedDescription,
-          administration_rules: parseJsonObject(administrationRules, "Administration rules")
+          administration_rules: rules
         })
       });
-      setSuccess("Concept-unit metadata saved. Version increments when content changes.");
+      setSuccess("Topic metadata saved. Version increments when content changes.");
       await loadConceptUnit();
     } catch (caught) {
       setError(errorFromUnknown(caught));
@@ -264,7 +308,7 @@ export function ConceptUnitDetailClient({
 
   async function returnConceptUnitToDraft() {
     const confirmed = window.confirm(
-      "Return this concept unit to draft before editing its content or item membership?"
+      "Return this topic to draft before editing its content or item membership?"
     );
 
     if (!confirmed) {
@@ -279,7 +323,7 @@ export function ConceptUnitDetailClient({
       await apiRequest(`/api/teacher/concept-units/${conceptUnitPublicId}/return-to-draft`, {
         method: "POST"
       });
-      setSuccess("Concept unit returned to draft.");
+      setSuccess("Topic returned to draft.");
       await loadConceptUnit();
     } catch (caught) {
       setError(errorFromUnknown(caught));
@@ -365,15 +409,15 @@ export function ConceptUnitDetailClient({
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="concept unit"
-        title={conceptUnit?.title ?? "Concept unit detail"}
-        description="Concept metadata, publish validation, and MCQ items."
+        eyebrow="topic"
+        title={conceptUnit?.title ?? "Topic detail"}
+        description="Topic metadata, publish validation, and MCQ items."
         actions={
           <>
             {isConceptUnitEditable ? (
               <PrimaryLink href={`/teacher/content/concept-units/${conceptUnitPublicId}/items/new`}>
                 <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                New item
+                Add MCQ item
               </PrimaryLink>
             ) : null}
             <Button disabled={isLoading} onClick={loadConceptUnit} type="button" variant="secondary">
@@ -387,7 +431,7 @@ export function ConceptUnitDetailClient({
       <ErrorPanel error={error} />
       <SuccessPanel message={success} />
 
-      {isLoading ? <LoadingRow label="Loading concept unit" /> : null}
+      {isLoading ? <LoadingRow label="Loading topic" /> : null}
 
       {conceptUnit ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -405,14 +449,14 @@ export function ConceptUnitDetailClient({
                   {isLocked
                     ? "Student data collection has started. The administered content is now read-only to preserve research consistency."
                     : !isParentDraftEditable
-                      ? "Return the parent assessment to draft before editing this concept unit."
+                      ? "Return the parent assessment to draft before editing this topic."
                       : conceptUnit.status === "published"
-                        ? "Return the concept unit to draft before editing its content or item membership."
-                        : "Return the parent assessment to draft before editing this concept unit."}
+                        ? "Return the topic to draft before editing its content or item membership."
+                        : "Return the parent assessment to draft before editing this topic."}
                 </p>
               ) : null}
               <div className="mt-5 grid gap-4">
-                <Field label="Title">
+                <Field label="Topic title">
                   <input
                     className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                     disabled={!isConceptUnitEditable}
@@ -430,7 +474,7 @@ export function ConceptUnitDetailClient({
                     value={learningObjective}
                   />
                 </Field>
-                <Field label="Related concept description">
+                <Field label="Concept description">
                   <textarea
                     className="min-h-24 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                     disabled={!isConceptUnitEditable}
@@ -439,14 +483,32 @@ export function ConceptUnitDetailClient({
                     value={relatedDescription}
                   />
                 </Field>
-                <Field label="Administration rules" hint="JSON object">
+                <Field
+                  label="Optional teacher diagnostic note for topic"
+                  hint="Teacher-only guidance for later interpretation. Students do not see this note."
+                >
                   <textarea
-                    className="min-h-28 rounded-md border border-line px-3 py-2 font-mono text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                    className="min-h-24 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                     disabled={!isConceptUnitEditable}
-                    onChange={(event) => setAdministrationRules(event.target.value)}
-                    value={administrationRules}
+                    onChange={(event) => setTeacherDiagnosticNote(event.target.value)}
+                    value={teacherDiagnosticNote}
                   />
                 </Field>
+                <details className="rounded-md border border-line bg-slate-50 p-3">
+                  <summary className="cursor-pointer text-sm font-semibold text-ink">
+                    Advanced settings
+                  </summary>
+                  <div className="mt-3">
+                    <Field label="Administration rules JSON" hint="Optional advanced JSON object. Standard topic fields above are preferred.">
+                      <textarea
+                        className="min-h-28 rounded-md border border-line px-3 py-2 font-mono text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                        disabled={!isConceptUnitEditable}
+                        onChange={(event) => setAdministrationRules(event.target.value)}
+                        value={administrationRules}
+                      />
+                    </Field>
+                  </div>
+                </details>
               </div>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Button disabled={!isConceptUnitEditable || isSubmitting} type="submit">
@@ -460,7 +522,7 @@ export function ConceptUnitDetailClient({
                   variant="secondary"
                 >
                   <CheckCircle className="h-4 w-4" aria-hidden="true" />
-                  Publish concept unit
+                  Publish topic
                 </Button>
                 {canReturnToDraft ? (
                   <Button
@@ -542,6 +604,16 @@ export function ConceptUnitDetailClient({
                 </ul>
               ) : null}
 
+              {verification?.deterministic_validation.warnings?.length ? (
+                <ul className="mt-4 space-y-2 text-sm">
+                  {verification.deterministic_validation.warnings.map((issue) => (
+                    <li className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-950" key={`${issue.path}-${issue.code}`}>
+                      <span className="font-semibold">{issue.path}</span>: {issue.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
               {verification?.latest_verification ? (
                 <div className="mt-4 space-y-4">
                   <div className="rounded-md border border-line bg-slate-50 p-3 text-sm text-muted">
@@ -609,7 +681,7 @@ export function ConceptUnitDetailClient({
                 </div>
               ) : (
                 <p className="mt-4 rounded-md border border-line bg-slate-50 p-3 text-sm text-muted">
-                  No AI semantic verification has been recorded for this concept unit.
+                  No AI semantic verification has been recorded for this topic.
                 </p>
               )}
             </section>
@@ -625,68 +697,95 @@ export function ConceptUnitDetailClient({
                 {isConceptUnitEditable ? (
                   <PrimaryLink href={`/teacher/content/concept-units/${conceptUnitPublicId}/items/new`}>
                     <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Add item
+                    Add MCQ item
                   </PrimaryLink>
                 ) : null}
               </div>
 
               {conceptUnit.items.length === 0 ? (
-                <p className="mt-5 text-sm text-muted">No items yet.</p>
+                <p className="mt-5 text-sm text-muted">No MCQ items yet.</p>
               ) : (
                 <div className="mt-5 space-y-3">
-                  {conceptUnit.items.map((item, index) => (
-                    <article className="rounded-lg border border-line p-4" key={item.item_public_id}>
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <StatusBadge status={item.status} />
-                            <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${item.included_in_published_set ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
-                              {item.included_in_published_set ? "included" : "candidate"}
-                            </span>
-                            <span className="text-xs text-muted">Order {item.item_order}</span>
-                            <span className="text-xs text-muted">Version {item.version}</span>
+                  {conceptUnit.items.map((item, index) => {
+                    const options = itemOptions(item.options);
+                    const notesPresent = itemNotesPresent(item);
+                    const metadata = readTeacherItemMetadata(item.administration_rules);
+                    const label = metadata.item_label || `Item ${item.item_order}`;
+
+                    return (
+                      <article className="rounded-lg border border-line p-4" key={item.item_public_id}>
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <StatusBadge status={item.status} />
+                              <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${item.included_in_published_set ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+                                {item.included_in_published_set ? "included" : "candidate"}
+                              </span>
+                              <span className="text-xs text-muted">Order {item.item_order}</span>
+                              <span className="text-xs text-muted">Version {item.version}</span>
+                              <span className="text-xs text-muted">Options {options.length}</span>
+                              <span className="text-xs text-muted">
+                                Notes {notesPresent ? "present" : "absent"}
+                              </span>
+                            </div>
+                            <h3 className="mt-3 font-semibold text-ink">{label}</h3>
+                            <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">{item.item_stem}</p>
+                            <p className="mt-2 font-mono text-xs text-muted">{item.item_public_id}</p>
                           </div>
-                          <h3 className="mt-3 font-semibold text-ink">{item.item_stem}</h3>
-                          <p className="mt-2 font-mono text-xs text-muted">{item.item_public_id}</p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              aria-label="Move item up"
+                              disabled={!isConceptUnitEditable || index === 0 || Boolean(busyAction)}
+                              onClick={() => reorderItem(item, -1)}
+                              type="button"
+                              variant="secondary"
+                            >
+                              <ArrowUp className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                            <Button
+                              aria-label="Move item down"
+                              disabled={!isConceptUnitEditable || index === conceptUnit.items.length - 1 || Boolean(busyAction)}
+                              onClick={() => reorderItem(item, 1)}
+                              type="button"
+                              variant="secondary"
+                            >
+                              <ArrowDown className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                            <Link
+                              className="inline-flex h-10 items-center rounded-md border border-line px-4 text-sm font-semibold text-ink transition hover:border-accent"
+                              href={`/teacher/content/items/${item.item_public_id}`}
+                            >
+                              Edit
+                            </Link>
+                            <Button
+                              disabled={item.status === "archived" || busyAction === `archive-${item.item_public_id}`}
+                              onClick={() => archiveItem(item)}
+                              type="button"
+                              variant="danger"
+                            >
+                              <Archive className="h-4 w-4" aria-hidden="true" />
+                              Archive
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            aria-label="Move item up"
-                            disabled={!isConceptUnitEditable || index === 0 || Boolean(busyAction)}
-                            onClick={() => reorderItem(item, -1)}
-                            type="button"
-                            variant="secondary"
-                          >
-                            <ArrowUp className="h-4 w-4" aria-hidden="true" />
-                          </Button>
-                          <Button
-                            aria-label="Move item down"
-                            disabled={!isConceptUnitEditable || index === conceptUnit.items.length - 1 || Boolean(busyAction)}
-                            onClick={() => reorderItem(item, 1)}
-                            type="button"
-                            variant="secondary"
-                          >
-                            <ArrowDown className="h-4 w-4" aria-hidden="true" />
-                          </Button>
-                          <Link
-                            className="inline-flex h-10 items-center rounded-md border border-line px-4 text-sm font-semibold text-ink transition hover:border-accent"
-                            href={`/teacher/content/items/${item.item_public_id}`}
-                          >
-                            Edit
-                          </Link>
-                          <Button
-                            disabled={item.status === "archived" || busyAction === `archive-${item.item_public_id}`}
-                            onClick={() => archiveItem(item)}
-                            type="button"
-                            variant="danger"
-                          >
-                            <Archive className="h-4 w-4" aria-hidden="true" />
-                            Archive
-                          </Button>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
+                        <details className="mt-4 rounded-md border border-line bg-slate-50 p-3">
+                          <summary className="cursor-pointer text-sm font-semibold text-ink">
+                            Preview student view
+                          </summary>
+                          <div className="mt-3 rounded-md border border-line bg-white p-3 text-sm leading-6 text-ink">
+                            <p className="font-semibold">{item.item_stem}</p>
+                            <ol className="mt-2 space-y-1">
+                              {options.map((option) => (
+                                <li key={option.label}>
+                                  <span className="font-semibold">{option.label}.</span> {option.text}
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        </details>
+                      </article>
+                    );
+                  })}
                 </div>
               )}
             </section>

@@ -158,6 +158,7 @@ export type PublishValidation = {
   included_active_item_count?: number;
   candidate_item_count?: number;
   errors?: PublishValidationIssue[];
+  warnings?: PublishValidationIssue[];
 };
 
 export type ImportResult = {

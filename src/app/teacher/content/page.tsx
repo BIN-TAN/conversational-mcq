@@ -3,7 +3,7 @@ import { Archive, FileJson, ListChecks, Plus } from "lucide-react";
 import { PageHeader, PrimaryLink, SecondaryLink } from "@/components/teacher-content/ui";
 
 const notes = [
-  "Create assessments, concept units, and MCQ items manually.",
+  "Create assessments, topics, and MCQ items manually.",
   "Publish validation is handled by the backend and cannot be bypassed here.",
   "Archive content instead of deleting research-relevant records.",
   "Item Verification highlights advisory warnings only; it does not generate or rewrite content."
@@ -15,7 +15,7 @@ export default function TeacherContentHomePage() {
       <PageHeader
         eyebrow="teacher_researcher content"
         title="Content management"
-        description="Manual assessment, concept-unit, item, and JSON import workflows."
+        description="Manual assessment, topic, MCQ item, and JSON import workflows."
         actions={
           <>
             <PrimaryLink href="/teacher/content/assessments/new">
@@ -38,7 +38,7 @@ export default function TeacherContentHomePage() {
           <ListChecks className="h-5 w-5 text-accent" aria-hidden="true" />
           <h2 className="mt-4 text-lg font-semibold text-ink">Assessment list</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            View assessment status, concept-unit counts, and content actions.
+            View assessment status, topic counts, and content actions.
           </p>
         </Link>
         <Link

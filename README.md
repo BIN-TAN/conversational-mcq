@@ -893,11 +893,14 @@ Manual UI workflow:
 1. Sign in as `teacher_demo` with `teacher_demo_password`.
 2. Open `/teacher/content/assessments`.
 3. Create an assessment.
-4. Add a concept unit.
-5. Add 3 to 4 MCQ items with distractor rationales, expected reasoning patterns, and possible misconception indicators.
-6. Publish the concept unit and resolve any validation errors returned by the backend.
-7. Publish the assessment when allowed.
-8. Use `/teacher/content/import-json` for manual JSON import. See `docs/sample-concept-unit-import.json`.
+4. Add a topic with a topic title, learning objective, concept description, and optional teacher-only diagnostic note.
+5. Add 3 to 4 MCQ items one by one. The guided builder collects stem, options, teacher-only correct option, item purpose, expected reasoning notes, item diagnostic notes, and distractor diagnostic notes.
+6. Preview the student view from the topic page to verify only the stem and visible option text are shown.
+7. Publish the topic and resolve any validation errors returned by the backend. Missing teacher diagnostic notes produce warnings, not student-facing feedback.
+8. Publish the assessment when allowed.
+9. Use `/teacher/content/import-json` for manual JSON import. See `docs/sample-concept-unit-import.json`.
+
+Teacher-only diagnostic notes are stored in existing content JSON metadata and may be passed to internal LLM interpretation context. They are guidance, not ground truth: correct-option selection alone is never sufficient evidence of understanding. Student-facing pages and default exports must not show correct options, answer keys, raw diagnostic notes, raw distractor notes, misconception IDs, or internal metadata.
 
 Verification remains:
 
@@ -909,6 +912,7 @@ npm run prisma:seed
 npm run db:smoke
 npm run db:service-smoke
 npm run content:smoke
+npm run student:teacher-mcq-item-builder-smoke
 npm run typecheck
 npm run lint
 npm run build

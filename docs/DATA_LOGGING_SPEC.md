@@ -487,3 +487,27 @@ Important interpretation boundaries:
 - Estimated guessing risk is an internal evidence-quality estimate, not a
   student-facing label and not a misconduct label.
 - Correctness alone is not evidence of understanding.
+
+## Teacher-Authored Diagnostic Notes
+
+Phase 31i adds teacher-facing topic and MCQ item authoring over the existing
+content tables. No new schema is required:
+
+- Topic diagnostic notes are stored in `concept_units.administration_rules` as
+  teacher-only diagnostic context.
+- Item labels, item purpose/use, expected reasoning notes, item diagnostic value
+  notes, correct-option reasoning notes, and option-level distractor diagnostic
+  notes are stored in `items.administration_rules` as teacher-only diagnostic
+  context.
+- Existing `items.distractor_rationales`,
+  `items.expected_reasoning_patterns`, and
+  `items.possible_misconception_indicators` remain the publish-validation and
+  JSON import/export-compatible metadata fields.
+
+Response-package creation may include an internal `teacher_diagnostic_context`
+for LLM-supported interpretation. These notes are guidance, not ground truth,
+and correct-option selection remains insufficient evidence without reasoning,
+confidence, tempting-option, and process evidence. Student-facing state,
+conversation messages, activity text, and default research exports must not
+show correct options, answer keys, raw teacher diagnostic notes, raw distractor
+notes, misconception IDs, or internal metadata labels.

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "../db";
 import { ResponsePackageTypeSchema } from "../domain/enums";
+import { teacherDiagnosticContextForProvider } from "./content/teacher-diagnostic-context";
 import { toPrismaJson } from "./json";
 import { aggregateProcessEventsByConceptUnitSession } from "./process-events";
 
@@ -119,6 +120,9 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
               item_order: true,
               item_stem: true,
               options: true,
+              distractor_rationales: true,
+              expected_reasoning_patterns: true,
+              possible_misconception_indicators: true,
               administration_rules: true,
               version: true,
               included_in_published_set: true,
@@ -137,6 +141,9 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
               item_order: true,
               item_stem: true,
               options: true,
+              distractor_rationales: true,
+              expected_reasoning_patterns: true,
+              possible_misconception_indicators: true,
               administration_rules: true,
               version: true
             }
@@ -198,6 +205,9 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
       learning_objective: conceptUnitSession.concept_unit.learning_objective,
       related_concept_description: conceptUnitSession.concept_unit.related_concept_description,
       administration_rules: conceptUnitSession.concept_unit.administration_rules,
+      teacher_diagnostic_context: teacherDiagnosticContextForProvider({
+        administration_rules: conceptUnitSession.concept_unit.administration_rules
+      }),
       order_index: conceptUnitSession.concept_unit.order_index,
       version: conceptUnitSession.concept_unit.version,
       initial_completed_at: serializeDate(conceptUnitSession.initial_completed_at)
@@ -210,7 +220,13 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
       version: item.version,
       status: item.status,
       included_in_published_set: item.included_in_published_set,
-      ...itemMetadataFromRules(item.administration_rules)
+      ...itemMetadataFromRules(item.administration_rules),
+      teacher_diagnostic_context: teacherDiagnosticContextForProvider({
+        administration_rules: item.administration_rules,
+        distractor_rationales: item.distractor_rationales,
+        expected_reasoning_patterns: item.expected_reasoning_patterns,
+        possible_misconception_indicators: item.possible_misconception_indicators
+      })
     })),
     item_responses: conceptUnitSession.item_responses.map((response) => {
       const itemTurns = conceptUnitSession.conversation_turns.filter(
@@ -257,6 +273,12 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
       const temptingOptionReasonSubmittedAt =
         temptingTurns.find((entry) => Boolean(entry.evidence.tempting_option_reason))?.turn.created_at ?? null;
       const metadata = itemMetadataFromRules(response.item.administration_rules);
+      const teacherDiagnosticContext = teacherDiagnosticContextForProvider({
+        administration_rules: response.item.administration_rules,
+        distractor_rationales: response.item.distractor_rationales,
+        expected_reasoning_patterns: response.item.expected_reasoning_patterns,
+        possible_misconception_indicators: response.item.possible_misconception_indicators
+      });
       const answerChanged =
         selectedTurns.length > 1 ||
         Boolean(selectedAnswerInitial && response.selected_option && selectedAnswerInitial !== response.selected_option);
@@ -271,6 +293,7 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
         difficulty: metadata.difficulty,
         knowledge_component: metadata.knowledge_component,
         misconception_cluster: metadata.misconception_cluster,
+        teacher_diagnostic_context: teacherDiagnosticContext,
         selected_option: response.selected_option,
         selected_answer_initial: selectedAnswerInitial,
         selected_answer_final: response.selected_option,

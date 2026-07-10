@@ -266,13 +266,13 @@ export function AssessmentDetailClient({
       <PageHeader
         eyebrow="assessment"
         title={assessment?.title ?? "Assessment detail"}
-        description="Metadata, concept units, publish status, and archive actions."
+        description="Metadata, topics, publish status, and archive actions."
         actions={
           <>
             {isDraftEditable ? (
               <PrimaryLink href={`/teacher/content/assessments/${assessmentPublicId}/concept-units/new`}>
                 <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                New concept unit
+                Add topic
               </PrimaryLink>
             ) : null}
             <Button disabled={isLoading} onClick={loadAssessment} type="button" variant="secondary">
@@ -450,21 +450,21 @@ export function AssessmentDetailClient({
             <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
               <div className="flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold text-ink">Concept units</h2>
+                  <h2 className="text-xl font-semibold text-ink">Topics</h2>
                   <p className="mt-1 text-sm text-muted">
-                    You choose the concepts and items. The system checks only the minimum publishing and research-integrity requirements.
+                    You choose the topics and items. The system checks only the minimum publishing and research-integrity requirements.
                   </p>
                 </div>
                 {isDraftEditable ? (
                   <PrimaryLink href={`/teacher/content/assessments/${assessmentPublicId}/concept-units/new`}>
                     <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Add concept unit
+                    Add topic
                   </PrimaryLink>
                 ) : null}
               </div>
 
               {assessment.concept_units.length === 0 ? (
-                <p className="mt-5 text-sm text-muted">No concept units yet.</p>
+                <p className="mt-5 text-sm text-muted">No topics yet.</p>
               ) : (
                 <div className="mt-5 space-y-3">
                   {assessment.concept_units.map((unit, index) => (
@@ -531,7 +531,7 @@ export function AssessmentDetailClient({
                   <dd className="font-medium text-ink">{formatDate(assessment.updated_at)}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted">Concept units</dt>
+                  <dt className="text-muted">Topics</dt>
                   <dd className="font-medium text-ink">{assessment.concept_unit_count ?? assessment.concept_units.length}</dd>
                 </div>
                 <div>
