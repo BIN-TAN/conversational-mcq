@@ -207,18 +207,22 @@ the explicit restricted item-key export option. The default ZIP manifest marks
 
 Phase 31i adds a guided teacher MCQ item builder so diagnostic distractor
 metadata can be authored one item at a time instead of only through JSON import.
-For each incorrect option, teachers can record why the option may be tempting,
-the misconception or reasoning pattern it may represent, what evidence would
-strengthen or weaken that hypothesis, and a follow-up probe suggestion. Correct
-option notes separately describe target reasoning, strong reasoning features,
-and weak or unsupported correctness.
+The normal teacher MCQ editor intentionally avoids over-structured distractor
+labels. Teachers record correct-option guidance as a target reasoning note and a
+strong-reasoning note, then use one plain-language distractor diagnostic box for
+possible interpretations across options. Follow-up, diagnostic contrast, and
+transfer activities are generated later by the formative activity flow rather
+than manually selected as item purposes in the initial MCQ builder.
 
 These notes are teacher-only interpretation aids. They may be included in
 internal `teacher_diagnostic_context` passed to validated LLM interpretation
 services, but they are not ground truth and must not be copied verbatim into
-student-facing activity or feedback. The system must continue to interpret
-distractor evidence with student reasoning, confidence, tempting-option
-evidence, process features, and uncertainty safeguards.
+student-facing activity or feedback. Selecting a distractor is indirect evidence
+only. The system must continue to interpret distractor evidence with student
+reasoning, confidence, tempting-option evidence, timing/process features,
+revision behavior, response patterns, and uncertainty safeguards. Alternative
+explanations such as guessing, misreading, low knowledge, fatigue, or random
+error must remain possible.
 
 Phase 31i-revision makes this authoring path classroom-facing: teachers create
 mini tests organized by folder/week/module and add MCQ items directly. The

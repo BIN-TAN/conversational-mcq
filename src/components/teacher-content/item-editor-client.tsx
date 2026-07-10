@@ -5,19 +5,14 @@ import { useRouter } from "next/navigation";
 import { Archive, Plus, Save, Trash2 } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import {
-  arrayToLines,
-  linesToArray,
   normalizeOptions,
-  normalizeRationales,
   parseJsonObject,
   stringifyJson
 } from "./form-utils";
 import {
   buildDistractorRationalesFromTeacherNotes,
   buildItemAdministrationRulesFromTeacherMetadata,
-  ITEM_PURPOSE_OPTIONS,
-  readTeacherItemMetadata,
-  type TeacherDiagnosticOptionNote
+  readTeacherItemMetadata
 } from "@/lib/services/content/teacher-diagnostic-context";
 import type { ItemDetail, ItemOption, StructuredApiError } from "./types";
 import {
@@ -34,8 +29,6 @@ import {
 type ItemResponse = {
   item: ItemDetail;
 };
-
-type OptionNoteDraft = Omit<TeacherDiagnosticOptionNote, "label">;
 
 type ItemEditorProps =
   | {
@@ -55,7 +48,6 @@ export function ItemEditorClient(props: ItemEditorProps) {
   const assessmentPublicId = props.mode === "create" ? props.assessmentPublicId : null;
   const [item, setItem] = useState<ItemDetail | null>(null);
   const [itemLabel, setItemLabel] = useState("");
-  const [itemPurpose, setItemPurpose] = useState("initial_item");
   const [itemStem, setItemStem] = useState("");
   const [options, setOptions] = useState<ItemOption[]>([
     { label: "A", text: "" },
@@ -64,15 +56,11 @@ export function ItemEditorClient(props: ItemEditorProps) {
     { label: "D", text: "" }
   ]);
   const [correctOption, setCorrectOption] = useState("A");
-  const [distractorRationales, setDistractorRationales] = useState<Record<string, string>>({});
   const [expectedReasoningNote, setExpectedReasoningNote] = useState("");
   const [itemDiagnosticValueNote, setItemDiagnosticValueNote] = useState("");
   const [targetReasoningNote, setTargetReasoningNote] = useState("");
   const [strongReasoningNote, setStrongReasoningNote] = useState("");
-  const [weakCorrectnessNote, setWeakCorrectnessNote] = useState("");
-  const [optionNotes, setOptionNotes] = useState<Record<string, OptionNoteDraft>>({});
-  const [expectedReasoning, setExpectedReasoning] = useState("");
-  const [misconceptionIndicators, setMisconceptionIndicators] = useState("");
+  const [plainLanguageDistractorNotes, setPlainLanguageDistractorNotes] = useState("");
   const [administrationRules, setAdministrationRules] = useState("{}");
   const [itemOrder, setItemOrder] = useState("");
   const [includedInPublishedSet, setIncludedInPublishedSet] = useState(true);
@@ -102,30 +90,16 @@ export function ItemEditorClient(props: ItemEditorProps) {
       setItemStem(loaded.item_stem);
       setOptions(normalizeOptions(loaded.options));
       setCorrectOption(loaded.correct_option);
-      setDistractorRationales(normalizeRationales(loaded.distractor_rationales));
-      setExpectedReasoning(arrayToLines(loaded.expected_reasoning_patterns));
-      setMisconceptionIndicators(arrayToLines(loaded.possible_misconception_indicators));
       setAdministrationRules(stringifyJson(loaded.administration_rules));
       setItemOrder(String(loaded.item_order));
       setIncludedInPublishedSet(loaded.included_in_published_set);
       const metadata = readTeacherItemMetadata(loaded.administration_rules);
       setItemLabel(metadata.item_label);
-      setItemPurpose(metadata.item_purpose);
       setExpectedReasoningNote(metadata.expected_reasoning_note);
       setItemDiagnosticValueNote(metadata.item_diagnostic_value_note);
       setTargetReasoningNote(metadata.correct_option_notes.target_reasoning_note ?? "");
       setStrongReasoningNote(metadata.correct_option_notes.strong_reasoning_should_mention ?? "");
-      setWeakCorrectnessNote(
-        metadata.correct_option_notes.weak_unsupported_correctness_looks_like ?? ""
-      );
-      setOptionNotes(
-        Object.fromEntries(
-          metadata.option_notes.map((note) => {
-            const { label, ...rest } = note;
-            return [label, rest];
-          })
-        )
-      );
+      setPlainLanguageDistractorNotes(metadata.plain_language_distractor_diagnostic_notes);
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
@@ -152,30 +126,20 @@ export function ItemEditorClient(props: ItemEditorProps) {
 
   function removeOption(index: number) {
     const label = options[index]?.label;
-    setOptions((current) => current.filter((_, optionIndex) => optionIndex !== index));
+    const correctOptionIndex = options.findIndex((option) => option.label === correctOption);
+    setOptions((current) =>
+      current
+        .filter((_, optionIndex) => optionIndex !== index)
+        .map((option, optionIndex) => ({
+          ...option,
+          label: String.fromCharCode(65 + optionIndex)
+        }))
+    );
     if (label === correctOption) {
       setCorrectOption("");
+    } else if (correctOptionIndex > index) {
+      setCorrectOption(String.fromCharCode(65 + correctOptionIndex - 1));
     }
-    setDistractorRationales((current) => {
-      const next = { ...current };
-      delete next[label];
-      return next;
-    });
-    setOptionNotes((current) => {
-      const next = { ...current };
-      delete next[label];
-      return next;
-    });
-  }
-
-  function updateOptionNote(label: string, patch: Partial<OptionNoteDraft>) {
-    setOptionNotes((current) => ({
-      ...current,
-      [label]: {
-        ...(current[label] ?? {}),
-        ...patch
-      }
-    }));
   }
 
   function validateClientInput(): StructuredApiError | null {
@@ -229,42 +193,27 @@ export function ItemEditorClient(props: ItemEditorProps) {
     setIsSubmitting(true);
 
     try {
-      const teacherOptionNotes: TeacherDiagnosticOptionNote[] = optionLabels.map((label) => ({
-        label,
-        ...(optionNotes[label] ?? {})
-      }));
       const advancedRules = parseJsonObject(administrationRules, "Advanced settings");
       const administration_rules = buildItemAdministrationRulesFromTeacherMetadata({
         administration_rules: advancedRules,
         metadata: {
           item_label: itemLabel,
-          item_purpose: itemPurpose,
+          item_purpose: "initial_item",
           expected_reasoning_note: expectedReasoningNote,
           item_diagnostic_value_note: itemDiagnosticValueNote,
+          plain_language_distractor_diagnostic_notes: plainLanguageDistractorNotes,
           correct_option_notes: {
             target_reasoning_note: targetReasoningNote,
-            strong_reasoning_should_mention: strongReasoningNote,
-            weak_unsupported_correctness_looks_like: weakCorrectnessNote
-          },
-          option_notes: teacherOptionNotes
+            strong_reasoning_should_mention: strongReasoningNote
+          }
         }
       });
-      const expectedReasoningPatterns = linesToArray(expectedReasoning);
-      const misconceptionIndicatorLines = linesToArray(misconceptionIndicators);
       const derivedExpectedReasoning = [
         expectedReasoningNote,
         targetReasoningNote,
         strongReasoningNote
       ]
         .map((entry) => entry.trim())
-        .filter(Boolean);
-      const derivedMisconceptions = teacherOptionNotes
-        .flatMap((note) => [
-          note.misconception_reasoning_pattern,
-          note.strengthens_hypothesis,
-          note.weakens_hypothesis
-        ])
-        .map((entry) => entry?.trim() ?? "")
         .filter(Boolean);
       const payload = {
         item_stem: itemStem,
@@ -276,17 +225,13 @@ export function ItemEditorClient(props: ItemEditorProps) {
         distractor_rationales: buildDistractorRationalesFromTeacherNotes({
           option_labels: optionLabels,
           correct_option: correctOption,
-          existing_rationales: distractorRationales,
-          option_notes: teacherOptionNotes
+          existing_rationales: {},
+          option_notes: [],
+          plain_language_distractor_diagnostic_notes: plainLanguageDistractorNotes
         }),
         expected_reasoning_patterns:
-          expectedReasoningPatterns.length > 0
-            ? expectedReasoningPatterns
-            : derivedExpectedReasoning,
-        possible_misconception_indicators:
-          misconceptionIndicatorLines.length > 0
-            ? misconceptionIndicatorLines
-            : derivedMisconceptions,
+          derivedExpectedReasoning,
+        possible_misconception_indicators: [],
         administration_rules,
         included_in_published_set: includedInPublishedSet
       };
@@ -411,31 +356,15 @@ export function ItemEditorClient(props: ItemEditorProps) {
             ) : null}
 
             <div className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Item title / short label">
-                  <input
-                    className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                    disabled={!isEditable}
-                    onChange={(event) => setItemLabel(event.target.value)}
-                    placeholder="e.g. Theta scale boundary"
-                    value={itemLabel}
-                  />
-                </Field>
-                <Field label="Item purpose / use">
-                  <select
-                    className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                    disabled={!isEditable}
-                    onChange={(event) => setItemPurpose(event.target.value)}
-                    value={itemPurpose}
-                  >
-                    {ITEM_PURPOSE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
+              <Field label="Item title / short label">
+                <input
+                  className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                  disabled={!isEditable}
+                  onChange={(event) => setItemLabel(event.target.value)}
+                  placeholder="e.g. Theta scale boundary"
+                  value={itemLabel}
+                />
+              </Field>
 
               <Field label="Stem">
                 <textarea
@@ -492,16 +421,13 @@ export function ItemEditorClient(props: ItemEditorProps) {
 
             <div className="mt-5 space-y-3">
               {options.map((option, index) => (
-                <div className="grid gap-3 rounded-lg border border-line p-3 md:grid-cols-[100px_minmax(0,1fr)_auto]" key={index}>
-                  <Field label="Label">
-                    <input
-                      className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                      disabled={!isEditable}
-                      onChange={(event) => updateOption(index, { label: event.target.value })}
-                      required
-                      value={option.label}
-                    />
-                  </Field>
+                <div className="grid gap-3 rounded-lg border border-line p-3 md:grid-cols-[72px_minmax(0,1fr)_120px_auto]" key={index}>
+                  <div>
+                    <span className="block text-sm font-medium text-ink">Option</span>
+                    <span className="mt-2 inline-flex h-10 min-w-10 items-center justify-center rounded-md border border-line bg-slate-50 px-3 font-semibold text-ink">
+                      {option.label}
+                    </span>
+                  </div>
                   <Field label="Text">
                     <input
                       className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
@@ -511,6 +437,17 @@ export function ItemEditorClient(props: ItemEditorProps) {
                       value={option.text}
                     />
                   </Field>
+                  <label className="flex items-end gap-2 pb-2 text-sm font-medium text-ink">
+                    <input
+                      checked={correctOption === option.label}
+                      className="h-4 w-4"
+                      disabled={!isEditable}
+                      name="correct-option"
+                      onChange={() => setCorrectOption(option.label)}
+                      type="radio"
+                    />
+                    Mark as key
+                  </label>
                   <div className="flex items-end">
                     <Button
                       aria-label="Remove option"
@@ -524,25 +461,6 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   </div>
                 </div>
               ))}
-            </div>
-
-            <div className="mt-5 max-w-sm">
-              <Field label="Correct option (teacher-only)">
-                <select
-                  className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                  disabled={!isEditable}
-                  onChange={(event) => setCorrectOption(event.target.value)}
-                  required
-                  value={correctOption}
-                >
-                  <option value="">Select option</option>
-                  {optionLabels.map((label) => (
-                    <option key={label} value={label}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
             </div>
           </section>
 
@@ -568,193 +486,24 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   value={strongReasoningNote}
                 />
               </Field>
-              <Field label="Weak or unsupported correctness looks like">
-                <textarea
-                  className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                  disabled={!isEditable}
-                  onChange={(event) => setWeakCorrectnessNote(event.target.value)}
-                  value={weakCorrectnessNote}
-                />
-              </Field>
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-            <h2 className="text-xl font-semibold text-ink">Item diagnostic notes</h2>
-            <p className="mt-1 text-sm text-muted">
-              Teacher-only interpretation notes for later LLM-supported review. They are guidance, not ground truth.
-            </p>
-            <div className="mt-5 grid gap-4">
-              <Field label="Expected reasoning note">
-                <textarea
-                  className="min-h-24 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                  disabled={!isEditable}
-                  onChange={(event) => setExpectedReasoningNote(event.target.value)}
-                  value={expectedReasoningNote}
-                />
-              </Field>
-              <Field label="Item diagnostic value note">
-                <textarea
-                  className="min-h-24 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                  disabled={!isEditable}
-                  onChange={(event) => setItemDiagnosticValueNote(event.target.value)}
-                  value={itemDiagnosticValueNote}
-                />
-              </Field>
             </div>
           </section>
 
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <h2 className="text-xl font-semibold text-ink">Distractor diagnostic notes</h2>
             <p className="mt-1 text-sm text-muted">
-              Add notes for incorrect options. The optional student-safe hint is stored for future derived feedback, not shown during initial administration.
+              Write in plain language how the distractors may relate to possible misconceptions, partial understanding, guessing, or other reasoning patterns. Selecting a distractor is indirect evidence only; the system should consider written reasoning, confidence, timing, and other student responses before interpreting it.
             </p>
-            <div className="mt-5 space-y-5">
-              {optionLabels
-                .filter((label) => label !== correctOption)
-                .map((label) => (
-                  <div className="rounded-lg border border-line bg-slate-50 p-4" key={label}>
-                    <h3 className="font-semibold text-ink">Option {label}</h3>
-                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                      <Field label="Distractor diagnostic value">
-                        <textarea
-                          className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateOptionNote(label, { distractor_diagnostic_value: event.target.value })
-                          }
-                          value={optionNotes[label]?.distractor_diagnostic_value ?? ""}
-                        />
-                      </Field>
-                      <Field label="Why tempting">
-                        <textarea
-                          className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateOptionNote(label, { why_tempting: event.target.value })
-                          }
-                          value={optionNotes[label]?.why_tempting ?? ""}
-                        />
-                      </Field>
-                      <Field label="Misconception or reasoning pattern">
-                        <textarea
-                          className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateOptionNote(label, {
-                              misconception_reasoning_pattern: event.target.value
-                            })
-                          }
-                          value={optionNotes[label]?.misconception_reasoning_pattern ?? ""}
-                        />
-                      </Field>
-                      <Field label="Strengthens hypothesis">
-                        <textarea
-                          className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateOptionNote(label, { strengthens_hypothesis: event.target.value })
-                          }
-                          value={optionNotes[label]?.strengthens_hypothesis ?? ""}
-                        />
-                      </Field>
-                      <Field label="Weakens hypothesis">
-                        <textarea
-                          className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateOptionNote(label, { weakens_hypothesis: event.target.value })
-                          }
-                          value={optionNotes[label]?.weakens_hypothesis ?? ""}
-                        />
-                      </Field>
-                      <Field label="Follow-up probe suggestion">
-                        <textarea
-                          className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateOptionNote(label, { follow_up_probe_suggestion: event.target.value })
-                          }
-                          value={optionNotes[label]?.follow_up_probe_suggestion ?? ""}
-                        />
-                      </Field>
-                    </div>
-                    <div className="mt-4">
-                      <Field label="Student-safe feedback hint (optional)">
-                        <textarea
-                          className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateOptionNote(label, { student_safe_feedback_hint: event.target.value })
-                          }
-                          value={optionNotes[label]?.student_safe_feedback_hint ?? ""}
-                        />
-                      </Field>
-                    </div>
-                    <details className="mt-4 rounded-md border border-line bg-white p-3">
-                      <summary className="cursor-pointer text-sm font-semibold text-ink">
-                        Legacy distractor rationale
-                      </summary>
-                      <div className="mt-3">
-                        <Field label={`Option ${label} rationale`} hint="Used by existing publish validation. If blank, the diagnostic notes above derive a rationale.">
-                          <textarea
-                            className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                            disabled={!isEditable}
-                            onChange={(event) =>
-                              setDistractorRationales((current) => ({
-                                ...current,
-                                [label]: event.target.value
-                              }))
-                            }
-                            value={distractorRationales[label] ?? ""}
-                          />
-                        </Field>
-                      </div>
-                    </details>
-                  </div>
-                ))}
-            </div>
+            <Field label="Distractor diagnostic notes" hint="These notes are teacher-only interpretation guidance, not labels or ground truth.">
+              <textarea
+                className="mt-5 min-h-48 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                disabled={!isEditable}
+                onChange={(event) => setPlainLanguageDistractorNotes(event.target.value)}
+                placeholder="Option B may suggest confusion between reliability and validity. Option C may suggest treating reliability as a fixed property of the test rather than a sample-dependent estimate. Option D may suggest interpreting a group-level coefficient as an individual-level statement. These are possible interpretations, not firm conclusions."
+                value={plainLanguageDistractorNotes}
+              />
+            </Field>
           </section>
-
-          <details className="rounded-lg border border-line bg-white p-5 shadow-soft">
-            <summary className="cursor-pointer text-lg font-semibold text-ink">
-              Advanced publishing metadata
-            </summary>
-            <div className="mt-5 grid gap-6 lg:grid-cols-2">
-              <Field
-                label="Expected reasoning patterns"
-                hint="One pattern per line. If blank, the guided notes above are used."
-              >
-                <textarea
-                  className="min-h-40 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                  disabled={!isEditable}
-                  onChange={(event) => setExpectedReasoning(event.target.value)}
-                  value={expectedReasoning}
-                />
-              </Field>
-              <Field
-                label="Possible misconception indicators"
-                hint="One indicator per line. If blank, distractor notes above are used."
-              >
-                <textarea
-                  className="min-h-40 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                  disabled={!isEditable}
-                  onChange={(event) => setMisconceptionIndicators(event.target.value)}
-                  value={misconceptionIndicators}
-                />
-              </Field>
-            </div>
-            <div className="mt-5">
-              <Field label="Administration rules JSON" hint="Optional advanced JSON object. Guided fields above are preferred.">
-                <textarea
-                  className="min-h-28 rounded-md border border-line px-3 py-2 font-mono text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                  disabled={!isEditable}
-                  onChange={(event) => setAdministrationRules(event.target.value)}
-                  value={administrationRules}
-                />
-              </Field>
-            </div>
-          </details>
 
           <section className="grid gap-6 lg:grid-cols-2">
             <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
@@ -787,30 +536,21 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   <dd className="font-semibold text-ink">{correctOption || "Not selected"}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted">Item diagnostic value</dt>
-                  <dd className="whitespace-pre-wrap text-ink">
-                    {itemDiagnosticValueNote || "No item diagnostic note yet."}
-                  </dd>
-                </div>
-                <div>
                   <dt className="text-muted">Expected / target reasoning</dt>
                   <dd className="whitespace-pre-wrap text-ink">
-                    {targetReasoningNote || expectedReasoningNote || "No target reasoning note yet."}
+                    {targetReasoningNote || "No target reasoning note yet."}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-muted">Distractor notes</dt>
-                  <dd className="mt-2 space-y-2">
-                    {optionLabels.filter((label) => label !== correctOption).map((label) => (
-                      <div className="rounded-md border border-line bg-slate-50 p-2" key={`teacher-preview-${label}`}>
-                        <p className="font-semibold text-ink">Option {label}</p>
-                        <p className="mt-1 whitespace-pre-wrap text-muted">
-                          {optionNotes[label]?.distractor_diagnostic_value ||
-                            optionNotes[label]?.why_tempting ||
-                            "No distractor note yet."}
-                        </p>
-                      </div>
-                    ))}
+                  <dt className="text-muted">Strong reasoning should mention</dt>
+                  <dd className="whitespace-pre-wrap text-ink">
+                    {strongReasoningNote || "No strong-reasoning note yet."}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Distractor diagnostic notes</dt>
+                  <dd className="whitespace-pre-wrap text-ink">
+                    {plainLanguageDistractorNotes || "No distractor note yet."}
                   </dd>
                 </div>
               </dl>

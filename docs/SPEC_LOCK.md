@@ -2225,13 +2225,22 @@ Phase 6A.5 must not implement:
   teacher-facing selectors or page facts.
 - Folder/week/module labels and mini-test order metadata live on `assessments`.
   Assessment diagnostic focus lives on `assessments.diagnostic_focus`.
-- Topic diagnostic notes, item diagnostic value notes, expected reasoning notes,
-  correct-option reasoning notes, and distractor diagnostic notes are
-  teacher-only metadata stored in existing content JSON fields.
+- Teacher-authored MCQ items in the normal mini-test builder are initial
+  administration items. Follow-up, diagnostic contrast, and transfer activities
+  are generated later by the formative activity flow rather than chosen from a
+  normal item-purpose dropdown.
+- Correct-option notes in the normal item editor are limited to target reasoning
+  and strong-reasoning guidance.
+- Distractor diagnostic notes in the normal item editor are captured as one
+  plain-language teacher-only note box. The normal UI must not require separate
+  per-distractor fields for why tempting, misconception pattern, strengthens
+  hypothesis, weakens hypothesis, follow-up probe, or student-safe hint.
 - Teacher-only notes may be included in internal `teacher_diagnostic_context`
-  for validated LLM interpretation. They are guidance, not ground truth, and
-  correct-option selection alone must never be treated as sufficient evidence of
-  understanding.
+  for validated LLM interpretation. They are guidance, not ground truth.
+  Correct-option selection alone must never be treated as sufficient evidence of
+  understanding, and distractor selection alone must never be treated as firm
+  misconception evidence. LLM interpretation must consider written reasoning,
+  confidence, timing/process features, revisions, and patterns across responses.
 - Student-facing pages, student previews, activity text, feedback, and default
   exports must not expose correct options, answer keys, correctness labels, raw
   teacher diagnostic notes, raw distractor notes, misconception IDs, provider
@@ -2243,10 +2252,12 @@ Phase 6A.5 must not implement:
   dashboard clutter.
 - `student:teacher-mcq-item-builder-smoke` is no-live and verifies direct Add
   MCQ item exposure, server-side topic resolution/creation, folder/week
-  metadata, guided MCQ item creation, validation failures, safe student preview,
-  teacher preview metadata, direct publish, dashboard card cleanup, internal
-  diagnostic context availability, publish warnings, JSON import compatibility,
-  and absence of OpenAI calls.
+  metadata, simplified MCQ item creation, absence of the item-purpose dropdown,
+  simplified correct-option notes, one plain-language distractor note box,
+  validation failures, safe student preview, teacher preview metadata, direct
+  publish, dashboard card cleanup, internal diagnostic context availability and
+  interpretation caution, publish warnings, JSON import compatibility, and
+  absence of OpenAI calls.
 
 ## Phase 31j Simple CSV Data Explorer Lock
 

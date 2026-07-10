@@ -58,46 +58,7 @@ function validatePublishableItem(item: PublishableItem, itemIndex: number): Cont
     return zodIssuesToContentIssues(parsed.error, pathPrefix);
   }
 
-  const issues: ContentValidationIssue[] = [];
-  const incorrectLabels = parsed.data.options
-    .map((option) => option.label)
-    .filter((label) => label !== parsed.data.correct_option);
-
-  for (const label of incorrectLabels) {
-    const rationale = parsed.data.distractor_rationales[label];
-
-    if (!rationale || rationale.trim().length === 0) {
-      issues.push(
-        validationIssue(
-          `${pathPrefix}.distractor_rationales.${label}`,
-          "missing_distractor_rationale",
-          `Incorrect option ${label} requires a distractor rationale.`
-        )
-      );
-    }
-  }
-
-  if (parsed.data.expected_reasoning_patterns.length === 0) {
-    issues.push(
-      validationIssue(
-        `${pathPrefix}.expected_reasoning_patterns`,
-        "missing_expected_reasoning_patterns",
-        "At least one expected reasoning pattern is required."
-      )
-    );
-  }
-
-  if (parsed.data.possible_misconception_indicators.length === 0) {
-    issues.push(
-      validationIssue(
-        `${pathPrefix}.possible_misconception_indicators`,
-        "missing_possible_misconception_indicators",
-        "At least one possible misconception indicator is required."
-      )
-    );
-  }
-
-  return issues;
+  return [];
 }
 
 function validatePublishableItemWarnings(
@@ -108,7 +69,10 @@ function validatePublishableItemWarnings(
   const metadata = readTeacherItemMetadata(item.administration_rules);
   const warnings: ContentValidationIssue[] = [];
 
-  if (!metadata.expected_reasoning_note && metadata.correct_option_notes.target_reasoning_note === "") {
+  if (
+    !metadata.expected_reasoning_note &&
+    metadata.correct_option_notes.target_reasoning_note === ""
+  ) {
     warnings.push(
       validationIssue(
         `${pathPrefix}.teacher_diagnostic_context.expected_reasoning_note`,
@@ -118,12 +82,12 @@ function validatePublishableItemWarnings(
     );
   }
 
-  if (metadata.option_notes.length === 0) {
+  if (!metadata.plain_language_distractor_diagnostic_notes && metadata.option_notes.length === 0) {
     warnings.push(
       validationIssue(
-        `${pathPrefix}.teacher_diagnostic_context.option_notes`,
+        `${pathPrefix}.teacher_diagnostic_context.plain_language_distractor_diagnostic_notes`,
         "teacher_distractor_diagnostic_notes_missing",
-        "Distractor diagnostic notes are recommended for LLM-supported interpretation."
+        "Diagnostic notes are optional but can help later interpretation."
       )
     );
   }

@@ -1962,8 +1962,17 @@ The mini-test form includes a diagnostic focus box:
 What misconception, cognitive process, or diagnostic framework does this assessment target?
 ```
 
-This note, item diagnostic notes, correct-option reasoning notes, and distractor
-notes are teacher-only interpretation guidance. They may support internal LLM
-interpretation through validated context, but students must not see answer keys,
-correct options, raw diagnostic notes, raw distractor metadata, misconception
-IDs, or internal labels. JSON import remains available for prepared item sets.
+Teacher-authored MCQs in this builder are for initial item administration.
+Follow-up, diagnostic contrast, and transfer activities are generated later by
+the formative activity flow, not selected from an item-purpose dropdown in the
+normal MCQ editor.
+
+The normal item editor keeps diagnostic input intentionally light: teachers may
+add a target reasoning note, a strong-reasoning note, and one plain-language
+distractor diagnostic note box. Distractor notes are teacher-only interpretation
+guidance. A selected distractor is indirect evidence only; internal LLM
+interpretation must consider written reasoning, confidence, timing/process
+features, revisions, and patterns across responses before treating it as
+diagnostically meaningful. Students must not see answer keys, correct options,
+raw diagnostic notes, raw distractor metadata, misconception IDs, or internal
+labels. JSON import remains available for prepared item sets.

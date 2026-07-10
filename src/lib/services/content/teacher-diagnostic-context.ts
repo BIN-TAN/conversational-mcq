@@ -20,6 +20,7 @@ export type TeacherItemMetadataInput = {
   item_purpose?: string;
   expected_reasoning_note?: string;
   item_diagnostic_value_note?: string;
+  plain_language_distractor_diagnostic_notes?: string;
   correct_option_notes?: TeacherCorrectOptionNote;
   option_notes?: TeacherDiagnosticOptionNote[];
 };
@@ -34,6 +35,8 @@ export const ITEM_PURPOSE_OPTIONS = [
 export type ItemPurposeValue = (typeof ITEM_PURPOSE_OPTIONS)[number]["value"];
 
 const CONTEXT_KEY = "teacher_diagnostic_context";
+export const TEACHER_DIAGNOSTIC_INTERPRETATION_CAUTION =
+  "Selected options are indirect evidence only and must be interpreted together with written reasoning, confidence, timing/process features, revisions, and patterns across responses.";
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -133,6 +136,10 @@ export function readTeacherItemMetadata(value: unknown): Required<TeacherItemMet
     item_purpose: itemPurpose,
     expected_reasoning_note: trimString(context.expected_reasoning_note) ?? "",
     item_diagnostic_value_note: trimString(context.item_diagnostic_value_note) ?? "",
+    plain_language_distractor_diagnostic_notes:
+      trimString(context.plain_language_distractor_diagnostic_notes) ??
+      trimString(context.item_distractor_diagnostic_notes_plain) ??
+      optionNotesToPlainLanguage(optionNotes),
     correct_option_notes: {
       target_reasoning_note: trimString(correctOptionNotes.target_reasoning_note) ?? "",
       strong_reasoning_should_mention:
@@ -163,6 +170,16 @@ function optionDiagnosticText(note: TeacherDiagnosticOptionNote): string {
     .join(" ");
 }
 
+function optionNotesToPlainLanguage(notes: TeacherDiagnosticOptionNote[]): string {
+  return notes
+    .map((note) => {
+      const text = optionDiagnosticText(note);
+      return text ? `Option ${note.label}: ${text}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function buildItemAdministrationRulesFromTeacherMetadata(input: {
   administration_rules: Record<string, unknown>;
   metadata: TeacherItemMetadataInput;
@@ -181,6 +198,9 @@ export function buildItemAdministrationRulesFromTeacherMetadata(input: {
       trimString(input.metadata.correct_option_notes?.weak_unsupported_correctness_looks_like)
   });
   const itemPurpose = trimString(input.metadata.item_purpose) ?? "initial_item";
+  const plainLanguageDistractorNotes = trimString(
+    input.metadata.plain_language_distractor_diagnostic_notes
+  );
   const expectedSolutionActions = [
     trimString(input.metadata.expected_reasoning_note),
     trimString(input.metadata.correct_option_notes?.target_reasoning_note),
@@ -210,6 +230,8 @@ export function buildItemAdministrationRulesFromTeacherMetadata(input: {
     item_purpose: itemPurpose,
     expected_reasoning_note: trimString(input.metadata.expected_reasoning_note),
     item_diagnostic_value_note: trimString(input.metadata.item_diagnostic_value_note),
+    plain_language_distractor_diagnostic_notes: plainLanguageDistractorNotes,
+    interpretation_caution: TEACHER_DIAGNOSTIC_INTERPRETATION_CAUTION,
     correct_option_notes: correctOptionNotes,
     option_notes: cleanOptionNotes
   });
@@ -229,8 +251,10 @@ export function buildDistractorRationalesFromTeacherNotes(input: {
   correct_option: string;
   existing_rationales: Record<string, string>;
   option_notes: TeacherDiagnosticOptionNote[];
+  plain_language_distractor_diagnostic_notes?: string;
 }): Record<string, string> {
   const notesByLabel = new Map(input.option_notes.map((note) => [note.label, note]));
+  const plainLanguageNote = trimString(input.plain_language_distractor_diagnostic_notes);
 
   return Object.fromEntries(
     input.option_labels
@@ -238,7 +262,7 @@ export function buildDistractorRationalesFromTeacherNotes(input: {
       .map((label) => {
         const existing = trimString(input.existing_rationales[label]);
         const diagnostic = notesByLabel.get(label) ? optionDiagnosticText(notesByLabel.get(label)!) : "";
-        return [label, existing ?? diagnostic];
+        return [label, existing ?? (diagnostic || plainLanguageNote)];
       })
       .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
   );
@@ -246,14 +270,22 @@ export function buildDistractorRationalesFromTeacherNotes(input: {
 
 export function teacherDiagnosticContextForProvider(input: {
   administration_rules: unknown;
+  assessment_diagnostic_focus?: unknown;
   distractor_rationales?: unknown;
   expected_reasoning_patterns?: unknown;
   possible_misconception_indicators?: unknown;
 }) {
   const rules = record(input.administration_rules);
+  const context = readTeacherDiagnosticContext(rules);
 
   return compactRecord({
-    teacher_diagnostic_context: readTeacherDiagnosticContext(rules),
+    teacher_diagnostic_context: compactRecord({
+      ...context,
+      assessment_diagnostic_focus: trimString(input.assessment_diagnostic_focus),
+      interpretation_caution:
+        trimString(context.interpretation_caution) ??
+        TEACHER_DIAGNOSTIC_INTERPRETATION_CAUTION
+    }),
     option_diagnostic_notes: record(rules.option_diagnostic_notes),
     option_misconception_map: record(rules.option_misconception_map),
     expected_solution_actions: Array.isArray(rules.expected_solution_actions)

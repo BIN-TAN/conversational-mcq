@@ -303,6 +303,13 @@ npm run student:live-llm-smoke:cleanup-failures
   topic/concept-unit records are not visible in the normal workflow.
 - Advanced topic settings and fixed workflow/response implementation facts are
   absent from the normal mini-test detail page.
+- The normal MCQ editor does not show an item-purpose dropdown. Teacher-created
+  MCQs default internally to initial item administration.
+- Correct-option notes are limited to target reasoning and strong-reasoning
+  guidance.
+- Distractor diagnostic notes appear as one plain-language teacher-only box,
+  not separate per-distractor hypothesis fields.
+- The editor copy states that selected distractors are indirect evidence only.
 - Student preview shows only stem and options.
 - Teacher preview shows the key and teacher-only diagnostic notes.
 - Publishing gives teacher-friendly validation messages for missing item

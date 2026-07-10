@@ -14,8 +14,7 @@ import {
   buildItemAdministrationRulesFromTeacherMetadata,
   readTeacherItemMetadata,
   readTopicDiagnosticNote,
-  teacherDiagnosticContextForProvider,
-  type TeacherDiagnosticOptionNote
+  teacherDiagnosticContextForProvider
 } from "../src/lib/services/content/teacher-diagnostic-context";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
@@ -67,36 +66,13 @@ function options() {
   ];
 }
 
-function optionNotes(): TeacherDiagnosticOptionNote[] {
+function plainDistractorNote() {
   return [
-    {
-      label: "B",
-      distractor_diagnostic_value: "Confuses student ability with item difficulty.",
-      why_tempting: "Both theta and difficulty are shown on the same latent scale.",
-      misconception_reasoning_pattern: "ability_item_parameter_blending",
-      strengthens_hypothesis: "Student treats item-side and person-side quantities as interchangeable.",
-      weakens_hypothesis: "Student explains theta as person location while noting item difficulty separately.",
-      follow_up_probe_suggestion: "Ask the student to separate person location from item location.",
-      student_safe_feedback_hint: "Separate what belongs to the student from what belongs to the item."
-    },
-    {
-      label: "C",
-      distractor_diagnostic_value: "Treats theta as a visible test-format feature.",
-      why_tempting: "The option count is concrete and easy to inspect.",
-      misconception_reasoning_pattern: "surface_feature_substitution",
-      strengthens_hypothesis: "Student points to answer format rather than measurement model meaning.",
-      weakens_hypothesis: "Student distinguishes visible item format from latent variables.",
-      follow_up_probe_suggestion: "Ask what theta estimates that cannot be seen in the option list."
-    },
-    {
-      label: "D",
-      distractor_diagnostic_value: "Confuses ability location with discrimination.",
-      why_tempting: "Both are parameters discussed in IRT graphs.",
-      misconception_reasoning_pattern: "parameter_role_confusion",
-      strengthens_hypothesis: "Student describes slope or steepness when asked about theta.",
-      weakens_hypothesis: "Student says discrimination is item-side slope and theta is person-side location."
-    }
-  ];
+    "Option B may suggest confusion between student ability and item difficulty.",
+    "Option C may suggest replacing a latent variable with a visible item-format feature.",
+    "Option D may suggest confusion between ability location and discrimination.",
+    "These are possible interpretations only, not firm misconception conclusions."
+  ].join(" ");
 }
 
 function guidedRules() {
@@ -117,18 +93,15 @@ function guidedRules() {
       correct_option_notes: {
         target_reasoning_note: "Theta represents a student-side ability estimate on the latent scale.",
         strong_reasoning_should_mention:
-          "Theta is not an item difficulty or discrimination value.",
-        weak_unsupported_correctness_looks_like:
-          "Student selects the right option but gives only a memorized phrase."
+          "Theta is not an item difficulty or discrimination value."
       },
-      option_notes: optionNotes()
+      plain_language_distractor_diagnostic_notes: plainDistractorNote()
     }
   });
 }
 
 function validGuidedItem(itemOrder: number) {
   const itemOptions = options();
-  const notes = optionNotes();
 
   return {
     item_stem: `Phase 31i smoke item ${itemOrder}: What does theta represent in IRT?`,
@@ -138,14 +111,13 @@ function validGuidedItem(itemOrder: number) {
       option_labels: itemOptions.map((option) => option.label),
       correct_option: "A",
       existing_rationales: {},
-      option_notes: notes
+      option_notes: [],
+      plain_language_distractor_diagnostic_notes: plainDistractorNote()
     }),
     expected_reasoning_patterns: [
       "Student distinguishes person-side ability location from item-side parameters."
     ],
-    possible_misconception_indicators: notes.map(
-      (note) => note.misconception_reasoning_pattern ?? note.distractor_diagnostic_value ?? ""
-    ),
+    possible_misconception_indicators: [],
     administration_rules: guidedRules(),
     included_in_published_set: true,
     item_order: itemOrder
@@ -162,7 +134,7 @@ function assertStudentPreviewSafe(item: Awaited<ReturnType<typeof getItemDetail>
   assert(!text.includes("correct_option"), "Student preview should not expose correct option key.");
   assert(!text.includes("teacher_diagnostic_context"), "Student preview leaked teacher context key.");
   assert(!text.includes("distractor_rationales"), "Student preview leaked distractor rationales.");
-  assert(!text.includes("ability_item_parameter_blending"), "Student preview leaked misconception IDs.");
+  assert(!text.includes("possible interpretations"), "Student preview leaked teacher notes.");
 }
 
 function assertDashboardCardsAreActionable() {
@@ -217,9 +189,25 @@ function assertItemEditorSupportsDynamicOptionsAndSafePreview() {
   );
 
   assert(source.includes("Add option"), "Item editor should expose an Add option action.");
+  assert(source.includes("Mark as key"), "Option rows should expose a mark-as-key control.");
+  assert(!source.includes("Item purpose / use"), "Item purpose selector should be hidden in normal mode.");
+  assert(!source.includes("diagnostic_contrast_item"), "Normal item editor should not expose diagnostic contrast purpose.");
+  assert(!source.includes("transfer_item"), "Normal item editor should not expose transfer purpose.");
+  assert(!source.includes("Weak or unsupported correctness looks like"), "Extra correctness note box should be hidden.");
+  assert(!source.includes("Why tempting"), "Structured distractor subfields should be hidden.");
+  assert(!source.includes("Misconception or reasoning pattern"), "Structured distractor subfields should be hidden.");
+  assert(!source.includes("Strengthens hypothesis"), "Structured distractor subfields should be hidden.");
+  assert(!source.includes("Weakens hypothesis"), "Structured distractor subfields should be hidden.");
+  assert(!source.includes("Follow-up probe suggestion"), "Structured distractor subfields should be hidden.");
+  assert(!source.includes("Student-safe feedback hint"), "Structured distractor subfields should be hidden.");
+  assert(source.includes("Target reasoning note"), "Correct-option notes should include target reasoning only.");
   assert(
-    source.includes("Correct option (teacher-only)"),
-    "Item editor should expose a teacher-only key selector."
+    source.includes("Strong reasoning should mention"),
+    "Correct-option notes should include strong-reasoning guidance."
+  );
+  assert(
+    source.includes("Selecting a distractor is indirect evidence only"),
+    "Distractor note helper should state the indirect-evidence caution."
   );
   assert(source.includes("Student preview"), "Item editor should expose a student preview.");
   assert(source.includes("Teacher preview"), "Item editor should expose a teacher preview.");
@@ -360,7 +348,12 @@ async function main() {
 
     const metadata = readTeacherItemMetadata(detail.administration_rules);
     assert(metadata.item_label === "Theta boundary item", "Item label metadata missing.");
-    assert(metadata.option_notes.length === 3, "Distractor diagnostic notes were not stored.");
+    assert(metadata.item_purpose === "initial_item", "Teacher-created item should default to initial administration.");
+    assert(
+      metadata.plain_language_distractor_diagnostic_notes.includes("possible interpretations only"),
+      "Plain-language distractor diagnostic notes were not stored."
+    );
+    assert(metadata.option_notes.length === 0, "New normal editor metadata should not require structured option notes.");
     assert(
       metadata.correct_option_notes.strong_reasoning_should_mention?.includes("discrimination"),
       "Correct-option reasoning notes were not stored."
@@ -368,6 +361,7 @@ async function main() {
 
     const providerContext = teacherDiagnosticContextForProvider({
       administration_rules: detail.administration_rules,
+      assessment_diagnostic_focus: assessment.diagnostic_focus,
       distractor_rationales: detail.distractor_rationales,
       expected_reasoning_patterns: detail.expected_reasoning_patterns,
       possible_misconception_indicators: detail.possible_misconception_indicators
@@ -377,8 +371,16 @@ async function main() {
       "Internal provider context did not include teacher diagnostic context."
     );
     assert(
-      JSON.stringify(providerContext).includes("ability_item_parameter_blending"),
-      "Internal provider context did not include distractor diagnostic signal."
+      JSON.stringify(providerContext).includes("Selected options are indirect evidence only"),
+      "Internal provider context did not include interpretation caution."
+    );
+    assert(
+      JSON.stringify(providerContext).includes("student ability and item difficulty"),
+      "Internal provider context did not include plain-language distractor notes."
+    );
+    assert(
+      JSON.stringify(providerContext).includes("person-side ability"),
+      "Internal provider context did not include assessment diagnostic focus."
     );
 
     const validation = await validateConceptUnitPublishable({

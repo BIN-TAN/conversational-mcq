@@ -208,7 +208,9 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
       related_concept_description: conceptUnitSession.concept_unit.related_concept_description,
       administration_rules: conceptUnitSession.concept_unit.administration_rules,
       teacher_diagnostic_context: teacherDiagnosticContextForProvider({
-        administration_rules: conceptUnitSession.concept_unit.administration_rules
+        administration_rules: conceptUnitSession.concept_unit.administration_rules,
+        assessment_diagnostic_focus:
+          conceptUnitSession.assessment_session.assessment.diagnostic_focus
       }),
       order_index: conceptUnitSession.concept_unit.order_index,
       version: conceptUnitSession.concept_unit.version,
@@ -225,6 +227,8 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
       ...itemMetadataFromRules(item.administration_rules),
       teacher_diagnostic_context: teacherDiagnosticContextForProvider({
         administration_rules: item.administration_rules,
+        assessment_diagnostic_focus:
+          conceptUnitSession.assessment_session.assessment.diagnostic_focus,
         distractor_rationales: item.distractor_rationales,
         expected_reasoning_patterns: item.expected_reasoning_patterns,
         possible_misconception_indicators: item.possible_misconception_indicators
@@ -277,6 +281,8 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
       const metadata = itemMetadataFromRules(response.item.administration_rules);
       const teacherDiagnosticContext = teacherDiagnosticContextForProvider({
         administration_rules: response.item.administration_rules,
+        assessment_diagnostic_focus:
+          conceptUnitSession.assessment_session.assessment.diagnostic_focus,
         distractor_rationales: response.item.distractor_rationales,
         expected_reasoning_patterns: response.item.expected_reasoning_patterns,
         possible_misconception_indicators: response.item.possible_misconception_indicators
