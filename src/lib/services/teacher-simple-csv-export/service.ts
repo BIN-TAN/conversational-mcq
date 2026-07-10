@@ -6,10 +6,17 @@ import { projectStoredStudentProfileIntegration } from "@/lib/services/student-a
 import { buildEngagementProcessFeatureRows } from "@/lib/services/teacher-review/engagement-process-features";
 import { buildTurnResponseLatencyRows } from "@/lib/services/teacher-review/turn-response-latencies";
 import { ContentServiceError } from "@/lib/services/content/errors";
+import {
+  buildExportSourceIdentity,
+  EXPORT_SOURCE_COLUMNS,
+  sourceIdentityRow,
+  type ExportSourceIdentity
+} from "@/lib/services/teacher-research-export/source-identity";
 
-export const TEACHER_SIMPLE_CSV_EXPORT_VERSION = "teacher-simple-csv-export-v1" as const;
+export const TEACHER_SIMPLE_CSV_EXPORT_VERSION = "teacher-simple-csv-export-v2" as const;
 
 export const SESSION_CSV_COLUMNS = [
+  ...EXPORT_SOURCE_COLUMNS,
   "assessment_public_id",
   "assessment_title",
   "assessment_status",
@@ -37,6 +44,7 @@ export const SESSION_CSV_COLUMNS = [
 ] as const;
 
 export const MATRIX_CSV_COLUMNS = [
+  ...EXPORT_SOURCE_COLUMNS,
   "student_id",
   "display_name",
   "assessment_public_id",
@@ -113,7 +121,9 @@ const sessionSelect = {
     select: {
       user_id: true,
       display_name: true,
-      role: true
+      role: true,
+      account_status: true,
+      created_by_teacher_user_id: true
     }
   },
   assessment: {
@@ -224,6 +234,11 @@ const sessionSelect = {
       }
     },
     orderBy: [{ occurred_at: "asc" }, { created_at: "asc" }]
+  },
+  agent_calls: {
+    select: {
+      id: true
+    }
   }
 } satisfies Prisma.AssessmentSessionSelect;
 
@@ -547,7 +562,10 @@ async function correctnessSummary(
   }
 }
 
-async function buildSessionRow(session: ExportSession): Promise<SessionCsvRow> {
+async function buildSessionRow(
+  session: ExportSession,
+  source: ExportSourceIdentity
+): Promise<SessionCsvRow> {
   const itemResponses = session.concept_unit_sessions.flatMap((entry) => entry.item_responses);
   const responsePackages = session.concept_unit_sessions.flatMap((entry) => entry.response_packages);
   const profiles = session.concept_unit_sessions.flatMap((entry) => entry.student_profiles);
@@ -566,6 +584,7 @@ async function buildSessionRow(session: ExportSession): Promise<SessionCsvRow> {
   if (activityCounts.diagnostic_snapshot_count === 0) limitations.add("diagnostic_snapshots_missing");
 
   return {
+    ...sourceIdentityRow(source),
     assessment_public_id: session.assessment.assessment_public_id,
     assessment_title: session.assessment.title,
     assessment_status: session.assessment.status,
@@ -609,6 +628,13 @@ function rowSort(left: SessionCsvRow, right: SessionCsvRow) {
   );
 }
 
+function authorizedSessionOr(teacherUserDbId: string): Prisma.AssessmentSessionWhereInput[] {
+  return [
+    { assessment: { created_by_user_db_id: teacherUserDbId } },
+    { user: { created_by_teacher_user_id: teacherUserDbId } }
+  ];
+}
+
 async function loadSessions(input: {
   teacher_user_db_id: string;
   assessment_public_id?: string;
@@ -617,13 +643,14 @@ async function loadSessions(input: {
   return prisma.assessmentSession.findMany({
     where: {
       assessment: {
-        created_by_user_db_id: input.teacher_user_db_id,
         assessment_public_id: input.assessment_public_id
       },
       user: {
         role: "student",
+        account_status: "active",
         user_id: input.student_user_id
-      }
+      },
+      OR: authorizedSessionOr(input.teacher_user_db_id)
     },
     select: sessionSelect,
     orderBy: [
@@ -641,8 +668,21 @@ async function assertAssessment(input: {
 }) {
   const assessment = await prisma.assessment.findFirst({
     where: {
-      created_by_user_db_id: input.teacher_user_db_id,
-      assessment_public_id: input.assessment_public_id
+      assessment_public_id: input.assessment_public_id,
+      OR: [
+        { created_by_user_db_id: input.teacher_user_db_id },
+        {
+          assessment_sessions: {
+            some: {
+              user: {
+                role: "student",
+                account_status: "active",
+                created_by_teacher_user_id: input.teacher_user_db_id
+              }
+            }
+          }
+        }
+      ]
     },
     select: { assessment_public_id: true, title: true }
   });
@@ -654,9 +694,25 @@ async function assertAssessment(input: {
   return assessment;
 }
 
-async function assertStudent(userId: string) {
+async function assertStudent(input: { teacher_user_db_id: string; student_user_id: string }) {
   const student = await prisma.user.findFirst({
-    where: { user_id: userId, role: "student" },
+    where: {
+      user_id: input.student_user_id,
+      role: "student",
+      account_status: "active",
+      OR: [
+        { created_by_teacher_user_id: input.teacher_user_db_id },
+        {
+          assessment_sessions: {
+            some: {
+              assessment: {
+                created_by_user_db_id: input.teacher_user_db_id
+              }
+            }
+          }
+        }
+      ]
+    },
     select: { user_id: true, display_name: true }
   });
 
@@ -676,9 +732,24 @@ function fileResult(fileName: string, content: string) {
 }
 
 export async function listSimpleCsvExplorerOptions(input: { teacher_user_db_id: string }) {
-  const [assessments, students] = await Promise.all([
+  const [assessments, students, sessions] = await Promise.all([
     prisma.assessment.findMany({
-      where: { created_by_user_db_id: input.teacher_user_db_id },
+      where: {
+        OR: [
+          { created_by_user_db_id: input.teacher_user_db_id },
+          {
+            assessment_sessions: {
+              some: {
+                user: {
+                  role: "student",
+                  account_status: "active",
+                  created_by_teacher_user_id: input.teacher_user_db_id
+                }
+              }
+            }
+          }
+        ]
+      },
       orderBy: [{ title: "asc" }, { assessment_public_id: "asc" }],
       select: {
         assessment_public_id: true,
@@ -687,22 +758,201 @@ export async function listSimpleCsvExplorerOptions(input: { teacher_user_db_id: 
       }
     }),
     prisma.user.findMany({
-      where: { role: "student" },
+      where: {
+        role: "student",
+        account_status: "active",
+        OR: [
+          { created_by_teacher_user_id: input.teacher_user_db_id },
+          {
+            assessment_sessions: {
+              some: {
+                assessment: {
+                  created_by_user_db_id: input.teacher_user_db_id
+                }
+              }
+            }
+          }
+        ]
+      },
       orderBy: [{ user_id: "asc" }],
       select: {
         user_id: true,
         display_name: true,
         account_status: true
       }
-    })
+    }),
+    loadSessions({ teacher_user_db_id: input.teacher_user_db_id })
   ]);
+  const supplementalBySession = await loadSupplementalAvailabilityCounts(
+    sessions.map((session) => session.session_public_id)
+  );
+  const countsByAssessment = new Map<string, ExportAvailabilityCounts>();
+  const countsByStudent = new Map<string, ExportAvailabilityCounts>();
+
+  for (const session of sessions) {
+    const counts = countsForSession(
+      session,
+      supplementalBySession.get(session.session_public_id)
+    );
+    mergeCounts(countsByAssessment, session.assessment.assessment_public_id, counts);
+    mergeCounts(countsByStudent, session.user.user_id, counts);
+  }
 
   return {
     export_version: TEACHER_SIMPLE_CSV_EXPORT_VERSION,
-    assessments,
-    students,
+    assessments: assessments.map((assessment) => {
+      const counts = countsByAssessment.get(assessment.assessment_public_id) ?? emptyAvailabilityCounts();
+      return {
+        ...assessment,
+        counts,
+        availability: availabilityForCounts(counts)
+      };
+    }),
+    students: students.map((student) => {
+      const counts = countsByStudent.get(student.user_id) ?? emptyAvailabilityCounts();
+      return {
+        ...student,
+        counts,
+        availability: availabilityForCounts(counts)
+      };
+    }),
     data_dictionary: SIMPLE_CSV_DATA_DICTIONARY
   };
+}
+
+type ExportAvailabilityCounts = {
+  sessions: number;
+  item_responses: number;
+  process_events: number;
+  latency_rows: number;
+  conversation_turns: number;
+  response_packages: number;
+  agent_calls: number;
+  activity_attempts: number;
+  post_activity_evidence: number;
+  diagnostic_snapshots: number;
+};
+
+type SupplementalAvailabilityCounts = Pick<
+  ExportAvailabilityCounts,
+  "activity_attempts" | "post_activity_evidence" | "diagnostic_snapshots"
+>;
+
+function emptyAvailabilityCounts(): ExportAvailabilityCounts {
+  return {
+    sessions: 0,
+    item_responses: 0,
+    process_events: 0,
+    latency_rows: 0,
+    conversation_turns: 0,
+    response_packages: 0,
+    agent_calls: 0,
+    activity_attempts: 0,
+    post_activity_evidence: 0,
+    diagnostic_snapshots: 0
+  };
+}
+
+function emptySupplementalAvailabilityCounts(): SupplementalAvailabilityCounts {
+  return {
+    activity_attempts: 0,
+    post_activity_evidence: 0,
+    diagnostic_snapshots: 0
+  };
+}
+
+async function loadSupplementalAvailabilityCounts(sessionPublicIds: string[]) {
+  if (sessionPublicIds.length === 0) {
+    return new Map<string, SupplementalAvailabilityCounts>();
+  }
+
+  const [activityAttempts, evidenceRecords, diagnosticSnapshots] = await Promise.all([
+    prisma.activityRuntimeAttempt.groupBy({
+      by: ["session_public_id"],
+      where: { session_public_id: { in: sessionPublicIds } },
+      _count: { _all: true }
+    }),
+    prisma.activityMisconceptionEvidenceRecord.groupBy({
+      by: ["session_public_id"],
+      where: { session_public_id: { in: sessionPublicIds } },
+      _count: { _all: true }
+    }),
+    prisma.postActivityDiagnosticSnapshot.groupBy({
+      by: ["session_public_id"],
+      where: { session_public_id: { in: sessionPublicIds } },
+      _count: { _all: true }
+    })
+  ]);
+
+  const counts = new Map<string, SupplementalAvailabilityCounts>();
+  for (const sessionPublicId of sessionPublicIds) {
+    counts.set(sessionPublicId, emptySupplementalAvailabilityCounts());
+  }
+  for (const entry of activityAttempts) {
+    const current = counts.get(entry.session_public_id) ?? emptySupplementalAvailabilityCounts();
+    counts.set(entry.session_public_id, {
+      ...current,
+      activity_attempts: entry._count._all
+    });
+  }
+  for (const entry of evidenceRecords) {
+    const current = counts.get(entry.session_public_id) ?? emptySupplementalAvailabilityCounts();
+    counts.set(entry.session_public_id, {
+      ...current,
+      post_activity_evidence: entry._count._all
+    });
+  }
+  for (const entry of diagnosticSnapshots) {
+    const current = counts.get(entry.session_public_id) ?? emptySupplementalAvailabilityCounts();
+    counts.set(entry.session_public_id, {
+      ...current,
+      diagnostic_snapshots: entry._count._all
+    });
+  }
+
+  return counts;
+}
+
+function countsForSession(
+  session: ExportSession,
+  supplemental: SupplementalAvailabilityCounts = emptySupplementalAvailabilityCounts()
+): ExportAvailabilityCounts {
+  return {
+    sessions: 1,
+    item_responses: session.concept_unit_sessions.flatMap((entry) => entry.item_responses).length,
+    process_events: session.process_events.length,
+    latency_rows: buildTurnLatencyCount(session),
+    conversation_turns: session.conversation_turns.length,
+    response_packages: session.concept_unit_sessions.flatMap((entry) => entry.response_packages).length,
+    agent_calls: session.agent_calls.length,
+    activity_attempts: supplemental.activity_attempts,
+    post_activity_evidence: supplemental.post_activity_evidence,
+    diagnostic_snapshots: supplemental.diagnostic_snapshots
+  };
+}
+
+function mergeCounts(
+  map: Map<string, ExportAvailabilityCounts>,
+  key: string,
+  next: ExportAvailabilityCounts
+) {
+  const current = map.get(key) ?? emptyAvailabilityCounts();
+  map.set(key, Object.fromEntries(
+    Object.keys(current).map((countKey) => [
+      countKey,
+      current[countKey as keyof ExportAvailabilityCounts] +
+        next[countKey as keyof ExportAvailabilityCounts]
+    ])
+  ) as ExportAvailabilityCounts);
+}
+
+function availabilityForCounts(counts: ExportAvailabilityCounts) {
+  if (counts.sessions === 0) return "No sessions";
+  if (counts.item_responses === 0) return "Session exists but no item response";
+  if (counts.process_events === 0 || counts.conversation_turns === 0) {
+    return "Legacy session with partial instrumentation";
+  }
+  return "Data available";
 }
 
 export async function downloadAssessmentCsv(input: {
@@ -711,7 +961,19 @@ export async function downloadAssessmentCsv(input: {
 }) {
   await assertAssessment(input);
   const sessions = await loadSessions(input);
-  const rows = (await Promise.all(sessions.map(buildSessionRow))).sort(rowSort);
+  if (sessions.length === 0) {
+    throw new ContentServiceError(
+      "no_session_data",
+      "No student sessions are available for this assessment.",
+      409
+    );
+  }
+  const source = buildExportSourceIdentity({
+    export_schema_version: TEACHER_SIMPLE_CSV_EXPORT_VERSION,
+    export_scope: "selected_assessment_summary",
+    selected_assessment_public_id: input.assessment_public_id
+  });
+  const rows = (await Promise.all(sessions.map((session) => buildSessionRow(session, source)))).sort(rowSort);
 
   return fileResult(
     `assessment_${input.assessment_public_id}_students.csv`,
@@ -723,9 +985,21 @@ export async function downloadStudentCsv(input: {
   teacher_user_db_id: string;
   student_user_id: string;
 }) {
-  await assertStudent(input.student_user_id);
+  await assertStudent(input);
   const sessions = await loadSessions(input);
-  const rows = (await Promise.all(sessions.map(buildSessionRow))).sort(rowSort);
+  if (sessions.length === 0) {
+    throw new ContentServiceError(
+      "no_session_data",
+      "No student sessions are available for this student.",
+      409
+    );
+  }
+  const source = buildExportSourceIdentity({
+    export_schema_version: TEACHER_SIMPLE_CSV_EXPORT_VERSION,
+    export_scope: "selected_student_summary",
+    selected_student_id: input.student_user_id
+  });
+  const rows = (await Promise.all(sessions.map((session) => buildSessionRow(session, source)))).sort(rowSort);
 
   return fileResult(
     `student_${input.student_user_id}_sessions.csv`,
@@ -737,9 +1011,11 @@ function aggregateRows(input: {
   student: { user_id: string; display_name: string | null };
   assessment: { assessment_public_id: string; title: string; status: string };
   rows: SessionCsvRow[];
+  source: ExportSourceIdentity;
 }): MatrixCsvRow {
   if (input.rows.length === 0) {
     return {
+      ...sourceIdentityRow(input.source),
       student_id: input.student.user_id,
       display_name: input.student.display_name ?? "",
       assessment_public_id: input.assessment.assessment_public_id,
@@ -781,6 +1057,7 @@ function aggregateRows(input: {
   }
 
   return {
+    ...sourceIdentityRow(input.source),
     student_id: input.student.user_id,
     display_name: input.student.display_name ?? "",
     assessment_public_id: input.assessment.assessment_public_id,
@@ -816,7 +1093,11 @@ export async function downloadStudentAssessmentMatrixCsv(input: { teacher_user_d
     listSimpleCsvExplorerOptions(input),
     loadSessions(input)
   ]);
-  const sessionRows = await Promise.all(sessions.map(buildSessionRow));
+  const source = buildExportSourceIdentity({
+    export_schema_version: TEACHER_SIMPLE_CSV_EXPORT_VERSION,
+    export_scope: "student_assessment_matrix"
+  });
+  const sessionRows = await Promise.all(sessions.map((session) => buildSessionRow(session, source)));
   const grouped = new Map<string, SessionCsvRow[]>();
 
   for (const row of sessionRows) {
@@ -831,6 +1112,7 @@ export async function downloadStudentAssessmentMatrixCsv(input: { teacher_user_d
       aggregateRows({
         student,
         assessment,
+        source,
         rows: grouped.get(`${student.user_id}\u0000${assessment.assessment_public_id}`) ?? []
       })
     )

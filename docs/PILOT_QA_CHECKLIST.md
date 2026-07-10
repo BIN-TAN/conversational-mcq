@@ -364,7 +364,10 @@ Teacher/research quick CSV checks:
 - `Download assessment CSV` produces `assessment_<id>_students.csv` with one row per student-assessment session attempt for the selected assessment.
 - `Download student CSV` produces `student_<student_id>_sessions.csv` with one row per assessment session attempt for the selected student.
 - `Download matrix CSV` produces `student_assessment_matrix.csv` with one row per current student and assessment pair.
+- Assessment/student detailed ZIP downloads contain exactly `analysis_rows.csv`, `process_events.csv`, `turn_response_latencies.csv`, and `conversation_turns.csv`.
+- An assessment with no student sessions should show `No student sessions are available for this assessment.` and should not download a misleading header-only CSV.
 - Simple CSVs include safe count/status fields and limitations only. They must not include email by default, raw response text, process payloads, provider output, answer keys, correct options, correctness labels, distractor metadata, diagnostic notes, credentials, or secrets.
+- Detailed CSV bundles may include readable student response/conversation text for teacher/research review, but must not include raw process payloads, provider output, answer keys, correct options, raw distractor metadata, credentials, or secrets.
 
 No logs, exports, screenshots, or notes should contain API keys, cookies, auth tokens, session secrets, password hashes, access-code hashes, hidden prompts, or raw provider payloads.
 

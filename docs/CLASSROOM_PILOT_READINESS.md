@@ -69,7 +69,8 @@ After a completed or partially completed classroom session, teacher/research rev
 - post-activity diagnostic snapshot when the evaluator persisted evidence;
 - agent audit summaries when LLM calls occurred;
 - session data-completeness record;
-- simple assessment/student/matrix CSV downloads from `/teacher/data/explorer`;
+- summary assessment/student/matrix CSV downloads from `/teacher/data/explorer`;
+- detailed assessment/student/all-authorized CSV ZIP bundles from `/teacher/data/explorer`;
 - bulk research export;
 - research export integrity review.
 

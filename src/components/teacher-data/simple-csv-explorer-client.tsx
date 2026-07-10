@@ -9,12 +9,29 @@ type AssessmentOption = {
   assessment_public_id: string;
   title: string;
   status: string;
+  counts: ExportAvailabilityCounts;
+  availability: string;
 };
 
 type StudentOption = {
   user_id: string;
   display_name: string | null;
   account_status: string;
+  counts: ExportAvailabilityCounts;
+  availability: string;
+};
+
+type ExportAvailabilityCounts = {
+  sessions: number;
+  item_responses: number;
+  process_events: number;
+  latency_rows: number;
+  conversation_turns: number;
+  response_packages: number;
+  agent_calls: number;
+  activity_attempts: number;
+  post_activity_evidence: number;
+  diagnostic_snapshots: number;
 };
 
 type DictionaryEntry = {
@@ -65,6 +82,46 @@ function downloadClassName(disabled: boolean) {
   ].join(" ");
 }
 
+function CountPill({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="rounded-full border border-line bg-slate-50 px-2.5 py-1 text-xs font-medium text-muted">
+      {label}: <span className="font-semibold text-ink">{value}</span>
+    </span>
+  );
+}
+
+function CountsSummary({ counts }: { counts: ExportAvailabilityCounts }) {
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      <CountPill label="sessions" value={counts.sessions} />
+      <CountPill label="responses" value={counts.item_responses} />
+      <CountPill label="events" value={counts.process_events} />
+      <CountPill label="turns" value={counts.conversation_turns} />
+      <CountPill label="latencies" value={counts.latency_rows} />
+      <CountPill label="packages" value={counts.response_packages} />
+      <CountPill label="agent calls" value={counts.agent_calls} />
+      <CountPill label="activities" value={counts.activity_attempts} />
+    </div>
+  );
+}
+
+function DownloadLink({
+  disabled,
+  href,
+  label
+}: {
+  disabled: boolean;
+  href: string;
+  label: string;
+}) {
+  return (
+    <a aria-disabled={disabled} className={downloadClassName(disabled)} href={disabled ? "#" : href}>
+      <Download className="h-4 w-4" aria-hidden="true" />
+      {label}
+    </a>
+  );
+}
+
 export function SimpleCsvExplorerClient() {
   const [options, setOptions] = useState<OptionsResponse | null>(null);
   const [assessmentId, setAssessmentId] = useState("");
@@ -111,11 +168,38 @@ export function SimpleCsvExplorerClient() {
         : "#",
     [assessmentId]
   );
+  const detailedAssessmentHref = useMemo(
+    () =>
+      assessmentId
+        ? `/api/teacher/data-explorer/assessments/${encodeURIComponent(assessmentId)}/detailed-csv`
+        : "#",
+    [assessmentId]
+  );
   const studentHref = useMemo(
     () =>
       studentId ? `/api/teacher/data-explorer/students/${encodeURIComponent(studentId)}/csv` : "#",
     [studentId]
   );
+  const detailedStudentHref = useMemo(
+    () =>
+      studentId
+        ? `/api/teacher/data-explorer/students/${encodeURIComponent(studentId)}/detailed-csv`
+        : "#",
+    [studentId]
+  );
+  const selectedAssessment = useMemo(
+    () =>
+      (options?.assessments ?? []).find(
+        (assessment) => assessment.assessment_public_id === assessmentId
+      ) ?? null,
+    [assessmentId, options]
+  );
+  const selectedStudent = useMemo(
+    () => (options?.students ?? []).find((student) => student.user_id === studentId) ?? null,
+    [studentId, options]
+  );
+  const assessmentHasSessions = (selectedAssessment?.counts.sessions ?? 0) > 0;
+  const studentHasSessions = (selectedStudent?.counts.sessions ?? 0) > 0;
 
   return (
     <div className="space-y-5">
@@ -131,9 +215,9 @@ export function SimpleCsvExplorerClient() {
 
       <section className="grid gap-4 lg:grid-cols-3">
         <article className="rounded-lg border border-line bg-white p-5 shadow-soft">
-          <h2 className="text-lg font-semibold text-ink">Assessment CSV</h2>
+          <h2 className="text-lg font-semibold text-ink">Assessment CSVs</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            One selected assessment, with one row per student session attempt.
+            Select one assessment for summary rows or the complete process-data bundle.
           </p>
           <label className="mt-4 flex flex-col gap-2 text-sm font-medium text-ink">
             Assessment
@@ -147,21 +231,39 @@ export function SimpleCsvExplorerClient() {
                   key={assessment.assessment_public_id}
                   value={assessment.assessment_public_id}
                 >
-                  {assessment.title} ({assessment.status})
+                  {assessment.title} ({assessment.status}) - {assessment.availability}
                 </option>
               ))}
             </select>
           </label>
-          <a className={`mt-4 ${downloadClassName(!assessmentId)}`} href={assessmentHref}>
-            <Download className="h-4 w-4" aria-hidden="true" />
-            Download assessment CSV
-          </a>
+          {selectedAssessment ? (
+            <>
+              <CountsSummary counts={selectedAssessment.counts} />
+              <p className="mt-3 text-sm text-muted">
+                {assessmentHasSessions
+                  ? selectedAssessment.availability
+                  : "No student sessions are available for this assessment."}
+              </p>
+            </>
+          ) : null}
+          <div className="mt-4 flex flex-wrap gap-3">
+            <DownloadLink
+              disabled={!assessmentId || !assessmentHasSessions}
+              href={assessmentHref}
+              label="Download summary assessment CSV"
+            />
+            <DownloadLink
+              disabled={!assessmentId || !assessmentHasSessions}
+              href={detailedAssessmentHref}
+              label="Download detailed assessment ZIP"
+            />
+          </div>
         </article>
 
         <article className="rounded-lg border border-line bg-white p-5 shadow-soft">
-          <h2 className="text-lg font-semibold text-ink">Student CSV</h2>
+          <h2 className="text-lg font-semibold text-ink">Student CSVs</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            One selected student, with one row per assessment session attempt.
+            Select one student for summary rows or the complete process-data bundle.
           </p>
           <label className="mt-4 flex flex-col gap-2 text-sm font-medium text-ink">
             Student
@@ -174,14 +276,34 @@ export function SimpleCsvExplorerClient() {
                 <option key={student.user_id} value={student.user_id}>
                   {student.user_id}
                   {student.display_name ? ` - ${student.display_name}` : ""} ({student.account_status})
+                  {" - "}
+                  {student.availability}
                 </option>
               ))}
             </select>
           </label>
-          <a className={`mt-4 ${downloadClassName(!studentId)}`} href={studentHref}>
-            <Download className="h-4 w-4" aria-hidden="true" />
-            Download student CSV
-          </a>
+          {selectedStudent ? (
+            <>
+              <CountsSummary counts={selectedStudent.counts} />
+              <p className="mt-3 text-sm text-muted">
+                {studentHasSessions
+                  ? selectedStudent.availability
+                  : "No student sessions are available for this student."}
+              </p>
+            </>
+          ) : null}
+          <div className="mt-4 flex flex-wrap gap-3">
+            <DownloadLink
+              disabled={!studentId || !studentHasSessions}
+              href={studentHref}
+              label="Download summary student CSV"
+            />
+            <DownloadLink
+              disabled={!studentId || !studentHasSessions}
+              href={detailedStudentHref}
+              label="Download detailed student ZIP"
+            />
+          </div>
         </article>
 
         <article className="rounded-lg border border-line bg-white p-5 shadow-soft">
@@ -196,14 +318,21 @@ export function SimpleCsvExplorerClient() {
             <Download className="h-4 w-4" aria-hidden="true" />
             Download matrix CSV
           </a>
+          <div className="mt-3">
+            <DownloadLink
+              disabled={false}
+              href="/api/teacher/data-explorer/complete-csv"
+              label="Download complete authorized ZIP"
+            />
+          </div>
         </article>
       </section>
 
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
         <h2 className="text-xl font-semibold text-ink">Data dictionary</h2>
         <p className="mt-2 text-sm leading-6 text-muted">
-          Simple CSVs summarize counts and safe status fields only. Use the full research export
-          when you need row-level transcripts, process timelines, or structured evidence packets.
+          Summary CSVs provide one row per session or student-assessment pair. Detailed ZIPs
+          include analysis rows, process events, turn latencies, and readable conversation turns.
         </p>
         <div className="mt-4 overflow-x-auto rounded-lg border border-line">
           <table className="min-w-full text-left text-sm">

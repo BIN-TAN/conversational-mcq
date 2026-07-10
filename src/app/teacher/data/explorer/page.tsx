@@ -22,10 +22,10 @@ export default async function TeacherDataExplorerPage() {
           <p className="text-sm font-semibold uppercase tracking-wide text-accent">
             teacher/research CSV explorer
           </p>
-          <h1 className="mt-2 text-3xl font-semibold text-ink">Simple CSV downloads</h1>
+          <h1 className="mt-2 text-3xl font-semibold text-ink">CSV downloads</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-            Download assessment, student, or student-by-assessment summary CSV files without
-            raw responses, answer keys, process payloads, provider output, or diagnostic notes.
+            Download summary CSV files or complete analysis-ready bundles without answer keys,
+            raw process payloads, provider output, credentials, or internal diagnostic notes.
           </p>
         </header>
 

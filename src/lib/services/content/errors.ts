@@ -2,6 +2,7 @@ export type ContentErrorCode =
   | "validation_failed"
   | "not_found"
   | "conflict"
+  | "no_session_data"
   | "cannot_modify_published_with_responses"
   | "content_locked_after_student_session"
   | "assessment_has_no_published_concept_units"

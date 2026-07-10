@@ -294,6 +294,43 @@ aggregate counts, latest student-safe status when available, latest diagnostic
 purpose when available, unsupported-correct aggregate count, maximum estimated
 guessing-risk aggregate, data completeness status, and limitations.
 
+Every generated CSV row includes export-source identity fields:
+`export_run_public_id`, `export_generated_at`, `export_schema_version`,
+`app_environment`, `app_commit_sha`, `service_base_url`,
+`database_instance_fingerprint`, export scope, and selected assessment/student
+or session identifiers where applicable. The database fingerprint is an
+irreversible hash of the configured database URL; the raw URL is never exported.
+
+If a selected assessment has no authorized student sessions, the Data Explorer
+reports `No student sessions are available for this assessment.` and disables
+normal assessment downloads instead of producing a misleading header-only CSV.
+The selected-student export is scoped by authorized student/session ownership,
+not only by the assessment creator, so a teacher-managed student remains
+exportable even when the session belongs to an assessment record originally
+created under another authorized account.
+
+The same page also provides analysis-ready detailed ZIP bundles for all
+authorized data, one selected assessment, or one selected student. Each bundle
+contains exactly:
+
+- `analysis_rows.csv`: one row per item response, plus a placeholder row for a
+  session with no item responses. It includes response fields, frozen item/media
+  snapshot identifiers, timing fields, response-package evidence summaries, and
+  scalar engagement/process features.
+- `process_events.csv`: one row per process event with allow-listed payload
+  derivatives only. Raw process payloads are excluded.
+- `turn_response_latencies.csv`: prompt-to-next-student-response/action latency
+  rows. Measured latencies are nonnegative; unavailable measurements are null
+  with limitations.
+- `conversation_turns.csv`: readable ordered turns with message text and safe
+  context labels. Structured payloads, answer keys, and provider output are
+  excluded.
+
+Null values mean the field was not collected or cannot be reconstructed for the
+row. Zero means the instrumentation path existed and no matching event was
+observed. Process indicators are evidence-quality context only; they must not
+be interpreted alone as ability, misconception, cheating, or misconduct labels.
+
 Deleted students are excluded because the exporter reads current `users` rows
 with `role=student`; teacher-deleted student rows and associated deleted
 records are not recreated for export. Simple CSVs exclude email by default, raw
