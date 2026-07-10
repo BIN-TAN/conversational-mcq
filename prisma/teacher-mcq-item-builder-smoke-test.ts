@@ -215,6 +215,24 @@ function assertItemEditorSupportsDynamicOptionsAndSafePreview() {
     source.includes("Students see only the stem and option text"),
     "Student preview should explicitly hide key and diagnostic notes."
   );
+  assert(
+    source.includes("Initial MCQ items should usually ask students to apply, analyze, or evaluate ideas."),
+    "Item editor should expose higher-order initial-item guidance."
+  );
+  assert(
+    source.includes("Creation is better elicited later through a constructed-response activity."),
+    "Item editor should explain why Create belongs to later constructed-response work."
+  );
+  assert(!source.includes("Cognitive demand"), "Item editor should not expose a cognitive-demand dropdown.");
+  assert(source.includes("Add media"), "Item editor should expose an Add media action.");
+  assert(
+    source.includes("Descriptions are required because the LLM receives accessible media context"),
+    "Media helper should explain accessible media context for LLM interpretation."
+  );
+  assert(
+    source.includes("Upload image (storage not configured)"),
+    "Media editor should keep browser upload unavailable until storage is configured."
+  );
 }
 
 async function cleanup(prefix: string) {

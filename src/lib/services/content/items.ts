@@ -15,6 +15,11 @@ import {
   assertItemEditable
 } from "./governance";
 import { itemSerializerInclude, serializeItem } from "./serializers";
+import {
+  itemMediaCreateData,
+  mediaAssetsForInput,
+  normalizeItemMediaAssetInputs
+} from "./item-media";
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
@@ -22,6 +27,26 @@ function isUniqueConstraintError(error: unknown): boolean {
 
 function jsonChanged(previous: unknown, next: unknown): boolean {
   return JSON.stringify(previous ?? null) !== JSON.stringify(next ?? null);
+}
+
+export async function replaceItemMediaAssets(
+  tx: Prisma.TransactionClient,
+  input: {
+    item_db_id: string;
+    media_assets: unknown;
+  }
+) {
+  const mediaAssets = normalizeItemMediaAssetInputs(input.media_assets);
+
+  await tx.itemMediaAsset.deleteMany({
+    where: { item_db_id: input.item_db_id }
+  });
+
+  if (mediaAssets.length > 0) {
+    await tx.itemMediaAsset.createMany({
+      data: mediaAssets.map((asset) => itemMediaCreateData(input.item_db_id, asset))
+    });
+  }
 }
 
 async function getTeacherConceptUnitOrThrow(input: {
@@ -77,25 +102,36 @@ export async function createItem(input: {
   const itemOrder = data.item_order ?? (await getNextItemOrder(conceptUnit.id));
 
   try {
-    const item = await prisma.item.create({
-      data: {
-        item_public_id: generatePublicId("item"),
-        concept_unit_db_id: conceptUnit.id,
-        item_order: itemOrder,
-        item_stem: data.item_stem,
-        options: toPrismaJson(data.options) ?? [],
-        correct_option: data.correct_option,
-        distractor_rationales: toPrismaJson(data.distractor_rationales),
-        expected_reasoning_patterns: toPrismaJson(data.expected_reasoning_patterns),
-        possible_misconception_indicators: toPrismaJson(
-          data.possible_misconception_indicators
-        ),
-        administration_rules: toPrismaJson(data.administration_rules),
-        included_in_published_set: data.included_in_published_set,
-        status: "draft",
-        version: 1
-      },
-      include: itemSerializerInclude
+    const item = await prisma.$transaction(async (tx) => {
+      const created = await tx.item.create({
+        data: {
+          item_public_id: generatePublicId("item"),
+          concept_unit_db_id: conceptUnit.id,
+          item_order: itemOrder,
+          item_stem: data.item_stem,
+          options: toPrismaJson(data.options) ?? [],
+          correct_option: data.correct_option,
+          distractor_rationales: toPrismaJson(data.distractor_rationales),
+          expected_reasoning_patterns: toPrismaJson(data.expected_reasoning_patterns),
+          possible_misconception_indicators: toPrismaJson(
+            data.possible_misconception_indicators
+          ),
+          administration_rules: toPrismaJson(data.administration_rules),
+          included_in_published_set: data.included_in_published_set,
+          status: "draft",
+          version: 1
+        }
+      });
+
+      await replaceItemMediaAssets(tx, {
+        item_db_id: created.id,
+        media_assets: data.media_assets
+      });
+
+      return tx.item.findUniqueOrThrow({
+        where: { id: created.id },
+        include: itemSerializerInclude
+      });
     });
 
     return serializeItem(item);
@@ -155,6 +191,10 @@ export async function updateItem(input: {
 }) {
   const data = ItemUpdateInputSchema.parse(input.data);
   const item = await assertItemEditable(input);
+  const existingMediaAssets = await prisma.itemMediaAsset.findMany({
+    where: { item_db_id: item.id, active: true },
+    orderBy: [{ order_index: "asc" }, { created_at: "asc" }]
+  });
 
   const merged = ItemDraftInputSchema.parse({
     item_stem: data.item_stem ?? item.item_stem,
@@ -166,17 +206,22 @@ export async function updateItem(input: {
     possible_misconception_indicators:
       data.possible_misconception_indicators ?? item.possible_misconception_indicators ?? [],
     administration_rules: data.administration_rules ?? item.administration_rules ?? {},
+    media_assets: data.media_assets ?? mediaAssetsForInput(existingMediaAssets),
     included_in_published_set:
       data.included_in_published_set ?? item.included_in_published_set,
     item_order: item.item_order
   });
+  const mediaChanged =
+    data.media_assets !== undefined &&
+    jsonChanged(mediaAssetsForInput(existingMediaAssets), normalizeItemMediaAssetInputs(data.media_assets));
 
   const destructiveChange =
     (data.item_stem !== undefined && data.item_stem !== item.item_stem) ||
     (data.options !== undefined && jsonChanged(item.options, data.options)) ||
     (data.correct_option !== undefined && data.correct_option !== item.correct_option) ||
     (data.distractor_rationales !== undefined &&
-      jsonChanged(item.distractor_rationales, data.distractor_rationales));
+      jsonChanged(item.distractor_rationales, data.distractor_rationales)) ||
+    mediaChanged;
 
   if (destructiveChange) {
     const responseCount = await prisma.itemResponse.count({
@@ -193,7 +238,8 @@ export async function updateItem(input: {
             "item_stem",
             "options",
             "correct_option",
-            "distractor_rationales"
+            "distractor_rationales",
+            "media_assets"
           ],
           response_count: responseCount
         }
@@ -212,25 +258,39 @@ export async function updateItem(input: {
       )) ||
     (data.administration_rules !== undefined &&
       jsonChanged(item.administration_rules, data.administration_rules)) ||
+    mediaChanged ||
     (data.included_in_published_set !== undefined &&
       data.included_in_published_set !== item.included_in_published_set);
 
-  const updated = await prisma.item.update({
-    where: { id: item.id },
-    data: {
-      item_stem: merged.item_stem,
-      options: toPrismaJson(merged.options) ?? [],
-      correct_option: merged.correct_option,
-      distractor_rationales: toPrismaJson(merged.distractor_rationales),
-      expected_reasoning_patterns: toPrismaJson(merged.expected_reasoning_patterns),
-      possible_misconception_indicators: toPrismaJson(
-        merged.possible_misconception_indicators
-      ),
-      administration_rules: toPrismaJson(merged.administration_rules),
-      included_in_published_set: merged.included_in_published_set,
-      version: contentChanged ? { increment: 1 } : undefined
-    },
-    include: itemSerializerInclude
+  const updated = await prisma.$transaction(async (tx) => {
+    const saved = await tx.item.update({
+      where: { id: item.id },
+      data: {
+        item_stem: merged.item_stem,
+        options: toPrismaJson(merged.options) ?? [],
+        correct_option: merged.correct_option,
+        distractor_rationales: toPrismaJson(merged.distractor_rationales),
+        expected_reasoning_patterns: toPrismaJson(merged.expected_reasoning_patterns),
+        possible_misconception_indicators: toPrismaJson(
+          merged.possible_misconception_indicators
+        ),
+        administration_rules: toPrismaJson(merged.administration_rules),
+        included_in_published_set: merged.included_in_published_set,
+        version: contentChanged ? { increment: 1 } : undefined
+      }
+    });
+
+    if (mediaChanged) {
+      await replaceItemMediaAssets(tx, {
+        item_db_id: item.id,
+        media_assets: merged.media_assets
+      });
+    }
+
+    return tx.item.findUniqueOrThrow({
+      where: { id: saved.id },
+      include: itemSerializerInclude
+    });
   });
 
   return serializeItem(updated);

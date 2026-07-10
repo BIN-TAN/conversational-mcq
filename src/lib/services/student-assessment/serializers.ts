@@ -4,6 +4,7 @@ import type {
   ConceptUnit,
   ConfidenceLevel,
   Item,
+  ItemMediaAsset,
   ItemResponse,
   SessionStatus
 } from "@prisma/client";
@@ -74,6 +75,7 @@ export type StudentSafeItem = {
   item_order: number;
   item_stem: string;
   options: SafeOptions;
+  media_assets: StudentSafeMediaAsset[];
   item_version: number;
   existing_selected_option: string | null;
   existing_reasoning_text: string | null;
@@ -83,6 +85,34 @@ export type StudentSafeItem = {
   tempting_option_reason: string | null;
   submission_state: "not_started" | "draft" | "missing_evidence_repair" | "submitted";
 };
+
+export type StudentSafeMediaAsset = {
+  media_public_id: string;
+  placement: "item_stem" | "option";
+  option_label: string | null;
+  media_type: "image" | "video" | "reference_link";
+  url: string | null;
+  title: string | null;
+  alt_text_or_description: string;
+  caption: string | null;
+  transcript_or_content_summary: string | null;
+  source_attribution: string | null;
+};
+
+function serializeStudentSafeMediaAsset(asset: ItemMediaAsset): StudentSafeMediaAsset {
+  return {
+    media_public_id: asset.media_public_id,
+    placement: asset.placement,
+    option_label: asset.option_label,
+    media_type: asset.media_type,
+    url: asset.public_or_signed_url ?? asset.external_url ?? null,
+    title: asset.title,
+    alt_text_or_description: asset.alt_text_or_description,
+    caption: asset.caption,
+    transcript_or_content_summary: asset.transcript_or_content_summary,
+    source_attribution: asset.source_attribution
+  };
+}
 
 export function itemSubmissionState(
   response?: Pick<ItemResponse, "item_submitted_at" | "missing_evidence_repair_offered"> | null
@@ -103,7 +133,9 @@ export function itemSubmissionState(
 }
 
 export function serializeStudentSafeItem(
-  item: Pick<Item, "item_public_id" | "item_order" | "item_stem" | "options" | "version">,
+  item: Pick<Item, "item_public_id" | "item_order" | "item_stem" | "options" | "version"> & {
+    media_assets?: ItemMediaAsset[];
+  },
   response?: Pick<
     ItemResponse,
     | "selected_option"
@@ -123,6 +155,7 @@ export function serializeStudentSafeItem(
     item_order: item.item_order,
     item_stem: item.item_stem,
     options: safeOptions(item.options),
+    media_assets: item.media_assets?.map(serializeStudentSafeMediaAsset) ?? [],
     item_version: item.version,
     existing_selected_option: response?.selected_option ?? null,
     existing_reasoning_text: response?.reasoning_text ?? null,

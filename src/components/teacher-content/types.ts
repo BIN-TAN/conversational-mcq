@@ -130,6 +130,24 @@ export type ItemOption = {
   text: string;
 };
 
+export type ItemMediaAsset = {
+  media_public_id: string;
+  placement: "item_stem" | "option";
+  option_label: string | null;
+  media_type: "image" | "video" | "reference_link";
+  source_type: "uploaded" | "external_url";
+  url: string | null;
+  title: string | null;
+  alt_text_or_description: string;
+  caption: string | null;
+  transcript_or_content_summary: string | null;
+  source_attribution: string | null;
+  media_context_hash: string;
+  media_version: number;
+  order_index: number;
+  active: boolean;
+};
+
 export type ItemDetail = {
   item_public_id: string;
   concept_unit_public_id?: string;
@@ -143,6 +161,10 @@ export type ItemDetail = {
   expected_reasoning_patterns: unknown;
   possible_misconception_indicators: unknown;
   administration_rules: unknown;
+  media_assets: ItemMediaAsset[];
+  media_present_count?: number;
+  media_type_summary?: string;
+  llm_media_context?: unknown;
   included_in_published_set: boolean;
   status: ContentStatus;
   concept_unit_status?: ContentStatus;

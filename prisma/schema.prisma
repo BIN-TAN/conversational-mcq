@@ -45,6 +45,22 @@ enum ItemStatus {
   archived
 }
 
+enum ItemMediaPlacement {
+  item_stem
+  option
+}
+
+enum ItemMediaType {
+  image
+  video
+  reference_link
+}
+
+enum ItemMediaSourceType {
+  uploaded
+  external_url
+}
+
 enum AssessmentPhase {
   not_started
   session_started
@@ -502,6 +518,7 @@ model Item {
   updated_at                        DateTime   @updatedAt @db.Timestamptz(6)
 
   concept_unit       ConceptUnit        @relation(fields: [concept_unit_db_id], references: [id], onDelete: Restrict)
+  media_assets       ItemMediaAsset[]
   item_responses     ItemResponse[]
   conversation_turns ConversationTurn[]
   process_events     ProcessEvent[]
@@ -510,6 +527,37 @@ model Item {
   @@index([concept_unit_db_id, status])
   @@index([concept_unit_db_id, item_order])
   @@map("items")
+}
+
+model ItemMediaAsset {
+  id                            String              @id @default(uuid()) @db.Uuid
+  media_public_id               String              @unique @default(cuid())
+  item_db_id                    String              @db.Uuid
+  option_label                  String?
+  placement                     ItemMediaPlacement
+  media_type                    ItemMediaType
+  source_type                   ItemMediaSourceType
+  storage_key                   String?
+  public_or_signed_url          String?             @db.Text
+  external_url                  String?             @db.Text
+  title                         String?
+  alt_text_or_description       String              @db.Text
+  caption                       String?             @db.Text
+  transcript_or_content_summary String?             @db.Text
+  source_attribution            String?             @db.Text
+  media_context_hash            String
+  order_index                   Int                 @default(0)
+  active                        Boolean             @default(true)
+  media_version                 Int                 @default(1)
+  created_at                    DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime            @updatedAt @db.Timestamptz(6)
+
+  item Item @relation(fields: [item_db_id], references: [id], onDelete: Cascade)
+
+  @@index([item_db_id, active, order_index])
+  @@index([media_type])
+  @@index([source_type])
+  @@map("item_media_assets")
 }
 
 model AssessmentSession {

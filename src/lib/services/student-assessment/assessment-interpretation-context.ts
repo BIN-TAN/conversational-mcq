@@ -394,6 +394,7 @@ export function buildAssessmentInterpretationContextForItemAdministration(input:
   distractor_rationales?: unknown;
   expected_reasoning_patterns?: unknown;
   possible_misconception_indicators?: unknown;
+  llm_media_context?: unknown[];
   selected_option?: string | null;
   written_reasoning?: string | null;
   confidence?: string | null;
@@ -426,7 +427,7 @@ export function buildAssessmentInterpretationContextForItemAdministration(input:
     plain_language_distractor_diagnostic_notes:
       teacher.plain_language_distractor_diagnostic_notes,
     interpretation_caution: teacher.interpretation_caution,
-    llm_media_context: arrayValue(record(input.administration_rules).llm_media_context)
+    llm_media_context: input.llm_media_context ?? arrayValue(record(input.administration_rules).llm_media_context)
   };
   const conceptUnitPublicId = input.concept_unit_public_id ?? null;
   const assessmentPublicId = input.assessment_public_id;

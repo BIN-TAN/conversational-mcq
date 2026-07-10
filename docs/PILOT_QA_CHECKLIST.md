@@ -328,12 +328,22 @@ npm run student:live-llm-smoke:cleanup-failures
   absent from the normal mini-test detail page.
 - The normal MCQ editor does not show an item-purpose dropdown. Teacher-created
   MCQs default internally to initial item administration.
+- The item editor shows higher-order item guidance: initial MCQs should usually
+  ask students to apply, analyze, or evaluate ideas; basic recall should have a
+  clear diagnostic reason; creation belongs in later constructed-response
+  activity dialogue.
 - Correct-option notes are limited to target reasoning and strong-reasoning
   guidance.
 - Distractor diagnostic notes appear as one plain-language teacher-only box,
   not separate per-distractor hypothesis fields.
 - The editor copy states that selected distractors are indirect evidence only.
-- Student preview shows only stem and options.
+- Optional media authoring supports images, video links, and reference links
+  with required accessible descriptions. Video links need a transcript or
+  content summary. Browser uploads should remain disabled unless server-side
+  storage is configured.
+- Student preview shows only stem, options, and safe media fields. It must not
+  expose storage keys, media hashes, answer keys, correct options, distractor
+  metadata, or teacher-only notes.
 - Teacher preview shows the key and teacher-only diagnostic notes.
 - Publishing gives teacher-friendly validation messages for missing item
   requirements and keeps diagnostic notes teacher-only.

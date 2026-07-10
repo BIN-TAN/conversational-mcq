@@ -4,6 +4,7 @@ export type PublicIdKind =
   | "assessment"
   | "concept_unit"
   | "item"
+  | "item_media"
   | "session"
   | "summative_outcome"
   | "summative_import_batch"
@@ -35,6 +36,7 @@ const prefixes: Record<PublicIdKind, string> = {
   assessment: "asmt",
   concept_unit: "cu",
   item: "item",
+  item_media: "media",
   session: "sess",
   summative_outcome: "outcome",
   summative_import_batch: "sib",

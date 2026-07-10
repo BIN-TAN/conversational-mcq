@@ -303,3 +303,23 @@ Agent-call audit metadata may prove that the shared context was present by
 storing schema version, snapshot IDs, a context hash, and boolean presence
 flags. It must not duplicate raw teacher notes, raw distractor notes, answer
 keys in student-visible payloads, prompts, provider output, or secrets.
+
+## Media-Enabled Item Context
+
+Phase 31N allows teachers to attach images, video links, and reference links to
+MCQ items. Media is diagnostic context only when represented by teacher-authored
+accessible descriptions, captions, transcripts, or summaries. The LLM must not
+infer unseen image/video/reference content from a URL alone.
+
+The initial item builder should encourage apply, analyze, and evaluate tasks by
+default. Basic recall should be used only when diagnostically justified.
+Creation-oriented evidence belongs in later constructed-response activity
+dialogue, where students can generate, revise, or compare explanations in their
+own words.
+
+Media assets may support distractor-informed interpretation by clarifying what
+the student saw, but they do not change the evidence hierarchy: observed
+student reasoning, confidence, tempting-option evidence, response patterns, and
+safe process context remain primary. Student-facing surfaces must not expose
+answer keys, correct options, raw distractor notes, media storage internals, or
+provider/audit metadata.

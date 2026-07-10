@@ -17,11 +17,26 @@ export const StudentSafeOptionSchema = z.object({
 });
 export type StudentSafeOption = z.infer<typeof StudentSafeOptionSchema>;
 
+export const StudentSafeMediaAssetSchema = z.object({
+  media_public_id: z.string(),
+  placement: z.enum(["item_stem", "option"]),
+  option_label: z.string().nullable(),
+  media_type: z.enum(["image", "video", "reference_link"]),
+  url: z.string().nullable(),
+  title: z.string().nullable(),
+  alt_text_or_description: z.string(),
+  caption: z.string().nullable(),
+  transcript_or_content_summary: z.string().nullable(),
+  source_attribution: z.string().nullable()
+});
+export type StudentSafeMediaAsset = z.infer<typeof StudentSafeMediaAssetSchema>;
+
 export const StudentSafeItemSchema = z.object({
   item_public_id: z.string(),
   item_order: z.number(),
   item_stem: z.string(),
   options: z.array(StudentSafeOptionSchema),
+  media_assets: z.array(StudentSafeMediaAssetSchema).default([]),
   item_version: z.number(),
   existing_selected_option: z.string().nullable(),
   existing_reasoning_text: z.string().nullable(),

@@ -9,6 +9,7 @@ import type {
   StudentReviewItem,
   StudentReviewResponse,
   StudentActivityRuntimeProjection,
+  StudentSafeMediaAsset,
   StudentSafeItem,
   StudentSessionState,
   StudentTranscriptEntry
@@ -313,6 +314,71 @@ function OptionChip({
   );
 }
 
+function StudentMediaList({
+  mediaAssets,
+  compact = false,
+  linksInteractive = true
+}: {
+  mediaAssets: StudentSafeMediaAsset[];
+  compact?: boolean;
+  linksInteractive?: boolean;
+}) {
+  if (mediaAssets.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={compact ? "mt-2 grid gap-2" : "mt-4 grid gap-3"} data-testid="student-item-media-list">
+      {mediaAssets.map((asset) => (
+        <figure
+          className={
+            compact
+              ? "rounded-lg border border-line bg-white/80 p-2"
+              : "rounded-xl border border-line bg-[#fbfcfa] p-3"
+          }
+          data-testid={`student-item-media-${asset.media_public_id}`}
+          key={asset.media_public_id}
+        >
+          {asset.media_type === "image" && asset.url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              alt={asset.alt_text_or_description}
+              className="max-h-72 w-full rounded-lg object-contain"
+              src={asset.url}
+            />
+          ) : asset.url && linksInteractive ? (
+            <a
+              className="text-sm font-semibold text-accent underline-offset-4 hover:underline"
+              href={asset.url}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {asset.title ?? (asset.media_type === "video" ? "Open media link" : "Open reference link")}
+            </a>
+          ) : asset.url ? (
+            <span className="text-sm font-semibold text-accent">
+              {asset.title ?? (asset.media_type === "video" ? "Media link" : "Reference link")}
+            </span>
+          ) : null}
+          {asset.title && asset.media_type === "image" ? (
+            <figcaption className="mt-2 text-sm font-semibold text-ink">{asset.title}</figcaption>
+          ) : null}
+          <p className="mt-1 text-sm leading-6 text-muted">{asset.alt_text_or_description}</p>
+          {asset.caption ? <p className="mt-1 text-xs text-muted">{asset.caption}</p> : null}
+          {asset.transcript_or_content_summary ? (
+            <p className="mt-2 text-xs leading-5 text-muted">{asset.transcript_or_content_summary}</p>
+          ) : null}
+          {asset.source_attribution ? (
+            <p className="mt-1 text-[0.68rem] uppercase tracking-wide text-muted">
+              {asset.source_attribution}
+            </p>
+          ) : null}
+        </figure>
+      ))}
+    </div>
+  );
+}
+
 function AgentItemMessage({
   item,
   disabled,
@@ -338,9 +404,13 @@ function AgentItemMessage({
         {isTransferItem ? "Additional question" : `Question ${item.item_order} of 3`}
       </p>
       <p className="mt-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-ink">{item.item_stem}</p>
+      <StudentMediaList mediaAssets={item.media_assets.filter((asset) => asset.placement === "item_stem")} />
       <div className="mt-4 grid gap-1.5">
         {answerOptionsFor(item).map((option) => {
           const selected = item.existing_selected_option === option.label;
+          const optionMedia = item.media_assets.filter(
+            (asset) => asset.placement === "option" && asset.option_label === option.label
+          );
 
           return (
             <button
@@ -359,6 +429,7 @@ function AgentItemMessage({
               <span className="block text-sm leading-6">
                 <span className="font-semibold">{option.label}.</span> {option.text}
               </span>
+              <StudentMediaList compact linksInteractive={false} mediaAssets={optionMedia} />
             </button>
           );
         })}
@@ -582,6 +653,7 @@ function PackageReviewMessage({
                     </summary>
                     <div className="mt-2 space-y-2 border-t border-line pt-3">
                       <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{item.item_stem}</p>
+                      <StudentMediaList mediaAssets={item.media_assets.filter((asset) => asset.placement === "item_stem")} />
                       <dl className="grid gap-2 text-sm">
                         <div>
                           <dt className="font-semibold text-ink">Reason</dt>

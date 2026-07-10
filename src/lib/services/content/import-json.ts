@@ -8,6 +8,7 @@ import {
   serializeConceptUnit,
   serializeItem
 } from "./serializers";
+import { replaceItemMediaAssets } from "./items";
 import { ContentServiceError } from "./errors";
 import { assertAssessmentEditable } from "./governance";
 import { ConceptUnitImportInputSchema } from "./validation";
@@ -137,7 +138,7 @@ export async function importConceptBasedItemSets(input: {
 
         const createdItems = [];
         for (const [index, itemInput] of conceptUnitInput.items.entries()) {
-          const item = await tx.item.create({
+          const created = await tx.item.create({
             data: {
               item_public_id: generatePublicId("item"),
               concept_unit_db_id: conceptUnit.id,
@@ -156,7 +157,16 @@ export async function importConceptBasedItemSets(input: {
               included_in_published_set: itemInput.included_in_published_set,
               status: "draft",
               version: 1
-            },
+            }
+          });
+
+          await replaceItemMediaAssets(tx, {
+            item_db_id: created.id,
+            media_assets: itemInput.media_assets
+          });
+
+          const item = await tx.item.findUniqueOrThrow({
+            where: { id: created.id },
             include: itemSerializerInclude
           });
 

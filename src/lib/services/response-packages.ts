@@ -2,6 +2,10 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { ResponsePackageTypeSchema } from "../domain/enums";
 import { teacherDiagnosticContextForProvider } from "./content/teacher-diagnostic-context";
+import {
+  llmMediaContextForAssets,
+  serializeItemMediaAsset
+} from "./content/item-media";
 import { toPrismaJson } from "./json";
 import { aggregateProcessEventsByConceptUnitSession } from "./process-events";
 
@@ -126,6 +130,10 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
               possible_misconception_indicators: true,
               administration_rules: true,
               version: true,
+              media_assets: {
+                where: { active: true },
+                orderBy: [{ order_index: "asc" }, { created_at: "asc" }]
+              },
               included_in_published_set: true,
               status: true
             }
@@ -146,7 +154,11 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
               expected_reasoning_patterns: true,
               possible_misconception_indicators: true,
               administration_rules: true,
-              version: true
+              version: true,
+              media_assets: {
+                where: { active: true },
+                orderBy: [{ order_index: "asc" }, { created_at: "asc" }]
+              }
             }
           }
         }
@@ -224,6 +236,8 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
       version: item.version,
       status: item.status,
       included_in_published_set: item.included_in_published_set,
+      media_assets: item.media_assets.map(serializeItemMediaAsset),
+      llm_media_context: llmMediaContextForAssets(item.media_assets),
       ...itemMetadataFromRules(item.administration_rules),
       teacher_diagnostic_context: teacherDiagnosticContextForProvider({
         administration_rules: item.administration_rules,
@@ -301,6 +315,8 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
         difficulty: metadata.difficulty,
         knowledge_component: metadata.knowledge_component,
         misconception_cluster: metadata.misconception_cluster,
+        media_assets: response.item.media_assets.map(serializeItemMediaAsset),
+        llm_media_context: llmMediaContextForAssets(response.item.media_assets),
         teacher_diagnostic_context: teacherDiagnosticContext,
         selected_option: response.selected_option,
         selected_answer_initial: selectedAnswerInitial,

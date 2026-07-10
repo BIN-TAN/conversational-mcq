@@ -2030,3 +2030,36 @@ Agent-call audit metadata stores only safe context proof such as schema version,
 snapshot IDs, context hash, and boolean presence flags. It must not store raw
 teacher notes, answer keys in student-visible payloads, credentials, prompts,
 or provider secrets.
+
+## Teacher-Authored Item Media
+
+Teachers may attach media to MCQ items through the item editor. Supported
+authoring types are image, video link, and reference link. Images may be
+represented by HTTPS URLs now; uploaded PNG, JPEG, and WebP images are accepted
+only through the server-side media storage interface after S3-compatible
+storage is configured. SVG files and video binary uploads are not accepted.
+
+Every media asset requires an accessible description. Video links also require
+a transcript or content summary. Media may attach to the item stem or to a
+specific option. Student-facing views render only the media URL, title,
+description, caption, transcript/summary, and attribution. They must not expose
+storage keys, media hashes, answer keys, correct options, teacher diagnostic
+notes, distractor metadata, or provider/audit internals.
+
+LLM interpretation receives `llm_media_context` made from teacher-authored
+descriptions, captions, transcripts, and summaries. Direct multimodal media is
+not supplied in this phase, and provider prompts must not infer unseen media
+content from URLs alone. Item response snapshots freeze the media context used
+at administration time, so later media edits do not rewrite collected evidence.
+
+Initial teacher-authored MCQs should default toward apply, analyze, and evaluate
+tasks. Basic recall is acceptable only when it has clear diagnostic value.
+Creation is intentionally reserved for later constructed-response activity
+dialogue rather than the initial MCQ item builder.
+
+Relevant no-live checks:
+
+```bash
+npm run student:teacher-mcq-media-smoke
+npm run student:teacher-mcq-item-builder-smoke
+```

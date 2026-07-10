@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
-import { Prisma, type AssessmentPhase, type Item, type ItemResponse } from "@prisma/client";
+import {
+  Prisma,
+  type AssessmentPhase,
+  type Item,
+  type ItemMediaAsset,
+  type ItemResponse
+} from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { ConfidenceLevelSchema, ProcessEventTypeSchema } from "@/lib/domain/enums";
@@ -16,6 +22,10 @@ import { logProcessEvent } from "@/lib/services/process-events";
 import { updateAssessmentSessionPhase, markSessionExited } from "@/lib/services/session-state";
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { buildAssessmentInterpretationContextForItemAdministration } from "@/lib/services/student-assessment/assessment-interpretation-context";
+import {
+  llmMediaContextForAssets,
+  serializeItemMediaAsset
+} from "@/lib/services/content/item-media";
 import { INCLUDED_ITEM_RANGE } from "@/lib/services/content/governance";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 import { getAssessmentTutorRuntimeStatus } from "@/lib/llm/assessment-tutor-readiness";
@@ -133,6 +143,7 @@ export const InitialAdministrationStep = z.enum([
 
 type InitialAdministrationStep = z.infer<typeof InitialAdministrationStep>;
 type MissingField = "answer" | "reasoning" | "confidence";
+type ItemWithMedia = Item & { media_assets?: ItemMediaAsset[] };
 type TemptingOptionEvidence = {
   no_tempting_option: boolean;
   tempting_option: string | null;
@@ -882,7 +893,13 @@ async function findTransferItemForConceptUnit(conceptUnitDbId: string) {
       included_in_published_set: false,
       status: { not: "archived" }
     },
-    orderBy: [{ item_order: "asc" }, { created_at: "asc" }]
+    orderBy: [{ item_order: "asc" }, { created_at: "asc" }],
+    include: {
+      media_assets: {
+        where: { active: true },
+        orderBy: [{ order_index: "asc" }, { created_at: "asc" }]
+      }
+    }
   });
 
   return candidates.find(isTransferItemCandidate) ?? null;
@@ -964,14 +981,18 @@ function assertActionAllowedForState(input: {
   }
 }
 
-function itemSnapshot(item: Item) {
+function itemSnapshot(item: ItemWithMedia) {
+  const mediaAssets = item.media_assets ?? [];
+
   return {
     item_public_id: item.item_public_id,
     item_order: item.item_order,
     item_stem: item.item_stem,
     options: item.options,
     correct_option: item.correct_option,
-    version: item.version
+    version: item.version,
+    media_assets: mediaAssets.map(serializeItemMediaAsset),
+    llm_media_context: llmMediaContextForAssets(mediaAssets)
   };
 }
 
@@ -1705,7 +1726,13 @@ export async function getStudentSessionState(input: {
               status: "published",
               included_in_published_set: true
             },
-            orderBy: [{ item_order: "asc" }, { created_at: "asc" }]
+            orderBy: [{ item_order: "asc" }, { created_at: "asc" }],
+            include: {
+              media_assets: {
+                where: { active: true },
+                orderBy: [{ order_index: "asc" }, { created_at: "asc" }]
+              }
+            }
           }
         }
       }
@@ -2330,6 +2357,10 @@ async function getActionContext(input: {
         select: {
           assessment_db_id: true
         }
+      },
+      media_assets: {
+        where: { active: true },
+        orderBy: [{ order_index: "asc" }, { created_at: "asc" }]
       }
     }
   });
@@ -2474,7 +2505,7 @@ async function assertCurrentItemActionState(input: {
 
 async function getOrCreateItemResponse(input: {
   concept_unit_session_db_id: string;
-  item: Item;
+  item: ItemWithMedia;
 }) {
   const existing = await prisma.itemResponse.findUnique({
     where: {
@@ -2530,6 +2561,7 @@ function itemAdministrationContext(input: {
     distractor_rationales: input.item.distractor_rationales,
     expected_reasoning_patterns: input.item.expected_reasoning_patterns,
     possible_misconception_indicators: input.item.possible_misconception_indicators,
+    llm_media_context: llmMediaContextForAssets(input.item.media_assets ?? []),
     selected_option: input.response.selected_option,
     written_reasoning: input.written_reasoning ?? input.response.reasoning_text,
     confidence: input.response.confidence_rating
@@ -4775,7 +4807,13 @@ export async function completeInitialConceptUnitAdministration(input: {
       status: "published",
       included_in_published_set: true
     },
-    orderBy: [{ item_order: "asc" }, { created_at: "asc" }]
+    orderBy: [{ item_order: "asc" }, { created_at: "asc" }],
+    include: {
+      media_assets: {
+        where: { active: true },
+        orderBy: [{ order_index: "asc" }, { created_at: "asc" }]
+      }
+    }
   });
   const responses = await prisma.itemResponse.findMany({
     where: {
@@ -5108,7 +5146,13 @@ export async function getStudentReviewResponses(input: {
       status: "published",
       included_in_published_set: true
     },
-    orderBy: [{ item_order: "asc" }, { created_at: "asc" }]
+    orderBy: [{ item_order: "asc" }, { created_at: "asc" }],
+    include: {
+      media_assets: {
+        where: { active: true },
+        orderBy: [{ order_index: "asc" }, { created_at: "asc" }]
+      }
+    }
   });
   const responsesByItemId = new Map(
     (conceptUnitSession?.item_responses ?? []).map((response) => [response.item_db_id, response])

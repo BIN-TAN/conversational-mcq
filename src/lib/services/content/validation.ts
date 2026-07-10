@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AssessmentWorkflowModeSchema, ResponseCollectionModeSchema } from "@/lib/domain/enums";
 import type { ContentValidationIssue } from "./errors";
+import { ItemMediaAssetInputSchema } from "./item-media";
 
 const nonEmptyText = z.string().trim().min(1);
 const optionalText = z.string().trim().optional().nullable();
@@ -78,6 +79,7 @@ export const ItemDraftInputSchema = z
     expected_reasoning_patterns: z.array(nonEmptyText).default([]),
     possible_misconception_indicators: z.array(nonEmptyText).default([]),
     administration_rules: jsonObject.default({}),
+    media_assets: z.array(ItemMediaAssetInputSchema).default([]),
     included_in_published_set: z.boolean().default(true),
     item_order: z.number().int().positive().optional()
   })
@@ -112,6 +114,7 @@ export const ItemUpdateInputSchema = z
     expected_reasoning_patterns: z.array(nonEmptyText).optional(),
     possible_misconception_indicators: z.array(nonEmptyText).optional(),
     administration_rules: jsonObject.optional(),
+    media_assets: z.array(ItemMediaAssetInputSchema).optional(),
     included_in_published_set: z.boolean().optional()
   })
   .strict()

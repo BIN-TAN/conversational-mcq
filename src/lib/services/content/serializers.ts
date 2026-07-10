@@ -1,4 +1,4 @@
-import { Prisma, type Assessment, type ConceptUnit, type Item } from "@prisma/client";
+import { Prisma, type Assessment, type ConceptUnit, type Item, type ItemMediaAsset } from "@prisma/client";
 import {
   serializeAssessmentContentState,
   serializeContentState,
@@ -9,6 +9,11 @@ import {
   getCourseTimezone,
   toCourseDateTimeInputValue
 } from "@/lib/services/assessment-availability/timezone";
+import {
+  llmMediaContextForAssets,
+  mediaTypeSummary,
+  serializeItemMediaAsset
+} from "./item-media";
 
 function serializeDate(value: Date): string {
   return value.toISOString();
@@ -28,7 +33,11 @@ export const itemSerializerConceptUnitSelect = Prisma.validator<Prisma.ConceptUn
 });
 
 export const itemSerializerInclude = Prisma.validator<Prisma.ItemInclude>()({
-  concept_unit: { select: itemSerializerConceptUnitSelect }
+  concept_unit: { select: itemSerializerConceptUnitSelect },
+  media_assets: {
+    where: { active: true },
+    orderBy: [{ order_index: "asc" }, { created_at: "asc" }]
+  }
 });
 
 type SerializedItemConceptUnit = Prisma.ConceptUnitGetPayload<{
@@ -160,6 +169,7 @@ export function serializeItem(
     | "updated_at"
   > & {
     concept_unit?: SerializedItemConceptUnit;
+    media_assets?: ItemMediaAsset[];
   }
 ) {
   const contentState: SerializedContentState | null = item.concept_unit?.assessment
@@ -183,6 +193,10 @@ export function serializeItem(
     expected_reasoning_patterns: item.expected_reasoning_patterns,
     possible_misconception_indicators: item.possible_misconception_indicators,
     administration_rules: item.administration_rules,
+    media_assets: item.media_assets?.map(serializeItemMediaAsset) ?? [],
+    media_present_count: item.media_assets?.filter((asset) => asset.active).length ?? 0,
+    media_type_summary: mediaTypeSummary(item.media_assets ?? []),
+    llm_media_context: llmMediaContextForAssets(item.media_assets ?? []),
     included_in_published_set: item.included_in_published_set,
     status: item.status,
     concept_unit_status: item.concept_unit?.status,

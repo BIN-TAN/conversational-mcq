@@ -583,6 +583,30 @@ student-visible transcript/activity text must continue to exclude correct
 options, correctness labels, answer keys, raw diagnostic notes, and internal
 metadata labels.
 
+## Item Media Evidence
+
+Phase 31N adds `item_media_assets` for teacher-authored MCQ media. The table
+stores item-linked media metadata, not raw research conclusions. Safe fields may
+include media public ID, placement, option label, media type, source type,
+display URL, title, accessible description, caption, transcript/content
+summary, attribution, order, active status, media version, and a media-context
+hash.
+
+Image uploads are stored through a provider-neutral storage boundary only when
+server-side storage is configured. Local/course URLs must be HTTPS and must
+pass URL safety checks. Student-facing payloads and default exports must not
+include storage keys, storage credentials, media hashes, answer keys, correct
+options, raw distractor metadata, raw teacher diagnostic notes, raw provider
+payloads, or secrets.
+
+Response packages and item-response snapshots may include safe serialized media
+assets and `llm_media_context`. The LLM media context is built from teacher
+descriptions, captions, transcripts, summaries, and attribution. It must mark
+`direct_multimodal_input_supplied=false` unless a future phase explicitly sends
+actual media to the provider. Item-response snapshots freeze the media context
+administered to the student so later media edits do not alter historical
+evidence.
+
 ## Assessment Deletion Records
 
 Assessment deletion uses existing assessment/session/evidence tables as the

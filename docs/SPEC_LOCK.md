@@ -2376,3 +2376,41 @@ Phase 6A.5 must not implement:
 - `student:llm-diagnostic-context-propagation-smoke` is no-live and must verify
   context propagation, safe audit metadata, snapshot stability, and absence of
   OpenAI calls.
+
+## Phase 31N Media-Enabled Higher-Order MCQ Authoring Lock
+
+- Teacher-authored MCQ items may include media assets attached to the item stem
+  or a specific option. Supported media authoring types are `image`, `video`,
+  and `reference_link`.
+- Image media may be represented by HTTPS URLs. Server-side uploaded images are
+  permitted only through the provider-neutral storage interface after
+  S3-compatible storage is configured. Uploaded images must be PNG, JPEG, or
+  WebP, must pass MIME and file-signature validation, and must respect the
+  configured size limit. SVG files and video binary uploads are not accepted.
+- URL media must use HTTPS. `javascript:`, `data:`, `file:`, local, private,
+  and link-local targets must be rejected for server-side handling. Video URLs
+  must be on the approved host allow-list.
+- Every media asset must include accessible description text. Video links must
+  include a transcript or content summary when used for interpretation.
+- Student-facing payloads may include only safe media fields: public media ID,
+  placement, option label when applicable, media type, display URL, title,
+  accessible description, caption, transcript/content summary, and attribution.
+  They must not include storage keys, internal media hashes, answer keys,
+  correct options, correctness labels, raw distractor metadata, raw teacher
+  diagnostic notes, raw provider payloads, credentials, cookies, database URLs,
+  or session secrets.
+- LLM interpretation receives `llm_media_context` from descriptions, captions,
+  transcripts, and summaries. Direct multimodal media input is false in this
+  phase; URLs do not authorize the LLM to infer unseen media content.
+- Item response snapshots must freeze the media assets and LLM media context
+  present at administration time. Later media edits must not rewrite historical
+  response evidence.
+- The initial MCQ builder should guide teachers toward apply, analyze, and
+  evaluate tasks by default. Basic recall should be used only when it has clear
+  diagnostic value. Creation is reserved for later constructed-response
+  activity dialogue and should not appear as a cognitive-demand dropdown in the
+  normal MCQ editor.
+- `student:teacher-mcq-media-smoke` is no-live and must verify URL safety,
+  uploaded-image validation through an injected storage provider, teacher and
+  student safe serialization, media-context snapshot stability, response-package
+  media context, and absence of OpenAI calls.
