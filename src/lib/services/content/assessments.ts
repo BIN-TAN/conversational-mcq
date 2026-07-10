@@ -241,6 +241,7 @@ export async function getAssessmentDetail(input: {
           assessment: {
             select: {
               assessment_public_id: true,
+              title: true,
               status: true,
               _count: { select: { assessment_sessions: true } }
             }
@@ -255,6 +256,7 @@ export async function getAssessmentDetail(input: {
                   assessment: {
                     select: {
                       assessment_public_id: true,
+                      title: true,
                       status: true,
                       _count: { select: { assessment_sessions: true } }
                     }

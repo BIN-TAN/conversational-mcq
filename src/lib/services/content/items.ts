@@ -69,6 +69,7 @@ export async function listItems(input: {
           assessment: {
             select: {
               assessment_public_id: true,
+              title: true,
               status: true,
               _count: { select: { assessment_sessions: true } }
             }
@@ -117,6 +118,7 @@ export async function createItem(input: {
             assessment: {
               select: {
                 assessment_public_id: true,
+                title: true,
                 status: true,
                 _count: { select: { assessment_sessions: true } }
               }
@@ -174,6 +176,7 @@ export async function getItemDetail(input: {
           assessment: {
             select: {
               assessment_public_id: true,
+              title: true,
               status: true,
               _count: { select: { assessment_sessions: true } }
             }
@@ -280,6 +283,7 @@ export async function updateItem(input: {
           assessment: {
             select: {
               assessment_public_id: true,
+              title: true,
               status: true,
               _count: { select: { assessment_sessions: true } }
             }
@@ -370,6 +374,7 @@ export async function archiveItem(input: {
           assessment: {
             select: {
               assessment_public_id: true,
+              title: true,
               status: true,
               _count: { select: { assessment_sessions: true } }
             }

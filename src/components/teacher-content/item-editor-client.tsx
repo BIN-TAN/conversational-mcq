@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, Plus, Save, Trash2 } from "lucide-react";
+import { Archive, ArrowLeft, Plus, Save, Trash2, X } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import {
   normalizeOptions,
@@ -14,8 +14,9 @@ import {
   buildItemAdministrationRulesFromTeacherMetadata,
   readTeacherItemMetadata
 } from "@/lib/services/content/teacher-diagnostic-context";
-import type { ItemDetail, ItemOption, StructuredApiError } from "./types";
+import type { AssessmentDetail, ItemDetail, ItemOption, StructuredApiError } from "./types";
 import {
+  Breadcrumbs,
   Button,
   ContentStateBadge,
   ErrorPanel,
@@ -30,6 +31,19 @@ type ItemResponse = {
   item: ItemDetail;
 };
 
+type AssessmentDetailResponse = {
+  assessment: AssessmentDetail;
+};
+
+type SaveIntent = "add_another" | "return" | "stay";
+
+type AssessmentContext = Pick<
+  AssessmentDetail,
+  "assessment_public_id" | "title" | "content_state"
+> & {
+  mini_test_items?: ItemDetail[];
+};
+
 type ItemEditorProps =
   | {
       mode: "create";
@@ -41,20 +55,25 @@ type ItemEditorProps =
       itemPublicId: string;
     };
 
+function defaultOptions(): ItemOption[] {
+  return [
+    { label: "A", text: "" },
+    { label: "B", text: "" },
+    { label: "C", text: "" },
+    { label: "D", text: "" }
+  ];
+}
+
 export function ItemEditorClient(props: ItemEditorProps) {
   const router = useRouter();
   const itemPublicId = props.mode === "edit" ? props.itemPublicId : null;
   const conceptUnitPublicId = props.mode === "create" ? props.conceptUnitPublicId : null;
   const assessmentPublicId = props.mode === "create" ? props.assessmentPublicId : null;
   const [item, setItem] = useState<ItemDetail | null>(null);
+  const [assessmentContext, setAssessmentContext] = useState<AssessmentContext | null>(null);
   const [itemLabel, setItemLabel] = useState("");
   const [itemStem, setItemStem] = useState("");
-  const [options, setOptions] = useState<ItemOption[]>([
-    { label: "A", text: "" },
-    { label: "B", text: "" },
-    { label: "C", text: "" },
-    { label: "D", text: "" }
-  ]);
+  const [options, setOptions] = useState<ItemOption[]>(defaultOptions);
   const [correctOption, setCorrectOption] = useState("A");
   const [expectedReasoningNote, setExpectedReasoningNote] = useState("");
   const [itemDiagnosticValueNote, setItemDiagnosticValueNote] = useState("");
@@ -67,13 +86,36 @@ export function ItemEditorClient(props: ItemEditorProps) {
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(props.mode === "edit");
+  const [isContextLoading, setIsContextLoading] = useState(Boolean(assessmentPublicId));
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeSaveIntent, setActiveSaveIntent] = useState<SaveIntent | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const optionLabels = useMemo(
     () => options.map((option) => option.label.trim()).filter(Boolean),
     [options]
   );
+
+  const loadAssessmentContext = useCallback(async () => {
+    if (!assessmentPublicId) {
+      setIsContextLoading(false);
+      return;
+    }
+
+    setIsContextLoading(true);
+
+    try {
+      const data = await apiRequest<AssessmentDetailResponse>(
+        `/api/teacher/assessments/${assessmentPublicId}`
+      );
+      setAssessmentContext(data.assessment);
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
+    } finally {
+      setIsContextLoading(false);
+    }
+  }, [assessmentPublicId]);
 
   const loadItem = useCallback(async () => {
     if (!itemPublicId) {
@@ -87,6 +129,16 @@ export function ItemEditorClient(props: ItemEditorProps) {
       const data = await apiRequest<ItemResponse>(`/api/teacher/items/${itemPublicId}`);
       const loaded = data.item;
       setItem(loaded);
+      setAssessmentContext(
+        loaded.assessment_public_id
+          ? {
+              assessment_public_id: loaded.assessment_public_id,
+              title: loaded.assessment_title ?? "Mini test",
+              content_state: loaded.content_state ?? "draft_editable",
+              mini_test_items: []
+            }
+          : null
+      );
       setItemStem(loaded.item_stem);
       setOptions(normalizeOptions(loaded.options));
       setCorrectOption(loaded.correct_option);
@@ -100,6 +152,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
       setTargetReasoningNote(metadata.correct_option_notes.target_reasoning_note ?? "");
       setStrongReasoningNote(metadata.correct_option_notes.strong_reasoning_should_mention ?? "");
       setPlainLanguageDistractorNotes(metadata.plain_language_distractor_diagnostic_notes);
+      setHasUnsavedChanges(false);
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
@@ -111,7 +164,16 @@ export function ItemEditorClient(props: ItemEditorProps) {
     void loadItem();
   }, [loadItem]);
 
+  useEffect(() => {
+    void loadAssessmentContext();
+  }, [loadAssessmentContext]);
+
+  function markDirty() {
+    setHasUnsavedChanges(true);
+  }
+
   function updateOption(index: number, patch: Partial<ItemOption>) {
+    markDirty();
     setOptions((current) =>
       current.map((option, optionIndex) =>
         optionIndex === index ? { ...option, ...patch } : option
@@ -121,10 +183,12 @@ export function ItemEditorClient(props: ItemEditorProps) {
 
   function addOption() {
     const nextLabel = String.fromCharCode(65 + options.length);
+    markDirty();
     setOptions((current) => [...current, { label: nextLabel, text: "" }]);
   }
 
   function removeOption(index: number) {
+    markDirty();
     const label = options[index]?.label;
     const correctOptionIndex = options.findIndex((option) => option.label === correctOption);
     setOptions((current) =>
@@ -140,6 +204,47 @@ export function ItemEditorClient(props: ItemEditorProps) {
     } else if (correctOptionIndex > index) {
       setCorrectOption(String.fromCharCode(65 + correctOptionIndex - 1));
     }
+  }
+
+  function resetCreateForm() {
+    setItem(null);
+    setItemLabel("");
+    setItemStem("");
+    setOptions(defaultOptions());
+    setCorrectOption("A");
+    setExpectedReasoningNote("");
+    setItemDiagnosticValueNote("");
+    setTargetReasoningNote("");
+    setStrongReasoningNote("");
+    setPlainLanguageDistractorNotes("");
+    setAdministrationRules("{}");
+    setItemOrder("");
+    setIncludedInPublishedSet(true);
+    setHasUnsavedChanges(false);
+  }
+
+  function parentAssessmentHref() {
+    const parentPublicId = assessmentPublicId ?? item?.assessment_public_id;
+
+    return parentPublicId
+      ? `/teacher/content/assessments/${parentPublicId}`
+      : "/teacher/content/assessments";
+  }
+
+  function parentAssessmentTitle() {
+    return assessmentContext?.title ?? item?.assessment_title ?? "Mini test";
+  }
+
+  function leaveEditor() {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm("Discard unsaved changes and return to the mini test?");
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    router.push(parentAssessmentHref());
   }
 
   function validateClientInput(): StructuredApiError | null {
@@ -173,6 +278,14 @@ export function ItemEditorClient(props: ItemEditorProps) {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSubmitting) {
+      return;
+    }
+
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const saveIntent = (submitter?.value as SaveIntent | undefined) ?? (
+      props.mode === "create" ? "add_another" : "stay"
+    );
     setError(null);
     setSuccess(null);
 
@@ -191,6 +304,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
     }
 
     setIsSubmitting(true);
+    setActiveSaveIntent(saveIntent);
 
     try {
       const advancedRules = parseJsonObject(administrationRules, "Advanced settings");
@@ -237,7 +351,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
       };
 
       if (assessmentPublicId) {
-        const data = await apiRequest<ItemResponse>(
+        await apiRequest<ItemResponse>(
           `/api/teacher/assessments/${assessmentPublicId}/items`,
           {
             method: "POST",
@@ -247,7 +361,16 @@ export function ItemEditorClient(props: ItemEditorProps) {
             })
           }
         );
-        router.push(`/teacher/content/items/${data.item.item_public_id}`);
+        setSuccess("MCQ item saved.");
+        setHasUnsavedChanges(false);
+
+        if (saveIntent === "return") {
+          router.push(`${parentAssessmentHref()}?item_saved=1`);
+          return;
+        }
+
+        resetCreateForm();
+        await loadAssessmentContext();
         return;
       }
 
@@ -262,6 +385,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
             })
           }
         );
+        setHasUnsavedChanges(false);
         router.push(`/teacher/content/items/${data.item.item_public_id}`);
         return;
       }
@@ -275,12 +399,18 @@ export function ItemEditorClient(props: ItemEditorProps) {
         body: JSON.stringify(payload)
       });
       setItem(data.item);
+      setHasUnsavedChanges(false);
+      if (saveIntent === "return") {
+        router.push(`${parentAssessmentHref()}?item_saved=1`);
+        return;
+      }
       setSuccess("Item saved. Version increments when content changes.");
       await loadItem();
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
       setIsSubmitting(false);
+      setActiveSaveIntent(null);
     }
   }
 
@@ -304,9 +434,15 @@ export function ItemEditorClient(props: ItemEditorProps) {
     }
   }
 
-  const title = props.mode === "create" ? "Add MCQ item" : "MCQ item editor";
+  const title = props.mode === "create" ? "Add MCQ item" : "Edit MCQ item";
+  const assessmentHref = parentAssessmentHref();
+  const assessmentTitle = parentAssessmentTitle();
+  const existingItemCount = assessmentContext?.mini_test_items?.length ?? 0;
+  const isCreateEditable =
+    props.mode === "create" &&
+    (!assessmentContext || assessmentContext.content_state === "draft_editable");
   const isEditable =
-    props.mode === "create" ||
+    isCreateEditable ||
     Boolean(
       item &&
         item.content_state === "draft_editable" &&
@@ -320,22 +456,46 @@ export function ItemEditorClient(props: ItemEditorProps) {
       : item?.status === "archived"
         ? "Archived items are preserved for records and are not editable."
         : "Return the parent assessment to draft before editing this item.";
+  const createReadOnlyReason =
+    assessmentContext && assessmentContext.content_state !== "draft_editable"
+      ? "Return the mini test to draft before adding MCQ items."
+      : null;
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: "Mini tests", href: "/teacher/content/assessments" },
+          { label: assessmentTitle, href: assessmentHref },
+          { label: title }
+        ]}
+      />
       <PageHeader
         eyebrow="MCQ item"
         title={title}
         description="Build one MCQ item with teacher-only diagnostic notes for interpretation."
+        actions={
+          <Button onClick={leaveEditor} type="button" variant="secondary">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back to mini test
+          </Button>
+        }
       />
 
       <ErrorPanel error={error} />
       <SuccessPanel message={success} />
 
-      {isLoading ? <LoadingRow label="Loading item" /> : null}
+      {isLoading || isContextLoading ? <LoadingRow label="Loading item context" /> : null}
 
-      {!isLoading ? (
+      {!isLoading && !isContextLoading ? (
         <form className="space-y-6" onSubmit={onSubmit}>
+          {props.mode === "create" && assessmentPublicId ? (
+            <section className="rounded-lg border border-line bg-white p-4 text-sm text-muted shadow-soft">
+              <span className="font-semibold text-ink">{existingItemCount}</span>{" "}
+              existing MCQ {existingItemCount === 1 ? "item" : "items"} in {assessmentTitle}.
+              New items are assigned the next available order automatically when item order is blank.
+            </section>
+          ) : null}
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
             {item ? (
               <div className="mb-5 flex flex-wrap items-center gap-3">
@@ -354,13 +514,21 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 {readOnlyReason}
               </p>
             ) : null}
+            {createReadOnlyReason ? (
+              <p className="mb-5 rounded-md border border-line bg-slate-50 p-3 text-sm leading-6 text-muted">
+                {createReadOnlyReason}
+              </p>
+            ) : null}
 
             <div className="grid gap-4">
               <Field label="Item title / short label">
                 <input
                   className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                   disabled={!isEditable}
-                  onChange={(event) => setItemLabel(event.target.value)}
+                  onChange={(event) => {
+                    markDirty();
+                    setItemLabel(event.target.value);
+                  }}
                   placeholder="e.g. Theta scale boundary"
                   value={itemLabel}
                 />
@@ -370,7 +538,10 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 <textarea
                   className="min-h-28 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                   disabled={!isEditable}
-                  onChange={(event) => setItemStem(event.target.value)}
+                  onChange={(event) => {
+                    markDirty();
+                    setItemStem(event.target.value);
+                  }}
                   required
                   value={itemStem}
                 />
@@ -381,7 +552,10 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   checked={includedInPublishedSet}
                   className="mt-1 h-4 w-4"
                   disabled={!isEditable}
-                  onChange={(event) => setIncludedInPublishedSet(event.target.checked)}
+                  onChange={(event) => {
+                    markDirty();
+                    setIncludedInPublishedSet(event.target.checked);
+                  }}
                   type="checkbox"
                 />
                 <span>
@@ -393,12 +567,15 @@ export function ItemEditorClient(props: ItemEditorProps) {
               </label>
 
               {props.mode === "create" ? (
-                <Field label="Item order">
+                <Field label="Item order (optional)" hint="Leave blank to assign the next available item order automatically.">
                   <input
                     className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                     disabled={!isEditable}
                     min={1}
-                    onChange={(event) => setItemOrder(event.target.value)}
+                    onChange={(event) => {
+                      markDirty();
+                      setItemOrder(event.target.value);
+                    }}
                     type="number"
                     value={itemOrder}
                   />
@@ -443,7 +620,10 @@ export function ItemEditorClient(props: ItemEditorProps) {
                       className="h-4 w-4"
                       disabled={!isEditable}
                       name="correct-option"
-                      onChange={() => setCorrectOption(option.label)}
+                      onChange={() => {
+                        markDirty();
+                        setCorrectOption(option.label);
+                      }}
                       type="radio"
                     />
                     Mark as key
@@ -474,7 +654,10 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 <textarea
                   className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                   disabled={!isEditable}
-                  onChange={(event) => setTargetReasoningNote(event.target.value)}
+                  onChange={(event) => {
+                    markDirty();
+                    setTargetReasoningNote(event.target.value);
+                  }}
                   value={targetReasoningNote}
                 />
               </Field>
@@ -482,7 +665,10 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 <textarea
                   className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                   disabled={!isEditable}
-                  onChange={(event) => setStrongReasoningNote(event.target.value)}
+                  onChange={(event) => {
+                    markDirty();
+                    setStrongReasoningNote(event.target.value);
+                  }}
                   value={strongReasoningNote}
                 />
               </Field>
@@ -498,7 +684,10 @@ export function ItemEditorClient(props: ItemEditorProps) {
               <textarea
                 className="mt-5 min-h-48 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                 disabled={!isEditable}
-                onChange={(event) => setPlainLanguageDistractorNotes(event.target.value)}
+                onChange={(event) => {
+                  markDirty();
+                  setPlainLanguageDistractorNotes(event.target.value);
+                }}
                 placeholder="Option B may suggest confusion between reliability and validity. Option C may suggest treating reliability as a fixed property of the test rather than a sample-dependent estimate. Option D may suggest interpreting a group-level coefficient as an individual-level statement. These are possible interpretations, not firm conclusions."
                 value={plainLanguageDistractorNotes}
               />
@@ -506,7 +695,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
           </section>
 
           <section className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
+            <div className="rounded-lg border border-line bg-white p-5 shadow-soft" id="student-preview">
               <h2 className="text-xl font-semibold text-ink">Student preview</h2>
               <p className="mt-1 text-sm text-muted">
                 Students see only the stem and option text during protected administration.
@@ -525,7 +714,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 </ol>
               </div>
             </div>
-            <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
+            <div className="rounded-lg border border-line bg-white p-5 shadow-soft" id="teacher-preview">
               <h2 className="text-xl font-semibold text-ink">Teacher preview</h2>
               <p className="mt-1 text-sm text-muted">
                 Teacher-only preview includes the key and diagnostic notes.
@@ -557,11 +746,66 @@ export function ItemEditorClient(props: ItemEditorProps) {
             </div>
           </section>
 
-          <div className="flex flex-wrap gap-2">
-            <Button disabled={!isEditable || isSubmitting} type="submit">
-              <Save className="h-4 w-4" aria-hidden="true" />
-              {isSubmitting ? "Saving" : props.mode === "create" ? "Add MCQ item" : "Save item"}
-            </Button>
+          <div className="flex flex-wrap gap-2 rounded-lg border border-line bg-white p-4 shadow-soft">
+            {props.mode === "create" ? (
+              <>
+                <Button
+                  disabled={!isEditable || isSubmitting}
+                  name="save_intent"
+                  type="submit"
+                  value="add_another"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  {isSubmitting && activeSaveIntent === "add_another"
+                    ? "Saving"
+                    : "Save item and add another"}
+                </Button>
+                <Button
+                  disabled={!isEditable || isSubmitting}
+                  name="save_intent"
+                  type="submit"
+                  value="return"
+                  variant="secondary"
+                >
+                  <Save className="h-4 w-4" aria-hidden="true" />
+                  {isSubmitting && activeSaveIntent === "return"
+                    ? "Saving"
+                    : "Save item and return to mini test"}
+                </Button>
+                <Button disabled={isSubmitting} onClick={leaveEditor} type="button" variant="secondary">
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  disabled={!isEditable || isSubmitting}
+                  name="save_intent"
+                  type="submit"
+                  value="stay"
+                >
+                  <Save className="h-4 w-4" aria-hidden="true" />
+                  {isSubmitting && activeSaveIntent === "stay" ? "Saving" : "Save changes"}
+                </Button>
+                <Button
+                  disabled={!isEditable || isSubmitting}
+                  name="save_intent"
+                  type="submit"
+                  value="return"
+                  variant="secondary"
+                >
+                  <Save className="h-4 w-4" aria-hidden="true" />
+                  {isSubmitting && activeSaveIntent === "return"
+                    ? "Saving"
+                    : "Save changes and return to mini test"}
+                </Button>
+                <Button disabled={isSubmitting} onClick={leaveEditor} type="button" variant="secondary">
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  Cancel
+                </Button>
+              </>
+            )}
             {props.mode === "edit" ? (
               <Button
                 disabled={item?.is_content_locked || item?.status === "archived" || isArchiving}

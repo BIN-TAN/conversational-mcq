@@ -131,6 +131,8 @@ export type ItemOption = {
 export type ItemDetail = {
   item_public_id: string;
   concept_unit_public_id?: string;
+  assessment_public_id?: string;
+  assessment_title?: string;
   item_order: number;
   item_stem: string;
   options: unknown;

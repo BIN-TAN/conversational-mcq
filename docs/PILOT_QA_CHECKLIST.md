@@ -301,6 +301,15 @@ npm run student:live-llm-smoke:cleanup-failures
   items yet.
 - Teachers add MCQ items directly from the mini-test page; internal
   topic/concept-unit records are not visible in the normal workflow.
+- Add/edit MCQ item pages show breadcrumbs and a `Back to mini test` action.
+- Add MCQ item supports `Save item and add another`, `Save item and return to
+  mini test`, and `Cancel`. Cancel and Back warn before discarding unsaved
+  changes.
+- Repeated authoring can leave item order blank; the backend assigns the next
+  available order within the mini test.
+- The mini-test item list shows item-count readiness, a top `Add MCQ item`
+  action, a bottom `Add another MCQ item` action, and separate Edit, Teacher
+  preview, and Student preview links.
 - Advanced topic settings and fixed workflow/response implementation facts are
   absent from the normal mini-test detail page.
 - The normal MCQ editor does not show an item-purpose dropdown. Teacher-created

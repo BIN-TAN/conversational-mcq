@@ -1955,6 +1955,13 @@ page always exposes a direct `Add MCQ item` action while the mini test is
 editable. New mini tests use fixed internal defaults (`automatic` workflow and
 `llm_assisted` response collection), and the application resolves or creates the
 internal topic record required by the student workflow behind the scenes.
+The item editor supports continuous authoring: teachers can save an MCQ item and
+immediately add another, save and return to the mini-test detail page, or cancel
+back to the parent mini test with an unsaved-changes warning. If item order is
+left blank, the backend assigns the next available order within the mini test.
+The mini-test detail page shows item-count readiness such as `2 of 3 required
+MCQ items added` and links each item to edit, teacher preview, and student
+preview.
 
 The mini-test form includes a diagnostic focus box:
 

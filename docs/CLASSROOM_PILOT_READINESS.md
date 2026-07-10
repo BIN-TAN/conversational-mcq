@@ -205,6 +205,13 @@ teachers do not need to see or create a topic before adding items. The mini-test
 detail page exposes a direct `Add MCQ item` action even when no items exist.
 Workflow mode and response collection mode are fixed internally for this path
 and are not normal teacher-facing page facts.
+The item-authoring workflow is continuous: `Add MCQ item` can save and open a
+fresh blank item form for the same mini test, save and return to the mini-test
+detail page, or cancel back to the parent mini test with an unsaved-changes
+warning. Item order is assigned automatically when left blank. The detail page
+shows the current count against the three-item structural minimum and includes
+top and bottom add-item actions plus separate item Edit, Teacher preview, and
+Student preview links.
 
 Diagnostic focus, target reasoning notes, strong-reasoning notes, and the
 single plain-language distractor diagnostic note box are teacher-only and may

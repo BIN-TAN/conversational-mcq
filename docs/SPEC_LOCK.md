@@ -2219,6 +2219,22 @@ Phase 6A.5 must not implement:
 - The mini-test detail page must expose a visible `Add MCQ item` action while
   the mini test is draft-editable, including the zero-item state. The direct
   item-creation path must resolve or create the backing topic record server-side.
+- The add/edit MCQ item workflow must preserve mini-test context with
+  breadcrumbs and direct Back/Cancel navigation. Create mode must support
+  `Save item and add another`, `Save item and return to mini test`, and
+  `Cancel`; edit mode must support `Save changes`, `Save changes and return to
+  mini test`, and `Cancel`.
+- Save actions must disable while a request is in flight, failed saves must
+  preserve entered values, and cancel/back actions must warn before discarding
+  unsaved changes.
+- Repeated item authoring should not require teachers to calculate item order.
+  When `item_order` is omitted, the backend assigns the next available order
+  within the mini test.
+- The mini-test detail page should show current item count against the
+  three-item structural minimum, a top `Add MCQ item` action, a bottom `Add
+  another MCQ item` action, and separate item actions for Edit, Teacher preview,
+  and Student preview. Structural item-count readiness must not be presented as
+  evidence of pedagogical validity.
 - Workflow mode and response collection mode are fixed internally for the
   standard mini-test builder: `workflow_mode=automatic` and
   `response_collection_mode=llm_assisted`. They must not appear as normal
@@ -2258,6 +2274,10 @@ Phase 6A.5 must not implement:
   publish, dashboard card cleanup, internal diagnostic context availability and
   interpretation caution, publish warnings, JSON import compatibility, and
   absence of OpenAI calls.
+- `student:teacher-mcq-authoring-navigation-smoke` is no-live and verifies
+  continuous MCQ authoring navigation, save-and-add-another, save-and-return,
+  duplicate-submission UI guards, automatic item ordering, safe student preview,
+  item-list actions, and absence of OpenAI calls.
 
 ## Phase 31j Simple CSV Data Explorer Lock
 

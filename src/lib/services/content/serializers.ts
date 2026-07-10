@@ -139,7 +139,7 @@ export function serializeItem(
     | "updated_at"
   > & {
     concept_unit?: Pick<ConceptUnit, "concept_unit_public_id" | "status"> & {
-      assessment?: Pick<Assessment, "assessment_public_id" | "status"> & {
+      assessment?: Pick<Assessment, "assessment_public_id" | "title" | "status"> & {
         _count?: { assessment_sessions?: number };
       };
     };
@@ -156,6 +156,8 @@ export function serializeItem(
   return {
     item_public_id: item.item_public_id,
     concept_unit_public_id: item.concept_unit?.concept_unit_public_id,
+    assessment_public_id: item.concept_unit?.assessment?.assessment_public_id,
+    assessment_title: item.concept_unit?.assessment?.title,
     item_order: item.item_order,
     item_stem: item.item_stem,
     options: item.options,

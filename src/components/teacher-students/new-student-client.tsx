@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Clipboard, UserPlus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Clipboard, UserPlus, X } from "lucide-react";
 import { createStudent, errorFromUnknown } from "./api";
 import type { CredentialResponse, StructuredApiError } from "./types";
 import { CredentialResult, ErrorPanel } from "./ui";
 
 export function NewStudentClient() {
+  const router = useRouter();
   const [userId, setUserId] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -15,6 +17,23 @@ export function NewStudentClient() {
   const [createdUserId, setCreatedUserId] = useState<string | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [loading, setLoading] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  function markDirty() {
+    setHasUnsavedChanges(true);
+  }
+
+  function leaveForm() {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm("Discard unsaved changes and return to student accounts?");
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    router.push("/teacher/students");
+  }
 
   async function submit() {
     setLoading(true);
@@ -40,6 +59,7 @@ export function NewStudentClient() {
       setDisplayName("");
       setEmail("");
       setTemporaryPassword("");
+      setHasUnsavedChanges(false);
     } catch (requestError) {
       setError(errorFromUnknown(requestError));
     } finally {
@@ -52,6 +72,14 @@ export function NewStudentClient() {
 
   return (
     <div className="space-y-5">
+      <button
+        className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink hover:border-accent"
+        onClick={leaveForm}
+        type="button"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Back to student accounts
+      </button>
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
         <h2 className="text-xl font-semibold text-ink">Create one student</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
@@ -63,7 +91,10 @@ export function NewStudentClient() {
             user_id
             <input
               className="h-10 rounded-md border border-line px-3 text-sm"
-              onChange={(event) => setUserId(event.target.value)}
+              onChange={(event) => {
+                markDirty();
+                setUserId(event.target.value);
+              }}
               placeholder="student001"
               value={userId}
             />
@@ -72,7 +103,10 @@ export function NewStudentClient() {
             Display name
             <input
               className="h-10 rounded-md border border-line px-3 text-sm"
-              onChange={(event) => setDisplayName(event.target.value)}
+              onChange={(event) => {
+                markDirty();
+                setDisplayName(event.target.value);
+              }}
               placeholder="Optional"
               value={displayName}
             />
@@ -81,7 +115,10 @@ export function NewStudentClient() {
             Email
             <input
               className="h-10 rounded-md border border-line px-3 text-sm"
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                markDirty();
+                setEmail(event.target.value);
+              }}
               placeholder="Optional teacher/research contact field"
               type="email"
               value={email}
@@ -91,22 +128,36 @@ export function NewStudentClient() {
             Temporary password
             <input
               className="h-10 rounded-md border border-line px-3 text-sm"
-              onChange={(event) => setTemporaryPassword(event.target.value)}
+              onChange={(event) => {
+                markDirty();
+                setTemporaryPassword(event.target.value);
+              }}
               placeholder="Leave blank to generate"
               type="password"
               value={temporaryPassword}
             />
           </label>
         </div>
-        <button
-          className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-[#176350] disabled:opacity-50"
-          disabled={loading}
-          onClick={() => void submit()}
-          type="button"
-        >
-          <UserPlus className="h-4 w-4" aria-hidden="true" />
-          {loading ? "Creating" : "Create student"}
-        </button>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-[#176350] disabled:opacity-50"
+            disabled={loading}
+            onClick={() => void submit()}
+            type="button"
+          >
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
+            {loading ? "Creating" : "Save student and add another"}
+          </button>
+          <button
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink hover:border-accent disabled:opacity-50"
+            disabled={loading}
+            onClick={leaveForm}
+            type="button"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+            Cancel
+          </button>
+        </div>
       </section>
 
       <ErrorPanel error={error} />

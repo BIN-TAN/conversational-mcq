@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle, ChevronRight, Loader2 } from "lucide-react";
 import type { StructuredApiError } from "./types";
 
 export function PageHeader({
@@ -31,6 +31,33 @@ export function PageHeader({
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       </div>
     </header>
+  );
+}
+
+export function Breadcrumbs({
+  items
+}: {
+  items: Array<{ label: string; href?: string }>;
+}) {
+  return (
+    <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-muted">
+      {items.map((item, index) => {
+        const isLast = index === items.length - 1;
+
+        return (
+          <span className="inline-flex items-center gap-1" key={`${item.label}-${index}`}>
+            {index > 0 ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : null}
+            {item.href && !isLast ? (
+              <Link className="font-medium text-ink transition hover:text-accent" href={item.href}>
+                {item.label}
+              </Link>
+            ) : (
+              <span className={isLast ? "font-medium text-ink" : undefined}>{item.label}</span>
+            )}
+          </span>
+        );
+      })}
+    </nav>
   );
 }
 

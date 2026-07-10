@@ -70,6 +70,12 @@ export function AssessmentDetailClient({
     void loadAssessment();
   }, [loadAssessment]);
 
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("item_saved") === "1") {
+      setSuccess("MCQ item saved.");
+    }
+  }, []);
+
   async function saveAssessment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -213,6 +219,10 @@ export function AssessmentDetailClient({
   const isReadOnly = Boolean(assessment && !isDraftEditable);
   const canReturnToDraft = Boolean(assessment && isPublishedUnused && !assessment.has_student_sessions);
   const miniTestItems = assessment?.mini_test_items ?? [];
+  const includedMiniTestItems = miniTestItems.filter(
+    (item) => item.status !== "archived" && item.included_in_published_set
+  );
+  const minimumRequiredItems = 3;
   const addItemHref = `/teacher/content/assessments/${assessmentPublicId}/items/new`;
 
   function optionCount(value: unknown) {
@@ -379,13 +389,22 @@ export function AssessmentDetailClient({
                   <p className="mt-1 text-sm text-muted">
                     Add the MCQ items students will answer in this mini test.
                   </p>
+                  <div className="mt-3 space-y-1 text-sm">
+                    <p className="font-medium text-ink">
+                      {includedMiniTestItems.length} of {minimumRequiredItems} required MCQ items added.
+                    </p>
+                    <p className="text-muted">
+                      {includedMiniTestItems.length >= minimumRequiredItems
+                        ? "Minimum item requirement met."
+                        : "Add more included MCQ items before publishing."}{" "}
+                      This count is a structural authoring check, not a claim that the mini test is pedagogically valid.
+                    </p>
+                  </div>
                 </div>
-                {isDraftEditable ? (
-                  <PrimaryLink href={addItemHref}>
-                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Add MCQ item
-                  </PrimaryLink>
-                ) : null}
+                <PrimaryLink href={addItemHref}>
+                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Add MCQ item
+                </PrimaryLink>
               </div>
 
               {miniTestItems.length === 0 ? (
@@ -416,7 +435,19 @@ export function AssessmentDetailClient({
                             className="inline-flex h-10 items-center rounded-md border border-line px-4 text-sm font-semibold text-ink transition hover:border-accent"
                             href={`/teacher/content/items/${item.item_public_id}`}
                           >
-                            Edit / preview
+                            Edit
+                          </Link>
+                          <Link
+                            className="inline-flex h-10 items-center rounded-md border border-line px-4 text-sm font-semibold text-ink transition hover:border-accent"
+                            href={`/teacher/content/items/${item.item_public_id}#teacher-preview`}
+                          >
+                            Teacher preview
+                          </Link>
+                          <Link
+                            className="inline-flex h-10 items-center rounded-md border border-line px-4 text-sm font-semibold text-ink transition hover:border-accent"
+                            href={`/teacher/content/items/${item.item_public_id}#student-preview`}
+                          >
+                            Student preview
                           </Link>
                         </div>
                       </div>
@@ -424,6 +455,12 @@ export function AssessmentDetailClient({
                   ))}
                 </div>
               )}
+              <div className="mt-5 border-t border-line pt-4">
+                <PrimaryLink href={addItemHref}>
+                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Add another MCQ item
+                </PrimaryLink>
+              </div>
             </section>
 
           </section>

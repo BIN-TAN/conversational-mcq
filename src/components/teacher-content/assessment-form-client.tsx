@@ -2,10 +2,10 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save } from "lucide-react";
+import { Save, X } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import type { AssessmentSummary, StructuredApiError } from "./types";
-import { Button, ErrorPanel, Field, PageHeader } from "./ui";
+import { Breadcrumbs, Button, ErrorPanel, Field, PageHeader } from "./ui";
 
 type CreateAssessmentResponse = {
   assessment: AssessmentSummary;
@@ -20,6 +20,23 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
   const [closeAt, setCloseAt] = useState("");
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  function markDirty() {
+    setHasUnsavedChanges(true);
+  }
+
+  function cancel() {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm("Discard unsaved changes and return to the mini-test list?");
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    router.push("/teacher/content/assessments");
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -50,6 +67,12 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: "Mini tests", href: "/teacher/content/assessments" },
+          { label: "New mini test" }
+        ]}
+      />
       <PageHeader
         eyebrow="mini test"
         title="New mini test"
@@ -62,7 +85,10 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
         <Field label="Assessment name">
           <input
             className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-            onChange={(event) => setTitle(event.target.value)}
+            onChange={(event) => {
+              markDirty();
+              setTitle(event.target.value);
+            }}
             required
             value={title}
           />
@@ -73,14 +99,20 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
         >
           <textarea
             className="min-h-32 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-            onChange={(event) => setDiagnosticFocus(event.target.value)}
+            onChange={(event) => {
+              markDirty();
+              setDiagnosticFocus(event.target.value);
+            }}
             value={diagnosticFocus}
           />
         </Field>
         <Field label="Folder / week / module">
           <input
             className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-            onChange={(event) => setFolderLabel(event.target.value)}
+            onChange={(event) => {
+              markDirty();
+              setFolderLabel(event.target.value);
+            }}
             placeholder="e.g. Week 3"
             value={folderLabel}
           />
@@ -89,7 +121,10 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
           <Field label="Release date/time">
             <input
               className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-              onChange={(event) => setReleaseAt(event.target.value)}
+              onChange={(event) => {
+                markDirty();
+                setReleaseAt(event.target.value);
+              }}
               type="datetime-local"
               value={releaseAt}
             />
@@ -97,7 +132,10 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
           <Field label="Closing date/time">
             <input
               className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-              onChange={(event) => setCloseAt(event.target.value)}
+              onChange={(event) => {
+                markDirty();
+                setCloseAt(event.target.value);
+              }}
               type="datetime-local"
               value={closeAt}
             />
@@ -107,10 +145,16 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
           Release and closing dates use {courseTimezone} course time and control when new students
           may start. Students who already started may continue after the closing date.
         </p>
-        <Button disabled={isSubmitting} type="submit">
-          <Save className="h-4 w-4" aria-hidden="true" />
-          {isSubmitting ? "Creating" : "Create mini test"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={isSubmitting} type="submit">
+            <Save className="h-4 w-4" aria-hidden="true" />
+            {isSubmitting ? "Creating" : "Save and open builder"}
+          </Button>
+          <Button disabled={isSubmitting} onClick={cancel} type="button" variant="secondary">
+            <X className="h-4 w-4" aria-hidden="true" />
+            Cancel and return to mini-test list
+          </Button>
+        </div>
       </form>
     </div>
   );
