@@ -2077,3 +2077,52 @@ Relevant no-live checks:
 npm run student:teacher-mcq-media-smoke
 npm run student:teacher-mcq-item-builder-smoke
 ```
+
+## Teacher MCQ Import and Diagnostic Assistant
+
+Teachers can import draft MCQ items directly from a selected mini test through
+`Import MCQ items`. Supported Phase 31Q sources are CSV, XLSX, pasted plain
+text, and the existing project JSON item format. A downloadable CSV template is
+available from the import page. DOCX, QTI/Canvas packages, and PDF extraction
+are intentionally not claimed as implemented.
+
+Import has three separate steps: deterministic extraction, optional diagnostic
+suggestion, and teacher approval. Extraction preserves original item wording and
+does not silently paraphrase, fill missing fields, infer an official key, or
+populate diagnostic notes. Draft candidates require only a stem and at least two
+options. Missing keys, diagnostic notes, and media stay blank. Imported keys are
+stored separately as `imported_key`; an official `correct_option` is written
+only when the teacher explicitly confirms or edits the key. Publishing still
+requires exactly one valid teacher-confirmed key.
+
+The optional `Suggest missing diagnostic information` action uses a no-live mock
+assistant by default in normal tests. Suggestions use schema
+`mcq-diagnostic-authoring-suggestion-v1` and prompt version
+`mcq-diagnostic-authoring-assistant-v1`. Suggestions remain separate from item
+data until the teacher reviews each field with Accept, Edit and accept, Reject,
+or Leave blank. Non-empty teacher-authored fields are not overwritten by
+default. Assistant notes are teacher-facing guidance only, not ground truth.
+They must include tentative distractor interpretation and alternative
+explanations such as partial guessing, misreading, language difficulty,
+fatigue, random error, low confidence, and insufficient evidence.
+
+Import provenance is stored in `mcq_item_import_batches` and item
+`administration_rules.import_provenance`, including source type, checksum,
+source location, original-source hash, missing fields, issue flags, suggestion
+review decisions, and timestamps. Student-facing previews and assessment
+runtime must not expose imported keys, teacher diagnostic notes, suggestion
+payloads, answer keys, correct options, or provenance metadata. Teachers remain
+responsible for copyright, licensing, and permission to use imported test-bank
+content.
+
+No-live checks:
+
+```bash
+npm run student:teacher-mcq-import-smoke
+npm run student:teacher-mcq-diagnostic-assistant-smoke
+npm run student:teacher-mcq-diagnostic-assistant-live-smoke
+```
+
+The live diagnostic-assistant smoke is skipped unless
+`RUN_LIVE_TEACHER_MCQ_DIAGNOSTIC_ASSISTANT_SMOKE=1` is explicitly set; Phase
+31Q does not implement or run paid live diagnostic authoring calls by default.

@@ -226,6 +226,23 @@ shows the current count against the three-item structural minimum and includes
 top and bottom add-item actions plus separate item Edit, Teacher preview, and
 Student preview links.
 
+The mini-test detail page also supports `Import MCQ items` for bulk teacher
+authoring. Phase 31Q supports CSV, XLSX, pasted plain text, and the existing
+project JSON item format. Import is draft-only and preview-first: extraction
+does not silently change source wording, invent missing options, infer an
+official key, or populate diagnostic notes. Missing fields stay blank. Imported
+keys are preserved separately and become official only after explicit teacher
+confirmation or edit; publishing still requires exactly one teacher-confirmed
+key per included item.
+
+Teachers may optionally request no-live diagnostic suggestions for missing
+target reasoning, strong-reasoning, and plain-language distractor notes. Those
+suggestions are teacher-facing guidance only, not ground truth. They require
+field-level Accept, Edit and accept, Reject, or Leave blank review, and
+non-empty teacher-authored fields are not overwritten by default. Teachers are
+responsible for copyright, licensing, and permission to use imported test-bank
+content before a classroom pilot.
+
 Diagnostic focus, target reasoning notes, strong-reasoning notes, and the
 single plain-language distractor diagnostic note box are teacher-only and may
 support internal LLM interpretation. Teacher-authored MCQs are initial

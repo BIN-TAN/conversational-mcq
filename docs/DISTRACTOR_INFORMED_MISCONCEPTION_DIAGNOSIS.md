@@ -323,3 +323,32 @@ student reasoning, confidence, tempting-option evidence, response patterns, and
 safe process context remain primary. Student-facing surfaces must not expose
 answer keys, correct options, raw distractor notes, media storage internals, or
 provider/audit metadata.
+
+## Teacher MCQ Import and Diagnostic Suggestion Boundary
+
+Phase 31Q adds teacher-facing MCQ import to reduce manual authoring effort while
+preserving the distractor-informed evidence hierarchy. Teachers may import CSV,
+XLSX, pasted plain text, or existing project JSON items into a selected mini
+test. The parser extracts structure; it must not silently rewrite item wording,
+invent missing options, infer an official key, or fill diagnostic notes. Missing
+keys and diagnostic notes remain blank in the draft candidate.
+
+Imported and suggested keys are not evidence. An imported key is preserved only
+as `imported_key` until the teacher explicitly confirms or edits it. An LLM key
+suggestion, if a future phase enables one, must remain separate and must never
+become official without teacher confirmation. Publishing still requires exactly
+one teacher-confirmed key.
+
+The Phase 31Q diagnostic authoring assistant is teacher-facing. Its suggestions
+for target reasoning, strong-reasoning criteria, and plain-language distractor
+notes are design guidance, not ground truth and not student evidence. Suggested
+distractor notes must remain tentative and include alternative explanations
+such as partial guessing, misreading, language difficulty, fatigue, random
+error, low confidence, and insufficient evidence. Non-empty teacher-authored
+fields are not overwritten by default.
+
+Imported test-bank content remains the teacher/operator's copyright and
+licensing responsibility. Import provenance may support audit and review, but
+student-facing activity, feedback, transcripts, and default exports must not
+show answer keys, raw teacher notes, assistant suggestion payloads, source
+checksums, or import provenance internals.

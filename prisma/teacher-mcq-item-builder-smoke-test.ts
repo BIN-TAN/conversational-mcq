@@ -170,6 +170,11 @@ function assertAssessmentDetailPageIsMiniTestFocused() {
     "Assessment detail should link Add MCQ item through the assessment-level route."
   );
   assert(
+    source.includes("const importItemsHref = `/teacher/content/assessments/${assessmentPublicId}/import-mcq`;") &&
+      source.includes("Import MCQ items"),
+    "Assessment detail should link Import MCQ items through the selected assessment route."
+  );
+  assert(
     source.includes("Add the MCQ items students will answer in this mini test."),
     "MCQ helper text should use teacher-facing mini-test wording."
   );

@@ -2465,3 +2465,60 @@ Phase 6A.5 must not implement:
   uploaded-image validation through an injected storage provider, teacher and
   student safe serialization, media-context snapshot stability, response-package
   media context, and absence of OpenAI calls.
+
+## Phase 31Q Teacher MCQ Import and Diagnostic Authoring Lock
+
+- The normal mini-test detail page must expose both `Add MCQ item` and
+  `Import MCQ items` for the selected assessment.
+- Phase 31Q supported import sources are CSV, XLSX, pasted plain text, and the
+  existing project JSON item format. DOCX, QTI/Canvas packages, PDF extraction,
+  and embedded binary media extraction are not implemented in this lock.
+- Import is preview-first and draft-only. Candidate extraction must preserve
+  original wording, source type, source file name, source checksum, source
+  location, source line range when available, original source text/hash, parsing
+  confidence, issue flags, duplicate warnings, and normalized draft fields.
+- Required draft-import fields are a non-empty stem and at least two non-empty
+  options. Missing key, diagnostic notes, and media metadata stay blank.
+  Missing diagnostic notes are warnings only.
+- Key data remain separated as `imported_key`, `llm_suggested_key`, and
+  `teacher_confirmed_key`. Imported or LLM-suggested keys must never become
+  official automatically. Publishing must still require exactly one valid
+  teacher-confirmed key.
+- Duplicate detection should flag likely duplicates within the import batch, in
+  the selected assessment, and in other teacher-owned assessments. It must not
+  merge, delete, or rewrite items automatically.
+- Media import accepts URL metadata only and must reuse existing media URL and
+  accessible-description safety checks. Raw embedded binaries are not imported
+  in Phase 31Q.
+- The diagnostic authoring assistant uses schema
+  `mcq-diagnostic-authoring-suggestion-v1` and prompt version
+  `mcq-diagnostic-authoring-assistant-v1`. Normal smoke tests use the mock/no
+  live path. Paid live diagnostic authoring calls are not enabled by default.
+- Assistant suggestions are teacher-facing guidance, not ground truth. They may
+  suggest target reasoning notes, strong-reasoning criteria, plain-language
+  distractor notes, cognitive-demand warnings, ambiguity warnings, multiple-key
+  warnings, recall-only warnings, optional revision guidance, concise rationale,
+  confidence, and limitations. They must not include hidden chain of thought.
+- Teachers must review suggestions field by field with Accept, Edit and accept,
+  Reject, or Leave blank. Non-empty teacher-authored fields must not be
+  overwritten by default.
+- Teacher notes and assistant suggestions must preserve epistemic caution:
+  selected distractors are indirect evidence only, teacher diagnostic notes are
+  guidance rather than ground truth, and alternative explanations must remain
+  possible.
+- Student-facing payloads, student previews, student runtime, and default
+  exports must not expose imported keys, answer keys, correct options, raw
+  teacher notes, raw distractor notes, assistant suggestion payloads, source
+  checksums, import provenance internals, raw provider output, credentials,
+  cookies, database URLs, API keys, session secrets, or auth hashes.
+- Teachers/operators are responsible for copyright, licensing, and permission to
+  use imported item-bank content.
+- `student:teacher-mcq-import-smoke` is no-live and must verify CSV, XLSX,
+  pasted text, project JSON, column mapping, missing-field behavior, duplicate
+  warnings, draft import, student-safe projection, and absence of OpenAI calls.
+- `student:teacher-mcq-diagnostic-assistant-smoke` is no-live and must verify
+  mock suggestion separation, teacher-key recognition, tentative distractor
+  notes, alternative explanations, suggestion decisions, provenance, no student
+  leakage, and absence of OpenAI calls.
+- `student:teacher-mcq-diagnostic-assistant-live-smoke` must skip by default
+  unless explicitly opted in.

@@ -676,3 +676,33 @@ Default simple CSV and research exports read current system rows only. Deleted
 assessments and deleted associated session/evidence records should not appear in
 newly generated exports. Previously downloaded exports and external copies are
 outside application control and are documented as deletion limitations.
+
+## MCQ Import Provenance
+
+Phase 31Q adds teacher MCQ import provenance for bulk authoring. Import preview
+batches are stored in `mcq_item_import_batches`, keyed by a public batch ID and
+linked to the selected assessment and uploading teacher. The table stores safe
+source metadata, source checksum, candidate counts, imported/rejected counts,
+key-missing counts, diagnostic-suggestion counts, duplicate counts, validation
+summary JSON, candidate payload JSON, suggestion payload JSON, import summary,
+and timestamps.
+
+Candidate payloads preserve original source text or source-row JSON, source
+location, source line range when available, normalized draft fields, imported
+key, teacher-confirmed key, missing fields, issue flags, duplicate warnings,
+parsing confidence, and field-level suggestion review decisions. Missing source
+fields remain blank. The import service does not silently paraphrase source
+wording or turn an imported/LLM-suggested key into an official key.
+
+Imported item rows remain draft `items`. Each imported item stores safe import
+provenance under `items.administration_rules.import_provenance`, including batch
+public ID, source type, source checksum, source location, original-source hash,
+imported key, teacher-confirmed key, missing fields at import, issue flags at
+import, and suggestion review decisions. Teacher diagnostic notes and assistant
+suggestions remain teacher/research-facing guidance only.
+
+Student-facing payloads, student previews, student transcripts, and default
+exports must not expose imported keys, teacher-confirmed keys as answer keys,
+raw teacher diagnostic notes, assistant suggestion payloads, source checksums,
+provenance internals, raw provider output, credentials, cookies, database URLs,
+API keys, session secrets, or password/access-code hashes.

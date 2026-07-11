@@ -15,6 +15,8 @@ export type PublicIdKind =
   | "followup_update_cycle"
   | "concept_progression"
   | "roster_import_batch"
+  | "mcq_import_batch"
+  | "mcq_import_candidate"
   | "student_account_event"
   | "student_account_deletion_event"
   | "assessment_deletion_event"
@@ -47,6 +49,8 @@ const prefixes: Record<PublicIdKind, string> = {
   followup_update_cycle: "fuc",
   concept_progression: "cpr",
   roster_import_batch: "rib",
+  mcq_import_batch: "mi",
+  mcq_import_candidate: "mic",
   student_account_event: "sae",
   student_account_deletion_event: "sade",
   assessment_deletion_event: "asde",

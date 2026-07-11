@@ -324,6 +324,17 @@ npm run student:live-llm-smoke:cleanup-failures
 - The mini-test item list shows item-count readiness, a top `Add MCQ item`
   action, a bottom `Add another MCQ item` action, and separate Edit, Teacher
   preview, and Student preview links.
+- The mini-test detail page also shows `Import MCQ items` for the selected mini
+  test. CSV, XLSX, pasted plain text, and project JSON imports must open a
+  preview first; no production item is written until the teacher confirms the
+  import.
+- Import preview should preserve original wording, keep missing fields blank,
+  flag malformed or duplicate candidates, and store imported keys separately
+  from teacher-confirmed keys. Missing keys are allowed for draft import but
+  must block publishing until the teacher confirms exactly one valid key.
+- Optional diagnostic suggestions must remain teacher-reviewed. The teacher can
+  Accept, Edit and accept, Reject, or Leave blank per field. Non-empty
+  teacher-authored notes should not be overwritten by default.
 - Advanced topic settings and fixed workflow/response implementation facts are
   absent from the normal mini-test detail page.
 - The normal MCQ editor does not show an item-purpose dropdown. Teacher-created
@@ -347,6 +358,8 @@ npm run student:live-llm-smoke:cleanup-failures
 - Teacher preview shows the key and teacher-only diagnostic notes.
 - Publishing gives teacher-friendly validation messages for missing item
   requirements and keeps diagnostic notes teacher-only.
+- Imported test-bank content should be reviewed for copyright/licensing
+  permission before classroom use.
 
 ## Data Logging Checklist
 

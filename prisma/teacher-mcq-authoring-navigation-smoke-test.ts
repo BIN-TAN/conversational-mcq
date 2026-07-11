@@ -135,6 +135,11 @@ function assertTeacherNavigationSource() {
     "Assessment detail should include bottom Add another MCQ item action."
   );
   assert(
+    assessmentDetail.includes("Import MCQ items") &&
+      assessmentDetail.includes("/import-mcq"),
+    "Assessment detail should include Import MCQ items actions for the selected mini test."
+  );
+  assert(
     assessmentDetail.includes("Teacher preview") && assessmentDetail.includes("Student preview"),
     "Assessment item list should expose separate teacher and student preview actions."
   );

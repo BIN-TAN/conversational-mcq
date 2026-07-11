@@ -203,6 +203,80 @@ export type ImportResult = {
   concept_units: Array<ConceptUnitSummary & { items: ItemDetail[] }>;
 };
 
+export type McqImportCandidate = {
+  candidate_public_id: string;
+  source_item_number: number;
+  source_location: string;
+  source_line_range: { start: number; end: number } | null;
+  item_label: string | null;
+  stem: string;
+  options: ItemOption[];
+  imported_key: string | null;
+  llm_suggested_key: string | null;
+  teacher_confirmed_key: string | null;
+  target_reasoning_note: string | null;
+  strong_reasoning_should_mention: string | null;
+  distractor_diagnostic_notes: string | null;
+  media_assets: unknown[];
+  missing_fields: string[];
+  parsing_confidence: number;
+  issue_flags: string[];
+  duplicate_warnings: Array<{
+    scope: "batch" | "assessment" | "teacher_owned";
+    existing_assessment_public_id: string | null;
+    existing_assessment_title: string | null;
+    existing_item_public_id: string | null;
+    message: string;
+  }>;
+  status: string;
+  import_selected: boolean;
+  original_source_text: string;
+  normalized_changed_wording: boolean;
+  normalized_diff_summary: string | null;
+  suggestion?: unknown;
+  suggestion_decisions?: Record<string, { decision: string; edited_value?: string | null }>;
+  imported_item_public_id?: string | null;
+};
+
+export type McqImportBatch = {
+  batch_public_id: string;
+  source_type: string;
+  source_file_name: string | null;
+  source_checksum: string;
+  status: string;
+  candidate_count: number;
+  imported_count: number;
+  rejected_count: number;
+  key_missing_count: number;
+  llm_suggestion_count: number;
+  duplicate_count: number;
+  validation_summary: unknown;
+  candidates: McqImportCandidate[];
+  suggestion_payload: unknown | null;
+  import_summary: unknown | null;
+  created_at: string;
+  committed_at: string | null;
+};
+
+export type McqImportPreviewResponse = {
+  batch: McqImportBatch;
+  supported_sources: string[];
+  template_url: string;
+};
+
+export type McqImportBatchResponse = {
+  batch: McqImportBatch;
+};
+
+export type McqImportCommitResponse = {
+  batch: McqImportBatch;
+  imported_item_public_ids: string[];
+  imported_count: number;
+  blocked_count: number;
+  review_imported_items_url: string;
+  add_more_items_url: string;
+};
+
 export type AssessmentDeletionMode = "unused_assessment" | "assessment_and_all_data";
 
 export type AssessmentDeletionCounts = {

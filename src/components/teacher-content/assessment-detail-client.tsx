@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, CheckCircle, Download, Plus, RefreshCw, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Archive, CheckCircle, Download, Plus, RefreshCw, RotateCcw, Save, Trash2, Upload } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import type {
   AssessmentDeletionMode,
@@ -293,6 +293,7 @@ export function AssessmentDetailClient({
   );
   const minimumRequiredItems = 3;
   const addItemHref = `/teacher/content/assessments/${assessmentPublicId}/items/new`;
+  const importItemsHref = `/teacher/content/assessments/${assessmentPublicId}/import-mcq`;
 
   function optionCount(value: unknown) {
     return Array.isArray(value) ? value.length : 0;
@@ -315,6 +316,12 @@ export function AssessmentDetailClient({
               <PrimaryLink href={addItemHref}>
                 <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
                 Add MCQ item
+              </PrimaryLink>
+            ) : null}
+            {isDraftEditable ? (
+              <PrimaryLink href={importItemsHref}>
+                <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+                Import MCQ items
               </PrimaryLink>
             ) : null}
             <Button disabled={isLoading} onClick={loadAssessment} type="button" variant="secondary">
@@ -475,10 +482,16 @@ export function AssessmentDetailClient({
                     </p>
                   </div>
                 </div>
-                <PrimaryLink href={addItemHref}>
-                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Add MCQ item
-                </PrimaryLink>
+                <div className="flex flex-wrap gap-2">
+                  <PrimaryLink href={addItemHref}>
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Add MCQ item
+                  </PrimaryLink>
+                  <PrimaryLink href={importItemsHref}>
+                    <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Import MCQ items
+                  </PrimaryLink>
+                </div>
               </div>
 
               {miniTestItems.length === 0 ? (
@@ -530,10 +543,16 @@ export function AssessmentDetailClient({
                 </div>
               )}
               <div className="mt-5 border-t border-line pt-4">
-                <PrimaryLink href={addItemHref}>
-                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Add another MCQ item
-                </PrimaryLink>
+                <div className="flex flex-wrap gap-2">
+                  <PrimaryLink href={addItemHref}>
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Add another MCQ item
+                  </PrimaryLink>
+                  <PrimaryLink href={importItemsHref}>
+                    <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Import MCQ items
+                  </PrimaryLink>
+                </div>
               </div>
             </section>
 

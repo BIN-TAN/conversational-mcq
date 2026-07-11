@@ -420,6 +420,7 @@ model User {
   export_jobs                               ExportJob[]                   @relation("ExportJobRequester")
   workflow_overrides_created                WorkflowOverride[]            @relation("WorkflowOverrideCreator")
   uploaded_roster_import_batches            RosterImportBatch[]           @relation("RosterImportUploader")
+  uploaded_mcq_item_import_batches          McqItemImportBatch[]          @relation("McqItemImportUploader")
   student_account_events                    StudentAccountEvent[]         @relation("StudentAccountEvents")
   performed_student_account_events          StudentAccountEvent[]         @relation("StudentAccountEventPerformer")
   performed_student_account_deletion_events StudentAccountDeletionEvent[] @relation("StudentAccountDeletionEventPerformer")
@@ -457,6 +458,7 @@ model Assessment {
   created_by          User                @relation("AssessmentCreator", fields: [created_by_user_db_id], references: [id], onDelete: Restrict)
   concept_units       ConceptUnit[]
   assessment_sessions AssessmentSession[]
+  mcq_item_import_batches McqItemImportBatch[]
 
   @@index([created_by_user_db_id])
   @@index([status])
@@ -1835,6 +1837,38 @@ model RosterImportBatch {
   @@index([uploaded_by_user_db_id, created_at])
   @@index([status, created_at])
   @@map("roster_import_batches")
+}
+
+model McqItemImportBatch {
+  id                     String   @id @default(uuid()) @db.Uuid
+  batch_public_id        String   @unique @default(cuid())
+  assessment_db_id       String   @db.Uuid
+  uploaded_by_user_db_id String   @db.Uuid
+  source_type            String
+  source_file_name       String?
+  source_checksum        String
+  status                 String   @default("previewed")
+  candidate_count        Int      @default(0)
+  imported_count         Int      @default(0)
+  rejected_count         Int      @default(0)
+  key_missing_count      Int      @default(0)
+  llm_suggestion_count   Int      @default(0)
+  duplicate_count        Int      @default(0)
+  validation_summary     Json
+  candidates_payload     Json
+  suggestion_payload     Json?
+  import_summary         Json?
+  created_at             DateTime @default(now()) @db.Timestamptz(6)
+  committed_at           DateTime? @db.Timestamptz(6)
+  updated_at             DateTime @updatedAt @db.Timestamptz(6)
+
+  assessment  Assessment @relation(fields: [assessment_db_id], references: [id], onDelete: Restrict)
+  uploaded_by User       @relation("McqItemImportUploader", fields: [uploaded_by_user_db_id], references: [id], onDelete: Restrict)
+
+  @@index([assessment_db_id, created_at])
+  @@index([uploaded_by_user_db_id, created_at])
+  @@index([status, created_at])
+  @@map("mcq_item_import_batches")
 }
 
 model StudentAccountEvent {
