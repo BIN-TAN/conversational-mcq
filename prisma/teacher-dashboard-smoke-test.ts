@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { PrismaClient } from "@prisma/client";
+import {
+  PrismaClient,
+  type EngagementProfile,
+  type EvidenceSufficiency,
+  type IntegratedDiagnosticProfile
+} from "@prisma/client";
 import {
   downloadTeacherAssessmentDashboardCsv,
   getTeacherAssessmentDashboard
@@ -53,7 +58,7 @@ function assertDashboardSurface() {
 
   for (const expected of [
     "Assessment-level diagnostic overview",
-    "Total students",
+    "Eligible students",
     "Not started",
     "In progress",
     "Completed",
@@ -68,15 +73,25 @@ function assertDashboardSurface() {
     "Export and readable data",
     "diagnostic signals",
     "response patterns",
-    "does not claim stable learner traits"
+    "does not claim stable learner traits",
+    "No student data are available for this assessment.",
+    "Sample size",
+    "Legend:",
+    "Chart data table",
+    "Overlapping review indicator"
   ]) {
     assertIncludes(client, expected, "Teacher assessment dashboard client");
   }
 
   for (const expected of [
     "CANDIDATE_PATTERN_THRESHOLD = 3",
-    "deterministic exact normalized reasoning-prefix grouping",
+    "ATTEMPT_POLICY_LATEST_PER_STUDENT",
+    "all_active_students_created_by_teacher_no_assessment_assignment_model",
+    "active_interaction_ms",
+    "latest_attempt_per_student",
+    "deterministic exact normalized reasoning after removing common opening phrases",
     "anonymizedReasoningSnippet",
+    "itemSnapshotPublicId",
     "downloadTeacherAssessmentDashboardCsv",
     "assessment_specific_understanding",
     "engagement_signals",
@@ -173,6 +188,7 @@ async function cleanupDashboardFixture(prefix: string) {
   const conceptUnitIds = conceptUnits.map((conceptUnit) => conceptUnit.id);
 
   await prisma.itemResponse.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
+  await prisma.studentProfile.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
   await prisma.conceptUnitSession.deleteMany({ where: { id: { in: conceptUnitSessionIds } } });
   await prisma.assessmentSession.deleteMany({ where: { id: { in: sessionIds } } });
   await prisma.item.deleteMany({ where: { concept_unit_db_id: { in: conceptUnitIds } } });
@@ -194,7 +210,7 @@ async function assertDashboardAggregationService() {
       }
     });
     const students = await Promise.all(
-      [1, 2, 3, 4, 5].map((index) =>
+      [1, 2, 3, 4, 5, 6, 7, 8, 9].map((index) =>
         prisma.user.create({
           data: {
             user_id: `${prefix}_student_${index}`,
@@ -210,6 +226,15 @@ async function assertDashboardAggregationService() {
         assessment_public_id: `${prefix}_assessment`,
         title: "Synthetic assessment dashboard smoke",
         diagnostic_focus: "Teacher reviews diagnostic MCQ response patterns.",
+        status: "published",
+        created_by_user_db_id: teacher.id
+      }
+    });
+    const emptyAssessment = await prisma.assessment.create({
+      data: {
+        assessment_public_id: `${prefix}_empty_assessment`,
+        title: "Synthetic empty assessment dashboard smoke",
+        diagnostic_focus: "Exercise no-data dashboard state.",
         status: "published",
         created_by_user_db_id: teacher.id
       }
@@ -232,6 +257,17 @@ async function assertDashboardAggregationService() {
         }
       }
     });
+    await prisma.conceptUnit.create({
+      data: {
+        concept_unit_public_id: `${prefix}_empty_concept`,
+        assessment_db_id: emptyAssessment.id,
+        title: "Synthetic empty concept",
+        learning_objective: "Exercise no-data dashboard state.",
+        related_concept_description: "Synthetic no-data dashboard smoke fixture.",
+        order_index: 1,
+        status: "published"
+      }
+    });
     const item = await prisma.item.create({
       data: {
         item_public_id: `${prefix}_item`,
@@ -252,84 +288,330 @@ async function assertDashboardAggregationService() {
     });
 
     const base = new Date("2026-07-12T14:00:00.000Z");
-    for (const [index, student] of students.slice(0, 4).entries()) {
+    const itemSnapshot = {
+      item_public_id: item.item_public_id,
+      item_order: item.item_order,
+      item_stem: item.item_stem,
+      options: item.options,
+      correct_option: "A",
+      version: 1
+    };
+    async function createProfile(
+      conceptUnitSessionId: string,
+      input: {
+        integrated_diagnostic_profile: IntegratedDiagnosticProfile;
+        engagement_profile: EngagementProfile;
+        evidence_sufficiency?: EvidenceSufficiency;
+      }
+    ) {
+      return prisma.studentProfile.create({
+        data: {
+          concept_unit_session_db_id: conceptUnitSessionId,
+          profile_type: "initial",
+          ability_profile: "partial_understanding",
+          ability_pattern_flags: {},
+          engagement_profile: input.engagement_profile,
+          engagement_pattern_flags: {},
+          integrated_diagnostic_profile: input.integrated_diagnostic_profile,
+          integrated_profile_confidence: "medium",
+          integrated_profile_rationale: "Synthetic dashboard smoke profile.",
+          evidence_sufficiency: input.evidence_sufficiency ?? "adequate",
+          confidence_alignment: "mixed",
+          independence_interpretability: "independent_understanding_uncertain",
+          misconception_indicators: {},
+          item_level_evidence: {},
+          reasoning_quality_summary: "Synthetic persisted profile evidence.",
+          engagement_summary: "Synthetic persisted engagement evidence.",
+          process_interpretation_cautions: {},
+          profile_confidence: "medium",
+          rationale: "Synthetic dashboard smoke profile.",
+          recommended_next_evidence: {}
+        }
+      });
+    }
+    async function createSession(input: {
+      studentIndex: number;
+      attemptNumber: number;
+      status: "active" | "paused" | "completed" | "student_exited";
+      selectedOption?: string;
+      correctness?: "correct" | "incorrect";
+      reasoning?: string;
+      confidence?: "low" | "medium" | "high";
+      itemTimeMs?: number;
+      needsReview?: boolean;
+      profile?: {
+        integrated_diagnostic_profile: IntegratedDiagnosticProfile;
+        engagement_profile: EngagementProfile;
+        evidence_sufficiency?: EvidenceSufficiency;
+      };
+    }) {
+      const student = students[input.studentIndex - 1];
+      const offsetMs = (input.studentIndex * 10 + input.attemptNumber) * 60_000;
+      const startedAt = new Date(base.getTime() + offsetMs);
+      const completedAt = input.status === "completed" || input.status === "student_exited"
+        ? new Date(startedAt.getTime() + 12 * 60_000)
+        : null;
       const session = await prisma.assessmentSession.create({
         data: {
-          session_public_id: `${prefix}_session_${index + 1}`,
+          session_public_id: `${prefix}_session_${input.studentIndex}_${input.attemptNumber}`,
           user_db_id: student.id,
           assessment_db_id: assessment.id,
-          status: "completed",
-          current_phase: "session_completed",
-          started_at: new Date(base.getTime() + index * 60_000),
-          last_activity_at: new Date(base.getTime() + index * 60_000 + 12 * 60_000),
-          completed_at: new Date(base.getTime() + index * 60_000 + 12 * 60_000)
+          attempt_number: input.attemptNumber,
+          status: input.status,
+          current_phase:
+            input.status === "completed"
+              ? "session_completed"
+              : input.status === "student_exited"
+                ? "student_exited"
+                : "initial_item_administration",
+          needs_review: input.needsReview ?? false,
+          needs_review_reason: input.needsReview ? "Synthetic review flag." : null,
+          started_at: startedAt,
+          last_activity_at: completedAt ?? new Date(startedAt.getTime() + 5 * 60_000),
+          completed_at: completedAt
         }
       });
       const conceptUnitSession = await prisma.conceptUnitSession.create({
         data: {
           assessment_session_db_id: session.id,
           concept_unit_db_id: conceptUnit.id,
-          status: "completed",
+          status: input.status === "completed" ? "completed" : "initial_in_progress",
           initial_completed_at: session.completed_at
         }
       });
-      const wrong = index < 3;
-      await prisma.itemResponse.create({
-        data: {
-          concept_unit_session_db_id: conceptUnitSession.id,
-          item_db_id: item.id,
-          selected_option: wrong ? "B" : "A",
-          correct_option_snapshot: "A",
-          correctness: wrong ? "incorrect" : "correct",
-          reasoning_text: wrong
-            ? "I chose B because I treated the distractor as the target concept."
-            : "I chose A because it matches the target concept.",
-          confidence_rating: wrong ? "high" : "medium",
-          item_response_time_ms: 40_000,
-          item_started_at: session.started_at,
-          item_submitted_at: session.completed_at,
-          item_version_snapshot: 1,
-          item_snapshot: { item_public_id: item.item_public_id }
-        }
-      });
+      if (input.selectedOption) {
+        await prisma.itemResponse.create({
+          data: {
+            concept_unit_session_db_id: conceptUnitSession.id,
+            item_db_id: item.id,
+            selected_option: input.selectedOption,
+            correct_option_snapshot: "A",
+            correctness: input.correctness ?? "incorrect",
+            reasoning_text: input.reasoning ?? null,
+            confidence_rating: input.confidence ?? "high",
+            item_response_time_ms: input.itemTimeMs ?? 40_000,
+            item_started_at: session.started_at,
+            item_submitted_at: session.completed_at ?? new Date(startedAt.getTime() + 4 * 60_000),
+            item_version_snapshot: 1,
+            item_snapshot: itemSnapshot
+          }
+        });
+      }
+      if (input.profile) {
+        await createProfile(conceptUnitSession.id, input.profile);
+      }
+      return { session, conceptUnitSession };
     }
+
+    await createSession({
+      studentIndex: 1,
+      attemptNumber: 1,
+      status: "completed",
+      selectedOption: "B",
+      reasoning: "I treated the distractor as the target concept because the wording sounded similar.",
+      confidence: "high",
+      itemTimeMs: 40_000,
+      profile: {
+        integrated_diagnostic_profile: "misconception_with_sufficient_engagement",
+        engagement_profile: "low_engagement"
+      }
+    });
+    await createSession({
+      studentIndex: 2,
+      attemptNumber: 1,
+      status: "completed",
+      selectedOption: "B",
+      reasoning: "I treated the distractor as the target concept because the wording sounded similar.",
+      confidence: "high",
+      itemTimeMs: 40_000
+    });
+    await createSession({
+      studentIndex: 2,
+      attemptNumber: 2,
+      status: "active",
+      selectedOption: "C",
+      reasoning: "I think this is one different explanation.",
+      confidence: "high",
+      itemTimeMs: 30_000
+    });
+    await createSession({
+      studentIndex: 3,
+      attemptNumber: 1,
+      status: "paused",
+      selectedOption: "C",
+      reasoning: "I think this is another different explanation.",
+      confidence: "high",
+      itemTimeMs: 30_000,
+      needsReview: true
+    });
+    await createSession({
+      studentIndex: 4,
+      attemptNumber: 1,
+      status: "student_exited",
+      selectedOption: "C",
+      reasoning: "I think this is a third different explanation.",
+      confidence: "high",
+      itemTimeMs: 30_000
+    });
+    await createSession({
+      studentIndex: 5,
+      attemptNumber: 1,
+      status: "completed",
+      selectedOption: "B",
+      reasoning: "I treated the distractor as the target concept because the wording sounded similar.",
+      confidence: "high",
+      itemTimeMs: 40_000
+    });
+    await createSession({
+      studentIndex: 5,
+      attemptNumber: 2,
+      status: "completed",
+      selectedOption: "B",
+      reasoning: "I treated the distractor as the target concept because the wording sounded similar.",
+      confidence: "high",
+      itemTimeMs: 50_000,
+      profile: {
+        integrated_diagnostic_profile: "robust_understanding_ready_for_transfer",
+        engagement_profile: "adequate_engagement"
+      }
+    });
+    await createSession({
+      studentIndex: 6,
+      attemptNumber: 1,
+      status: "completed",
+      selectedOption: "B",
+      reasoning: "I treated the distractor as the target concept because the wording sounded similar. learner@example.com 555-123-4567.",
+      confidence: "medium",
+      itemTimeMs: 60_000,
+      profile: {
+        integrated_diagnostic_profile: "developing_understanding_with_productive_engagement",
+        engagement_profile: "productive_engagement"
+      }
+    });
+    await createSession({
+      studentIndex: 7,
+      attemptNumber: 1,
+      status: "completed",
+      selectedOption: "B",
+      reasoning: "I treated the distractor as the target concept because the wording sounded similar.",
+      confidence: "high",
+      itemTimeMs: 40_000
+    });
+    await createSession({
+      studentIndex: 7,
+      attemptNumber: 2,
+      status: "active"
+    });
+
+    await prisma.item.update({
+      where: { id: item.id },
+      data: {
+        item_stem: "Edited current item stem that should not rewrite administered snapshot.",
+        options: [
+          { label: "A", text: "Edited option A" },
+          { label: "B", text: "Edited option B" },
+          { label: "E", text: "Edited option E" }
+        ],
+        correct_option: "B",
+        version: 2
+      }
+    });
 
     const dashboard = await getTeacherAssessmentDashboard({
       teacher_user_db_id: teacher.id,
       assessment_public_id: assessment.assessment_public_id
     });
 
-    assert(dashboard.summary_cards.total_students === 5, "Dashboard should count teacher-created active students.");
-    assert(dashboard.summary_cards.not_started === 1, "Dashboard should count the synthetic not-started student.");
-    assert(dashboard.summary_cards.completed === 4, "Dashboard should count completed sessions.");
-    assert(dashboard.summary_cards.average_time_spent_minutes === 12, "Dashboard should calculate average time spent.");
+    assert(dashboard.eligible_student_count === 9, "Dashboard should expose an explicit eligible-student denominator.");
     assert(
-      dashboard.understanding_distribution.some((entry) => entry.label === "Still developing" && entry.count > 0),
-      "Dashboard should expose assessment-specific understanding categories."
+      dashboard.eligibility_basis === "all_active_students_created_by_teacher_no_assessment_assignment_model",
+      "Dashboard should document the denominator basis."
+    );
+    assert(dashboard.attempt_policy.policy === "latest_attempt_per_student", "Dashboard should expose latest-attempt policy.");
+    assert(dashboard.summary_cards.not_started === 2, "Dashboard should count students with no attempts as not started.");
+    assert(dashboard.summary_cards.in_progress === 3, "Dashboard should use latest attempts for in-progress status.");
+    assert(dashboard.summary_cards.completed === 3, "Dashboard should count one latest completed attempt per student.");
+    assert(
+      dashboard.summary_cards.exited_terminal_incomplete === 1,
+      "Dashboard should count exited latest attempts separately."
+    );
+    assert(dashboard.summary_cards.unavailable === 0, "Dashboard should expose unavailable status count.");
+    assert(dashboard.summary_cards.flagged_for_review === 1, "Flagged review should be an overlapping indicator.");
+    assert(
+      dashboard.status_distribution.reduce((total, row) => total + row.count, 0) === dashboard.eligible_student_count,
+      "Status categories should be mutually exclusive and sum to the eligible denominator."
     );
     assert(
-      dashboard.engagement_distribution.some((entry) => entry.label === "Low engagement" && entry.count > 0),
-      "Dashboard should expose engagement signals."
+      dashboard.time_indicator.time_metric_type === "active_interaction_ms",
+      "Dashboard should use active interaction timing when available."
     );
-    assert(dashboard.item_diagnostics.length === 1, "Dashboard should expose item-level diagnostics.");
+    assert(dashboard.time_indicator.average_time_ms === 50_000, "Dashboard should average latest completed active time.");
+    assert(dashboard.time_indicator.sample_size === 3, "Time metric should use latest completed attempts only.");
+    assert(dashboard.time_indicator.unavailable_count === 0, "Time metric should report unavailable count.");
     assert(
-      dashboard.item_diagnostics[0].option_distribution.some((entry) => entry.label === "B" && entry.count === 3),
-      "Item diagnostics should count option selections."
+      dashboard.understanding_distribution.some((entry) => entry.label === "Unavailable / insufficient evidence" && entry.count === 6),
+      "Missing understanding profiles should remain unavailable."
+    );
+    assert(
+      dashboard.engagement_distribution.some((entry) => entry.label === "Unavailable / insufficient evidence" && entry.count === 6),
+      "Missing engagement profiles should remain unavailable."
+    );
+    assert(dashboard.item_diagnostics.length >= 1, "Dashboard should expose item-level diagnostics.");
+    const administeredSnapshot = dashboard.item_diagnostics.find((entry) => entry.item_snapshot_public_id.endsWith(":v1"));
+    assert(administeredSnapshot, "Dashboard should preserve administered item snapshot diagnostics.");
+    assert(
+      administeredSnapshot.item_stem_preview.includes("Which option best represents"),
+      "Dashboard should use administered item stem snapshot, not the edited current item."
+    );
+    assert(
+      administeredSnapshot.option_distribution.some((entry) => entry.label === "B" && entry.count === 3),
+      "Item diagnostics should use latest attempts and administered option snapshots."
     );
     assert(
       dashboard.candidate_misconception_patterns.length === 1,
-      "Repeated wrong-option evidence should create one candidate pattern."
+      "Only the repeated exact reasoning pattern should meet the unique-student threshold."
+    );
+    const candidate = dashboard.candidate_misconception_patterns[0];
+    assert(candidate.unique_student_count === 3, "Candidate threshold should count unique students.");
+    assert(candidate.response_count === 3, "Repeated attempts from one student should not inflate response count.");
+    assert(candidate.threshold_unique_student_count === 3, "Candidate should report the configured threshold.");
+    assert(candidate.item_snapshot_public_id.endsWith(":v1"), "Candidate should bind to administered item snapshot.");
+    assert(
+      candidate.review_note.includes("not a confirmed misconception"),
+      "Candidate pattern should use cautious review wording."
     );
     assert(
-      dashboard.candidate_misconception_patterns[0].review_note.includes("not a confirmed misconception"),
-      "Candidate pattern should use cautious review wording."
+      candidate.reasoning_grouping_method.includes("exact normalized reasoning"),
+      "Candidate should use conservative exact reasoning grouping."
+    );
+    assert(
+      candidate.representative_reasoning_snippets.every(
+        (snippet) => !snippet.includes("@") && !/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/.test(snippet)
+      ),
+      "Candidate reasoning snippets should redact obvious contact information."
     );
     const csv = await downloadTeacherAssessmentDashboardCsv({
       teacher_user_db_id: teacher.id,
       assessment_public_id: assessment.assessment_public_id
     });
+    assert(csv.content.includes("dashboard_metadata"), "Dashboard CSV should include metadata rows.");
+    assert(csv.content.includes("latest_attempt_per_student"), "Dashboard CSV should include attempt policy.");
+    assert(csv.content.includes("active_interaction_ms"), "Dashboard CSV should include time metric type.");
     assert(csv.content.includes("candidate_misconception_pattern"), "Dashboard CSV should include candidate patterns.");
+    assert(csv.content.includes(candidate.item_snapshot_public_id), "Dashboard CSV should match UI snapshot binding.");
     assert(csv.content.includes("item_option_distribution"), "Dashboard CSV should include item option distributions.");
+
+    const emptyDashboard = await getTeacherAssessmentDashboard({
+      teacher_user_db_id: teacher.id,
+      assessment_public_id: emptyAssessment.assessment_public_id
+    });
+    assert(emptyDashboard.has_student_data === false, "Empty assessment should report no student data.");
+    assert(emptyDashboard.status_distribution.length === 0, "Empty assessment should not render zero status charts.");
+    assert(emptyDashboard.progress_chart.length === 0, "Empty assessment should not render zero progress charts.");
+    assert(
+      emptyDashboard.notes.includes("No student data are available for this assessment."),
+      "Empty assessment should include no-data note."
+    );
   } finally {
     await cleanupDashboardFixture(prefix);
   }

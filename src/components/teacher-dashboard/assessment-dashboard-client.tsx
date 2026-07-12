@@ -22,6 +22,19 @@ function formatMinutes(value: number | null) {
   return `${value.toFixed(value % 1 === 0 ? 0 : 1)} min`;
 }
 
+function eligibilityBasisLabel(value: TeacherAssessmentDashboard["eligibility_basis"]) {
+  if (value === "all_active_students_created_by_teacher_no_assessment_assignment_model") {
+    return "All active student accounts created by this teacher. This system does not currently model assessment-specific assigned rosters.";
+  }
+  return "Students with sessions for this assessment. No active teacher-created roster was found.";
+}
+
+function timeMetricLabel(value: TeacherAssessmentDashboard["time_indicator"]["time_metric_type"]) {
+  if (value === "active_interaction_ms") return "Active interaction time";
+  if (value === "elapsed_wall_clock_ms") return "Elapsed wall-clock time";
+  return "Unavailable";
+}
+
 function barWidth(percentage: number) {
   if (percentage <= 0) return "0%";
   return `${Math.max(percentage, 3)}%`;
@@ -60,6 +73,30 @@ function BarChart({ data, tone = "green" }: { data: ChartDatum[]; tone?: "green"
           </div>
         </div>
       ))}
+      <p className="text-xs leading-5 text-muted">
+        Legend: each bar represents the row category below; counts and percentages are shown in text.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="mt-4 w-full text-left text-xs">
+          <caption className="sr-only">Chart data table</caption>
+          <thead className="text-muted">
+            <tr>
+              <th className="border-b border-line py-1 pr-3 font-semibold" scope="col">Category</th>
+              <th className="border-b border-line px-3 py-1 font-semibold" scope="col">Count</th>
+              <th className="border-b border-line px-3 py-1 font-semibold" scope="col">Percent</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((entry) => (
+              <tr key={`${entry.label}-table`}>
+                <th className="border-b border-line py-1 pr-3 font-medium text-ink" scope="row">{entry.label}</th>
+                <td className="border-b border-line px-3 py-1 text-muted">{formatCount(entry.count)}</td>
+                <td className="border-b border-line px-3 py-1 text-muted">{entry.percentage}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -68,17 +105,22 @@ function ChartCard({
   title,
   description,
   data,
+  sampleSize,
   tone
 }: {
   title: string;
   description: string;
   data: ChartDatum[];
+  sampleSize: number;
   tone?: "green" | "gold" | "slate";
 }) {
   return (
     <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
       <h2 className="text-lg font-semibold text-ualberta-green-dark">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
+      <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted">
+        Sample size: {formatCount(sampleSize)}
+      </p>
       <div className="mt-4">
         <BarChart data={data} tone={tone} />
       </div>
@@ -96,7 +138,10 @@ function ItemDiagnostic({ item }: { item: ItemDiagnosticSummary }) {
             {item.item_stem_preview}
           </h3>
           <p className="mt-2 text-sm text-muted">
-            {item.response_count} responses. Correct {item.correct_percentage}% / Incorrect {item.incorrect_percentage}%.
+            {item.response_count} latest-attempt responses. Correct {item.correct_percentage}% / Incorrect {item.incorrect_percentage}%.
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            Administered snapshot: {item.item_snapshot_public_id}. Version: {item.item_version ?? "not recorded"}.
           </p>
         </div>
       </div>
@@ -136,7 +181,7 @@ function CandidatePatterns({ patterns }: { patterns: CandidateMisconceptionPatte
       <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
         <h2 className="text-lg font-semibold text-ualberta-green-dark">Candidate misconception patterns</h2>
         <p className="mt-2 text-sm leading-6 text-muted">
-          No repeated wrong-option, medium/high-confidence response patterns met the conservative threshold yet.
+          No repeated wrong-option, medium/high-confidence response patterns met the conservative unique-student threshold yet.
         </p>
       </section>
     );
@@ -146,7 +191,7 @@ function CandidatePatterns({ patterns }: { patterns: CandidateMisconceptionPatte
     <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
       <h2 className="text-lg font-semibold text-ualberta-green-dark">Candidate misconception patterns</h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-        These are deterministic response patterns for teacher review only. They are not confirmed
+        These are deterministic candidate response patterns for teacher review only. They are not confirmed
         misconceptions and were not generated by an LLM.
       </p>
       <div className="mt-4 space-y-4">
@@ -158,7 +203,10 @@ function CandidatePatterns({ patterns }: { patterns: CandidateMisconceptionPatte
                   Question {pattern.item_order}, option {pattern.option_selected}
                 </h3>
                 <p className="mt-1 text-sm text-muted">
-                  {pattern.response_count} repeated responses. {pattern.confidence_summary}.
+                  {pattern.unique_student_count} unique students; {pattern.response_count} latest-attempt responses. {pattern.confidence_summary}.
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  Administered snapshot: {pattern.item_snapshot_public_id}. Threshold: {pattern.threshold_unique_student_count} unique students.
                 </p>
               </div>
               <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
@@ -180,6 +228,13 @@ function CandidatePatterns({ patterns }: { patterns: CandidateMisconceptionPatte
             <p className="mt-3 text-xs leading-5 text-muted">
               {pattern.review_note} Grouping: {pattern.reasoning_grouping_method}.
             </p>
+            {pattern.limitations.length > 0 ? (
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-muted">
+                {pattern.limitations.map((limitation) => (
+                  <li key={limitation}>{limitation}</li>
+                ))}
+              </ul>
+            ) : null}
           </article>
         ))}
       </div>
@@ -246,6 +301,7 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
   const summary = dashboard.summary_cards;
   const selectedTitle = dashboard.selected_assessment?.title ?? "No assessment selected";
   const hasAssessment = Boolean(dashboard.selected_assessment);
+  const hasStudentData = dashboard.has_student_data;
 
   const sortedItems = useMemo(
     () => [...dashboard.item_diagnostics].sort((left, right) => left.item_order - right.item_order),
@@ -321,30 +377,52 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
       ) : (
         <>
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-            <SummaryCard label="Total students" value={formatCount(summary.total_students)} />
+            <SummaryCard
+              label="Eligible students"
+              value={formatCount(summary.eligible_student_count)}
+              note={eligibilityBasisLabel(dashboard.eligibility_basis)}
+            />
             <SummaryCard label="Not started" value={formatCount(summary.not_started)} />
             <SummaryCard label="In progress" value={formatCount(summary.in_progress)} />
             <SummaryCard label="Completed" value={formatCount(summary.completed)} />
-            <SummaryCard label="Flagged for review" value={formatCount(summary.flagged_for_review)} />
-            <SummaryCard label="Average time spent" value={formatMinutes(summary.average_time_spent_minutes)} />
+            <SummaryCard label="Exited or incomplete" value={formatCount(summary.exited_terminal_incomplete)} />
+            <SummaryCard label="Unavailable" value={formatCount(summary.unavailable)} />
+            <SummaryCard
+              label="Flagged for review"
+              value={formatCount(summary.flagged_for_review)}
+              note="Overlapping review indicator; not part of the status distribution."
+            />
+            <SummaryCard
+              label="Average time spent"
+              value={formatMinutes(summary.average_time_spent_minutes)}
+              note={timeMetricLabel(dashboard.time_indicator.time_metric_type)}
+            />
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-3">
-            <ChartCard
-              title="Status distribution"
-              description="Counts by assessment-session state for the selected mini test."
-              data={dashboard.status_distribution}
-            />
-            <ChartCard
-              title="Completion progress"
-              description="Started versus not-started participation for this assessment."
-              data={dashboard.progress_chart}
-              tone="gold"
-            />
+          {!hasStudentData ? (
+            <section className="rounded-lg border border-dashed border-line bg-white p-6 text-sm leading-6 text-muted">
+              No student data are available for this assessment.
+            </section>
+          ) : (
+            <>
+              <section className="grid gap-4 xl:grid-cols-3">
+                <ChartCard
+                  title="Status distribution"
+                  description="Mutually exclusive latest-attempt status for eligible students in the selected mini test."
+                  data={dashboard.status_distribution}
+                  sampleSize={dashboard.eligible_student_count}
+                />
+                <ChartCard
+                  title="Completion progress"
+                  description="Started versus not-started participation for this assessment."
+                  data={dashboard.progress_chart}
+                  sampleSize={dashboard.eligible_student_count}
+                  tone="gold"
+                />
             <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
               <h2 className="text-lg font-semibold text-ualberta-green-dark">Time indicator</h2>
               <p className="mt-2 text-sm leading-6 text-muted">
-                Time spent uses session start through completion or latest activity.
+                {timeMetricLabel(dashboard.time_indicator.time_metric_type)} for latest completed attempts.
               </p>
               <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <div className="rounded-md border border-line bg-slate-50 p-3">
@@ -356,21 +434,32 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
                   <dd className="mt-1 text-xl font-semibold text-ink">{formatMinutes(dashboard.time_indicator.median_minutes)}</dd>
                 </div>
               </dl>
-              <p className="mt-3 text-xs text-muted">Sample size: {dashboard.time_indicator.sample_size}</p>
+              <p className="mt-3 text-xs text-muted">
+                Sample size: {dashboard.time_indicator.sample_size}. Unavailable: {dashboard.time_indicator.unavailable_count}.
+              </p>
+              {dashboard.time_indicator.limitations.length > 0 ? (
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-muted">
+                  {dashboard.time_indicator.limitations.map((limitation) => (
+                    <li key={limitation}>{limitation}</li>
+                  ))}
+                </ul>
+              ) : null}
             </section>
           </section>
 
           <section className="grid gap-4 xl:grid-cols-2">
             <ChartCard
               title="Assessment-specific understanding"
-              description="Current diagnostic categories for this assessment only. These are not formal psychometric estimates."
+              description="Current persisted profile categories for this assessment only. These are not formal psychometric estimates."
               data={dashboard.understanding_distribution}
+              sampleSize={dashboard.eligible_student_count}
               tone="green"
             />
             <ChartCard
               title="Engagement signals"
-              description="Deterministic process and response indicators used as evidence-quality context."
+              description="Persisted profile engagement evidence used as evidence-quality context."
               data={dashboard.engagement_distribution}
+              sampleSize={dashboard.eligible_student_count}
               tone="slate"
             />
           </section>
@@ -384,11 +473,14 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
               </p>
             </div>
             {sortedItems.map((item) => (
-              <ItemDiagnostic item={item} key={item.item_public_id} />
+              <ItemDiagnostic item={item} key={item.item_snapshot_public_id} />
             ))}
           </section>
 
           <CandidatePatterns patterns={dashboard.candidate_misconception_patterns} />
+            </>
+          )}
+
           <ExportSection dashboard={dashboard} />
 
           <section className="rounded-lg border border-border-light bg-white p-5 text-sm leading-6 text-muted">
