@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BrainCircuit, FileJson, ListChecks, Microscope, Table2, UserRoundCog, Users } from "lucide-react";
+import { BrainCircuit, ListChecks, Table2, UserRoundCog, Users } from "lucide-react";
 import { redirect } from "next/navigation";
 import { TeacherLogoutButton } from "@/components/teacher-logout-button";
 import { UAlbertaLogo } from "@/components/ualberta-logo";
@@ -10,8 +10,7 @@ const teacherNavLinks = [
   { href: "/teacher/students", label: "Student accounts" },
   { href: "/teacher/sessions", label: "Student sessions" },
   { href: "/teacher/data", label: "Data and outcomes" },
-  { href: "/teacher/system/llm", label: "LLM status" },
-  { href: "/teacher/content/import-json", label: "JSON import" }
+  { href: "/teacher/system/llm", label: "LLM status" }
 ];
 
 export default async function TeacherDashboardPage() {
@@ -113,17 +112,6 @@ export default async function TeacherDashboardPage() {
           </Link>
           <Link
             className="rounded-lg border border-border-light bg-white p-5 shadow-soft transition hover:border-ualberta-green"
-            href="/teacher/content/import-json"
-          >
-            <FileJson className="h-5 w-5 text-ualberta-green" aria-hidden="true" />
-            <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
-            <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">JSON import</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Import prepared item-set JSON when the guided builder is not the right fit.
-            </p>
-          </Link>
-          <Link
-            className="rounded-lg border border-border-light bg-white p-5 shadow-soft transition hover:border-ualberta-green"
             href="/teacher/system/llm"
           >
             <BrainCircuit className="h-5 w-5 text-ualberta-green" aria-hidden="true" />
@@ -131,18 +119,6 @@ export default async function TeacherDashboardPage() {
             <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">LLM status</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
               Review provider readiness, draft prompt versions, schema versions, and mock-mode safety.
-            </p>
-          </Link>
-          <Link
-            className="rounded-lg border border-border-light bg-white p-5 shadow-soft transition hover:border-ualberta-green"
-            href="/teacher/evals"
-          >
-            <Microscope className="h-5 w-5 text-ualberta-green" aria-hidden="true" />
-            <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
-            <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">Model evaluation</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Load synthetic cases, run mock agent evaluations, annotate outputs, and export
-              development-evaluation results before live model testing.
             </p>
           </Link>
         </section>

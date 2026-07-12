@@ -154,6 +154,10 @@ function assertDashboardCardsAreActionable() {
     source.includes('href="/teacher/system/llm"'),
     "Dashboard LLM status card should remain clickable."
   );
+  assert(!source.includes("JSON import"), "Standard dashboard should not show a JSON import card or nav link.");
+  assert(!source.includes('href="/teacher/content/import-json"'), "Standard dashboard should not link to JSON import.");
+  assert(!source.includes("Model evaluation"), "Standard dashboard should not show a Model evaluation card.");
+  assert(!source.includes('href="/teacher/evals"'), "Standard dashboard should not link to Model evaluation.");
   assert(!source.includes("Agent Metadata"), "Dashboard should not show static Agent Metadata card.");
   assert(!source.includes(">Flags<"), "Dashboard should not show static Flags card.");
   assert(!source.includes("Data Foundation"), "Dashboard should not show static Data Foundation card.");

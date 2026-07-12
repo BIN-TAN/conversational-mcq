@@ -63,6 +63,7 @@
     "student:teacher-mcq-formatting-assistant-live-smoke": "tsx prisma/teacher-mcq-formatting-assistant-live-smoke-test.ts",
     "student:teacher-mcq-diagnostic-assistant-smoke": "tsx prisma/teacher-mcq-diagnostic-assistant-smoke-test.ts",
     "student:teacher-mcq-diagnostic-assistant-live-smoke": "tsx prisma/teacher-mcq-diagnostic-assistant-live-smoke-test.ts",
+    "student:teacher-dashboard-smoke": "tsx prisma/teacher-dashboard-smoke-test.ts",
     "student:teacher-mcq-authoring-navigation-smoke": "tsx prisma/teacher-mcq-authoring-navigation-smoke-test.ts",
     "student:teacher-mcq-media-smoke": "tsx prisma/student-teacher-mcq-media-smoke-test.ts",
     "student:teacher-assessment-deletion-smoke": "tsx prisma/teacher-assessment-deletion-smoke-test.ts",
