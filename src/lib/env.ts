@@ -68,6 +68,7 @@ const serverEnvSchema = z.object({
   OPENAI_MODEL_PLANNING: z.string().optional(),
   OPENAI_MODEL_FOLLOWUP: z.string().optional(),
   OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING: z.string().optional(),
+  OPENAI_MODEL_MCQ_FORMATTING: z.string().optional(),
   OPENAI_MODEL_CONNECTIVITY_TEST: z.string().optional(),
   OPENAI_REASONING_EFFORT_ITEM_VERIFICATION: optionalEnum([
     "none",
@@ -94,6 +95,7 @@ const serverEnvSchema = z.object({
   OPENAI_MAX_OUTPUT_TOKENS_PLANNING: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_MCQ_DIAGNOSTIC_AUTHORING: optionalPositiveInt,
+  OPENAI_MAX_OUTPUT_TOKENS_MCQ_FORMATTING: optionalPositiveInt,
   OPENAI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
   OPENAI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
   ITEM_ADMIN_TUTOR_MODE: z.enum(["auto", "mock", "live"]).default("auto"),

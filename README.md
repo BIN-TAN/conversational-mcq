@@ -2081,19 +2081,34 @@ npm run student:teacher-mcq-item-builder-smoke
 ## Teacher MCQ Import and Diagnostic Assistant
 
 Teachers can import draft MCQ items directly from a selected mini test through
-`Import MCQ items`. Supported Phase 31Q sources are CSV, XLSX, pasted plain
+`Import MCQ items`. Supported sources are CSV, XLSX, Word `.docx`, pasted plain
 text, and the existing project JSON item format. A downloadable CSV template is
-available from the import page. DOCX, QTI/Canvas packages, and PDF extraction
-are intentionally not claimed as implemented.
+available from the import page. Old binary `.doc`, macro-enabled `.docm`,
+QTI/Canvas packages, and PDF extraction are intentionally not claimed as
+implemented.
 
-Import has three separate steps: deterministic extraction, optional diagnostic
-suggestion, and teacher approval. Extraction preserves original item wording and
-does not silently paraphrase, fill missing fields, infer an official key, or
-populate diagnostic notes. Draft candidates require only a stem and at least two
-options. Missing keys, diagnostic notes, and media stay blank. Imported keys are
-stored separately as `imported_key`; an official `correct_option` is written
-only when the teacher explicitly confirms or edits the key. Publishing still
-requires exactly one valid teacher-confirmed key.
+Import has four separate steps: deterministic extraction, optional formatting
+assistance, optional diagnostic suggestion, and teacher approval. Extraction
+preserves original item wording and does not silently paraphrase, fill missing
+fields, infer an official key, or populate diagnostic notes. DOCX extraction
+reads paragraphs, lists, tables, answer-key sections, embedded-image references,
+equation/object markers, tracked-change markers, and safe source locations.
+Embedded images and equations are flagged for review rather than silently
+discarded or sent to the LLM. Draft candidates require only a stem and at least
+two options. Missing keys, diagnostic notes, and media stay blank. Imported keys
+are stored separately as `imported_key`; an official `correct_option` is
+written only when the teacher explicitly confirms or edits the key. Publishing
+still requires exactly one valid teacher-confirmed key.
+
+The optional `Help resolve formatting` action is explicit and teacher-triggered.
+It is never run during upload, parsing, page load, preview, or automatic batch
+processing. In production-like mode it uses the server-side provider
+configuration, dedicated model variable `OPENAI_MODEL_MCQ_FORMATTING`, schema
+`mcq-import-formatting-suggestion-v1`, and prompt version
+`mcq-import-formatting-assistant-prompt-v1`. Formatting proposals preserve
+source wording, include source-span mappings, keep missing fields blank, and
+remain separate from official candidate data until the teacher accepts, edits,
+rejects, or leaves them unresolved. Mock formatting suggestions are test-only.
 
 The optional `Suggest missing diagnostic information` action is explicit and
 teacher-triggered. It is never run during upload, parsing, page load, preview,
@@ -2120,31 +2135,39 @@ partial guessing, misreading, language difficulty, fatigue, random error, low
 confidence, and insufficient evidence.
 
 Import provenance is stored in `mcq_item_import_batches`, `agent_calls` for
-provider-backed diagnostic-authoring requests, and item
+provider-backed formatting and diagnostic-authoring requests, and item
 `administration_rules.import_provenance`, including source type, checksum,
-source location, original-source hash, missing fields, issue flags, suggestion
-review decisions, safe agent-call references, provider/model/status/token
-metadata, and timestamps. Raw unrestricted provider output remains in the
-server audit layer only. Student-facing previews and assessment runtime must
-not expose imported keys, teacher diagnostic notes, suggestion payloads, answer
-keys, correct options, or provenance metadata. Teachers remain responsible for
-copyright, licensing, and permission to use imported test-bank content.
+source location, original-source hash, DOCX parser metadata when applicable,
+formatting decisions, missing fields, issue flags, suggestion review decisions,
+safe agent-call references, provider/model/status/token metadata, and
+timestamps. Raw unrestricted provider output remains in the server audit layer
+only. Student-facing previews and assessment runtime must not expose imported
+keys, teacher diagnostic notes, formatting or diagnostic suggestion payloads,
+answer keys, correct options, or provenance metadata. Teachers remain
+responsible for copyright, licensing, and permission to use imported test-bank
+content.
 
 Import preview hardening includes file-size and row-count limits, safe
 filename storage, source checksums, formula-like values treated as text, hidden
-sheet warnings, macro workbook rejection, and failure of malformed workbooks
-before creating a partial preview batch. The importer never fetches external
-links.
+sheet warnings, macro workbook rejection, malformed XLSX/DOCX failure before
+creating a partial preview batch, ZIP path-traversal and compression checks for
+DOCX, and no remote relationship fetching.
 
 No-live checks:
 
 ```bash
 npm run student:teacher-mcq-import-smoke
+npm run student:teacher-mcq-docx-import-smoke
+npm run student:teacher-mcq-formatting-assistant-smoke
+npm run student:teacher-mcq-formatting-assistant-live-smoke
 npm run student:teacher-mcq-diagnostic-assistant-smoke
 npm run student:teacher-mcq-diagnostic-assistant-live-smoke
 ```
 
-The live diagnostic-assistant smoke is skipped unless
-`RUN_LIVE_TEACHER_MCQ_DIAGNOSTIC_ASSISTANT_SMOKE=1` is explicitly set and live
-provider variables, including `OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING`, are
-configured. Normal tests and builds do not make paid diagnostic-authoring calls.
+The live formatting and diagnostic-assistant smokes are skipped unless their
+explicit opt-in variables are set:
+`RUN_LIVE_TEACHER_MCQ_FORMATTING_ASSISTANT_SMOKE=1` or
+`RUN_LIVE_TEACHER_MCQ_DIAGNOSTIC_ASSISTANT_SMOKE=1`. Live provider variables,
+including `OPENAI_MODEL_MCQ_FORMATTING` or
+`OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING`, must be configured before those paid
+checks run. Normal tests and builds do not make paid authoring calls.

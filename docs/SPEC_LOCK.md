@@ -2549,3 +2549,78 @@ Phase 6A.5 must not implement:
   bounded repair, no student leakage, and absence of OpenAI calls.
 - `student:teacher-mcq-diagnostic-assistant-live-smoke` must skip by default
   unless explicitly opted in.
+
+## Phase 31R DOCX MCQ Import and Formatting Assistance Lock
+
+- Phase 31R adds direct `.docx` import to the Phase 31Q import workflow. CSV,
+  XLSX, pasted plain text, and project JSON remain supported. Old binary `.doc`,
+  macro-enabled `.docm`, malformed ZIP packages, password-protected DOCX files,
+  and unsupported archive formats must fail closed with safe teacher-facing
+  guidance.
+- DOCX import is deterministic first. It may extract paragraphs, lists,
+  headings, tables and table cells, item numbering, option labels, answer-key
+  sections, captions, embedded-image references, equation/object markers,
+  tracked-change markers, source paragraph/table/cell locations, source file
+  name, and source checksum. Missing fields must remain blank.
+- DOCX parsing must not execute macros, fetch external relationships or remote
+  templates, send images to the LLM, treat bold/formatting as definitive key
+  evidence, silently discard embedded images/equations, or retain raw DOCX
+  binaries by default.
+- Embedded images are flagged for manual reattachment unless secure object
+  storage is configured. Equations, drawings, SmartArt, text boxes, and
+  unresolved tracked changes are flagged for teacher review and may block
+  publication if they affect item meaning.
+- Phase 31R adds a production formatting assistant,
+  `mcq_import_formatting_assistant_agent`, using schema
+  `mcq-import-formatting-suggestion-v1`, prompt version
+  `mcq-import-formatting-assistant-prompt-v1`, and dedicated model variable
+  `OPENAI_MODEL_MCQ_FORMATTING`. It must run only after the teacher explicitly
+  selects `Help resolve formatting`; it must not run during upload, parsing,
+  page load, preview, candidate selection, or automatic batch processing.
+- Formatting assistance may propose item boundaries, stem, options,
+  source-supported imported key, source-supported diagnostic fields, source-span
+  mappings, normalization summary, ambiguity flags, confidence, and limitations.
+  It must preserve source wording, keep missing information blank, avoid
+  paraphrasing, avoid inventing option text or diagnostic notes, and never make
+  a key official.
+- Formatting and diagnostic enrichment are separate calls and separate review
+  states. Formatting may map an explicitly present source key only as
+  `imported_key`; `Suggest key` remains unofficial; `teacher_confirmed_key`
+  remains the only official key boundary.
+- Teachers must review formatting proposals by accepting, editing and accepting,
+  rejecting, or leaving unresolved. Teacher edits take precedence. No hidden
+  one-click automatic acceptance is allowed.
+- Provider-backed formatting success requires actual provider dispatch,
+  provider/model metadata, token usage, persisted `agent_calls`, validated
+  schema, prompt/schema versions, output hash/audit metadata, and no official
+  item mutation before teacher acceptance. Missing provider configuration must
+  show that formatting assistance is temporarily unavailable and allow manual
+  review/import to continue. Mock formatting output is test-only.
+- Formatting provider input must include only selected candidate source
+  context, deterministic parse, issue flags, source locations, relevant
+  document-level key context, and teacher edits. It must exclude student data,
+  unrelated assessments/items, credentials, secrets, and keys from other items.
+- One bounded formatting repair is allowed only for repairable schema/source
+  mapping/formatting issues. Provider authentication failures, missing provider
+  metadata, missing token usage, prompt-injection leakage, protected-content
+  leakage, and official-key mutation attempts fail closed.
+- Rate and cost controls must bound selected candidates per formatting request,
+  formatting calls per batch, source excerpt size, and output tokens. Large
+  documents must not trigger unbounded provider processing.
+- Assessment deletion must include DOCX import batches, extracted source text in
+  import payloads, deterministic normalized drafts, formatting suggestions,
+  formatting-agent calls, diagnostic suggestions, key suggestions, and imported
+  media metadata. Deletion audit rows must not retain raw source text or raw
+  DOCX binaries.
+- `student:teacher-mcq-docx-import-smoke` is no-live and verifies DOCX
+  extraction, answer-key mapping, missing fields, table items, media/equation
+  flags, tracked-change flags, `.doc`/`.docm` rejection, draft import,
+  student-safe projection, and no OpenAI calls.
+- `student:teacher-mcq-formatting-assistant-smoke` is no-live and verifies
+  teacher-triggered dispatch, no preview dispatch, untrusted source input,
+  prompt-injection resistance, source-span mappings, source wording
+  preservation, separate proposal state, teacher acceptance/rejection,
+  bounded repair, protected leakage fail-closed behavior, provider metadata
+  requirements, and no OpenAI calls.
+- `student:teacher-mcq-formatting-assistant-live-smoke` must skip by default
+  unless `RUN_LIVE_TEACHER_MCQ_FORMATTING_ASSISTANT_SMOKE=1` is explicitly set.

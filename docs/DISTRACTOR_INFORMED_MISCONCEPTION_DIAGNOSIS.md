@@ -326,12 +326,22 @@ provider/audit metadata.
 
 ## Teacher MCQ Import and Diagnostic Suggestion Boundary
 
-Phase 31Q adds teacher-facing MCQ import to reduce manual authoring effort while
-preserving the distractor-informed evidence hierarchy. Teachers may import CSV,
-XLSX, pasted plain text, or existing project JSON items into a selected mini
-test. The parser extracts structure; it must not silently rewrite item wording,
-invent missing options, infer an official key, or fill diagnostic notes. Missing
-keys and diagnostic notes remain blank in the draft candidate.
+Phase 31Q/31R adds teacher-facing MCQ import to reduce manual authoring effort
+while preserving the distractor-informed evidence hierarchy. Teachers may import
+CSV, XLSX, Word `.docx`, pasted plain text, or existing project JSON items into
+a selected mini test. The parser extracts structure; it must not silently
+rewrite item wording, invent missing options, infer an official key, or fill
+diagnostic notes. Missing keys and diagnostic notes remain blank in the draft
+candidate. DOCX media, equations, external links, and tracked-change ambiguity
+are flagged for teacher review rather than silently treated as diagnostic
+evidence.
+
+Formatting assistance is separate from diagnostic enrichment. The
+`mcq_import_formatting_assistant_agent` may propose source-supported item
+boundaries, stems, options, imported keys, and source-span mappings only after
+the teacher explicitly selects `Help resolve formatting`. It preserves source
+wording and never makes a key official. Teacher edits and confirmation remain
+authoritative.
 
 Imported and suggested keys are not evidence. An imported key is preserved only
 as `imported_key` until the teacher explicitly confirms or edits it. A live LLM

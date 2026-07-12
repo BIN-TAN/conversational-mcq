@@ -227,13 +227,25 @@ top and bottom add-item actions plus separate item Edit, Teacher preview, and
 Student preview links.
 
 The mini-test detail page also supports `Import MCQ items` for bulk teacher
-authoring. Phase 31Q supports CSV, XLSX, pasted plain text, and the existing
-project JSON item format. Import is draft-only and preview-first: extraction
-does not silently change source wording, invent missing options, infer an
-official key, or populate diagnostic notes. Missing fields stay blank. Imported
-keys are preserved separately and become official only after explicit teacher
-confirmation or edit; publishing still requires exactly one teacher-confirmed
-key per included item.
+authoring. Supported sources are CSV, XLSX, Word `.docx`, pasted plain text,
+and the existing project JSON item format. Import is draft-only and
+preview-first: extraction does not silently change source wording, invent
+missing options, infer an official key, or populate diagnostic notes. Missing
+fields stay blank. Old `.doc` and macro-enabled `.docm` files are rejected with
+safe guidance. DOCX embedded images, equations, external relationships, and
+tracked-change ambiguity are flagged for teacher review rather than silently
+imported. Imported keys are preserved separately and become official only after
+explicit teacher confirmation or edit; publishing still requires exactly one
+teacher-confirmed key per included item.
+
+Teachers may optionally request formatting help for ambiguous imported
+candidates. `Help resolve formatting` is explicit, teacher-triggered, and
+bounded; it must not run during upload, parsing, page load, preview, or
+automatic batch processing. Production-like formatting assistance requires
+server-side live provider configuration and `OPENAI_MODEL_MCQ_FORMATTING`.
+Formatting proposals preserve source wording, include source-span mappings,
+keep missing fields blank, and require teacher acceptance or rejection before
+import.
 
 Teachers may optionally request diagnostic suggestions for missing authoring
 information. The action is explicit, teacher-triggered, and bounded; it must

@@ -523,7 +523,7 @@ function publicPreview(graph: AssessmentDeletionGraph): AssessmentDeletionPrevie
       "Uploaded media object cleanup is not part of the database transaction in this local build. When object storage is enabled, cleanup must be handled by a retryable storage-cleanup path keyed by deleted media metadata.",
       "Previously downloaded exports, screenshots, LMS copies, and external files are outside this system and cannot be removed here.",
       "Export and import audit rows without hard assessment foreign keys are retained as safe references when present.",
-      "MCQ import preview batches and associated diagnostic-authoring agent audit rows are removed with the deleted assessment; raw imported source text is not retained in the deletion audit.",
+      "MCQ import preview batches and associated formatting/diagnostic authoring agent audit rows are removed with the deleted assessment; raw imported source text and raw DOCX binaries are not retained in the deletion audit.",
       "The deletion audit stores aggregate counts and safe IDs only; deleted item content and student responses are not retained in the audit."
     ]
   };

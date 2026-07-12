@@ -21,7 +21,7 @@ import {
   SuccessPanel
 } from "./ui";
 
-type SourceType = "csv" | "xlsx" | "plain_text" | "project_json";
+type SourceType = "csv" | "xlsx" | "docx" | "plain_text" | "project_json";
 
 function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -44,6 +44,33 @@ function suggestionRecord(candidate: McqImportCandidate): Record<string, unknown
 function suggestionText(candidate: McqImportCandidate, key: string) {
   const value = suggestionRecord(candidate)[key];
   return typeof value === "string" && value.trim() ? value : null;
+}
+
+function formattingRecord(candidate: McqImportCandidate): Record<string, unknown> {
+  return candidate.formatting_suggestion &&
+    typeof candidate.formatting_suggestion === "object" &&
+    !Array.isArray(candidate.formatting_suggestion)
+    ? (candidate.formatting_suggestion as Record<string, unknown>)
+    : {};
+}
+
+function formattingText(candidate: McqImportCandidate, key: string) {
+  const value = formattingRecord(candidate)[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function formattingOptions(candidate: McqImportCandidate) {
+  const options = formattingRecord(candidate).proposed_options;
+  if (!Array.isArray(options)) return [];
+  return options
+    .map((entry) => {
+      const record = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
+      return {
+        label: typeof record.label === "string" ? record.label : "",
+        text: typeof record.text === "string" ? record.text : ""
+      };
+    })
+    .filter((option) => option.label && option.text);
 }
 
 function currentValueForSuggestionField(candidate: McqImportCandidate, key: string) {
@@ -85,6 +112,24 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
     () => batch?.candidates.filter((candidate) => candidate.import_selected).length ?? 0,
     [batch]
   );
+
+  function candidateUpdatePayload(candidate: McqImportCandidate) {
+    return {
+      candidate_public_id: candidate.candidate_public_id,
+      import_selected: candidate.import_selected,
+      item_label: candidate.item_label,
+      stem: candidate.stem,
+      options: candidate.options,
+      imported_key: candidate.imported_key,
+      teacher_confirmed_key: candidate.teacher_confirmed_key,
+      target_reasoning_note: candidate.target_reasoning_note,
+      strong_reasoning_should_mention: candidate.strong_reasoning_should_mention,
+      distractor_diagnostic_notes: candidate.distractor_diagnostic_notes,
+      media_assets: candidate.media_assets,
+      formatting_decisions: candidate.formatting_decisions,
+      suggestion_decisions: candidate.suggestion_decisions
+    };
+  }
 
   function updateCandidate(
     candidatePublicId: string,
@@ -167,19 +212,7 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
             candidate_public_ids: batch.candidates
               .filter((candidate) => candidate.import_selected)
               .map((candidate) => candidate.candidate_public_id),
-            candidate_updates: batch.candidates.map((candidate) => ({
-              candidate_public_id: candidate.candidate_public_id,
-              import_selected: candidate.import_selected,
-              item_label: candidate.item_label,
-              stem: candidate.stem,
-              options: candidate.options,
-              teacher_confirmed_key: candidate.teacher_confirmed_key,
-              target_reasoning_note: candidate.target_reasoning_note,
-              strong_reasoning_should_mention: candidate.strong_reasoning_should_mention,
-              distractor_diagnostic_notes: candidate.distractor_diagnostic_notes,
-              media_assets: candidate.media_assets,
-              suggestion_decisions: candidate.suggestion_decisions
-            }))
+            candidate_updates: batch.candidates.map(candidateUpdatePayload)
           })
         }
       );
@@ -189,6 +222,39 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
         failed > 0
           ? `Diagnostic suggestions returned with ${failed} item${failed === 1 ? "" : "s"} unavailable. You can continue reviewing and importing manually.`
           : "Diagnostic suggestions added for selected candidates. Review before accepting."
+      );
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function formatSelected() {
+    if (!batch) return;
+    setBusyAction("format");
+    setError(null);
+    setSuccess(null);
+    try {
+      const data = await apiRequest<McqImportBatchResponse>(
+        `/api/teacher/assessments/${assessmentPublicId}/mcq-import/${batch.batch_public_id}/format`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            mode: "live",
+            candidate_public_ids: batch.candidates
+              .filter((candidate) => candidate.import_selected)
+              .map((candidate) => candidate.candidate_public_id),
+            candidate_updates: batch.candidates.map(candidateUpdatePayload)
+          })
+        }
+      );
+      setBatch(data.batch);
+      const failed = data.batch.candidates.filter((candidate) => candidate.formatting_status === "failed").length;
+      setSuccess(
+        failed > 0
+          ? `Formatting assistance returned with ${failed} item${failed === 1 ? "" : "s"} unavailable. You can continue formatting manually.`
+          : "Formatting suggestions added for selected candidates. Review before accepting."
       );
     } catch (caught) {
       setError(errorFromUnknown(caught));
@@ -240,19 +306,7 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
             selected_candidate_public_ids: batch.candidates
               .filter((candidate) => candidate.import_selected)
               .map((candidate) => candidate.candidate_public_id),
-            candidate_updates: batch.candidates.map((candidate) => ({
-              candidate_public_id: candidate.candidate_public_id,
-              import_selected: candidate.import_selected,
-              item_label: candidate.item_label,
-              stem: candidate.stem,
-              options: candidate.options,
-              teacher_confirmed_key: candidate.teacher_confirmed_key,
-              target_reasoning_note: candidate.target_reasoning_note,
-              strong_reasoning_should_mention: candidate.strong_reasoning_should_mention,
-              distractor_diagnostic_notes: candidate.distractor_diagnostic_notes,
-              media_assets: candidate.media_assets,
-              suggestion_decisions: candidate.suggestion_decisions
-            }))
+            candidate_updates: batch.candidates.map(candidateUpdatePayload)
           })
         }
       );
@@ -310,15 +364,22 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
             >
               <option value="csv">CSV</option>
               <option value="xlsx">XLSX</option>
+              <option value="docx">Word document (.docx)</option>
               <option value="plain_text">Pasted plain text</option>
               <option value="project_json">Project JSON item format</option>
             </select>
           </Field>
 
-          {sourceType === "csv" || sourceType === "xlsx" ? (
+          {sourceType === "csv" || sourceType === "xlsx" || sourceType === "docx" ? (
             <Field label="Upload file">
               <input
-                accept={sourceType === "xlsx" ? ".xlsx" : ".csv,text/csv"}
+                accept={
+                  sourceType === "xlsx"
+                    ? ".xlsx"
+                    : sourceType === "docx"
+                      ? ".docx,.doc,.docm,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      : ".csv,text/csv"
+                }
                 className="rounded-md border border-line px-3 py-2 text-sm"
                 onChange={fileChanged}
                 type="file"
@@ -369,8 +430,9 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
                 {batch.candidate_count} candidates. {selectedCount} selected. Batch {batch.batch_public_id}.
               </p>
               <p className="mt-2 max-w-3xl text-xs leading-5 text-muted">
-                Suggestions run only after this button is selected. Up to 10 selected items may be sent per request.
-                The assistant may suggest unofficial keys, target reasoning, strong reasoning, distractor notes,
+                Formatting and diagnostic suggestions run only after their buttons are selected. Up to 8 selected items may be sent per formatting request and up to 10 per diagnostic request.
+                Formatting proposals preserve source wording and require teacher confirmation.
+                Diagnostic suggestions may suggest unofficial keys, target reasoning, strong reasoning, distractor notes,
                 ambiguity warnings, and recall-only warnings. Teacher review is required before any suggestion is used.
               </p>
             </div>
@@ -382,6 +444,10 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
               <Button disabled={selectedCount === 0 || busyAction === "suggest"} onClick={suggestForSelected} type="button" variant="secondary">
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
                 Suggest missing diagnostic information
+              </Button>
+              <Button disabled={selectedCount === 0 || busyAction === "format"} onClick={formatSelected} type="button" variant="secondary">
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                Help resolve formatting
               </Button>
               <Button disabled={selectedCount === 0} onClick={acceptSelectedBlankSuggestions} type="button" variant="secondary">
                 Accept selected blank suggestions
@@ -437,6 +503,18 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
                     </div>
                     <StatusBadge status={candidate.imported_item_public_id ? "draft" : "draft"} />
                   </div>
+
+                  {Object.keys(formattingRecord(candidate)).length > 0 ? (
+                    <FormattingReview candidate={candidate} onUpdate={updateCandidate} />
+                  ) : null}
+                  {candidate.formatting_error ? (
+                    <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
+                      <p className="font-semibold">Formatting assistance unavailable</p>
+                      <p className="mt-1">
+                        Formatting assistance is temporarily unavailable for this item. You can continue reviewing and formatting it manually.
+                      </p>
+                    </div>
+                  ) : null}
 
                   <div className="mt-4 grid gap-4">
                     <Field label="Item label">
@@ -620,6 +698,139 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
           </div>
         </section>
       ) : null}
+    </div>
+  );
+}
+
+function FormattingReview({
+  candidate,
+  onUpdate
+}: {
+  candidate: McqImportCandidate;
+  onUpdate: (
+    candidatePublicId: string,
+    updater: (candidate: McqImportCandidate) => McqImportCandidate
+  ) => void;
+}) {
+  const formatting = formattingRecord(candidate);
+  const proposedStem = formattingText(candidate, "proposed_stem");
+  const proposedOptions = formattingOptions(candidate);
+  const proposedKey =
+    typeof formatting.proposed_imported_key === "string" && formatting.proposed_imported_key
+      ? formatting.proposed_imported_key
+      : null;
+  const sourceFields = formatting.source_supported_fields &&
+    typeof formatting.source_supported_fields === "object"
+    ? (formatting.source_supported_fields as Record<string, unknown>)
+    : {};
+
+  function acceptStructure() {
+    onUpdate(candidate.candidate_public_id, (entry) => ({
+      ...entry,
+      stem: proposedStem ?? entry.stem,
+      options: proposedOptions.length >= 2 ? proposedOptions : entry.options,
+      imported_key: proposedKey ?? entry.imported_key,
+      target_reasoning_note:
+        entry.target_reasoning_note ??
+        (typeof sourceFields.target_reasoning_note === "string" ? sourceFields.target_reasoning_note : null),
+      strong_reasoning_should_mention:
+        entry.strong_reasoning_should_mention ??
+        (typeof sourceFields.strong_reasoning_should_mention === "string" ? sourceFields.strong_reasoning_should_mention : null),
+      distractor_diagnostic_notes:
+        entry.distractor_diagnostic_notes ??
+        (typeof sourceFields.distractor_diagnostic_notes === "string" ? sourceFields.distractor_diagnostic_notes : null),
+      formatting_status: "accepted",
+      formatting_decisions: {
+        ...(entry.formatting_decisions ?? {}),
+        proposed_stem: { decision: proposedStem ? "accept" : "leave_blank" },
+        proposed_options: { decision: proposedOptions.length >= 2 ? "accept" : "leave_blank" },
+        proposed_imported_key: { decision: proposedKey ? "accept" : "leave_blank" },
+        target_reasoning_note: {
+          decision: sourceFields.target_reasoning_note ? "accept" : "leave_blank"
+        },
+        strong_reasoning_should_mention: {
+          decision: sourceFields.strong_reasoning_should_mention ? "accept" : "leave_blank"
+        },
+        distractor_diagnostic_notes: {
+          decision: sourceFields.distractor_diagnostic_notes ? "accept" : "leave_blank"
+        }
+      }
+    }));
+  }
+
+  function rejectSuggestion(status: "rejected" | "unresolved") {
+    onUpdate(candidate.candidate_public_id, (entry) => ({
+      ...entry,
+      formatting_status: status,
+      formatting_decisions: {
+        ...(entry.formatting_decisions ?? {}),
+        proposed_stem: { decision: status === "rejected" ? "reject" : "leave_blank" },
+        proposed_options: { decision: status === "rejected" ? "reject" : "leave_blank" },
+        proposed_imported_key: { decision: status === "rejected" ? "reject" : "leave_blank" }
+      }
+    }));
+  }
+
+  return (
+    <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="font-semibold">Formatting proposal requires teacher review</p>
+          <p className="mt-1 text-xs leading-5">
+            Original source and proposed structure are shown separately. Accepting a proposal updates this draft candidate only; the key is still not official until you confirm it.
+          </p>
+        </div>
+        <span className="rounded-md border border-amber-300 px-2 py-1 text-xs font-semibold">
+          {candidate.formatting_status ?? "suggested"}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div className="rounded-md border border-amber-200 bg-white p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Original source</p>
+          <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-xs leading-5 text-ink">
+            {candidate.original_source_text}
+          </pre>
+        </div>
+        <div className="rounded-md border border-amber-200 bg-white p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Proposed structure</p>
+          <p className="mt-2 text-sm font-semibold">{proposedStem || "Stem unresolved"}</p>
+          {proposedOptions.length ? (
+            <ul className="mt-2 space-y-1 text-sm">
+              {proposedOptions.map((option) => (
+                <li key={`${candidate.candidate_public_id}-format-${option.label}`}>
+                  <span className="font-semibold">{option.label}.</span> {option.text}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-muted">Options unresolved.</p>
+          )}
+          <p className="mt-2 text-xs text-muted">
+            Proposed imported key: {proposedKey || "Blank"}
+          </p>
+          <p className="mt-2 text-xs text-muted">
+            {String(formatting.normalization_summary ?? "Normalization summary unavailable.")}
+          </p>
+          {Array.isArray(formatting.limitations) ? (
+            <ul className="mt-2 list-disc pl-5 text-xs text-muted">
+              {formatting.limitations.map((limitation, index) => (
+                <li key={index}>{String(limitation)}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button onClick={acceptStructure} type="button" variant="secondary">
+          Accept proposed structure
+        </Button>
+        <Button onClick={() => rejectSuggestion("rejected")} type="button" variant="secondary">
+          Reject suggestion
+        </Button>
+        <Button onClick={() => rejectSuggestion("unresolved")} type="button" variant="secondary">
+          Leave unresolved
+        </Button>
+      </div>
     </div>
   );
 }

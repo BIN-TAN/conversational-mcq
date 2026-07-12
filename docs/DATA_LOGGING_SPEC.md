@@ -679,23 +679,35 @@ outside application control and are documented as deletion limitations.
 
 ## MCQ Import Provenance
 
-Phase 31Q adds teacher MCQ import provenance for bulk authoring. Import preview
+Phase 31Q/31R adds teacher MCQ import provenance for bulk authoring. Import preview
 batches are stored in `mcq_item_import_batches`, keyed by a public batch ID and
 linked to the selected assessment and uploading teacher. The table stores safe
 source metadata, source checksum, candidate counts, imported/rejected counts,
 key-missing counts, diagnostic-suggestion counts, duplicate counts, validation
 summary JSON, candidate payload JSON, suggestion payload JSON, import summary,
 and timestamps. Validation summary may include file/row limits and safe source
-warnings such as hidden workbook sheets being ignored.
+warnings such as hidden workbook sheets being ignored or DOCX embedded
+images/equations requiring teacher review.
 
 Candidate payloads preserve original source text or source-row JSON, source
 location, source line range when available, normalized draft fields, imported
 key, teacher-confirmed key, missing fields, issue flags, duplicate warnings,
-parsing confidence, field-level suggestion review decisions, safe suggestion
-status, safe provider/model/token metadata, and safe authoring-agent call
-references. Missing source fields remain blank. The import service does not
-silently paraphrase source wording or turn an imported/LLM-suggested key into
-an official key.
+parsing confidence, field-level formatting and diagnostic suggestion review
+decisions, safe suggestion status, safe provider/model/token metadata, and safe
+authoring-agent call references. DOCX candidates also store safe parser
+metadata such as parser version, source type, embedded-image count,
+equation/object count, external relationship count, and tracked-change presence.
+Missing source fields remain blank. The import service does not silently
+paraphrase source wording or turn an imported/LLM-suggested key into an
+official key.
+
+Provider-backed formatting requests create `agent_calls` rows with agent name
+`mcq_import_formatting_assistant_agent`, prompt/schema versions, prompt hash,
+model name, provider, request/response metadata when available, token usage
+when available, validation status, retry/repair count, and redacted input/output
+audit data. Formatting proposals remain review-only until the teacher accepts,
+edits, rejects, or leaves them unresolved. They may preserve source-supported
+keys only as imported-key proposals, not official keys.
 
 Provider-backed diagnostic-authoring requests create `agent_calls` rows with
 agent name `mcq_diagnostic_authoring_assistant_agent`, prompt/schema versions,
@@ -708,8 +720,9 @@ output stays in the server audit layer.
 Imported item rows remain draft `items`. Each imported item stores safe import
 provenance under `items.administration_rules.import_provenance`, including batch
 public ID, source type, source checksum, source location, original-source hash,
-imported key, teacher-confirmed key, missing fields at import, issue flags at
-import, and suggestion review decisions. Teacher diagnostic notes and assistant
+source metadata, formatting status and review decisions, imported key,
+teacher-confirmed key, missing fields at import, issue flags at import, and
+diagnostic suggestion review decisions. Teacher diagnostic notes and assistant
 suggestions remain teacher/research-facing guidance only.
 
 Student-facing payloads, student previews, student transcripts, and default
@@ -719,6 +732,7 @@ provenance internals, raw provider output, credentials, cookies, database URLs,
 API keys, session secrets, or password/access-code hashes.
 
 Assessment deletion must count and remove `mcq_item_import_batches` for the
-deleted assessment and remove associated diagnostic-authoring `agent_calls`
-when they are referenced by safe candidate/suggestion metadata. Deletion audit
-rows retain aggregate counts only and must not retain raw imported source text.
+deleted assessment and remove associated formatting and diagnostic-authoring
+`agent_calls` when they are referenced by safe candidate/suggestion metadata.
+Deletion audit rows retain aggregate counts only and must not retain raw
+imported source text or raw DOCX binary content.

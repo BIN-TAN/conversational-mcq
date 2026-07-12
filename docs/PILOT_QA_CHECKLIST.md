@@ -325,13 +325,23 @@ npm run student:live-llm-smoke:cleanup-failures
   action, a bottom `Add another MCQ item` action, and separate Edit, Teacher
   preview, and Student preview links.
 - The mini-test detail page also shows `Import MCQ items` for the selected mini
-  test. CSV, XLSX, pasted plain text, and project JSON imports must open a
-  preview first; no production item is written until the teacher confirms the
-  import.
+  test. CSV, XLSX, Word `.docx`, pasted plain text, and project JSON imports
+  must open a preview first; no production item is written until the teacher
+  confirms the import. Old `.doc` and macro-enabled `.docm` files should show
+  safe rejection guidance.
 - Import preview should preserve original wording, keep missing fields blank,
   flag malformed or duplicate candidates, and store imported keys separately
   from teacher-confirmed keys. Missing keys are allowed for draft import but
   must block publishing until the teacher confirms exactly one valid key.
+- DOCX import should flag embedded images, equations/objects, external
+  relationships, and unresolved tracked changes for teacher review. It must not
+  silently discard those references or claim the LLM viewed images.
+- Optional formatting assistance must remain teacher-reviewed. `Help resolve
+  formatting` should show original source versus proposed structure, keep
+  missing fields blank, preserve wording, and require Accept, Edit and accept,
+  Reject, or Leave unresolved review. Browser/runtime formatting suggestions
+  require live server-side configuration and `OPENAI_MODEL_MCQ_FORMATTING`;
+  mock formatting is test-only.
 - Optional diagnostic suggestions must remain teacher-reviewed. The teacher can
   Accept, Edit and accept, Reject, or Leave blank per field. Non-empty
   teacher-authored notes should not be overwritten by default. Browser/runtime
