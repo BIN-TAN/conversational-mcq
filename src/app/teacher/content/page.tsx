@@ -1,13 +1,6 @@
 import Link from "next/link";
-import { Archive, FileJson, ListChecks, Plus } from "lucide-react";
+import { FileJson, ListChecks, Plus } from "lucide-react";
 import { PageHeader, PrimaryLink, SecondaryLink } from "@/components/teacher-content/ui";
-
-const notes = [
-  "Create mini tests and add MCQ items directly.",
-  "Publish validation is handled by the backend and cannot be bypassed here.",
-  "Archive content instead of deleting research-relevant records.",
-  "Item Verification highlights advisory warnings only; it does not generate or rewrite content."
-];
 
 export default function TeacherContentHomePage() {
   return (
@@ -30,7 +23,7 @@ export default function TeacherContentHomePage() {
         }
       />
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2">
         <Link
           className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
           href="/teacher/content/assessments"
@@ -51,15 +44,6 @@ export default function TeacherContentHomePage() {
             Paste a prepared item set and create public IDs through the backend API.
           </p>
         </Link>
-        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-          <Archive className="h-5 w-5 text-accent" aria-hidden="true" />
-          <h2 className="mt-4 text-lg font-semibold text-ink">Research integrity</h2>
-          <ul className="mt-2 space-y-2 text-sm leading-6 text-muted">
-            {notes.map((note) => (
-              <li key={note}>{note}</li>
-            ))}
-          </ul>
-        </section>
       </section>
     </div>
   );

@@ -483,9 +483,21 @@ export function ItemEditorClient(props: ItemEditorProps) {
     return null;
   }
 
-  function addMediaAsset() {
+  function addMediaAsset(mediaType: ItemMediaDraft["media_type"] = "image") {
     markDirty();
-    setMediaAssets((current) => [...current, blankMediaDraft(current.length)]);
+    setMediaAssets((current) => [
+      ...current,
+      {
+        ...blankMediaDraft(current.length),
+        media_type: mediaType,
+        title:
+          mediaType === "image"
+            ? "Image"
+            : mediaType === "video"
+              ? "Video link"
+              : "Reference link"
+      }
+    ]);
   }
 
   function updateMediaAsset(index: number, patch: Partial<ItemMediaDraft>) {
@@ -786,18 +798,251 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 />
               </Field>
 
-              <Field label="Stem">
-                <textarea
-                  className="min-h-28 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                  disabled={!isEditable}
-                  onChange={(event) => {
-                    markDirty();
-                    setItemStem(event.target.value);
-                  }}
-                  required
-                  value={itemStem}
-                />
-              </Field>
+              <section className="rounded-lg border border-line bg-slate-50 p-4" aria-labelledby="item-stem-composer-heading">
+                <div className="flex flex-col gap-3 border-b border-line pb-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-ink" id="item-stem-composer-heading">
+                      Item stem
+                    </h2>
+                    <p className="mt-1 text-sm leading-6 text-muted">
+                      Write the item wording and place images, video links, or reference links in the same ordered stem sequence.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2" aria-label="Add media to item stem">
+                    <Button
+                      aria-label="Add image to item stem"
+                      disabled={!isEditable}
+                      onClick={() => addMediaAsset("image")}
+                      type="button"
+                      variant="secondary"
+                    >
+                      <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                      Add image
+                    </Button>
+                    <Button
+                      aria-label="Add video link to item stem"
+                      disabled={!isEditable}
+                      onClick={() => addMediaAsset("video")}
+                      type="button"
+                      variant="secondary"
+                    >
+                      <Video className="h-4 w-4" aria-hidden="true" />
+                      Add video
+                    </Button>
+                    <Button
+                      aria-label="Add reference link to item stem"
+                      disabled={!isEditable}
+                      onClick={() => addMediaAsset("reference_link")}
+                      type="button"
+                      variant="secondary"
+                    >
+                      <Link2 className="h-4 w-4" aria-hidden="true" />
+                      Add reference link
+                    </Button>
+                  </div>
+                </div>
+                <Field label="Item wording">
+                  <textarea
+                    className="min-h-36 rounded-md border border-line bg-white px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                    disabled={!isEditable}
+                    onChange={(event) => {
+                      markDirty();
+                      setItemStem(event.target.value);
+                    }}
+                    required
+                    value={itemStem}
+                  />
+                </Field>
+                <p className="mt-3 rounded-md border border-line bg-white p-3 text-xs leading-5 text-muted">
+                  Image upload storage is disabled until a server-side storage provider is configured. Use HTTPS URLs for now. PNG, JPEG, and WebP uploads are validated server-side when storage is enabled; SVG and video binary uploads are not accepted.
+                </p>
+                {mediaAssets.length === 0 ? (
+                  <p className="mt-4 text-sm text-muted">No stem media attached.</p>
+                ) : (
+                  <div className="mt-4 space-y-4">
+                    {mediaAssets.map((media, mediaIndex) => (
+                      <div
+                        className="rounded-lg border border-line bg-white p-4"
+                        data-testid={`teacher-media-row-${mediaIndex}`}
+                        key={media.media_public_id ?? `new-media-${mediaIndex}`}
+                      >
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                            {mediaIcon(media.media_type)}
+                            Stem media {mediaIndex + 1}
+                            {media.placement === "option" && media.option_label ? (
+                              <span className="text-xs font-normal text-muted">
+                                currently attached to option {media.option_label}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              aria-label={`Move stem media ${mediaIndex + 1} up`}
+                              disabled={!isEditable || mediaIndex === 0}
+                              onClick={() => moveMediaAsset(mediaIndex, -1)}
+                              type="button"
+                              variant="secondary"
+                            >
+                              Move up
+                            </Button>
+                            <Button
+                              aria-label={`Move stem media ${mediaIndex + 1} down`}
+                              disabled={!isEditable || mediaIndex === mediaAssets.length - 1}
+                              onClick={() => moveMediaAsset(mediaIndex, 1)}
+                              type="button"
+                              variant="secondary"
+                            >
+                              Move down
+                            </Button>
+                            <Button
+                              aria-label={`Remove stem media ${mediaIndex + 1}`}
+                              disabled={!isEditable}
+                              onClick={() => removeMediaAsset(mediaIndex)}
+                              type="button"
+                              variant="danger"
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                          <Field label="Media type">
+                            <select
+                              className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              disabled={!isEditable}
+                              onChange={(event) =>
+                                updateMediaAsset(mediaIndex, {
+                                  media_type: event.target.value as ItemMediaDraft["media_type"]
+                                })
+                              }
+                              value={media.media_type}
+                            >
+                              <option value="image">Image</option>
+                              <option value="video">Video link</option>
+                              <option value="reference_link">Reference link</option>
+                            </select>
+                          </Field>
+                          <Field label="Source">
+                            <select
+                              className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              disabled={!isEditable}
+                              onChange={(event) =>
+                                updateMediaAsset(mediaIndex, {
+                                  source_type: event.target.value as ItemMediaDraft["source_type"],
+                                  public_or_signed_url: null
+                                })
+                              }
+                              value={media.source_type}
+                            >
+                              <option value="external_url">HTTPS URL</option>
+                              <option disabled value="uploaded">Upload image (storage not configured)</option>
+                            </select>
+                          </Field>
+                          <Field label="URL">
+                            <input
+                              className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              disabled={!isEditable || media.source_type === "uploaded"}
+                              onChange={(event) => updateMediaAsset(mediaIndex, { external_url: event.target.value })}
+                              placeholder="https://..."
+                              required={media.source_type === "external_url"}
+                              value={media.external_url ?? ""}
+                            />
+                          </Field>
+                          <Field label="Title (optional)">
+                            <input
+                              className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              disabled={!isEditable}
+                              onChange={(event) => updateMediaAsset(mediaIndex, { title: event.target.value })}
+                              value={media.title}
+                            />
+                          </Field>
+                          <Field label="Student alt text">
+                            <textarea
+                              className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              disabled={!isEditable}
+                              onChange={(event) =>
+                                updateMediaAsset(mediaIndex, {
+                                  alt_text_or_description: event.target.value,
+                                  student_alt_text: event.target.value
+                                })
+                              }
+                              required
+                              value={media.student_alt_text}
+                            />
+                          </Field>
+                          <Field label="Teacher-only LLM media description (optional)">
+                            <textarea
+                              className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              disabled={!isEditable}
+                              onChange={(event) =>
+                                updateMediaAsset(mediaIndex, {
+                                  teacher_llm_media_description: event.target.value
+                                })
+                              }
+                              value={media.teacher_llm_media_description}
+                            />
+                          </Field>
+                          <Field label="Caption (optional)">
+                            <textarea
+                              className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              disabled={!isEditable}
+                              onChange={(event) => updateMediaAsset(mediaIndex, { caption: event.target.value })}
+                              value={media.caption}
+                            />
+                          </Field>
+                          <Field
+                            label={
+                              media.media_type === "video"
+                                ? "Transcript or content summary"
+                                : "Transcript or content summary (optional)"
+                            }
+                          >
+                            <textarea
+                              className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              disabled={!isEditable}
+                              onChange={(event) =>
+                                updateMediaAsset(mediaIndex, {
+                                  transcript_or_content_summary: event.target.value
+                                })
+                              }
+                              required={media.media_type === "video"}
+                              value={media.transcript_or_content_summary}
+                            />
+                          </Field>
+                          <Field label="Attribution (optional)">
+                            <input
+                              className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              disabled={!isEditable}
+                              onChange={(event) =>
+                                updateMediaAsset(mediaIndex, { source_attribution: event.target.value })
+                              }
+                              value={media.source_attribution}
+                            />
+                          </Field>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-md border border-line bg-white p-4">
+                    <h3 className="text-sm font-semibold text-ink">Teacher preview</h3>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+                      {itemStem || "Item stem will appear here."}
+                    </p>
+                    <MediaDraftPreview mediaAssets={mediaAssets.filter((media) => media.placement === "item_stem")} />
+                  </div>
+                  <div className="rounded-md border border-line bg-white p-4">
+                    <h3 className="text-sm font-semibold text-ink">Student preview</h3>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+                      {itemStem || "Item stem will appear here."}
+                    </p>
+                    <MediaDraftPreview mediaAssets={mediaAssets.filter((media) => media.placement === "item_stem")} />
+                  </div>
+                </div>
+              </section>
 
               <label className="flex items-start gap-3 rounded-md border border-line bg-slate-50 p-3 text-sm text-ink">
                 <input
@@ -834,226 +1079,6 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 </Field>
               ) : null}
             </div>
-          </section>
-
-          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-            <h2 className="text-xl font-semibold text-ink">Higher-order item design</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Initial MCQ items should usually ask students to apply, analyze, or evaluate ideas. Basic recall is best used only when it has clear diagnostic value. Creation is better elicited later through a constructed-response activity.
-            </p>
-          </section>
-
-          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-            <div className="flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-ink">Media</h2>
-                <p className="mt-1 text-sm leading-6 text-muted">
-                  Add optional images, videos, or reference links. Descriptions are required because the LLM receives accessible media context, not direct media content.
-                </p>
-              </div>
-              <Button disabled={!isEditable} onClick={addMediaAsset} type="button" variant="secondary">
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                Add media
-              </Button>
-            </div>
-            <p className="mt-3 rounded-md border border-line bg-slate-50 p-3 text-xs leading-5 text-muted">
-              Image upload storage is disabled until a server-side storage provider is configured. Use HTTPS URLs for now. PNG, JPEG, and WebP uploads are validated server-side when storage is enabled; SVG and video binary uploads are not accepted.
-            </p>
-            {mediaAssets.length === 0 ? (
-              <p className="mt-4 text-sm text-muted">No media attached.</p>
-            ) : (
-              <div className="mt-4 space-y-4">
-                {mediaAssets.map((media, mediaIndex) => (
-                  <div
-                    className="rounded-lg border border-line bg-slate-50 p-4"
-                    data-testid={`teacher-media-row-${mediaIndex}`}
-                    key={media.media_public_id ?? `new-media-${mediaIndex}`}
-                  >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-                        {mediaIcon(media.media_type)}
-                        Media {mediaIndex + 1}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          disabled={!isEditable || mediaIndex === 0}
-                          onClick={() => moveMediaAsset(mediaIndex, -1)}
-                          type="button"
-                          variant="secondary"
-                        >
-                          Move up
-                        </Button>
-                        <Button
-                          disabled={!isEditable || mediaIndex === mediaAssets.length - 1}
-                          onClick={() => moveMediaAsset(mediaIndex, 1)}
-                          type="button"
-                          variant="secondary"
-                        >
-                          Move down
-                        </Button>
-                        <Button
-                          disabled={!isEditable}
-                          onClick={() => removeMediaAsset(mediaIndex)}
-                          type="button"
-                          variant="danger"
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden="true" />
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                      <Field label="Media type">
-                        <select
-                          className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateMediaAsset(mediaIndex, {
-                              media_type: event.target.value as ItemMediaDraft["media_type"]
-                            })
-                          }
-                          value={media.media_type}
-                        >
-                          <option value="image">Image</option>
-                          <option value="video">Video link</option>
-                          <option value="reference_link">Reference link</option>
-                        </select>
-                      </Field>
-                      <Field label="Source">
-                        <select
-                          className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateMediaAsset(mediaIndex, {
-                              source_type: event.target.value as ItemMediaDraft["source_type"],
-                              public_or_signed_url: null
-                            })
-                          }
-                          value={media.source_type}
-                        >
-                          <option value="external_url">HTTPS URL</option>
-                          <option disabled value="uploaded">Upload image (storage not configured)</option>
-                        </select>
-                      </Field>
-                      <Field label="Placement">
-                        <select
-                          className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateMediaAsset(mediaIndex, {
-                              placement: event.target.value as ItemMediaDraft["placement"]
-                            })
-                          }
-                          value={media.placement}
-                        >
-                          <option value="item_stem">Stem</option>
-                          <option value="option">Option</option>
-                        </select>
-                      </Field>
-                      {media.placement === "option" ? (
-                        <Field label="Option">
-                          <select
-                            className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                            disabled={!isEditable}
-                            onChange={(event) =>
-                              updateMediaAsset(mediaIndex, { option_label: event.target.value })
-                            }
-                            value={media.option_label ?? optionLabels[0] ?? ""}
-                          >
-                            {optionLabels.map((label) => (
-                              <option key={label} value={label}>
-                                Option {label}
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                      ) : null}
-                      <Field label="URL">
-                        <input
-                          className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable || media.source_type === "uploaded"}
-                          onChange={(event) => updateMediaAsset(mediaIndex, { external_url: event.target.value })}
-                          placeholder="https://..."
-                          required={media.source_type === "external_url"}
-                          value={media.external_url ?? ""}
-                        />
-                      </Field>
-                      <Field label="Title (optional)">
-                        <input
-                          className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) => updateMediaAsset(mediaIndex, { title: event.target.value })}
-                          value={media.title}
-                        />
-                      </Field>
-                      <Field label="Student alt text">
-                        <textarea
-                          className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateMediaAsset(mediaIndex, {
-                              alt_text_or_description: event.target.value,
-                              student_alt_text: event.target.value
-                            })
-                          }
-                          required
-                          value={media.student_alt_text}
-                        />
-                      </Field>
-                      <Field label="Teacher-only LLM media description (optional)">
-                        <textarea
-                          className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateMediaAsset(mediaIndex, {
-                              teacher_llm_media_description: event.target.value
-                            })
-                          }
-                          value={media.teacher_llm_media_description}
-                        />
-                      </Field>
-                      <Field label="Caption (optional)">
-                        <textarea
-                          className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) => updateMediaAsset(mediaIndex, { caption: event.target.value })}
-                          value={media.caption}
-                        />
-                      </Field>
-                      <Field
-                        label={
-                          media.media_type === "video"
-                            ? "Transcript or content summary"
-                            : "Transcript or content summary (optional)"
-                        }
-                      >
-                        <textarea
-                          className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateMediaAsset(mediaIndex, {
-                              transcript_or_content_summary: event.target.value
-                            })
-                          }
-                          required={media.media_type === "video"}
-                          value={media.transcript_or_content_summary}
-                        />
-                      </Field>
-                      <Field label="Attribution (optional)">
-                        <input
-                          className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
-                          onChange={(event) =>
-                            updateMediaAsset(mediaIndex, { source_attribution: event.target.value })
-                          }
-                          value={media.source_attribution}
-                        />
-                      </Field>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </section>
 
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
@@ -1116,13 +1141,17 @@ export function ItemEditorClient(props: ItemEditorProps) {
             </div>
           </section>
 
-          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-            <h2 className="text-xl font-semibold text-ink">Correct-option reasoning notes</h2>
-            <p className="mt-1 text-sm text-muted">
-              Teacher-only guidance. Students never see the answer key or these notes.
+          <details className="rounded-lg border border-line bg-white p-5 shadow-soft">
+            <summary className="cursor-pointer text-xl font-semibold text-ink">
+              Optional diagnostic guidance
+            </summary>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              These teacher-only notes are optional guidance for later interpretation. They are design intentions and
+              plausible hypotheses, not observed student evidence or confirmed misconception labels. Students never see
+              the answer key or these notes.
             </p>
             <div className="mt-5 grid gap-4">
-              <Field label="Target reasoning note">
+              <Field label="Target reasoning note (optional)">
                 <textarea
                   className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                   disabled={!isEditable}
@@ -1133,7 +1162,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   value={targetReasoningNote}
                 />
               </Field>
-              <Field label="Strong reasoning should mention">
+              <Field label="Strong reasoning should mention (optional)">
                 <textarea
                   className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                   disabled={!isEditable}
@@ -1144,27 +1173,23 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   value={strongReasoningNote}
                 />
               </Field>
+              <Field
+                label="Distractor diagnostic notes (optional)"
+                hint="Use one plain-language box. Selecting a distractor is indirect evidence only; interpretation must also consider reasoning, confidence, timing, and cross-item evidence."
+              >
+                <textarea
+                  className="min-h-48 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                  disabled={!isEditable}
+                  onChange={(event) => {
+                    markDirty();
+                    setPlainLanguageDistractorNotes(event.target.value);
+                  }}
+                  placeholder="Option B may suggest confusion between reliability and validity. Option C may suggest treating reliability as a fixed property of the test rather than a sample-dependent estimate. Option D may suggest interpreting a group-level coefficient as an individual-level statement. These are possible interpretations, not firm conclusions."
+                  value={plainLanguageDistractorNotes}
+                />
+              </Field>
             </div>
-          </section>
-
-          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-            <h2 className="text-xl font-semibold text-ink">Distractor diagnostic notes</h2>
-            <p className="mt-1 text-sm text-muted">
-              Write in plain language how the distractors may relate to possible misconceptions, partial understanding, guessing, or other reasoning patterns. Selecting a distractor is indirect evidence only; the system should consider written reasoning, confidence, timing, and other student responses before interpreting it.
-            </p>
-            <Field label="Distractor diagnostic notes" hint="These notes are teacher-only interpretation guidance, not labels or ground truth.">
-              <textarea
-                className="mt-5 min-h-48 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                disabled={!isEditable}
-                onChange={(event) => {
-                  markDirty();
-                  setPlainLanguageDistractorNotes(event.target.value);
-                }}
-                placeholder="Option B may suggest confusion between reliability and validity. Option C may suggest treating reliability as a fixed property of the test rather than a sample-dependent estimate. Option D may suggest interpreting a group-level coefficient as an individual-level statement. These are possible interpretations, not firm conclusions."
-                value={plainLanguageDistractorNotes}
-              />
-            </Field>
-          </section>
+          </details>
 
           <section className="grid gap-6 lg:grid-cols-2">
             <div className="rounded-lg border border-line bg-white p-5 shadow-soft" id="student-preview">

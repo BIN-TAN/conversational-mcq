@@ -39,6 +39,7 @@ function assertDashboardSurface() {
   const service = readProjectFile("src/lib/services/teacher-dashboard/assessment-dashboard.ts");
   const route = readProjectFile("src/app/api/teacher/dashboard/route.ts");
   const exportRoute = readProjectFile("src/app/api/teacher/dashboard/export/route.ts");
+  const contentHome = readProjectFile("src/app/teacher/content/page.tsx");
 
   for (const expected of [
     "Assessment dashboard",
@@ -67,10 +68,10 @@ function assertDashboardSurface() {
     "Status distribution",
     "Completion progress",
     "Assessment-specific understanding",
-    "Engagement signals",
+    "Engagement review signals",
+    "Engagement review reasons",
     "Item-level diagnostic view",
     "Candidate misconception patterns",
-    "Export and readable data",
     "diagnostic signals",
     "response patterns",
     "does not claim stable learner traits",
@@ -78,7 +79,8 @@ function assertDashboardSurface() {
     "Sample size",
     "Legend:",
     "Chart data table",
-    "Overlapping review indicator"
+    "Overlapping review indicator",
+    "< 1 min"
   ]) {
     assertIncludes(client, expected, "Teacher assessment dashboard client");
   }
@@ -94,7 +96,11 @@ function assertDashboardSurface() {
     "itemSnapshotPublicId",
     "downloadTeacherAssessmentDashboardCsv",
     "assessment_specific_understanding",
-    "engagement_signals",
+    "engagement_review_signals",
+    "engagement_review_reason",
+    "No engagement concern flagged",
+    "Flagged for engagement review",
+    "Insufficient engagement evidence",
     "candidate_misconception_pattern",
     "text/csv; charset=utf-8"
   ]) {
@@ -106,6 +112,9 @@ function assertDashboardSurface() {
   assertIncludes(exportRoute, "downloadTeacherAssessmentDashboardCsv", "Teacher dashboard export API");
   assertIncludes(exportRoute, "requireTeacherResearcher", "Teacher dashboard export API");
   assertIncludes(exportRoute, "Content-Type", "Teacher dashboard export API");
+  assertIncludes(contentHome, "Mini tests", "Content management page");
+  assertIncludes(contentHome, "JSON import", "Content management page");
+  assertExcludes(contentHome, "Research integrity", "Content management page");
 
   for (const forbidden of [
     "JSON import",
@@ -117,7 +126,14 @@ function assertDashboardSurface() {
     "students needing attention now",
     "ability level",
     "ability levels",
-    "live classroom-monitoring"
+    "live classroom-monitoring",
+    "Low engagement signals",
+    "Moderate engagement signals",
+    "High engagement signals",
+    "Export and readable data",
+    "Dashboard summary CSV",
+    "Assessment CSV",
+    "Detailed process bundle"
   ]) {
     assertExcludes(dashboard, forbidden, "Teacher dashboard");
     assertExcludes(client, forbidden, "Teacher assessment dashboard client");
@@ -553,8 +569,20 @@ async function assertDashboardAggregationService() {
       "Missing understanding profiles should remain unavailable."
     );
     assert(
-      dashboard.engagement_distribution.some((entry) => entry.label === "Unavailable / insufficient evidence" && entry.count === 6),
-      "Missing engagement profiles should remain unavailable."
+      dashboard.engagement_distribution.some((entry) => entry.label === "Insufficient engagement evidence" && entry.count === 6),
+      "Missing engagement profiles should remain insufficient engagement evidence."
+    );
+    assert(
+      dashboard.engagement_distribution.some((entry) => entry.label === "Flagged for engagement review" && entry.count === 1),
+      "Low persisted engagement profile should be flagged for engagement review."
+    );
+    assert(
+      dashboard.engagement_distribution.some((entry) => entry.label === "No engagement concern flagged" && entry.count === 2),
+      "Persisted non-low engagement profiles should be counted as no engagement concern flagged."
+    );
+    assert(
+      dashboard.engagement_review_reasons.some((entry) => entry.label.includes("Persisted low-engagement") && entry.count === 1),
+      "Dashboard should expose safe teacher-only engagement review reasons."
     );
     assert(dashboard.item_diagnostics.length >= 1, "Dashboard should expose item-level diagnostics.");
     const administeredSnapshot = dashboard.item_diagnostics.find((entry) => entry.item_snapshot_public_id.endsWith(":v1"));
@@ -597,6 +625,8 @@ async function assertDashboardAggregationService() {
     assert(csv.content.includes("dashboard_metadata"), "Dashboard CSV should include metadata rows.");
     assert(csv.content.includes("latest_attempt_per_student"), "Dashboard CSV should include attempt policy.");
     assert(csv.content.includes("active_interaction_ms"), "Dashboard CSV should include time metric type.");
+    assert(csv.content.includes("engagement_review_signals"), "Dashboard CSV should include engagement review categories.");
+    assert(csv.content.includes("engagement_review_reason"), "Dashboard CSV should include engagement review reasons.");
     assert(csv.content.includes("candidate_misconception_pattern"), "Dashboard CSV should include candidate patterns.");
     assert(csv.content.includes(candidate.item_snapshot_public_id), "Dashboard CSV should match UI snapshot binding.");
     assert(csv.content.includes("item_option_distribution"), "Dashboard CSV should include item option distributions.");
@@ -633,7 +663,7 @@ async function main() {
         assessment_summary_cards_present: true,
         diagnostic_charts_present: true,
         candidate_misconception_patterns_deterministic: true,
-        dashboard_csv_export_present: true,
+        dashboard_csv_export_api_preserved: true,
         dashboard_aggregation_service_checked: true,
         standard_nav_json_import_absent: true,
         routine_nav_links_preserved: true,

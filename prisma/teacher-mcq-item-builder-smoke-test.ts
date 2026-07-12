@@ -158,7 +158,7 @@ function assertDashboardCardsAreActionable() {
   assert(client.includes("Assessment / mini test"), "Dashboard should expose an assessment selector.");
   assert(client.includes("Item-level diagnostic view"), "Dashboard should expose item-level diagnostics.");
   assert(client.includes("Candidate misconception patterns"), "Dashboard should expose deterministic pattern review.");
-  assert(client.includes("Export and readable data"), "Dashboard should expose readable export links.");
+  assert(!client.includes("Export and readable data"), "Assessment dashboard should not expose dashboard export links.");
   assert(!source.includes("JSON import"), "Standard dashboard should not show a JSON import card or nav link.");
   assert(!source.includes('href="/teacher/content/import-json"'), "Standard dashboard should not link to JSON import.");
   assert(!source.includes("Model evaluation"), "Standard dashboard should not show a Model evaluation card.");
@@ -214,10 +214,11 @@ function assertItemEditorSupportsDynamicOptionsAndSafePreview() {
   assert(!source.includes("Weakens hypothesis"), "Structured distractor subfields should be hidden.");
   assert(!source.includes("Follow-up probe suggestion"), "Structured distractor subfields should be hidden.");
   assert(!source.includes("Student-safe feedback hint"), "Structured distractor subfields should be hidden.");
-  assert(source.includes("Target reasoning note"), "Correct-option notes should include target reasoning only.");
+  assert(source.includes("Optional diagnostic guidance"), "Diagnostic guidance should be grouped as optional.");
+  assert(source.includes("Target reasoning note (optional)"), "Correct-option notes should mark target reasoning optional.");
   assert(
-    source.includes("Strong reasoning should mention"),
-    "Correct-option notes should include strong-reasoning guidance."
+    source.includes("Strong reasoning should mention (optional)"),
+    "Correct-option notes should mark strong-reasoning guidance optional."
   );
   assert(
     source.includes("Selecting a distractor is indirect evidence only"),
@@ -229,19 +230,20 @@ function assertItemEditorSupportsDynamicOptionsAndSafePreview() {
     source.includes("Students see only the stem and option text"),
     "Student preview should explicitly hide key and diagnostic notes."
   );
+  assert(!source.includes("Higher-order item design"), "Normal item editor should not show a higher-order item design card.");
   assert(
-    source.includes("Initial MCQ items should usually ask students to apply, analyze, or evaluate ideas."),
-    "Item editor should expose higher-order initial-item guidance."
-  );
-  assert(
-    source.includes("Creation is better elicited later through a constructed-response activity."),
-    "Item editor should explain why Create belongs to later constructed-response work."
+    !source.includes("Initial MCQ items should usually ask students to apply, analyze, or evaluate ideas."),
+    "Normal item editor should not show static higher-order guidance."
   );
   assert(!source.includes("Cognitive demand"), "Item editor should not expose a cognitive-demand dropdown.");
-  assert(source.includes("Add media"), "Item editor should expose an Add media action.");
+  assert(source.includes("Item stem"), "Item editor should expose a unified Item stem composer.");
+  assert(source.includes("Add image"), "Item stem composer should expose an Add image action.");
+  assert(source.includes("Add video"), "Item stem composer should expose an Add video action.");
+  assert(source.includes("Add reference link"), "Item stem composer should expose an Add reference link action.");
+  assert(!source.includes(">Media<"), "Item editor should not show a separate Media card.");
   assert(
-    source.includes("Descriptions are required because the LLM receives accessible media context"),
-    "Media helper should explain accessible media context for LLM interpretation."
+    source.includes("Write the item wording and place images, video links, or reference links in the same ordered stem sequence."),
+    "Item stem composer should describe text and media as one sequence."
   );
   assert(
     source.includes("Upload image (storage not configured)"),

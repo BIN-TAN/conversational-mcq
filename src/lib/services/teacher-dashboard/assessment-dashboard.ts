@@ -15,6 +15,9 @@ const ELIGIBILITY_BASIS_ALL_ACTIVE_TEACHER_STUDENTS =
 const ELIGIBILITY_BASIS_SESSION_STUDENTS_ONLY =
   "students_with_sessions_for_selected_assessment_no_assignment_model" as const;
 const ATTEMPT_POLICY_LATEST_PER_STUDENT = "latest_attempt_per_student" as const;
+const ENGAGEMENT_REVIEW_NO_FLAG = "No engagement concern flagged" as const;
+const ENGAGEMENT_REVIEW_FLAGGED = "Flagged for engagement review" as const;
+const ENGAGEMENT_REVIEW_INSUFFICIENT = "Insufficient engagement evidence" as const;
 
 const assessmentOptionSelect = {
   assessment_public_id: true,
@@ -125,6 +128,8 @@ const dashboardSessionSelect = {
         select: {
           integrated_diagnostic_profile: true,
           engagement_profile: true,
+          engagement_pattern_flags: true,
+          engagement_summary: true,
           evidence_sufficiency: true,
           created_at: true
         },
@@ -159,6 +164,7 @@ export type TeacherAssessmentDashboard = {
   progress_chart: ChartDatum[];
   understanding_distribution: ChartDatum[];
   engagement_distribution: ChartDatum[];
+  engagement_review_reasons: EngagementReviewReason[];
   time_indicator: TimeIndicator;
   item_diagnostics: ItemDiagnosticSummary[];
   candidate_misconception_patterns: CandidateMisconceptionPattern[];
@@ -215,6 +221,13 @@ export type TimeIndicator = {
   median_minutes: number | null;
   sample_size: number;
   unavailable_count: number;
+  limitations: string[];
+};
+
+export type EngagementReviewReason = {
+  label: string;
+  count: number;
+  source: "persisted_profile" | "session_review_flag";
   limitations: string[];
 };
 
@@ -386,21 +399,71 @@ function understandingCategoryFromProfile(profile: DashboardProfile | null) {
   }
 }
 
-function engagementCategoryFromProfile(profile: DashboardProfile | null) {
-  if (!profile) return "Unavailable / insufficient evidence" as const;
+function sessionReviewReasonLooksEngagementRelated(reason: string | null) {
+  return /\b(engagement|incomplete reasoning|short response|interruption|insufficient response|insufficient evidence|follow-?up incomplete)\b/i.test(
+    reason ?? ""
+  );
+}
 
-  switch (profile.engagement_profile) {
-    case "low_engagement":
-      return "Low engagement signals" as const;
-    case "productive_engagement":
-    case "sustained_high_engagement":
-      return "High engagement signals" as const;
-    case "variable_engagement":
-    case "adequate_engagement":
-      return "Moderate engagement signals" as const;
-    default:
-      return "Unavailable / insufficient evidence" as const;
+function engagementReviewSignal(input: {
+  profile: DashboardProfile | null;
+  session: DashboardSession | null;
+}) {
+  if (!input.session || !input.profile) return ENGAGEMENT_REVIEW_INSUFFICIENT;
+  if (
+    input.profile.engagement_profile === "insufficient_process_evidence" ||
+    input.profile.evidence_sufficiency === "insufficient"
+  ) {
+    return ENGAGEMENT_REVIEW_INSUFFICIENT;
   }
+  if (
+    input.profile.engagement_profile === "low_engagement" ||
+    input.profile.integrated_diagnostic_profile === "low_engagement_limits_interpretability" ||
+    (input.session.needs_review && sessionReviewReasonLooksEngagementRelated(input.session.needs_review_reason))
+  ) {
+    return ENGAGEMENT_REVIEW_FLAGGED;
+  }
+  return ENGAGEMENT_REVIEW_NO_FLAG;
+}
+
+function engagementReviewReasonLabel(input: {
+  profile: DashboardProfile | null;
+  session: DashboardSession | null;
+}) {
+  if (!input.profile) return null;
+  if (input.profile.engagement_profile === "low_engagement") {
+    return "Persisted low-engagement evidence profile.";
+  }
+  if (input.profile.integrated_diagnostic_profile === "low_engagement_limits_interpretability") {
+    return "Persisted diagnostic profile says low engagement limits interpretability.";
+  }
+  if (input.session?.needs_review && sessionReviewReasonLooksEngagementRelated(input.session.needs_review_reason)) {
+    return "Existing session review flag references engagement or evidence quality.";
+  }
+  return null;
+}
+
+function buildEngagementReviewReasons(attempts: CanonicalAttempt[]) {
+  const counts = new Map<string, EngagementReviewReason>();
+
+  for (const attempt of attempts) {
+    if (!attempt.session) continue;
+    const profile = latestProfile(attempt.session);
+    const label = engagementReviewReasonLabel({ profile, session: attempt.session });
+    if (!label) continue;
+    const current = counts.get(label) ?? {
+      label,
+      count: 0,
+      source: label.startsWith("Existing session") ? "session_review_flag" : "persisted_profile",
+      limitations: [
+        "Reason counts are teacher-review signals, not misconduct, motivation, ability, or confirmed guessing labels.",
+        "Profile evidence is persisted by the assessment workflow; this dashboard does not infer a final engagement status from one timing value."
+      ]
+    } satisfies EngagementReviewReason;
+    counts.set(label, { ...current, count: current.count + 1 });
+  }
+
+  return [...counts.values()].sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
 }
 
 function dashboardStatus(session: DashboardSession | null) {
@@ -750,7 +813,18 @@ function dashboardCsvRows(dashboard: TeacherAssessmentDashboard) {
     rows.push({ row_type: "assessment_specific_understanding", assessment_public_id: assessmentId, assessment_title: assessmentTitle, ...row });
   }
   for (const row of dashboard.engagement_distribution) {
-    rows.push({ row_type: "engagement_signals", assessment_public_id: assessmentId, assessment_title: assessmentTitle, ...row });
+    rows.push({ row_type: "engagement_review_signals", assessment_public_id: assessmentId, assessment_title: assessmentTitle, ...row });
+  }
+  for (const reason of dashboard.engagement_review_reasons) {
+    rows.push({
+      row_type: "engagement_review_reason",
+      assessment_public_id: assessmentId,
+      assessment_title: assessmentTitle,
+      label: reason.label,
+      count: reason.count,
+      source: reason.source,
+      limitations: reason.limitations.join(" | ")
+    });
   }
   for (const item of dashboard.item_diagnostics) {
     rows.push({
@@ -972,6 +1046,7 @@ export async function getTeacherAssessmentDashboard(input: {
       progress_chart: [],
       understanding_distribution: [],
       engagement_distribution: [],
+      engagement_review_reasons: [],
       time_indicator: {
         time_metric_type: "unavailable",
         average_time_ms: null,
@@ -1039,8 +1114,12 @@ export async function getTeacherAssessmentDashboard(input: {
     attempt.session ? understandingCategoryFromProfile(latestProfile(attempt.session)) : "Unavailable / insufficient evidence"
   );
   const engagementValues = attempts.map((attempt) =>
-    attempt.session ? engagementCategoryFromProfile(latestProfile(attempt.session)) : "Unavailable / insufficient evidence"
+    engagementReviewSignal({
+      profile: attempt.session ? latestProfile(attempt.session) : null,
+      session: attempt.session
+    })
   );
+  const engagementReviewReasons = buildEngagementReviewReasons(attempts);
   const items = assessment.concept_units.flatMap((conceptUnit) => conceptUnit.items);
   const responses = canonicalResponses(attempts, assessment.assessment_public_id);
   const statusDistribution = hasStudentData
@@ -1108,14 +1187,14 @@ export async function getTeacherAssessmentDashboard(input: {
       countBy(
         engagementValues,
         [
-          "Low engagement signals",
-          "Moderate engagement signals",
-          "High engagement signals",
-          "Unavailable / insufficient evidence"
+          ENGAGEMENT_REVIEW_NO_FLAG,
+          ENGAGEMENT_REVIEW_FLAGGED,
+          ENGAGEMENT_REVIEW_INSUFFICIENT
         ] as const
       ),
       totalStudents
     ),
+    engagement_review_reasons: engagementReviewReasons,
     time_indicator: timeIndicator,
     item_diagnostics: buildItemDiagnostics(items, responses),
     candidate_misconception_patterns: buildCandidatePatterns(responses),
@@ -1133,7 +1212,7 @@ export async function getTeacherAssessmentDashboard(input: {
         : "No student data are available for this assessment.",
       "Dashboard categories are assessment-specific diagnostic signals, not stable learner traits.",
       "Understanding categories come from persisted profile outputs for the selected assessment; missing or insufficient profile evidence remains unavailable.",
-      "Engagement signals come from persisted profile engagement evidence; missing or insufficient process evidence remains unavailable.",
+      "Engagement review signals come from persisted profile engagement evidence or defined engagement/evidence-quality review flags; missing profile evidence is counted as insufficient evidence, not as no concern.",
       "Flagged for review is an overlapping review indicator and is not part of the mutually exclusive status distribution.",
       ...timeIndicator.limitations,
       totalStudents < CANDIDATE_PATTERN_THRESHOLD
@@ -1160,6 +1239,7 @@ export async function downloadTeacherAssessmentDashboardCsv(input: {
     "attempt_policy_description",
     "has_student_data",
     "candidate_pattern_threshold",
+    "source",
     "label",
     "value",
     "count",

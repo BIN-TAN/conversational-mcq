@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Download, Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import type {
   CandidateMisconceptionPattern,
   ChartDatum,
@@ -19,6 +19,7 @@ function formatCount(value: number) {
 
 function formatMinutes(value: number | null) {
   if (value === null) return "Not available";
+  if (value > 0 && value < 1) return "< 1 min";
   return `${value.toFixed(value % 1 === 0 ? 0 : 1)} min`;
 }
 
@@ -242,39 +243,6 @@ function CandidatePatterns({ patterns }: { patterns: CandidateMisconceptionPatte
   );
 }
 
-function ExportSection({ dashboard }: { dashboard: TeacherAssessmentDashboard }) {
-  const links = dashboard.export_links;
-  return (
-    <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
-      <h2 className="text-lg font-semibold text-ualberta-green-dark">Export and readable data</h2>
-      <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-        Download the data behind this dashboard or the broader teacher/research CSV bundles. Process
-        indicators are exported as evidence-quality context, not trait or misconduct labels.
-      </p>
-      <div className="mt-4 flex flex-wrap gap-3">
-        {links.dashboard_csv ? (
-          <a className="inline-flex items-center gap-2 rounded-md bg-ualberta-green px-4 py-2 text-sm font-semibold text-white hover:bg-ualberta-green-dark" href={links.dashboard_csv}>
-            <Download className="h-4 w-4" aria-hidden="true" />
-            Dashboard summary CSV
-          </a>
-        ) : null}
-        {links.assessment_summary_csv ? (
-          <a className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-ualberta-green" href={links.assessment_summary_csv}>
-            <Download className="h-4 w-4" aria-hidden="true" />
-            Assessment CSV
-          </a>
-        ) : null}
-        {links.detailed_process_bundle ? (
-          <a className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-ualberta-green" href={links.detailed_process_bundle}>
-            <Download className="h-4 w-4" aria-hidden="true" />
-            Detailed process bundle
-          </a>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
 async function fetchDashboard(assessmentPublicId: string) {
   const params = new URLSearchParams();
   if (assessmentPublicId) {
@@ -456,13 +424,40 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
               tone="green"
             />
             <ChartCard
-              title="Engagement signals"
-              description="Persisted profile engagement evidence used as evidence-quality context."
+              title="Engagement review signals"
+              description="Persisted engagement evidence and engagement/evidence-quality review flags. Missing profile evidence is not counted as no concern."
               data={dashboard.engagement_distribution}
               sampleSize={dashboard.eligible_student_count}
               tone="slate"
             />
           </section>
+
+          {dashboard.engagement_review_reasons.length > 0 ? (
+            <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
+              <h2 className="text-lg font-semibold text-ualberta-green-dark">Engagement review reasons</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
+                These teacher-only reasons explain flagged engagement review signals using persisted evidence. They are not cheating,
+                motivation, laziness, ability, or confirmed guessing labels.
+              </p>
+              <ul className="mt-4 space-y-3 text-sm">
+                {dashboard.engagement_review_reasons.map((reason) => (
+                  <li className="rounded-md border border-line bg-slate-50 p-3" key={reason.label}>
+                    <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                      <span className="font-semibold text-ink">{reason.label}</span>
+                      <span className="text-muted">{formatCount(reason.count)} unique students</span>
+                    </div>
+                    {reason.limitations.length > 0 ? (
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-muted">
+                        {reason.limitations.map((limitation) => (
+                          <li key={limitation}>{limitation}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <section className="space-y-4">
             <div>
@@ -480,8 +475,6 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
           <CandidatePatterns patterns={dashboard.candidate_misconception_patterns} />
             </>
           )}
-
-          <ExportSection dashboard={dashboard} />
 
           <section className="rounded-lg border border-border-light bg-white p-5 text-sm leading-6 text-muted">
             <h2 className="text-base font-semibold text-ink">Interpretation notes</h2>

@@ -73,6 +73,7 @@ export const AssessmentInterpretationContextV1Schema = z.object({
     }).strict()
   }).strict(),
   teacher_diagnostic_guidance: z.object({
+    teacher_diagnostic_guidance_available: z.boolean(),
     assessment_diagnostic_focus: StringOrNullSchema,
     guidance_not_ground_truth: z.literal(true),
     item_guidance: z.array(z.object({
@@ -106,6 +107,7 @@ export type AssessmentInterpretationContextAuditMetadata = {
   item_snapshot_public_ids: string[];
   assessment_context_hash: string;
   teacher_diagnostic_context_present: boolean;
+  teacher_diagnostic_guidance_available: boolean;
   target_reasoning_present: boolean;
   strong_reasoning_present: boolean;
   distractor_notes_present: boolean;
@@ -222,6 +224,24 @@ function teacherContext(value: unknown) {
   };
 }
 
+function hasTeacherDiagnosticGuidance(input: {
+  item_guidance: Array<{
+    target_reasoning_note: string | null;
+    strong_reasoning_should_mention: string | null;
+    plain_language_distractor_diagnostic_notes: string | null;
+    interpretation_caution: string | null;
+  }>;
+}) {
+  return input.item_guidance.some((item) =>
+      Boolean(
+        item.target_reasoning_note ||
+        item.strong_reasoning_should_mention ||
+        item.plain_language_distractor_diagnostic_notes ||
+        item.interpretation_caution
+      )
+    );
+}
+
 function itemFromResponsePackageEntry(entry: unknown, responseEntry?: JsonRecord) {
   const item = record(entry);
   const response = responseEntry ?? {};
@@ -301,6 +321,15 @@ export function buildAssessmentInterpretationContextFromResponsePackage(input: {
   });
   const assessmentPublicId = stringValue(assessment.assessment_public_id) ?? "unknown_assessment";
   const conceptUnitPublicId = stringValue(conceptUnit.concept_unit_public_id);
+  const itemGuidance = items.map((item) => ({
+    item_public_id: item.item_public_id,
+    target_reasoning_note: item.target_reasoning_note,
+    strong_reasoning_should_mention: item.strong_reasoning_should_mention,
+    plain_language_distractor_diagnostic_notes:
+      item.plain_language_distractor_diagnostic_notes,
+    interpretation_caution: item.interpretation_caution
+  }));
+  const assessmentDiagnosticFocus = stringValue(assessment.diagnostic_focus);
   const context = {
     schema_version: ASSESSMENT_INTERPRETATION_CONTEXT_SCHEMA_VERSION,
     assessment: {
@@ -343,16 +372,12 @@ export function buildAssessmentInterpretationContextFromResponsePackage(input: {
       }
     },
     teacher_diagnostic_guidance: {
-      assessment_diagnostic_focus: stringValue(assessment.diagnostic_focus),
+      teacher_diagnostic_guidance_available: hasTeacherDiagnosticGuidance({
+        item_guidance: itemGuidance
+      }),
+      assessment_diagnostic_focus: assessmentDiagnosticFocus,
       guidance_not_ground_truth: true,
-      item_guidance: items.map((item) => ({
-        item_public_id: item.item_public_id,
-        target_reasoning_note: item.target_reasoning_note,
-        strong_reasoning_should_mention: item.strong_reasoning_should_mention,
-        plain_language_distractor_diagnostic_notes:
-          item.plain_language_distractor_diagnostic_notes,
-        interpretation_caution: item.interpretation_caution
-      }))
+      item_guidance: itemGuidance
     },
     interpretation_rules: {
       teacher_notes_are_guidance_not_ground_truth: true,
@@ -431,6 +456,14 @@ export function buildAssessmentInterpretationContextForItemAdministration(input:
   };
   const conceptUnitPublicId = input.concept_unit_public_id ?? null;
   const assessmentPublicId = input.assessment_public_id;
+  const itemGuidance = [{
+    item_public_id: item.item_public_id,
+    target_reasoning_note: item.target_reasoning_note,
+    strong_reasoning_should_mention: item.strong_reasoning_should_mention,
+    plain_language_distractor_diagnostic_notes:
+      item.plain_language_distractor_diagnostic_notes,
+    interpretation_caution: item.interpretation_caution
+  }];
 
   return AssessmentInterpretationContextV1Schema.parse({
     schema_version: ASSESSMENT_INTERPRETATION_CONTEXT_SCHEMA_VERSION,
@@ -486,16 +519,12 @@ export function buildAssessmentInterpretationContextForItemAdministration(input:
       }
     },
     teacher_diagnostic_guidance: {
+      teacher_diagnostic_guidance_available: hasTeacherDiagnosticGuidance({
+        item_guidance: itemGuidance
+      }),
       assessment_diagnostic_focus: input.assessment_diagnostic_focus ?? null,
       guidance_not_ground_truth: true,
-      item_guidance: [{
-        item_public_id: item.item_public_id,
-        target_reasoning_note: item.target_reasoning_note,
-        strong_reasoning_should_mention: item.strong_reasoning_should_mention,
-        plain_language_distractor_diagnostic_notes:
-          item.plain_language_distractor_diagnostic_notes,
-        interpretation_caution: item.interpretation_caution
-      }]
+      item_guidance: itemGuidance
     },
     interpretation_rules: {
       teacher_notes_are_guidance_not_ground_truth: true,
@@ -525,8 +554,10 @@ export function assessmentInterpretationContextAuditMetadata(
     item_snapshot_public_ids: itemSnapshotIds,
     assessment_context_hash: hashAssessmentInterpretationContext(context),
     teacher_diagnostic_context_present:
-      Boolean(context.teacher_diagnostic_guidance.assessment_diagnostic_focus) ||
-      context.teacher_diagnostic_guidance.item_guidance.length > 0,
+      context.teacher_diagnostic_guidance.teacher_diagnostic_guidance_available ||
+      Boolean(context.teacher_diagnostic_guidance.assessment_diagnostic_focus),
+    teacher_diagnostic_guidance_available:
+      context.teacher_diagnostic_guidance.teacher_diagnostic_guidance_available,
     target_reasoning_present: context.teacher_diagnostic_guidance.item_guidance.some((item) =>
       Boolean(item.target_reasoning_note)
     ),

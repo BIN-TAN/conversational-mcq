@@ -96,11 +96,16 @@ async function main() {
       },
       select: { concept_unit_db_id: true }
     });
+    const latestExistingItem = await prisma.item.findFirst({
+      where: { concept_unit_db_id: conceptUnitSession.concept_unit_db_id },
+      select: { item_order: true },
+      orderBy: { item_order: "desc" }
+    });
     await prisma.item.create({
       data: {
         item_public_id: `item_context_scope_${randomUUID().slice(0, 12)}`,
         concept_unit_db_id: conceptUnitSession.concept_unit_db_id,
-        item_order: 99,
+        item_order: (latestExistingItem?.item_order ?? 0) + 1,
         item_stem: "UNRELATED_CONTEXT_SCOPE_SENTINEL item must not enter frozen context.",
         options: [
           { label: "A", text: "Scope sentinel option A" },
@@ -179,6 +184,7 @@ async function main() {
       "Alternative explanations must be required by the contract."
     );
     assert(audit.teacher_diagnostic_context_present, "Audit should record diagnostic-context presence.");
+    assert(audit.teacher_diagnostic_guidance_available, "Audit should record optional teacher guidance availability.");
     assert(audit.target_reasoning_present, "Audit should record target-reasoning presence.");
     assert(audit.distractor_notes_present, "Audit should record distractor-note presence.");
     assert(audit.interpretation_caution_present, "Audit should record interpretation-caution presence.");
@@ -191,6 +197,71 @@ async function main() {
       !serialized(context).includes("strong_distractor_linked_misconception"),
       "Context contract should not introduce a deterministic final misconception classification."
     );
+
+    const contextWithoutTeacherNotes = buildAssessmentInterpretationContextFromResponsePackage({
+      response_package_payload: {
+        assessment: {
+          assessment_public_id: "assessment_without_notes",
+          title: "Assessment without optional guidance",
+          diagnostic_focus: "Distinguish theta from item-side parameters."
+        },
+        concept_unit: {
+          concept_unit_public_id: "concept_without_notes",
+          title: "Theta interpretation",
+          learning_objective: "Interpret theta cautiously.",
+          related_concept_description: "Synthetic no-notes context."
+        },
+        included_items: [{
+          item_public_id: "item_without_notes",
+          item_order: 1,
+          item_role: "initial_item",
+          item_stem: "What does theta represent?",
+          options: [
+            { label: "A", text: "A person-side ability location" },
+            { label: "B", text: "An item difficulty value" }
+          ],
+          version: 1
+        }],
+        item_responses: [{
+          item_public_id: "item_without_notes",
+          selected_option: "B",
+          reasoning_text: "I connected theta with the item difficulty value.",
+          confidence_rating: "medium",
+          correct_option_snapshot: "A",
+          item_version_snapshot: 1,
+          item_snapshot: {
+            item_public_id: "item_without_notes",
+            item_order: 1,
+            item_stem: "What does theta represent?",
+            options: [
+              { label: "A", text: "A person-side ability location" },
+              { label: "B", text: "An item difficulty value" }
+            ],
+            version: 1
+          }
+        }],
+        process_counts: { safe_event_count: 0 }
+      },
+      phase: "post_initial_interpretation"
+    });
+    const noNotesAudit = assessmentInterpretationContextAuditMetadata(contextWithoutTeacherNotes);
+    assert(
+      contextWithoutTeacherNotes.teacher_diagnostic_guidance.teacher_diagnostic_guidance_available === false,
+      "Missing optional teacher notes should be represented as teacher_diagnostic_guidance_available=false."
+    );
+    assert(
+      contextWithoutTeacherNotes.teacher_diagnostic_guidance.assessment_diagnostic_focus?.includes("theta"),
+      "Assessment diagnostic focus should remain available when optional teacher notes are absent."
+    );
+    assert(
+      contextWithoutTeacherNotes.observed_student_evidence.item_responses.length === 1,
+      "Observed student response evidence should remain available when optional teacher notes are absent."
+    );
+    assert(
+      noNotesAudit.teacher_diagnostic_guidance_available === false,
+      "Audit should preserve unavailable optional teacher-guidance flag."
+    );
+    assert(noNotesAudit.student_evidence_present, "No-notes audit should still record student evidence.");
 
     const originalHash = hashAssessmentInterpretationContext(context);
     const firstItemPublicId = context.items[0]?.item_public_id;
