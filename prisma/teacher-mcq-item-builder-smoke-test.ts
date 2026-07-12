@@ -139,21 +139,26 @@ function assertStudentPreviewSafe(item: Awaited<ReturnType<typeof getItemDetail>
 
 function assertDashboardCardsAreActionable() {
   const source = readFileSync(path.join(process.cwd(), "src/app/teacher/dashboard/page.tsx"), "utf8");
+  const client = readFileSync(
+    path.join(process.cwd(), "src/components/teacher-dashboard/assessment-dashboard-client.tsx"),
+    "utf8"
+  );
 
-  assert(source.includes('href="/teacher/sessions"'), "Dashboard sessions card should link to sessions.");
-  assert(source.includes('href="/teacher/students"'), "Dashboard student accounts card should link to student management.");
+  assert(source.includes('href: "/teacher/sessions"'), "Teacher dashboard nav should link to sessions.");
+  assert(source.includes('href: "/teacher/students"'), "Teacher dashboard nav should link to student management.");
   assert(
-    source.includes('href="/teacher/content/assessments"'),
-    "Dashboard mini-test card should link to assessment list."
+    source.includes('href: "/teacher/data"'),
+    "Teacher dashboard nav should link to Data and outcomes."
   );
   assert(
-    source.includes('href="/teacher/data/explorer"'),
-    "Dashboard data card should link to Data Explorer."
+    source.includes('href: "/teacher/system/llm"'),
+    "Teacher dashboard nav should link to LLM status."
   );
-  assert(
-    source.includes('href="/teacher/system/llm"'),
-    "Dashboard LLM status card should remain clickable."
-  );
+  assert(source.includes("AssessmentDashboardClient"), "Dashboard should render the assessment-level dashboard client.");
+  assert(client.includes("Assessment / mini test"), "Dashboard should expose an assessment selector.");
+  assert(client.includes("Item-level diagnostic view"), "Dashboard should expose item-level diagnostics.");
+  assert(client.includes("Candidate misconception patterns"), "Dashboard should expose deterministic pattern review.");
+  assert(client.includes("Export and readable data"), "Dashboard should expose readable export links.");
   assert(!source.includes("JSON import"), "Standard dashboard should not show a JSON import card or nav link.");
   assert(!source.includes('href="/teacher/content/import-json"'), "Standard dashboard should not link to JSON import.");
   assert(!source.includes("Model evaluation"), "Standard dashboard should not show a Model evaluation card.");
@@ -500,7 +505,7 @@ async function main() {
           direct_add_item_checked: true,
           normal_page_topic_settings_hidden: true,
           dynamic_option_builder_checked: true,
-          dashboard_cards_checked: true,
+          dashboard_assessment_surface_checked: true,
           publish_warnings_checked: true,
           json_import_checked: true,
           openai_calls: 0

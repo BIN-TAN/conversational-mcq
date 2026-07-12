@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { BrainCircuit, ListChecks, Table2, UserRoundCog, Users } from "lucide-react";
 import { redirect } from "next/navigation";
+import { AssessmentDashboardClient } from "@/components/teacher-dashboard/assessment-dashboard-client";
 import { TeacherLogoutButton } from "@/components/teacher-logout-button";
 import { UAlbertaLogo } from "@/components/ualberta-logo";
 import { getCurrentUser } from "@/lib/auth";
+import { getTeacherAssessmentDashboard } from "@/lib/services/teacher-dashboard/assessment-dashboard";
 
 const teacherNavLinks = [
   { href: "/teacher/dashboard", label: "Dashboard" },
@@ -24,6 +25,10 @@ export default async function TeacherDashboardPage() {
     redirect("/student/assessment");
   }
 
+  const dashboard = await getTeacherAssessmentDashboard({
+    teacher_user_db_id: user.user_db_id
+  });
+
   return (
     <main className="min-h-screen bg-panel-gray">
       <header className="border-b-4 border-ualberta-gold bg-ualberta-green-dark text-white">
@@ -35,7 +40,7 @@ export default async function TeacherDashboardPage() {
                 <p className="text-sm font-semibold uppercase tracking-wide text-ualberta-gold">
                   EDPY 507: Measurement Theory
                 </p>
-                <h1 className="mt-2 text-3xl font-semibold text-white">Dashboard</h1>
+                <h1 className="mt-2 text-3xl font-semibold text-white">Assessment dashboard</h1>
                 <p className="mt-2 text-sm text-white/80">Signed in as {user.user_id}</p>
               </div>
             </div>
@@ -56,72 +61,7 @@ export default async function TeacherDashboardPage() {
       </header>
 
       <div className="mx-auto max-w-6xl px-6 py-8">
-        <section className="rounded-lg border border-border-light bg-white p-5">
-          <p className="max-w-3xl text-sm leading-6 text-muted">
-            Manage student accounts, build mini tests, review student sessions, and export
-            teacher/research data.
-          </p>
-        </section>
-
-        <section className="mt-6 grid gap-4 md:grid-cols-3">
-          <Link
-            className="rounded-lg border border-border-light bg-white p-5 shadow-soft transition hover:border-ualberta-green"
-            href="/teacher/students"
-          >
-            <UserRoundCog className="h-5 w-5 text-ualberta-green" aria-hidden="true" />
-            <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
-            <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">Student accounts</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Import rosters, create accounts, reset access codes, and manage active or inactive
-              status.
-            </p>
-          </Link>
-          <Link
-            className="rounded-lg border border-border-light bg-white p-5 shadow-soft transition hover:border-ualberta-green"
-            href="/teacher/sessions"
-          >
-            <Users className="h-5 w-5 text-ualberta-green" aria-hidden="true" />
-            <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
-            <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">Student sessions</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Review assessment sessions, transcripts, process context, item responses, and response
-              packages.
-            </p>
-          </Link>
-          <Link
-            className="rounded-lg border border-border-light bg-white p-5 shadow-soft transition hover:border-ualberta-green"
-            href="/teacher/content/assessments"
-          >
-            <ListChecks className="h-5 w-5 text-ualberta-green" aria-hidden="true" />
-            <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
-            <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">Assessments / Mini tests</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Build mini tests, add MCQ items, review diagnostic notes, and publish.
-            </p>
-          </Link>
-          <Link
-            className="rounded-lg border border-border-light bg-white p-5 shadow-soft transition hover:border-ualberta-green"
-            href="/teacher/data/explorer"
-          >
-            <Table2 className="h-5 w-5 text-ualberta-green" aria-hidden="true" />
-            <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
-            <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">Data Explorer / exports</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Download lightweight CSVs and open the broader data/export tools.
-            </p>
-          </Link>
-          <Link
-            className="rounded-lg border border-border-light bg-white p-5 shadow-soft transition hover:border-ualberta-green"
-            href="/teacher/system/llm"
-          >
-            <BrainCircuit className="h-5 w-5 text-ualberta-green" aria-hidden="true" />
-            <div className="mt-4 h-1 w-10 rounded-full bg-ualberta-gold" aria-hidden="true" />
-            <h2 className="mt-3 text-lg font-semibold text-ualberta-green-dark">LLM status</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Review provider readiness, draft prompt versions, schema versions, and mock-mode safety.
-            </p>
-          </Link>
-        </section>
+        <AssessmentDashboardClient initialDashboard={dashboard} />
       </div>
     </main>
   );
