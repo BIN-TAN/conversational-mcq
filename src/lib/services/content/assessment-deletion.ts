@@ -50,6 +50,8 @@ export type AssessmentDeletionCounts = {
   item_verification_run_count: number;
   summative_outcome_count: number;
   import_export_reference_count: number;
+  mcq_item_import_batch_count: number;
+  mcq_diagnostic_authoring_agent_call_count: number;
 };
 
 export type AssessmentDeletionPreview = {
@@ -98,6 +100,8 @@ type AssessmentDeletionGraph = {
   activityAttemptIds: string[];
   activityAttemptPublicIds: string[];
   activityEvidenceIds: string[];
+  mcqImportBatchIds: string[];
+  mcqAuthoringAgentCallIds: string[];
   counts: AssessmentDeletionCounts;
   retained_reference_counts: Record<string, number>;
 };
@@ -112,6 +116,44 @@ function safeIn(values: string[]) {
 
 function publicHash(value: string) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function collectAgentCallRefs(value: unknown): string[] {
+  const refs = new Set<string>();
+
+  function visit(entry: unknown) {
+    if (Array.isArray(entry)) {
+      for (const item of entry) visit(item);
+      return;
+    }
+
+    const object = record(entry);
+    if (!object) return;
+
+    for (const key of ["agent_call_public_id", "agent_call_ref"]) {
+      if (typeof object[key] === "string" && object[key].trim()) {
+        refs.add(object[key].trim());
+      }
+    }
+
+    const payloadRefs = object.agent_call_public_ids;
+    if (Array.isArray(payloadRefs)) {
+      for (const ref of payloadRefs) {
+        if (typeof ref === "string" && ref.trim()) refs.add(ref.trim());
+      }
+    }
+
+    for (const child of Object.values(object)) visit(child);
+  }
+
+  visit(value);
+  return [...refs];
 }
 
 async function assertTeacherResearcher(client: AssessmentDeletionClient, teacherUserDbId: string) {
@@ -267,13 +309,41 @@ async function buildAssessmentDeletionGraph(
     ...activityEvidence.map((record) => record.source_evaluator_agent_call_db_id)
   ]);
 
+  const mcqImportBatches = await client.mcqItemImportBatch.findMany({
+    where: { assessment_db_id: assessment.id },
+    select: {
+      id: true,
+      candidates_payload: true,
+      suggestion_payload: true
+    }
+  });
+  const mcqImportBatchIds = mcqImportBatches.map((batch) => batch.id);
+  const mcqAuthoringAgentCallRefs = unique(
+    mcqImportBatches.flatMap((batch) => [
+      ...collectAgentCallRefs(batch.candidates_payload),
+      ...collectAgentCallRefs(batch.suggestion_payload)
+    ])
+  );
+  const mcqAuthoringAgentCalls = mcqAuthoringAgentCallRefs.length > 0
+    ? await client.agentCall.findMany({
+        where: {
+          OR: [
+            { client_request_id: { in: mcqAuthoringAgentCallRefs } },
+            { agent_invocation_key: { in: mcqAuthoringAgentCallRefs } }
+          ]
+        },
+        select: { id: true }
+      })
+    : [];
+  const mcqAuthoringAgentCallIds = mcqAuthoringAgentCalls.map((call) => call.id);
+
   const agentCalls = await client.agentCall.findMany({
     where: {
       OR: [
         { assessment_session_db_id: safeIn(sessionIds) },
         { concept_unit_session_db_id: safeIn(conceptUnitSessionIds) },
         { followup_round_db_id: safeIn(followupRoundIds) },
-        { id: safeIn([...activityAgentCallIds, ...itemVerificationAgentCallIds]) }
+        { id: safeIn([...activityAgentCallIds, ...itemVerificationAgentCallIds, ...mcqAuthoringAgentCallIds]) }
       ]
     },
     select: { id: true }
@@ -370,6 +440,8 @@ async function buildAssessmentDeletionGraph(
     activityAttemptIds,
     activityAttemptPublicIds,
     activityEvidenceIds,
+    mcqImportBatchIds,
+    mcqAuthoringAgentCallIds,
     counts: {
       assessment_count: 1,
       concept_unit_count: conceptUnitIds.length,
@@ -398,7 +470,9 @@ async function buildAssessmentDeletionGraph(
       operational_effective_result_count: operationalEffectiveResultCount,
       item_verification_run_count: itemVerificationRunIds.length,
       summative_outcome_count: 0,
-      import_export_reference_count: exportReferenceCount
+      import_export_reference_count: exportReferenceCount,
+      mcq_item_import_batch_count: mcqImportBatchIds.length,
+      mcq_diagnostic_authoring_agent_call_count: mcqAuthoringAgentCallIds.length
     },
     retained_reference_counts: {
       operational_live_canary_dispatch_attempt_reference_count: retainedDispatchAttemptReferenceCount,
@@ -449,6 +523,7 @@ function publicPreview(graph: AssessmentDeletionGraph): AssessmentDeletionPrevie
       "Uploaded media object cleanup is not part of the database transaction in this local build. When object storage is enabled, cleanup must be handled by a retryable storage-cleanup path keyed by deleted media metadata.",
       "Previously downloaded exports, screenshots, LMS copies, and external files are outside this system and cannot be removed here.",
       "Export and import audit rows without hard assessment foreign keys are retained as safe references when present.",
+      "MCQ import preview batches and associated diagnostic-authoring agent audit rows are removed with the deleted assessment; raw imported source text is not retained in the deletion audit.",
       "The deletion audit stores aggregate counts and safe IDs only; deleted item content and student responses are not retained in the audit."
     ]
   };
@@ -622,6 +697,8 @@ async function deleteAssessmentGraph(
   });
   await tx.itemVerificationRun.deleteMany({ where: { id: safeIn(graph.itemVerificationRunIds) } });
   await tx.agentCall.deleteMany({ where: { id: safeIn(graph.itemVerificationAgentCallIds) } });
+  await tx.agentCall.deleteMany({ where: { id: safeIn(graph.mcqAuthoringAgentCallIds) } });
+  await tx.mcqItemImportBatch.deleteMany({ where: { id: safeIn(graph.mcqImportBatchIds) } });
   await tx.item.deleteMany({ where: { id: safeIn(graph.itemIds) } });
   await tx.conceptUnit.deleteMany({ where: { id: safeIn(graph.conceptUnitIds) } });
   await tx.assessment.delete({ where: { id: graph.assessment.id } });

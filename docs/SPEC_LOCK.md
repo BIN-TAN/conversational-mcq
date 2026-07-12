@@ -2492,8 +2492,21 @@ Phase 6A.5 must not implement:
   in Phase 31Q.
 - The diagnostic authoring assistant uses schema
   `mcq-diagnostic-authoring-suggestion-v1` and prompt version
-  `mcq-diagnostic-authoring-assistant-v1`. Normal smoke tests use the mock/no
-  live path. Paid live diagnostic authoring calls are not enabled by default.
+  `mcq-diagnostic-authoring-assistant-prompt-v1`. It runs only after the
+  teacher explicitly selects `Suggest missing diagnostic information`; it must
+  not run during upload, parsing, page load, preview, or automatic batch
+  processing. Production-like suggestions require server-side live provider
+  configuration and `OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING`. Missing provider
+  configuration must fail closed with a manual-review message rather than a
+  fake suggestion. Mock suggestions are test-only.
+- The diagnostic authoring assistant has two modes. `suggest_key` is used when
+  no teacher-confirmed key exists and may produce only an unofficial key
+  suggestion with rationale, ambiguity/multiple-key warnings, confidence, and
+  limitations. `diagnostic_information` requires a teacher-confirmed key and
+  may suggest target reasoning, strong-reasoning criteria, one plain-language
+  distractor note, ambiguity/distractor/recall warnings, optional revision,
+  confidence, and limitations. It must not mutate the official key or item
+  wording.
 - Assistant suggestions are teacher-facing guidance, not ground truth. They may
   suggest target reasoning notes, strong-reasoning criteria, plain-language
   distractor notes, cognitive-demand warnings, ambiguity warnings, multiple-key
@@ -2502,6 +2515,19 @@ Phase 6A.5 must not implement:
 - Teachers must review suggestions field by field with Accept, Edit and accept,
   Reject, or Leave blank. Non-empty teacher-authored fields must not be
   overwritten by default.
+- Provider-backed diagnostic authoring requests must persist safe audit
+  metadata in `agent_calls` and import candidate payloads: agent name,
+  prompt/schema versions, prompt hash, provider, model, request/response
+  metadata presence, token usage presence, validation status, repair count, and
+  teacher review status. Raw unrestricted provider output must not be exposed in
+  teacher-safe projections.
+- Import hardening must enforce file-size and row-count limits, safe filename
+  storage, source checksums, formula-like values treated as text, hidden sheet
+  warnings, macro workbook rejection, malformed workbook failure without
+  partial silent import, and no external link fetching.
+- Assessment deletion must include MCQ import batches and associated
+  diagnostic-authoring agent calls in preview counts and deletion. Deletion
+  audit rows must not retain raw imported source text.
 - Teacher notes and assistant suggestions must preserve epistemic caution:
   selected distractors are indirect evidence only, teacher diagnostic notes are
   guidance rather than ground truth, and alternative explanations must remain
@@ -2517,8 +2543,9 @@ Phase 6A.5 must not implement:
   pasted text, project JSON, column mapping, missing-field behavior, duplicate
   warnings, draft import, student-safe projection, and absence of OpenAI calls.
 - `student:teacher-mcq-diagnostic-assistant-smoke` is no-live and must verify
-  mock suggestion separation, teacher-key recognition, tentative distractor
-  notes, alternative explanations, suggestion decisions, provenance, no student
-  leakage, and absence of OpenAI calls.
+  teacher-trigger dispatch, no preview dispatch, key suggestion separation,
+  teacher-key recognition, tentative distractor notes, alternative explanations,
+  prompt-injection resistance, suggestion decisions, provenance, metadata,
+  bounded repair, no student leakage, and absence of OpenAI calls.
 - `student:teacher-mcq-diagnostic-assistant-live-smoke` must skip by default
   unless explicitly opted in.

@@ -234,6 +234,29 @@ export type McqImportCandidate = {
   normalized_changed_wording: boolean;
   normalized_diff_summary: string | null;
   suggestion?: unknown;
+  suggestion_status?: string;
+  suggestion_error?: {
+    code: string;
+    message: string;
+    retryable?: boolean;
+    agent_call_public_id?: string | null;
+  } | null;
+  suggestion_metadata?: {
+    agent_name: string;
+    prompt_version: string;
+    schema_version: string;
+    prompt_hash: string;
+    provider: string;
+    model_name: string;
+    agent_call_public_id: string | null;
+    provider_request_id_present: boolean;
+    provider_response_id_present: boolean;
+    token_usage_present: boolean;
+    output_validated: boolean;
+    repair_attempted: boolean;
+    retry_count: number;
+    created_at: string;
+  } | null;
   suggestion_decisions?: Record<string, { decision: string; edited_value?: string | null }>;
   imported_item_public_id?: string | null;
 };

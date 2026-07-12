@@ -1,5 +1,4 @@
 import type { z } from "zod";
-import type { AgentName } from "@/lib/agents/names";
 import type { AgentModelConfig } from "@/lib/llm/config";
 import type {
   OpenAIResponsesEffectiveOutcome,
@@ -124,7 +123,7 @@ export type OpenAITransportTelemetry = OpenAITransportMilestone & {
 };
 
 export type StructuredAgentRequest<TInput, TOutput> = {
-  agent_name: AgentName;
+  agent_name: string;
   model_config: AgentModelConfig;
   instructions: string;
   input: TInput;

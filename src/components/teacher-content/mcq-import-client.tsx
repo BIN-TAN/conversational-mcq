@@ -163,7 +163,7 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
         {
           method: "POST",
           body: JSON.stringify({
-            mode: "mock",
+            mode: "live",
             candidate_public_ids: batch.candidates
               .filter((candidate) => candidate.import_selected)
               .map((candidate) => candidate.candidate_public_id),
@@ -184,7 +184,12 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
         }
       );
       setBatch(data.batch);
-      setSuccess("Diagnostic suggestions added for selected candidates. Review before accepting.");
+      const failed = data.batch.candidates.filter((candidate) => candidate.suggestion_status === "failed").length;
+      setSuccess(
+        failed > 0
+          ? `Diagnostic suggestions returned with ${failed} item${failed === 1 ? "" : "s"} unavailable. You can continue reviewing and importing manually.`
+          : "Diagnostic suggestions added for selected candidates. Review before accepting."
+      );
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
@@ -362,6 +367,11 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
               <h2 className="text-xl font-semibold text-ink">Import preview</h2>
               <p className="mt-1 text-sm text-muted">
                 {batch.candidate_count} candidates. {selectedCount} selected. Batch {batch.batch_public_id}.
+              </p>
+              <p className="mt-2 max-w-3xl text-xs leading-5 text-muted">
+                Suggestions run only after this button is selected. Up to 10 selected items may be sent per request.
+                The assistant may suggest unofficial keys, target reasoning, strong reasoning, distractor notes,
+                ambiguity warnings, and recall-only warnings. Teacher review is required before any suggestion is used.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -578,6 +588,11 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
                     {Object.keys(suggestion).length > 0 ? (
                       <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-950">
                         <p className="font-semibold">Assistant rationale and limitations</p>
+                        {typeof suggestion.suggested_key === "string" && suggestion.suggested_key ? (
+                          <p className="mt-1">
+                            Unofficial key suggestion: {String(suggestion.suggested_key)}. Confirm or edit the key before import.
+                          </p>
+                        ) : null}
                         <p className="mt-1">
                           {String(suggestion.evidence_justification_summary ?? "Suggestion rationale unavailable.")}
                         </p>
@@ -588,6 +603,14 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
                             ))}
                           </ul>
                         ) : null}
+                      </div>
+                    ) : null}
+                    {candidate.suggestion_error ? (
+                      <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
+                        <p className="font-semibold">Suggestion unavailable</p>
+                        <p className="mt-1">
+                          Diagnostic suggestions are temporarily unavailable for this item. You can continue reviewing and importing it manually.
+                        </p>
                       </div>
                     ) : null}
                   </div>

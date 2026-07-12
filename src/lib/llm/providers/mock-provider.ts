@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { AgentName } from "@/lib/agents/names";
 import { mockOutputForAgent } from "@/lib/agents/mock-fixtures";
 import type {
   LlmProvider,
@@ -562,7 +563,35 @@ export class MockLlmProvider implements LlmProvider {
       };
     }
 
-    const output = mockOutputForAgent(request.agent_name) as Record<string, unknown>;
+    const knownAgent = AgentName.safeParse(request.agent_name);
+    if (!knownAgent.success) {
+      return {
+        provider: "mock",
+        client_request_id: request.client_request_id,
+        provider_request_id: `mock_req_${randomUUID()}`,
+        provider_response_id: `mock_resp_${randomUUID()}`,
+        status: "completed",
+        parsed_output: {
+          agent_name: request.agent_name,
+          output_status: "ok",
+          warnings: ["Generic mock output for a custom provider-facing agent."]
+        } as unknown as TOutput,
+        raw_output: {
+          agent_name: request.agent_name,
+          output_status: "ok",
+          warnings: ["Generic mock output for a custom provider-facing agent."]
+        },
+        usage: {
+          input_tokens: 10,
+          output_tokens: 20,
+          total_tokens: 30,
+          raw: { mock: true }
+        },
+        latency_ms: Date.now() - startedAt
+      };
+    }
+
+    const output = mockOutputForAgent(knownAgent.data) as Record<string, unknown>;
 
     if (request.agent_name === "response_collection_agent") {
       const input = request.input as Record<string, unknown>;

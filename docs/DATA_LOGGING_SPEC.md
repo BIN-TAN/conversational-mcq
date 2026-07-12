@@ -685,14 +685,25 @@ linked to the selected assessment and uploading teacher. The table stores safe
 source metadata, source checksum, candidate counts, imported/rejected counts,
 key-missing counts, diagnostic-suggestion counts, duplicate counts, validation
 summary JSON, candidate payload JSON, suggestion payload JSON, import summary,
-and timestamps.
+and timestamps. Validation summary may include file/row limits and safe source
+warnings such as hidden workbook sheets being ignored.
 
 Candidate payloads preserve original source text or source-row JSON, source
 location, source line range when available, normalized draft fields, imported
 key, teacher-confirmed key, missing fields, issue flags, duplicate warnings,
-parsing confidence, and field-level suggestion review decisions. Missing source
-fields remain blank. The import service does not silently paraphrase source
-wording or turn an imported/LLM-suggested key into an official key.
+parsing confidence, field-level suggestion review decisions, safe suggestion
+status, safe provider/model/token metadata, and safe authoring-agent call
+references. Missing source fields remain blank. The import service does not
+silently paraphrase source wording or turn an imported/LLM-suggested key into
+an official key.
+
+Provider-backed diagnostic-authoring requests create `agent_calls` rows with
+agent name `mcq_diagnostic_authoring_assistant_agent`, prompt/schema versions,
+prompt hash, model name, provider, request/response metadata when available,
+token usage when available, validation status, retry/repair count, and redacted
+input/output audit data. The teacher-facing candidate payload receives only the
+structured, validated suggestion plus safe metadata; unrestricted raw provider
+output stays in the server audit layer.
 
 Imported item rows remain draft `items`. Each imported item stores safe import
 provenance under `items.administration_rules.import_provenance`, including batch
@@ -706,3 +717,8 @@ exports must not expose imported keys, teacher-confirmed keys as answer keys,
 raw teacher diagnostic notes, assistant suggestion payloads, source checksums,
 provenance internals, raw provider output, credentials, cookies, database URLs,
 API keys, session secrets, or password/access-code hashes.
+
+Assessment deletion must count and remove `mcq_item_import_batches` for the
+deleted assessment and remove associated diagnostic-authoring `agent_calls`
+when they are referenced by safe candidate/suggestion metadata. Deletion audit
+rows retain aggregate counts only and must not retain raw imported source text.

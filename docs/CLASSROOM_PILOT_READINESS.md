@@ -235,13 +235,17 @@ keys are preserved separately and become official only after explicit teacher
 confirmation or edit; publishing still requires exactly one teacher-confirmed
 key per included item.
 
-Teachers may optionally request no-live diagnostic suggestions for missing
-target reasoning, strong-reasoning, and plain-language distractor notes. Those
-suggestions are teacher-facing guidance only, not ground truth. They require
-field-level Accept, Edit and accept, Reject, or Leave blank review, and
-non-empty teacher-authored fields are not overwritten by default. Teachers are
-responsible for copyright, licensing, and permission to use imported test-bank
-content before a classroom pilot.
+Teachers may optionally request diagnostic suggestions for missing authoring
+information. The action is explicit, teacher-triggered, and bounded; it must
+not run during upload, parsing, page load, preview, or automatic batch
+processing. Production-like suggestions require server-side live provider
+configuration and `OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING`. If unavailable, the
+teacher continues manual review without a fake suggestion. Test-only mock
+suggestions remain limited to smoke tests. Suggestions are teacher-facing
+guidance only, not ground truth. They require field-level Accept, Edit and
+accept, Reject, or Leave blank review, and non-empty teacher-authored fields are
+not overwritten by default. Teachers are responsible for copyright, licensing,
+and permission to use imported test-bank content before a classroom pilot.
 
 Diagnostic focus, target reasoning notes, strong-reasoning notes, and the
 single plain-language distractor diagnostic note box are teacher-only and may

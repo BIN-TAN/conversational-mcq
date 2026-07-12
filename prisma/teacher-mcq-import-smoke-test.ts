@@ -63,6 +63,16 @@ function xlsxBase64(rows: Array<Record<string, string>>) {
   return Buffer.from(XLSX.write(workbook, { bookType: "xlsx", type: "buffer" })).toString("base64");
 }
 
+function xlsxBase64WithHiddenSheet(rows: Array<Record<string, string>>) {
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.json_to_sheet(rows);
+  const hidden = XLSX.utils.json_to_sheet([{ ignored: "hidden row" }]);
+  XLSX.utils.book_append_sheet(workbook, sheet, "Items");
+  XLSX.utils.book_append_sheet(workbook, hidden, "Hidden");
+  workbook.Workbook = { Sheets: [{ name: "Items", Hidden: 0 }, { name: "Hidden", Hidden: 1 }] };
+  return Buffer.from(XLSX.write(workbook, { bookType: "xlsx", type: "buffer" })).toString("base64");
+}
+
 function studentSafeItemProjection(item: Awaited<ReturnType<typeof getItemDetail>>) {
   return {
     item_stem: item.item_stem,
@@ -234,6 +244,72 @@ async function main() {
     assert(xlsx.batch.candidates[0]?.stem === "XLSX theta item?", "XLSX stem extraction failed.");
     assert(xlsx.batch.candidates[0]?.imported_key === "A", "XLSX key extraction failed.");
 
+    const hiddenSheet = await previewMcqItemImport({
+      teacher_user_db_id: teacher.id,
+      assessment_public_id: assessment.assessment_public_id,
+      data: {
+        source_type: "xlsx",
+        file_base64: xlsxBase64WithHiddenSheet([
+          {
+            stem: "Hidden sheet warning item?",
+            option_a: "Ability",
+            option_b: "Difficulty",
+            key: "A"
+          }
+        ]),
+        source_file_name: "../phase31q-hidden.xlsx"
+      }
+    });
+    assert(
+      JSON.stringify(hiddenSheet.batch.validation_summary).includes("hidden_sheets_ignored"),
+      "XLSX hidden sheet warning should be recorded."
+    );
+    assert(
+      hiddenSheet.batch.source_file_name === "phase31q-hidden.xlsx",
+      "Stored source filename should be basename-only."
+    );
+
+    await previewMcqItemImport({
+      teacher_user_db_id: teacher.id,
+      assessment_public_id: assessment.assessment_public_id,
+      data: {
+        source_type: "csv",
+        source_text: [
+          "stem,option_a,option_b,key",
+          "\"=HYPERLINK(\"\"https://example.com\"\",\"\"x\"\")\",\"=1+1\",\"Plain text\",A"
+        ].join("\n")
+      }
+    }).then((formulaPreview) => {
+      assert(
+        formulaPreview.batch.candidates[0]?.stem.startsWith("=HYPERLINK"),
+        "Formula-like CSV values should be treated as text."
+      );
+    });
+
+    await previewMcqItemImport({
+      teacher_user_db_id: teacher.id,
+      assessment_public_id: assessment.assessment_public_id,
+      data: {
+        source_type: "xlsx",
+        file_base64: xlsxBase64([
+          {
+            stem: "Macro file item?",
+            option_a: "Ability",
+            option_b: "Difficulty",
+            key: "A"
+          }
+        ]),
+        source_file_name: "unsafe.xlsm"
+      }
+    }).then(
+      () => {
+        throw new Error("XLSM import should be rejected.");
+      },
+      (error) => {
+        assert(String(error).includes("Macro-enabled"), "XLSM rejection should explain macro workbook unsupported.");
+      }
+    );
+
     const plainText = await previewMcqItemImport({
       teacher_user_db_id: teacher.id,
       assessment_public_id: assessment.assessment_public_id,
@@ -328,6 +404,7 @@ async function main() {
           plain_text_checked: true,
           project_json_checked: true,
           column_mapping_checked: true,
+          file_hardening_checked: true,
           duplicate_warning_checked: true,
           draft_import_count: committed.imported_count,
           missing_key_remained_blank: true,

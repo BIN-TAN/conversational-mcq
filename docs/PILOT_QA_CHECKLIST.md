@@ -334,7 +334,10 @@ npm run student:live-llm-smoke:cleanup-failures
   must block publishing until the teacher confirms exactly one valid key.
 - Optional diagnostic suggestions must remain teacher-reviewed. The teacher can
   Accept, Edit and accept, Reject, or Leave blank per field. Non-empty
-  teacher-authored notes should not be overwritten by default.
+  teacher-authored notes should not be overwritten by default. Browser/runtime
+  suggestions require live server-side configuration and
+  `OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING`; mock suggestions are test-only and
+  must not be presented as production suggestions.
 - Advanced topic settings and fixed workflow/response implementation facts are
   absent from the normal mini-test detail page.
 - The normal MCQ editor does not show an item-purpose dropdown. Teacher-created

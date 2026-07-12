@@ -2095,25 +2095,46 @@ stored separately as `imported_key`; an official `correct_option` is written
 only when the teacher explicitly confirms or edits the key. Publishing still
 requires exactly one valid teacher-confirmed key.
 
-The optional `Suggest missing diagnostic information` action uses a no-live mock
-assistant by default in normal tests. Suggestions use schema
-`mcq-diagnostic-authoring-suggestion-v1` and prompt version
-`mcq-diagnostic-authoring-assistant-v1`. Suggestions remain separate from item
-data until the teacher reviews each field with Accept, Edit and accept, Reject,
-or Leave blank. Non-empty teacher-authored fields are not overwritten by
-default. Assistant notes are teacher-facing guidance only, not ground truth.
-They must include tentative distractor interpretation and alternative
-explanations such as partial guessing, misreading, language difficulty,
-fatigue, random error, low confidence, and insufficient evidence.
+The optional `Suggest missing diagnostic information` action is explicit and
+teacher-triggered. It is never run during upload, parsing, page load, preview,
+or automatic batch processing. In production-like mode it uses the server-side
+provider configuration, a dedicated model variable
+`OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING`, schema
+`mcq-diagnostic-authoring-suggestion-v1`, and prompt version
+`mcq-diagnostic-authoring-assistant-prompt-v1`. If live configuration is
+missing, the teacher sees that suggestions are temporarily unavailable and can
+continue reviewing/importing manually; the browser does not receive a mock
+suggestion.
 
-Import provenance is stored in `mcq_item_import_batches` and item
+The assistant has two modes. `suggest_key` is used only when no
+teacher-confirmed key exists and produces an unofficial key suggestion with
+limitations. `diagnostic_information` requires a teacher-confirmed key and may
+suggest target reasoning, strong-reasoning guidance, plain-language distractor
+notes, ambiguity/multiple-key/recall warnings, optional revision guidance,
+confidence, and limitations. Suggestions remain separate from item data until
+the teacher reviews each field with Accept, Edit and accept, Reject, or Leave
+blank. Non-empty teacher-authored fields are not overwritten by default.
+Assistant notes are teacher-facing guidance only, not ground truth. They must
+include tentative distractor interpretation and alternative explanations such as
+partial guessing, misreading, language difficulty, fatigue, random error, low
+confidence, and insufficient evidence.
+
+Import provenance is stored in `mcq_item_import_batches`, `agent_calls` for
+provider-backed diagnostic-authoring requests, and item
 `administration_rules.import_provenance`, including source type, checksum,
 source location, original-source hash, missing fields, issue flags, suggestion
-review decisions, and timestamps. Student-facing previews and assessment
-runtime must not expose imported keys, teacher diagnostic notes, suggestion
-payloads, answer keys, correct options, or provenance metadata. Teachers remain
-responsible for copyright, licensing, and permission to use imported test-bank
-content.
+review decisions, safe agent-call references, provider/model/status/token
+metadata, and timestamps. Raw unrestricted provider output remains in the
+server audit layer only. Student-facing previews and assessment runtime must
+not expose imported keys, teacher diagnostic notes, suggestion payloads, answer
+keys, correct options, or provenance metadata. Teachers remain responsible for
+copyright, licensing, and permission to use imported test-bank content.
+
+Import preview hardening includes file-size and row-count limits, safe
+filename storage, source checksums, formula-like values treated as text, hidden
+sheet warnings, macro workbook rejection, and failure of malformed workbooks
+before creating a partial preview batch. The importer never fetches external
+links.
 
 No-live checks:
 
@@ -2124,5 +2145,6 @@ npm run student:teacher-mcq-diagnostic-assistant-live-smoke
 ```
 
 The live diagnostic-assistant smoke is skipped unless
-`RUN_LIVE_TEACHER_MCQ_DIAGNOSTIC_ASSISTANT_SMOKE=1` is explicitly set; Phase
-31Q does not implement or run paid live diagnostic authoring calls by default.
+`RUN_LIVE_TEACHER_MCQ_DIAGNOSTIC_ASSISTANT_SMOKE=1` is explicitly set and live
+provider variables, including `OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING`, are
+configured. Normal tests and builds do not make paid diagnostic-authoring calls.

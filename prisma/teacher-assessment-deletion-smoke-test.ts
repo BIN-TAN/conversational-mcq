@@ -11,6 +11,7 @@ import {
   previewAssessmentDeletion
 } from "../src/lib/services/content/assessment-deletion";
 import { ContentServiceError } from "../src/lib/services/content/errors";
+import { previewMcqItemImport } from "../src/lib/services/content/mcq-import";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
@@ -364,6 +365,17 @@ async function main() {
       teacherUserDbId: teacher.id,
       title: `Unused deletion ${suffix}`
     });
+    const unusedImportPreview = await previewMcqItemImport({
+      teacher_user_db_id: teacher.id,
+      assessment_public_id: unused.assessment.assessment_public_id,
+      data: {
+        source_type: "csv",
+        source_text: [
+          "stem,option_a,option_b,key",
+          "\"Import preview item?\",\"Ability\",\"Difficulty\",A"
+        ].join("\n")
+      }
+    });
     const unusedMediaPublicIds = unused.items.flatMap((item) =>
       item.media_assets.map((asset) => asset.media_public_id)
     );
@@ -373,6 +385,7 @@ async function main() {
     });
     assert(unusedPreview.counts.item_count === 3, "Unused preview should count items.");
     assert(unusedPreview.counts.item_media_asset_count === 1, "Unused preview should count item media assets.");
+    assert(unusedPreview.counts.mcq_item_import_batch_count === 1, "Unused preview should count MCQ import batches.");
     assert(unusedPreview.deletion_modes.unused_assessment.allowed, "Unused draft should be deleteable.");
     assert(unusedPreview.counts.assessment_session_count === 0, "Unused draft should have no sessions.");
     assert(
@@ -408,6 +421,12 @@ async function main() {
         where: { assessment_public_id: unused.assessment.assessment_public_id }
       })),
       "Unused assessment should be deleted."
+    );
+    assert(
+      (await prisma.mcqItemImportBatch.count({
+        where: { batch_public_id: unusedImportPreview.batch.batch_public_id }
+      })) === 0,
+      "Unused assessment delete should remove MCQ import batches."
     );
     assert(
       (await prisma.itemMediaAsset.count({ where: { media_public_id: { in: unusedMediaPublicIds } } })) === 0,
@@ -544,6 +563,10 @@ async function main() {
     assert(
       !JSON.stringify(deletionAudits).includes("Synthetic reasoning text"),
       "Deletion audit should not retain raw student reasoning."
+    );
+    assert(
+      !JSON.stringify(deletionAudits).includes("Import preview item"),
+      "Deletion audit should not retain raw imported MCQ source text."
     );
   } finally {
     const remainingAssessments = await prisma.assessment.findMany({
