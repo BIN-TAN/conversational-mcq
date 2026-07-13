@@ -19,7 +19,7 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-white">
       <header className="border-b-4 border-ualberta-gold bg-ualberta-green-dark text-white">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 py-4 md:flex-row md:items-center md:justify-between">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 py-4 md:flex-row md:items-center">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <UAlbertaLogo priority />
             <div className="min-w-0">
@@ -27,14 +27,6 @@ export default function HomePage() {
               <p className="text-xs uppercase tracking-wide text-white/80">Measurement Theory</p>
             </div>
           </div>
-          <nav className="flex flex-wrap gap-2 text-sm font-semibold" aria-label="Primary navigation">
-            <Link className="rounded-md px-3 py-2 text-white/90 hover:bg-white/10 hover:text-white" href="/student/login">
-              Student Access
-            </Link>
-            <Link className="rounded-md px-3 py-2 text-white/90 hover:bg-white/10 hover:text-white" href="/teacher/dashboard">
-              Instructor Dashboard
-            </Link>
-          </nav>
         </div>
       </header>
 

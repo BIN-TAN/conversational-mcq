@@ -85,7 +85,7 @@ function ChartCard({
   tone?: "green" | "gold" | "slate";
 }) {
   return (
-    <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
+    <section className="h-full rounded-lg border border-border-light bg-white p-5 shadow-soft">
       <h2 className="text-lg font-semibold text-ualberta-green-dark">{title}</h2>
       {description ? <p className="mt-2 text-sm leading-6 text-muted">{description}</p> : null}
       <p className="sr-only">Total students: {formatCount(sampleSize)}.</p>
@@ -98,42 +98,29 @@ function ChartCard({
 
 function ParticipationStatusCard({ dashboard }: { dashboard: TeacherAssessmentDashboard }) {
   const timeIndicator = dashboard.time_indicator;
-  const timeMetric = timeIndicator.time_metric_type;
-  const averageLabel =
-    timeMetric === "active_interaction_ms"
-      ? "Average active response time"
-      : timeMetric === "elapsed_wall_clock_ms"
-        ? "Average elapsed response time"
-        : "Average response time";
-  const medianLabel =
-    timeMetric === "active_interaction_ms"
-      ? "Median active response time"
-      : timeMetric === "elapsed_wall_clock_ms"
-        ? "Median elapsed response time"
-        : "Median response time";
   const responseTimeNote =
     timeIndicator.sample_size > 0 && timeIndicator.sample_size < dashboard.eligible_student_count
       ? `Response-time data available for ${formatCount(timeIndicator.sample_size)} completed attempts.`
       : null;
 
   return (
-    <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft xl:col-span-2">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <section className="h-full rounded-lg border border-border-light bg-white p-5 shadow-soft">
+      <div className="flex flex-col gap-4">
         <div>
           <h2 className="text-lg font-semibold text-ualberta-green-dark">Participation status</h2>
           <p className="sr-only">Mutually exclusive latest-attempt participation categories.</p>
         </div>
-        <dl className="grid gap-3 text-sm sm:grid-cols-3 lg:min-w-[520px]">
+        <dl className="grid gap-3 text-sm sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
           <div>
             <dt className="font-semibold text-muted">Total students</dt>
             <dd className="mt-1 text-lg font-semibold text-ink">{formatCount(dashboard.eligible_student_count)}</dd>
           </div>
           <div>
-            <dt className="font-semibold text-muted">{averageLabel}</dt>
+            <dt className="font-semibold text-muted">Average time spent</dt>
             <dd className="mt-1 text-lg font-semibold text-ink">{formatMinutes(timeIndicator.average_minutes)}</dd>
           </div>
           <div>
-            <dt className="font-semibold text-muted">{medianLabel}</dt>
+            <dt className="font-semibold text-muted">Median time spent</dt>
             <dd className="mt-1 text-lg font-semibold text-ink">{formatMinutes(timeIndicator.median_minutes)}</dd>
           </div>
         </dl>
@@ -390,21 +377,21 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
             </section>
           ) : (
             <>
-              <section className="grid gap-4 xl:grid-cols-3">
+              <section className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <ParticipationStatusCard dashboard={dashboard} />
                 <ChartCard
-                  title="Assessment-specific understanding"
-                  description="Persisted assessment-specific understanding categories."
-                  data={dashboard.understanding_distribution}
-                  sampleSize={dashboard.eligible_student_count}
-                  tone="green"
-                />
-                <ChartCard
-                  title="Engagement review signals"
-                  description="Persisted engagement evidence and missingness buckets."
+                  title="Engagement overview"
+                  description="Persisted engagement evidence and review signals."
                   data={dashboard.engagement_distribution}
                   sampleSize={dashboard.eligible_student_count}
                   tone="slate"
+                />
+                <ChartCard
+                  title="Understanding overview"
+                  description="Persisted assessment-specific understanding signals."
+                  data={dashboard.understanding_distribution}
+                  sampleSize={dashboard.eligible_student_count}
+                  tone="green"
                 />
               </section>
 
@@ -436,13 +423,7 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
           ) : null}
 
           <section className="space-y-4">
-            <div>
-              <h2 className="text-xl font-semibold text-ualberta-green-dark">Item-level diagnostic view</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-                Review option choices, correctness percentages, confidence distribution, and item-level
-                diagnostic context to see which MCQs produced useful evidence.
-              </p>
-            </div>
+            <h2 className="text-xl font-semibold text-ualberta-green-dark">Item-level diagnostic view</h2>
             {sortedItems.map((item) => (
               <ItemDiagnostic item={item} key={item.item_snapshot_public_id} />
             ))}

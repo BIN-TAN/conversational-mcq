@@ -80,6 +80,7 @@ async function loginStudent() {
 
 function assertLandingIsCourseFacing(html: string) {
   const visibleText = visibleHtmlText(html);
+  const headerHtml = html.match(/<header\b[\s\S]*?<\/header>/iu)?.[0] ?? "";
 
   assert(visibleText.includes("EDPY 507: Measurement Theory"), "Landing page should show the course title.");
   assert(html.includes("University of Alberta"), "Landing page should include accessible UAlberta logo alt text.");
@@ -89,6 +90,10 @@ function assertLandingIsCourseFacing(html: string) {
   );
   assert(visibleText.includes("Student Access"), "Landing page should include the student access entry.");
   assert(visibleText.includes("Instructor Dashboard"), "Landing page should include the instructor dashboard entry.");
+  assert(!visibleHtmlText(headerHtml).includes("Student Access"), "Public green header should not show Student Access.");
+  assert(!visibleHtmlText(headerHtml).includes("Instructor Dashboard"), "Public green header should not show Instructor Dashboard.");
+  assert(html.includes('href="/student/login"'), "Student Access card should still link to student login.");
+  assert(html.includes('href="/teacher/dashboard"'), "Instructor Dashboard card should still link to teacher dashboard.");
   assert(visibleText.includes(courseSupportStatement), "Landing page should include the exact course support statement.");
   assert(
     visibleText.split(courseSupportStatement).length === 2,
@@ -319,6 +324,7 @@ async function main() {
           status: "passed",
           landing_course_title_present: true,
           prototype_copy_removed: true,
+          duplicate_header_navigation_removed: true,
           authorized_university_of_alberta_logo_present: true,
           official_logo_asset_path: "/brand/ualberta-logo.png",
           student_access_entry_present: true,

@@ -62,13 +62,11 @@ function assertDashboardSurface() {
     "ParticipationStatusCard",
     "Participation status",
     "Total students",
-    "Average active response time",
-    "Average elapsed response time",
-    "Median active response time",
-    "Median elapsed response time",
+    "Average time spent",
+    "Median time spent",
     "Response-time data available for",
-    "Assessment-specific understanding",
-    "Engagement review signals",
+    "Engagement overview",
+    "Understanding overview",
     "Engagement review reasons",
     "Item-level diagnostic view",
     "Candidate misconception patterns",
@@ -79,6 +77,7 @@ function assertDashboardSurface() {
     "ariaLabel",
     "role=\"list\"",
     "sr-only",
+    "grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3",
     "< 1 min"
   ]) {
     assertIncludes(client, expected, "Teacher assessment dashboard client");
@@ -144,7 +143,6 @@ function assertDashboardSurface() {
   for (const forbidden of [
     "Eligible students",
     "SummaryCard",
-    "Average time spent",
     "Flagged for review",
     "Status distribution",
     "Completion progress",
@@ -155,7 +153,10 @@ function assertDashboardSurface() {
     "Legend:",
     "Chart data table",
     "Category",
-    "Percent"
+    "Percent",
+    "Assessment-specific understanding",
+    "Engagement review signals",
+    "Review option choices, correctness percentages, confidence distribution"
   ]) {
     assertExcludes(dashboard, forbidden, "Teacher dashboard");
     assertExcludes(client, forbidden, "Teacher assessment dashboard client");
