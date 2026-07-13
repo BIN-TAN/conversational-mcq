@@ -106,6 +106,17 @@ function assertNormalTeacherPagesUseSharedNav() {
   const utility = source("src/components/teacher-account-utility-link.tsx");
   assertIncludes(utility, 'href="/teacher/account"', "Teacher account utility link");
   assertIncludes(utility, "Account settings", "Teacher account utility link");
+
+  const loginForm = source("src/components/login-form.tsx");
+  assertIncludes(loginForm, "Sign in", "Login form");
+  assertExcludes(loginForm, "Forgot your teacher password?", "Login form");
+  assertExcludes(loginForm, "/auth/forgot-password", "Login form");
+
+  const accountSettings = source("src/components/teacher-account/account-settings-client.tsx");
+  assertIncludes(accountSettings, "Change password", "Teacher account settings");
+  assertExcludes(accountSettings, "Recovery email", "Teacher account settings");
+  assertExcludes(accountSettings, "Change recovery email", "Teacher account settings");
+  assertExcludes(accountSettings, "email-change", "Teacher account settings");
 }
 
 function assertStudentAccountActionsRemainInPageContent() {

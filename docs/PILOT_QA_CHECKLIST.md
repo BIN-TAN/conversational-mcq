@@ -397,21 +397,20 @@ Teacher/research quick CSV checks:
 
 No logs, exports, screenshots, or notes should contain API keys, cookies, auth tokens, session secrets, password hashes, access-code hashes, hidden prompts, or raw provider payloads.
 
-## Teacher Recovery Checklist
+## Teacher Account Checklist
 
-- Teacher username remains the sign-in identifier; recovery email is not a login ID.
-- Existing staging/production teacher recovery email is set through
-  `npm run operator:set-teacher-email`, not through source code or migrations.
-- Fresh bootstrap may use `BOOTSTRAP_TEACHER_EMAIL`; output should show only
-  masked recovery-email status.
-- Forgot-password requests use a non-enumerating response for known teacher,
-  unknown, student, unverified, provider-unavailable, and rate-limited cases.
-- Reset and verification links are single-use, expiring, hash-stored tokens.
-- Password reset invalidates older teacher sessions and sends no plaintext
-  password.
-- Authenticated email change requires current password, stores the new address
-  as pending, verifies by link before replacing the old address, and allows
-  cancellation.
+- Teacher username remains the sign-in identifier.
+- Public teacher forgot-password, email-change, and email-verification flows are
+  disabled for the classroom pilot.
+- Account settings shows username and password-change controls only.
+- If the deployed teacher username must change, use
+  `npm run operator:rename-teacher` from the deployed service directory with
+  exact confirmation. Do not manually edit the database.
+- The rename must preserve the existing password, role, assessment ownership,
+  student relationships, sessions, responses, and audit history.
+- A real rename must invalidate older teacher sessions through `auth_version`.
+- After a rename, `BOOTSTRAP_TEACHER_USERNAME` must match the new username
+  before any future bootstrap run.
 - Teacher email is visible only to the authenticated teacher on Account
   settings and should not appear in student pages, public pages, default
   research exports, agent prompts, or process-event payloads.

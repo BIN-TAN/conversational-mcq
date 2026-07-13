@@ -252,7 +252,14 @@ It does not return raw database URLs, credentials, OpenAI keys, provider respons
 
 ### Database Health
 
-`/api/health` checks a minimal `SELECT 1`. Use `npm run prisma:migrate:deploy` and `npx prisma migrate status` for migration state. The production readiness smoke runs `npx prisma validate` and invokes `npx prisma migrate status` while suppressing raw output.
+`/api/health` checks database reachability and required production schema
+readiness. If required additive account-security columns or tables are missing,
+it returns `database_schema_ready=false` and
+`migration_readiness=migration_required` without printing database URLs or raw
+errors. Use `npm run prisma:migrate:deploy` before serving traffic and
+`npx prisma migrate status` for detailed migration state. The production
+readiness smoke runs `npx prisma validate` and invokes
+`npx prisma migrate status` while suppressing raw output.
 
 ### LLM Readiness
 
@@ -357,69 +364,49 @@ Phase 31b adds readiness checks and deployment documentation for Canvas-link acc
 
 Phase 31c adds a Render staging Blueprint, Render readiness smoke, Render Dashboard runbook, and post-deployment dry-run checklist. It does not create a Render account, connect to Render, deploy the app, provision cloud resources, call provider APIs, modify runtime assessment logic, implement Canvas LTI, or claim classroom validity.
 
-## Phase 31z Teacher Recovery Readiness
+## Teacher Account Readiness
 
-Teacher/research login continues to use username plus password. Verified email is
-a recovery and notification address only; email-based login is not enabled.
-Students remain on the teacher-managed credential-reset workflow.
+Teacher/research login uses username plus password. Public teacher
+forgot-password, email-change, and email-verification flows are disabled for the
+classroom pilot; email provider variables must not affect login or production
+readiness. Students remain on the teacher-managed credential-reset workflow.
 
 Production/staging readiness requires:
 
 - `APP_BASE_URL` set to the canonical HTTPS origin.
-- Server-side email provider configuration, for example `EMAIL_PROVIDER=resend`,
-  `EMAIL_FROM`, optional `EMAIL_REPLY_TO`, and provider credentials.
-- Sender-domain SPF, DKIM, and DMARC configured outside the app.
-- Existing teacher recovery email set by the guarded operator command:
+- `npm run prisma:migrate:deploy` run before app traffic reaches Next.js.
+- Existing teacher username configured correctly for bootstrap and operator
+  workflows.
+
+To rename the deployed teacher username without changing the password or
+creating a second teacher, run from the deployed service directory, such as
+Render Shell `/app`:
 
 ```bash
-TEACHER_EMAIL_SETUP_ENABLED=true \
-TEACHER_USERNAME=<teacher username> \
-TEACHER_EMAIL=<teacher recovery email> \
-TEACHER_EMAIL_MARK_VERIFIED=true \
-npm run operator:set-teacher-email
-```
-
-The command must be run with the actual deployed teacher username. It prints only
-masked email and safe status. Do not place real recovery emails in source,
-migrations, or `.env.example`.
-
-To rename the deployed teacher username and optionally update/verify its
-recovery email, use the guarded operator account update command:
-
-```bash
-TEACHER_ACCOUNT_UPDATE_ENABLED=true \
-CURRENT_TEACHER_USERNAME=<current teacher username> \
-NEW_TEACHER_USERNAME=<new teacher username> \
-NEW_TEACHER_EMAIL=<teacher recovery email> \
-TEACHER_EMAIL_MARK_VERIFIED=true \
-CONFIRM_TEACHER_ACCOUNT_UPDATE=UPDATE_TEACHER_ACCOUNT \
-npm run operator:update-teacher-account
+TEACHER_USERNAME_RENAME_ENABLED=true \
+CURRENT_TEACHER_USERNAME=teacher_staging_01 \
+NEW_TEACHER_USERNAME=edpy507_instructor \
+CONFIRM_TEACHER_USERNAME_RENAME=RENAME_TEACHER \
+npm run operator:rename-teacher
 ```
 
 The command updates the existing teacher row. It must not create a second
 teacher, change the password hash, change role, or detach assessment ownership,
 student relationships, sessions, responses, or historical audit records. A real
-change increments `auth_version`, invalidates prior teacher sessions,
-invalidates outstanding teacher password-reset/email-change tokens, and writes
-an account-security audit event. Output is limited to safe status fields and a
-masked email. Idempotent reruns return `already_configured` without another
-`auth_version` increment or duplicate audit event.
+rename increments `auth_version`, invalidates prior teacher sessions,
+invalidates outstanding account-security tokens, and writes an account-security
+audit event. Output is limited to safe status fields. Idempotent reruns return
+`already_configured` without another `auth_version` increment or duplicate audit
+event.
 
-Fresh-database bootstrap may set `BOOTSTRAP_TEACHER_EMAIL`; the bootstrap summary
-reports only masked recovery-email status. Password-reset and email-change
-tokens are stored hashed, expire, are single-use, and increment `auth_version`
-on completion so older signed teacher sessions are rejected.
+After renaming, update `BOOTSTRAP_TEACHER_USERNAME` to the new username or do not
+rerun bootstrap. Do not manually edit the production database for this rename.
 
 No-live checks:
 
 ```bash
-npm run teacher:email-password-reset-smoke
-npm run teacher:email-change-smoke
-npm run operator:set-teacher-email-smoke
-npm run operator:update-teacher-account-smoke
+npm run operator:teacher-rename-production-smoke
+npm run operator:rename-teacher-smoke
+npm run student:production-schema-readiness-smoke
 npm run operator:production-runtime-smoke
 ```
-
-`npm run teacher:email-security-live-smoke` is skipped unless explicitly opted in
-with `RUN_LIVE_TEACHER_EMAIL_SECURITY_SMOKE=1` and a safe
-`LIVE_TEACHER_EMAIL_SMOKE_RECIPIENT`.

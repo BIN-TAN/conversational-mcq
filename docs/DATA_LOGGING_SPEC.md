@@ -739,10 +739,14 @@ imported source text or raw DOCX binary content.
 
 ## Teacher Account Security Data
 
-Phase 31z adds teacher/research recovery-email and account-security records.
-Username remains the stable login identifier. Email is recovery/notification PII
-and is not included in student projections, default research exports, LLM
-prompts, process-event payloads, or public responses.
+Phase 31z added teacher/research email and account-security records. The
+Phase 31z-reversal hotfix keeps that additive schema history but disables public
+teacher forgot-password, email-change, and email-verification flows for the
+classroom pilot. Username remains the stable login identifier. Email fields, if
+present from older operator/bootstrap paths, are retained account-security PII
+and are not included in student projections, default research exports, LLM
+prompts, process-event payloads, public responses, or the standard teacher
+Account settings UI.
 
 Reused `users` fields:
 
@@ -751,7 +755,7 @@ Reused `users` fields:
 - `credential_reset_at`
 - `auth_version`
 
-Additive teacher recovery fields:
+Retained additive account-security fields:
 
 - `email_normalized`
 - `email_verified_at`
@@ -759,26 +763,23 @@ Additive teacher recovery fields:
 - `pending_email_normalized`
 - `email_change_requested_at`
 
-`account_security_tokens` stores only token hashes for
-`teacher_password_reset` and `teacher_email_change_verification`. Token rows may
-include expiry, used/invalidated timestamps, request IP/user-agent hashes, and
-safe metadata. Raw token values, reset URLs, passwords, password hashes,
-provider credentials, session cookies, and database URLs must not be stored or
-exported.
+`account_security_tokens` stores only token hashes for historical/disabled
+teacher account-security flows and operator invalidation. Token rows may include
+expiry, used/invalidated timestamps, request IP/user-agent hashes, and safe
+metadata. Raw token values, reset URLs, passwords, password hashes, provider
+credentials, session cookies, and database URLs must not be stored or exported.
 
 `account_security_rate_limits` stores scoped hashes and hourly counters for
-forgot-password and email-change throttling. It must not store raw IP addresses
-or raw email addresses.
+retained account-security throttling infrastructure. It must not store raw IP
+addresses or raw email addresses.
 
 `account_security_events` stores safe account-security audit rows such as
-password reset requested/completed, email change requested/cancelled/completed,
-verification failure, and email delivery failure. Metadata may include masked
-email, safe provider status, provider-message-id presence, auth-version
-rotation flags, and safe error codes. It must not include raw tokens, full
-reset URLs, passwords, provider API responses, provider credentials, or
-assessment content.
+operator teacher rename, token invalidation, and historical account-security
+events. Metadata may include safe status, auth-version rotation flags, and safe
+error codes. It must not include raw tokens, full reset URLs, passwords,
+provider API responses, provider credentials, or assessment content.
 
-Password reset and verified email-change completion increment `auth_version`,
-which invalidates older signed teacher session cookies. These changes do not
-alter assessment ownership, student relationships, public IDs, session history,
-research exports, or student credential-reset behavior.
+The active teacher rename operator increments `auth_version`, which invalidates
+older signed teacher session cookies. It must not alter assessment ownership,
+student relationships, public IDs, session history, research exports, or student
+credential-reset behavior.

@@ -469,6 +469,26 @@ export async function getTeacherAccountSecurity(input: { userDbId: string; conte
   };
 }
 
+export async function getTeacherPasswordAccount(input: { userDbId: string; context?: ServiceContext }) {
+  const user = await db(input.context).user.findUnique({
+    where: { id: input.userDbId },
+    select: {
+      user_id: true,
+      role: true,
+      password_changed_at: true
+    }
+  });
+
+  if (!user || user.role !== "teacher_researcher") {
+    throw new AccountSecurityError("account_unavailable", "Account settings are unavailable.", 404);
+  }
+
+  return {
+    user_id: user.user_id,
+    password_changed_at: user.password_changed_at
+  };
+}
+
 async function requireTeacherWithPassword(input: {
   prisma: PrismaClient | Prisma.TransactionClient;
   userDbId: string;

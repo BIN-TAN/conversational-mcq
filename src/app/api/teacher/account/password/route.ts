@@ -4,7 +4,7 @@ import { requireRoleApi } from "@/lib/http";
 import { prisma } from "@/lib/db";
 import {
   changeAuthenticatedTeacherPassword,
-  getTeacherAccountSecurity,
+  getTeacherPasswordAccount,
   publicAccountSecurityError
 } from "@/lib/services/account-security/teacher-account-security";
 
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       select: { id: true, user_id: true, role: true, auth_version: true }
     });
     const publicUser = toPublicUser(refreshed);
-    const account = await getTeacherAccountSecurity({ userDbId: auth.user.user_db_id });
+    const account = await getTeacherPasswordAccount({ userDbId: auth.user.user_db_id });
     const response = NextResponse.json({
       account,
       user: toClientUser(publicUser),
@@ -44,4 +44,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: { code: safe.code, message: safe.message, details: safe.details } }, { status: safe.status });
   }
 }
-

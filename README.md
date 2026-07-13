@@ -2177,72 +2177,45 @@ including `OPENAI_MODEL_MCQ_FORMATTING` or
 `OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING`, must be configured before those paid
 checks run. Normal tests and builds do not make paid authoring calls.
 
-## Teacher Recovery Email And Password Reset
+## Teacher Account Management
 
-Teacher/research users still sign in with username plus password. Verified email
-is used only for recovery links, email-change verification, and security
-notifications; students continue to use teacher-managed credential reset.
+Teacher/research users sign in with username plus password. Public teacher
+forgot-password, email-change, and email-verification flows are disabled for the
+classroom pilot; email provider configuration is not required for login,
+readiness, or the teacher Account settings UI. Students continue to use
+teacher-managed credential reset.
 
-Configure email delivery server-side only:
-
-```bash
-EMAIL_PROVIDER=disabled # or resend
-EMAIL_FROM=
-EMAIL_REPLY_TO=
-RESEND_API_KEY=
-APP_BASE_URL=http://localhost:3000
-```
-
-Set an existing teacher recovery email with the guarded operator command:
+Render pre-deploy must apply migrations before the app serves traffic:
 
 ```bash
-TEACHER_EMAIL_SETUP_ENABLED=true \
-TEACHER_USERNAME=<teacher username> \
-TEACHER_EMAIL=<teacher recovery email> \
-TEACHER_EMAIL_MARK_VERIFIED=true \
-npm run operator:set-teacher-email
+npm run prisma:migrate:deploy
 ```
 
-The command prints only safe status and a masked email. It rejects student
-accounts and duplicate teacher recovery emails. For a fresh classroom database,
-`staging:bootstrap-pilot` also accepts `BOOTSTRAP_TEACHER_EMAIL`.
-
-To rename the deployed teacher account or set/verify its recovery email without
-creating a second teacher, use the guarded account update command:
+If the deployed teacher username needs to change, rename the existing teacher row
+from the final service directory, such as Render Shell `/app`:
 
 ```bash
-TEACHER_ACCOUNT_UPDATE_ENABLED=true \
-CURRENT_TEACHER_USERNAME=<current teacher username> \
-NEW_TEACHER_USERNAME=<new teacher username> \
-NEW_TEACHER_EMAIL=<teacher recovery email> \
-TEACHER_EMAIL_MARK_VERIFIED=true \
-CONFIRM_TEACHER_ACCOUNT_UPDATE=UPDATE_TEACHER_ACCOUNT \
-npm run operator:update-teacher-account
+TEACHER_USERNAME_RENAME_ENABLED=true \
+CURRENT_TEACHER_USERNAME=teacher_staging_01 \
+NEW_TEACHER_USERNAME=edpy507_instructor \
+CONFIRM_TEACHER_USERNAME_RENAME=RENAME_TEACHER \
+npm run operator:rename-teacher
 ```
 
-The command updates the same teacher row, preserves password hash, role,
-assessment ownership, student relationships, sessions, responses, and audit
-history, increments `auth_version` to invalidate older teacher sessions,
-invalidates outstanding teacher password-reset/email-change tokens, and prints
-only masked email/status fields. Rerunning the same command returns
-`already_configured` without another `auth_version` increment or duplicate audit
-event. After a rename, update `BOOTSTRAP_TEACHER_USERNAME` to the new username or
-do not rerun bootstrap; the production bootstrap path fails closed rather than
-creating a second teacher when the configured username does not match an
-existing teacher.
+The command updates the same teacher account, preserves the existing password,
+role, assessment ownership, student relationships, sessions, responses, and
+audit history, increments `auth_version` to invalidate older teacher sessions,
+invalidates outstanding account-security tokens, and prints only safe status
+fields. Rerunning the same command returns `already_configured` without another
+`auth_version` increment or duplicate audit event. After a rename, update
+`BOOTSTRAP_TEACHER_USERNAME` to the new username or do not rerun bootstrap; the
+bootstrap path must not create a second teacher for the same classroom.
 
 Useful checks:
 
 ```bash
-npm run teacher:email-password-reset-smoke
-npm run teacher:email-change-smoke
-npm run operator:set-teacher-email-smoke
-npm run operator:update-teacher-account-smoke
+npm run operator:teacher-rename-production-smoke
+npm run operator:rename-teacher-smoke
+npm run student:production-schema-readiness-smoke
 npm run operator:production-runtime-smoke
-npm run teacher:email-security-live-smoke
 ```
-
-`teacher:email-security-live-smoke` is skipped unless
-`RUN_LIVE_TEACHER_EMAIL_SECURITY_SMOKE=1` and
-`LIVE_TEACHER_EMAIL_SMOKE_RECIPIENT` are set. It is an email-provider smoke,
-not an OpenAI smoke.

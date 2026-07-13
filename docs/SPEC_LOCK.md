@@ -2633,48 +2633,39 @@ Phase 6A.5 must not implement:
 - `student:teacher-mcq-formatting-assistant-live-smoke` must skip by default
   unless `RUN_LIVE_TEACHER_MCQ_FORMATTING_ASSISTANT_SMOKE=1` is explicitly set.
 
-## Phase 31Z Teacher Recovery Email Lock
+## Phase 31Z-Reversal Teacher Account Lock
 
-- Teacher/research users sign in with username plus password. Email is a
-  verified recovery and notification address only. Email-based login is not part
-  of Phase 31Z.
-- Students remain on the teacher-managed credential/reset workflow. Public
-  forgot-password recovery applies only to `teacher_researcher` accounts with
-  verified recovery email.
-- The initial production teacher email must be configured by guarded operator
-  command or bootstrap environment. It must not be hardcoded in source code,
-  migrations, seed defaults, or `.env.example`.
-- Guarded operator teacher-account updates must require explicit enablement and
-  exact confirmation, update the existing teacher row rather than creating a
-  second teacher, preserve password hash, role, assessment ownership, student
+- Teacher/research users sign in with username plus password. Public
+  forgot-password recovery, teacher email-change, and teacher email-verification
+  flows are disabled for the classroom pilot. Email-based login is not part of
+  the product.
+- Students remain on the teacher-managed credential/reset workflow.
+- The additive Phase 31Z database migration remains in history. Do not drop or
+  rewrite the email/account-security columns and tables in a hotfix; instead,
+  ensure migrations run before production traffic reaches the app.
+- `/api/health` must safely report database reachability and required schema
+  readiness. Missing required additive account-security schema returns
+  `database_schema_ready=false` and `migration_readiness=migration_required`
+  without printing database URLs or raw errors.
+- Login and session auth queries must use explicit minimal Prisma selects and
+  must not depend on teacher email/recovery columns.
+- The teacher Account settings UI is a utility action for username display and
+  password change only. It must not expose recovery email, pending email,
+  public forgot-password links, or email-change controls.
+- Renaming the deployed teacher account must use the guarded production-safe
+  operator command `npm run operator:rename-teacher` from the deployed service
+  directory, such as Render Shell `/app`. The command must require
+  `TEACHER_USERNAME_RENAME_ENABLED=true` and
+  `CONFIRM_TEACHER_USERNAME_RENAME=RENAME_TEACHER`.
+- The rename operator must update the existing teacher row rather than creating
+  a second teacher, preserve password hash, role, assessment ownership, student
   relationships, sessions, responses, and historical audit records, increment
-  `auth_version` on real changes, invalidate outstanding teacher
-  password-reset/email-change tokens, and write an account-security audit event.
-  Idempotent reruns must not increment `auth_version` or duplicate the audit
-  event. Output must be safe and may include only masked email/status fields.
-- `users.email` may be reused for display email, with additive normalized,
-  verified, pending, and requested-at fields. Verified/current teacher recovery
-  emails must be unique by normalized value, and pending teacher emails should
-  reserve normalized value where practical.
-- Password-reset and email-change verification tokens must be generated with at
-  least 32 random bytes, stored only as cryptographic hashes, single-use,
-  expiring, and invalidated when replacement tokens are issued.
-- Forgot-password requests must return the same public message for known
-  teacher, unknown email, student email, unverified teacher email,
-  provider-unavailable, and rate-limited cases, except for safe generic retry
-  guidance where needed. The public response must not reveal account existence.
-- Password-reset links must be built from server-side `APP_BASE_URL`, not from
-  incoming `Host` headers.
-- Password reset must update password metadata and increment `auth_version` so
-  older signed teacher session cookies are rejected. Verified email change also
-  increments `auth_version`.
-- Account settings is a teacher utility action, not a seventh primary navigation
-  entry. The canonical teacher primary navigation remains Dashboard,
-  Assessment management, Student accounts, Student sessions, Data and outcomes,
-  and LLM status.
-- Teacher email may be shown to the authenticated teacher on Account settings.
-  It must not appear in student pages, public pages, default research exports,
-  agent prompts, process-event payloads, or browser-visible configuration.
-- Email-provider credentials must be server-side only. The default provider is
-  disabled, and live email smoke is skipped unless explicitly opted in with
-  `RUN_LIVE_TEACHER_EMAIL_SECURITY_SMOKE=1`.
+  `auth_version` on real rename, invalidate outstanding account-security
+  tokens, and write an account-security audit event. Idempotent reruns must not
+  increment `auth_version` or duplicate the audit event. Output must contain
+  safe status fields only.
+- After a production rename, `BOOTSTRAP_TEACHER_USERNAME` must match the new
+  username before any future bootstrap run, or bootstrap must not be rerun.
+- Email-provider credentials must remain server-side if present, but they are
+  deprecated for the classroom pilot and must not affect login, readiness, or
+  the standard teacher UI.

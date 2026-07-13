@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireRoleApi } from "@/lib/http";
-import { getTeacherAccountSecurity } from "@/lib/services/account-security/teacher-account-security";
+import { getTeacherPasswordAccount } from "@/lib/services/account-security/teacher-account-security";
 
 export async function GET() {
   const auth = await requireRoleApi("teacher_researcher");
@@ -8,7 +8,6 @@ export async function GET() {
     return auth.response;
   }
 
-  const account = await getTeacherAccountSecurity({ userDbId: auth.user.user_db_id });
+  const account = await getTeacherPasswordAccount({ userDbId: auth.user.user_db_id });
   return NextResponse.json({ account });
 }
-

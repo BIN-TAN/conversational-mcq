@@ -340,6 +340,10 @@
     "operator:update-teacher-account": "tsx prisma/operator-update-teacher-account.ts",
     "operator:update-teacher-account-smoke": "tsx prisma/operator-update-teacher-account-smoke-test.ts",
     "operator:production-runtime-smoke": "tsx prisma/operator-production-runtime-smoke-test.ts",
+    "operator:rename-teacher": "node prisma/operator-rename-teacher.mjs",
+    "operator:rename-teacher-smoke": "tsx prisma/operator-rename-teacher-smoke-test.ts",
+    "operator:teacher-rename-production-smoke": "tsx prisma/operator-teacher-rename-production-smoke-test.ts",
+    "student:production-schema-readiness-smoke": "tsx prisma/student-production-schema-readiness-smoke-test.ts",
     "teacher:email-security-live-smoke": "tsx prisma/teacher-email-security-live-smoke-test.ts"
   },
   "dependencies": {

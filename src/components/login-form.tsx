@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogIn } from "lucide-react";
 
@@ -94,10 +93,6 @@ export function LoginForm() {
         <LogIn className="h-4 w-4" aria-hidden="true" />
         {isSubmitting ? "Signing in" : "Sign in"}
       </button>
-
-      <Link className="text-sm font-semibold text-ualberta-green hover:text-ualberta-green-dark" href="/auth/forgot-password">
-        Forgot your teacher password?
-      </Link>
     </form>
   );
 }

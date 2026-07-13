@@ -4,7 +4,7 @@ import { TeacherLogoutButton } from "@/components/teacher-logout-button";
 import { TeacherPrimaryNav } from "@/components/teacher-primary-nav";
 import { UAlbertaLogo } from "@/components/ualberta-logo";
 import { getCurrentUser } from "@/lib/auth";
-import { getTeacherAccountSecurity } from "@/lib/services/account-security/teacher-account-security";
+import { getTeacherPasswordAccount } from "@/lib/services/account-security/teacher-account-security";
 
 export default async function TeacherAccountPage() {
   const user = await getCurrentUser();
@@ -17,7 +17,7 @@ export default async function TeacherAccountPage() {
     redirect("/student/assessment");
   }
 
-  const account = await getTeacherAccountSecurity({ userDbId: user.user_db_id });
+  const account = await getTeacherPasswordAccount({ userDbId: user.user_db_id });
 
   return (
     <main className="min-h-screen bg-panel-gray">
@@ -46,4 +46,3 @@ export default async function TeacherAccountPage() {
     </main>
   );
 }
-

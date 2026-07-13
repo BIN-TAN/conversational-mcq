@@ -318,84 +318,47 @@ npm run student:live-llm-smoke
 
 The live smoke command skips by default unless explicitly opted in. Do not run paid live calls as part of this runbook unless the pilot operator intentionally enables them.
 
-## Teacher Recovery Email Bootstrap
+## Teacher Account Rename
 
-Render migrations create the account-security tables, but recovery email setup
-is an explicit operator step. Do not hardcode recovery emails in migrations or
-source. After deployment:
+Teacher/research login is username plus password. Public teacher forgot-password,
+email-change, and email-verification flows are disabled for the classroom pilot,
+so email provider configuration is not part of normal staging readiness.
 
-1. Deploy and apply migrations.
-2. Configure the production email provider with server-side `EMAIL_PROVIDER`,
-   `EMAIL_FROM`, optional `EMAIL_REPLY_TO`, and provider credentials such as
-   `RESEND_API_KEY`.
-3. Confirm `APP_BASE_URL` is `https://conversational-mcq.onrender.com`.
-4. Confirm sender-domain SPF, DKIM, and DMARC configuration with the email
-   provider before relying on delivery.
-5. Set the existing teacher recovery email with the guarded operator command:
+Render `preDeployCommand` runs `npm run prisma:migrate:deploy`. If a Docker
+service or manual deployment is used instead of the Blueprint, run the same
+command before the app serves traffic.
+
+To rename the existing deployed teacher account without creating a second
+teacher, open Render Shell in the service directory (`/app`) and run:
 
 ```bash
-TEACHER_EMAIL_SETUP_ENABLED=true \
-TEACHER_USERNAME=teacher_staging_01 \
-TEACHER_EMAIL=btan4@ualberta.ca \
-TEACHER_EMAIL_MARK_VERIFIED=true \
-npm run operator:set-teacher-email
-```
-
-Use the actual deployed teacher username. The command prints only safe status
-and a masked email, rejects student accounts, and enforces normalized uniqueness.
-
-To rename the deployed teacher username and optionally set/verify the recovery
-email without creating a second teacher account, use the guarded account update
-command:
-
-```bash
-TEACHER_ACCOUNT_UPDATE_ENABLED=true \
+TEACHER_USERNAME_RENAME_ENABLED=true \
 CURRENT_TEACHER_USERNAME=teacher_staging_01 \
 NEW_TEACHER_USERNAME=edpy507_instructor \
-NEW_TEACHER_EMAIL=btan4@ualberta.ca \
-TEACHER_EMAIL_MARK_VERIFIED=true \
-CONFIRM_TEACHER_ACCOUNT_UPDATE=UPDATE_TEACHER_ACCOUNT \
-npm run operator:update-teacher-account
+CONFIRM_TEACHER_USERNAME_RENAME=RENAME_TEACHER \
+npm run operator:rename-teacher
 ```
 
 The command updates the existing teacher row only. It preserves the database ID,
 password hash, role, assessment ownership, student relationships, sessions,
-responses, and historical audit records. A real change increments
+responses, and historical audit records. A real rename increments
 `auth_version`, invalidates older teacher sessions, invalidates outstanding
-teacher password-reset/email-change tokens, and writes an account-security audit
-event. Output contains only safe status fields and a masked email. Rerunning the
-same command returns `already_configured` without another session invalidation
-or duplicate audit event.
+account-security tokens, and writes an account-security audit event. Output
+contains only safe status fields. Rerunning the same command returns
+`already_configured` without another session invalidation or duplicate audit
+event.
 
-After a rename, update the Render environment value
-`BOOTSTRAP_TEACHER_USERNAME` to the new username before running bootstrap again,
-or do not rerun bootstrap.
+After a rename, update the Render environment value `BOOTSTRAP_TEACHER_USERNAME`
+to the new username before running bootstrap again, or do not rerun bootstrap.
 
 Manual verification:
 
-1. Log in and open Account settings.
-2. Confirm the email is shown as verified.
-3. Log out.
-4. Use `Forgot your teacher password?`.
-5. Confirm the reset email arrives.
-6. Reset the password.
-7. Confirm the old password fails and the new password works.
-8. Confirm previous teacher sessions are invalidated.
-9. Log in and request a change to a disposable test email.
-10. Confirm the original email remains active until verification.
-11. Verify the new email.
-12. Confirm the new email becomes the recovery address.
-13. Change back to the intended institutional email if the disposable address
-    was only for testing.
-
-The default live email smoke is:
-
-```bash
-npm run teacher:email-security-live-smoke
-```
-
-It does not send email unless `RUN_LIVE_TEACHER_EMAIL_SECURITY_SMOKE=1` and
-`LIVE_TEACHER_EMAIL_SMOKE_RECIPIENT` are explicitly configured.
+1. Log in with the new username and the existing password.
+2. Confirm the old username no longer logs in.
+3. Confirm Account settings still allows password change only.
+4. Confirm previous teacher sessions are invalidated.
+5. Confirm the same teacher still owns the assessments, student relationships,
+   sessions, responses, and audit history.
 
 ## Boundaries
 
