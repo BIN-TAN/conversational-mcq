@@ -59,12 +59,14 @@ function assertDashboardSurface() {
 
   for (const expected of [
     "Assessment-level diagnostic overview",
-    "Total students",
-    "Not started",
-    "Started not completed",
-    "Completed",
-    "Average time spent",
+    "ParticipationStatusCard",
     "Participation status",
+    "Total students",
+    "Average active response time",
+    "Average elapsed response time",
+    "Median active response time",
+    "Median elapsed response time",
+    "Response-time data available for",
     "Assessment-specific understanding",
     "Engagement review signals",
     "Engagement review reasons",
@@ -72,9 +74,11 @@ function assertDashboardSurface() {
     "Candidate misconception patterns",
     "response patterns",
     "No student data are available for this assessment.",
-    "Sample size",
-    "Legend:",
-    "Chart data table",
+    "No latest-attempt responses yet.",
+    "No response data are available for this item yet.",
+    "ariaLabel",
+    "role=\"list\"",
+    "sr-only",
     "< 1 min"
   ]) {
     assertIncludes(client, expected, "Teacher assessment dashboard client");
@@ -139,12 +143,19 @@ function assertDashboardSurface() {
 
   for (const forbidden of [
     "Eligible students",
+    "SummaryCard",
+    "Average time spent",
     "Flagged for review",
     "Status distribution",
     "Completion progress",
     "Time indicator",
     "Interpretation notes",
-    "Exited or incomplete"
+    "Exited or incomplete",
+    "Sample size",
+    "Legend:",
+    "Chart data table",
+    "Category",
+    "Percent"
   ]) {
     assertExcludes(dashboard, forbidden, "Teacher dashboard");
     assertExcludes(client, forbidden, "Teacher assessment dashboard client");
@@ -305,6 +316,24 @@ async function assertDashboardAggregationService() {
           { label: "B", text: "Common distractor" },
           { label: "C", text: "Unrelated feature" },
           { label: "D", text: "Surface cue" }
+        ],
+        correct_option: "A",
+        status: "published",
+        included_in_published_set: true,
+        version: 1
+      }
+    });
+    const zeroResponseItem = await prisma.item.create({
+      data: {
+        item_public_id: `${prefix}_zero_response_item`,
+        concept_unit_db_id: conceptUnit.id,
+        item_order: 2,
+        item_stem: "Which option has no responses yet?",
+        options: [
+          { label: "A", text: "First option" },
+          { label: "B", text: "Second option" },
+          { label: "C", text: "Third option" },
+          { label: "D", text: "Fourth option" }
         ],
         correct_option: "A",
         status: "published",
@@ -607,7 +636,14 @@ async function assertDashboardAggregationService() {
       "Dashboard should expose safe teacher-only engagement review reasons."
     );
     assert(dashboard.item_diagnostics.length >= 1, "Dashboard should expose item-level diagnostics.");
-    const administeredSnapshot = dashboard.item_diagnostics.find((entry) => entry.item_snapshot_public_id.endsWith(":v1"));
+    const zeroResponseDiagnostic = dashboard.item_diagnostics.find(
+      (entry) => entry.item_public_id === zeroResponseItem.item_public_id
+    );
+    assert(zeroResponseDiagnostic, "Dashboard should expose item diagnostics for zero-response items.");
+    assert(zeroResponseDiagnostic.response_count === 0, "Zero-response item should report zero responses.");
+    const administeredSnapshot = dashboard.item_diagnostics.find(
+      (entry) => entry.item_public_id === item.item_public_id && entry.item_snapshot_public_id.endsWith(":v1")
+    );
     assert(administeredSnapshot, "Dashboard should preserve administered item snapshot diagnostics.");
     assert(
       administeredSnapshot.item_stem_preview.includes("Which option best represents"),
@@ -682,7 +718,10 @@ async function main() {
         dashboard_json_import_card_absent: true,
         dashboard_model_evaluation_card_absent: true,
         assessment_level_dashboard_present: true,
-        assessment_summary_cards_present: true,
+        top_summary_cards_absent: true,
+        participation_status_single_high_level_summary: true,
+        duplicate_chart_tables_absent: true,
+        zero_response_item_no_data_message_checked: true,
         diagnostic_charts_present: true,
         candidate_misconception_patterns_deterministic: true,
         dashboard_csv_export_api_preserved: true,

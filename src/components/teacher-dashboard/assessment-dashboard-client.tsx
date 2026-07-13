@@ -23,31 +23,10 @@ function formatMinutes(value: number | null) {
   return `${value.toFixed(value % 1 === 0 ? 0 : 1)} min`;
 }
 
-function eligibilityBasisLabel(value: TeacherAssessmentDashboard["eligibility_basis"]) {
-  if (value === "all_active_students_created_by_teacher_no_assessment_assignment_model") {
-    return "Active teacher-created students.";
-  }
-  return "Students with sessions for this assessment.";
-}
-
 function timeMetricLabel(value: TeacherAssessmentDashboard["time_indicator"]["time_metric_type"]) {
   if (value === "active_interaction_ms") return "Active interaction time";
   if (value === "elapsed_wall_clock_ms") return "Elapsed wall-clock time";
   return "Unavailable";
-}
-
-function timeSummaryNote(timeIndicator: TeacherAssessmentDashboard["time_indicator"]) {
-  const parts = [
-    timeMetricLabel(timeIndicator.time_metric_type),
-    `Median: ${formatMinutes(timeIndicator.median_minutes)}`,
-    `n=${formatCount(timeIndicator.sample_size)}`
-  ];
-
-  if (timeIndicator.unavailable_count > 0) {
-    parts.push(`Unavailable: ${formatCount(timeIndicator.unavailable_count)}`);
-  }
-
-  return parts.join(" · ");
 }
 
 function barWidth(percentage: number) {
@@ -55,28 +34,28 @@ function barWidth(percentage: number) {
   return `${Math.max(percentage, 3)}%`;
 }
 
-function SummaryCard({ label, value, note }: { label: string; value: string; note?: string }) {
-  return (
-    <article className="rounded-lg border border-border-light bg-white p-4 shadow-soft">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-ualberta-green-dark">{value}</p>
-      {note ? <p className="mt-2 text-xs leading-5 text-muted">{note}</p> : null}
-    </article>
-  );
-}
-
-function BarChart({ data, tone = "green" }: { data: ChartDatum[]; tone?: "green" | "gold" | "slate" }) {
+function BarChart({
+  data,
+  tone = "green",
+  ariaLabel
+}: {
+  data: ChartDatum[];
+  tone?: "green" | "gold" | "slate";
+  ariaLabel: string;
+}) {
   const color =
     tone === "gold"
       ? "bg-ualberta-gold"
       : tone === "slate"
         ? "bg-slate-500"
         : "bg-ualberta-green";
+  const summary = data.map((entry) => `${entry.label}: ${entry.count} (${entry.percentage}%)`).join("; ");
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" aria-label={ariaLabel} role="list">
+      <p className="sr-only">{summary}</p>
       {data.map((entry) => (
-        <div key={entry.label}>
+        <div key={entry.label} role="listitem">
           <div className="flex items-center justify-between gap-3 text-sm">
             <span className="font-medium text-ink">{entry.label}</span>
             <span className="text-muted">
@@ -88,30 +67,6 @@ function BarChart({ data, tone = "green" }: { data: ChartDatum[]; tone?: "green"
           </div>
         </div>
       ))}
-      <p className="text-xs leading-5 text-muted">
-        Legend: each bar represents the row category below; counts and percentages are shown in text.
-      </p>
-      <div className="overflow-x-auto">
-        <table className="mt-4 w-full text-left text-xs">
-          <caption className="sr-only">Chart data table</caption>
-          <thead className="text-muted">
-            <tr>
-              <th className="border-b border-line py-1 pr-3 font-semibold" scope="col">Category</th>
-              <th className="border-b border-line px-3 py-1 font-semibold" scope="col">Count</th>
-              <th className="border-b border-line px-3 py-1 font-semibold" scope="col">Percent</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((entry) => (
-              <tr key={`${entry.label}-table`}>
-                <th className="border-b border-line py-1 pr-3 font-medium text-ink" scope="row">{entry.label}</th>
-                <td className="border-b border-line px-3 py-1 text-muted">{formatCount(entry.count)}</td>
-                <td className="border-b border-line px-3 py-1 text-muted">{entry.percentage}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
@@ -132,13 +87,69 @@ function ChartCard({
   return (
     <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
       <h2 className="text-lg font-semibold text-ualberta-green-dark">{title}</h2>
-      <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
-      <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted">
-        Sample size: {formatCount(sampleSize)}
-      </p>
+      {description ? <p className="mt-2 text-sm leading-6 text-muted">{description}</p> : null}
+      <p className="sr-only">Total students: {formatCount(sampleSize)}.</p>
       <div className="mt-4">
-        <BarChart data={data} tone={tone} />
+        <BarChart data={data} tone={tone} ariaLabel={`${title}: counts and percentages`} />
       </div>
+    </section>
+  );
+}
+
+function ParticipationStatusCard({ dashboard }: { dashboard: TeacherAssessmentDashboard }) {
+  const timeIndicator = dashboard.time_indicator;
+  const timeMetric = timeIndicator.time_metric_type;
+  const averageLabel =
+    timeMetric === "active_interaction_ms"
+      ? "Average active response time"
+      : timeMetric === "elapsed_wall_clock_ms"
+        ? "Average elapsed response time"
+        : "Average response time";
+  const medianLabel =
+    timeMetric === "active_interaction_ms"
+      ? "Median active response time"
+      : timeMetric === "elapsed_wall_clock_ms"
+        ? "Median elapsed response time"
+        : "Median response time";
+  const responseTimeNote =
+    timeIndicator.sample_size > 0 && timeIndicator.sample_size < dashboard.eligible_student_count
+      ? `Response-time data available for ${formatCount(timeIndicator.sample_size)} completed attempts.`
+      : null;
+
+  return (
+    <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft xl:col-span-2">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-ualberta-green-dark">Participation status</h2>
+          <p className="sr-only">Mutually exclusive latest-attempt participation categories.</p>
+        </div>
+        <dl className="grid gap-3 text-sm sm:grid-cols-3 lg:min-w-[520px]">
+          <div>
+            <dt className="font-semibold text-muted">Total students</dt>
+            <dd className="mt-1 text-lg font-semibold text-ink">{formatCount(dashboard.eligible_student_count)}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-muted">{averageLabel}</dt>
+            <dd className="mt-1 text-lg font-semibold text-ink">{formatMinutes(timeIndicator.average_minutes)}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-muted">{medianLabel}</dt>
+            <dd className="mt-1 text-lg font-semibold text-ink">{formatMinutes(timeIndicator.median_minutes)}</dd>
+          </div>
+        </dl>
+      </div>
+      <div className="mt-5">
+        <BarChart
+          data={dashboard.status_distribution}
+          ariaLabel="Participation status: counts and percentages"
+        />
+      </div>
+      {responseTimeNote ? (
+        <p className="mt-3 text-xs leading-5 text-muted">{responseTimeNote}</p>
+      ) : null}
+      {timeIndicator.time_metric_type !== "unavailable" ? (
+        <p className="sr-only">Response-time metric: {timeMetricLabel(timeIndicator.time_metric_type)}.</p>
+      ) : null}
     </section>
   );
 }
@@ -152,27 +163,47 @@ function ItemDiagnostic({ item }: { item: ItemDiagnosticSummary }) {
           <h3 className="mt-1 max-w-3xl text-base font-semibold leading-6 text-ink">
             {item.item_stem_preview}
           </h3>
-          <p className="mt-2 text-sm text-muted">
-            {item.response_count} latest-attempt responses. Correct {item.correct_percentage}% / Incorrect {item.incorrect_percentage}%.
-          </p>
+          {item.response_count > 0 ? (
+            <p className="mt-2 text-sm text-muted">
+              {item.response_count} latest-attempt responses. Correct {item.correct_percentage}% / Incorrect {item.incorrect_percentage}%.
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-muted">No latest-attempt responses yet.</p>
+          )}
           <p className="mt-1 text-xs text-muted">
             Administered snapshot: {item.item_snapshot_public_id}. Version: {item.item_version ?? "not recorded"}.
           </p>
         </div>
       </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <div>
-          <h4 className="text-sm font-semibold text-ink">Option selection distribution</h4>
-          <div className="mt-3">
-            <BarChart data={item.option_distribution} tone="green" />
+        {item.response_count === 0 ? (
+          <div className="rounded-md border border-dashed border-line bg-slate-50 p-4 text-sm text-muted lg:col-span-2">
+            No response data are available for this item yet.
           </div>
-        </div>
-        <div>
-          <h4 className="text-sm font-semibold text-ink">Confidence distribution</h4>
-          <div className="mt-3">
-            <BarChart data={item.confidence_distribution} tone="gold" />
-          </div>
-        </div>
+        ) : (
+          <>
+            <div>
+              <h4 className="text-sm font-semibold text-ink">Option selection distribution</h4>
+              <div className="mt-3">
+                <BarChart
+                  data={item.option_distribution}
+                  tone="green"
+                  ariaLabel={`Question ${item.item_order} option selection distribution`}
+                />
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-ink">Confidence distribution</h4>
+              <div className="mt-3">
+                <BarChart
+                  data={item.confidence_distribution}
+                  tone="gold"
+                  ariaLabel={`Question ${item.item_order} confidence distribution`}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <div className="rounded-md border border-line bg-slate-50 p-3">
@@ -280,7 +311,6 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const summary = dashboard.summary_cards;
   const selectedTitle = dashboard.selected_assessment?.title ?? "No assessment selected";
   const hasAssessment = Boolean(dashboard.selected_assessment);
   const hasStudentData = dashboard.has_student_data;
@@ -354,22 +384,6 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
         </section>
       ) : (
         <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <SummaryCard
-              label="Total students"
-              value={formatCount(summary.total_students)}
-              note={eligibilityBasisLabel(dashboard.eligibility_basis)}
-            />
-            <SummaryCard label="Not started" value={formatCount(summary.not_started)} />
-            <SummaryCard label="Started not completed" value={formatCount(summary.started_not_completed)} />
-            <SummaryCard label="Completed" value={formatCount(summary.completed)} />
-            <SummaryCard
-              label="Average time spent"
-              value={formatMinutes(summary.average_time_spent_minutes)}
-              note={timeSummaryNote(dashboard.time_indicator)}
-            />
-          </section>
-
           {!hasStudentData ? (
             <section className="rounded-lg border border-dashed border-line bg-white p-6 text-sm leading-6 text-muted">
               No student data are available for this assessment.
@@ -377,12 +391,7 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
           ) : (
             <>
               <section className="grid gap-4 xl:grid-cols-3">
-                <ChartCard
-                  title="Participation status"
-                  description="Mutually exclusive latest-attempt participation categories."
-                  data={dashboard.status_distribution}
-                  sampleSize={dashboard.eligible_student_count}
-                />
+                <ParticipationStatusCard dashboard={dashboard} />
                 <ChartCard
                   title="Assessment-specific understanding"
                   description="Persisted assessment-specific understanding categories."
