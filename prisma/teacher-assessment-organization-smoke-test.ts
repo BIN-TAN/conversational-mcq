@@ -99,8 +99,11 @@ async function cleanup(prefix: string) {
 
 function assertManagementSurface() {
   const contentHome = readProjectFile("src/app/teacher/content/page.tsx");
+  const contentLayout = readProjectFile("src/app/teacher/content/layout.tsx");
   const libraryClient = readProjectFile("src/components/teacher-content/assessment-list-client.tsx");
   const organizationRoute = readProjectFile("src/app/api/teacher/assessments/organization/route.ts");
+  const legacyReorganizePage = readProjectFile("src/app/teacher/content/reorganize-assessments/page.tsx");
+  const legacyLibraryReorganizePage = readProjectFile("src/app/teacher/content/assessments/reorganize/page.tsx");
 
   assertIncludes(contentHome, "Assessment management", "Assessment management page");
   assertIncludes(contentHome, "New mini test", "Assessment management page");
@@ -113,19 +116,38 @@ function assertManagementSurface() {
   assertExcludes(contentHome, "PrimaryLink", "Assessment management page");
   assertExcludes(contentHome, "SecondaryLink", "Assessment management page");
   assertExcludes(contentHome, "actions=", "Assessment management page");
+  const primaryCardCount = (contentHome.match(/rounded-lg border border-line bg-white p-5/g) ?? []).length;
+  assert(primaryCardCount === 3, `Assessment management page should have exactly three primary cards, found ${primaryCardCount}.`);
+
+  assertIncludes(contentLayout, "Assessment management", "Content layout navigation");
+  assertIncludes(contentLayout, "Student accounts", "Content layout navigation");
+  assertIncludes(contentLayout, "Student sessions", "Content layout navigation");
+  assertIncludes(contentLayout, "Data and outcomes", "Content layout navigation");
+  assertIncludes(contentLayout, "LLM status", "Content layout navigation");
+  assertExcludes(contentLayout, "Mini tests", "Content layout navigation");
+  assertExcludes(contentLayout, 'href: "/teacher/content/assessments"', "Content layout navigation");
+
+  assertIncludes(legacyReorganizePage, 'redirect("/teacher/content/assessments")', "Legacy reorganize route");
+  assertIncludes(legacyLibraryReorganizePage, 'redirect("/teacher/content/assessments")', "Legacy library reorganize route");
 
   assertIncludes(libraryClient, "Reorder mini tests", "Assessment library");
   assertIncludes(libraryClient, "Save organization", "Assessment library");
   assertIncludes(libraryClient, "Cancel", "Assessment library");
   assertIncludes(libraryClient, "Move to folder/week/module", "Assessment library");
+  assertIncludes(libraryClient, "Move to Unfiled", "Assessment library");
   assertIncludes(libraryClient, "Move ${assessment.title} mini test", "Assessment library");
   assertIncludes(libraryClient, "Search and alternate sorting are unavailable while reordering.", "Assessment library");
+  assertIncludes(libraryClient, "Custom order", "Assessment library");
+  assertIncludes(libraryClient, "activeOrganizationAssessments", "Assessment library");
+  assertIncludes(libraryClient, "disabled={isReorderMode}", "Assessment library");
+  assertIncludes(libraryClient, "reorderMode ? (", "Assessment library");
   assertIncludes(libraryClient, "beforeunload", "Assessment library");
   assertIncludes(libraryClient, "DndContext", "Assessment library");
   assertIncludes(libraryClient, "KeyboardSensor", "Assessment library");
 
   assertIncludes(organizationRoute, "requireTeacherResearcher", "Assessment organization API");
   assertIncludes(organizationRoute, "saveAssessmentOrganization", "Assessment organization API");
+  assertIncludes(organizationRoute, "export async function POST", "Assessment organization API");
 }
 
 async function assertOrganizationPersistence() {
@@ -163,6 +185,13 @@ async function assertOrganizationPersistence() {
       folderOrder: 2,
       assessmentOrder: 0
     });
+    const archived = await createMiniTest({
+      teacherUserDbId: teacher.id,
+      title: `${prefix} archived`,
+      folderLabel: "Archive",
+      folderOrder: 3,
+      assessmentOrder: 0
+    });
     const unauthorized = await createMiniTest({
       teacherUserDbId: otherTeacher.id,
       title: `${prefix} unauthorized`,
@@ -176,7 +205,7 @@ async function assertOrganizationPersistence() {
       data: { status: "published" }
     });
     await prisma.assessment.update({
-      where: { assessment_public_id: unfiled.assessment_public_id },
+      where: { assessment_public_id: archived.assessment_public_id },
       data: { status: "archived" }
     });
 
@@ -217,7 +246,8 @@ async function assertOrganizationPersistence() {
     assert(byId.get(gamma.assessment_public_id)?.assessment_order_index === 1, "Destination order did not preserve peer order.");
     assert(byId.get(unfiled.assessment_public_id)?.folder_label === null, "Moving to Unfiled should persist null folder label.");
     assert(byId.get(gamma.assessment_public_id)?.status === "published", "Published status changed during organization save.");
-    assert(byId.get(unfiled.assessment_public_id)?.status === "archived", "Archived status changed during organization save.");
+    assert(byId.get(archived.assessment_public_id)?.status === "archived", "Archived status changed during organization save.");
+    assert(byId.get(archived.assessment_public_id)?.folder_label === "Archive", "Archived organization metadata changed when omitted from active reorder.");
     assert(
       saved.organization_revision !== initialRevision,
       "Successful organization save should return a new revision."

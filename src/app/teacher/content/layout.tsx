@@ -6,7 +6,9 @@ const links = [
   { href: "/teacher/dashboard", label: "Dashboard" },
   { href: "/teacher/content", label: "Assessment management" },
   { href: "/teacher/students", label: "Student accounts" },
-  { href: "/teacher/content/assessments", label: "Mini tests" }
+  { href: "/teacher/sessions", label: "Student sessions" },
+  { href: "/teacher/data", label: "Data and outcomes" },
+  { href: "/teacher/system/llm", label: "LLM status" }
 ];
 
 export default async function TeacherContentLayout({

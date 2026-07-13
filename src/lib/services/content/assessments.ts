@@ -222,6 +222,11 @@ export async function saveAssessmentOrganization(input: {
       const knownByPublicId = new Map(
         assessments.map((assessment) => [assessment.assessment_public_id, assessment])
       );
+      const requiredByPublicId = new Map(
+        assessments
+          .filter((assessment) => assessment.status !== "archived")
+          .map((assessment) => [assessment.assessment_public_id, assessment])
+      );
       const seenAssessmentIds = new Set<string>();
       const seenFolderLabels = new Set<string>();
       const updates: Array<{
@@ -320,14 +325,14 @@ export async function saveAssessmentOrganization(input: {
         );
       }
 
-      const omitted = assessments
-        .map((assessment) => assessment.assessment_public_id)
-        .filter((assessmentPublicId) => !seenAssessmentIds.has(assessmentPublicId));
+      const omitted = [...requiredByPublicId.keys()].filter(
+        (assessmentPublicId) => !seenAssessmentIds.has(assessmentPublicId)
+      );
 
-      if (omitted.length > 0 || seenAssessmentIds.size !== assessments.length) {
+      if (omitted.length > 0) {
         throw new ContentServiceError(
           "validation_failed",
-          "Assessment organization must include every mini test exactly once.",
+          "Assessment organization must include every active mini test exactly once.",
           400,
           {
             issues: omitted.map((assessmentPublicId) =>

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireTeacherResearcher, contentRouteError } from "@/lib/services/content/api";
 import { saveAssessmentOrganization } from "@/lib/services/content/assessments";
 
-export async function PUT(request: Request) {
+async function saveOrganization(request: Request) {
   const auth = await requireTeacherResearcher();
 
   if (!auth.ok) {
@@ -19,4 +19,12 @@ export async function PUT(request: Request) {
   } catch (error) {
     return contentRouteError(error);
   }
+}
+
+export async function POST(request: Request) {
+  return saveOrganization(request);
+}
+
+export async function PUT(request: Request) {
+  return saveOrganization(request);
 }

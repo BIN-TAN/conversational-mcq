@@ -179,6 +179,10 @@ function organizationSignature(assessments: AssessmentSummary[]) {
   );
 }
 
+function activeOrganizationAssessments(assessments: AssessmentSummary[]) {
+  return assessments.filter((assessment) => assessment.status !== "archived");
+}
+
 function DroppableFolderSection({
   folder,
   children
@@ -313,6 +317,16 @@ function SortableAssessmentRow({
                 ))}
               </select>
             </label>
+            <Button
+              aria-label={`Move ${assessment.title} to Unfiled`}
+              className="h-9 justify-start px-3"
+              disabled={folderName(assessment) === UNFILED_FOLDER}
+              onClick={() => onMoveToFolder(assessment.assessment_public_id, UNFILED_FOLDER)}
+              type="button"
+              variant="secondary"
+            >
+              Move to Unfiled
+            </Button>
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -452,10 +466,10 @@ export function AssessmentListClient() {
   }
 
   function startReorderMode() {
-    setDraftAssessments(sortAssessments(assessments, "folder_order"));
+    setDraftAssessments(sortAssessments(activeOrganizationAssessments(assessments), "folder_order"));
     setSearchText("");
     setFolderFilter("all");
-    setStatusFilter("all");
+    setStatusFilter("active");
     setSortMode("folder_order");
     setCollapsedFolders({});
     setSuccess(null);
@@ -611,7 +625,7 @@ export function AssessmentListClient() {
         assessment_public_ids: group.assessments.map((assessment) => assessment.assessment_public_id)
       }));
       const data = await apiRequest<AssessmentListResponse>("/api/teacher/assessments/organization", {
-        method: "PUT",
+        method: "POST",
         body: JSON.stringify({
           expected_revision: organizationRevision,
           groups
@@ -643,12 +657,14 @@ export function AssessmentListClient() {
   }, [assessments]);
 
   const reorderFolderOptions = useMemo(() => {
-    const folders = new Set([...assessments.map(folderName), ...draftAssessments.map(folderName), UNFILED_FOLDER]);
-    return [...folders].sort((left, right) => {
-      if (left === UNFILED_FOLDER) return 1;
-      if (right === UNFILED_FOLDER) return -1;
-      return left.localeCompare(right);
-    });
+    const folders = [
+      ...groupAssessmentsByFolder([...activeOrganizationAssessments(assessments), ...draftAssessments]).map(
+        (group) => group.folder
+      ),
+      UNFILED_FOLDER
+    ];
+    const uniqueFolders = [...new Set(folders)].filter((folder) => folder !== UNFILED_FOLDER);
+    return [...uniqueFolders, UNFILED_FOLDER];
   }, [assessments, draftAssessments]);
 
   const filteredAssessments = useMemo(() => {
@@ -679,11 +695,14 @@ export function AssessmentListClient() {
 
   const groupedAssessments = useMemo(() => {
     const groups = groupAssessmentsByFolder(filteredAssessments);
-    if (isReorderMode && !groups.some((group) => group.folder === UNFILED_FOLDER)) {
-      return [...groups, { folder: UNFILED_FOLDER, assessments: [] }];
+    if (isReorderMode) {
+      return reorderFolderOptions.map((folder) => ({
+        folder,
+        assessments: groups.find((group) => group.folder === folder)?.assessments ?? []
+      }));
     }
     return groups;
-  }, [filteredAssessments, isReorderMode]);
+  }, [filteredAssessments, isReorderMode, reorderFolderOptions]);
 
   return (
     <div className="space-y-6">
@@ -785,7 +804,7 @@ export function AssessmentListClient() {
               onChange={(event) => setSortMode(event.target.value as SortMode)}
               value={sortMode}
             >
-              <option value="folder_order">Folder order</option>
+              <option value="folder_order">Custom order</option>
               <option value="updated_desc">Recently updated</option>
               <option value="title_asc">Title</option>
               <option value="release_asc">Release date</option>
