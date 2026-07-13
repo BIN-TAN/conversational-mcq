@@ -91,7 +91,7 @@ npm run build
 npm run start
 ```
 
-Before a classroom web pilot, deploy a Render staging URL, verify `/api/health`, run the Render and production readiness smokes, confirm Render pre-deploy ran `npm run prisma:migrate:deploy`, verify the green/gold EDPY 507 landing page, verify teacher login and dashboard logout, create or import the classroom and approved student accounts/access codes, copy the public HTTPS landing-page URL into a Canvas assignment or module item, have a student open the link from a non-development device or browser profile, sign in with the classroom ID and access code/password, complete the three-item package and activity response path, inspect teacher/research review surfaces, download all research data, run export integrity checks, and complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`.
+Before a classroom web pilot, deploy a Render staging URL, verify `/api/health`, run the Render and production readiness smokes, confirm Render pre-deploy ran `npm run prisma:migrate:deploy`, verify the green/gold EDPY 507 landing page, verify teacher login and dashboard logout, create or import the classroom and approved student accounts/access codes, copy the public HTTPS landing-page URL into a Canvas assignment or module item, have a student open the link from a non-development device or browser profile, sign in with the classroom ID and access code/password, complete the initial item package and activity response path, inspect teacher/research review surfaces, download all research data, run export integrity checks, and complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`.
 
 Never put OpenAI keys, database URLs, session secrets, cookies, or auth tokens in `NEXT_PUBLIC_` variables. Public variables may contain only harmless browser-visible configuration such as `NEXT_PUBLIC_APP_BASE_URL`.
 
@@ -339,7 +339,7 @@ Engagement evidence packet verification:
 npm run student:engagement-evidence-smoke
 ```
 
-This no-live smoke builds `engagement-evidence-packet-v1` from fixed IRT response-package and process-event evidence. It does not create a final engagement profile, does not call OpenAI, does not make academic-integrity claims, and does not render student-facing evidence. The packet includes provisional v1 threshold metadata and item/session decision traces for teacher/research inspection, including safe active timing reconstruction, focus-adjusted task timing, response-production timing, aggregate reasoning-typing bands, and ultra/extreme/rapid-warning sparse rules for extremely fast three-item packages with repeated low-information evidence. Completed items are baseline completion context, observed process events are data-quality context rather than strong engagement counterevidence, reasoning typing is supporting process context only, and substantive reasoning requires task relevance or quality evidence rather than length alone. The AI-assistance signal is limited to `none_indicated`, `likely_external_assistance_pattern`, and `insufficient_evidence`; it is behavioral context only. See `docs/ENGAGEMENT_PROFILING_DESIGN.md`.
+This no-live smoke builds `engagement-evidence-packet-v1` from fixed IRT response-package and process-event evidence. It does not create a final engagement profile, does not call OpenAI, does not make academic-integrity claims, and does not render student-facing evidence. The packet includes provisional v1 threshold metadata and item/session decision traces for teacher/research inspection, including safe active timing reconstruction, focus-adjusted task timing, response-production timing, aggregate reasoning-typing bands, and ultra/extreme/rapid-warning sparse rules for extremely fast initial item packages with repeated low-information evidence. Completed items are baseline completion context, observed process events are data-quality context rather than strong engagement counterevidence, reasoning typing is supporting process context only, and substantive reasoning requires task relevance or quality evidence rather than length alone. The AI-assistance signal is limited to `none_indicated`, `likely_external_assistance_pattern`, and `insufficient_evidence`; it is behavioral context only. See `docs/ENGAGEMENT_PROFILING_DESIGN.md`.
 
 Engagement evidence review artifact generation:
 
@@ -894,7 +894,7 @@ Manual UI workflow:
 2. Open `/teacher/content/assessments`.
 3. Create an assessment.
 4. Add a topic with a topic title, learning objective, concept description, and optional teacher-only diagnostic note.
-5. Add 3 to 4 MCQ items one by one. The guided builder collects stem, options, teacher-only correct option, item purpose, expected reasoning notes, item diagnostic notes, and distractor diagnostic notes.
+5. Add at least 3 MCQ items one by one. The guided builder collects stem, options, teacher-only correct option, item purpose, expected reasoning notes, item diagnostic notes, and distractor diagnostic notes.
 6. Preview the student view from the topic page to verify only the stem and visible option text are shown.
 7. Publish the topic and resolve any validation errors returned by the backend. Missing teacher diagnostic notes produce warnings, not student-facing feedback.
 8. Publish the assessment when allowed.
@@ -926,9 +926,9 @@ Teacher researchers define assessment titles, concept boundaries, item membershi
 
 Governance rules:
 
-- Draft concept units may contain more than 4 candidate items.
+- Draft concept units may contain more candidate items than the published included set.
 - Publishing a concept unit counts only active items marked `included_in_published_set`.
-- A published concept unit must have exactly 3 to 4 included active items.
+- A published concept unit must have at least 3 included active items. Runtime item administration uses the actual included count from the session-bound mini-test snapshot.
 - Assessments publish only after at least one concept unit is actually published.
 - Published unused assessments can explicitly return to draft before any student session starts.
 - Published concept units can explicitly return to draft when the parent assessment is draft and no student session has started.

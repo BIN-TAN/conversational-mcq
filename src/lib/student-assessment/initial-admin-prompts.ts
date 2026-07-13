@@ -28,6 +28,8 @@ export type InitialAdminPromptKind =
 export type InitialAdminPromptPacket = {
   assessment_state: ChatNativeAssessmentState;
   item_public_id: string | null;
+  item_position: number | null;
+  initial_item_count: number | null;
   item_role: "initial" | "transfer";
   required_evidence_type: InitialAdminRequiredEvidence;
   latest_student_response: string | null;
@@ -152,6 +154,8 @@ export function buildInitialAdminPrompt(input: {
   assessmentState: ChatNativeAssessmentState;
   itemPublicId?: string | null;
   itemOrder?: number | null;
+  itemPosition?: number | null;
+  initialItemTotal?: number | null;
   itemRole?: "initial" | "transfer";
   selectedOption?: string | null;
   latestStudentResponse?: string | null;
@@ -217,7 +221,13 @@ export function buildInitialAdminPrompt(input: {
     promptText = TEMPTING_REASON_PROMPTS[index] ?? TEMPTING_REASON_PROMPTS[0];
     promptVariant = `tempting_reason_${index + 1}`;
   } else if (input.kind === "package_review_prompt") {
-    promptText = "I have your three responses. You can review or edit them before continuing to feedback.";
+    const total =
+      typeof input.initialItemTotal === "number" && Number.isFinite(input.initialItemTotal) && input.initialItemTotal > 0
+        ? input.initialItemTotal
+        : null;
+    promptText = total
+      ? `I have your ${total} responses. You can review or edit them before continuing to feedback.`
+      : "I have your responses. You can review or edit them before continuing to feedback.";
     promptVariant = "package_review";
   } else if (input.kind === "edit_prompt") {
     promptText = "You can edit your latest response before continuing.";
@@ -242,6 +252,8 @@ export function buildInitialAdminPrompt(input: {
     state_packet: {
       assessment_state: input.assessmentState,
       item_public_id: input.itemPublicId ?? null,
+      item_position: input.itemPosition ?? null,
+      initial_item_count: input.initialItemTotal ?? null,
       item_role: input.itemRole ?? "initial",
       required_evidence_type: requiredEvidenceForKind(input.kind),
       latest_student_response: input.latestStudentResponse ?? null,

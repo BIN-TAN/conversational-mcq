@@ -195,9 +195,19 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
     }
   });
   const processCounts = await aggregateProcessEventsByConceptUnitSession(conceptUnitSession.id);
+  const initialItemIds = conceptUnitSession.concept_unit.items.map((item) => item.item_public_id);
+  const initialItemPositionByPublicId = new Map(
+    initialItemIds.map((itemPublicId, index) => [itemPublicId, index + 1])
+  );
+  const initialItemCount = conceptUnitSession.concept_unit.items.length;
+  const completedInitialItemCount = conceptUnitSession.item_responses.filter((response) =>
+    Boolean(response.item_submitted_at && initialItemPositionByPublicId.has(response.item.item_public_id))
+  ).length;
   const payload = {
     package_type: parsed.package_type,
     created_at: createdAt.toISOString(),
+    initial_item_count: initialItemCount,
+    completed_initial_item_count: completedInitialItemCount,
     assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
     concept_unit_session_db_id: conceptUnitSession.id,
     assessment_session: {
@@ -231,6 +241,8 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
     included_items: conceptUnitSession.concept_unit.items.map((item) => ({
       item_public_id: item.item_public_id,
       item_order: item.item_order,
+      initial_item_position: initialItemPositionByPublicId.get(item.item_public_id) ?? null,
+      initial_item_count: initialItemCount,
       item_stem: item.item_stem,
       options: item.options,
       version: item.version,
@@ -310,6 +322,8 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
         item_db_id: response.item_db_id,
         item_public_id: response.item.item_public_id,
         item_order: response.item.item_order,
+        initial_item_position: initialItemPositionByPublicId.get(response.item.item_public_id) ?? null,
+        initial_item_count: initialItemCount,
         item_role: metadata.item_role,
         cognitive_demand: metadata.cognitive_demand,
         difficulty: metadata.difficulty,
@@ -383,6 +397,8 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
     })),
     process_counts: processCounts,
     response_package_evidence: {
+      initial_item_count: initialItemCount,
+      completed_initial_item_count: completedInitialItemCount,
       item_response_count: conceptUnitSession.item_responses.length,
       completed_response_count: conceptUnitSession.item_responses.filter((response) =>
         Boolean(response.item_submitted_at)

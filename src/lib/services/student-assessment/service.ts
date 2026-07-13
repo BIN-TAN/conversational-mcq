@@ -740,17 +740,35 @@ function itemAgentMessage(
   });
 }
 
-function initialItemAgentMessage(item: Pick<Item, "item_public_id" | "item_order" | "item_stem" | "options">): string {
-  return itemAgentMessage(item, `Question ${item.item_order} of 3`);
+function initialItemMeta<T extends { id: string }>(
+  item: T | null | undefined,
+  initialItems: T[]
+): { position: number; total: number } | null {
+  if (!item) return null;
+  const index = initialItems.findIndex((initialItem) => initialItem.id === item.id);
+  if (index < 0) return null;
+  return {
+    position: index + 1,
+    total: initialItems.length
+  };
+}
+
+function initialItemAgentMessage(
+  item: Pick<Item, "item_public_id" | "item_order" | "item_stem" | "options">,
+  meta: { position: number; total: number }
+): string {
+  return itemAgentMessage(item, `Item ${meta.position} of ${meta.total}`);
 }
 
 const INITIAL_ADMIN_AGENT_NAME = "deterministic_initial_administration";
 const TRANSFER_ITEM_AGENT_NAME = "deterministic_transfer_item";
-const PACKAGE_REVIEW_PROMPT = buildInitialAdminPrompt({
-  kind: "package_review_prompt",
-  assessmentState: "PACKAGE_REVIEW"
-});
-const PACKAGE_REVIEW_MESSAGE = PACKAGE_REVIEW_PROMPT.prompt_text;
+function packageReviewPrompt(initialItemTotal?: number | null) {
+  return buildInitialAdminPrompt({
+    kind: "package_review_prompt",
+    assessmentState: "PACKAGE_REVIEW",
+    initialItemTotal
+  });
+}
 const TRANSFER_COMPLETION_MESSAGE =
   "Thanks. Your response to the additional question has been recorded.";
 
@@ -1093,7 +1111,7 @@ async function validPublishedConceptUnits(
   if (invalid.length > 0) {
     throw new StudentAssessmentServiceError(
       "assessment_has_no_valid_published_concept_unit",
-      "Published concept units must have exactly 3 to 4 included active items.",
+      "Published concept units must have at least 3 included active items.",
       409,
       { concept_units: invalid }
     );
@@ -1858,6 +1876,9 @@ export async function getStudentSessionState(input: {
       : false;
   const transferItem = transferStarted ? transferCandidate : null;
   const activeItems = transferItem ? [transferItem] : items;
+  const completedInitialItemCount = items.filter((item) =>
+    Boolean(responsesByItemId.get(item.id)?.item_submitted_at)
+  ).length;
   const completedItemCount = activeItems.filter((item) =>
     Boolean(responsesByItemId.get(item.id)?.item_submitted_at)
   ).length;
@@ -1875,6 +1896,7 @@ export async function getStudentSessionState(input: {
       ? firstMissingRepairItem ?? firstIncompleteItem ?? null
       : firstIncompleteItem ?? null;
   const currentResponse = currentItem ? responsesByItemId.get(currentItem.id) ?? null : null;
+  const currentInitialItemMeta = transferItem ? null : initialItemMeta(currentItem, items);
   const missingEvidence = responseMissingFields(currentResponse);
   const temptingOptionEvidence =
     currentItem && conceptUnitSession
@@ -2150,14 +2172,16 @@ export async function getStudentSessionState(input: {
       concept_unit_index: conceptUnitIndex >= 0 ? conceptUnitIndex + 1 : 0,
       concept_unit_count: publishedConceptUnits.length,
       completed_item_count: completedItemCount,
-      total_item_count: activeItems.length
+      total_item_count: activeItems.length,
+      completed_initial_item_count: completedInitialItemCount,
+      initial_item_count: items.length
     },
     current_concept_unit: currentConceptUnit
       ? serializeStudentConceptUnit(currentConceptUnit)
       : null,
     next_step: nextStep,
     current_item: currentItem
-      ? serializeStudentSafeItem(currentItem, currentResponse, currentTemptingOptionEvidence)
+      ? serializeStudentSafeItem(currentItem, currentResponse, currentTemptingOptionEvidence, currentInitialItemMeta)
       : null,
     missing_evidence: nextStep === "missing_evidence_repair" ? missingEvidence : [],
     can_exit: session.status !== "completed",
@@ -2322,16 +2346,23 @@ export async function startConceptUnitInitialAdministration(input: {
     event_type: "item_presented",
     event_category: "initial_administration",
     event_source: "backend",
-    payload: { item_public_id: includedItems[0]?.item_public_id },
+    payload: {
+      item_public_id: includedItems[0]?.item_public_id,
+      item_position: includedItems[0] ? 1 : null,
+      initial_item_count: includedItems.length
+    },
     occurred_at: now
   });
   if (includedItems[0]) {
+    const firstItemMeta = { position: 1, total: includedItems.length };
     const itemPrompt = buildInitialAdminPrompt({
       kind: "answer_prompt",
       assessmentState: "AWAIT_ANSWER",
       itemPublicId: includedItems[0].item_public_id,
       itemOrder: includedItems[0].item_order,
-      itemRole: "initial"
+      itemRole: "initial",
+      itemPosition: firstItemMeta.position,
+      initialItemTotal: firstItemMeta.total
     });
     await logInitialAgentPrompt({
       session_db_id: session.id,
@@ -2339,10 +2370,12 @@ export async function startConceptUnitInitialAdministration(input: {
       item_db_id: includedItems[0].id,
       phase: "initial_item_administration",
       prompt_type: "item_presented",
-      message_text: initialItemAgentMessage(includedItems[0]),
+      message_text: initialItemAgentMessage(includedItems[0], firstItemMeta),
       structured_payload: {
         item_public_id: includedItems[0].item_public_id,
         item_order: includedItems[0].item_order,
+        item_position: firstItemMeta.position,
+        initial_item_count: firstItemMeta.total,
         ...promptAuditPayload(itemPrompt)
       },
       occurred_at: now
@@ -3154,11 +3187,27 @@ export async function recordReasoning(input: {
         priorRejectedAttempts > 0 && markUnknownChoiceRequested(data.reasoning_text)
           ? unknownEvidenceText(qualityStage)
           : data.reasoning_text;
+      const contextInitialItems = context.isTransferItem
+        ? []
+        : await prisma.item.findMany({
+            where: {
+              concept_unit_db_id: context.item.concept_unit_db_id,
+              status: "published",
+              included_in_published_set: true
+            },
+            orderBy: [{ item_order: "asc" }, { created_at: "asc" }],
+            select: { id: true }
+          });
+      const contextInitialItemMeta = context.isTransferItem
+        ? null
+        : initialItemMeta(context.item, contextInitialItems);
       const tutorResult = await runItemAdministrationTutor({
         state_packet: {
           assessment_state: context.isTransferItem ? "TRANSFER_ITEM" : "AWAIT_REASON",
           item_public_id: context.item.item_public_id,
           item_order: context.item.item_order,
+          initial_item_position: contextInitialItemMeta?.position ?? null,
+          initial_item_count: contextInitialItemMeta?.total ?? null,
           item_role: context.isTransferItem ? "transfer" : "initial",
           required_evidence_type: "reasoning",
           selected_option: response.selected_option,
@@ -3629,6 +3678,8 @@ export async function recordTemptingOption(input: {
             assessment_state: state.assessment_state,
             item_public_id: context.item.item_public_id,
             item_order: context.item.item_order,
+            initial_item_position: context.isTransferItem ? null : state.current_item?.initial_item_position ?? null,
+            initial_item_count: context.isTransferItem ? null : state.progress.initial_item_count,
             item_role: context.isTransferItem ? "transfer" : "initial",
             required_evidence_type: "tempting_reason",
             selected_option: temptingOption,
@@ -3832,7 +3883,12 @@ export async function recordTemptingOption(input: {
           event_source: "backend",
           payload: {
             item_public_id: context.item.item_public_id,
-            item_context: context.isTransferItem ? "transfer" : "initial"
+            item_context: context.isTransferItem ? "transfer" : "initial",
+            item_position: context.isTransferItem ? null : state.current_item?.initial_item_position ?? null,
+            initial_item_count: context.isTransferItem ? null : state.progress.initial_item_count,
+            completed_initial_item_count: context.isTransferItem
+              ? null
+              : Math.min(state.progress.completed_initial_item_count + 1, state.progress.initial_item_count)
           },
           occurred_at: now
         });
@@ -3845,7 +3901,12 @@ export async function recordTemptingOption(input: {
           event_source: "backend",
           payload: {
             item_public_id: context.item.item_public_id,
-            item_context: context.isTransferItem ? "transfer" : "initial"
+            item_context: context.isTransferItem ? "transfer" : "initial",
+            item_position: context.isTransferItem ? null : state.current_item?.initial_item_position ?? null,
+            initial_item_count: context.isTransferItem ? null : state.progress.initial_item_count,
+            completed_initial_item_count: context.isTransferItem
+              ? null
+              : Math.min(state.progress.completed_initial_item_count + 1, state.progress.initial_item_count)
           },
           occurred_at: now
         });
@@ -3919,12 +3980,18 @@ export async function recordTemptingOption(input: {
         });
 
         if (nextItem) {
+          const nextItemMeta = {
+            position: nextState.current_item.initial_item_position ?? nextItem.item_order,
+            total: nextState.current_item.initial_item_total ?? nextState.progress.initial_item_count
+          };
           const nextItemPrompt = buildInitialAdminPrompt({
             kind: "answer_prompt",
             assessmentState: "AWAIT_ANSWER",
             itemPublicId: nextItem.item_public_id,
             itemOrder: nextItem.item_order,
-            itemRole: "initial"
+            itemRole: "initial",
+            itemPosition: nextItemMeta.position,
+            initialItemTotal: nextItemMeta.total
           });
           await logProcessEvent({
             assessment_session_db_id: context.session.id,
@@ -3933,7 +4000,11 @@ export async function recordTemptingOption(input: {
             event_type: "item_presented",
             event_category: "initial_administration",
             event_source: "backend",
-            payload: { item_public_id: nextItem.item_public_id }
+            payload: {
+              item_public_id: nextItem.item_public_id,
+              item_position: nextItemMeta.position,
+              initial_item_count: nextItemMeta.total
+            }
           });
           await logInitialAgentPrompt({
             session_db_id: context.session.id,
@@ -3941,10 +4012,12 @@ export async function recordTemptingOption(input: {
             item_db_id: nextItem.id,
             phase: context.session.current_phase,
             prompt_type: "item_presented",
-            message_text: initialItemAgentMessage(nextItem),
+            message_text: initialItemAgentMessage(nextItem, nextItemMeta),
             structured_payload: {
               item_public_id: nextItem.item_public_id,
               item_order: nextItem.item_order,
+              item_position: nextItemMeta.position,
+              initial_item_count: nextItemMeta.total,
               ...promptAuditPayload(nextItemPrompt)
             }
           });
@@ -3975,6 +4048,7 @@ export async function recordTemptingOption(input: {
           agent_name: context.isTransferItem ? TRANSFER_ITEM_AGENT_NAME : INITIAL_ADMIN_AGENT_NAME
         });
       } else if (!context.isTransferItem && itemComplete && nextState.assessment_state === "PACKAGE_REVIEW") {
+        const reviewPrompt = packageReviewPrompt(nextState.progress.initial_item_count);
         await logProcessEvent({
           assessment_session_db_id: context.session.id,
           concept_unit_session_db_id: context.conceptUnitSession.id,
@@ -3982,7 +4056,9 @@ export async function recordTemptingOption(input: {
           event_category: "initial_administration",
           event_source: "backend",
           payload: {
-            concept_unit_public_id: nextState.current_concept_unit?.concept_unit_public_id ?? null
+            concept_unit_public_id: nextState.current_concept_unit?.concept_unit_public_id ?? null,
+            completed_initial_item_count: nextState.progress.completed_initial_item_count,
+            initial_item_count: nextState.progress.initial_item_count
           }
         });
         await logInitialAgentPrompt({
@@ -3990,10 +4066,12 @@ export async function recordTemptingOption(input: {
           concept_unit_session_db_id: context.conceptUnitSession.id,
           phase: context.session.current_phase,
           prompt_type: "package_review",
-          message_text: PACKAGE_REVIEW_MESSAGE,
+          message_text: reviewPrompt.prompt_text,
           structured_payload: {
             concept_unit_public_id: nextState.current_concept_unit?.concept_unit_public_id ?? null,
-            ...promptAuditPayload(PACKAGE_REVIEW_PROMPT)
+            completed_initial_item_count: nextState.progress.completed_initial_item_count,
+            initial_item_count: nextState.progress.initial_item_count,
+            ...promptAuditPayload(reviewPrompt)
           }
         });
       }
@@ -4754,13 +4832,15 @@ export async function submitItemResponse(input: {
       await logProcessEvent({
         assessment_session_db_id: context.session.id,
         concept_unit_session_db_id: context.conceptUnitSession.id,
-        item_db_id: context.item.id,
-        event_type: "item_submitted",
-        event_category: "initial_administration",
-        event_source: "backend",
-        payload: { item_public_id: context.item.item_public_id },
-        occurred_at: now
-      });
+          item_db_id: context.item.id,
+          event_type: "item_submitted",
+          event_category: "initial_administration",
+          event_source: "backend",
+          payload: {
+            item_public_id: context.item.item_public_id
+          },
+          occurred_at: now
+        });
 
       const state = await getStudentSessionState({
         student_user_db_id: input.student_user_db_id,
@@ -4781,7 +4861,11 @@ export async function submitItemResponse(input: {
             event_type: "item_presented",
             event_category: "initial_administration",
             event_source: "backend",
-            payload: { item_public_id: nextItem.item_public_id }
+            payload: {
+              item_public_id: nextItem.item_public_id,
+              item_position: state.current_item.initial_item_position,
+              initial_item_count: state.progress.initial_item_count
+            }
           });
         }
       }
@@ -5242,7 +5326,7 @@ export async function getStudentReviewResponses(input: {
         : null;
 
       return {
-        ...serializeStudentSafeItem(item, response),
+        ...serializeStudentSafeItem(item, response, null, initialItemMeta(item, items)),
         missing_fields: responseMissingFields(response),
         can_edit: !locked,
         is_current: currentState.current_item?.item_public_id === item.item_public_id,

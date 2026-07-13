@@ -73,6 +73,8 @@ function safeOptions(value: unknown): SafeOptions {
 export type StudentSafeItem = {
   item_public_id: string;
   item_order: number;
+  initial_item_position: number | null;
+  initial_item_total: number | null;
   item_stem: string;
   options: SafeOptions;
   media_assets: StudentSafeMediaAsset[];
@@ -148,11 +150,17 @@ export function serializeStudentSafeItem(
     no_tempting_option: boolean;
     tempting_option: string | null;
     tempting_option_reason: string | null;
+  } | null,
+  initialItemMeta?: {
+    position: number;
+    total: number;
   } | null
 ): StudentSafeItem {
   return {
     item_public_id: item.item_public_id,
     item_order: item.item_order,
+    initial_item_position: initialItemMeta?.position ?? null,
+    initial_item_total: initialItemMeta?.total ?? null,
     item_stem: item.item_stem,
     options: safeOptions(item.options),
     media_assets: item.media_assets?.map(serializeStudentSafeMediaAsset) ?? [],

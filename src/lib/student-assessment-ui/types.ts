@@ -34,6 +34,8 @@ export type StudentSafeMediaAsset = z.infer<typeof StudentSafeMediaAssetSchema>;
 export const StudentSafeItemSchema = z.object({
   item_public_id: z.string(),
   item_order: z.number(),
+  initial_item_position: z.number().nullable(),
+  initial_item_total: z.number().nullable(),
   item_stem: z.string(),
   options: z.array(StudentSafeOptionSchema),
   media_assets: z.array(StudentSafeMediaAssetSchema).default([]),
@@ -114,7 +116,9 @@ export const StudentSessionStateSchema = z.object({
     concept_unit_index: z.number(),
     concept_unit_count: z.number(),
     completed_item_count: z.number(),
-    total_item_count: z.number()
+    total_item_count: z.number(),
+    completed_initial_item_count: z.number(),
+    initial_item_count: z.number()
   }),
   current_concept_unit: StudentConceptUnitSchema.nullable(),
   next_step: z.enum([

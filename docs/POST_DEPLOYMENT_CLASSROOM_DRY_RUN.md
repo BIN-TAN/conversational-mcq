@@ -15,6 +15,7 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
 
 3. Teacher login:
    - Expected: approved teacher/research account can sign in, see the green/gold dashboard shell, use Log out, and return to the public landing page.
+   - Expected: the assessment dashboard shows the simplified assessment-level cards: Total students, Not started, Started not completed, Completed, and Average time spent. It should use one Participation status chart instead of duplicate status/progress charts.
 
 4. Student login:
    - Expected: approved test student can sign in with classroom ID and temporary password/access code or a student-changed password.
@@ -28,7 +29,7 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
     - Expected: deactivate/reactivate remains reversible. Irreversible deletion is available only after a preview and exact typed `student_id` plus `DELETE`; use it only for approved staging/test cleanup or approved withdrawal workflows. The deletion warning must state that previously downloaded exports are outside this system and cannot be removed here.
 
 5. Complete a session:
-   - Expected: the student can start the fixed IRT MVP, complete the three protected initial items, review the package, and enter the activity path.
+   - Expected: the student can start the fixed IRT MVP, complete the protected initial item package, review the package, and enter the activity path. Student-facing progress should say `Item X of N` using the actual mini-test item count.
 
 6. Submit an activity response:
    - Expected: activity response is accepted or safely rejected with student-safe wording. The UI must not reveal internal provider, validator, schema, answer-key, or metadata details.

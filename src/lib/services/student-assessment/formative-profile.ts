@@ -145,7 +145,7 @@ const CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_VERSION = "chat-native-formative-acti
 const CHAT_NATIVE_PROFILE_SCHEMA_VERSION = "chat-native-formative-profile-output-v1";
 const CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION = "chat-native-formative-activity-evaluation-output-v1";
 const CHAT_NATIVE_PROFILE_INSTRUCTIONS = `
-You are supporting a chat-native formative MCQ assessment after a protected three-item initial package.
+You are supporting a chat-native formative MCQ assessment after a protected initial item package.
 
 Use the response package to produce exactly one short structured formative profile and one matched formative activity.
 The application owns state transitions and persistence.
@@ -1217,7 +1217,7 @@ function concernSentence(concern: DeferredStudentConcern | undefined) {
     return "You also signaled uncertainty earlier, so the next step is meant to make the key distinction easier to explain.";
   }
 
-  return `You also raised a question about ${concern.safe_summary}, and we can address that now that the three responses are complete.`;
+  return `You also raised a question about ${concern.safe_summary}, and we can address that now that the initial responses are complete.`;
 }
 
 function studentFacingPostPackageSummary(
@@ -1226,9 +1226,9 @@ function studentFacingPostPackageSummary(
 ) {
   const concern = deferredConcerns[0];
   const openings = [
-    "I have enough from your three responses to choose a focused next step.",
-    "Your three responses give us a useful starting point for feedback.",
-    "Now that the first three questions are complete, we can work on the main idea that needs attention."
+    "I have enough from your initial responses to choose a focused next step.",
+    "Your initial responses give us a useful starting point for feedback.",
+    "Now that the initial questions are complete, we can work on the main idea that needs attention."
   ];
   const pattern = compactStudentFacingPhrase(output.student_facing_pattern_statement, 220);
   const mainIssue = compactStudentFacingPhrase(output.main_issue, 180);

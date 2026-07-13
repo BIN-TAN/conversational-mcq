@@ -40,7 +40,7 @@ const validContentQuestionOutput: ItemAdministrationTutorOutput = {
   should_store_deferred_concern: true,
   deferred_concern_summary: "Asked what theta means during item administration.",
   student_facing_message:
-    "I can explain that after the three-question set. For now, give your best reason, or say 'I don't know the reason yet.'",
+    "I can explain that after the initial question set. For now, give your best reason, or say 'I don't know the reason yet.'",
   next_expected_action: "defer_content_question"
 };
 
@@ -51,7 +51,7 @@ const canonicalizedContentQuestionOutput: ItemAdministrationTutorOutput = {
   should_store_deferred_concern: true,
   deferred_concern_summary: "Asked what theta means during item administration.",
   student_facing_message:
-    "I can explain that after the three-question set. For now, give your best reason, or say 'I don't know the reason yet.'",
+    "I can explain that after the initial question set. For now, give your best reason, or say 'I don't know the reason yet.'",
   next_expected_action: "defer_content_question"
 };
 

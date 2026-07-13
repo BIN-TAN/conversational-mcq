@@ -116,7 +116,7 @@ Readiness is a local engineering and workflow check. It does not establish learn
 2. Run `npm run llm:readiness`.
 3. Log in as teacher and confirm classroom/student accounts.
 4. Log in as student.
-5. Complete the three-item package.
+5. Complete the initial item package.
 6. Enter the activity phase.
 7. Submit an activity response.
 8. Use continue, choose another, or move on.
@@ -152,7 +152,7 @@ Before using a public URL with students:
 14. Add the URL to a Canvas assignment page or Canvas module item.
 15. Test the link from a non-development student device or browser profile.
 16. Student signs in with classroom ID and temporary password/access code or a student-changed password inside Conversational MCQ.
-17. Student completes the three-item package.
+17. Student completes the initial item package.
 18. Student completes one activity response path.
 19. Teacher opens session detail.
 20. Teacher reviews readable transcript, structured event log, process events, and session evidence audit.
@@ -222,7 +222,7 @@ The item-authoring workflow is continuous: `Add MCQ item` can save and open a
 fresh blank item form for the same mini test, save and return to the mini-test
 detail page, or cancel back to the parent mini test with an unsaved-changes
 warning. Item order is assigned automatically when left blank. The detail page
-shows the current count against the three-item structural minimum and includes
+shows the current count against the at-least-three-item structural minimum and includes
 top and bottom add-item actions plus separate item Edit, Teacher preview, and
 Student preview links.
 

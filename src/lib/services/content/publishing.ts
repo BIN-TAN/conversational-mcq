@@ -161,7 +161,7 @@ export async function validateConceptUnitPublishable(input: {
       validationIssue(
         "items",
         "concept_unit_item_count_invalid",
-        "A publishable concept unit must have exactly 3 to 4 included active items."
+        "A publishable concept unit must have at least 3 included active items."
       )
     );
   }
@@ -206,7 +206,7 @@ export async function publishConceptUnit(input: {
   ) {
     throw new ContentServiceError(
       "concept_unit_item_count_invalid",
-      "A published concept unit must contain exactly 3 to 4 included active items.",
+      "A published concept unit must contain at least 3 included active items.",
       422,
       { validation }
     );

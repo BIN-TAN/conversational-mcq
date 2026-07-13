@@ -196,7 +196,7 @@ Likely current support:
 
 ## Response Packages
 
-After the first three-item package, construct a response package from:
+After the initial item package, construct a response package from:
 
 - item response data;
 - answer changes;
@@ -242,7 +242,7 @@ It uses existing tables before proposing schema changes:
 - `item_responses` for selected answers, reasoning presence, confidence, timing bands, and revision counts.
 - `conversation_turns` for transcript-turn counts and tempting-option evidence references.
 - `process_events` for event-type counts, timestamps, focus/visibility availability, paste-summary availability, typing-summary availability, pause/inactivity availability, and item/session scoping.
-- `response_packages` for the package-level evidence object after the initial three-item package.
+- `response_packages` for the package-level evidence object after the initial item package.
 - `activity_runtime_attempts`, `activity_misconception_evidence_records`, and `post_activity_diagnostic_snapshots` for post-activity runtime and diagnostic-update completeness.
 - `agent_calls` for provider/audit metadata presence, token-usage presence, call statuses, and prompt-hash inventory.
 

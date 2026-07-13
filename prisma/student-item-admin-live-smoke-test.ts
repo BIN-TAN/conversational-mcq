@@ -417,7 +417,7 @@ async function main() {
     });
     assert(contentCall.output.should_advance === false, "Content-question output must not advance.");
     assert(
-      /after the three-question set/i.test(contentCall.output.student_facing_message),
+      /after the initial question set/i.test(contentCall.output.student_facing_message),
       "Content-question output should defer explanation."
     );
 

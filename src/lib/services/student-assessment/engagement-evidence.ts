@@ -1397,7 +1397,7 @@ export function summarizeSessionEngagement(
   const sessionRules = [
     ruleTrace({
       rule_id: "initial_package_ultra_rapid_sparse",
-      rule_label: "Initial three-item package active response time was ultra rapid with sparse evidence",
+      rule_label: "Initial item package active response time was ultra rapid with sparse evidence",
       matched: packageUltraRapidRuleMatched,
       signal_types: [
         "initial_package_active_duration",
@@ -1433,7 +1433,7 @@ export function summarizeSessionEngagement(
     }),
     ruleTrace({
       rule_id: "initial_package_extreme_rapid_sparse",
-      rule_label: "Initial three-item package active response time was extreme rapid with sparse evidence",
+      rule_label: "Initial item package active response time was extreme rapid with sparse evidence",
       matched: packageExtremeRapidRuleMatched,
       signal_types: [
         "initial_package_active_duration",
@@ -1469,7 +1469,7 @@ export function summarizeSessionEngagement(
     }),
     ruleTrace({
       rule_id: "initial_package_rapid_warning_sparse",
-      rule_label: "Initial three-item package active response time was in the rapid-warning band with weak evidence",
+      rule_label: "Initial item package active response time was in the rapid-warning band with weak evidence",
       matched: packageRapidWarningRuleMatched,
       signal_types: [
         "initial_package_active_duration",

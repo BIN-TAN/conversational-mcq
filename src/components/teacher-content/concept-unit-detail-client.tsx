@@ -691,7 +691,7 @@ export function ConceptUnitDetailClient({
                 <div>
                   <h2 className="text-xl font-semibold text-ink">Items</h2>
                   <p className="mt-1 text-sm text-muted">
-                    Candidate items: {conceptUnit.candidate_item_count ?? conceptUnit.items.length}. Included active items: {includedActiveItemCount}. Publish requires 3 to 4 included active items.
+                    Candidate items: {conceptUnit.candidate_item_count ?? conceptUnit.items.length}. Included active items: {includedActiveItemCount}. Publish requires at least 3 included active items.
                   </p>
                 </div>
                 {isConceptUnitEditable ? (
@@ -805,7 +805,7 @@ export function ConceptUnitDetailClient({
                 </div>
                 <div>
                   <dt className="text-muted">Included active items</dt>
-                  <dd className="font-medium text-ink">{includedActiveItemCount} of 3 to 4 required</dd>
+                  <dd className="font-medium text-ink">{includedActiveItemCount} included; at least 3 required</dd>
                 </div>
                 <div>
                   <dt className="text-muted">Candidate items</dt>

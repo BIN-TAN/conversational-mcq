@@ -59,27 +59,22 @@ function assertDashboardSurface() {
 
   for (const expected of [
     "Assessment-level diagnostic overview",
-    "Eligible students",
+    "Total students",
     "Not started",
-    "In progress",
+    "Started not completed",
     "Completed",
-    "Flagged for review",
     "Average time spent",
-    "Status distribution",
-    "Completion progress",
+    "Participation status",
     "Assessment-specific understanding",
     "Engagement review signals",
     "Engagement review reasons",
     "Item-level diagnostic view",
     "Candidate misconception patterns",
-    "diagnostic signals",
     "response patterns",
-    "does not claim stable learner traits",
     "No student data are available for this assessment.",
     "Sample size",
     "Legend:",
     "Chart data table",
-    "Overlapping review indicator",
     "< 1 min"
   ]) {
     assertIncludes(client, expected, "Teacher assessment dashboard client");
@@ -98,6 +93,8 @@ function assertDashboardSurface() {
     "assessment_specific_understanding",
     "engagement_review_signals",
     "engagement_review_reason",
+    "participation_status",
+    "detailed_status_distribution",
     "No engagement concern flagged",
     "Flagged for engagement review",
     "Insufficient engagement evidence",
@@ -138,6 +135,19 @@ function assertDashboardSurface() {
     assertExcludes(dashboard, forbidden, "Teacher dashboard");
     assertExcludes(client, forbidden, "Teacher assessment dashboard client");
     assertExcludes(service, forbidden, "Teacher assessment dashboard service");
+  }
+
+  for (const forbidden of [
+    "Eligible students",
+    "Flagged for review",
+    "Status distribution",
+    "Completion progress",
+    "Time indicator",
+    "Interpretation notes",
+    "Exited or incomplete"
+  ]) {
+    assertExcludes(dashboard, forbidden, "Teacher dashboard");
+    assertExcludes(client, forbidden, "Teacher assessment dashboard client");
   }
 }
 
@@ -546,6 +556,10 @@ async function assertDashboardAggregationService() {
     assert(dashboard.attempt_policy.policy === "latest_attempt_per_student", "Dashboard should expose latest-attempt policy.");
     assert(dashboard.summary_cards.not_started === 2, "Dashboard should count students with no attempts as not started.");
     assert(dashboard.summary_cards.in_progress === 3, "Dashboard should use latest attempts for in-progress status.");
+    assert(
+      dashboard.summary_cards.started_not_completed === 4,
+      "Dashboard should collapse all non-completed started attempts into started-not-completed."
+    );
     assert(dashboard.summary_cards.completed === 3, "Dashboard should count one latest completed attempt per student.");
     assert(
       dashboard.summary_cards.exited_terminal_incomplete === 1,
@@ -555,7 +569,15 @@ async function assertDashboardAggregationService() {
     assert(dashboard.summary_cards.flagged_for_review === 1, "Flagged review should be an overlapping indicator.");
     assert(
       dashboard.status_distribution.reduce((total, row) => total + row.count, 0) === dashboard.eligible_student_count,
-      "Status categories should be mutually exclusive and sum to the eligible denominator."
+      "Participation status categories should be mutually exclusive and sum to the eligible denominator."
+    );
+    assert(
+      dashboard.status_distribution.some((entry) => entry.label === "Started not completed" && entry.count === 4),
+      "Participation status should include started-not-completed attempts."
+    );
+    assert(
+      dashboard.detailed_status_distribution.some((entry) => entry.label === "Exited/terminal incomplete" && entry.count === 1),
+      "Detailed status distribution should preserve exited/incomplete evidence for export/audit."
     );
     assert(
       dashboard.time_indicator.time_metric_type === "active_interaction_ms",

@@ -25,15 +25,29 @@ function formatMinutes(value: number | null) {
 
 function eligibilityBasisLabel(value: TeacherAssessmentDashboard["eligibility_basis"]) {
   if (value === "all_active_students_created_by_teacher_no_assessment_assignment_model") {
-    return "All active student accounts created by this teacher. This system does not currently model assessment-specific assigned rosters.";
+    return "Active teacher-created students.";
   }
-  return "Students with sessions for this assessment. No active teacher-created roster was found.";
+  return "Students with sessions for this assessment.";
 }
 
 function timeMetricLabel(value: TeacherAssessmentDashboard["time_indicator"]["time_metric_type"]) {
   if (value === "active_interaction_ms") return "Active interaction time";
   if (value === "elapsed_wall_clock_ms") return "Elapsed wall-clock time";
   return "Unavailable";
+}
+
+function timeSummaryNote(timeIndicator: TeacherAssessmentDashboard["time_indicator"]) {
+  const parts = [
+    timeMetricLabel(timeIndicator.time_metric_type),
+    `Median: ${formatMinutes(timeIndicator.median_minutes)}`,
+    `n=${formatCount(timeIndicator.sample_size)}`
+  ];
+
+  if (timeIndicator.unavailable_count > 0) {
+    parts.push(`Unavailable: ${formatCount(timeIndicator.unavailable_count)}`);
+  }
+
+  return parts.join(" · ");
 }
 
 function barWidth(percentage: number) {
@@ -298,10 +312,6 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
               Assessment-level diagnostic overview
             </p>
             <h2 className="mt-2 text-2xl font-semibold text-ink">{selectedTitle}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-              This dashboard summarizes diagnostic signals for one mini test. It is not a live
-              classroom-monitoring view and does not claim stable learner traits.
-            </p>
           </div>
           <label className="block min-w-[280px] text-sm font-semibold text-ink">
             Assessment / mini test
@@ -344,26 +354,19 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
         </section>
       ) : (
         <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <SummaryCard
-              label="Eligible students"
-              value={formatCount(summary.eligible_student_count)}
+              label="Total students"
+              value={formatCount(summary.total_students)}
               note={eligibilityBasisLabel(dashboard.eligibility_basis)}
             />
             <SummaryCard label="Not started" value={formatCount(summary.not_started)} />
-            <SummaryCard label="In progress" value={formatCount(summary.in_progress)} />
+            <SummaryCard label="Started not completed" value={formatCount(summary.started_not_completed)} />
             <SummaryCard label="Completed" value={formatCount(summary.completed)} />
-            <SummaryCard label="Exited or incomplete" value={formatCount(summary.exited_terminal_incomplete)} />
-            <SummaryCard label="Unavailable" value={formatCount(summary.unavailable)} />
-            <SummaryCard
-              label="Flagged for review"
-              value={formatCount(summary.flagged_for_review)}
-              note="Overlapping review indicator; not part of the status distribution."
-            />
             <SummaryCard
               label="Average time spent"
               value={formatMinutes(summary.average_time_spent_minutes)}
-              note={timeMetricLabel(dashboard.time_indicator.time_metric_type)}
+              note={timeSummaryNote(dashboard.time_indicator)}
             />
           </section>
 
@@ -375,62 +378,26 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
             <>
               <section className="grid gap-4 xl:grid-cols-3">
                 <ChartCard
-                  title="Status distribution"
-                  description="Mutually exclusive latest-attempt status for eligible students in the selected mini test."
+                  title="Participation status"
+                  description="Mutually exclusive latest-attempt participation categories."
                   data={dashboard.status_distribution}
                   sampleSize={dashboard.eligible_student_count}
                 />
                 <ChartCard
-                  title="Completion progress"
-                  description="Started versus not-started participation for this assessment."
-                  data={dashboard.progress_chart}
+                  title="Assessment-specific understanding"
+                  description="Persisted assessment-specific understanding categories."
+                  data={dashboard.understanding_distribution}
                   sampleSize={dashboard.eligible_student_count}
-                  tone="gold"
+                  tone="green"
                 />
-            <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
-              <h2 className="text-lg font-semibold text-ualberta-green-dark">Time indicator</h2>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                {timeMetricLabel(dashboard.time_indicator.time_metric_type)} for latest completed attempts.
-              </p>
-              <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-md border border-line bg-slate-50 p-3">
-                  <dt className="text-muted">Average</dt>
-                  <dd className="mt-1 text-xl font-semibold text-ink">{formatMinutes(dashboard.time_indicator.average_minutes)}</dd>
-                </div>
-                <div className="rounded-md border border-line bg-slate-50 p-3">
-                  <dt className="text-muted">Median</dt>
-                  <dd className="mt-1 text-xl font-semibold text-ink">{formatMinutes(dashboard.time_indicator.median_minutes)}</dd>
-                </div>
-              </dl>
-              <p className="mt-3 text-xs text-muted">
-                Sample size: {dashboard.time_indicator.sample_size}. Unavailable: {dashboard.time_indicator.unavailable_count}.
-              </p>
-              {dashboard.time_indicator.limitations.length > 0 ? (
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-muted">
-                  {dashboard.time_indicator.limitations.map((limitation) => (
-                    <li key={limitation}>{limitation}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </section>
-          </section>
-
-          <section className="grid gap-4 xl:grid-cols-2">
-            <ChartCard
-              title="Assessment-specific understanding"
-              description="Current persisted profile categories for this assessment only. These are not formal psychometric estimates."
-              data={dashboard.understanding_distribution}
-              sampleSize={dashboard.eligible_student_count}
-              tone="green"
-            />
-            <ChartCard
-              title="Engagement review signals"
-              description="Persisted engagement evidence and engagement/evidence-quality review flags. Missing profile evidence is not counted as no concern."
-              data={dashboard.engagement_distribution}
-              sampleSize={dashboard.eligible_student_count}
-              tone="slate"
-            />
-          </section>
+                <ChartCard
+                  title="Engagement review signals"
+                  description="Persisted engagement evidence and missingness buckets."
+                  data={dashboard.engagement_distribution}
+                  sampleSize={dashboard.eligible_student_count}
+                  tone="slate"
+                />
+              </section>
 
           {dashboard.engagement_review_reasons.length > 0 ? (
             <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
@@ -475,15 +442,6 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
           <CandidatePatterns patterns={dashboard.candidate_misconception_patterns} />
             </>
           )}
-
-          <section className="rounded-lg border border-border-light bg-white p-5 text-sm leading-6 text-muted">
-            <h2 className="text-base font-semibold text-ink">Interpretation notes</h2>
-            <ul className="mt-2 list-disc space-y-1 pl-5">
-              {dashboard.notes.map((note) => (
-                <li key={note}>{note}</li>
-              ))}
-            </ul>
-          </section>
         </>
       )}
     </div>

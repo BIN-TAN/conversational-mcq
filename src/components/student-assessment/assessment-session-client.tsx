@@ -390,18 +390,24 @@ function AgentItemMessage({
   isTransferItem?: boolean;
   onSelect: (label: string) => void;
 }) {
+  const initialItemLabel =
+    item.initial_item_position && item.initial_item_total
+      ? `Item ${item.initial_item_position} of ${item.initial_item_total}`
+      : `Item ${item.item_order}`;
   const answerPrompt = buildInitialAdminPrompt({
     kind: "answer_prompt",
     assessmentState: isTransferItem ? "TRANSFER_ITEM" : "AWAIT_ANSWER",
     itemPublicId: item.item_public_id,
     itemOrder: item.item_order,
+    itemPosition: item.initial_item_position,
+    initialItemTotal: item.initial_item_total,
     itemRole: isTransferItem ? "transfer" : "initial"
   });
 
   return (
     <AgentMessage>
       <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-        {isTransferItem ? "Additional question" : `Question ${item.item_order} of 3`}
+        {isTransferItem ? "Additional question" : initialItemLabel}
       </p>
       <p className="mt-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-ink">{item.item_stem}</p>
       <StudentMediaList mediaAssets={item.media_assets.filter((asset) => asset.placement === "item_stem")} />
@@ -618,7 +624,8 @@ function PackageReviewMessage({
 }) {
   const reviewPrompt = buildInitialAdminPrompt({
     kind: "package_review_prompt",
-    assessmentState: "PACKAGE_REVIEW"
+    assessmentState: "PACKAGE_REVIEW",
+    initialItemTotal: review?.items.length ?? null
   });
 
   return (
@@ -636,7 +643,7 @@ function PackageReviewMessage({
                   <details className="min-w-0 flex-1 group" open={isEditing}>
                     <summary className="cursor-pointer list-none rounded-lg px-1 py-1 focus:outline-none focus:ring-2 focus:ring-accent-soft">
                       <span className="block text-xs font-semibold uppercase tracking-wide text-muted">
-                        Question {item.item_order} response
+                        Item {item.initial_item_position ?? item.item_order} response
                       </span>
                       <span className="mt-1 block text-sm leading-6 text-ink">
                         Answer: {displayAnswer(item.existing_selected_option)}
@@ -1609,10 +1616,11 @@ function activeItemPrompt(input: {
     ) : null;
 
   if (state.assessment_state === "SESSION_START") {
+    const initialItemCount = state.progress.initial_item_count;
     return (
       <AgentMessage>
         <p className="font-medium text-ink">
-          We will start with three questions. I will ask for your answer, your reason,
+          We will start with {initialItemCount} initial {initialItemCount === 1 ? "question" : "questions"}. I will ask for your answer, your reason,
           your confidence, and whether another option was tempting.
         </p>
         {state.current_concept_unit ? (

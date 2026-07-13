@@ -161,6 +161,7 @@ export type TeacherAssessmentDashboard = {
   candidate_pattern_threshold: number;
   summary_cards: AssessmentDashboardSummaryCards;
   status_distribution: ChartDatum[];
+  detailed_status_distribution: ChartDatum[];
   progress_chart: ChartDatum[];
   understanding_distribution: ChartDatum[];
   engagement_distribution: ChartDatum[];
@@ -200,6 +201,7 @@ export type AssessmentDashboardSummaryCards = {
   eligible_student_count: number;
   not_started: number;
   in_progress: number;
+  started_not_completed: number;
   completed: number;
   exited_terminal_incomplete: number;
   unavailable: number;
@@ -478,6 +480,14 @@ function dashboardStatus(session: DashboardSession | null) {
     return "In progress" as const;
   }
   return "Unavailable" as const;
+}
+
+function participationStatus(session: DashboardSession | null) {
+  if (!session) return "Not started" as const;
+  if (session.status === "completed" || session.current_phase === "session_completed") {
+    return "Completed" as const;
+  }
+  return "Started not completed" as const;
 }
 
 function confidenceLabel(value: string | null) {
@@ -807,7 +817,10 @@ function dashboardCsvRows(dashboard: TeacherAssessmentDashboard) {
   });
 
   for (const row of dashboard.status_distribution) {
-    rows.push({ row_type: "status_distribution", assessment_public_id: assessmentId, assessment_title: assessmentTitle, ...row });
+    rows.push({ row_type: "participation_status", assessment_public_id: assessmentId, assessment_title: assessmentTitle, ...row });
+  }
+  for (const row of dashboard.detailed_status_distribution) {
+    rows.push({ row_type: "detailed_status_distribution", assessment_public_id: assessmentId, assessment_title: assessmentTitle, ...row });
   }
   for (const row of dashboard.understanding_distribution) {
     rows.push({ row_type: "assessment_specific_understanding", assessment_public_id: assessmentId, assessment_title: assessmentTitle, ...row });
@@ -1036,6 +1049,7 @@ export async function getTeacherAssessmentDashboard(input: {
         eligible_student_count: 0,
         not_started: 0,
         in_progress: 0,
+        started_not_completed: 0,
         completed: 0,
         exited_terminal_incomplete: 0,
         unavailable: 0,
@@ -1043,6 +1057,7 @@ export async function getTeacherAssessmentDashboard(input: {
         average_time_spent_minutes: null
       },
       status_distribution: [],
+      detailed_status_distribution: [],
       progress_chart: [],
       understanding_distribution: [],
       engagement_distribution: [],
@@ -1103,9 +1118,11 @@ export async function getTeacherAssessmentDashboard(input: {
     (attempt) => attempt.session?.needs_review || attempt.session?.status === "needs_review"
   ).length;
   const statusValues = attempts.map((attempt) => dashboardStatus(attempt.session));
+  const participationValues = attempts.map((attempt) => participationStatus(attempt.session));
   const inProgress = statusValues.filter((status) => status === "In progress").length;
   const completed = statusValues.filter((status) => status === "Completed").length;
   const notStarted = statusValues.filter((status) => status === "Not started").length;
+  const startedNotCompleted = participationValues.filter((status) => status === "Started not completed").length;
   const exitedTerminalIncomplete = statusValues.filter((status) => status === "Exited/terminal incomplete").length;
   const unavailable = statusValues.filter((status) => status === "Unavailable").length;
   const timeIndicator = buildTimeIndicator(completedSessions);
@@ -1123,6 +1140,15 @@ export async function getTeacherAssessmentDashboard(input: {
   const items = assessment.concept_units.flatMap((conceptUnit) => conceptUnit.items);
   const responses = canonicalResponses(attempts, assessment.assessment_public_id);
   const statusDistribution = hasStudentData
+    ? chart(
+        countBy(
+          participationValues,
+          ["Not started", "Started not completed", "Completed"] as const
+        ),
+        totalStudents
+      )
+    : [];
+  const detailedStatusDistribution = hasStudentData
     ? chart(
         countBy(
           statusValues,
@@ -1168,6 +1194,7 @@ export async function getTeacherAssessmentDashboard(input: {
       eligible_student_count: totalStudents,
       not_started: notStarted,
       in_progress: inProgress,
+      started_not_completed: startedNotCompleted,
       completed,
       exited_terminal_incomplete: exitedTerminalIncomplete,
       unavailable,
@@ -1175,6 +1202,7 @@ export async function getTeacherAssessmentDashboard(input: {
       average_time_spent_minutes: timeIndicator.average_minutes
     },
     status_distribution: statusDistribution,
+    detailed_status_distribution: detailedStatusDistribution,
     progress_chart: progressChart,
     understanding_distribution: chart(
       countBy(

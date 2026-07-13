@@ -566,7 +566,7 @@ The system should maximize teacher design autonomy before classroom use while pr
 
 Teacher-defined concept boundaries remain authoritative. The system must not impose a fixed concept taxonomy, infer concepts automatically, group items automatically, rename teacher concepts, or call an LLM for content decisions in Phase 3C.
 
-Candidate items are distinct from included published items. Draft concept units may contain more than 4 candidate items. A published concept unit must contain exactly 3 to 4 active items where `items.included_in_published_set = true`. Draft or archived candidates may remain associated with the concept unit.
+Candidate items are distinct from included published items. Draft concept units may contain more candidate items than the included published set. A published concept unit must contain at least 3 active items where `items.included_in_published_set = true`. Runtime initial item administration must use the actual included item count from the session-bound mini-test snapshot. Draft or archived candidates may remain associated with the concept unit.
 
 Content lifecycle:
 
@@ -1092,7 +1092,7 @@ Phase 6A.5 must not implement:
 ## Phase 3A Content Management Rules
 
 - A concept-based item set is represented as a `concept_unit`.
-- A publishable concept unit must contain exactly 3 to 4 included active MCQ items.
+- A publishable concept unit must contain at least 3 included active MCQ items.
 - MCQ options are structured JSON with `label` and `text`; 2 to 6 options are allowed.
 - `correct_option` must match one option label.
 - Every incorrect publishable option must have a distractor rationale.
@@ -1459,7 +1459,7 @@ Phase 6A.5 must not implement:
   calibrated psychometric thresholds. Item-level and session-level traces may
   include matched rules, non-matched rules, threshold names/values, bands,
   dominant signal counts, reason codes, and limitations.
-- Engagement evidence v1 may derive initial three-item package timing from
+- Engagement evidence v1 may derive initial item package timing from
   existing item and process timestamps. The package-level thresholds are
   provisional engineering thresholds:
   `initial_package_ultra_rapid_ms=8000`,
@@ -1497,7 +1497,7 @@ Phase 6A.5 must not implement:
   counterevidence exists. Rapid-warning timing is weaker and must not
   automatically classify a session as `disengaged` without convergent weak
   engagement signals.
-- Completed three-item packages are baseline completion context, not strong
+- Completed initial item packages are baseline completion context, not strong
   engagement counterevidence. Observed process events indicate data
   availability and instrumentation context; they are not engagement
   counterevidence by themselves.
@@ -2249,7 +2249,7 @@ Phase 6A.5 must not implement:
   When `item_order` is omitted, the backend assigns the next available order
   within the mini test.
 - The mini-test detail page should show current item count against the
-  three-item structural minimum, a top `Add MCQ item` action, a bottom `Add
+  at-least-three-item structural minimum, a top `Add MCQ item` action, a bottom `Add
   another MCQ item` action, and separate item actions for Edit, Teacher preview,
   and Student preview. Structural item-count readiness must not be presented as
   evidence of pedagogical validity.

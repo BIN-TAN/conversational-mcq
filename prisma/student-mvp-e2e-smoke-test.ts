@@ -67,7 +67,7 @@ function assertInitialPackage(payload: unknown) {
 
 function assertNoEarlyCorrectnessInTranscript(turns: Array<{ message_text: string | null }>) {
   const packageReviewIndex = turns.findIndex((turn) =>
-    turn.message_text?.includes("I have your three responses")
+    /I have your \d+ responses|I have your responses/.test(turn.message_text ?? "")
   );
   const initialTurns = packageReviewIndex >= 0 ? turns.slice(0, packageReviewIndex + 1) : turns;
   const serialized = JSON.stringify(initialTurns).toLowerCase();
@@ -145,7 +145,7 @@ async function runScenario(input: {
     assertStudentVisibleTextIsSafe(packageReviewTranscript);
     assert(
       packageReviewTranscript.transcript.some((turn) =>
-        turn.message_text?.includes("I have your three responses")
+        /I have your \d+ responses|I have your responses/.test(turn.message_text ?? "")
       ),
       `${input.scenario}: missing package-level review message.`
     );

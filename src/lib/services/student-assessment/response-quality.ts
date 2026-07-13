@@ -78,7 +78,7 @@ Return only the required JSON schema.
 	Initial item rules:
 	- adequate or weak but usable reasoning may advance;
 	- too short, incomplete, off-topic, or gibberish responses should not advance;
-	- content help or answer requests before the first three-item package should be deferred;
+	- content help or answer requests before the initial item package should be deferred;
 	- edit requests should be identified without changing state.
 	- Students may reason in English, Chinese, or mixed English-Chinese. Do not classify meaningful multilingual text as gibberish solely because it is not English.
 	- If multilingual meaning is unclear, ask for clarification without requiring translation.
@@ -93,7 +93,7 @@ export const RESPONSE_QUALITY_PROMPT_HASH = createHash("sha256")
   .digest("hex");
 
 const CONTENT_DEFER_MESSAGE =
-  "I can explain the concept after the three questions. For now, choose the option that seems best, or choose E if you do not know yet.";
+  "I can explain the concept after the initial question set. For now, choose the option that seems best, or choose E if you do not know yet.";
 const FORMATIVE_REPAIR_MESSAGE =
   "I could not use that response for the activity. Please answer the current question in your own words.";
 const UNKNOWN_REASON_PATTERNS = [

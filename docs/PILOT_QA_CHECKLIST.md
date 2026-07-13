@@ -5,7 +5,7 @@ This checklist supports a small local human usability pilot of the fixed IRT cha
 ## Scope
 
 - Fixed IRT MVP item set only.
-- Chat-native student flow: initial three-item package, formative activity, targeted feedback, revision, next choice, optional transfer item, and completion.
+- Chat-native student flow: initial item package, formative activity, targeted feedback, revision, next choice, optional transfer item, and completion.
 - Operator-run local or private staging environment only.
 - Live LLM smoke is manual and opt-in only.
 - Teacher upload, additional item sets, transfer-item feedback, and public deployment are out of scope.
@@ -290,8 +290,8 @@ npm run student:live-llm-smoke:cleanup-failures
 
 ## Safety Checklist
 
-- Do not show correctness during the initial three-item package.
-- Do not show answer keys during the initial three-item package, package review, or transfer-item administration.
+- Do not show correctness during the initial item package.
+- Do not show answer keys during the initial item package, package review, or transfer-item administration.
 - Do not show distractor rationale or misconception metadata to students.
 - Do not give hints, explanations, or content help before the package is complete.
 - Procedural clarification is allowed, but content help is deferred.
@@ -381,7 +381,7 @@ Verify one completed synthetic session has expected records in:
 - `item_responses` for selected answer, reasoning, confidence, tempting-option evidence, timing, and completion state.
 - `conversation_turns` for agent prompts and student replies.
 - `process_events` for item presentation, option clicks, reasoning submission, confidence selection, tempting-option submission, package review, and package submission.
-- `response_packages` for the three-item evidence package.
+- `response_packages` for the initial item evidence package.
 - `agent_calls`, `student_profiles`, `formative_decisions`, and `followup_rounds` only where the MVP path actually invokes those layers.
 
 Teacher/research quick CSV checks:

@@ -798,7 +798,7 @@ async function main() {
       session_public_id: started.session.session_public_id
     });
     const postPackageText = postPackageTranscript.transcript.map((entry) => entry.message_text).join("\n");
-    assert(/three responses|first three questions/i.test(postPackageText), "Post-package summary missing.");
+    assert(/initial responses|initial questions/i.test(postPackageText), "Post-package summary missing.");
     assert(
       !/\bWhat you did well:|Still developing:|Reasoning detail:|Current focus:/i.test(postPackageText),
       "Post-package summary should not expose visible template headings."

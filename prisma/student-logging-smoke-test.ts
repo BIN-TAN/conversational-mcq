@@ -343,7 +343,7 @@ async function main() {
       "Deterministic initial agent prompts were not stored as conversation turns."
     );
     assert(
-      transcript.transcript.some((entry) => entry.actor === "assistant" && entry.message_text.includes("Question 1 of 3")),
+      transcript.transcript.some((entry) => entry.actor === "assistant" && entry.message_text.includes("Item 1 of 3")),
       "Student-safe transcript is missing the agent item presentation."
     );
     assert(

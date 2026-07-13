@@ -21,7 +21,7 @@ type AssessmentLike = Pick<Assessment, "assessment_public_id" | "status"> & {
 
 export const INCLUDED_ITEM_RANGE = {
   min: 3,
-  max: 4
+  max: 12
 } as const;
 
 export function serializeContentState(input: {
@@ -667,7 +667,7 @@ export async function assertAssessmentCanStartSession(input: {
   if (invalidConceptUnits.length > 0) {
     throw new ContentServiceError(
       "concept_unit_item_count_invalid",
-      "Published concept units must have exactly 3 to 4 included active items before sessions can start.",
+      "Published concept units must have at least 3 included active items before sessions can start.",
       409,
       {
         assessment_public_id: assessment.assessment_public_id,

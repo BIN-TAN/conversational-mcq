@@ -11,6 +11,8 @@ const AssessmentInterpretationContextItemSchema = z.object({
   item_public_id: z.string(),
   item_snapshot_public_id: z.string(),
   item_order: z.number().nullable(),
+  initial_item_position: z.number().nullable(),
+  initial_item_count: z.number().nullable(),
   item_role: StringOrNullSchema,
   stem: StringOrNullSchema,
   visible_options: z.unknown(),
@@ -24,6 +26,8 @@ const AssessmentInterpretationContextItemSchema = z.object({
 
 const AssessmentInterpretationContextEvidenceSchema = z.object({
   item_public_id: z.string(),
+  initial_item_position: z.number().nullable(),
+  initial_item_count: z.number().nullable(),
   selected_option: StringOrNullSchema,
   written_reasoning: StringOrNullSchema,
   confidence: StringOrNullSchema,
@@ -63,6 +67,8 @@ export const AssessmentInterpretationContextV1Schema = z.object({
   }).strict(),
   items: z.array(AssessmentInterpretationContextItemSchema),
   observed_student_evidence: z.object({
+    initial_item_count: z.number(),
+    completed_initial_item_count: z.number(),
     item_responses: z.array(AssessmentInterpretationContextEvidenceSchema),
     cross_item_evidence_summary: z.string(),
     prior_activity_evidence_summary: z.string().nullable(),
@@ -256,6 +262,8 @@ function itemFromResponsePackageEntry(entry: unknown, responseEntry?: JsonRecord
     item_public_id: itemPublicId,
     item_snapshot_public_id: snapshotId("item", itemPublicId, version, response.item_snapshot ?? item),
     item_order: numberValue(item.item_order ?? response.item_order),
+    initial_item_position: numberValue(item.initial_item_position ?? response.initial_item_position),
+    initial_item_count: numberValue(item.initial_item_count ?? response.initial_item_count),
     item_role: stringValue(item.item_role ?? response.item_role),
     stem: stringValue(item.item_stem ?? record(response.item_snapshot).item_stem),
     visible_options: item.options ?? record(response.item_snapshot).options ?? [],
@@ -277,6 +285,8 @@ function evidenceFromResponse(entry: unknown) {
 
   return {
     item_public_id: itemPublicId,
+    initial_item_position: numberValue(response.initial_item_position),
+    initial_item_count: numberValue(response.initial_item_count),
     selected_option: stringValue(response.selected_answer_final ?? response.selected_option),
     written_reasoning: stringValue(response.reasoning_text_final ?? response.reasoning_text),
     confidence: stringValue(response.confidence_final ?? response.confidence_rating),
@@ -310,6 +320,14 @@ export function buildAssessmentInterpretationContextFromResponsePackage(input: {
   const assessment = jsonPath(payload, "assessment");
   const conceptUnit = jsonPath(payload, "concept_unit");
   const responses = arrayValue(payload.item_responses).map(record);
+  const initialItemCount =
+    numberValue(payload.initial_item_count) ??
+    numberValue(record(payload.response_package_evidence).initial_item_count) ??
+    arrayValue(payload.included_items).length;
+  const completedInitialItemCount =
+    numberValue(payload.completed_initial_item_count) ??
+    numberValue(record(payload.response_package_evidence).completed_initial_item_count) ??
+    responses.filter((response) => Boolean(response.item_completed_at ?? response.item_submitted_at)).length;
   const responseByItem = new Map(
     responses
       .map((response) => [stringValue(response.item_public_id), response] as const)
@@ -361,9 +379,11 @@ export function buildAssessmentInterpretationContextFromResponsePackage(input: {
     },
     items,
     observed_student_evidence: {
+      initial_item_count: initialItemCount,
+      completed_initial_item_count: completedInitialItemCount,
       item_responses: responses.map(evidenceFromResponse),
       cross_item_evidence_summary:
-        `${responses.length} item response(s); selected options are indirect evidence and must be interpreted with reasoning, confidence, tempting-option evidence, and process context.`,
+        `${completedInitialItemCount} of ${initialItemCount} initial item response(s) complete; selected options are indirect evidence and must be interpreted with reasoning, confidence, tempting-option evidence, and process context.`,
       prior_activity_evidence_summary: input.prior_activity_evidence_summary ?? null,
       process_context: {
         safe_process_counts: payload.process_counts ?? null,
@@ -443,6 +463,8 @@ export function buildAssessmentInterpretationContextForItemAdministration(input:
       teacherGuidance
     }),
     item_order: input.item_order,
+    initial_item_position: null,
+    initial_item_count: null,
     item_role: input.item_role,
     stem: input.item_stem,
     visible_options: input.options,
@@ -494,8 +516,12 @@ export function buildAssessmentInterpretationContextForItemAdministration(input:
     },
     items: [item],
     observed_student_evidence: {
+      initial_item_count: 1,
+      completed_initial_item_count: input.written_reasoning || input.selected_option || input.confidence ? 1 : 0,
       item_responses: [{
         item_public_id: input.item_public_id,
+        initial_item_position: null,
+        initial_item_count: null,
         selected_option: input.selected_option ?? null,
         written_reasoning: input.written_reasoning ?? null,
         confidence: input.confidence ?? null,
