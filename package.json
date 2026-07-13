@@ -337,6 +337,9 @@
     "teacher:email-change-smoke": "tsx prisma/teacher-email-change-smoke-test.ts",
     "operator:set-teacher-email": "tsx prisma/operator-set-teacher-email.ts",
     "operator:set-teacher-email-smoke": "tsx prisma/operator-set-teacher-email-smoke-test.ts",
+    "operator:update-teacher-account": "tsx prisma/operator-update-teacher-account.ts",
+    "operator:update-teacher-account-smoke": "tsx prisma/operator-update-teacher-account-smoke-test.ts",
+    "operator:production-runtime-smoke": "tsx prisma/operator-production-runtime-smoke-test.ts",
     "teacher:email-security-live-smoke": "tsx prisma/teacher-email-security-live-smoke-test.ts"
   },
   "dependencies": {
@@ -355,6 +358,7 @@
     "openai": "^6.44.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "tsx": "^4.19.2",
     "xlsx": "^0.18.5",
     "zod": "^3.24.0"
   },
@@ -370,7 +374,6 @@
     "postcss": "^8.4.49",
     "prisma": "^6.9.0",
     "tailwindcss": "^3.4.17",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
 }

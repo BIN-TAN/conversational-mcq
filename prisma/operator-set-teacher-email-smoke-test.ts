@@ -14,7 +14,7 @@ const prisma = new PrismaClient();
 const execFileAsync = promisify(execFile);
 
 async function runOperator(env: Record<string, string | undefined>) {
-  return execFileAsync("npx", ["tsx", "prisma/operator-set-teacher-email.ts"], {
+  return execFileAsync("npm", ["run", "operator:set-teacher-email"], {
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -72,6 +72,10 @@ async function main() {
     );
 
     const rawEmail = `${prefix}teacher@example.test`;
+    const before = await prisma.user.findUniqueOrThrow({
+      where: { id: teacher.id },
+      select: { auth_version: true }
+    });
     const first = await runOperator({
       TEACHER_EMAIL_SETUP_ENABLED: "true",
       TEACHER_USERNAME: teacher.user_id,
@@ -88,6 +92,11 @@ async function main() {
     assert(updated.email === rawEmail, "Operator command should persist teacher recovery email.");
     assert(updated.email_normalized === rawEmail.toLocaleLowerCase("en-US"), "Operator command should persist normalized email.");
     assert(updated.email_verified_at, "Operator mark-verified flag should set email_verified_at.");
+    assert(
+      updated.auth_version === before.auth_version + 1,
+      "Operator email update should increment auth_version to invalidate old teacher sessions."
+    );
+    assert(first.stdout.includes('"session_invalidation": "auth_version_incremented"'), "Operator output should report session invalidation.");
 
     const second = await runOperator({
       TEACHER_EMAIL_SETUP_ENABLED: "true",
@@ -97,6 +106,11 @@ async function main() {
     });
     assert(second.stdout.includes('"status": "already_configured"'), "Operator rerun should be idempotent.");
     assert(!second.stdout.includes(rawEmail), "Idempotent output must not print raw email.");
+    const afterNoOp = await prisma.user.findUniqueOrThrow({
+      where: { id: teacher.id },
+      select: { auth_version: true }
+    });
+    assert(afterNoOp.auth_version === updated.auth_version, "Idempotent rerun should not increment auth_version.");
 
     await expectOperatorFailure(
       {

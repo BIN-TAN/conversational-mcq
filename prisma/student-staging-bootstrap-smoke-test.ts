@@ -85,7 +85,10 @@ async function main() {
   await cleanup(prefix);
 
   try {
-    const config = parseBootstrapPilotConfig(smokeEnv(prefix), { outputDir });
+    const config = parseBootstrapPilotConfig(smokeEnv(prefix), {
+      outputDir,
+      allowExistingTeacherAccountsForSmoke: true
+    });
     const first = await bootstrapPilotDatabase(prisma, config);
     assert(first.teacher.created, "First bootstrap run should create the smoke teacher.");
     assert(first.teacher.recovery_email_configured, "First bootstrap run should configure teacher recovery email.");

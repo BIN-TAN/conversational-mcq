@@ -224,6 +224,16 @@ Use either `BOOTSTRAP_STUDENT_COUNT` or `BOOTSTRAP_STUDENT_ROSTER_PATH`, not bot
 
 The command is idempotent, creates or reuses the first teacher, creates only missing students, ensures the fixed IRT MVP assessment is published, and writes newly generated access codes under ignored `.data/bootstrap/`. It does not print raw passwords or access codes.
 
+For Docker/Render Web Shell, the service directory is `/app`. Operator commands
+must run there directly; `/opt/render/project/src` is not the Docker runner path.
+The `tsx` package is a production dependency because production operator scripts
+are TypeScript entrypoints and must still start after `npm prune --omit=dev`.
+
+After a teacher username rename, update `BOOTSTRAP_TEACHER_USERNAME` to the
+current username or do not rerun bootstrap. If the configured bootstrap teacher
+username is absent while a teacher account already exists, the production
+bootstrap path fails closed rather than creating a second teacher account.
+
 ## Health Checks
 
 ### App Health
@@ -373,6 +383,28 @@ The command must be run with the actual deployed teacher username. It prints onl
 masked email and safe status. Do not place real recovery emails in source,
 migrations, or `.env.example`.
 
+To rename the deployed teacher username and optionally update/verify its
+recovery email, use the guarded operator account update command:
+
+```bash
+TEACHER_ACCOUNT_UPDATE_ENABLED=true \
+CURRENT_TEACHER_USERNAME=<current teacher username> \
+NEW_TEACHER_USERNAME=<new teacher username> \
+NEW_TEACHER_EMAIL=<teacher recovery email> \
+TEACHER_EMAIL_MARK_VERIFIED=true \
+CONFIRM_TEACHER_ACCOUNT_UPDATE=UPDATE_TEACHER_ACCOUNT \
+npm run operator:update-teacher-account
+```
+
+The command updates the existing teacher row. It must not create a second
+teacher, change the password hash, change role, or detach assessment ownership,
+student relationships, sessions, responses, or historical audit records. A real
+change increments `auth_version`, invalidates prior teacher sessions,
+invalidates outstanding teacher password-reset/email-change tokens, and writes
+an account-security audit event. Output is limited to safe status fields and a
+masked email. Idempotent reruns return `already_configured` without another
+`auth_version` increment or duplicate audit event.
+
 Fresh-database bootstrap may set `BOOTSTRAP_TEACHER_EMAIL`; the bootstrap summary
 reports only masked recovery-email status. Password-reset and email-change
 tokens are stored hashed, expire, are single-use, and increment `auth_version`
@@ -384,6 +416,8 @@ No-live checks:
 npm run teacher:email-password-reset-smoke
 npm run teacher:email-change-smoke
 npm run operator:set-teacher-email-smoke
+npm run operator:update-teacher-account-smoke
+npm run operator:production-runtime-smoke
 ```
 
 `npm run teacher:email-security-live-smoke` is skipped unless explicitly opted in

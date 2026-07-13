@@ -4,7 +4,12 @@ import { prisma as defaultPrisma } from "@/lib/db";
 import { getServerEnv } from "@/lib/env";
 import { hashSecret, verifySecret } from "@/lib/password";
 import { generatePublicId } from "@/lib/services/ids";
-import { normalizeUserId, parseStudentPassword } from "@/lib/services/student-accounts/validation";
+import {
+  normalizeUserId,
+  parseStudentPassword,
+  parseUserId,
+  userIdValidationError
+} from "@/lib/services/student-accounts/validation";
 import {
   appBaseUrl,
   configuredEmailProvider,
@@ -64,7 +69,7 @@ async function logSecurityEvent(input: {
   status: string;
   metadata?: Record<string, unknown>;
 }) {
-  await input.prisma.accountSecurityEvent.create({
+  return input.prisma.accountSecurityEvent.create({
     data: {
       event_public_id: generatePublicId("account_security_event"),
       user_db_id: input.userDbId ?? null,
@@ -92,7 +97,7 @@ async function invalidateActiveTokens(input: {
   purposes: AccountSecurityTokenPurpose[];
   now: Date;
 }) {
-  await input.prisma.accountSecurityToken.updateMany({
+  const result = await input.prisma.accountSecurityToken.updateMany({
     where: {
       user_db_id: input.userDbId,
       purpose: { in: input.purposes },
@@ -101,6 +106,7 @@ async function invalidateActiveTokens(input: {
     },
     data: { invalidated_at: input.now }
   });
+  return result.count;
 }
 
 async function assertEmailAvailable(input: {
@@ -110,7 +116,6 @@ async function assertEmailAvailable(input: {
 }) {
   const existingCurrent = await input.prisma.user.findFirst({
     where: {
-      role: "teacher_researcher",
       email_normalized: input.normalizedEmail,
       ...(input.currentUserDbId ? { id: { not: input.currentUserDbId } } : {})
     },
@@ -122,7 +127,6 @@ async function assertEmailAvailable(input: {
 
   const existingPending = await input.prisma.user.findFirst({
     where: {
-      role: "teacher_researcher",
       pending_email_normalized: input.normalizedEmail,
       ...(input.currentUserDbId ? { id: { not: input.currentUserDbId } } : {})
     },
@@ -131,6 +135,17 @@ async function assertEmailAvailable(input: {
   if (existingPending) {
     throw new AccountSecurityError("email_unavailable", "That email address cannot be used. Choose another address.", 409);
   }
+}
+
+function parseOperatorUsername(value: unknown, variableName: string) {
+  const issue = userIdValidationError(value);
+  if (issue) {
+    throw new AccountSecurityError("invalid_username", `${variableName}: ${issue}`, 400, {
+      variable_name: variableName,
+      validation_error: issue
+    });
+  }
+  return parseUserId(value);
 }
 
 function passwordResetEmail(input: { to: string; token: string; expiresAt: Date }) {
@@ -815,10 +830,18 @@ export async function setTeacherEmailByOperator(input: {
   context?: ServiceContext;
 }) {
   const prisma = db(input.context);
+  const now = input.context?.now ?? new Date();
+  const username = parseOperatorUsername(input.username, "TEACHER_USERNAME");
   const normalized = normalizeTeacherEmail(input.email);
   const teacher = await prisma.user.findUnique({
-    where: { user_id_normalized: normalizeUserId(input.username) },
-    select: { id: true, user_id: true, role: true, email_normalized: true, email_verified_at: true }
+    where: { user_id_normalized: normalizeUserId(username) },
+    select: {
+      id: true,
+      user_id: true,
+      role: true,
+      email_normalized: true,
+      email_verified_at: true
+    }
   });
 
   if (!teacher) {
@@ -843,30 +866,244 @@ export async function setTeacherEmailByOperator(input: {
     currentUserDbId: teacher.id
   });
 
-  await prisma.user.update({
-    where: { id: teacher.id },
-    data: {
-      email: normalized.display,
-      email_normalized: normalized.normalized,
-      email_verified_at: input.markVerified ? new Date() : null,
-      pending_email: null,
-      pending_email_normalized: null,
-      email_change_requested_at: null
-    }
-  });
-  await logSecurityEvent({
-    prisma,
-    userDbId: teacher.id,
-    eventType: "teacher_recovery_email_operator_set",
-    status: input.markVerified ? "verified" : "unverified",
-    metadata: { email_masked: maskEmail(normalized.display) }
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.user.update({
+      where: { id: teacher.id },
+      data: {
+        email: normalized.display,
+        email_normalized: normalized.normalized,
+        email_verified_at: input.markVerified ? now : null,
+        pending_email: null,
+        pending_email_normalized: null,
+        email_change_requested_at: null,
+        auth_version: { increment: 1 }
+      },
+      select: { auth_version: true }
+    });
+    const invalidatedTokenCount = await invalidateActiveTokens({
+      prisma: tx,
+      userDbId: teacher.id,
+      purposes: ["teacher_password_reset", "teacher_email_change_verification"],
+      now
+    });
+    const audit = await logSecurityEvent({
+      prisma: tx,
+      userDbId: teacher.id,
+      eventType: "teacher_recovery_email_operator_set",
+      status: input.markVerified ? "verified" : "unverified",
+      metadata: {
+        email_masked: maskEmail(normalized.display),
+        auth_version_incremented: true,
+        invalidated_token_count: invalidatedTokenCount
+      }
+    });
+
+    return {
+      auth_version: updated.auth_version,
+      invalidated_token_count: invalidatedTokenCount,
+      audit_event_public_id: audit.event_public_id
+    };
   });
 
   return {
     status: "updated" as const,
     user_id: teacher.user_id,
     masked_email: maskEmail(normalized.display),
-    verified: input.markVerified
+    verified: input.markVerified,
+    auth_version_incremented: true,
+    invalidated_token_count: result.invalidated_token_count,
+    audit_event_public_id: result.audit_event_public_id
+  };
+}
+
+export async function updateTeacherAccountByOperator(input: {
+  currentUsername: string;
+  newUsername: string;
+  newEmail?: string | null;
+  markEmailVerified?: boolean;
+  context?: ServiceContext;
+}) {
+  const prisma = db(input.context);
+  const now = input.context?.now ?? new Date();
+  const currentUsername = parseOperatorUsername(input.currentUsername, "CURRENT_TEACHER_USERNAME");
+  const newUsername = parseOperatorUsername(input.newUsername, "NEW_TEACHER_USERNAME");
+  const currentNormalized = normalizeUserId(currentUsername);
+  const newNormalized = normalizeUserId(newUsername);
+  const normalizedEmail = input.newEmail ? normalizeTeacherEmail(input.newEmail) : null;
+
+  let teacher = await prisma.user.findUnique({
+    where: { user_id_normalized: currentNormalized },
+    select: {
+      id: true,
+      user_id: true,
+      user_id_normalized: true,
+      role: true,
+      email: true,
+      email_normalized: true,
+      email_verified_at: true,
+      password_hash: true,
+      auth_version: true
+    }
+  });
+  let alreadyUsingNewUsername = false;
+
+  if (!teacher && currentNormalized !== newNormalized) {
+    teacher = await prisma.user.findUnique({
+      where: { user_id_normalized: newNormalized },
+      select: {
+        id: true,
+        user_id: true,
+        user_id_normalized: true,
+        role: true,
+        email: true,
+        email_normalized: true,
+        email_verified_at: true,
+        password_hash: true,
+        auth_version: true
+      }
+    });
+    alreadyUsingNewUsername = Boolean(teacher);
+  }
+
+  if (!teacher) {
+    throw new AccountSecurityError("teacher_not_found", "Teacher account was not found.", 404, {
+      current_username: currentUsername,
+      new_username: newUsername
+    });
+  }
+
+  if (teacher.role !== "teacher_researcher") {
+    throw new AccountSecurityError("not_teacher_account", "This command can only update teacher/research accounts.", 403);
+  }
+
+  const emailMatches = normalizedEmail ? teacher.email_normalized === normalizedEmail.normalized : true;
+  const verificationMatches =
+    input.markEmailVerified === undefined ||
+    (input.markEmailVerified ? Boolean(teacher.email_verified_at) : !teacher.email_verified_at);
+  const usernameMatches = teacher.user_id_normalized === newNormalized;
+
+  if (alreadyUsingNewUsername && usernameMatches && emailMatches && verificationMatches) {
+    return {
+      status: "already_configured" as const,
+      current_username: currentUsername,
+      new_username: teacher.user_id,
+      masked_email: maskEmail(normalizedEmail?.display ?? teacher.email),
+      verified: Boolean(teacher.email_verified_at),
+      auth_version_incremented: false,
+      invalidated_token_count: 0,
+      audit_event_public_id: null
+    };
+  }
+
+  if (!usernameMatches) {
+    const conflictingUsername = await prisma.user.findUnique({
+      where: { user_id_normalized: newNormalized },
+      select: { id: true, role: true }
+    });
+    if (conflictingUsername && conflictingUsername.id !== teacher.id) {
+      throw new AccountSecurityError("username_unavailable", "That username cannot be used. Choose another username.", 409, {
+        new_username: newUsername,
+        existing_role: conflictingUsername.role
+      });
+    }
+  }
+
+  if (normalizedEmail) {
+    await assertEmailAvailable({
+      prisma,
+      normalizedEmail: normalizedEmail.normalized,
+      currentUserDbId: teacher.id
+    });
+  }
+
+  if (usernameMatches && emailMatches && verificationMatches) {
+    return {
+      status: "already_configured" as const,
+      current_username: currentUsername,
+      new_username: teacher.user_id,
+      masked_email: maskEmail(normalizedEmail?.display ?? teacher.email),
+      verified: Boolean(teacher.email_verified_at),
+      auth_version_incremented: false,
+      invalidated_token_count: 0,
+      audit_event_public_id: null
+    };
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const nextEmailVerifiedAt =
+      input.markEmailVerified === undefined
+        ? teacher.email_verified_at
+        : input.markEmailVerified
+          ? now
+          : null;
+
+    const next = await tx.user.update({
+      where: { id: teacher.id },
+      data: {
+        user_id: newUsername,
+        user_id_normalized: newNormalized,
+        ...(normalizedEmail
+          ? {
+              email: normalizedEmail.display,
+              email_normalized: normalizedEmail.normalized,
+              email_verified_at: nextEmailVerifiedAt,
+              pending_email: null,
+              pending_email_normalized: null,
+              email_change_requested_at: null
+            }
+          : {
+              email_verified_at: nextEmailVerifiedAt
+            }),
+        auth_version: { increment: 1 }
+      },
+      select: {
+        id: true,
+        user_id: true,
+        email: true,
+        email_verified_at: true,
+        auth_version: true,
+        password_hash: true,
+        role: true
+      }
+    });
+    const invalidatedTokenCount = await invalidateActiveTokens({
+      prisma: tx,
+      userDbId: teacher.id,
+      purposes: ["teacher_password_reset", "teacher_email_change_verification"],
+      now
+    });
+    const audit = await logSecurityEvent({
+      prisma: tx,
+      userDbId: teacher.id,
+      eventType: "teacher_account_operator_updated",
+      status: "completed",
+      metadata: {
+        old_username: teacher.user_id,
+        new_username: next.user_id,
+        email_updated: Boolean(normalizedEmail),
+        email_masked: maskEmail(next.email),
+        email_verified: Boolean(next.email_verified_at),
+        auth_version_incremented: true,
+        invalidated_token_count: invalidatedTokenCount
+      }
+    });
+
+    return {
+      user: next,
+      invalidated_token_count: invalidatedTokenCount,
+      audit_event_public_id: audit.event_public_id
+    };
+  });
+
+  return {
+    status: "updated" as const,
+    current_username: currentUsername,
+    new_username: updated.user.user_id,
+    masked_email: maskEmail(updated.user.email),
+    verified: Boolean(updated.user.email_verified_at),
+    auth_version_incremented: true,
+    invalidated_token_count: updated.invalidated_token_count,
+    audit_event_public_id: updated.audit_event_public_id
   };
 }
 

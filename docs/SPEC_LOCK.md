@@ -2140,10 +2140,18 @@ Phase 6A.5 must not implement:
 
 - Fresh staging database bootstrap must be an explicit operator command after
   migrations, not an automatic Render pre-deploy step.
+- Render Docker/Web Shell operator commands run from `/app`. Production
+  operator TypeScript entrypoints must not depend on dev-only tooling being
+  present after the Docker runner prunes dev dependencies.
 - `staging:bootstrap-pilot` may create or reuse the first teacher/researcher
   account, create only missing pilot student accounts, ensure the fixed IRT MVP
   assessment is published, and write newly generated student access codes under
   ignored `.data/bootstrap/`.
+- If a teacher account already exists and the configured bootstrap teacher
+  username does not match it, the production bootstrap path must fail closed
+  rather than creating a second teacher account. Operators must update
+  `BOOTSTRAP_TEACHER_USERNAME` after a guarded teacher username rename or leave
+  bootstrap disabled.
 - The bootstrap command must require `BOOTSTRAP_ENABLED=true` and explicit
   `BOOTSTRAP_*` variables. It must not silently create accounts from defaults.
 - The bootstrap command must not print raw passwords, access codes, database
@@ -2636,6 +2644,14 @@ Phase 6A.5 must not implement:
 - The initial production teacher email must be configured by guarded operator
   command or bootstrap environment. It must not be hardcoded in source code,
   migrations, seed defaults, or `.env.example`.
+- Guarded operator teacher-account updates must require explicit enablement and
+  exact confirmation, update the existing teacher row rather than creating a
+  second teacher, preserve password hash, role, assessment ownership, student
+  relationships, sessions, responses, and historical audit records, increment
+  `auth_version` on real changes, invalidate outstanding teacher
+  password-reset/email-change tokens, and write an account-security audit event.
+  Idempotent reruns must not increment `auth_version` or duplicate the audit
+  event. Output must be safe and may include only masked email/status fields.
 - `users.email` may be reused for display email, with additive normalized,
   verified, pending, and requested-at fields. Verified/current teacher recovery
   emails must be unique by normalized value, and pending teacher emails should

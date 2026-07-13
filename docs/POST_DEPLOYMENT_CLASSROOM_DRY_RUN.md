@@ -31,6 +31,7 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
 4c. Teacher recovery-email check:
     - Expected: the teacher/research Account settings utility action opens `/teacher/account`.
     - Expected: username is read-only, recovery email is shown only to the authenticated teacher, and verified/pending status is clear.
+    - Expected: if the operator renamed the teacher account with `npm run operator:update-teacher-account`, the same teacher account still owns the assessments, student relationships, sessions, responses, and audit history; older teacher sessions were invalidated; and `BOOTSTRAP_TEACHER_USERNAME` now matches the current username before any future bootstrap run.
     - Expected: `Forgot your teacher password?` returns the same public response for any email and sends a link only for a verified teacher/research email.
     - Expected: password reset invalidates earlier teacher sessions; old password fails and new password works.
     - Expected: email change requires the current password, keeps the old email active until the new email is verified, and does not change username, public IDs, assessments, student relationships, exports, or session history.

@@ -185,6 +185,16 @@ The command does not print raw passwords or access codes. If new student tempora
 
 That directory is ignored by Git. Copy the credential CSV to an approved secure location, then delete it from the shell environment if required by your data-handling plan.
 
+Render Shell for the Docker image opens in `/app`. Run operator commands there
+directly; do not change directory to `/opt/render/project/src`. The operator
+scripts use the checked-in `tsx` production dependency so they are available
+after Docker prunes dev dependencies.
+
+If the deployed teacher username is later renamed, update
+`BOOTSTRAP_TEACHER_USERNAME` to the current username or leave bootstrap disabled.
+The production bootstrap path refuses to create a second teacher when the
+configured teacher username does not match an existing teacher account.
+
 If this database already had temporary-credential student accounts from an older deployment, run the repair command once after migrations/bootstrap:
 
 ```bash
@@ -333,6 +343,33 @@ npm run operator:set-teacher-email
 
 Use the actual deployed teacher username. The command prints only safe status
 and a masked email, rejects student accounts, and enforces normalized uniqueness.
+
+To rename the deployed teacher username and optionally set/verify the recovery
+email without creating a second teacher account, use the guarded account update
+command:
+
+```bash
+TEACHER_ACCOUNT_UPDATE_ENABLED=true \
+CURRENT_TEACHER_USERNAME=teacher_staging_01 \
+NEW_TEACHER_USERNAME=edpy507_instructor \
+NEW_TEACHER_EMAIL=btan4@ualberta.ca \
+TEACHER_EMAIL_MARK_VERIFIED=true \
+CONFIRM_TEACHER_ACCOUNT_UPDATE=UPDATE_TEACHER_ACCOUNT \
+npm run operator:update-teacher-account
+```
+
+The command updates the existing teacher row only. It preserves the database ID,
+password hash, role, assessment ownership, student relationships, sessions,
+responses, and historical audit records. A real change increments
+`auth_version`, invalidates older teacher sessions, invalidates outstanding
+teacher password-reset/email-change tokens, and writes an account-security audit
+event. Output contains only safe status fields and a masked email. Rerunning the
+same command returns `already_configured` without another session invalidation
+or duplicate audit event.
+
+After a rename, update the Render environment value
+`BOOTSTRAP_TEACHER_USERNAME` to the new username before running bootstrap again,
+or do not rerun bootstrap.
 
 Manual verification:
 

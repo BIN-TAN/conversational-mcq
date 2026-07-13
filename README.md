@@ -112,6 +112,11 @@ npm run staging:bootstrap-pilot
 
 Use `BOOTSTRAP_STUDENT_ROSTER_PATH=<csv>` instead of `BOOTSTRAP_STUDENT_COUNT` for an approved roster CSV with `user_id`, optional `display_name`, and optional `email` columns. The bootstrap reuses existing records, writes new temporary credentials under ignored `.data/bootstrap/`, and does not print raw passwords or access codes. Run `npm run student:staging-bootstrap-smoke` locally to verify the bootstrap path without provider calls.
 
+Render Web Shell starts in `/app` for the Docker image. Run operator commands
+there directly; do not `cd /opt/render/project/src`. Operator commands are
+TypeScript scripts run through the checked-in `tsx` production dependency so
+they still start after the Docker runner prunes dev dependencies.
+
 If a staging database already contained temporary-credential student accounts before the first-login password-change gate existed, repair only active students that still have temporary credentials and no permanent password:
 
 ```bash
@@ -2202,12 +2207,38 @@ The command prints only safe status and a masked email. It rejects student
 accounts and duplicate teacher recovery emails. For a fresh classroom database,
 `staging:bootstrap-pilot` also accepts `BOOTSTRAP_TEACHER_EMAIL`.
 
+To rename the deployed teacher account or set/verify its recovery email without
+creating a second teacher, use the guarded account update command:
+
+```bash
+TEACHER_ACCOUNT_UPDATE_ENABLED=true \
+CURRENT_TEACHER_USERNAME=<current teacher username> \
+NEW_TEACHER_USERNAME=<new teacher username> \
+NEW_TEACHER_EMAIL=<teacher recovery email> \
+TEACHER_EMAIL_MARK_VERIFIED=true \
+CONFIRM_TEACHER_ACCOUNT_UPDATE=UPDATE_TEACHER_ACCOUNT \
+npm run operator:update-teacher-account
+```
+
+The command updates the same teacher row, preserves password hash, role,
+assessment ownership, student relationships, sessions, responses, and audit
+history, increments `auth_version` to invalidate older teacher sessions,
+invalidates outstanding teacher password-reset/email-change tokens, and prints
+only masked email/status fields. Rerunning the same command returns
+`already_configured` without another `auth_version` increment or duplicate audit
+event. After a rename, update `BOOTSTRAP_TEACHER_USERNAME` to the new username or
+do not rerun bootstrap; the production bootstrap path fails closed rather than
+creating a second teacher when the configured username does not match an
+existing teacher.
+
 Useful checks:
 
 ```bash
 npm run teacher:email-password-reset-smoke
 npm run teacher:email-change-smoke
 npm run operator:set-teacher-email-smoke
+npm run operator:update-teacher-account-smoke
+npm run operator:production-runtime-smoke
 npm run teacher:email-security-live-smoke
 ```
 

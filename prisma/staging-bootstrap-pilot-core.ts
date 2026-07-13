@@ -24,6 +24,7 @@ export type BootstrapPilotConfig = {
   studentRosterPath?: string;
   defaultAssessmentId: string;
   outputDir: string;
+  allowExistingTeacherAccountsForSmoke?: boolean;
 };
 
 export type BootstrapPilotStudentInput = {
@@ -112,7 +113,7 @@ function safeMissingConfig(names: string[]) {
 
 export function parseBootstrapPilotConfig(
   env: Record<string, string | undefined>,
-  options?: { outputDir?: string }
+  options?: { outputDir?: string; allowExistingTeacherAccountsForSmoke?: boolean }
 ): BootstrapPilotConfig {
   const enabledRaw = optionalTrimmed(env.BOOTSTRAP_ENABLED);
   const enabled = parseBoolean(enabledRaw, "BOOTSTRAP_ENABLED");
@@ -151,7 +152,8 @@ export function parseBootstrapPilotConfig(
     studentCount,
     studentRosterPath,
     defaultAssessmentId: parseUserId(env.BOOTSTRAP_DEFAULT_ASSESSMENT_ID),
-    outputDir: options?.outputDir ?? path.join(process.cwd(), ".data", "bootstrap")
+    outputDir: options?.outputDir ?? path.join(process.cwd(), ".data", "bootstrap"),
+    allowExistingTeacherAccountsForSmoke: options?.allowExistingTeacherAccountsForSmoke
   };
 }
 
@@ -257,6 +259,21 @@ async function ensureTeacher(prisma: PrismaClient, config: BootstrapPilotConfig)
       return { teacher: updated, created: false };
     }
     return { teacher: existing, created: false };
+  }
+
+  const existingTeacherCount = await prisma.user.count({
+    where: {
+      role: "teacher_researcher",
+      account_status: "active"
+    }
+  });
+  if (existingTeacherCount > 0 && !config.allowExistingTeacherAccountsForSmoke) {
+    throw new BootstrapError("Bootstrap teacher username does not match the existing teacher account.", {
+      configured_teacher_username: config.teacherUsername,
+      existing_active_teacher_count: existingTeacherCount,
+      safe_remediation:
+        "Update BOOTSTRAP_TEACHER_USERNAME to the current teacher username or run the guarded operator account update command before bootstrapping."
+    });
   }
 
   const created = await prisma.user.create({
