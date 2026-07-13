@@ -11,6 +11,7 @@ import {
   downloadTeacherAssessmentDashboardCsv,
   getTeacherAssessmentDashboard
 } from "../src/lib/services/teacher-dashboard/assessment-dashboard";
+import { teacherPrimaryNavItems } from "../src/components/teacher-primary-nav-items";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
@@ -44,17 +45,8 @@ function assertDashboardSurface() {
   for (const expected of [
     "Assessment dashboard",
     "AssessmentDashboardClient",
-    "Assessment management",
-    "Student accounts",
-    "Student sessions",
-    "Data and outcomes",
-    "LLM status",
     "TeacherLogoutButton",
-    'href: "/teacher/content"',
-    'href: "/teacher/students"',
-    'href: "/teacher/sessions"',
-    'href: "/teacher/data"',
-    'href: "/teacher/system/llm"'
+    "TeacherPrimaryNav"
   ]) {
     assertIncludes(dashboard, expected, "Teacher dashboard");
   }
@@ -176,6 +168,46 @@ function assertDashboardSurface() {
 }
 
 function assertStandardTeacherNav() {
+  const expectedNavItems = [
+    { href: "/teacher/dashboard", label: "Dashboard" },
+    { href: "/teacher/content", label: "Assessment management" },
+    { href: "/teacher/students", label: "Student accounts" },
+    { href: "/teacher/sessions", label: "Student sessions" },
+    { href: "/teacher/data", label: "Data and outcomes" },
+    { href: "/teacher/system/llm", label: "LLM status" }
+  ];
+  assert(
+    teacherPrimaryNavItems.length === expectedNavItems.length,
+    `Teacher primary nav should have ${expectedNavItems.length} items.`
+  );
+  for (const [index, expected] of expectedNavItems.entries()) {
+    const item = teacherPrimaryNavItems[index];
+    assert(item.href === expected.href, `Teacher nav item ${index + 1} should link to ${expected.href}.`);
+    assert(item.label === expected.label, `Teacher nav item ${index + 1} should be ${expected.label}.`);
+  }
+  for (const forbidden of [
+    "Roster import",
+    "Create student",
+    "Mini tests",
+    "JSON import",
+    "Import JSON",
+    "New mini test",
+    "Assessment library",
+    "Reorganize assessments",
+    "Model evaluation"
+  ]) {
+    assert(
+      teacherPrimaryNavItems.every((item) => item.label !== forbidden),
+      `Teacher primary nav should not include ${forbidden}.`
+    );
+  }
+
+  const sharedNav = readProjectFile("src/components/teacher-primary-nav.tsx");
+  assertIncludes(sharedNav, "usePathname", "Teacher primary nav component");
+  assertIncludes(sharedNav, 'aria-label="Teacher primary navigation"', "Teacher primary nav component");
+  assertIncludes(sharedNav, 'aria-current={active ? "page" : undefined}', "Teacher primary nav component");
+  assertIncludes(sharedNav, "flex flex-wrap", "Teacher primary nav component");
+
   const standardNavFiles = [
     "src/app/teacher/dashboard/page.tsx",
     "src/app/teacher/content/layout.tsx",
@@ -186,10 +218,10 @@ function assertStandardTeacherNav() {
 
   for (const filePath of standardNavFiles) {
     const source = readProjectFile(filePath);
-    assertIncludes(source, "Assessment management", filePath);
-    assertIncludes(source, 'href: "/teacher/content"', filePath);
+    assertIncludes(source, "TeacherPrimaryNav", filePath);
     assertExcludes(source, "JSON import", filePath);
     assertExcludes(source, 'href: "/teacher/content/import-json"', filePath);
+    assertExcludes(source, "Model evaluation", filePath);
   }
 }
 

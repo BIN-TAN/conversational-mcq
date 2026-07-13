@@ -16,6 +16,7 @@ import {
   readTopicDiagnosticNote,
   teacherDiagnosticContextForProvider
 } from "../src/lib/services/content/teacher-diagnostic-context";
+import { teacherPrimaryNavItems } from "../src/components/teacher-primary-nav-items";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
@@ -143,22 +144,15 @@ function assertDashboardCardsAreActionable() {
     path.join(process.cwd(), "src/components/teacher-dashboard/assessment-dashboard-client.tsx"),
     "utf8"
   );
+  const navByLabel = new Map(teacherPrimaryNavItems.map((item) => [item.label, item.href]));
 
-  assert(source.includes('href: "/teacher/sessions"'), "Teacher dashboard nav should link to sessions.");
-  assert(source.includes('href: "/teacher/students"'), "Teacher dashboard nav should link to student management.");
-  assert(
-    source.includes('href: "/teacher/content"') && source.includes("Assessment management"),
-    "Teacher dashboard nav should expose top-level assessment management."
-  );
-  assert(
-    source.includes('href: "/teacher/data"'),
-    "Teacher dashboard nav should link to Data and outcomes."
-  );
-  assert(
-    source.includes('href: "/teacher/system/llm"'),
-    "Teacher dashboard nav should link to LLM status."
-  );
+  assert(navByLabel.get("Student sessions") === "/teacher/sessions", "Teacher dashboard nav should link to sessions.");
+  assert(navByLabel.get("Student accounts") === "/teacher/students", "Teacher dashboard nav should link to student management.");
+  assert(navByLabel.get("Assessment management") === "/teacher/content", "Teacher dashboard nav should expose top-level assessment management.");
+  assert(navByLabel.get("Data and outcomes") === "/teacher/data", "Teacher dashboard nav should link to Data and outcomes.");
+  assert(navByLabel.get("LLM status") === "/teacher/system/llm", "Teacher dashboard nav should link to LLM status.");
   assert(source.includes("AssessmentDashboardClient"), "Dashboard should render the assessment-level dashboard client.");
+  assert(source.includes("TeacherPrimaryNav"), "Dashboard should render shared teacher primary navigation.");
   assert(client.includes("Assessment / mini test"), "Dashboard should expose an assessment selector.");
   assert(client.includes("Item-level diagnostic view"), "Dashboard should expose item-level diagnostics.");
   assert(client.includes("Candidate misconception patterns"), "Dashboard should expose deterministic pattern review.");

@@ -10,6 +10,7 @@ import {
   saveAssessmentOrganization
 } from "../src/lib/services/content/assessments";
 import { ContentServiceError } from "../src/lib/services/content/errors";
+import { teacherPrimaryNavItems } from "../src/components/teacher-primary-nav-items";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
@@ -119,11 +120,19 @@ function assertManagementSurface() {
   const primaryCardCount = (contentHome.match(/rounded-lg border border-line bg-white p-5/g) ?? []).length;
   assert(primaryCardCount === 3, `Assessment management page should have exactly three primary cards, found ${primaryCardCount}.`);
 
-  assertIncludes(contentLayout, "Assessment management", "Content layout navigation");
-  assertIncludes(contentLayout, "Student accounts", "Content layout navigation");
-  assertIncludes(contentLayout, "Student sessions", "Content layout navigation");
-  assertIncludes(contentLayout, "Data and outcomes", "Content layout navigation");
-  assertIncludes(contentLayout, "LLM status", "Content layout navigation");
+  assertIncludes(contentLayout, "TeacherPrimaryNav", "Content layout navigation");
+  const expectedNavLabels = [
+    "Dashboard",
+    "Assessment management",
+    "Student accounts",
+    "Student sessions",
+    "Data and outcomes",
+    "LLM status"
+  ];
+  assert(
+    teacherPrimaryNavItems.map((item) => item.label).join("|") === expectedNavLabels.join("|"),
+    "Shared teacher nav should preserve the standard label order."
+  );
   assertExcludes(contentLayout, "Mini tests", "Content layout navigation");
   assertExcludes(contentLayout, 'href: "/teacher/content/assessments"', "Content layout navigation");
 

@@ -1,19 +1,10 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AssessmentDashboardClient } from "@/components/teacher-dashboard/assessment-dashboard-client";
 import { TeacherLogoutButton } from "@/components/teacher-logout-button";
+import { TeacherPrimaryNav } from "@/components/teacher-primary-nav";
 import { UAlbertaLogo } from "@/components/ualberta-logo";
 import { getCurrentUser } from "@/lib/auth";
 import { getTeacherAssessmentDashboard } from "@/lib/services/teacher-dashboard/assessment-dashboard";
-
-const teacherNavLinks = [
-  { href: "/teacher/dashboard", label: "Dashboard" },
-  { href: "/teacher/content", label: "Assessment management" },
-  { href: "/teacher/students", label: "Student accounts" },
-  { href: "/teacher/sessions", label: "Student sessions" },
-  { href: "/teacher/data", label: "Data and outcomes" },
-  { href: "/teacher/system/llm", label: "LLM status" }
-];
 
 export default async function TeacherDashboardPage() {
   const user = await getCurrentUser();
@@ -47,17 +38,7 @@ export default async function TeacherDashboardPage() {
             </div>
             <TeacherLogoutButton />
           </div>
-          <nav className="flex flex-wrap gap-2 text-sm font-semibold" aria-label="Teacher tools">
-            {teacherNavLinks.map((link) => (
-              <Link
-                className="rounded-md border border-white/15 bg-white/5 px-3 py-2 text-white/90 transition hover:border-ualberta-gold hover:bg-white/10 hover:text-white"
-                href={link.href}
-                key={link.href}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+          <TeacherPrimaryNav variant="dark" />
         </div>
       </header>
 
