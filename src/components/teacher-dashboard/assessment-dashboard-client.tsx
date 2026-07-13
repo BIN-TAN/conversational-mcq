@@ -192,18 +192,6 @@ function ItemDiagnostic({ item }: { item: ItemDiagnosticSummary }) {
           </>
         )}
       </div>
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-md border border-line bg-slate-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Reasoning-quality signal</p>
-          <p className="mt-2 text-sm leading-6 text-ink">{item.reasoning_quality_summary}</p>
-        </div>
-        <div className="rounded-md border border-line bg-slate-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Teacher-authored diagnostic context</p>
-          <p className="mt-2 text-sm leading-6 text-ink">
-            {item.teacher_diagnostic_context_summary ?? "No teacher-authored diagnostic context summary is available for this item."}
-          </p>
-        </div>
-      </div>
     </article>
   );
 }

@@ -147,6 +147,10 @@ function assertDashboardCardsAreActionable() {
   assert(source.includes('href: "/teacher/sessions"'), "Teacher dashboard nav should link to sessions.");
   assert(source.includes('href: "/teacher/students"'), "Teacher dashboard nav should link to student management.");
   assert(
+    source.includes('href: "/teacher/content"') && source.includes("Assessment management"),
+    "Teacher dashboard nav should expose top-level assessment management."
+  );
+  assert(
     source.includes('href: "/teacher/data"'),
     "Teacher dashboard nav should link to Data and outcomes."
   );

@@ -4,9 +4,9 @@ import { getCurrentUser } from "@/lib/auth";
 
 const links = [
   { href: "/teacher/dashboard", label: "Dashboard" },
+  { href: "/teacher/content", label: "Assessment management" },
   { href: "/teacher/students", label: "Student accounts" },
-  { href: "/teacher/content", label: "Content" },
-  { href: "/teacher/content/assessments", label: "Assessments" }
+  { href: "/teacher/content/assessments", label: "Mini tests" }
 ];
 
 export default async function TeacherContentLayout({

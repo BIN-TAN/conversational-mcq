@@ -44,11 +44,13 @@ function assertDashboardSurface() {
   for (const expected of [
     "Assessment dashboard",
     "AssessmentDashboardClient",
+    "Assessment management",
     "Student accounts",
     "Student sessions",
     "Data and outcomes",
     "LLM status",
     "TeacherLogoutButton",
+    'href: "/teacher/content"',
     'href: "/teacher/students"',
     'href: "/teacher/sessions"',
     'href: "/teacher/data"',
@@ -112,9 +114,15 @@ function assertDashboardSurface() {
   assertIncludes(exportRoute, "downloadTeacherAssessmentDashboardCsv", "Teacher dashboard export API");
   assertIncludes(exportRoute, "requireTeacherResearcher", "Teacher dashboard export API");
   assertIncludes(exportRoute, "Content-Type", "Teacher dashboard export API");
-  assertIncludes(contentHome, "Mini tests", "Content management page");
-  assertIncludes(contentHome, "JSON import", "Content management page");
-  assertExcludes(contentHome, "Research integrity", "Content management page");
+  assertIncludes(contentHome, "Assessment management", "Assessment management page");
+  assertIncludes(contentHome, "New mini test", "Assessment management page");
+  assertIncludes(contentHome, "Assessment library", "Assessment management page");
+  assertIncludes(contentHome, "Reorganize assessments", "Assessment management page");
+  assertIncludes(contentHome, "JSON import", "Assessment management page");
+  assertIncludes(contentHome, 'href="/teacher/content/assessments/new"', "Assessment management page");
+  assertIncludes(contentHome, 'href="/teacher/content/assessments"', "Assessment management page");
+  assertIncludes(contentHome, 'href="/teacher/content/import-json"', "Assessment management page");
+  assertExcludes(contentHome, "Research integrity", "Assessment management page");
 
   for (const forbidden of [
     "JSON import",
@@ -156,7 +164,9 @@ function assertDashboardSurface() {
     "Percent",
     "Assessment-specific understanding",
     "Engagement review signals",
-    "Review option choices, correctness percentages, confidence distribution"
+    "Review option choices, correctness percentages, confidence distribution",
+    "Reasoning-quality signal",
+    "Teacher-authored diagnostic context"
   ]) {
     assertExcludes(dashboard, forbidden, "Teacher dashboard");
     assertExcludes(client, forbidden, "Teacher assessment dashboard client");
@@ -168,11 +178,14 @@ function assertStandardTeacherNav() {
     "src/app/teacher/dashboard/page.tsx",
     "src/app/teacher/content/layout.tsx",
     "src/components/teacher-data/ui.tsx",
-    "src/components/teacher-review/ui.tsx"
+    "src/components/teacher-review/ui.tsx",
+    "src/components/teacher-students/ui.tsx"
   ];
 
   for (const filePath of standardNavFiles) {
     const source = readProjectFile(filePath);
+    assertIncludes(source, "Assessment management", filePath);
+    assertIncludes(source, 'href: "/teacher/content"', filePath);
     assertExcludes(source, "JSON import", filePath);
     assertExcludes(source, 'href: "/teacher/content/import-json"', filePath);
   }
@@ -180,8 +193,8 @@ function assertStandardTeacherNav() {
 
 function assertAdvancedRoutesPreservedAndProtected() {
   const contentHome = readProjectFile("src/app/teacher/content/page.tsx");
-  assertIncludes(contentHome, 'href="/teacher/content/import-json"', "Content management page");
-  assertIncludes(contentHome, "JSON import", "Content management page");
+  assertIncludes(contentHome, 'href="/teacher/content/import-json"', "Assessment management page");
+  assertIncludes(contentHome, "JSON import", "Assessment management page");
 
   const importPage = readProjectFile("src/app/teacher/content/import-json/page.tsx");
   assertIncludes(importPage, "ImportJsonClient", "JSON import page");

@@ -19,11 +19,11 @@ export function formatDate(value?: string | null) {
 export function StudentAccountNav({ userId }: { userId: string }) {
   const links = [
     { href: "/teacher/dashboard", label: "Dashboard" },
+    { href: "/teacher/content", label: "Assessment management" },
     { href: "/teacher/students", label: "Student accounts" },
     { href: "/teacher/students/import", label: "Roster import" },
     { href: "/teacher/students/new", label: "Create student" },
     { href: "/teacher/sessions", label: "Student sessions" },
-    { href: "/teacher/content", label: "Content management" },
     { href: "/teacher/data", label: "Data and outcomes" }
   ];
 

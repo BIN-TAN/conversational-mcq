@@ -8,6 +8,7 @@ import { getTeacherAssessmentDashboard } from "@/lib/services/teacher-dashboard/
 
 const teacherNavLinks = [
   { href: "/teacher/dashboard", label: "Dashboard" },
+  { href: "/teacher/content", label: "Assessment management" },
   { href: "/teacher/students", label: "Student accounts" },
   { href: "/teacher/sessions", label: "Student sessions" },
   { href: "/teacher/data", label: "Data and outcomes" },
