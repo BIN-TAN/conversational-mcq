@@ -65,6 +65,7 @@
     "student:teacher-mcq-diagnostic-assistant-smoke": "tsx prisma/teacher-mcq-diagnostic-assistant-smoke-test.ts",
     "student:teacher-mcq-diagnostic-assistant-live-smoke": "tsx prisma/teacher-mcq-diagnostic-assistant-live-smoke-test.ts",
     "student:teacher-dashboard-smoke": "tsx prisma/teacher-dashboard-smoke-test.ts",
+    "student:teacher-assessment-organization-smoke": "tsx prisma/teacher-assessment-organization-smoke-test.ts",
     "student:teacher-mcq-authoring-navigation-smoke": "tsx prisma/teacher-mcq-authoring-navigation-smoke-test.ts",
     "student:teacher-mcq-media-smoke": "tsx prisma/student-teacher-mcq-media-smoke-test.ts",
     "student:teacher-assessment-deletion-smoke": "tsx prisma/teacher-assessment-deletion-smoke-test.ts",
@@ -332,6 +333,9 @@
     "student:teacher-mcq-item-builder-smoke": "tsx prisma/teacher-mcq-item-builder-smoke-test.ts"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@prisma/client": "^6.9.0",
     "clsx": "^2.1.1",
     "csv-parse": "^7.0.0",

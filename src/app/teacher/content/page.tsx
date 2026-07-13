@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ArrowUpDown, FileJson, Library, Plus } from "lucide-react";
-import { PageHeader, PrimaryLink, SecondaryLink } from "@/components/teacher-content/ui";
+import { FileJson, Library, Plus } from "lucide-react";
+import { PageHeader } from "@/components/teacher-content/ui";
 
 export default function TeacherContentHomePage() {
   return (
@@ -9,25 +9,9 @@ export default function TeacherContentHomePage() {
         eyebrow="teacher_researcher assessment tools"
         title="Assessment management"
         description="Create, organize, and open diagnostic MCQ mini tests from one place."
-        actions={
-          <>
-            <PrimaryLink href="/teacher/content/assessments/new">
-              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              New mini test
-            </PrimaryLink>
-            <SecondaryLink href="/teacher/content/assessments">
-              <Library className="mr-2 h-4 w-4" aria-hidden="true" />
-              Assessment library
-            </SecondaryLink>
-            <SecondaryLink href="/teacher/content/import-json">
-              <FileJson className="mr-2 h-4 w-4" aria-hidden="true" />
-              Import JSON
-            </SecondaryLink>
-          </>
-        }
       />
 
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className="grid gap-4 md:grid-cols-3">
         <Link
           className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
           href="/teacher/content/assessments/new"
@@ -46,16 +30,6 @@ export default function TeacherContentHomePage() {
           <h2 className="mt-4 text-lg font-semibold text-ink">Assessment library</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
             View mini tests by folder/week/module and open the direct MCQ builder.
-          </p>
-        </Link>
-        <Link
-          className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
-          href="/teacher/content/assessments"
-        >
-          <ArrowUpDown className="h-5 w-5 text-accent" aria-hidden="true" />
-          <h2 className="mt-4 text-lg font-semibold text-ink">Reorganize assessments</h2>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Use folder, week, module, status, and sort controls to organize mini tests.
           </p>
         </Link>
         <Link

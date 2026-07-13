@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { parseCourseDateTimeInput } from "@/lib/services/assessment-availability/timezone";
 import { generatePublicId } from "@/lib/services/ids";
@@ -21,6 +23,39 @@ import {
   serializeItem
 } from "./serializers";
 import { mergeTopicDiagnosticNoteIntoRules } from "./teacher-diagnostic-context";
+
+const assessmentListInclude = Prisma.validator<Prisma.AssessmentInclude>()({
+  _count: { select: { concept_units: true, assessment_sessions: true } },
+  concept_units: {
+    select: {
+      _count: { select: { items: true } }
+    }
+  }
+});
+
+const AssessmentOrganizationInputSchema = z
+  .object({
+    expected_revision: z.string().trim().min(16),
+    groups: z
+      .array(
+        z
+          .object({
+            folder_label: z.string().trim().max(120).nullable(),
+            assessment_public_ids: z.array(z.string().trim().min(1))
+          })
+          .strict()
+      )
+      .default([])
+  })
+  .strict();
+
+type AssessmentOrganizationRevisionEntry = {
+  assessment_public_id: string;
+  folder_label: string | null;
+  folder_order_index: number;
+  assessment_order_index: number;
+  updated_at: Date | string;
+};
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
@@ -81,6 +116,44 @@ function parseAvailabilityWindow(input: {
   return { release_at, close_at };
 }
 
+function normalizeFolderLabel(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function organizationTimestamp(value: Date | string) {
+  return value instanceof Date ? value.toISOString() : value;
+}
+
+export function computeAssessmentOrganizationRevision(
+  entries: AssessmentOrganizationRevisionEntry[]
+) {
+  const payload = entries
+    .map((entry) => ({
+      assessment_public_id: entry.assessment_public_id,
+      folder_label: normalizeFolderLabel(entry.folder_label),
+      folder_order_index: entry.folder_order_index,
+      assessment_order_index: entry.assessment_order_index,
+      updated_at: organizationTimestamp(entry.updated_at)
+    }))
+    .sort((left, right) => left.assessment_public_id.localeCompare(right.assessment_public_id));
+
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+function serializeAssessmentListItem(
+  assessment: Prisma.AssessmentGetPayload<{ include: typeof assessmentListInclude }>
+) {
+  return {
+    ...serializeAssessment(assessment),
+    assessment_session_count: assessment._count.assessment_sessions,
+    item_count: assessment.concept_units.reduce(
+      (total, conceptUnit) => total + conceptUnit._count.items,
+      0
+    )
+  };
+}
+
 function primaryTopicInput(input: {
   title: string;
   diagnostic_focus?: string | null;
@@ -111,24 +184,192 @@ export async function listAssessments(input: { teacher_user_db_id: string }) {
       { assessment_order_index: "asc" },
       { created_at: "desc" }
     ],
-    include: {
-      _count: { select: { concept_units: true, assessment_sessions: true } },
-      concept_units: {
-        select: {
-          _count: { select: { items: true } }
-        }
-      }
-    }
+    include: assessmentListInclude
   });
 
-  return assessments.map((assessment) => ({
-    ...serializeAssessment(assessment),
-    assessment_session_count: assessment._count.assessment_sessions,
-    item_count: assessment.concept_units.reduce(
-      (total, conceptUnit) => total + conceptUnit._count.items,
-      0
-    )
-  }));
+  return assessments.map(serializeAssessmentListItem);
+}
+
+export async function saveAssessmentOrganization(input: {
+  teacher_user_db_id: string;
+  data: unknown;
+}) {
+  const data = AssessmentOrganizationInputSchema.parse(input.data);
+
+  return prisma.$transaction(
+    async (tx) => {
+      const assessments = await tx.assessment.findMany({
+        where: { created_by_user_db_id: input.teacher_user_db_id },
+        orderBy: [
+          { folder_order_index: "asc" },
+          { folder_label: "asc" },
+          { assessment_order_index: "asc" },
+          { created_at: "desc" }
+        ],
+        include: assessmentListInclude
+      });
+      const currentRevision = computeAssessmentOrganizationRevision(assessments);
+
+      if (currentRevision !== data.expected_revision) {
+        throw new ContentServiceError(
+          "conflict",
+          "The assessment library changed in another session. Refresh and try again.",
+          409,
+          { reason: "assessment_organization_revision_mismatch" }
+        );
+      }
+
+      const knownByPublicId = new Map(
+        assessments.map((assessment) => [assessment.assessment_public_id, assessment])
+      );
+      const seenAssessmentIds = new Set<string>();
+      const seenFolderLabels = new Set<string>();
+      const updates: Array<{
+        id: string;
+        folder_label: string | null;
+        folder_order_index: number;
+        assessment_order_index: number;
+      }> = [];
+
+      data.groups.forEach((group, groupIndex) => {
+        const folder_label = normalizeFolderLabel(group.folder_label);
+        const folderKey = folder_label ?? "__unfiled__";
+
+        if (seenFolderLabels.has(folderKey)) {
+          throw new ContentServiceError(
+            "validation_failed",
+            "Assessment organization contains duplicate folder groups.",
+            400,
+            {
+              issues: [
+                validationIssue(
+                  `groups.${groupIndex}.folder_label`,
+                  "duplicate_folder_group",
+                  "Each folder/week/module may appear only once."
+                )
+              ]
+            }
+          );
+        }
+        seenFolderLabels.add(folderKey);
+
+        group.assessment_public_ids.forEach((assessmentPublicId, assessmentIndex) => {
+          if (seenAssessmentIds.has(assessmentPublicId)) {
+            throw new ContentServiceError(
+              "validation_failed",
+              "Assessment organization contains duplicate mini tests.",
+              400,
+              {
+                issues: [
+                  validationIssue(
+                    `groups.${groupIndex}.assessment_public_ids.${assessmentIndex}`,
+                    "duplicate_assessment_public_id",
+                    "Each mini test may appear only once."
+                  )
+                ]
+              }
+            );
+          }
+
+          const assessment = knownByPublicId.get(assessmentPublicId);
+          if (!assessment) {
+            seenAssessmentIds.add(assessmentPublicId);
+            return;
+          }
+
+          seenAssessmentIds.add(assessmentPublicId);
+          updates.push({
+            id: assessment.id,
+            folder_label,
+            folder_order_index: groupIndex,
+            assessment_order_index: assessmentIndex
+          });
+        });
+      });
+
+      const providedIds = [...seenAssessmentIds];
+      const unknownIds = providedIds.filter((assessmentPublicId) => !knownByPublicId.has(assessmentPublicId));
+
+      if (unknownIds.length > 0) {
+        const existingUnknownCount = await tx.assessment.count({
+          where: { assessment_public_id: { in: unknownIds } }
+        });
+
+        if (existingUnknownCount > 0) {
+          throw new ContentServiceError(
+            "forbidden",
+            "One or more mini tests cannot be reorganized by this account.",
+            403,
+            { reason: "assessment_not_manageable" }
+          );
+        }
+
+        throw new ContentServiceError(
+          "validation_failed",
+          "Assessment organization references unknown mini tests.",
+          400,
+          {
+            issues: unknownIds.map((assessmentPublicId) =>
+              validationIssue(
+                "groups",
+                "unknown_assessment_public_id",
+                `Unknown mini test: ${assessmentPublicId}`
+              )
+            )
+          }
+        );
+      }
+
+      const omitted = assessments
+        .map((assessment) => assessment.assessment_public_id)
+        .filter((assessmentPublicId) => !seenAssessmentIds.has(assessmentPublicId));
+
+      if (omitted.length > 0 || seenAssessmentIds.size !== assessments.length) {
+        throw new ContentServiceError(
+          "validation_failed",
+          "Assessment organization must include every mini test exactly once.",
+          400,
+          {
+            issues: omitted.map((assessmentPublicId) =>
+              validationIssue(
+                "groups",
+                "missing_assessment_public_id",
+                `Missing mini test: ${assessmentPublicId}`
+              )
+            )
+          }
+        );
+      }
+
+      for (const update of updates) {
+        await tx.assessment.update({
+          where: { id: update.id },
+          data: {
+            folder_label: update.folder_label,
+            folder_order_index: update.folder_order_index,
+            assessment_order_index: update.assessment_order_index
+          }
+        });
+      }
+
+      const updatedAssessments = await tx.assessment.findMany({
+        where: { created_by_user_db_id: input.teacher_user_db_id },
+        orderBy: [
+          { folder_order_index: "asc" },
+          { folder_label: "asc" },
+          { assessment_order_index: "asc" },
+          { created_at: "desc" }
+        ],
+        include: assessmentListInclude
+      });
+
+      return {
+        assessments: updatedAssessments.map(serializeAssessmentListItem),
+        organization_revision: computeAssessmentOrganizationRevision(updatedAssessments)
+      };
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+  );
 }
 
 export async function createAssessment(input: {

@@ -117,11 +117,13 @@ function assertDashboardSurface() {
   assertIncludes(contentHome, "Assessment management", "Assessment management page");
   assertIncludes(contentHome, "New mini test", "Assessment management page");
   assertIncludes(contentHome, "Assessment library", "Assessment management page");
-  assertIncludes(contentHome, "Reorganize assessments", "Assessment management page");
   assertIncludes(contentHome, "JSON import", "Assessment management page");
   assertIncludes(contentHome, 'href="/teacher/content/assessments/new"', "Assessment management page");
   assertIncludes(contentHome, 'href="/teacher/content/assessments"', "Assessment management page");
   assertIncludes(contentHome, 'href="/teacher/content/import-json"', "Assessment management page");
+  assertExcludes(contentHome, "Reorganize assessments", "Assessment management page");
+  assertExcludes(contentHome, "PrimaryLink", "Assessment management page");
+  assertExcludes(contentHome, "SecondaryLink", "Assessment management page");
   assertExcludes(contentHome, "Research integrity", "Assessment management page");
 
   for (const forbidden of [

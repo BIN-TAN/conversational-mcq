@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireTeacherResearcher, contentRouteError } from "@/lib/services/content/api";
-import { createAssessment, listAssessments } from "@/lib/services/content/assessments";
+import {
+  computeAssessmentOrganizationRevision,
+  createAssessment,
+  listAssessments
+} from "@/lib/services/content/assessments";
 
 export async function GET() {
   const auth = await requireTeacherResearcher();
@@ -12,7 +16,10 @@ export async function GET() {
   try {
     const assessments = await listAssessments({ teacher_user_db_id: auth.user.user_db_id });
 
-    return NextResponse.json({ assessments });
+    return NextResponse.json({
+      assessments,
+      organization_revision: computeAssessmentOrganizationRevision(assessments)
+    });
   } catch (error) {
     return contentRouteError(error);
   }
