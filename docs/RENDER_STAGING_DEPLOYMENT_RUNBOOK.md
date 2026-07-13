@@ -308,6 +308,58 @@ npm run student:live-llm-smoke
 
 The live smoke command skips by default unless explicitly opted in. Do not run paid live calls as part of this runbook unless the pilot operator intentionally enables them.
 
+## Teacher Recovery Email Bootstrap
+
+Render migrations create the account-security tables, but recovery email setup
+is an explicit operator step. Do not hardcode recovery emails in migrations or
+source. After deployment:
+
+1. Deploy and apply migrations.
+2. Configure the production email provider with server-side `EMAIL_PROVIDER`,
+   `EMAIL_FROM`, optional `EMAIL_REPLY_TO`, and provider credentials such as
+   `RESEND_API_KEY`.
+3. Confirm `APP_BASE_URL` is `https://conversational-mcq.onrender.com`.
+4. Confirm sender-domain SPF, DKIM, and DMARC configuration with the email
+   provider before relying on delivery.
+5. Set the existing teacher recovery email with the guarded operator command:
+
+```bash
+TEACHER_EMAIL_SETUP_ENABLED=true \
+TEACHER_USERNAME=teacher_staging_01 \
+TEACHER_EMAIL=btan4@ualberta.ca \
+TEACHER_EMAIL_MARK_VERIFIED=true \
+npm run operator:set-teacher-email
+```
+
+Use the actual deployed teacher username. The command prints only safe status
+and a masked email, rejects student accounts, and enforces normalized uniqueness.
+
+Manual verification:
+
+1. Log in and open Account settings.
+2. Confirm the email is shown as verified.
+3. Log out.
+4. Use `Forgot your teacher password?`.
+5. Confirm the reset email arrives.
+6. Reset the password.
+7. Confirm the old password fails and the new password works.
+8. Confirm previous teacher sessions are invalidated.
+9. Log in and request a change to a disposable test email.
+10. Confirm the original email remains active until verification.
+11. Verify the new email.
+12. Confirm the new email becomes the recovery address.
+13. Change back to the intended institutional email if the disposable address
+    was only for testing.
+
+The default live email smoke is:
+
+```bash
+npm run teacher:email-security-live-smoke
+```
+
+It does not send email unless `RUN_LIVE_TEACHER_EMAIL_SECURITY_SMOKE=1` and
+`LIVE_TEACHER_EMAIL_SMOKE_RECIPIENT` are explicitly configured.
+
 ## Boundaries
 
 This runbook does not implement or require:
@@ -319,5 +371,5 @@ This runbook does not implement or require:
 - Canvas Developer Key configuration;
 - Canvas API integration;
 - public self-registration;
-- email/SMS delivery;
+- SMS delivery;
 - classroom-validity claims.

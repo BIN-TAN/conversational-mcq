@@ -20,6 +20,8 @@ export type PublicIdKind =
   | "student_account_event"
   | "student_account_deletion_event"
   | "assessment_deletion_event"
+  | "account_security_token"
+  | "account_security_event"
   | "operational_effective_result"
   | "operational_canary_run"
   | "operational_canary_step"
@@ -54,6 +56,8 @@ const prefixes: Record<PublicIdKind, string> = {
   student_account_event: "sae",
   student_account_deletion_event: "sade",
   assessment_deletion_event: "asde",
+  account_security_token: "ast",
+  account_security_event: "ase",
   operational_effective_result: "oper",
   operational_canary_run: "olcr",
   operational_canary_step: "olcs",

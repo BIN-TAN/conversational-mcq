@@ -91,6 +91,7 @@ function assertNormalTeacherPagesUseSharedNav() {
   for (const filePath of pages) {
     const file = source(filePath);
     assertIncludes(file, "TeacherPrimaryNav", filePath);
+    assertIncludes(file, "TeacherAccountUtilityLink", filePath);
     assertExcludes(file, 'href: "/teacher/content/import-json"', filePath);
     assertExcludes(file, 'href="/teacher/evals"', filePath);
     for (const label of forbiddenPrimaryLabels) {
@@ -101,6 +102,10 @@ function assertNormalTeacherPagesUseSharedNav() {
   const dashboard = source("src/app/teacher/dashboard/page.tsx");
   assertIncludes(dashboard, "TeacherLogoutButton", "Teacher dashboard");
   assertIncludes(dashboard, '<TeacherPrimaryNav variant="dark" />', "Teacher dashboard");
+  assertIncludes(dashboard, '<TeacherAccountUtilityLink variant="dark" />', "Teacher dashboard");
+  const utility = source("src/components/teacher-account-utility-link.tsx");
+  assertIncludes(utility, 'href="/teacher/account"', "Teacher account utility link");
+  assertIncludes(utility, "Account settings", "Teacher account utility link");
 }
 
 function assertStudentAccountActionsRemainInPageContent() {

@@ -7,6 +7,7 @@ import { generatePublicId } from "../src/lib/services/ids";
 import { generateHashedAccessCode } from "../src/lib/services/student-accounts/access-codes";
 import { credentialCsv, oneTimeCredentialWarning, type OneTimeCredential } from "../src/lib/services/student-accounts/credentials";
 import { normalizeUserId, parseDisplayName, parseUserId } from "../src/lib/services/student-accounts/validation";
+import { maskEmail, normalizeTeacherEmail } from "../src/lib/services/account-security/email";
 import {
   demoAssessmentPublicId,
   ensureFixedIrtMvpAssessment
@@ -16,6 +17,7 @@ export type BootstrapPilotConfig = {
   enabled: boolean;
   teacherUsername: string;
   teacherPassword: string;
+  teacherEmail?: string;
   classroomId: string;
   classroomName: string;
   studentCount?: number;
@@ -40,6 +42,9 @@ export type BootstrapPilotSummary = {
     user_id: string;
     created: boolean;
     existing: boolean;
+    recovery_email_configured: boolean;
+    recovery_email_verified: boolean;
+    masked_recovery_email: string | null;
   };
   students: {
     requested_count: number;
@@ -140,6 +145,7 @@ export function parseBootstrapPilotConfig(
     enabled,
     teacherUsername: parseUserId(env.BOOTSTRAP_TEACHER_USERNAME),
     teacherPassword: env.BOOTSTRAP_TEACHER_PASSWORD ?? "",
+    teacherEmail: optionalTrimmed(env.BOOTSTRAP_TEACHER_EMAIL),
     classroomId: parseUserId(env.BOOTSTRAP_CLASSROOM_ID),
     classroomName: parseDisplayName(env.BOOTSTRAP_CLASSROOM_NAME) ?? parseUserId(env.BOOTSTRAP_CLASSROOM_ID),
     studentCount,
@@ -214,6 +220,7 @@ function assertUniqueStudents(students: BootstrapPilotStudentInput[]) {
 async function ensureTeacher(prisma: PrismaClient, config: BootstrapPilotConfig) {
   const normalized = normalizeUserId(config.teacherUsername);
   const existing = await prisma.user.findUnique({ where: { user_id_normalized: normalized } });
+  const teacherEmail = config.teacherEmail ? normalizeTeacherEmail(config.teacherEmail) : null;
 
   if (existing) {
     if (existing.role !== "teacher_researcher") {
@@ -221,6 +228,33 @@ async function ensureTeacher(prisma: PrismaClient, config: BootstrapPilotConfig)
         user_id: config.teacherUsername,
         existing_role: existing.role
       });
+    }
+    if (teacherEmail) {
+      const conflicting = await prisma.user.findFirst({
+        where: {
+          role: "teacher_researcher",
+          email_normalized: teacherEmail.normalized,
+          id: { not: existing.id }
+        },
+        select: { id: true }
+      });
+      if (conflicting) {
+        throw new BootstrapError("Bootstrap teacher recovery email is already used by another teacher account.", {
+          email_masked: maskEmail(teacherEmail.display)
+        });
+      }
+      const updated = await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          email: teacherEmail.display,
+          email_normalized: teacherEmail.normalized,
+          email_verified_at: existing.email_verified_at ?? new Date(),
+          pending_email: null,
+          pending_email_normalized: null,
+          email_change_requested_at: null
+        }
+      });
+      return { teacher: updated, created: false };
     }
     return { teacher: existing, created: false };
   }
@@ -236,7 +270,10 @@ async function ensureTeacher(prisma: PrismaClient, config: BootstrapPilotConfig)
       access_code_hash: null,
       account_status: "active",
       auth_version: 1,
-      credential_updated_at: new Date()
+      credential_updated_at: new Date(),
+      email: teacherEmail?.display ?? null,
+      email_normalized: teacherEmail?.normalized ?? null,
+      email_verified_at: teacherEmail ? new Date() : null
     }
   });
 
@@ -421,7 +458,10 @@ export async function bootstrapPilotDatabase(prisma: PrismaClient, config: Boots
     teacher: {
       user_id: teacherResult.teacher.user_id,
       created: teacherResult.created,
-      existing: !teacherResult.created
+      existing: !teacherResult.created,
+      recovery_email_configured: Boolean(teacherResult.teacher.email_normalized),
+      recovery_email_verified: Boolean(teacherResult.teacher.email_verified_at),
+      masked_recovery_email: maskEmail(teacherResult.teacher.email)
     },
     students: {
       requested_count: students.length,

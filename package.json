@@ -331,7 +331,12 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "student:teacher-student-account-smoke": "tsx prisma/teacher-student-account-smoke-test.ts",
     "student:teacher-student-deletion-smoke": "tsx prisma/teacher-student-deletion-smoke-test.ts",
-    "student:teacher-mcq-item-builder-smoke": "tsx prisma/teacher-mcq-item-builder-smoke-test.ts"
+    "student:teacher-mcq-item-builder-smoke": "tsx prisma/teacher-mcq-item-builder-smoke-test.ts",
+    "teacher:email-password-reset-smoke": "tsx prisma/teacher-email-password-reset-smoke-test.ts",
+    "teacher:email-change-smoke": "tsx prisma/teacher-email-change-smoke-test.ts",
+    "operator:set-teacher-email": "tsx prisma/operator-set-teacher-email.ts",
+    "operator:set-teacher-email-smoke": "tsx prisma/operator-set-teacher-email-smoke-test.ts",
+    "teacher:email-security-live-smoke": "tsx prisma/teacher-email-security-live-smoke-test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

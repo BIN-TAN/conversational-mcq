@@ -53,6 +53,7 @@ const serverEnvSchema = z.object({
       message: "DATABASE_URL must be a PostgreSQL connection string"
     }),
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters"),
+  APP_BASE_URL: z.string().url().default("http://localhost:3000"),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_API_KEY_FILE: z.string().optional(),
   LLM_PROVIDER: z.enum(["mock", "openai"]).default("mock"),
@@ -101,6 +102,16 @@ const serverEnvSchema = z.object({
   ITEM_ADMIN_TUTOR_MODE: z.enum(["auto", "mock", "live"]).default("auto"),
   ITEM_ADMIN_TUTOR_LIVE_ENABLED: booleanWithDefault(false),
   ALLOW_LOCAL_MOCK_RUNTIME: booleanWithDefault(false),
+  EMAIL_PROVIDER: z.enum(["disabled", "resend"]).default("disabled"),
+  EMAIL_FROM: z.string().optional(),
+  EMAIL_REPLY_TO: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  PASSWORD_RESET_TOKEN_TTL_MINUTES: positiveIntWithDefault(30),
+  EMAIL_CHANGE_TOKEN_TTL_MINUTES: positiveIntWithDefault(30),
+  TEACHER_PASSWORD_RESET_EMAIL_MAX_PER_HOUR: positiveIntWithDefault(3),
+  TEACHER_PASSWORD_RESET_IP_MAX_PER_HOUR: positiveIntWithDefault(20),
+  TEACHER_PASSWORD_RESET_GLOBAL_MAX_PER_HOUR: positiveIntWithDefault(200),
+  TEACHER_EMAIL_CHANGE_MAX_PER_HOUR: positiveIntWithDefault(5),
   COURSE_TIMEZONE: z
     .string()
     .default("America/Edmonton")

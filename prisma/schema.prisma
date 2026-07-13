@@ -17,6 +17,11 @@ enum UserAccountStatus {
   inactive
 }
 
+enum AccountSecurityTokenPurpose {
+  teacher_password_reset
+  teacher_email_change_verification
+}
+
 enum AssessmentStatus {
   draft
   published
@@ -397,6 +402,11 @@ model User {
   user_id_normalized    String            @unique
   display_name          String?
   email                 String?
+  email_normalized      String?
+  email_verified_at     DateTime?         @db.Timestamptz(6)
+  pending_email         String?
+  pending_email_normalized String?
+  email_change_requested_at DateTime?     @db.Timestamptz(6)
   role                  UserRole
   password_hash         String?
   access_code_hash      String?
@@ -431,10 +441,72 @@ model User {
   eval_annotations                          EvalAnnotation[]              @relation("EvalAnnotationAuthor")
   confirmed_eval_annotations                EvalAnnotation[]              @relation("EvalAnnotationConfirmer")
   amended_eval_annotation_revisions         EvalAnnotationRevision[]      @relation("EvalAnnotationRevisionAmender")
+  account_security_tokens                   AccountSecurityToken[]        @relation("AccountSecurityTokens")
+  account_security_events                   AccountSecurityEvent[]        @relation("AccountSecurityEvents")
+  performed_account_security_events         AccountSecurityEvent[]        @relation("AccountSecurityEventPerformer")
 
   @@index([email])
+  @@index([email_normalized])
+  @@index([pending_email_normalized])
   @@index([created_by_teacher_user_id])
   @@map("users")
+}
+
+model AccountSecurityToken {
+  id                       String                      @id @default(uuid()) @db.Uuid
+  token_public_id          String                      @unique @default(cuid())
+  user_db_id               String                      @db.Uuid
+  purpose                  AccountSecurityTokenPurpose
+  token_hash               String                      @unique
+  pending_email_normalized String?
+  expires_at               DateTime                    @db.Timestamptz(6)
+  used_at                  DateTime?                   @db.Timestamptz(6)
+  invalidated_at           DateTime?                   @db.Timestamptz(6)
+  created_at               DateTime                    @default(now()) @db.Timestamptz(6)
+  request_ip_hash          String?
+  request_user_agent_hash  String?
+  attempt_count            Int                         @default(0)
+  metadata_json            Json?
+
+  user User @relation("AccountSecurityTokens", fields: [user_db_id], references: [id], onDelete: Cascade)
+
+  @@index([user_db_id, purpose, expires_at])
+  @@index([purpose, expires_at])
+  @@index([pending_email_normalized])
+  @@map("account_security_tokens")
+}
+
+model AccountSecurityRateLimit {
+  id              String   @id @default(uuid()) @db.Uuid
+  scope           String
+  scope_hash      String
+  window_start    DateTime @db.Timestamptz(6)
+  request_count   Int      @default(0)
+  last_request_at DateTime @db.Timestamptz(6)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([scope, scope_hash, window_start])
+  @@index([scope, scope_hash, last_request_at])
+  @@map("account_security_rate_limits")
+}
+
+model AccountSecurityEvent {
+  id                    String   @id @default(uuid()) @db.Uuid
+  event_public_id       String   @unique @default(cuid())
+  user_db_id            String?  @db.Uuid
+  performed_by_user_db_id String? @db.Uuid
+  event_type            String
+  status                String
+  metadata_json         Json?
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+
+  user         User? @relation("AccountSecurityEvents", fields: [user_db_id], references: [id], onDelete: SetNull)
+  performed_by User? @relation("AccountSecurityEventPerformer", fields: [performed_by_user_db_id], references: [id], onDelete: SetNull)
+
+  @@index([user_db_id, created_at])
+  @@index([event_type, created_at])
+  @@map("account_security_events")
 }
 
 model Assessment {

@@ -397,6 +397,28 @@ Teacher/research quick CSV checks:
 
 No logs, exports, screenshots, or notes should contain API keys, cookies, auth tokens, session secrets, password hashes, access-code hashes, hidden prompts, or raw provider payloads.
 
+## Teacher Recovery Checklist
+
+- Teacher username remains the sign-in identifier; recovery email is not a login ID.
+- Existing staging/production teacher recovery email is set through
+  `npm run operator:set-teacher-email`, not through source code or migrations.
+- Fresh bootstrap may use `BOOTSTRAP_TEACHER_EMAIL`; output should show only
+  masked recovery-email status.
+- Forgot-password requests use a non-enumerating response for known teacher,
+  unknown, student, unverified, provider-unavailable, and rate-limited cases.
+- Reset and verification links are single-use, expiring, hash-stored tokens.
+- Password reset invalidates older teacher sessions and sends no plaintext
+  password.
+- Authenticated email change requires current password, stores the new address
+  as pending, verifies by link before replacing the old address, and allows
+  cancellation.
+- Teacher email is visible only to the authenticated teacher on Account
+  settings and should not appear in student pages, public pages, default
+  research exports, agent prompts, or process-event payloads.
+- Live email delivery smoke is skipped by default; run it only with
+  `RUN_LIVE_TEACHER_EMAIL_SECURITY_SMOKE=1` and a safe
+  `LIVE_TEACHER_EMAIL_SMOKE_RECIPIENT`.
+
 ## What To Record During A Human Usability Pilot
 
 - Browser, device, operating system, and approximate network condition.

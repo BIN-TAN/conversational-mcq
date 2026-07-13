@@ -28,6 +28,13 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
     - Expected: teacher can create a student with `user_id`, optional display name, optional email, and a generated or set temporary password; student is prompted to choose a new password and cannot start or continue assessments until changing it; teacher can reset a forgotten password without seeing any current password.
     - Expected: deactivate/reactivate remains reversible. Irreversible deletion is available only after a preview and exact typed `student_id` plus `DELETE`; use it only for approved staging/test cleanup or approved withdrawal workflows. The deletion warning must state that previously downloaded exports are outside this system and cannot be removed here.
 
+4c. Teacher recovery-email check:
+    - Expected: the teacher/research Account settings utility action opens `/teacher/account`.
+    - Expected: username is read-only, recovery email is shown only to the authenticated teacher, and verified/pending status is clear.
+    - Expected: `Forgot your teacher password?` returns the same public response for any email and sends a link only for a verified teacher/research email.
+    - Expected: password reset invalidates earlier teacher sessions; old password fails and new password works.
+    - Expected: email change requires the current password, keeps the old email active until the new email is verified, and does not change username, public IDs, assessments, student relationships, exports, or session history.
+
 5. Complete a session:
    - Expected: the student can start the fixed IRT MVP, complete the protected initial item package, review the package, and enter the activity path. Student-facing progress should say `Item X of N` using the actual mini-test item count.
 
@@ -78,6 +85,7 @@ Stop the dry run and do not share the Canvas link if any of these occur:
 - teacher or student login fails;
 - first-run bootstrap was not completed on a fresh database;
 - teacher-managed student-account creation, password change, or reset fails;
+- teacher password reset or recovery-email verification fails after provider configuration;
 - temporary-credential students can reach assessment start/continue before changing password;
 - migrations did not run;
 - student UI exposes answer keys, correctness, distractor metadata, internal labels, or provider/audit metadata;

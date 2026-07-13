@@ -23,6 +23,7 @@ function smokeEnv(prefix: string) {
     BOOTSTRAP_ENABLED: "true",
     BOOTSTRAP_TEACHER_USERNAME: `${prefix}_teacher`,
     BOOTSTRAP_TEACHER_PASSWORD: `${prefix}_teacher_password_not_printed`,
+    BOOTSTRAP_TEACHER_EMAIL: `${prefix}_teacher@example.test`,
     BOOTSTRAP_CLASSROOM_ID: prefix,
     BOOTSTRAP_CLASSROOM_NAME: "Staging Bootstrap Smoke",
     BOOTSTRAP_STUDENT_COUNT: "3",
@@ -87,6 +88,12 @@ async function main() {
     const config = parseBootstrapPilotConfig(smokeEnv(prefix), { outputDir });
     const first = await bootstrapPilotDatabase(prisma, config);
     assert(first.teacher.created, "First bootstrap run should create the smoke teacher.");
+    assert(first.teacher.recovery_email_configured, "First bootstrap run should configure teacher recovery email.");
+    assert(first.teacher.recovery_email_verified, "Bootstrap teacher recovery email should be marked verified.");
+    assert(
+      first.teacher.masked_recovery_email !== `${prefix}_teacher@example.test`,
+      "Bootstrap summary should not print raw teacher email."
+    );
     assert(first.students.created_count === 3, "First bootstrap run should create three students.");
     assert(first.students.existing_count === 0, "First bootstrap run should not report existing students.");
     assert(first.students.access_codes_printed === false, "Bootstrap must not print access codes.");
@@ -98,6 +105,7 @@ async function main() {
 
     const second = await bootstrapPilotDatabase(prisma, config);
     assert(second.teacher.existing, "Second bootstrap run should reuse the teacher.");
+    assert(second.teacher.recovery_email_configured, "Second bootstrap run should preserve teacher recovery email.");
     assert(second.students.created_count === 0, "Second bootstrap run should not duplicate students.");
     assert(second.students.existing_count === 3, "Second bootstrap run should reuse all students.");
     assert(second.students.access_codes_output_path === null, "Second bootstrap run should not regenerate access codes.");
@@ -135,6 +143,8 @@ async function main() {
           second_run_created_students: second.students.created_count,
           assessment_public_id: first.assessment.assessment_public_id,
           access_codes_printed: false,
+          teacher_recovery_email_configured: first.teacher.recovery_email_configured,
+          teacher_recovery_email_verified: first.teacher.recovery_email_verified,
           credential_file_written_under_ignored_data: true,
           forbidden_secret_paths_tracked_or_staged: false,
           no_openai_call_occurred: true

@@ -2624,3 +2624,41 @@ Phase 6A.5 must not implement:
   requirements, and no OpenAI calls.
 - `student:teacher-mcq-formatting-assistant-live-smoke` must skip by default
   unless `RUN_LIVE_TEACHER_MCQ_FORMATTING_ASSISTANT_SMOKE=1` is explicitly set.
+
+## Phase 31Z Teacher Recovery Email Lock
+
+- Teacher/research users sign in with username plus password. Email is a
+  verified recovery and notification address only. Email-based login is not part
+  of Phase 31Z.
+- Students remain on the teacher-managed credential/reset workflow. Public
+  forgot-password recovery applies only to `teacher_researcher` accounts with
+  verified recovery email.
+- The initial production teacher email must be configured by guarded operator
+  command or bootstrap environment. It must not be hardcoded in source code,
+  migrations, seed defaults, or `.env.example`.
+- `users.email` may be reused for display email, with additive normalized,
+  verified, pending, and requested-at fields. Verified/current teacher recovery
+  emails must be unique by normalized value, and pending teacher emails should
+  reserve normalized value where practical.
+- Password-reset and email-change verification tokens must be generated with at
+  least 32 random bytes, stored only as cryptographic hashes, single-use,
+  expiring, and invalidated when replacement tokens are issued.
+- Forgot-password requests must return the same public message for known
+  teacher, unknown email, student email, unverified teacher email,
+  provider-unavailable, and rate-limited cases, except for safe generic retry
+  guidance where needed. The public response must not reveal account existence.
+- Password-reset links must be built from server-side `APP_BASE_URL`, not from
+  incoming `Host` headers.
+- Password reset must update password metadata and increment `auth_version` so
+  older signed teacher session cookies are rejected. Verified email change also
+  increments `auth_version`.
+- Account settings is a teacher utility action, not a seventh primary navigation
+  entry. The canonical teacher primary navigation remains Dashboard,
+  Assessment management, Student accounts, Student sessions, Data and outcomes,
+  and LLM status.
+- Teacher email may be shown to the authenticated teacher on Account settings.
+  It must not appear in student pages, public pages, default research exports,
+  agent prompts, process-event payloads, or browser-visible configuration.
+- Email-provider credentials must be server-side only. The default provider is
+  disabled, and live email smoke is skipped unless explicitly opted in with
+  `RUN_LIVE_TEACHER_EMAIL_SECURITY_SMOKE=1`.

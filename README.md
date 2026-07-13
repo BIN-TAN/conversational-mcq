@@ -2171,3 +2171,47 @@ explicit opt-in variables are set:
 including `OPENAI_MODEL_MCQ_FORMATTING` or
 `OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING`, must be configured before those paid
 checks run. Normal tests and builds do not make paid authoring calls.
+
+## Teacher Recovery Email And Password Reset
+
+Teacher/research users still sign in with username plus password. Verified email
+is used only for recovery links, email-change verification, and security
+notifications; students continue to use teacher-managed credential reset.
+
+Configure email delivery server-side only:
+
+```bash
+EMAIL_PROVIDER=disabled # or resend
+EMAIL_FROM=
+EMAIL_REPLY_TO=
+RESEND_API_KEY=
+APP_BASE_URL=http://localhost:3000
+```
+
+Set an existing teacher recovery email with the guarded operator command:
+
+```bash
+TEACHER_EMAIL_SETUP_ENABLED=true \
+TEACHER_USERNAME=<teacher username> \
+TEACHER_EMAIL=<teacher recovery email> \
+TEACHER_EMAIL_MARK_VERIFIED=true \
+npm run operator:set-teacher-email
+```
+
+The command prints only safe status and a masked email. It rejects student
+accounts and duplicate teacher recovery emails. For a fresh classroom database,
+`staging:bootstrap-pilot` also accepts `BOOTSTRAP_TEACHER_EMAIL`.
+
+Useful checks:
+
+```bash
+npm run teacher:email-password-reset-smoke
+npm run teacher:email-change-smoke
+npm run operator:set-teacher-email-smoke
+npm run teacher:email-security-live-smoke
+```
+
+`teacher:email-security-live-smoke` is skipped unless
+`RUN_LIVE_TEACHER_EMAIL_SECURITY_SMOKE=1` and
+`LIVE_TEACHER_EMAIL_SMOKE_RECIPIENT` are set. It is an email-provider smoke,
+not an OpenAI smoke.

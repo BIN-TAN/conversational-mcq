@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Download, Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
+import { TeacherAccountUtilityLink } from "@/components/teacher-account-utility-link";
 import { TeacherPrimaryNav } from "@/components/teacher-primary-nav";
 import type { OneTimeCredential, StructuredApiError } from "./types";
 
@@ -20,7 +21,10 @@ export function StudentAccountNav({ userId }: { userId: string }) {
   return (
     <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
       <TeacherPrimaryNav />
-      <span className="ml-auto text-muted">Signed in as {userId}</span>
+      <div className="ml-auto flex flex-wrap items-center gap-2">
+        <TeacherAccountUtilityLink />
+        <span className="text-muted">Signed in as {userId}</span>
+      </div>
     </div>
   );
 }

@@ -1,13 +1,12 @@
 import { redirect } from "next/navigation";
-import { AssessmentDashboardClient } from "@/components/teacher-dashboard/assessment-dashboard-client";
-import { TeacherAccountUtilityLink } from "@/components/teacher-account-utility-link";
+import { AccountSettingsClient } from "@/components/teacher-account/account-settings-client";
 import { TeacherLogoutButton } from "@/components/teacher-logout-button";
 import { TeacherPrimaryNav } from "@/components/teacher-primary-nav";
 import { UAlbertaLogo } from "@/components/ualberta-logo";
 import { getCurrentUser } from "@/lib/auth";
-import { getTeacherAssessmentDashboard } from "@/lib/services/teacher-dashboard/assessment-dashboard";
+import { getTeacherAccountSecurity } from "@/lib/services/account-security/teacher-account-security";
 
-export default async function TeacherDashboardPage() {
+export default async function TeacherAccountPage() {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -18,9 +17,7 @@ export default async function TeacherDashboardPage() {
     redirect("/student/assessment");
   }
 
-  const dashboard = await getTeacherAssessmentDashboard({
-    teacher_user_db_id: user.user_db_id
-  });
+  const account = await getTeacherAccountSecurity({ userDbId: user.user_db_id });
 
   return (
     <main className="min-h-screen bg-panel-gray">
@@ -33,22 +30,20 @@ export default async function TeacherDashboardPage() {
                 <p className="text-sm font-semibold uppercase tracking-wide text-ualberta-gold">
                   EDPY 507: Measurement Theory
                 </p>
-                <h1 className="mt-2 text-3xl font-semibold text-white">Assessment dashboard</h1>
+                <h1 className="mt-2 text-3xl font-semibold text-white">Account settings</h1>
                 <p className="mt-2 text-sm text-white/80">Signed in as {user.user_id}</p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <TeacherAccountUtilityLink variant="dark" />
-              <TeacherLogoutButton />
-            </div>
+            <TeacherLogoutButton />
           </div>
           <TeacherPrimaryNav variant="dark" />
         </div>
       </header>
 
       <div className="mx-auto max-w-6xl px-6 py-8">
-        <AssessmentDashboardClient initialDashboard={dashboard} />
+        <AccountSettingsClient initialAccount={account} />
       </div>
     </main>
   );
 }
+

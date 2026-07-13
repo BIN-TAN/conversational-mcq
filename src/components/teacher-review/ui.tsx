@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { AlertTriangle, Clipboard, Loader2 } from "lucide-react";
+import { TeacherAccountUtilityLink } from "@/components/teacher-account-utility-link";
 import { TeacherPrimaryNav } from "@/components/teacher-primary-nav";
 import type { StructuredApiError } from "./types";
 
@@ -122,7 +123,10 @@ export function TeacherReviewNav({ userId }: { userId: string }) {
   return (
     <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
       <TeacherPrimaryNav />
-      <span className="ml-auto text-muted">Signed in as {userId}</span>
+      <div className="ml-auto flex flex-wrap items-center gap-2">
+        <TeacherAccountUtilityLink />
+        <span className="text-muted">Signed in as {userId}</span>
+      </div>
     </div>
   );
 }

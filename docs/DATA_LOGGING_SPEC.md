@@ -736,3 +736,49 @@ deleted assessment and remove associated formatting and diagnostic-authoring
 `agent_calls` when they are referenced by safe candidate/suggestion metadata.
 Deletion audit rows retain aggregate counts only and must not retain raw
 imported source text or raw DOCX binary content.
+
+## Teacher Account Security Data
+
+Phase 31z adds teacher/research recovery-email and account-security records.
+Username remains the stable login identifier. Email is recovery/notification PII
+and is not included in student projections, default research exports, LLM
+prompts, process-event payloads, or public responses.
+
+Reused `users` fields:
+
+- `email`
+- `password_changed_at`
+- `credential_reset_at`
+- `auth_version`
+
+Additive teacher recovery fields:
+
+- `email_normalized`
+- `email_verified_at`
+- `pending_email`
+- `pending_email_normalized`
+- `email_change_requested_at`
+
+`account_security_tokens` stores only token hashes for
+`teacher_password_reset` and `teacher_email_change_verification`. Token rows may
+include expiry, used/invalidated timestamps, request IP/user-agent hashes, and
+safe metadata. Raw token values, reset URLs, passwords, password hashes,
+provider credentials, session cookies, and database URLs must not be stored or
+exported.
+
+`account_security_rate_limits` stores scoped hashes and hourly counters for
+forgot-password and email-change throttling. It must not store raw IP addresses
+or raw email addresses.
+
+`account_security_events` stores safe account-security audit rows such as
+password reset requested/completed, email change requested/cancelled/completed,
+verification failure, and email delivery failure. Metadata may include masked
+email, safe provider status, provider-message-id presence, auth-version
+rotation flags, and safe error codes. It must not include raw tokens, full
+reset URLs, passwords, provider API responses, provider credentials, or
+assessment content.
+
+Password reset and verified email-change completion increment `auth_version`,
+which invalidates older signed teacher session cookies. These changes do not
+alter assessment ownership, student relationships, public IDs, session history,
+research exports, or student credential-reset behavior.

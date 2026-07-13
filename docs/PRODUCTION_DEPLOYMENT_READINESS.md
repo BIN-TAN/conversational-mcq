@@ -346,3 +346,46 @@ Phase 31b adds readiness checks and deployment documentation for Canvas-link acc
 ## Phase 31c Render Package Boundary
 
 Phase 31c adds a Render staging Blueprint, Render readiness smoke, Render Dashboard runbook, and post-deployment dry-run checklist. It does not create a Render account, connect to Render, deploy the app, provision cloud resources, call provider APIs, modify runtime assessment logic, implement Canvas LTI, or claim classroom validity.
+
+## Phase 31z Teacher Recovery Readiness
+
+Teacher/research login continues to use username plus password. Verified email is
+a recovery and notification address only; email-based login is not enabled.
+Students remain on the teacher-managed credential-reset workflow.
+
+Production/staging readiness requires:
+
+- `APP_BASE_URL` set to the canonical HTTPS origin.
+- Server-side email provider configuration, for example `EMAIL_PROVIDER=resend`,
+  `EMAIL_FROM`, optional `EMAIL_REPLY_TO`, and provider credentials.
+- Sender-domain SPF, DKIM, and DMARC configured outside the app.
+- Existing teacher recovery email set by the guarded operator command:
+
+```bash
+TEACHER_EMAIL_SETUP_ENABLED=true \
+TEACHER_USERNAME=<teacher username> \
+TEACHER_EMAIL=<teacher recovery email> \
+TEACHER_EMAIL_MARK_VERIFIED=true \
+npm run operator:set-teacher-email
+```
+
+The command must be run with the actual deployed teacher username. It prints only
+masked email and safe status. Do not place real recovery emails in source,
+migrations, or `.env.example`.
+
+Fresh-database bootstrap may set `BOOTSTRAP_TEACHER_EMAIL`; the bootstrap summary
+reports only masked recovery-email status. Password-reset and email-change
+tokens are stored hashed, expire, are single-use, and increment `auth_version`
+on completion so older signed teacher sessions are rejected.
+
+No-live checks:
+
+```bash
+npm run teacher:email-password-reset-smoke
+npm run teacher:email-change-smoke
+npm run operator:set-teacher-email-smoke
+```
+
+`npm run teacher:email-security-live-smoke` is skipped unless explicitly opted in
+with `RUN_LIVE_TEACHER_EMAIL_SECURITY_SMOKE=1` and a safe
+`LIVE_TEACHER_EMAIL_SMOKE_RECIPIENT`.
