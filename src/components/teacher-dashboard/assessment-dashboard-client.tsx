@@ -313,10 +313,7 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
       <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-ualberta-green">
-              Assessment-level diagnostic overview
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold text-ink">{selectedTitle}</h2>
+            <h2 className="text-2xl font-semibold text-ink">{selectedTitle}</h2>
           </div>
           <label className="block min-w-[280px] text-sm font-semibold text-ink">
             Assessment / mini test

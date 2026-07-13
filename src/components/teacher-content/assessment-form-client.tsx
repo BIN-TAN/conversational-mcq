@@ -69,15 +69,11 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
     <div className="space-y-6">
       <Breadcrumbs
         items={[
-          { label: "Mini tests", href: "/teacher/content/assessments" },
+          { label: "Assessment library", href: "/teacher/content/assessments" },
           { label: "New mini test" }
         ]}
       />
-      <PageHeader
-        eyebrow="mini test"
-        title="New mini test"
-        description="Create a classroom mini test, then add MCQ items directly."
-      />
+      <PageHeader title="New mini test" />
 
       <ErrorPanel error={error} />
 

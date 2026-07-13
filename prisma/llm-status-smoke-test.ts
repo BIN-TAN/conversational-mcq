@@ -120,7 +120,7 @@ async function main() {
     });
     assert(page.status === 200, "Teacher LLM system page should load.");
     const pageText = await page.text();
-    assert(pageText.includes("LLM system status"), "LLM status page title missing.");
+    assert(pageText.includes("LLM status"), "LLM status page title missing.");
     assertNoSecrets(pageText, "LLM system page");
 
     console.log("LLM status smoke test passed.");

@@ -707,9 +707,7 @@ export function AssessmentListClient() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="content"
-        title="Mini tests"
-        description="Create and organize assessment mini tests by folder, week, or module."
+        title="Assessment library"
         actions={
           isReorderMode ? (
             <>

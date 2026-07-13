@@ -714,7 +714,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
         item.status !== "archived"
     );
   const readOnlyReason = item?.is_content_locked
-    ? "Student data collection has started. The administered content is now read-only to preserve research consistency."
+    ? "Student data collection has started. The administered content is now read-only to preserve the session record."
     : item?.concept_unit_status === "published"
       ? "Return the topic to draft before editing published items."
       : item?.status === "archived"
@@ -729,15 +729,13 @@ export function ItemEditorClient(props: ItemEditorProps) {
     <div className="space-y-6">
       <Breadcrumbs
         items={[
-          { label: "Mini tests", href: "/teacher/content/assessments" },
+          { label: "Assessment library", href: "/teacher/content/assessments" },
           { label: assessmentTitle, href: assessmentHref },
           { label: title }
         ]}
       />
       <PageHeader
-        eyebrow="MCQ item"
         title={title}
-        description="Build one MCQ item with teacher-only diagnostic notes for interpretation."
         actions={
           <Button onClick={leaveEditor} type="button" variant="secondary">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />

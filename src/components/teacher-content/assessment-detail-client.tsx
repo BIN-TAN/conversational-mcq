@@ -307,9 +307,7 @@ export function AssessmentDetailClient({
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="mini test"
         title={assessment?.title ?? "Assessment detail"}
-        description="Build the MCQ items students will answer in the initial chat administration."
         actions={
           <>
             {isDraftEditable ? (
@@ -603,7 +601,7 @@ export function AssessmentDetailClient({
               </dl>
             </section>
             <section className="rounded-lg border border-line bg-white p-5 text-sm leading-6 text-muted shadow-soft">
-              Archive the assessment to prevent new sessions while preserving existing research records.
+              Archive the assessment to prevent new sessions while preserving existing session data.
             </section>
             <form
               className="rounded-lg border border-red-200 bg-white p-5 text-sm leading-6 text-muted shadow-soft"

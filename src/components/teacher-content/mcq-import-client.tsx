@@ -328,9 +328,7 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="MCQ import"
         title="Import MCQ items"
-        description="Preview extracted items, confirm keys, and keep LLM suggestions separate until reviewed."
         actions={
           <>
             <a

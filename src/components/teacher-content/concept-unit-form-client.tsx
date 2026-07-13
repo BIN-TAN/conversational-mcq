@@ -61,11 +61,7 @@ export function ConceptUnitCreateClient({
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="topic"
-        title="Add topic"
-        description="Create a topic and learning objective before adding MCQ items."
-      />
+      <PageHeader title="Add topic" />
 
       <ErrorPanel error={error} />
 

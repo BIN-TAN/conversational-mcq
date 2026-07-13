@@ -409,9 +409,7 @@ export function ConceptUnitDetailClient({
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="topic"
         title={conceptUnit?.title ?? "Topic detail"}
-        description="Topic metadata, publish validation, and MCQ items."
         actions={
           <>
             {isConceptUnitEditable ? (

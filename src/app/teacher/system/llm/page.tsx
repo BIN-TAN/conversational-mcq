@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { DataNav } from "@/components/teacher-data/ui";
+import { TeacherPageHeader } from "@/components/teacher-page-header";
 import { getCurrentUser } from "@/lib/auth";
 import { getLlmReadiness } from "@/lib/llm/readiness";
 
@@ -26,17 +27,7 @@ export default async function TeacherLlmSystemPage() {
     <main className="min-h-screen px-6 py-8">
       <div className="mx-auto max-w-6xl">
         <DataNav userId={user.user_id} />
-        <header className="border-b border-line pb-5">
-          <p className="text-sm font-semibold uppercase tracking-wide text-accent">
-            LLM infrastructure
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold text-ink">LLM system status</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-            Phase 8A adds a default-off guarded operational integration switch for local
-            workflow testing. It does not enable live OpenAI calls and does not establish
-            classroom validity.
-          </p>
-        </header>
+        <TeacherPageHeader title="LLM status" />
 
         <section className="mt-6 grid gap-4 md:grid-cols-3">
           <StatusCard label="Provider" value={String(readiness.provider)} />
@@ -226,12 +217,9 @@ export default async function TeacherLlmSystemPage() {
         ) : null}
 
         <section className="mt-6 rounded-lg border border-line bg-white p-5 text-sm leading-6 text-muted shadow-soft">
-          <h2 className="text-xl font-semibold text-ink">Safety boundaries</h2>
-          <p className="mt-3">
-            Guarded operational integration is default-off and local-only in Phase 8A.
-          </p>
-          <p>Live OpenAI classroom calls remain disabled unless separate server-side settings are changed in a later approved phase.</p>
-          <p>The approved evaluation evidence is provisional engineering readiness, not classroom validity.</p>
+          <h2 className="text-xl font-semibold text-ink">Configuration boundaries</h2>
+          <p className="mt-3">Provider: {String(readiness.provider)}.</p>
+          <p>Live calls: {readiness.live_calls_enabled ? "enabled" : "disabled"}.</p>
           <p>Connectivity testing uses only fixed synthetic data.</p>
           <p>This page never displays an API key and does not provide a browser form for secrets.</p>
         </section>

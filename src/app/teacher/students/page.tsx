@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { TeacherPageHeader } from "@/components/teacher-page-header";
 import { StudentListClient } from "@/components/teacher-students/student-list-client";
 import { StudentAccountNav } from "@/components/teacher-students/ui";
 import { getCurrentUser } from "@/lib/auth";
@@ -18,16 +19,7 @@ export default async function TeacherStudentsPage() {
     <main className="min-h-screen px-6 py-8">
       <div className="mx-auto max-w-7xl">
         <StudentAccountNav userId={user.user_id} />
-        <header className="border-b border-line pb-5">
-          <p className="text-sm font-semibold uppercase tracking-wide text-accent">
-            teacher_researcher student accounts
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold text-ink">Student accounts</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-            Search and manage pilot student accounts. This area never displays current plaintext
-            passwords, access codes, or credential hashes.
-          </p>
-        </header>
+        <TeacherPageHeader title="Student accounts" />
         <section className="mt-6">
           <StudentListClient />
         </section>

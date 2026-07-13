@@ -11,7 +11,7 @@ const sampleImport = {
   assessment: {
     title: "Demo assessment",
     description: "Optional description",
-    diagnostic_focus: "Plain-English diagnostic focus for teacher/research interpretation.",
+    diagnostic_focus: "Plain-English diagnostic focus for teacher interpretation.",
     folder_label: "Week 1"
   },
   concept_units: [
@@ -86,11 +86,7 @@ export function ImportJsonClient() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="content import"
-        title="JSON import"
-        description="Manual prepared item-set import. This does not call Item Verification and does not generate or rewrite content."
-      />
+      <PageHeader title="JSON import" />
 
       <ErrorPanel error={error} />
       <SuccessPanel message={success} />
@@ -116,7 +112,7 @@ export function ImportJsonClient() {
         <aside className="space-y-4">
           <section className="rounded-lg border border-line bg-white p-5 text-sm leading-6 text-muted shadow-soft">
             Provide either `assessment` for a new assessment or `assessment_public_id` to add
-            topics under an existing assessment. Writes run through the content backend API.
+            topics under an existing assessment.
           </section>
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <h2 className="font-semibold text-ink">Sample file</h2>

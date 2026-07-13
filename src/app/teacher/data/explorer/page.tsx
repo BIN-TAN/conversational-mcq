@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { TeacherPageHeader } from "@/components/teacher-page-header";
 import { SimpleCsvExplorerClient } from "@/components/teacher-data/simple-csv-explorer-client";
 import { DataNav } from "@/components/teacher-data/ui";
 import { getCurrentUser } from "@/lib/auth";
@@ -18,16 +19,7 @@ export default async function TeacherDataExplorerPage() {
     <main className="min-h-screen px-6 py-8">
       <div className="mx-auto max-w-6xl">
         <DataNav userId={user.user_id} />
-        <header className="border-b border-line pb-5">
-          <p className="text-sm font-semibold uppercase tracking-wide text-accent">
-            teacher/research CSV explorer
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold text-ink">CSV downloads</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-            Download summary CSV files or complete analysis-ready bundles without answer keys,
-            raw process payloads, provider output, credentials, or internal diagnostic notes.
-          </p>
-        </header>
+        <TeacherPageHeader title="Data Explorer" />
 
         <div className="mt-6">
           <SimpleCsvExplorerClient />

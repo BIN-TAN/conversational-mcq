@@ -6,9 +6,7 @@ export default function TeacherContentHomePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="teacher_researcher assessment tools"
         title="Assessment management"
-        description="Create, organize, and open diagnostic MCQ mini tests from one place."
       />
 
       <section className="grid gap-4 md:grid-cols-3">
@@ -39,7 +37,7 @@ export default function TeacherContentHomePage() {
           <FileJson className="h-5 w-5 text-accent" aria-hidden="true" />
           <h2 className="mt-4 text-lg font-semibold text-ink">JSON import</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Paste a prepared item set and create public IDs through the backend API.
+            Paste a prepared item set.
           </p>
         </Link>
       </section>

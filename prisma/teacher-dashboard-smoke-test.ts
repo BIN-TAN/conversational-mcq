@@ -52,7 +52,6 @@ function assertDashboardSurface() {
   }
 
   for (const expected of [
-    "Assessment-level diagnostic overview",
     "ParticipationStatusCard",
     "Participation status",
     "Total students",
@@ -76,6 +75,8 @@ function assertDashboardSurface() {
   ]) {
     assertIncludes(client, expected, "Teacher assessment dashboard client");
   }
+
+  assertExcludes(client, "Assessment-level diagnostic overview", "Teacher assessment dashboard client");
 
   for (const expected of [
     "CANDIDATE_PATTERN_THRESHOLD = 3",
