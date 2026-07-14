@@ -9,7 +9,7 @@ import {
 } from "@/lib/agents/operational/approved-config";
 import { checkLlmLiveCallReadiness, type LlmUsageGuardBlockedReason } from "@/lib/llm/usage/usage-guard";
 import { prisma } from "@/lib/db";
-import { getServerEnv } from "@/lib/env";
+import { safeParseServerEnv, type EnvConfigurationIssue } from "@/lib/env";
 import { databaseNameFromUrl } from "@/lib/services/operational-live-canary/database-url";
 import {
   missingCanaryContextDiagnostics,
@@ -80,6 +80,12 @@ export type OperationalExecutionBlockReason =
   | "canary_context_invalid"
   | "other_typed_configuration_error";
 
+type OperationalConfigurationErrorSummary = {
+  code: "invalid_environment_configuration";
+  issue_count: number;
+  issues: EnvConfigurationIssue[];
+};
+
 export type SanitizedReadinessSnapshot = CanaryContextDiagnostics & {
   agent_name: AgentNameType | null;
   operational_mode: OperationalAgentMode;
@@ -142,9 +148,30 @@ export type OperationalAgentIntegrationReadiness = {
   };
   active_configuration_hash: string;
   approved_configuration_hash: string;
-  active_agent_versions: ReturnType<typeof activeAgentVersionSnapshot>;
+  active_agent_versions: ReturnType<typeof activeAgentVersionSnapshot> | Record<string, never>;
   live_call_permitted: boolean;
   details?: Record<string, unknown>;
+};
+
+type GuardedOperationalAgentIntegrationConfig = {
+  mode: OperationalAgentMode;
+  enabled: boolean;
+  legacy_alias_enabled: boolean;
+  legacy_alias_explicit: boolean;
+  legacy_alias_conflict: boolean;
+  approved_targeted_run_public_id: string;
+  provider: string;
+  live_calls_enabled: boolean;
+  openai_key_configured: boolean;
+  operational_approved_config_hash_configured: boolean;
+  operational_approved_config_hash: string | null;
+  operational_approved_config_hash_source: string | null;
+  evaluation_evidence_required: boolean;
+  effective_result_version: string;
+  effective_validator_version: string;
+  phase_8a_allows_live_openai_calls_only_in_guarded_live: boolean;
+  configuration_valid: boolean;
+  configuration_error: OperationalConfigurationErrorSummary | null;
 };
 
 function explicitEnv(name: string) {
@@ -193,7 +220,18 @@ function firstManifestIssueCode(manifestVerification: ReturnType<typeof verifyAp
 }
 
 export function operationalModeStatus() {
-  const env = getServerEnv();
+  const parsed = safeParseServerEnv();
+  if (!parsed.success) {
+    return {
+      mode: "disabled" as const,
+      mode_explicit: explicitEnv("OPERATIONAL_AGENT_MODE"),
+      legacy_alias_explicit: explicitEnv("OPERATIONAL_AGENT_INTEGRATION_ENABLED"),
+      legacy_alias_mode: "disabled" as const,
+      alias_conflict: false,
+      warning: "Operational LLM configuration is invalid; operational agents fail closed."
+    };
+  }
+  const env = parsed.data;
   const modeExplicit = explicitEnv("OPERATIONAL_AGENT_MODE");
   const legacyExplicit = explicitEnv("OPERATIONAL_AGENT_INTEGRATION_ENABLED");
   const legacyMode = modeFromLegacyAlias(env.OPERATIONAL_AGENT_INTEGRATION_ENABLED);
@@ -212,8 +250,39 @@ export function operationalModeStatus() {
   };
 }
 
-export function guardedOperationalAgentIntegrationConfig() {
-  const env = getServerEnv();
+function configurationErrorSummary(error: { issues: EnvConfigurationIssue[] }): OperationalConfigurationErrorSummary {
+  return {
+    code: "invalid_environment_configuration",
+    issue_count: error.issues.length,
+    issues: error.issues
+  };
+}
+
+export function guardedOperationalAgentIntegrationConfig(): GuardedOperationalAgentIntegrationConfig {
+  const parsed = safeParseServerEnv();
+  if (!parsed.success) {
+    return {
+      mode: "disabled",
+      enabled: false,
+      legacy_alias_enabled: false,
+      legacy_alias_explicit: explicitEnv("OPERATIONAL_AGENT_INTEGRATION_ENABLED"),
+      legacy_alias_conflict: false,
+      approved_targeted_run_public_id: process.env.OPERATIONAL_AGENT_INTEGRATION_APPROVED_TARGETED_RUN_ID?.trim() || "evr_20260624_bltzgtq",
+      provider: "configuration_error",
+      live_calls_enabled: false,
+      openai_key_configured: false,
+      operational_approved_config_hash_configured: false,
+      operational_approved_config_hash: null,
+      operational_approved_config_hash_source: null,
+      evaluation_evidence_required: true,
+      effective_result_version: process.env.OPERATIONAL_EFFECTIVE_RESULT_VERSION?.trim() || "effective-system-eval-v2",
+      effective_validator_version: process.env.OPERATIONAL_EFFECTIVE_VALIDATOR_VERSION?.trim() || "effective-validator-v1",
+      phase_8a_allows_live_openai_calls_only_in_guarded_live: true,
+      configuration_valid: false,
+      configuration_error: configurationErrorSummary(parsed.error)
+    };
+  }
+  const env = parsed.data;
   const modeStatus = operationalModeStatus();
   const effectiveApprovedConfigHash =
     env.OPERATIONAL_APPROVED_CONFIG_HASH ??
@@ -240,7 +309,9 @@ export function guardedOperationalAgentIntegrationConfig() {
     evaluation_evidence_required: env.OPERATIONAL_AGENT_INTEGRATION_EVAL_EVIDENCE_REQUIRED,
     effective_result_version: env.OPERATIONAL_EFFECTIVE_RESULT_VERSION,
     effective_validator_version: env.OPERATIONAL_EFFECTIVE_VALIDATOR_VERSION,
-    phase_8a_allows_live_openai_calls_only_in_guarded_live: true
+    phase_8a_allows_live_openai_calls_only_in_guarded_live: true,
+    configuration_valid: true,
+    configuration_error: null
   };
 }
 
@@ -395,10 +466,36 @@ export async function evaluateOperationalExecutionReadiness(input: {
 } = {}): Promise<OperationalExecutionReadiness> {
   const config = guardedOperationalAgentIntegrationConfig();
   const manifest = readApprovedOperationalAgentConfig();
-  const manifestVerification = verifyApprovedOperationalAgentConfig();
-  const activeHash = activeOperationalConfigHash();
+  const manifestVerification = config.configuration_valid
+    ? verifyApprovedOperationalAgentConfig()
+    : {
+        valid: false,
+        manifest_hash: manifest.config_hash,
+        approved_hash: manifest.approved_active_configuration_hash,
+        issues: [
+          {
+            code: "invalid_environment_configuration",
+            message: "Operational LLM configuration is invalid.",
+            details: config.configuration_error
+          }
+        ],
+        active_configuration_hash: "unavailable_due_to_invalid_environment",
+        active_agents: {},
+        runtime_model_resolution: {},
+        manifest
+      };
+  const activeHash = config.configuration_valid
+    ? activeOperationalConfigHash()
+    : "unavailable_due_to_invalid_environment";
   const blockingReasons: OperationalExecutionBlockReason[] = [];
   const warnings = [
+    ...(config.configuration_error
+      ? [
+          `Operational LLM configuration is invalid: ${config.configuration_error.issues
+            .map((issue) => issue.path)
+            .join(", ")}`
+        ]
+      : []),
     ...(config.legacy_alias_explicit
       ? ["OPERATIONAL_AGENT_INTEGRATION_ENABLED is deprecated; use OPERATIONAL_AGENT_MODE."]
       : [])
@@ -452,21 +549,23 @@ export async function evaluateOperationalExecutionReadiness(input: {
       };
   const canaryContextValid = canaryValidation.valid;
 
-  if (config.legacy_alias_conflict) {
+  if (!config.configuration_valid) {
+    blockingReasons.push("other_typed_configuration_error");
+  } else if (config.legacy_alias_conflict) {
     blockingReasons.push("legacy_mode_conflict");
   }
 
-  if (config.mode === "disabled") {
+  if (config.configuration_valid && config.mode === "disabled") {
     blockingReasons.push("operational_mode_disabled");
   }
 
-  if (config.mode === "mock") {
+  if (config.configuration_valid && config.mode === "mock") {
     if (config.provider !== "mock" || config.live_calls_enabled) {
       blockingReasons.push("other_typed_configuration_error");
     }
   }
 
-  if (config.mode === "guarded_live") {
+  if (config.configuration_valid && config.mode === "guarded_live") {
     if (config.provider !== "openai") {
       blockingReasons.push("provider_not_openai");
     }
@@ -546,11 +645,13 @@ export async function evaluateOperationalExecutionReadiness(input: {
   const uniqueTypedReasons = [...new Set(blockingReasons)];
   const legacyReasons = [...new Set(uniqueTypedReasons.map(typedToLegacyReason))];
   const allowed = uniqueTypedReasons.length === 0;
-  const modelSnapshotMatches = !manifestVerification.issues.some((issue) =>
+  const modelSnapshotMatches = config.configuration_valid && !manifestVerification.issues.some((issue) =>
     ["model_snapshot_missing", "model_snapshot_mismatch", "reasoning_effort_missing", "reasoning_effort_mismatch", "runtime_token_limit_mismatch"].includes(issue.code)
   );
-  const effectiveResultVersionMatches = manifest.effective_result_version === config.effective_result_version;
-  const effectiveValidatorVersionMatches = manifest.effective_validator_version === config.effective_validator_version;
+  const effectiveResultVersionMatches =
+    config.configuration_valid && manifest.effective_result_version === config.effective_result_version;
+  const effectiveValidatorVersionMatches =
+    config.configuration_valid && manifest.effective_validator_version === config.effective_validator_version;
   const snapshot: SanitizedReadinessSnapshot = {
     agent_name: input.agentName ?? null,
     operational_mode: config.mode,
@@ -631,11 +732,13 @@ export async function getGuardedOperationalAgentIntegrationReadiness(
     },
     active_configuration_hash: activeHash,
     approved_configuration_hash: manifest.approved_active_configuration_hash,
-    active_agent_versions: activeAgentVersionSnapshot(),
+    active_agent_versions: config.configuration_valid ? activeAgentVersionSnapshot() : {},
     live_call_permitted: readiness.allowed && config.mode === "guarded_live",
-    details: snapshot.approved_manifest_valid
-      ? undefined
-      : { manifest_issues: verifyApprovedOperationalAgentConfig().issues }
+    details: config.configuration_error
+      ? { configuration_error: config.configuration_error }
+      : snapshot.approved_manifest_valid
+        ? undefined
+        : { manifest_issues: verifyApprovedOperationalAgentConfig().issues }
   };
 }
 

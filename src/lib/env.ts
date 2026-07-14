@@ -33,6 +33,22 @@ const booleanWithDefault = (defaultValue: boolean) =>
     )
     .transform((value) => value === "true");
 
+export type EnvConfigurationIssue = {
+  path: string;
+  message: string;
+};
+
+export class EnvConfigurationError extends Error {
+  code = "invalid_environment_configuration";
+  issues: EnvConfigurationIssue[];
+
+  constructor(issues: EnvConfigurationIssue[]) {
+    super(`Invalid environment configuration: ${formatEnvIssues(issues)}`);
+    this.name = "EnvConfigurationError";
+    this.issues = issues;
+  }
+}
+
 function isValidTimeZone(value: string) {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: value }).format(new Date());
@@ -215,25 +231,62 @@ const serverEnvSchema = z.object({
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
+const authEnvSchema = z.object({
+  SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters")
+});
+
+export type AuthEnv = z.infer<typeof authEnvSchema>;
+
+function normalizeEnvIssues(issues: z.ZodIssue[]): EnvConfigurationIssue[] {
+  return issues.map((issue) => {
+    const path = issue.path.join(".");
+    if (path === "ALLOW_LOCAL_MOCK_RUNTIME") {
+      return {
+        path,
+        message: "expected 'true' or 'false' when set; missing is allowed and defaults to false"
+      };
+    }
+
+    return {
+      path,
+      message: issue.message
+    };
+  });
+}
+
+function formatEnvIssues(issues: EnvConfigurationIssue[]) {
+  return issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ");
+}
+
+export function safeParseServerEnv(env: NodeJS.ProcessEnv = process.env):
+  | { success: true; data: ServerEnv }
+  | { success: false; error: EnvConfigurationError } {
+  const parsed = serverEnvSchema.safeParse(env);
+  if (parsed.success) {
+    return parsed;
+  }
+
+  return {
+    success: false,
+    error: new EnvConfigurationError(normalizeEnvIssues(parsed.error.issues))
+  };
+}
+
 export function getServerEnv(): ServerEnv {
-  const parsed = serverEnvSchema.safeParse(process.env);
+  const parsed = safeParseServerEnv(process.env);
 
   if (!parsed.success) {
-    const details = parsed.error.issues
-      .map((issue) => {
-        const path = issue.path.join(".");
-        if (path === "ALLOW_LOCAL_MOCK_RUNTIME") {
-          return [
-            "ALLOW_LOCAL_MOCK_RUNTIME: expected 'true' or 'false' when set",
-            "missing is allowed and defaults to false"
-          ].join("; ");
-        }
+    throw parsed.error;
+  }
 
-        return `${path}: ${issue.message}`;
-      })
-      .join("; ");
+  return parsed.data;
+}
 
-    throw new Error(`Invalid environment configuration: ${details}`);
+export function getAuthEnv(env: NodeJS.ProcessEnv = process.env): AuthEnv {
+  const parsed = authEnvSchema.safeParse(env);
+
+  if (!parsed.success) {
+    throw new EnvConfigurationError(normalizeEnvIssues(parsed.error.issues));
   }
 
   return parsed.data;

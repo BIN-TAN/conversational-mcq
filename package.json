@@ -219,6 +219,7 @@
     "student:account-smoke": "tsx prisma/student-account-smoke-test.ts",
     "student:account-ui-smoke": "tsx prisma/student-account-ui-smoke-test.ts",
     "auth:account-status-smoke": "tsx prisma/auth-account-status-smoke-test.ts",
+    "auth:llm-config-isolation-smoke": "tsx prisma/auth-llm-config-isolation-smoke-test.ts",
     "assessment:availability-smoke": "tsx prisma/assessment-availability-smoke-test.ts",
     "workflow:automation-smoke": "tsx prisma/workflow-automation-smoke-test.ts",
     "workflow:worker-smoke": "tsx prisma/workflow-worker-smoke-test.ts",

@@ -5,6 +5,7 @@ import {
   getLlmRuntimeConfig,
   LlmConfigurationError
 } from "@/lib/llm/config";
+import { EnvConfigurationError } from "@/lib/env";
 import { getTeacherLlmUsageStatus } from "@/lib/llm/usage/usage-serializers";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 
@@ -65,6 +66,33 @@ export async function getLlmReadiness() {
         configuration_error: {
           code: error.code,
           message: error.message
+        }
+      };
+    }
+
+    if (error instanceof EnvConfigurationError) {
+      return {
+        provider: "configuration_error",
+        live_calls_enabled: false,
+        openai_key_configured: false,
+        agent_model_configured: {},
+        prompt_versions: {},
+        schema_versions: {},
+        prompt_statuses: {},
+        mock_provider_available: true,
+        agents_connected_to_classroom_workflows: false,
+        prompts_active_in_classroom_workflows: false,
+        guarded_operational_agent_integration: null,
+        connectivity_test_uses_synthetic_data_only: true,
+        students_use_openai_accounts: false,
+        students_provide_api_keys: false,
+        server_side_api_key_only: true,
+        usage: null,
+        agent_names: agentNames,
+        configuration_error: {
+          code: error.code,
+          message: error.message,
+          issues: error.issues
         }
       };
     }

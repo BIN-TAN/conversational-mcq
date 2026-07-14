@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getServerEnv } from "@/lib/env";
+import { getAuthEnv } from "@/lib/env";
 import type { AppRole, ClientUser, PublicUser } from "@/types/auth";
 
 export const SESSION_COOKIE_NAME = "cmcq_session";
@@ -61,7 +61,7 @@ export function toClientUser(user: PublicUser): ClientUser {
 }
 
 export function createSessionToken(user: PublicUser): string {
-  const env = getServerEnv();
+  const env = getAuthEnv();
   const now = Math.floor(Date.now() / 1000);
   const claims: SessionClaims = {
     user_db_id: user.user_db_id,
@@ -82,7 +82,7 @@ export function verifySessionToken(token?: string): SessionClaims | null {
     return null;
   }
 
-  const env = getServerEnv();
+  const env = getAuthEnv();
   const [payload, signature] = token.split(".");
 
   if (!payload || !signature) {
