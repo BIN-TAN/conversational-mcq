@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Archive, Download, FileUp, Table2 } from "lucide-react";
+import { FileUp, Table2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { TeacherPageHeader } from "@/components/teacher-page-header";
 import { DataNav } from "@/components/teacher-data/ui";
@@ -22,16 +22,16 @@ export default async function TeacherDataPage() {
         <DataNav userId={user.user_id} />
         <TeacherPageHeader title="Data and outcomes" />
 
-        <section className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <section className="mt-6 grid gap-4 md:grid-cols-2">
           <Link
             className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
-            href="/teacher/data/explorer"
+            href="/teacher/data/research"
           >
-            <Download className="h-5 w-5 text-accent" aria-hidden="true" />
-            <h2 className="mt-4 text-lg font-semibold text-ink">Data Explorer</h2>
+            <Table2 className="h-5 w-5 text-accent" aria-hidden="true" />
+            <h2 className="mt-4 text-lg font-semibold text-ink">Research data and exports</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
-              Download assessment, student, or matrix summary CSV files without raw response text
-              or protected item keys.
+              Download quick summaries, analysis-ready CSV tables, full archive files, and the
+              variable dictionary from one place.
             </p>
           </Link>
 
@@ -47,31 +47,6 @@ export default async function TeacherDataPage() {
             </p>
           </Link>
 
-          <Link
-            className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
-            href="/teacher/data/export"
-          >
-            <Table2 className="h-5 w-5 text-accent" aria-hidden="true" />
-            <h2 className="mt-4 text-lg font-semibold text-ink">Master CSV export</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Generate master_assessment_export.csv with public IDs, placeholder rows for incomplete
-              sessions, process counts, transcripts, response packages, activated agent outputs,
-              workflow records, and active summative outcomes.
-            </p>
-          </Link>
-
-          <a
-            className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
-            href="/api/teacher/research-export"
-          >
-            <Archive className="h-5 w-5 text-accent" aria-hidden="true" />
-            <h2 className="mt-4 text-lg font-semibold text-ink">Download all research data</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Generate a data ZIP with readable transcripts, redacted structured records, data
-              dictionary, manifest, process summaries, and evidence summaries. Restricted item
-              keys are excluded by default.
-            </p>
-          </a>
         </section>
       </div>
     </main>

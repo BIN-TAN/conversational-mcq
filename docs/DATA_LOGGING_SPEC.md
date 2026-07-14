@@ -259,6 +259,115 @@ The command writes a redacted artifact under:
 .data/session-data-completeness-review/
 ```
 
+## Research Data Tables and Variable Dictionary
+
+Phase 31ab consolidates teacher/research downloads under:
+
+```text
+/teacher/data/research
+```
+
+The `Data and outcomes` landing page should show only:
+
+1. `Research data and exports`
+2. `Summative outcomes`
+
+The unified export center separates four tiers:
+
+- `Quick summary`: selected assessment CSV, selected student CSV, and student x
+  assessment matrix CSV.
+- `Analysis-ready dataset`: one normalized ZIP for statistical/process analysis.
+- `Full archive`: the existing comprehensive research archive with manifests
+  and redacted audit artifacts.
+- `Data dictionary`: a searchable/downloadable inventory of exported and
+  intentionally restricted variables.
+
+### Analysis-Ready CSV Row Grains
+
+The analysis-ready ZIP contains:
+
+| File | Row grain | Notes |
+|---|---|---|
+| `sessions.csv` | One row per student assessment attempt/session | Includes public session/assessment/student joins, timing aggregates, counts, and latest safe interpretation summaries. |
+| `item_responses.csv` | One row per student response to one administered item snapshot | Includes answer, reasoning, confidence, tempting-option evidence, timing, counts, and interpretation/evidence fields. Restricted answer-key columns are excluded by default. |
+| `process_events.csv` | One row per recorded process event | Includes event type/category/source, timing, item/session joins, and safe flattened payload fields. Raw payload JSON is not a primary analysis column. |
+| `conversation_turns.csv` | One row per visible or research-readable conversation turn | Includes actor, phase, item/session joins, message text, and response/action latency where available. |
+| `agent_and_activity_records.csv` | One row per agent call, workflow decision, formative activity attempt, or diagnostic update record | Uses `record_type` to distinguish incompatible row types; non-applicable fields remain null. |
+| `assessment_content.csv` | One row per administered item snapshot | Reflects content actually administered. Restricted item-key and diagnostic-note fields are excluded by default. |
+| `data_dictionary.csv` | One row per exported or classified variable | Documents row grain, type, source, missingness, privacy, export tier, formulas, and limitations. |
+
+### Join Keys
+
+Use public IDs rather than internal database UUIDs:
+
+- `session_public_id` joins sessions, item responses, process events,
+  conversation turns, and agent/activity records.
+- `assessment_public_id` joins assessment-level records.
+- `assessment_snapshot_public_id` binds rows to the administered assessment
+  context for a specific session.
+- `item_public_id` and `item_snapshot_public_id` join administered item
+  response/content records.
+- `attempt_number` keeps repeated attempts separate.
+
+### Timing Formulas
+
+Timing variables use milliseconds and `_ms` suffixes. The data dictionary stores
+the authoritative start/end events. Core formulas include:
+
+- `elapsed_session_time_ms`: `completed_at` or `last_activity_at` minus
+  `started_at`.
+- `active_interaction_time_ms`: elapsed session time minus recorded idle time
+  when idle instrumentation is available.
+- `time_to_first_action_ms`: first qualifying student action minus item start or
+  item presentation.
+- `time_to_first_option_selection_ms`: first option click/selection minus item
+  start or item presentation.
+- `reasoning_prompt_to_submission_ms`: reasoning submission minus reasoning
+  prompt.
+- `confidence_prompt_to_selection_ms`: confidence selection minus confidence
+  prompt.
+- `last_action_to_submission_ms`: item submission minus last qualifying student
+  action.
+
+### Null, Zero, and False Semantics
+
+- Null/empty CSV cell: unavailable, not recorded, not instrumented, not
+  generated, or not applicable when a status/limitation field explains why.
+- Zero: the variable was instrumented and the counted event did not occur.
+- False: a Boolean condition was explicitly evaluated and was false.
+
+Unavailable data must not be encoded as zero. Missing LLM output must not be
+encoded as the lowest category.
+
+### Privacy and Restricted Fields
+
+Default analysis-ready exports exclude:
+
+- teacher/student email;
+- passwords, password hashes, access codes, access-code hashes, tokens, cookies,
+  API keys, session secrets, and database URLs;
+- raw provider requests and unrestricted raw provider output;
+- internal database UUIDs;
+- unrestricted answer keys, correctness, and teacher diagnostic notes.
+
+Restricted research mode may include answer-key and teacher diagnostic fields
+only for authorized teacher/research use after explicit confirmation. Confirmed
+restricted analysis-ready downloads create a completed export audit record.
+Restricted fields are documented in `data_dictionary.csv` as `full archive only`
+or `restricted answer-key`.
+
+### Process-Event Inventory
+
+The dictionary includes one inventory row for every process-event type in the
+application domain enum. Event counts are contextual process evidence only; they
+must not be interpreted as misconduct labels or stable learner traits.
+
+### Tabular Formatting Standards
+
+CSV exports use UTF-8, one header row, stable snake_case columns, deterministic
+column order, ISO 8601 UTC timestamps, public IDs, empty cells for null, and
+spreadsheet-safe escaping for cells beginning with `=`, `+`, `-`, or `@`.
+
 The teacher session page also includes a read-only **Session evidence audit**
 tab. It reports counts and limitations only. It does not expose raw process
 payloads, raw provider outputs, answer keys, correct options, correctness
@@ -273,12 +382,12 @@ infer misconception, ability, cheating, or misconduct.
 Phase 30i adds two read-only teacher/research data surfaces over existing
 tables before proposing any schema changes.
 
-### Simple CSV Data Explorer
+### Quick Summary CSVs
 
-The teacher data area also includes `/teacher/data/explorer` for quick
-teacher/research CSV downloads over existing tables. These files are intended
-for lightweight spreadsheet review, not as a replacement for the full research
-ZIP.
+The teacher data area includes Quick summary downloads under
+`/teacher/data/research` for lightweight teacher/research CSV review over
+existing tables. Legacy `/teacher/data/explorer` redirects to the unified export
+center.
 
 - Assessment CSV: `assessment_<assessment_public_id>_students.csv`, one row per
   student-assessment session attempt for the selected assessment.
@@ -301,7 +410,7 @@ Every generated CSV row includes export-source identity fields:
 or session identifiers where applicable. The database fingerprint is an
 irreversible hash of the configured database URL; the raw URL is never exported.
 
-If a selected assessment has no authorized student sessions, the Data Explorer
+If a selected assessment has no authorized student sessions, the export center
 reports `No student sessions are available for this assessment.` and disables
 normal assessment downloads instead of producing a misleading header-only CSV.
 The selected-student export is scoped by authorized student/session ownership,
@@ -309,9 +418,12 @@ not only by the assessment creator, so a teacher-managed student remains
 exportable even when the session belongs to an assessment record originally
 created under another authorized account.
 
-The same page also provides analysis-ready detailed ZIP bundles for all
-authorized data, one selected assessment, or one selected student. Each bundle
-contains exactly:
+The unified export center also provides the Phase 31ab analysis-ready ZIP. Its
+current normalized tables are documented in the `Research Data Tables and
+Variable Dictionary` section.
+
+The legacy detailed CSV APIs remain authorized for backward compatibility. Their
+bundles contain:
 
 - `analysis_rows.csv`: one row per item response, plus a placeholder row for a
   session with no item responses. It includes response fields, frozen item/media
@@ -359,11 +471,11 @@ structured payloads, raw JSON, answer keys, correct options, correctness
 labels, distractor metadata, misconception IDs, process payloads, provider raw
 output, or secrets.
 
-### Research ZIP Export
+### Full Archive Export
 
-The teacher data area provides **Download all research data**. Per-session
-teacher review also provides **Download readable transcript** and **Download
-session research data**.
+The unified export center provides **Full archive** for the comprehensive
+research ZIP. Per-session teacher review also provides **Download readable
+transcript** and **Download session research data**.
 
 The default ZIP contains:
 

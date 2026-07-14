@@ -1170,9 +1170,11 @@ The export is read-only. It does not call OpenAI, run agents, create profiles, c
 Teacher routes:
 
 - `/teacher/data`
-- `/teacher/data/explorer`
+- `/teacher/data/research`
 - `/teacher/data/summative-outcomes`
-- `/teacher/data/export`
+
+Legacy `/teacher/data/explorer` and `/teacher/data/export` UI routes redirect
+to the unified research export center.
 
 Simple CSV explorer APIs:
 
@@ -1272,7 +1274,10 @@ Manual browser flow:
 4. Run `npm run dev`.
 5. Sign in as `teacher_demo` with `teacher_demo_password`.
 6. Open `/teacher/data/summative-outcomes`, preview a valid or invalid CSV, inspect validation results, and commit a valid preview.
-7. Open `/teacher/data/export`, select the demo assessment and primary outcome, generate the export, and download `master_assessment_export.csv`.
+7. Open `/teacher/data/research`, review Quick summary, Analysis-ready dataset,
+   Full archive, and Data dictionary sections, then download the analysis-ready
+   ZIP. Legacy master CSV APIs remain authorized for backward-compatible
+   workflows.
 8. Sign out, sign in as `student_demo` with `student_demo_access_code`, and confirm data/export pages and APIs are forbidden.
 
 See `docs/SUMMATIVE_OUTCOMES.md`, `docs/MASTER_CSV_EXPORT.md`, and `docs/MASTER_EXPORT_DATA_DICTIONARY.md` for the detailed data/export contracts.
@@ -2219,3 +2224,37 @@ npm run operator:rename-teacher-smoke
 npm run student:production-schema-readiness-smoke
 npm run operator:production-runtime-smoke
 ```
+
+## Research Data and Exports
+
+Teacher/research users should use `/teacher/data` then **Research data and
+exports** for routine data downloads. The Data and outcomes landing page now has
+two normal workflows only:
+
+- Research data and exports
+- Summative outcomes
+
+The unified export center separates four tiers:
+
+- Quick summary: selected assessment summary, selected student summary, and
+  student x assessment matrix CSV files.
+- Analysis-ready dataset: one ZIP with `sessions.csv`, `item_responses.csv`,
+  `process_events.csv`, `conversation_turns.csv`,
+  `agent_and_activity_records.csv`, `assessment_content.csv`, and
+  `data_dictionary.csv`.
+- Full archive: the existing comprehensive restricted research ZIP for audit
+  and reproducibility.
+- Data dictionary: downloadable variable inventory with row grain, type, source,
+  missingness, privacy level, export tier, generation method, and limitations.
+
+Legacy teacher UI routes `/teacher/data/explorer` and `/teacher/data/export`
+redirect to the unified export center. Existing authorized CSV and archive API
+endpoints remain available for backward compatibility.
+
+Default analysis-ready exports exclude answer keys, correctness fields, teacher
+diagnostic notes, credentials, hashes, raw provider payloads, database URLs,
+cookies, and API keys. Restricted research fields require an explicit restricted
+export option, explicit confirmation, and a completed export audit record; they
+remain teacher/research-only. Null means unavailable, not recorded, not
+generated, or not applicable; zero means an instrumented count was evaluated and
+the counted event did not occur.

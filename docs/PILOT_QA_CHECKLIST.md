@@ -386,7 +386,38 @@ Verify one completed synthetic session has expected records in:
 
 Teacher/research quick CSV checks:
 
-- `/teacher/data/explorer` loads for the teacher/research account.
+- `/teacher/data/research` loads for the teacher/research account.
+
+## Research Export QA
+
+Use `/teacher/data` then **Research data and exports** for data downloads. The
+landing page should show only:
+
+- Research data and exports
+- Summative outcomes
+
+On `/teacher/data/research`, verify the four sections:
+
+1. Quick summary
+2. Analysis-ready dataset
+3. Full archive
+4. Data dictionary
+
+For a pilot dry run, download the analysis-ready ZIP and confirm it contains:
+
+- `sessions.csv`
+- `item_responses.csv`
+- `process_events.csv`
+- `conversation_turns.csv`
+- `agent_and_activity_records.csv`
+- `assessment_content.csv`
+- `data_dictionary.csv`
+
+Default exports must not include answer keys, correctness labels, password or
+access-code hashes, session cookies, database URLs, API keys, raw provider
+requests, unrestricted raw provider output, or internal database UUIDs. Use the
+data dictionary to verify row grain, missingness, privacy level, source, and
+interpretation cautions before analysis.
 - `Download assessment CSV` produces `assessment_<id>_students.csv` with one row per student-assessment session attempt for the selected assessment.
 - `Download student CSV` produces `student_<student_id>_sessions.csv` with one row per assessment session attempt for the selected student.
 - `Download matrix CSV` produces `student_assessment_matrix.csv` with one row per current student and assessment pair.

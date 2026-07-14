@@ -2401,6 +2401,38 @@ Phase 6A.5 must not implement:
   handling, scalar process feature exposure, row-count consistency, protected
   field absence, read-only behavior, and absence of OpenAI calls.
 
+## Phase 31ab Consolidated Research Export Lock
+
+- The standard `Data and outcomes` landing page must show the routine choices
+  `Research data and exports` and `Summative outcomes`. It must not show
+  separate routine cards for Data Explorer, Master CSV export, or Download all
+  research data.
+- `/teacher/data/research` is the unified teacher-facing export center. It
+  separates Quick summary, Analysis-ready dataset, Full archive, and Data
+  dictionary sections.
+- Legacy UI routes `/teacher/data/explorer` and `/teacher/data/export` redirect
+  to `/teacher/data/research?tab=quick` and
+  `/teacher/data/research?tab=analysis`. Existing authorized APIs may remain for
+  backward compatibility.
+- The analysis-ready ZIP contains normalized CSV tables at clear row grains:
+  `sessions.csv`, `item_responses.csv`, `process_events.csv`,
+  `conversation_turns.csv`, `agent_and_activity_records.csv`,
+  `assessment_content.csv`, and `data_dictionary.csv`.
+- `data_dictionary.csv` is the authoritative variable inventory. It documents
+  row grain, data type, units, allowed values, source, generation method,
+  timing formulas, missingness, privacy level, export tier, interpretation
+  cautions, and limitations.
+- Default analysis-ready exports exclude credentials, hashes, session secrets,
+  API keys, database URLs, raw provider requests, unrestricted raw provider
+  output, internal database UUIDs, unrestricted answer keys, correctness fields,
+  and teacher diagnostic notes. Restricted fields require explicit
+  teacher/research export mode, explicit confirmation, and an export audit
+  record; they remain unavailable to students.
+- Null/empty CSV cells mean unavailable, not recorded, not generated, not
+  instrumented, or not applicable. Zero is reserved for evaluated counts where
+  the counted event did not occur. Missing LLM output must not be encoded as a
+  lowest category.
+
 ## Phase 31M LLM Diagnostic Context Propagation Lock
 
 - Substantive LLM interpretation paths must receive the shared

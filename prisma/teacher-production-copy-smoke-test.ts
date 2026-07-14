@@ -137,9 +137,10 @@ function assertRoutineActionsRemainAvailable() {
   assertIncludes(studentList, "Import roster", "Student accounts page");
   assertIncludes(sessionList, "Review", "Student sessions page");
   assertIncludes(dataHome, "Summative outcomes", "Data and outcomes page");
-  assertIncludes(dataHome, "Master CSV export", "Data and outcomes page");
-  assertIncludes(dataHome, "Download all research data", "Data and outcomes page");
-  assertIncludes(dataHome, "Data Explorer", "Data and outcomes page");
+  assertIncludes(dataHome, "Research data and exports", "Data and outcomes page");
+  assertExcludes(dataHome, "Master CSV export", "Data and outcomes page");
+  assertExcludes(dataHome, "Download all research data", "Data and outcomes page");
+  assertExcludes(dataHome, "Data Explorer</h2>", "Data and outcomes page");
   assertIncludes(llmPage, "Provider", "LLM status page");
   assertIncludes(llmPage, "Live calls", "LLM status page");
   assertIncludes(llmPage, "API key configured", "LLM status page");
@@ -184,11 +185,14 @@ function assertAdvancedRoutesRemainHiddenButProtected() {
 }
 
 function assertDataDefinitionsRemainAvailable() {
-  const dataExplorer = source("src/app/teacher/data/explorer/page.tsx");
+  const dataExplorer = source("src/app/teacher/data/research/page.tsx");
+  const dataExportClient = source("src/components/teacher-data/research-data-exports-client.tsx");
   const masterExport = source("src/components/teacher-data/master-export-client.tsx");
   const simpleExplorer = source("src/components/teacher-data/simple-csv-explorer-client.tsx");
 
-  assertIncludes(dataExplorer, "Data Explorer", "Data explorer page");
+  assertIncludes(dataExplorer, "Research data and exports", "Research export page");
+  assertIncludes(dataExportClient, "Analysis-ready dataset", "Research export client");
+  assertIncludes(dataExportClient, "Data dictionary", "Research export client");
   assertIncludes(masterExport, "Generate master assessment CSV", "Master export component");
   assertIncludes(masterExport, "normalized database", "Master export component");
   assertIncludes(simpleExplorer, "Data dictionary", "Simple CSV explorer");

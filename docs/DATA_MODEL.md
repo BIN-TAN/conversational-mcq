@@ -724,3 +724,29 @@ erDiagram
   eval_runs ||--o{ eval_run_items : contains
   eval_run_items ||--o{ eval_annotations : reviewed_by
 ```
+
+## Research Export Tables
+
+Phase 31ab adds a unified teacher-facing export center without changing the
+database schema. `/teacher/data/research` generates analysis-ready relational
+CSV files from existing tables:
+
+- `sessions.csv`: one row per `assessment_sessions` attempt.
+- `item_responses.csv`: one row per administered `item_responses` snapshot.
+- `process_events.csv`: one row per `process_events` record with safe flattened
+  payload fields.
+- `conversation_turns.csv`: one row per visible/research-readable
+  `conversation_turns` record.
+- `agent_and_activity_records.csv`: one row per safe `agent_calls`,
+  `student_profiles`, `formative_decisions`, `followup_rounds`,
+  `workflow_jobs`, activity attempts, activity evidence, or post-activity
+  snapshot record, distinguished by `record_type`.
+- `assessment_content.csv`: one row per administered item snapshot.
+- `data_dictionary.csv`: one row per exported or classified variable.
+
+Internal database UUIDs remain internal. Export joins use public IDs such as
+`session_public_id`, `assessment_public_id`, `item_public_id`,
+`item_snapshot_public_id`, and `assessment_snapshot_public_id`. Default exports
+exclude answer keys, correctness, restricted diagnostic notes, credentials,
+hashes, raw provider requests, unrestricted raw provider output, cookies,
+database URLs, and API keys.

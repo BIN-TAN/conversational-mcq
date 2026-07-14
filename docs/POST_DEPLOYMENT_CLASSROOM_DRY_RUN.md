@@ -59,7 +59,13 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
     - Expected: export downloads from the app and contains approved research fields.
 
 12a. Simple CSV downloads:
-    - Expected: `/teacher/data/explorer` downloads the assessment CSV, selected-student CSV, and student-assessment matrix CSV. It also offers detailed assessment/student/all-authorized ZIP bundles containing `analysis_rows.csv`, `process_events.csv`, `turn_response_latencies.csv`, and `conversation_turns.csv`.
+    - Expected: `/teacher/data/research` shows Quick summary, Analysis-ready
+      dataset, Full archive, and Data dictionary sections. Quick summary
+      downloads the assessment CSV, selected-student CSV, and
+      student-assessment matrix CSV. Analysis-ready dataset downloads a ZIP
+      containing `sessions.csv`, `item_responses.csv`, `process_events.csv`,
+      `conversation_turns.csv`, `agent_and_activity_records.csv`,
+      `assessment_content.csv`, and `data_dictionary.csv`.
     - Expected: a selected assessment with no student sessions shows `No student sessions are available for this assessment.` rather than downloading a header-only file.
     - Summary CSVs should contain safe count/status summaries only and must not include raw responses, answer keys, correct options, correctness labels, raw process payloads, provider output, diagnostic notes, credentials, or secrets. Detailed ZIPs may include readable student response/conversation text, but still must not include raw process payloads, provider output, answer keys, correct options, raw distractor metadata, credentials, or secrets.
     - If using media-enabled items, confirm exported/session-visible media fields are limited to safe display URLs, titles, descriptions, captions, transcripts/summaries, and attribution. They must not include storage keys, media hashes, answer keys, correct options, raw distractor notes, credentials, or secrets.
