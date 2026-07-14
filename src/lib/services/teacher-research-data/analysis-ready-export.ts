@@ -18,6 +18,7 @@ import {
   CONVERSATION_TURNS_COLUMNS,
   dataDictionaryCsv,
   ITEM_RESPONSES_COLUMNS,
+  processEventCodebookCsv,
   PROCESS_EVENTS_COLUMNS,
   SESSIONS_COLUMNS
 } from "./dictionary";
@@ -328,6 +329,10 @@ function sha(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
+function researchStudentId(userId: string) {
+  return `rs_${createHash("sha256").update(`research_student_id:v1:${userId}`).digest("hex").slice(0, 20)}`;
+}
+
 function authorizedSessionOr(teacherUserDbId: string): Prisma.AssessmentSessionWhereInput[] {
   return [
     { assessment: { created_by_user_db_id: teacherUserDbId } },
@@ -474,10 +479,12 @@ function studentSafeStatus(profile: ReturnType<typeof latestProfile>) {
 
 function sessionBase(source: ExportSourceIdentity, session: AnalysisSession) {
   const responses = session.concept_unit_sessions.flatMap((entry) => entry.item_responses);
+  const pseudonymousStudentId = researchStudentId(session.user.user_id);
   return {
     ...sourceIdentityRow(source),
-    student_id: session.user.user_id,
-    student_public_id: session.user.user_id,
+    research_student_id: pseudonymousStudentId,
+    student_id: pseudonymousStudentId,
+    student_public_id: pseudonymousStudentId,
     assessment_public_id: session.assessment.assessment_public_id,
     assessment_snapshot_public_id: assessmentSnapshotId(session),
     session_public_id: session.session_public_id,
@@ -620,7 +627,8 @@ function itemResponseRows(sessions: AnalysisSession[], includeRestricted: boolea
         ]);
         const row: CsvRow = {
           session_public_id: session.session_public_id,
-          student_id: session.user.user_id,
+          research_student_id: researchStudentId(session.user.user_id),
+          student_id: researchStudentId(session.user.user_id),
           assessment_public_id: session.assessment.assessment_public_id,
           assessment_snapshot_public_id: assessmentSnapshotId(session),
           item_public_id: response.item.item_public_id,
@@ -752,7 +760,8 @@ function processEventRows(sessions: AnalysisSession[]) {
       return {
         event_public_id: `${session.session_public_id}:event:${index + 1}`,
         session_public_id: session.session_public_id,
-        student_id: session.user.user_id,
+        research_student_id: researchStudentId(session.user.user_id),
+        student_id: researchStudentId(session.user.user_id),
         assessment_public_id: session.assessment.assessment_public_id,
         assessment_snapshot_public_id: assessmentSnapshotId(session),
         item_public_id: event.item?.item_public_id ?? null,
@@ -790,7 +799,8 @@ function conversationRows(sessions: AnalysisSession[]) {
         .find((candidate) => candidate.actor_type === "student");
       return {
         session_public_id: session.session_public_id,
-        student_id: session.user.user_id,
+        research_student_id: researchStudentId(session.user.user_id),
+        student_id: researchStudentId(session.user.user_id),
         assessment_public_id: session.assessment.assessment_public_id,
         assessment_snapshot_public_id: assessmentSnapshotId(session),
         item_public_id: turn.item?.item_public_id ?? null,
@@ -821,7 +831,8 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
       rows.push({
         record_type: "agent_call",
         session_public_id: session.session_public_id,
-        student_id: session.user.user_id,
+        research_student_id: researchStudentId(session.user.user_id),
+        student_id: researchStudentId(session.user.user_id),
         assessment_public_id: session.assessment.assessment_public_id,
         assessment_snapshot_public_id: assessmentSnapshotId(session),
         item_snapshot_public_id: null,
@@ -860,7 +871,8 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
         rows.push({
           record_type: "profile_result",
           session_public_id: session.session_public_id,
-          student_id: session.user.user_id,
+          research_student_id: researchStudentId(session.user.user_id),
+          student_id: researchStudentId(session.user.user_id),
           assessment_public_id: session.assessment.assessment_public_id,
           assessment_snapshot_public_id: assessmentSnapshotId(session),
           understanding_category: profile.integrated_diagnostic_profile,
@@ -878,7 +890,8 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
         rows.push({
           record_type: "formative_decision",
           session_public_id: session.session_public_id,
-          student_id: session.user.user_id,
+          research_student_id: researchStudentId(session.user.user_id),
+          student_id: researchStudentId(session.user.user_id),
           assessment_public_id: session.assessment.assessment_public_id,
           assessment_snapshot_public_id: assessmentSnapshotId(session),
           formative_value: decision.formative_value,
@@ -893,7 +906,8 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
         rows.push({
           record_type: "activity_attempt",
           session_public_id: session.session_public_id,
-          student_id: session.user.user_id,
+          research_student_id: researchStudentId(session.user.user_id),
+          student_id: researchStudentId(session.user.user_id),
           assessment_public_id: session.assessment.assessment_public_id,
           assessment_snapshot_public_id: assessmentSnapshotId(session),
           activity_public_id: `${session.session_public_id}:followup:${followup.round_index}`,
@@ -910,7 +924,8 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
       rows.push({
         record_type: "workflow_job",
         session_public_id: session.session_public_id,
-        student_id: session.user.user_id,
+        research_student_id: researchStudentId(session.user.user_id),
+        student_id: researchStudentId(session.user.user_id),
         assessment_public_id: session.assessment.assessment_public_id,
         assessment_snapshot_public_id: assessmentSnapshotId(session),
         activity_public_id: job.job_public_id,
@@ -928,7 +943,8 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
     rows.push({
       record_type: "formative_activity",
       session_public_id: activity.session_public_id,
-      student_id: activity.student_public_id,
+      research_student_id: researchStudentId(activity.student_public_id),
+      student_id: researchStudentId(activity.student_public_id),
       assessment_public_id: activity.assessment_public_id,
       assessment_snapshot_public_id: `${activity.assessment_public_id}:session:${activity.session_public_id}`,
       activity_public_id: activity.activity_attempt_public_id,
@@ -946,7 +962,8 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
     rows.push({
       record_type: "post_activity_evidence",
       session_public_id: evidence.session_public_id,
-      student_id: evidence.student_public_id,
+      research_student_id: researchStudentId(evidence.student_public_id),
+      student_id: researchStudentId(evidence.student_public_id),
       assessment_public_id: evidence.assessment_public_id,
       assessment_snapshot_public_id: `${evidence.assessment_public_id}:session:${evidence.session_public_id}`,
       activity_public_id: evidence.activity_attempt_id,
@@ -969,7 +986,8 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
     rows.push({
       record_type: "diagnostic_snapshot",
       session_public_id: snapshot.session_public_id,
-      student_id: snapshot.student_public_id,
+      research_student_id: researchStudentId(snapshot.student_public_id),
+      student_id: researchStudentId(snapshot.student_public_id),
       assessment_public_id: snapshot.assessment_public_id,
       assessment_snapshot_public_id: `${snapshot.assessment_public_id}:session:${snapshot.session_public_id}`,
       activity_public_id: snapshot.activity_attempt_id,
@@ -1037,7 +1055,7 @@ function assessmentContentRows(sessions: AnalysisSession[], includeRestricted: b
 function assertAnalysisReadySafety(files: Array<{ path: string; data: string }>, includeRestricted: boolean) {
   for (const file of files) {
     const patterns =
-      file.path === "data_dictionary.csv"
+      file.path === "research_data_dictionary.csv" || file.path === "process_event_codebook.csv"
         ? SECRET_PATTERNS.filter((pattern) => !/password_hash|access_code_hash|database_url|session_secret/i.test(pattern.source))
         : SECRET_PATTERNS;
     for (const pattern of patterns) {
@@ -1048,7 +1066,7 @@ function assertAnalysisReadySafety(files: Array<{ path: string; data: string }>,
   }
   if (!includeRestricted) {
     for (const file of files) {
-      if (file.path === "data_dictionary.csv") continue;
+      if (file.path === "research_data_dictionary.csv" || file.path === "process_event_codebook.csv") continue;
       const header = file.data.split(/\r?\n/, 1)[0] ?? "";
       for (const column of restrictedDefaultColumns) {
         if (header.split(",").includes(column)) {
@@ -1110,8 +1128,12 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
       data: csv(ASSESSMENT_SUMMARY_COLUMNS, assessmentSummaryRows(source, sessions, supplemental))
     },
     {
-      path: "data_dictionary.csv",
+      path: "research_data_dictionary.csv",
       data: dataDictionaryCsv()
+    },
+    {
+      path: "process_event_codebook.csv",
+      data: processEventCodebookCsv()
     }
   ];
   assertAnalysisReadySafety(files, includeRestricted);

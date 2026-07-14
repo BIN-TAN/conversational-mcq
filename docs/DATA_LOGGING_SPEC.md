@@ -288,14 +288,19 @@ The research dataset ZIP contains:
 
 | File | Row grain | Notes |
 |---|---|---|
-| `sessions.csv` | One row per student assessment attempt/session | Includes public session/assessment/student joins, timing aggregates, counts, and latest safe interpretation summaries. |
+| `sessions.csv` | One row per student assessment attempt/session | Includes public session/assessment joins, pseudonymous research student joins, timing aggregates, counts, and latest safe interpretation summaries. |
 | `item_responses.csv` | One row per student response to one administered item snapshot | Includes answer, reasoning, confidence, tempting-option evidence, timing, counts, and interpretation/evidence fields. Restricted answer-key columns are excluded by default. |
 | `process_events.csv` | One row per recorded process event | Includes event type/category/source, timing, item/session joins, and safe flattened payload fields. Raw payload JSON is not a primary analysis column. |
 | `conversation_turns.csv` | One row per visible or research-readable conversation turn | Includes actor, phase, item/session joins, message text, and response/action latency where available. |
 | `agent_activity_records.csv` | One row per agent call, workflow decision, formative activity attempt, or diagnostic update record | Uses `record_type` to distinguish incompatible row types; non-applicable fields remain null. |
 | `assessment_content.csv` | One row per administered item snapshot | Reflects content actually administered. Restricted item-key and diagnostic-note fields are excluded by default. |
 | `assessment_summary.csv` | One row per student-assessment attempt summary | Includes safe session counts, status, timing, latest student-safe diagnostic signals, and explicit limitations. |
-| `data_dictionary.csv` | One row per exported or classified variable | Documents row grain, type, source, missingness, privacy, export tier, formulas, and limitations. |
+| `research_data_dictionary.csv` | One row per ordinary or restricted research dataset variable | Documents qualified variable name, dataset/table, measurement level, source nature, missing/zero/false semantics, privacy, export policy, timing formulas, and interpretation cautions. |
+| `process_event_codebook.csv` | One row per allow-listed process-event type | Documents event trigger, actor/source, scope, timestamp meaning, allow-listed payload fields, derived variables, and interpretation cautions. |
+
+The standard research dataset ZIP does not include the internal source-schema
+appendix or platform/excluded field inventory. Those are documentation and
+operator/developer lineage artifacts, not ordinary research dataset files.
 
 ### Join Keys
 
@@ -303,6 +308,9 @@ Use public IDs rather than internal database UUIDs:
 
 - `session_public_id` joins sessions, item responses, process events,
   conversation turns, agent/activity records, and assessment summaries.
+- `research_student_id` is the ordinary research join key for students. It is a
+  pseudonymous hash-based identifier and is not the login username, email, or an
+  internal database UUID.
 - `assessment_public_id` joins assessment-level records.
 - `assessment_snapshot_public_id` binds rows to the administered assessment
   context for a specific session.
@@ -354,14 +362,15 @@ Default research dataset exports exclude:
 Restricted research mode may include answer-key and teacher diagnostic fields
 only for authorized teacher/research use after explicit confirmation. Confirmed
 restricted research dataset downloads create a completed export audit record.
-Restricted fields are documented in `data_dictionary.csv` as
-`restricted_research_dataset` or `advanced_archive_only` as appropriate.
+Restricted fields are documented in `research_data_dictionary.csv` with
+`export_policy = restricted_research_dataset_only` as appropriate.
 
 ### Process-Event Inventory
 
-The dictionary includes one inventory row for every process-event type in the
-application domain enum. Event counts are contextual process evidence only; they
-must not be interpreted as misconduct labels or stable learner traits.
+`process_event_codebook.csv` includes one inventory row for every process-event
+type in the application domain enum. Event counts are contextual process
+evidence only; they must not be interpreted as misconduct labels or stable
+learner traits.
 
 ### Tabular Formatting Standards
 

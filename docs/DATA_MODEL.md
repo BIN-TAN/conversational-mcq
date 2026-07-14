@@ -743,11 +743,13 @@ CSV files from existing tables:
   snapshot record, distinguished by `record_type`.
 - `assessment_content.csv`: one row per administered item snapshot.
 - `assessment_summary.csv`: one row per student-assessment attempt summary.
-- `data_dictionary.csv`: one row per exported or classified variable.
+- `research_data_dictionary.csv`: one row per exported research dataset variable.
+- `process_event_codebook.csv`: one row per allow-listed process-event type.
 
 Internal database UUIDs remain internal. Export joins use public IDs such as
 `session_public_id`, `assessment_public_id`, `item_public_id`,
-`item_snapshot_public_id`, and `assessment_snapshot_public_id`. Default exports
-exclude answer keys, correctness, restricted diagnostic notes, credentials,
+`item_snapshot_public_id`, `assessment_snapshot_public_id`, and the
+pseudonymous `research_student_id`. Default exports exclude login usernames,
+emails, answer keys, correctness, restricted diagnostic notes, credentials,
 hashes, raw provider requests, unrestricted raw provider output, cookies,
 database URLs, and API keys.

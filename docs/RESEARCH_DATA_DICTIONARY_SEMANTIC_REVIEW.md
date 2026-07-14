@@ -1,0 +1,95 @@
+# Research Data Dictionary Semantic Review
+
+Reviewer: Codex  
+Date: 2026-07-14  
+Dictionary schema version: `research-data-dictionary-v3`
+
+## Summary
+
+Phase 31af rebuilt the research data dictionary from one generated schema-like
+inventory into four explicit documentation entities:
+
+- Research dataset variables: 278
+- Process event types: 156
+- Internal schema fields: 276
+- Platform administration and excluded fields: 107
+
+The semantic audit reported zero placeholder research definitions, zero
+placeholder process-event definitions, zero timing variables missing measurement
+level or formula, zero duplicate variables without qualified names, zero
+privacy/export contradictions, zero PII fields in the ordinary research export,
+zero undocumented exported columns, and zero documented-but-absent research
+columns.
+
+## Fields Reviewed
+
+The review covered:
+
+- 20+ response and process variables, including selected options, reasoning,
+  confidence, tempting-option evidence, process event fields, and conversation
+  latency fields.
+- Every exported timing or timestamp variable, including session elapsed time,
+  active interaction time, idle/page-hidden durations, item response time,
+  prompt-to-response latencies, process-event durations, and agent-call latency.
+- Every understanding, engagement, misconception, evidence-sufficiency, and
+  interpretation field in the research variable registry.
+- Every LLM-derived substantive output field exported through
+  `agent_activity_records`, `sessions`, `item_responses`, or
+  `assessment_summary`.
+- Every account, PII, credential, hash, authentication, worker-lock, raw-provider,
+  raw-prompt, and internal database identifier field listed in the internal
+  schema inventory.
+- Every restricted answer-key or teacher diagnostic context field exported only
+  through restricted research mode.
+- At least 20 process-event definitions, including item presentation, option
+  selection, answer changes, reasoning submission, confidence selection,
+  tempting-option submission, package submission, typing summaries, session
+  lifecycle events, page visibility events, agent workflow events, formative
+  activity events, and follow-up/revision events.
+
+## Corrections Made
+
+- Split process-event enum values out of the research-variable registry and
+  documented them in `process_event_codebook.csv`.
+- Split Prisma/source-schema fields out of the research-variable registry and
+  documented non-export source fields in the internal schema appendix.
+- Moved account PII, credentials, hashes, auth fields, internal database IDs,
+  raw prompt/provider fields, worker/storage internals, and external URLs into
+  the platform administration/excluded inventory.
+- Replaced generated placeholder definitions and methods with source-grounded
+  definitions based on row grain, triggering workflow, source nature, timing
+  construct, and interpretation boundary.
+- Added `qualified_name`, `dataset_name`, `measurement_level`, `source_nature`,
+  `audience`, `privacy_level`, and `export_policy`.
+- Clarified null, zero, false, and not-applicable semantics separately.
+- Classified timing and latency variables as timing data regardless of source
+  table and documented start event, end event, formula, idle handling, and
+  page-hidden handling.
+- Added pseudonymous `research_student_id` and deprecated the legacy
+  `student_id` and `student_public_id` research-export aliases as pseudonymous
+  compatibility columns.
+- Updated default analysis-ready export contents to include
+  `research_data_dictionary.csv` and `process_event_codebook.csv`, while
+  excluding the internal schema appendix and excluded-variable inventory.
+
+## Unresolved Questions
+
+- Several research-variable definitions are still generated from reviewed
+  deterministic rules rather than hand-authored prose for each individual
+  column. They no longer use placeholder text, but a domain owner may still want
+  to refine wording before publication in a dissertation appendix.
+- The pseudonymous `research_student_id` is stable for export joins, but a
+  separate restricted linkage-file workflow remains intentionally unimplemented.
+- Some source-schema mappings are approximate because one internal Prisma field
+  can feed multiple flattened research variables. The appendix flags these as
+  lineage aids, not ordinary research variables.
+- Timing semantics depend on available browser/process instrumentation. Missing
+  timing still requires analysts to consult limitation and availability fields.
+
+## Acceptance Notes
+
+The rebuilt dictionary is suitable for ordinary teacher/research export review
+because it separates research variables from event codes, source-schema fields,
+and excluded/platform fields; documents measurement level and timing constructs;
+uses a pseudonymous student join key; and blocks known privacy/export
+contradictions in smoke tests.

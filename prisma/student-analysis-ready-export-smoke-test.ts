@@ -8,6 +8,7 @@ import {
   CONVERSATION_TURNS_COLUMNS,
   DATA_DICTIONARY_COLUMNS,
   ITEM_RESPONSES_COLUMNS,
+  PROCESS_EVENT_CODEBOOK_COLUMNS,
   PROCESS_EVENTS_COLUMNS,
   SESSIONS_COLUMNS
 } from "../src/lib/services/teacher-research-data/dictionary";
@@ -89,7 +90,8 @@ async function main() {
       "agent_activity_records.csv",
       "assessment_content.csv",
       "assessment_summary.csv",
-      "data_dictionary.csv"
+      "research_data_dictionary.csv",
+      "process_event_codebook.csv"
     ];
     assert(result.filename.includes("research_dataset.zip"), "Research dataset filename should be explicit.");
     assert(result.no_live_provider_call_made === true, "Research dataset export should not make provider calls.");
@@ -102,7 +104,8 @@ async function main() {
     const agentRecords = parseCsv<Record<string, string>>(fileData(result.files, "agent_activity_records.csv"));
     const contentRows = parseCsv<Record<string, string>>(fileData(result.files, "assessment_content.csv"));
     const summaryRows = parseCsv<Record<string, string>>(fileData(result.files, "assessment_summary.csv"));
-    const dictionaryRows = parseCsv<Record<string, string>>(fileData(result.files, "data_dictionary.csv"));
+    const dictionaryRows = parseCsv<Record<string, string>>(fileData(result.files, "research_data_dictionary.csv"));
+    const eventCodebookRows = parseCsv<Record<string, string>>(fileData(result.files, "process_event_codebook.csv"));
 
     assert(sessions.length > 0, "sessions.csv should contain rows.");
     assert(itemResponses.length >= 3, "item_responses.csv should contain item-response rows.");
@@ -110,7 +113,8 @@ async function main() {
     assert(turns.length > 0, "conversation_turns.csv should contain rows.");
     assert(contentRows.length >= 3, "assessment_content.csv should contain administered item snapshots.");
     assert(summaryRows.length > 0, "assessment_summary.csv should contain student-assessment summary rows.");
-    assert(dictionaryRows.length > 300, "data_dictionary.csv should contain broad inventory rows.");
+    assert(dictionaryRows.length > 250, "research_data_dictionary.csv should contain research variable rows.");
+    assert(eventCodebookRows.length > 100, "process_event_codebook.csv should contain event code rows.");
     assert(Array.isArray(agentRecords), "agent_activity_records.csv should parse even if sparse.");
 
     for (const [path, columns] of [
@@ -121,7 +125,8 @@ async function main() {
       ["agent_activity_records.csv", AGENT_ACTIVITY_RECORDS_COLUMNS],
       ["assessment_content.csv", ASSESSMENT_CONTENT_COLUMNS],
       ["assessment_summary.csv", ASSESSMENT_SUMMARY_COLUMNS],
-      ["data_dictionary.csv", DATA_DICTIONARY_COLUMNS]
+      ["research_data_dictionary.csv", DATA_DICTIONARY_COLUMNS],
+      ["process_event_codebook.csv", PROCESS_EVENT_CODEBOOK_COLUMNS]
     ] as const) {
       const actualHeader = header(fileData(result.files, path));
       for (const column of columns) {
@@ -153,7 +158,11 @@ async function main() {
     }
 
     assert(sessions.every((row) => row.session_public_id), "sessions.csv should use public session IDs.");
+    assert(sessions.every((row) => row.research_student_id?.startsWith("rs_")), "sessions.csv should use pseudonymous research_student_id.");
+    assert(sessions.every((row) => row.student_id === row.research_student_id), "legacy student_id should be pseudonymous.");
+    assert(!sessions.some((row) => row.student_id === "student_demo"), "Research dataset should not expose login username.");
     assert(itemResponses.every((row) => row.session_public_id && row.item_snapshot_public_id), "item responses need join keys.");
+    assert(itemResponses.every((row) => row.research_student_id === row.student_id), "item responses should use the same pseudonymous ID aliases.");
     assert(new Set(itemResponses.map((row) => `${row.session_public_id}|${row.item_public_id}|${row.response_public_id}`)).size === itemResponses.length, "Item-response rows should be unique by public response key.");
     assertIsoUtc(sessions[0].export_generated_at, "export_generated_at");
     assertIsoUtc(sessions[0].started_at, "started_at");
@@ -173,7 +182,7 @@ async function main() {
     );
     assert(
       formulaFixture.files
-        .filter((file) => file.path !== "data_dictionary.csv")
+        .filter((file) => !["research_data_dictionary.csv", "process_event_codebook.csv"].includes(file.path))
         .every((file) => !/password_hash|access_code_hash|SESSION_SECRET|OPENAI_API_KEY/i.test(file.data)),
       "Research dataset files should not expose secrets."
     );
@@ -190,6 +199,7 @@ async function main() {
           item_response_rows: itemResponses.length,
           process_event_rows: processEvents.length,
           dictionary_rows: dictionaryRows.length,
+          process_event_codebook_rows: eventCodebookRows.length,
           restricted_mode_checked: true,
           no_openai_call_occurred: true
         },

@@ -3,13 +3,13 @@ import path from "node:path";
 import {
   buildAnalysisReadyDictionaryEntries,
   DATA_DICTIONARY_COLUMNS,
-  dataDictionaryCsv
+  dataDictionaryCsv,
+  PROCESS_EVENT_CODEBOOK_COLUMNS,
+  processEventCodebookCsv
 } from "../src/lib/services/teacher-research-data/dictionary";
 
 function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) {
-    throw new Error(message);
-  }
+  if (!condition) throw new Error(message);
 }
 
 function source(file: string) {
@@ -29,34 +29,40 @@ function main() {
   const entries = buildAnalysisReadyDictionaryEntries();
   const csv = dataDictionaryCsv(entries);
   const header = csv.split(/\r?\n/, 1)[0] ?? "";
+  const eventHeader = processEventCodebookCsv().split(/\r?\n/, 1)[0] ?? "";
 
-  assertIncludes(clientSource, "Data dictionary variable list", "Data dictionary UI");
-  assertIncludes(clientSource, "Variable", "Data dictionary cards");
-  assertIncludes(clientSource, "Category", "Data dictionary cards");
-  assertIncludes(clientSource, "Type", "Data dictionary cards");
-  assertIncludes(clientSource, "Definition", "Data dictionary cards");
-  assertIncludes(clientSource, "Collection or generation method", "Data dictionary cards");
+  assertIncludes(clientSource, "Data dictionary selected entity list", "Data dictionary UI");
+  assertIncludes(clientSource, "Research variables", "Data dictionary sections");
+  assertIncludes(clientSource, "Process event codebook", "Data dictionary sections");
+  assertIncludes(clientSource, "Internal schema appendix", "Data dictionary sections");
+  assertIncludes(clientSource, "Platform administration and excluded variables", "Data dictionary sections");
+  assertIncludes(clientSource, "Variable", "Research variable cards");
+  assertIncludes(clientSource, "Dataset/table", "Research variable cards");
+  assertIncludes(clientSource, "Measurement level", "Research variable cards");
+  assertIncludes(clientSource, "Type", "Research variable cards");
+  assertIncludes(clientSource, "Definition", "Research variable cards");
+  assertIncludes(clientSource, "Collection or generation method", "Research variable cards");
+  assertIncludes(clientSource, "Missing value meaning", "Research variable cards");
+  assertIncludes(clientSource, "Zero value meaning", "Research variable cards");
+  assertIncludes(clientSource, "Timing semantics", "Timing cards");
+  assertIncludes(clientSource, "Trigger", "Process event cards");
+  assertIncludes(clientSource, "Exclusion reason", "Excluded field cards");
   assertIncludes(clientSource, "Download filtered dictionary CSV", "Data dictionary actions");
 
+  assertNotIncludes(clientSource, "Total variables", "Data dictionary counts");
   assertNotIncludes(clientSource, "View current page JSON", "Data dictionary actions");
-  assertNotIncludes(clientSource, "Definition and method", "Data dictionary cards");
-  assertNotIncludes(clientSource, "All tables", "Data dictionary filters");
-  assertNotIncludes(clientSource, "All source types", "Data dictionary filters");
-  assertNotIncludes(clientSource, "All privacy levels", "Data dictionary filters");
-  assertNotIncludes(clientSource, "All export tiers", "Data dictionary filters");
-  assertNotIncludes(clientSource, "All field families", "Data dictionary filters");
   assertNotIncludes(clientSource, "<th className=\"px-3 py-2\">Table</th>", "Data dictionary table");
-  assertNotIncludes(clientSource, "<th className=\"px-3 py-2\">Source</th>", "Data dictionary table");
-  assertNotIncludes(clientSource, "<th className=\"px-3 py-2\">Privacy</th>", "Data dictionary table");
-  assertNotIncludes(clientSource, "<th className=\"px-3 py-2\">Export tier</th>", "Data dictionary table");
 
   for (const column of DATA_DICTIONARY_COLUMNS) {
-    assert(header.split(",").includes(column), `Downloaded data dictionary CSV should preserve ${column}.`);
+    assert(header.split(",").includes(column), `Downloaded research dictionary CSV should preserve ${column}.`);
+  }
+  for (const column of PROCESS_EVENT_CODEBOOK_COLUMNS) {
+    assert(eventHeader.split(",").includes(column), `Process event codebook CSV should preserve ${column}.`);
   }
 
   const interpretiveEntries = entries.filter((entry) =>
-    entry.category === "Diagnostic and interpretation data" ||
-    entry.source_type === "persisted LLM output" ||
+    entry.substantive_category === "Diagnostic and interpretation outputs" ||
+    entry.source_nature === "persisted_llm_interpretation" ||
     /misconception|engagement|understanding|guessing|profile/i.test(entry.variable_name)
   );
   assert(interpretiveEntries.length > 0, "Expected interpretive dictionary variables.");
@@ -72,8 +78,8 @@ function main() {
     JSON.stringify(
       {
         status: "passed",
-        total_variables: entries.length,
-        visible_layout: "variable_cards",
+        research_variables: entries.length,
+        visible_layout: "entity_cards",
         csv_metadata_columns: DATA_DICTIONARY_COLUMNS.length,
         no_openai_call_occurred: true
       },

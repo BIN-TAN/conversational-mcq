@@ -75,7 +75,8 @@ async function main() {
       "agent_activity_records.csv",
       "assessment_content.csv",
       "assessment_summary.csv",
-      "data_dictionary.csv"
+      "research_data_dictionary.csv",
+      "process_event_codebook.csv"
     ];
     assert(result.filename.includes("research_dataset.zip"), "Research dataset filename should be explicit.");
     assert(result.files.map((file) => file.path).join("|") === expectedFiles.join("|"), "Unexpected research dataset file list.");

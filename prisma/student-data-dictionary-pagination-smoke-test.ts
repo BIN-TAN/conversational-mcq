@@ -1,5 +1,6 @@
 import {
   buildAnalysisReadyDictionaryEntries,
+  buildProcessEventCodebookEntries,
   dataDictionaryCsv,
   filterDictionaryEntries,
   paginateDictionaryEntries
@@ -8,9 +9,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) {
-    throw new Error(message);
-  }
+  if (!condition) throw new Error(message);
 }
 
 function source(file: string) {
@@ -27,7 +26,9 @@ function assertNotIncludes(value: string, unexpected: string, label: string) {
 
 function main() {
   const entries = buildAnalysisReadyDictionaryEntries();
-  assert(entries.length > 80, "Dictionary fixture should contain more than 80 variables.");
+  const eventEntries = buildProcessEventCodebookEntries();
+  assert(entries.length > 250, "Research variable registry should contain exported research variables.");
+  assert(eventEntries.length > 100, "Process event codebook should be separate from research variables.");
 
   for (const pageSize of [25, 50, 100, 250, 500]) {
     const page = paginateDictionaryEntries(entries, { page: 1, page_size: pageSize });
@@ -44,24 +45,25 @@ function main() {
   const lastPage = paginateDictionaryEntries(entries, { page: 9999, page_size: 25 });
   assert(lastPage.page === lastPage.total_pages, "Last page should clamp to total pages.");
   assert(lastPage.last_visible_row === entries.length, "Last page should end at the registry total.");
-  const firstPage = paginateDictionaryEntries(entries, { page: 1, page_size: 25 });
-  assert(firstPage.page === 1, "First page should be reachable.");
 
   const filtered = filterDictionaryEntries(entries, {
-    category: "Internal security data",
+    category: "Timing and interaction data",
     deprecated: "false"
   });
-  assert(filtered.length > 0, "Filter should operate across the complete registry.");
+  assert(filtered.length > 0, "Filter should operate within the selected entity type.");
   assert(
-    filtered.every((entry) => entry.category === "Internal security data"),
-    "Category filter should return only matching rows."
+    filtered.every((entry) => entry.substantive_category === "Timing and interaction data"),
+    "Category filter should return only matching research-variable rows."
   );
   const filteredCsv = dataDictionaryCsv(filtered);
   const filteredCsvRows = Math.max(0, filteredCsv.trim().split(/\r?\n/).length - 1);
   assert(filteredCsvRows === filtered.length, "Dictionary CSV should include all filtered rows, not one visible page.");
 
-  const keys = new Set(entries.map((entry) => `${entry.table_name}.${entry.variable_name}`));
-  assert(keys.size === entries.length, "Dictionary should not contain duplicate variable rows.");
+  const keys = new Set(entries.map((entry) => entry.qualified_name));
+  assert(keys.size === entries.length, "Research dictionary should not contain duplicate qualified names.");
+  assert(entries.every((entry) => entry.entity_type === "research_variable"), "Default dictionary entries should be research variables.");
+  assert(!entries.some((entry) => entry.table_name === "process_event_type_inventory"), "Process event codes should not be research variables.");
+  assert(!entries.some((entry) => entry.table_name.startsWith("prisma.")), "Prisma fields should not be research variables.");
   assert(!/sk-[A-Za-z0-9_-]{20,}/.test(filteredCsv), "Dictionary CSV must not expose API-key shaped values.");
   assert(!/postgres(?:ql)?:\/\//i.test(filteredCsv), "Dictionary CSV must not expose database URLs.");
   assert(!/SESSION_SECRET=.*|OPENAI_API_KEY=.*/i.test(filteredCsv), "Dictionary CSV must not expose secret values.");
@@ -71,11 +73,13 @@ function main() {
   assert(clientSource.includes("setDictionaryPage(1);"), "Changing filters or page size should reset to page 1.");
   assert(clientSource.includes("Showing {dictionary.first_visible_row}-{dictionary.last_visible_row}"), "Visible row range should be shown.");
   assert(clientSource.includes("Page {dictionary.page} of {dictionary.total_pages}"), "Current page and total pages should be shown.");
-  assertIncludes(clientSource, "Search variables", "Dictionary UI");
-  assertIncludes(clientSource, "Category", "Dictionary UI");
+  assertIncludes(clientSource, "Search selected section", "Dictionary UI");
+  assertIncludes(clientSource, "Category or code group", "Dictionary UI");
   assertIncludes(clientSource, "Page size", "Dictionary UI");
   assertIncludes(clientSource, "Directly recorded or derived", "Dictionary UI");
   assertIncludes(clientSource, "Deprecated status", "Dictionary UI");
+  assertIncludes(clientSource, "Process event codebook", "Dictionary UI");
+  assertIncludes(clientSource, "Platform administration and excluded variables", "Dictionary UI");
   assertNotIncludes(clientSource, "All tables", "Dictionary UI");
   assertNotIncludes(clientSource, "All source types", "Dictionary UI");
   assertNotIncludes(clientSource, "All privacy levels", "Dictionary UI");
@@ -86,7 +90,8 @@ function main() {
     JSON.stringify(
       {
         status: "passed",
-        total_variables: entries.length,
+        research_variables: entries.length,
+        process_event_types: eventEntries.length,
         page_sizes_checked: [25, 50, 100, 250, 500],
         filtered_rows: filtered.length,
         no_openai_call_occurred: true

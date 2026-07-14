@@ -410,13 +410,15 @@ For a pilot dry run, download the research dataset ZIP and confirm it contains:
 - `agent_activity_records.csv`
 - `assessment_content.csv`
 - `assessment_summary.csv`
-- `data_dictionary.csv`
+- `research_data_dictionary.csv`
+- `process_event_codebook.csv`
 
 Default exports must not include answer keys, correctness labels, password or
 access-code hashes, session cookies, database URLs, API keys, raw provider
 requests, unrestricted raw provider output, or internal database UUIDs. Use the
-data dictionary to verify row grain, missingness, privacy level, source, and
-interpretation cautions before analysis.
+research data dictionary and process event codebook to verify row grain,
+measurement level, missing/zero semantics, privacy level, source, event trigger,
+and interpretation cautions before analysis.
 - `Download assessment CSV` produces `assessment_<id>_students.csv` with one row per student-assessment session attempt for the selected assessment.
 - `Download student CSV` produces `student_<student_id>_sessions.csv` with one row per assessment session attempt for the selected student.
 - `Download matrix CSV` produces `student_assessment_matrix.csv` with one row per current student and assessment pair.

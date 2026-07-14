@@ -2,15 +2,23 @@ import { NextResponse } from "next/server";
 import { requireTeacherResearcher, contentRouteError } from "@/lib/services/content/api";
 import { ContentServiceError } from "@/lib/services/content/errors";
 import {
-  dataDictionaryCsv,
+  dictionaryCsvForEntityType,
+  dictionaryEntriesForEntityType,
   dictionaryFilterOptions,
   filterDictionaryEntries,
   dictionaryStats,
-  buildAnalysisReadyDictionaryEntries,
   paginateDictionaryEntries,
   DATA_DICTIONARY_PAGE_SIZES,
-  RESEARCH_DATA_DICTIONARY_VERSION
+  RESEARCH_DATA_DICTIONARY_SCHEMA_VERSION,
+  type DictionaryEntityType
 } from "@/lib/services/teacher-research-data/dictionary";
+
+const dictionaryEntityTypes: DictionaryEntityType[] = [
+  "research_variable",
+  "process_event_code",
+  "internal_schema_field",
+  "excluded_platform_field"
+];
 
 function dictionaryQuery(url: URL) {
   const page = Number(url.searchParams.get("page") ?? "1");
@@ -30,12 +38,13 @@ function dictionaryQuery(url: URL) {
   return {
     page,
     page_size: pageSize,
+    entity_type: (url.searchParams.get("entity_type") ?? "research_variable") as DictionaryEntityType,
     search,
     category: url.searchParams.get("category") ?? undefined,
     table_name: url.searchParams.get("table_name") ?? undefined,
-    source_type: url.searchParams.get("source_type") ?? undefined,
+    source_nature: url.searchParams.get("source_nature") ?? undefined,
     privacy_level: url.searchParams.get("privacy_level") ?? undefined,
-    export_tier: url.searchParams.get("export_tier") ?? undefined,
+    export_policy: url.searchParams.get("export_policy") ?? undefined,
     derivation: url.searchParams.get("derivation") ?? undefined,
     field_family: url.searchParams.get("field_family") ?? undefined,
     deprecated: url.searchParams.get("deprecated") ?? undefined
@@ -47,11 +56,12 @@ function assertKnownFilterValues(
   options: ReturnType<typeof dictionaryFilterOptions>
 ) {
   const checks: Array<[keyof ReturnType<typeof dictionaryQuery>, readonly string[]]> = [
+    ["entity_type", dictionaryEntityTypes],
     ["category", options.categories],
     ["table_name", options.table_names],
-    ["source_type", options.source_types],
+    ["source_nature", options.source_natures],
     ["privacy_level", options.privacy_levels],
-    ["export_tier", options.export_tiers],
+    ["export_policy", options.export_policies],
     ["derivation", options.derivations],
     ["field_family", options.field_families],
     ["deprecated", options.deprecated_values]
@@ -72,26 +82,31 @@ export async function GET(request: Request) {
   }
 
   try {
-    const entries = buildAnalysisReadyDictionaryEntries();
     const url = new URL(request.url);
     const query = dictionaryQuery(url);
+    if (!dictionaryEntityTypes.includes(query.entity_type)) {
+      throw new ContentServiceError("validation_failed", "Unknown data dictionary entity type.", 400);
+    }
+    const entries = dictionaryEntriesForEntityType(query.entity_type);
     const filterOptions = dictionaryFilterOptions(entries);
     assertKnownFilterValues(query, filterOptions);
     const filteredEntries = filterDictionaryEntries(entries, query);
     if (url.searchParams.get("format") === "json") {
       const page = paginateDictionaryEntries(filteredEntries, query);
       return NextResponse.json({
-        dictionary_version: RESEARCH_DATA_DICTIONARY_VERSION,
+        dictionary_version: RESEARCH_DATA_DICTIONARY_SCHEMA_VERSION,
+        entity_type: query.entity_type,
         stats: dictionaryStats(entries),
         ...page,
         category_counts: dictionaryStats(filteredEntries).by_category,
         filters: {
+          entity_type: query.entity_type,
           search: query.search,
           category: query.category ?? "all",
           table_name: query.table_name ?? "all",
-          source_type: query.source_type ?? "all",
+          source_nature: query.source_nature ?? "all",
           privacy_level: query.privacy_level ?? "all",
-          export_tier: query.export_tier ?? "all",
+          export_policy: query.export_policy ?? "all",
           derivation: query.derivation ?? "all",
           field_family: query.field_family ?? "all",
           deprecated: query.deprecated ?? "all"
@@ -100,10 +115,19 @@ export async function GET(request: Request) {
       });
     }
 
-    return new NextResponse(dataDictionaryCsv(filteredEntries), {
+    const filename =
+      query.entity_type === "process_event_code"
+        ? "process_event_codebook.csv"
+        : query.entity_type === "internal_schema_field"
+          ? "internal_schema_appendix.csv"
+          : query.entity_type === "excluded_platform_field"
+            ? "excluded_platform_variables.csv"
+            : "research_data_dictionary.csv";
+
+    return new NextResponse(dictionaryCsvForEntityType(query.entity_type, filteredEntries), {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": "attachment; filename=\"data_dictionary.csv\"",
+        "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-store"
       }
     });

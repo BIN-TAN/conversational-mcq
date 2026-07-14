@@ -43,32 +43,24 @@ type OptionsResponse = {
 };
 
 type DataDictionaryEntry = {
-  category: string;
-  table_name: string;
-  variable_name: string;
-  display_name: string;
-  definition: string;
-  row_grain: string;
-  data_type: string;
-  source_type: string;
-  source_table_or_event: string;
-  collection_or_generation_method: string;
-  interpretation_guidance: string;
-  interpretation_caution: string;
-  privacy_level: string;
-  export_tier: string;
-  deprecated: string;
+  [key: string]: string;
 };
 
 type DataDictionaryResponse = {
   dictionary_version: string;
+  entity_type: DictionaryEntityType;
   stats: {
     variable_count: number;
+    research_variable_count: number;
     process_event_type_count: number;
-    by_category: Record<string, number>;
-    by_export_tier: Record<string, number>;
+    internal_schema_field_count: number;
+    excluded_platform_field_count: number;
+    selected_entity_count: number;
+    by_category?: Record<string, number>;
+    by_event_category?: Record<string, number>;
+    by_export_policy: Record<string, number>;
     by_privacy_level: Record<string, number>;
-    by_source_type: Record<string, number>;
+    by_source_nature: Record<string, number>;
   };
   rows: DataDictionaryEntry[];
   total: number;
@@ -81,11 +73,12 @@ type DataDictionaryResponse = {
   filters: Record<string, string>;
   filter_options: {
     page_sizes: number[];
+    entity_types: Array<{ value: DictionaryEntityType; label: string }>;
     categories: string[];
     table_names: string[];
-    source_types: string[];
+    source_natures: string[];
     privacy_levels: string[];
-    export_tiers: string[];
+    export_policies: string[];
     derivations: string[];
     field_families: string[];
     deprecated_values: string[];
@@ -94,10 +87,22 @@ type DataDictionaryResponse = {
 
 type SectionId = "dataset" | "dictionary";
 type ScopeMode = "all" | "assessment" | "student";
+type DictionaryEntityType =
+  | "research_variable"
+  | "process_event_code"
+  | "internal_schema_field"
+  | "excluded_platform_field";
 
 const sections: Array<{ id: SectionId; label: string }> = [
   { id: "dataset", label: "Research dataset" },
   { id: "dictionary", label: "Data dictionary" }
+];
+
+const dictionaryEntityLabels: Array<{ id: DictionaryEntityType; label: string }> = [
+  { id: "research_variable", label: "Research variables" },
+  { id: "process_event_code", label: "Process event codebook" },
+  { id: "internal_schema_field", label: "Internal schema appendix" },
+  { id: "excluded_platform_field", label: "Platform administration and excluded variables" }
 ];
 
 async function fetchOptions(): Promise<OptionsResponse> {
@@ -241,6 +246,133 @@ function jobOption(job: ExportJob, key: string) {
   return value === null || value === undefined ? "" : String(value);
 }
 
+function DefinitionRow({ label, value }: { label: string; value?: string }) {
+  if (!value) return null;
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</dt>
+      <dd className="mt-1 text-sm leading-6 text-ink">{value}</dd>
+    </div>
+  );
+}
+
+function DictionaryCard({ entry, entityType }: { entry: DataDictionaryEntry; entityType: DictionaryEntityType }) {
+  if (entityType === "process_event_code") {
+    return (
+      <article className="rounded-lg border border-line bg-white p-4 shadow-soft" key={entry.event_type}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Process event</p>
+            <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">{entry.event_type}</h3>
+          </div>
+          <span className="rounded-full border border-line bg-slate-50 px-3 py-1 text-xs font-semibold text-ink">
+            {entry.event_category}
+          </span>
+        </div>
+        <dl className="mt-4 grid gap-4 md:grid-cols-2">
+          <DefinitionRow label="Trigger" value={entry.trigger} />
+          <DefinitionRow label="Actor/source" value={entry.actor_or_source} />
+          <DefinitionRow label="Measurement level/scope" value={entry.measurement_level} />
+          <DefinitionRow label="Session or item scope" value={entry.session_or_item_scope} />
+          <DefinitionRow label="Timestamp meaning" value={entry.timestamp_meaning} />
+          <DefinitionRow label="Payload fields" value={entry.payload_fields} />
+          <DefinitionRow label="Derived variables" value={entry.derived_variables} />
+          <DefinitionRow label="Interpretation caution" value={entry.interpretation_caution} />
+        </dl>
+      </article>
+    );
+  }
+
+  if (entityType === "internal_schema_field") {
+    return (
+      <article className="rounded-lg border border-line bg-white p-4 shadow-soft" key={entry.qualified_name}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Internal schema field</p>
+            <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">{entry.qualified_name}</h3>
+          </div>
+          <span className="rounded-full border border-line bg-slate-50 px-3 py-1 text-xs font-semibold text-ink">
+            {entry.export_policy}
+          </span>
+        </div>
+        <dl className="mt-4 grid gap-4 md:grid-cols-2">
+          <DefinitionRow label="Model / field" value={`${entry.model_name}.${entry.field_name}`} />
+          <DefinitionRow label="Database type" value={entry.database_type} />
+          <DefinitionRow label="Internal purpose" value={entry.internal_purpose} />
+          <DefinitionRow label="Research-variable mapping" value={entry.research_variable_mapping || "No direct research variable."} />
+          <DefinitionRow label="Privacy" value={entry.privacy_level} />
+          <DefinitionRow label="Audience" value={entry.audience} />
+        </dl>
+      </article>
+    );
+  }
+
+  if (entityType === "excluded_platform_field") {
+    return (
+      <article className="rounded-lg border border-line bg-white p-4 shadow-soft" key={entry.qualified_name}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Excluded/platform field</p>
+            <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">{entry.qualified_name}</h3>
+          </div>
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
+            {entry.exclusion_category}
+          </span>
+        </div>
+        <dl className="mt-4 grid gap-4 md:grid-cols-2">
+          <DefinitionRow label="Source table" value={entry.source_table} />
+          <DefinitionRow label="Exclusion reason" value={entry.exclusion_reason} />
+          <DefinitionRow label="Permitted audience" value={entry.permitted_audience} />
+          <DefinitionRow label="Export policy" value={entry.export_policy} />
+          <DefinitionRow label="Notes" value={entry.notes} />
+        </dl>
+      </article>
+    );
+  }
+
+  return (
+    <article className="rounded-lg border border-line bg-white p-4 shadow-soft" key={entry.qualified_name}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Variable</p>
+          <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">{entry.qualified_name}</h3>
+        </div>
+        <span className="rounded-full border border-line bg-slate-50 px-3 py-1 text-xs font-semibold text-ink">
+          {entry.substantive_category}
+        </span>
+      </div>
+      <dl className="mt-4 grid gap-4 md:grid-cols-2">
+        <DefinitionRow label="Dataset/table" value={entry.table_name} />
+        <DefinitionRow label="Measurement level" value={entry.measurement_level} />
+        <DefinitionRow label="Type" value={entry.data_type} />
+        <DefinitionRow label="Category" value={entry.substantive_category} />
+        <div className="md:col-span-2">
+          <DefinitionRow label="Definition" value={entry.definition} />
+        </div>
+        <div className="md:col-span-2">
+          <DefinitionRow label="Collection or generation method" value={entry.collection_or_generation_method} />
+        </div>
+        <DefinitionRow label="Missing value meaning" value={entry.missing_value_meaning} />
+        <DefinitionRow label="Zero value meaning" value={entry.zero_value_meaning} />
+        <DefinitionRow label="Not applicable when" value={entry.not_applicable_condition} />
+        <DefinitionRow label="Interpretation caution" value={entry.interpretation_caution} />
+        {entry.timing_construct ? (
+          <div className="md:col-span-2 rounded-md border border-line bg-slate-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Timing semantics</p>
+            <dl className="mt-3 grid gap-3 md:grid-cols-2">
+              <DefinitionRow label="Start event" value={entry.timing_start_event} />
+              <DefinitionRow label="End event" value={entry.timing_end_event} />
+              <DefinitionRow label="Formula" value={entry.calculation_formula} />
+              <DefinitionRow label="Idle handling" value={entry.idle_time_handling} />
+              <DefinitionRow label="Page-hidden handling" value={entry.page_hidden_handling} />
+            </dl>
+          </div>
+        ) : null}
+      </dl>
+    </article>
+  );
+}
+
 export function ResearchDataExportsClient({ initialSection = "dataset" }: { initialSection?: SectionId }) {
   const [activeSection, setActiveSection] = useState<SectionId>(initialSection);
   const [options, setOptions] = useState<OptionsResponse | null>(null);
@@ -251,6 +383,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
   const [includeIncomplete, setIncludeIncomplete] = useState(true);
   const [includeRestricted, setIncludeRestricted] = useState(false);
   const [dictionary, setDictionary] = useState<DataDictionaryResponse | null>(null);
+  const [dictionaryEntityType, setDictionaryEntityType] = useState<DictionaryEntityType>("research_variable");
   const [dictionarySearch, setDictionarySearch] = useState("");
   const [dictionaryCategoryFilter, setDictionaryCategoryFilter] = useState("all");
   const [dictionaryDerivationFilter, setDictionaryDerivationFilter] = useState("all");
@@ -267,6 +400,15 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
     if (section === "dictionary") setActiveSection("dictionary");
     if (section === "dataset" || section === "quick" || section === "analysis" || section === "archive") {
       setActiveSection("dataset");
+    }
+    const entityType = params.get("entity_type");
+    if (
+      entityType === "research_variable" ||
+      entityType === "process_event_code" ||
+      entityType === "internal_schema_field" ||
+      entityType === "excluded_platform_field"
+    ) {
+      setDictionaryEntityType(entityType);
     }
     const pageSize = Number(params.get("page_size"));
     if ([25, 50, 100, 250, 500].includes(pageSize)) setDictionaryPageSize(pageSize);
@@ -296,6 +438,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
     () =>
       queryWithDefined({
         format: "json",
+        entity_type: dictionaryEntityType,
         page: dictionaryPage,
         page_size: dictionaryPageSize,
         search: dictionarySearch.trim(),
@@ -307,6 +450,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
       dictionaryCategoryFilter,
       dictionaryDeprecatedFilter,
       dictionaryDerivationFilter,
+      dictionaryEntityType,
       dictionaryPage,
       dictionaryPageSize,
       dictionarySearch,
@@ -542,29 +686,50 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
             <div>
               <h2 className="text-xl font-semibold text-ink">Data dictionary</h2>
               <p className="mt-2 text-sm leading-6 text-muted">
-                Browse variable definitions, row grains, collection methods, interpretation boundaries, privacy, and export status.
+                Browse research variables, process-event codes, internal schema lineage, and excluded/platform fields without mixing them into one variable list.
               </p>
             </div>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2" role="tablist" aria-label="Data dictionary entity sections">
+            {dictionaryEntityLabels.map((entity) => (
+              <button
+                className={[
+                  "rounded-md px-3 py-2 text-sm font-semibold transition",
+                  dictionaryEntityType === entity.id
+                    ? "bg-accent text-white"
+                    : "border border-line bg-white text-ink hover:border-accent"
+                ].join(" ")}
+                key={entity.id}
+                onClick={() => {
+                  setDictionaryEntityType(entity.id);
+                  setDictionaryCategoryFilter("all");
+                  resetDictionaryPage();
+                }}
+                type="button"
+              >
+                {entity.label}
+              </button>
+            ))}
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
             <DownloadLink href={`/api/teacher/research-data/dictionary${dictionaryDownloadQuery}`} label="Download filtered dictionary CSV" />
           </div>
           <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
             <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-              Search variables
+              Search selected section
               <input
                 className="h-10 rounded-md border border-line bg-white px-3 text-sm"
                 onChange={(event) => {
                   setDictionarySearch(event.target.value);
                   resetDictionaryPage();
                 }}
-                placeholder="Variable, definition, method, or source"
+                placeholder="Variable, event, definition, trigger, method, or source"
                 type="search"
                 value={dictionarySearch}
               />
             </label>
             <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-              Category
+              Category or code group
               <select
                 className="h-10 rounded-md border border-line bg-white px-3 text-sm"
                 onChange={(event) => {
@@ -573,7 +738,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
                 }}
                 value={dictionaryCategoryFilter}
               >
-                <option value="all">All categories</option>
+                <option value="all">All categories or groups</option>
                 {(dictionary?.filter_options.categories ?? []).map((category) => (
                   <option key={category} value={category}>{category}</option>
                 ))}
@@ -596,22 +761,24 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
             </label>
           </div>
           <div className="mt-3 grid gap-3 lg:grid-cols-2">
-            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-              Directly recorded or derived
-              <select
-                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-                onChange={(event) => {
-                  setDictionaryDerivationFilter(event.target.value);
-                  resetDictionaryPage();
-                }}
-                value={dictionaryDerivationFilter}
-              >
-                <option value="all">All derivation types</option>
-                {(dictionary?.filter_options.derivations ?? []).map((derivation) => (
-                  <option key={derivation} value={derivation}>{derivation}</option>
-                ))}
-              </select>
-            </label>
+            {dictionaryEntityType === "research_variable" ? (
+              <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                Directly recorded or derived
+                <select
+                  className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                  onChange={(event) => {
+                    setDictionaryDerivationFilter(event.target.value);
+                    resetDictionaryPage();
+                  }}
+                  value={dictionaryDerivationFilter}
+                >
+                  <option value="all">All derivation types</option>
+                  {(dictionary?.filter_options.derivations ?? []).map((derivation) => (
+                    <option key={derivation} value={derivation}>{derivation}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="flex flex-col gap-2 text-sm font-medium text-ink">
               Deprecated status
               <select
@@ -638,23 +805,23 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
             <div className="mt-5 space-y-4">
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-lg border border-line bg-slate-50 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted">Total variables</p>
-                  <p className="mt-1 text-2xl font-semibold text-ink">{dictionary.stats.variable_count}</p>
+                  <p className="text-xs uppercase tracking-wide text-muted">Research variables</p>
+                  <p className="mt-1 text-2xl font-semibold text-ink">{dictionary.stats.research_variable_count}</p>
                 </div>
                 <div className="rounded-lg border border-line bg-slate-50 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted">Filtered variables</p>
-                  <p className="mt-1 text-2xl font-semibold text-ink">{dictionary.total}</p>
+                  <p className="text-xs uppercase tracking-wide text-muted">Process event types</p>
+                  <p className="mt-1 text-2xl font-semibold text-ink">{dictionary.stats.process_event_type_count}</p>
                 </div>
                 <div className="rounded-lg border border-line bg-slate-50 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted">Visible range</p>
+                  <p className="text-xs uppercase tracking-wide text-muted">Internal / excluded</p>
                   <p className="mt-1 text-2xl font-semibold text-ink">
-                    {dictionary.first_visible_row}-{dictionary.last_visible_row}
+                    {dictionary.stats.internal_schema_field_count} / {dictionary.stats.excluded_platform_field_count}
                   </p>
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-slate-50 p-3 text-sm">
                 <span>
-                  Showing {dictionary.first_visible_row}-{dictionary.last_visible_row} of {dictionary.total} variables
+                  Showing {dictionary.first_visible_row}-{dictionary.last_visible_row} of {dictionary.total} rows in the selected section
                 </span>
                 <span>
                   Page {dictionary.page} of {dictionary.total_pages}
@@ -666,51 +833,9 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
                   <button className="rounded-md border border-line bg-white px-3 py-1 font-semibold disabled:text-slate-400" disabled={dictionary.page >= dictionary.total_pages} onClick={() => setDictionaryPage(dictionary.total_pages)} type="button">Last</button>
                 </div>
               </div>
-              <div className="space-y-3" aria-label="Data dictionary variable list">
+              <div className="space-y-3" aria-label="Data dictionary selected entity list">
                 {dictionary.rows.map((entry) => (
-                  <article
-                    className="rounded-lg border border-line bg-white p-4 shadow-soft"
-                    key={`${entry.table_name}.${entry.variable_name}`}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Variable</p>
-                        <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">
-                          {entry.variable_name}
-                        </h3>
-                      </div>
-                      <span className="rounded-full border border-line bg-slate-50 px-3 py-1 text-xs font-semibold text-ink">
-                        {entry.category}
-                      </span>
-                    </div>
-                    <dl className="mt-4 grid gap-4 md:grid-cols-2">
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Type</dt>
-                        <dd className="mt-1 text-sm text-ink">{entry.data_type}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Category</dt>
-                        <dd className="mt-1 text-sm text-ink">{entry.category}</dd>
-                      </div>
-                      <div className="md:col-span-2">
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Definition</dt>
-                        <dd className="mt-1 max-w-4xl text-sm leading-6 text-ink">
-                          {entry.definition}
-                          {entry.interpretation_caution ? (
-                            <span className="mt-1 block text-amber-800">{entry.interpretation_caution}</span>
-                          ) : null}
-                        </dd>
-                      </div>
-                      <div className="md:col-span-2">
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
-                          Collection or generation method
-                        </dt>
-                        <dd className="mt-1 max-w-4xl text-sm leading-6 text-muted">
-                          {entry.collection_or_generation_method}
-                        </dd>
-                      </div>
-                    </dl>
-                  </article>
+                  <DictionaryCard entry={entry} entityType={dictionaryEntityType} key={entry.qualified_name ?? entry.event_type} />
                 ))}
               </div>
             </div>

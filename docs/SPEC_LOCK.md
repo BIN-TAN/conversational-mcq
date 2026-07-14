@@ -2416,14 +2416,26 @@ Phase 6A.5 must not implement:
   `sessions.csv`, `item_responses.csv`, `process_events.csv`,
   `conversation_turns.csv`, `agent_activity_records.csv`,
   `assessment_content.csv`, `assessment_summary.csv`, and
-  `data_dictionary.csv`.
-- `data_dictionary.csv` is the authoritative variable inventory. It documents
-  data-nature category, row grain, data type, units, allowed values, source,
-  collection/generation method, timing formulas, missingness, privacy level,
-  secondary export tier, interpretation guidance, cautions, and limitations.
-- The data dictionary must categorize variables by data nature, not by export
-  product. It must support teacher-controlled page sizes of 25, 50, 100, 250,
+  `research_data_dictionary.csv`, and `process_event_codebook.csv`.
+- `research_data_dictionary.csv` is the authoritative inventory for research
+  dataset variables only. Process event codes, internal Prisma/source-schema
+  fields, and platform administration/excluded fields must not be counted as
+  ordinary variables.
+- `process_event_codebook.csv` documents one row per process-event type with
+  trigger, actor/source, scope, timestamp meaning, allow-listed payload fields,
+  derived variables, and interpretation cautions.
+- The Data dictionary UI must provide separate sections for Research variables,
+  Process event codebook, Internal schema appendix, and Platform administration
+  and excluded variables. It must show separate counts and default to Research
+  variables.
+- Research variables must include qualified name, dataset/table, measurement
+  level, source nature, missing/zero/false/not-applicable semantics, privacy
+  level, export policy, timing formulas where applicable, and interpretation
+  cautions. It must support teacher-controlled page sizes of 25, 50, 100, 250,
   and 500 rows and no hardcoded 80-row limit.
+- Ordinary research dataset exports must use `research_student_id` as the
+  pseudonymous student join key. Login usernames, emails, internal database IDs,
+  credentials, hashes, and secrets must not appear in default research exports.
 - Default research dataset exports exclude credentials, hashes, session secrets,
   API keys, database URLs, raw provider requests, unrestricted raw provider
   output, internal database UUIDs, unrestricted answer keys, correctness fields,

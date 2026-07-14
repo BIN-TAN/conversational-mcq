@@ -40,7 +40,7 @@ function main() {
   assertNotIncludes(unifiedClient, "Quick summary", "Unified research export client");
   assertNotIncludes(unifiedClient, "Analysis-ready dataset", "Unified research export client");
   assertNotIncludes(unifiedClient, "Full archive", "Unified research export client");
-  assertIncludes(unifiedClient, "Search variables", "Unified research export client");
+  assertIncludes(unifiedClient, "Search selected section", "Unified research export client");
   assertIncludes(unifiedClient, "Page size", "Unified research export client");
   assertIncludes(unifiedClient, "First", "Unified research export client");
   assertIncludes(unifiedClient, "Previous", "Unified research export client");
@@ -48,6 +48,9 @@ function main() {
   assertIncludes(unifiedClient, "Last", "Unified research export client");
   assertIncludes(unifiedClient, "Directly recorded or derived", "Unified research export client");
   assertIncludes(unifiedClient, "Deprecated status", "Unified research export client");
+  assertIncludes(unifiedClient, "Process event codebook", "Unified research export client");
+  assertIncludes(unifiedClient, "Internal schema appendix", "Unified research export client");
+  assertIncludes(unifiedClient, "Platform administration and excluded variables", "Unified research export client");
   assertNotIncludes(unifiedClient, "All privacy levels", "Unified research export client");
   assertNotIncludes(unifiedClient, "All export tiers", "Unified research export client");
   assertNotIncludes(unifiedClient, "All source types", "Unified research export client");
