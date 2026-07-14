@@ -7,19 +7,25 @@ Dictionary schema version: `research-data-dictionary-v3`
 ## Summary
 
 Phase 31af rebuilt the research data dictionary from one generated schema-like
-inventory into four explicit documentation entities:
+inventory into four explicit documentation entities. Phase 31ag corrected
+residual semantic drift, added source-code evidence and review status fields,
+and separated source-code verification from domain-owner approval:
 
 - Research dataset variables: 278
 - Process event types: 156
-- Internal schema fields: 276
-- Platform administration and excluded fields: 107
+- Internal schema fields: 281
+- Platform administration and excluded fields: 102
 
 The semantic audit reported zero placeholder research definitions, zero
 placeholder process-event definitions, zero timing variables missing measurement
 level or formula, zero duplicate variables without qualified names, zero
 privacy/export contradictions, zero PII fields in the ordinary research export,
 zero undocumented exported columns, and zero documented-but-absent research
-columns.
+columns. The Phase 31ag specificity audit additionally reports zero generic
+row-based definitions, zero generic serialization-path methods, zero unresolved
+formula references, zero count/duration formula mismatches, zero ratio formula
+mismatches, zero generic process-event triggers, zero internal nullable
+placeholders, and zero internal privacy/audience mismatches.
 
 ## Fields Reviewed
 
@@ -71,13 +77,26 @@ The review covered:
 - Updated default analysis-ready export contents to include
   `research_data_dictionary.csv` and `process_event_codebook.csv`, while
   excluding the internal schema appendix and excluded-variable inventory.
+- Added `source_code_reference`, `source_service_or_function`,
+  `semantic_review_status`, and `semantic_review_notes` to research variables
+  and process-event codebook rows.
+- Corrected known category/source-nature errors for item response fields,
+  pseudonymous identifiers, correctness and guessing-risk fields, conversation
+  message text, and LLM/effective-system interpretation fields.
+- Repaired timing formulas so exported timing definitions reference exported
+  variables or documented event/payload names, not hidden implementation fields
+  such as `item_started_at`.
+- Made process-event codebook rows event-family-specific for triggers,
+  timestamp meanings, payload fields, downstream variables, guidance, and
+  cautions.
+- Marked `assessment_summary.csv` as a derived convenience view over canonical
+  session-level data and documented `agent_activity_records.csv` as a
+  heterogeneous union requiring `record_type`.
 
 ## Unresolved Questions
 
-- Several research-variable definitions are still generated from reviewed
-  deterministic rules rather than hand-authored prose for each individual
-  column. They no longer use placeholder text, but a domain owner may still want
-  to refine wording before publication in a dissertation appendix.
+- Every row is source-code verified, but domain-owner review remains pending.
+  Do not treat `source_verified` as substantive domain approval.
 - The pseudonymous `research_student_id` is stable for export joins, but a
   separate restricted linkage-file workflow remains intentionally unimplemented.
 - Some source-schema mappings are approximate because one internal Prisma field

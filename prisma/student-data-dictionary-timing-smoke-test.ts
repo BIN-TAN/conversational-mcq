@@ -46,11 +46,19 @@ function main() {
   );
 
   const ambiguousResponseTime = entries.find((entry) => entry.qualified_name === "item_responses.item_response_time_ms");
-  assert(ambiguousResponseTime?.definition.includes("one row per student response"), "Legacy item_response_time_ms should be clarified at item-response grain.");
+  assert(ambiguousResponseTime?.measurement_level === "item_response", "Legacy item_response_time_ms should be item-response grain.");
+  assert(!ambiguousResponseTime?.calculation_formula.includes("item_started_at"), "Timing formulas should not reference unexported item_started_at.");
+  assert(
+    ambiguousResponseTime?.timing_start_event === "item_presented_at",
+    "item_response_time_ms should use exported item_presented_at as the documented start event."
+  );
 
   const report = researchDataDictionarySemanticReport();
   assert(report.timing_variables_missing_level === 0, "Timing variables should not miss measurement level.");
   assert(report.timing_variables_missing_formula === 0, "Timing variables should not miss formulas.");
+  assert(report.formula_reference_issues.length === 0, "Timing formulas should reference exported fields, event codes, or documented payload fields.");
+  assert(report.count_duration_formula_issues.length === 0, "Count variables should not use duration formulas.");
+  assert(report.ratio_formula_issues.length === 0, "Ratio variables should document numerator and denominator.");
 
   console.log(
     JSON.stringify(

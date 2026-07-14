@@ -76,8 +76,12 @@ type DataDictionaryResponse = {
     entity_types: Array<{ value: DictionaryEntityType; label: string }>;
     categories: string[];
     table_names: string[];
+    measurement_levels: string[];
+    actor_or_sources: string[];
+    scopes: string[];
     source_natures: string[];
     privacy_levels: string[];
+    permitted_audiences: string[];
     export_policies: string[];
     derivations: string[];
     field_families: string[];
@@ -101,8 +105,8 @@ const sections: Array<{ id: SectionId; label: string }> = [
 const dictionaryEntityLabels: Array<{ id: DictionaryEntityType; label: string }> = [
   { id: "research_variable", label: "Research variables" },
   { id: "process_event_code", label: "Process event codebook" },
-  { id: "internal_schema_field", label: "Internal schema appendix" },
-  { id: "excluded_platform_field", label: "Platform administration and excluded variables" }
+  { id: "internal_schema_field", label: "Internal schema appendix - Advanced" },
+  { id: "excluded_platform_field", label: "Platform administration and excluded variables - Advanced" }
 ];
 
 async function fetchOptions(): Promise<OptionsResponse> {
@@ -277,6 +281,8 @@ function DictionaryCard({ entry, entityType }: { entry: DataDictionaryEntry; ent
           <DefinitionRow label="Timestamp meaning" value={entry.timestamp_meaning} />
           <DefinitionRow label="Payload fields" value={entry.payload_fields} />
           <DefinitionRow label="Derived variables" value={entry.derived_variables} />
+          <DefinitionRow label="Source code reference" value={entry.source_code_reference} />
+          <DefinitionRow label="Review status" value={entry.semantic_review_status} />
           <DefinitionRow label="Interpretation caution" value={entry.interpretation_caution} />
         </dl>
       </article>
@@ -356,6 +362,10 @@ function DictionaryCard({ entry, entityType }: { entry: DataDictionaryEntry; ent
         <DefinitionRow label="Zero value meaning" value={entry.zero_value_meaning} />
         <DefinitionRow label="Not applicable when" value={entry.not_applicable_condition} />
         <DefinitionRow label="Interpretation caution" value={entry.interpretation_caution} />
+        <DefinitionRow label="Source code reference" value={entry.source_code_reference} />
+        <DefinitionRow label="Source service/function" value={entry.source_service_or_function} />
+        <DefinitionRow label="Review status" value={entry.semantic_review_status} />
+        <DefinitionRow label="Applicable record types" value={entry.applicable_record_types} />
         {entry.timing_construct ? (
           <div className="md:col-span-2 rounded-md border border-line bg-slate-50 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Timing semantics</p>
@@ -387,7 +397,14 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
   const [dictionarySearch, setDictionarySearch] = useState("");
   const [dictionaryCategoryFilter, setDictionaryCategoryFilter] = useState("all");
   const [dictionaryDerivationFilter, setDictionaryDerivationFilter] = useState("all");
-  const [dictionaryDeprecatedFilter, setDictionaryDeprecatedFilter] = useState("all");
+  const [dictionaryMeasurementLevelFilter, setDictionaryMeasurementLevelFilter] = useState("all");
+  const [dictionaryActorSourceFilter, setDictionaryActorSourceFilter] = useState("all");
+  const [dictionaryScopeFilter, setDictionaryScopeFilter] = useState("all");
+  const [dictionaryTableFilter, setDictionaryTableFilter] = useState("all");
+  const [dictionaryPrivacyFilter, setDictionaryPrivacyFilter] = useState("all");
+  const [dictionaryPermittedAudienceFilter, setDictionaryPermittedAudienceFilter] = useState("all");
+  const [dictionaryExportPolicyFilter, setDictionaryExportPolicyFilter] = useState("all");
+  const [dictionaryDeprecatedFilter, setDictionaryDeprecatedFilter] = useState("false");
   const [dictionaryPage, setDictionaryPage] = useState(1);
   const [dictionaryPageSize, setDictionaryPageSize] = useState(100);
   const [dictionaryLoading, setDictionaryLoading] = useState(false);
@@ -443,17 +460,31 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
         page_size: dictionaryPageSize,
         search: dictionarySearch.trim(),
         category: dictionaryCategoryFilter,
-        derivation: dictionaryDerivationFilter,
-        deprecated: dictionaryDeprecatedFilter
+        measurement_level: dictionaryEntityType === "research_variable" ? dictionaryMeasurementLevelFilter : undefined,
+        source_nature: dictionaryEntityType === "research_variable" ? dictionaryDerivationFilter : undefined,
+        actor_or_source: dictionaryEntityType === "process_event_code" ? dictionaryActorSourceFilter : undefined,
+        scope: dictionaryEntityType === "process_event_code" ? dictionaryScopeFilter : undefined,
+        table_name: dictionaryEntityType === "internal_schema_field" ? dictionaryTableFilter : undefined,
+        privacy_level: dictionaryEntityType === "internal_schema_field" ? dictionaryPrivacyFilter : undefined,
+        permitted_audience: dictionaryEntityType === "excluded_platform_field" ? dictionaryPermittedAudienceFilter : undefined,
+        export_policy: dictionaryEntityType === "internal_schema_field" || dictionaryEntityType === "excluded_platform_field" ? dictionaryExportPolicyFilter : undefined,
+        deprecated: dictionaryEntityType === "research_variable" || dictionaryEntityType === "process_event_code" ? dictionaryDeprecatedFilter : undefined
       }),
     [
+      dictionaryActorSourceFilter,
       dictionaryCategoryFilter,
       dictionaryDeprecatedFilter,
       dictionaryDerivationFilter,
       dictionaryEntityType,
+      dictionaryExportPolicyFilter,
+      dictionaryMeasurementLevelFilter,
       dictionaryPage,
       dictionaryPageSize,
+      dictionaryPermittedAudienceFilter,
+      dictionaryPrivacyFilter,
       dictionarySearch,
+      dictionaryScopeFilter,
+      dictionaryTableFilter,
     ]
   );
 
@@ -497,6 +528,21 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
 
   function resetDictionaryPage() {
     setDictionaryPage(1);
+  }
+
+  function resetDictionaryFiltersForSection(nextType: DictionaryEntityType) {
+    setDictionaryEntityType(nextType);
+    setDictionaryCategoryFilter("all");
+    setDictionaryDerivationFilter("all");
+    setDictionaryMeasurementLevelFilter("all");
+    setDictionaryActorSourceFilter("all");
+    setDictionaryScopeFilter("all");
+    setDictionaryTableFilter("all");
+    setDictionaryPrivacyFilter("all");
+    setDictionaryPermittedAudienceFilter("all");
+    setDictionaryExportPolicyFilter("all");
+    setDictionaryDeprecatedFilter(nextType === "research_variable" || nextType === "process_event_code" ? "false" : "all");
+    resetDictionaryPage();
   }
 
   const counts = selectedCounts({ options, assessmentId, studentId, scopeMode });
@@ -690,29 +736,22 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
               </p>
             </div>
           </div>
-          <div className="mt-5 flex flex-wrap gap-2" role="tablist" aria-label="Data dictionary entity sections">
-            {dictionaryEntityLabels.map((entity) => (
-              <button
-                className={[
-                  "rounded-md px-3 py-2 text-sm font-semibold transition",
-                  dictionaryEntityType === entity.id
-                    ? "bg-accent text-white"
-                    : "border border-line bg-white text-ink hover:border-accent"
-                ].join(" ")}
-                key={entity.id}
-                onClick={() => {
-                  setDictionaryEntityType(entity.id);
-                  setDictionaryCategoryFilter("all");
-                  resetDictionaryPage();
-                }}
-                type="button"
+          <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+              Dictionary section
+              <select
+                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                onChange={(event) => resetDictionaryFiltersForSection(event.target.value as DictionaryEntityType)}
+                value={dictionaryEntityType}
               >
-                {entity.label}
-              </button>
-            ))}
-          </div>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <DownloadLink href={`/api/teacher/research-data/dictionary${dictionaryDownloadQuery}`} label="Download filtered dictionary CSV" />
+                {dictionaryEntityLabels.map((entity) => (
+                  <option key={entity.id} value={entity.id}>{entity.label}</option>
+                ))}
+              </select>
+            </label>
+            <div className="self-end">
+              <DownloadLink href={`/api/teacher/research-data/dictionary${dictionaryDownloadQuery}`} label="Download filtered dictionary CSV" />
+            </div>
           </div>
           <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
             <label className="flex flex-col gap-2 text-sm font-medium text-ink">
@@ -729,17 +768,37 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
               />
             </label>
             <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-              Category or code group
+              {dictionaryEntityType === "process_event_code"
+                ? "Code group"
+                : dictionaryEntityType === "internal_schema_field"
+                  ? "Prisma model"
+                  : dictionaryEntityType === "excluded_platform_field"
+                    ? "Exclusion category"
+                    : "Category"}
               <select
                 className="h-10 rounded-md border border-line bg-white px-3 text-sm"
                 onChange={(event) => {
-                  setDictionaryCategoryFilter(event.target.value);
+                  if (dictionaryEntityType === "internal_schema_field") {
+                    setDictionaryTableFilter(event.target.value);
+                  } else {
+                    setDictionaryCategoryFilter(event.target.value);
+                  }
                   resetDictionaryPage();
                 }}
-                value={dictionaryCategoryFilter}
+                value={dictionaryEntityType === "internal_schema_field" ? dictionaryTableFilter : dictionaryCategoryFilter}
               >
-                <option value="all">All categories or groups</option>
-                {(dictionary?.filter_options.categories ?? []).map((category) => (
+                <option value="all">
+                  {dictionaryEntityType === "process_event_code"
+                    ? "All code groups"
+                    : dictionaryEntityType === "internal_schema_field"
+                      ? "All Prisma models"
+                      : dictionaryEntityType === "excluded_platform_field"
+                        ? "All exclusion categories"
+                        : "All categories"}
+                </option>
+                {((dictionaryEntityType === "internal_schema_field"
+                  ? dictionary?.filter_options.table_names
+                  : dictionary?.filter_options.categories) ?? []).map((category) => (
                   <option key={category} value={category}>{category}</option>
                 ))}
               </select>
@@ -760,40 +819,168 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
               </select>
             </label>
           </div>
-          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <div className="mt-3 grid gap-3 lg:grid-cols-3">
             {dictionaryEntityType === "research_variable" ? (
+              <>
+                <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                  Measurement level
+                  <select
+                    className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                    onChange={(event) => {
+                      setDictionaryMeasurementLevelFilter(event.target.value);
+                      resetDictionaryPage();
+                    }}
+                    value={dictionaryMeasurementLevelFilter}
+                  >
+                    <option value="all">All measurement levels</option>
+                    {(dictionary?.filter_options.measurement_levels ?? []).map((level) => (
+                      <option key={level} value={level}>{level}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                  Directly recorded or derived
+                  <select
+                    className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                    onChange={(event) => {
+                      setDictionaryDerivationFilter(event.target.value);
+                      resetDictionaryPage();
+                    }}
+                    value={dictionaryDerivationFilter}
+                  >
+                    <option value="all">All source natures</option>
+                    {(dictionary?.filter_options.source_natures ?? []).map((source) => (
+                      <option key={source} value={source}>{source}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : null}
+            {dictionaryEntityType === "process_event_code" ? (
+              <>
+                <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                  Actor/source
+                  <select
+                    className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                    onChange={(event) => {
+                      setDictionaryActorSourceFilter(event.target.value);
+                      resetDictionaryPage();
+                    }}
+                    value={dictionaryActorSourceFilter}
+                  >
+                    <option value="all">All actor/source values</option>
+                    {(dictionary?.filter_options.actor_or_sources ?? []).map((source) => (
+                      <option key={source} value={source}>{source}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                  Scope
+                  <select
+                    className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                    onChange={(event) => {
+                      setDictionaryScopeFilter(event.target.value);
+                      resetDictionaryPage();
+                    }}
+                    value={dictionaryScopeFilter}
+                  >
+                    <option value="all">All scopes</option>
+                    {(dictionary?.filter_options.scopes ?? []).map((scope) => (
+                      <option key={scope} value={scope}>{scope}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : null}
+            {dictionaryEntityType === "internal_schema_field" ? (
+              <>
+                <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                  Privacy class
+                  <select
+                    className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                    onChange={(event) => {
+                      setDictionaryPrivacyFilter(event.target.value);
+                      resetDictionaryPage();
+                    }}
+                    value={dictionaryPrivacyFilter}
+                  >
+                    <option value="all">All privacy classes</option>
+                    {(dictionary?.filter_options.privacy_levels ?? []).map((privacy) => (
+                      <option key={privacy} value={privacy}>{privacy}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                  Export policy
+                  <select
+                    className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                    onChange={(event) => {
+                      setDictionaryExportPolicyFilter(event.target.value);
+                      resetDictionaryPage();
+                    }}
+                    value={dictionaryExportPolicyFilter}
+                  >
+                    <option value="all">All export policies</option>
+                    {(dictionary?.filter_options.export_policies ?? []).map((policy) => (
+                      <option key={policy} value={policy}>{policy}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : null}
+            {dictionaryEntityType === "excluded_platform_field" ? (
+              <>
+                <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                  Permitted audience
+                  <select
+                    className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                    onChange={(event) => {
+                      setDictionaryPermittedAudienceFilter(event.target.value);
+                      resetDictionaryPage();
+                    }}
+                    value={dictionaryPermittedAudienceFilter}
+                  >
+                    <option value="all">All permitted audiences</option>
+                    {(dictionary?.filter_options.permitted_audiences ?? []).map((audience) => (
+                      <option key={audience} value={audience}>{audience}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                  Export policy
+                  <select
+                    className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                    onChange={(event) => {
+                      setDictionaryExportPolicyFilter(event.target.value);
+                      resetDictionaryPage();
+                    }}
+                    value={dictionaryExportPolicyFilter}
+                  >
+                    <option value="all">All export policies</option>
+                    {(dictionary?.filter_options.export_policies ?? []).map((policy) => (
+                      <option key={policy} value={policy}>{policy}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : null}
+            {(dictionaryEntityType === "research_variable" || dictionaryEntityType === "process_event_code") ? (
               <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-                Directly recorded or derived
+                Deprecated status
                 <select
                   className="h-10 rounded-md border border-line bg-white px-3 text-sm"
                   onChange={(event) => {
-                    setDictionaryDerivationFilter(event.target.value);
+                    setDictionaryDeprecatedFilter(event.target.value);
                     resetDictionaryPage();
                   }}
-                  value={dictionaryDerivationFilter}
+                  value={dictionaryDeprecatedFilter}
                 >
-                  <option value="all">All derivation types</option>
-                  {(dictionary?.filter_options.derivations ?? []).map((derivation) => (
-                    <option key={derivation} value={derivation}>{derivation}</option>
-                  ))}
+                  <option value="false">Active only</option>
+                  <option value="all">All records</option>
+                  <option value="true">Deprecated only</option>
                 </select>
               </label>
             ) : null}
-            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-              Deprecated status
-              <select
-                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-                onChange={(event) => {
-                  setDictionaryDeprecatedFilter(event.target.value);
-                  resetDictionaryPage();
-                }}
-                value={dictionaryDeprecatedFilter}
-              >
-                <option value="all">All variables</option>
-                <option value="false">Active variables</option>
-                <option value="true">Deprecated variables</option>
-              </select>
-            </label>
           </div>
           {dictionaryLoading ? (
             <p className="mt-4 inline-flex items-center gap-2 text-sm text-muted">

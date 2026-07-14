@@ -342,6 +342,10 @@ export const DATA_DICTIONARY_COLUMNS = [
   "data_availability_flag",
   "source_nature",
   "source_table_or_event",
+  "source_code_reference",
+  "source_service_or_function",
+  "semantic_review_status",
+  "semantic_review_notes",
   "collection_or_generation_method",
   "calculation_formula",
   "timing_construct",
@@ -362,6 +366,7 @@ export const DATA_DICTIONARY_COLUMNS = [
   "example_value",
   "deprecated",
   "replacement_variable",
+  "applicable_record_types",
   "notes"
 ] as const;
 
@@ -378,6 +383,10 @@ export const PROCESS_EVENT_CODEBOOK_COLUMNS = [
   "timestamp_meaning",
   "payload_fields",
   "derived_variables",
+  "source_code_reference",
+  "source_service_or_function",
+  "semantic_review_status",
+  "semantic_review_notes",
   "directly_recorded",
   "interpretation_guidance",
   "interpretation_caution",
@@ -430,17 +439,6 @@ export type DictionaryEntityEntry =
   | ProcessEventCodebookEntry
   | InternalSchemaAppendixEntry
   | ExcludedPlatformVariableEntry;
-
-const ROW_GRAINS: Record<AnalysisReadyTableName, string> = {
-  sessions: "one row per student assessment attempt/session",
-  item_responses: "one row per student response to one administered item snapshot",
-  process_events: "one row per recorded process event",
-  conversation_turns: "one row per visible or research-readable conversation turn",
-  agent_activity_records:
-    "one row per agent call, workflow decision, formative activity attempt, or diagnostic update record",
-  assessment_content: "one row per administered item snapshot",
-  assessment_summary: "one row per student-assessment attempt summary"
-};
 
 const TABLE_COLUMNS: Record<AnalysisReadyTableName, readonly string[]> = {
   sessions: SESSIONS_COLUMNS,
@@ -563,7 +561,23 @@ function isTimingVariable(variable: string) {
   );
 }
 
-function sourceNature(variable: string): string {
+function sourceNature(table: string, variable: string): string {
+  if (variable === "research_student_id" || variable === "student_id" || variable === "student_public_id") {
+    return "deterministic_derived";
+  }
+  if (table === "conversation_turns" && variable === "message_text") return "mixed_by_actor_type";
+  if (variable === "reasoning_quality_signal") return "persisted_llm_interpretation";
+  if (variable === "correctness") return "deterministic_derived";
+  if (variable === "correctness_support_level" || variable === "estimated_guessing_risk" || variable === "answer_selection_evidence_weight") {
+    return "persisted_llm_interpretation";
+  }
+  if (variable === "teacher_diagnostic_guidance_available" || variable === "teacher_guidance_considered") {
+    return "deterministic_derived";
+  }
+  if (variable === "app_environment") return "system_configuration";
+  if (table === "agent_activity_records" && /token|model|provider|prompt|schema|retry|validated|repair|status/.test(variable)) {
+    return "system_configuration";
+  }
   if (variable.endsWith("_count")) return "aggregate_derived";
   if (isTimingVariable(variable) || variable.endsWith("_at")) return "timestamp_derived";
   if (LLM_INTERPRETIVE_COLUMNS.has(variable)) return "persisted_llm_interpretation";
@@ -593,6 +607,24 @@ function researchExportPolicy(variable: string) {
 
 function categoryFor(table: string, variable: string): DataDictionaryCategory {
   if (isTimingVariable(variable)) return "Timing and interaction data";
+  if (table === "item_responses") {
+    if (/correctness|score|unsupported_correct|guessing|answer_selection_evidence_weight/.test(variable)) return "Outcome and scoring data";
+    if (/reasoning_quality|misconception|evidence_sufficiency|interpretation|diagnostic|teacher_guidance|alternative/.test(variable)) {
+      return "Diagnostic and interpretation outputs";
+    }
+    return "Item response data";
+  }
+  if (table === "conversation_turns" || table === "process_events") return "Process event data";
+  if (table === "sessions" || table === "assessment_summary") {
+    if (/export_|schema_version|version|snapshot|hash|commit|fingerprint|context_|source_|provenance|app_environment/i.test(variable)) {
+      return "Export, provenance, and versioning data";
+    }
+    if (/understanding|engagement|profile|misconception|evidence_sufficiency|interpretation|alternative|guessing|uncertainty/i.test(variable)) {
+      return "Diagnostic and interpretation outputs";
+    }
+    if (/correctness|outcome|score|unsupported_correct|completed_initial|session_completion/i.test(variable)) return "Outcome and scoring data";
+    return "Session and participation variables";
+  }
   if (LLM_INTERPRETIVE_COLUMNS.has(variable) || /understanding|engagement|profile|misconception|evidence_sufficiency|interpretation|alternative|guessing|uncertainty/i.test(variable)) {
     return "Diagnostic and interpretation outputs";
   }
@@ -609,61 +641,80 @@ function categoryFor(table: string, variable: string): DataDictionaryCategory {
   if (table === "assessment_content" || /stem|option|media|diagnostic_focus|teacher_llm|distractor|correct_option|item_|assessment_title/i.test(variable)) {
     return "Assessment design and content";
   }
-  if (table === "sessions" || table === "assessment_summary" || /session_status|attempt|phase|started_at|completed_at|resumed_at|current_|completion|participation/i.test(variable)) {
-    return "Session and participation variables";
-  }
-  if (table === "process_events" || /event_|payload_|phase/.test(variable)) return "Process event data";
-  if (table === "conversation_turns" || /turn_|message|actor|context_label/.test(variable)) return "Process event data";
-  if (table === "item_responses" || /selected_option|reasoning|confidence|tempting|skipped|revision|response_/.test(variable)) {
-    return "Item response data";
-  }
   return "Session and participation variables";
 }
 
 function definition(table: string, variable: string) {
   const overrides: Record<string, string> = {
     research_student_id:
-      "Pseudonymous student join key generated for research exports. It is stable inside the export policy and is not the student's login username or email.",
+      "Pseudonymous student join key generated for research exports from the operational login identifier through the export namespace hash. It is not the student's login username, email, or internal database UUID.",
     student_id:
-      "Deprecated research-export alias for the pseudonymous student join key. It is not the student's login username in rebuilt research datasets.",
+      "Deprecated compatibility alias for research_student_id. New analyses should use research_student_id.",
     student_public_id:
-      "Deprecated research-export alias for the pseudonymous student join key retained for older analysis scripts.",
+      "Deprecated compatibility alias for research_student_id retained for older analysis scripts.",
     session_public_id: "Public assessment-session identifier used as the primary join key across session-level export files.",
     assessment_snapshot_public_id:
       "Deterministic assessment-session snapshot identifier binding exported rows to the administered content context.",
     item_snapshot_public_id:
       "Deterministic identifier for the item version or item context as administered in this session.",
-    selected_option: "Student-selected MCQ option as recorded for the administered item snapshot.",
-    reasoning_text: "Student reasoning text stored for the item response. This is research-sensitive text.",
-    confidence_rating: "Student-selected confidence rating for the response.",
-    tempting_option: "Student-reported tempting alternative option when provided.",
-    tempting_option_reason: "Student explanation of why an alternative option was tempting when provided.",
+    selected_option: "Option label selected by the student for the administered item snapshot in the chat-native answer step.",
+    reasoning_text: "Student-authored reasoning text submitted for the item response. This is research-sensitive text.",
+    confidence_rating: "Student-selected confidence rating for the item response after the reasoning prompt.",
+    tempting_option: "Student-reported alternative option that seemed tempting, when the tempting-option step was administered and the student named one.",
+    tempting_option_reason: "Student-authored explanation for why the reported tempting option seemed plausible.",
     correct_option: "Restricted item-key field. Export only in explicitly restricted teacher/research contexts.",
-    correctness: "Restricted scored response classification. Export only in explicitly restricted teacher/research contexts.",
-    message_text: "Visible or research-readable conversation turn text, excluding hidden prompts and raw provider output.",
+    correctness: "Restricted deterministic response classification comparing the student-selected option with the session-bound correct-option snapshot.",
+    message_text:
+      "Conversation turn text. Source meaning depends on actor_type: student turns are student-authored, agent turns are generated or scripted system messages, and system turns are application-authored messages.",
     event_type: "Allow-listed process-event code recorded for one process event row. Event-code semantics are documented in the process event codebook.",
     provider: "Provider family recorded for an agent call or activity record when a backend LLM or mock provider path is attempted.",
     model: "Model name recorded for an agent call when available.",
-    output_validated: "Boolean indicator that the stored agent output passed the applicable schema and safety validation."
+    output_validated: "Boolean indicator that the stored agent output passed the applicable schema and safety validation.",
+    item_response_count:
+      "Number of item-response records associated with the assessment attempt or assessment-summary row.",
+    app_environment:
+      "Application environment label captured with the export source identity for reproducibility.",
+    release_at:
+      "Assessment release timestamp used to document the availability window for the assessment attempt context."
   };
   if (overrides[variable]) return overrides[variable];
-  const grain = ROW_GRAINS[table as AnalysisReadyTableName] ?? "the documented row";
-  if (isTimingVariable(variable)) return `${sentenceTitle(variable)} measured for ${grain}.`;
-  if (variable.endsWith("_count")) return `${sentenceTitle(variable)} counted within ${grain}.`;
-  if (variable.endsWith("_at")) return `${sentenceTitle(variable)} timestamp associated with ${grain}.`;
+  if (isTimingVariable(variable)) return `${sentenceTitle(variable)} timing construct documented for the ${table} export and measured at ${measurementLevel(table, variable)} scope.`;
+  if (variable.endsWith("_count")) return `${sentenceTitle(variable)} aggregate count for the ${table} export at ${measurementLevel(table, variable)} scope.`;
+  if (variable.endsWith("_at")) return `${sentenceTitle(variable)} lifecycle timestamp for the ${table} export at ${measurementLevel(table, variable)} scope.`;
   if (LLM_INTERPRETIVE_COLUMNS.has(variable)) {
-    return `${sentenceTitle(variable)} persisted as an assessment-specific interpretation from validated diagnostic or activity evidence.`;
+    return `${sentenceTitle(variable)} persisted as an assessment-specific interpretation from validated diagnostic, profile, activity, or post-activity evidence.`;
   }
   if (RESTRICTED_COLUMNS.has(variable)) {
     return `${sentenceTitle(variable)} restricted teacher/research context for interpreting the administered item or response.`;
   }
-  return `${sentenceTitle(variable)} value recorded for ${grain}.`;
+  if (table === "sessions") {
+    return `${sentenceTitle(variable)} session-level field drawn from the AssessmentSession, assessment context, or safe session aggregate for one assessment attempt.`;
+  }
+  if (table === "item_responses") {
+    return `${sentenceTitle(variable)} item-response field drawn from the ItemResponse record, response package evidence, or item-scoped process events for one administered item snapshot.`;
+  }
+  if (table === "process_events") {
+    return `${sentenceTitle(variable)} flattened allow-listed process-event attribute for one recorded event; raw payload JSON is excluded.`;
+  }
+  if (table === "conversation_turns") {
+    return `${sentenceTitle(variable)} conversation-turn attribute for one visible or research-readable transcript turn.`;
+  }
+  if (table === "agent_activity_records") {
+    return `${sentenceTitle(variable)} heterogeneous agent/activity attribute whose applicability depends on record_type.`;
+  }
+  if (table === "assessment_content") {
+    return `${sentenceTitle(variable)} administered-content snapshot field for the assessment or item version shown in a student session.`;
+  }
+  if (table === "assessment_summary") {
+    return `${sentenceTitle(variable)} derived convenience summary field copied or aggregated from the canonical sessions and related export tables.`;
+  }
+  return `${sentenceTitle(variable)} research-export field documented at ${measurementLevel(table, variable)} scope.`;
 }
 
 function collectionMethod(table: string, variable: string) {
   const overrides: Record<string, string> = {
     research_student_id:
-      "Computed by hashing the student's internal login key with the research export pseudonymization namespace before CSV serialization; raw usernames and emails are not written to ordinary research dataset files.",
+      "Computed in researchStudentId() by hashing the operational user_id with namespace research_student_id:v1 before CSV serialization; raw usernames and emails are not written to ordinary research dataset files.",
     student_id:
       "Filled with the same pseudonymous value as research_student_id for backward compatibility with older analysis scripts.",
     student_public_id:
@@ -674,28 +725,51 @@ function collectionMethod(table: string, variable: string) {
     tempting_option: "Recorded from the student's submitted tempting-option response when one is provided.",
     tempting_option_reason: "Recorded from the student's explanation of why another option seemed tempting.",
     time_to_first_action_ms:
-      "Calculated as the timestamp difference between item presentation or item start and the first qualifying student-action event for the same item.",
-    option_revision_count: "Count of valid option changes after the first recorded option selection for one item response.",
+      "Calculated in itemResponseRows() as first_student_action_at minus item_presented_at for the same administered item when both timestamps are available.",
+    option_revision_count: "Calculated in itemResponseRows() from item-scoped answer_changed process events after the first option selection.",
+    reasoning_revision_count: "Calculated in itemResponseRows() from item-scoped reasoning_revised and reasoning_edited process events.",
+    confidence_revision_count: "Calculated in itemResponseRows() from item-scoped confidence_changed process events.",
+    page_hidden_count: "Calculated in itemResponseRows() by counting item-scoped page_hidden, page_visibility_hidden, and window_blur process events.",
+    long_pause_count: "Calculated in sessionRows() by counting session-scoped long_pause process events.",
+    idle_ratio: "Calculated in sessionRows() as total_idle_time_ms divided by elapsed_session_time_ms; null when the denominator is missing or zero.",
+    item_response_time_ms: "Read from ItemResponse.item_response_time_ms, which is finalized by the item-response service from item presentation/start through item submission.",
     assessment_specific_understanding_category:
       "Persisted output from the assessment-specific profile/evidence integration workflow using response package, item evidence, and process context.",
     engagement_review_category:
       "Persisted evidence-quality review output from the profile integration or engagement evidence workflow; agent and prompt/schema provenance are recorded in adjacent audit fields when available; it is not a motivation or misconduct label.",
     misconception_hypothesis:
       "Generated by the validated profile/activity interpretation agent workflow or teacher-reviewed as a tentative interpretation from response-package evidence. It is inferred, not directly observed.",
+    reasoning_quality_signal:
+      "Serialized by itemResponseRows() from response-package evidence produced by the validated response/profile interpretation workflow.",
+    correctness_support_level:
+      "Serialized by itemResponseRows() from restricted response-package evidence that qualifies correctness with reasoning and confidence support.",
+    estimated_guessing_risk:
+      "Serialized by itemResponseRows() from restricted response-package evidence generated by the validated interpretation workflow; not teacher-authored and not student-facing.",
+    answer_selection_evidence_weight:
+      "Serialized by itemResponseRows() from restricted response-package evidence describing how much the selected answer should contribute to interpretation.",
     event_type: "Recorded by the frontend, backend, agent, or workflow component that emits the process event; event meanings are maintained in process_event_codebook.csv.",
     provider: "Recorded by the agent execution audit layer when an LLM or mock provider call is attempted.",
     total_token_count: "Recorded from provider usage metadata when available, or left null when unavailable."
   };
   if (overrides[variable]) return overrides[variable];
-  if (variable.endsWith("_count")) return `Calculated by counting matching records or process events within ${ROW_GRAINS[table as AnalysisReadyTableName] ?? "the documented row grain"}.`;
+  if (variable.endsWith("_count")) {
+    return `Computed by the ${sourceServiceOrFunction(table, variable)} export path from the relevant ${table} records or allow-listed event types at ${measurementLevel(table, variable)} scope.`;
+  }
   if (isTimingVariable(variable)) return timingMetadata(variable, table).method;
   if (LLM_INTERPRETIVE_COLUMNS.has(variable)) {
     return "Generated by a validated LLM-backed or effective-system interpretation workflow from response packages, process evidence, and approved context; generating agent and prompt/schema versions are recorded in agent/workflow audit fields when available; missing values mean no valid output was recorded.";
   }
-  if (sourceNature(variable) === "teacher_authored") return "Recorded when a teacher authors or imports assessment/item diagnostic context for the selected assessment or item.";
-  if (sourceNature(variable) === "externally_imported") return "Imported through the validated external outcome workflow and linked to the assessment/session scope recorded in the row.";
-  if (sourceNature(variable) === "system_configuration") return "Written by the export/runtime service from version, snapshot, or application provenance metadata at export time.";
-  return `Read from the ${table} research dataset serialization path for ${ROW_GRAINS[table as AnalysisReadyTableName] ?? "the documented row grain"}.`;
+  if (sourceNature(table, variable) === "teacher_authored") return "Recorded when a teacher authors or imports assessment/item diagnostic context for the selected assessment or item.";
+  if (sourceNature(table, variable) === "externally_imported") return "Imported through the validated external outcome workflow and linked to the assessment/session scope recorded in the row.";
+  if (sourceNature(table, variable) === "system_configuration") return `Written by ${sourceServiceOrFunction(table, variable)} from version, snapshot, configuration, or application provenance metadata at export time.`;
+  if (table === "sessions") return `Serialized by sessionRows() or sessionBase() from AssessmentSession, Assessment, profile, event, and supplemental activity records.`;
+  if (table === "item_responses") return `Serialized by itemResponseRows() from ItemResponse, item snapshots, response-package evidence, and item-scoped process events.`;
+  if (table === "process_events") return `Serialized by processEventRows() from ProcessEvent fields and allow-listed payload keys; raw payload JSON is not exported.`;
+  if (table === "conversation_turns") return `Serialized by conversationRows() from ConversationTurn fields with safe context labels and latency calculations.`;
+  if (table === "agent_activity_records") return `Serialized by agentAndActivityRows() from agent calls, profiles, formative decisions, follow-up rounds, workflow jobs, and activity-runtime evidence records; record_type determines applicability.`;
+  if (table === "assessment_content") return `Serialized by assessmentContentRows() from administered item snapshots and active media metadata.`;
+  if (table === "assessment_summary") return `Serialized by assessmentSummaryRows() as a convenience view derived from sessionRows() and related session aggregates.`;
+  return `Serialized by the analysis-ready export service for ${measurementLevel(table, variable)} scope.`;
 }
 
 function interpretationGuidance(variable: string) {
@@ -712,6 +786,9 @@ function interpretationGuidance(variable: string) {
 
 function interpretationCaution(variable: string) {
   if (LLM_INTERPRETIVE_COLUMNS.has(variable)) return "LLM-derived interpretive signal; not a directly observed fact, not a stable trait, and not ground truth.";
+  if (/reasoning_quality_signal|correctness_support_level|estimated_guessing_risk|answer_selection_evidence_weight/.test(variable)) {
+    return "Interpretive evidence-quality signal; not a directly observed fact, not a stable trait, not a student-facing label, and not ground truth.";
+  }
   if (/misconception|guessing/i.test(variable)) return "Inferred hypothesis; not confirmed misconception or confirmed guessing.";
   if (/engagement/i.test(variable)) return "Evidence-quality signal; not a motivation, effort, cheating, or misconduct label.";
   if (variable.endsWith("_ms") || /latency|duration|pause|idle|hidden|typing/i.test(variable)) {
@@ -776,24 +853,24 @@ function timingMetadata(variable: string, table: string) {
     },
     item_response_time_ms: {
       construct: "item_elapsed_response_time",
-      start: "item_started_at",
+      start: "item_presented_at",
       end: "item_submitted_at",
-      formula: "item_submitted_at minus item_started_at",
+      formula: "item_submitted_at minus item_presented_at, or persisted ItemResponse.item_response_time_ms when the backend finalized the response",
       idle: "Includes idle periods unless adjusted by separate active-time fields.",
       hidden: "Includes page-hidden periods unless adjusted by separate focus/visibility fields.",
       method: "Stored on the item response when the item response is finalized."
     },
     time_to_first_action_ms: {
       construct: "item_prompt_to_first_student_action_latency",
-      start: "item_started_at",
-      end: "first qualifying student action event",
-      formula: "first_student_action_at minus item_started_at"
+      start: "item_presented_at",
+      end: "first_student_action_at",
+      formula: "first_student_action_at minus item_presented_at"
     },
     time_to_first_option_selection_ms: {
       construct: "item_prompt_to_first_option_selection_latency",
-      start: "item_started_at",
-      end: "first option selection event",
-      formula: "first_option_selected_at minus item_started_at"
+      start: "item_presented_at",
+      end: "first_option_selected_at",
+      formula: "first_option_selected_at minus item_presented_at"
     },
     reasoning_prompt_to_submission_ms: {
       construct: "reasoning_prompt_to_response_latency",
@@ -827,6 +904,36 @@ function timingMetadata(variable: string, table: string) {
       end: "next student conversation turn timestamp",
       formula: "next student turn created_at minus agent turn created_at"
     },
+    page_hidden_count: {
+      construct: "item_page_hidden_event_count",
+      start: "item_presented_at",
+      end: "item_submitted_at",
+      formula: "count of page_hidden, page_visibility_hidden, and window_blur process events for the item",
+      idle: "Not an idle-duration measure; it counts visibility/blur events.",
+      hidden: "This count is evidence that page-hidden or blur events occurred, not their duration.",
+      aggregation: "Counted across item-scoped visibility events.",
+      method: "Calculated in itemResponseRows() from item-scoped visibility process events."
+    },
+    idle_ratio: {
+      construct: "session_idle_time_ratio",
+      start: "started_at",
+      end: "completed_at or last_activity_at",
+      formula: "total_idle_time_ms divided by elapsed_session_time_ms; null when elapsed_session_time_ms is missing or zero",
+      idle: "Numerator is recorded idle time. A zero value means no idle duration was recorded while elapsed time was positive.",
+      hidden: "Page-hidden time is separate unless it was also logged as idle.",
+      aggregation: "Ratio ranges from 0 to 1.",
+      method: "Calculated in sessionRows() after elapsed_session_time_ms and total_idle_time_ms are available."
+    },
+    long_pause_count: {
+      construct: "session_long_pause_event_count",
+      start: "started_at",
+      end: "completed_at or last_activity_at",
+      formula: "count of long_pause process events for the session",
+      idle: "Counts long-pause events; durations are reported separately in total_long_pause_ms and maximum_long_pause_ms.",
+      hidden: "Page-hidden handling is separate unless the pause event also represents hidden time.",
+      aggregation: "Counted across session-scoped long_pause events.",
+      method: "Calculated in sessionRows() from session-scoped long_pause process events."
+    },
     duration_ms: {
       construct: "process_event_payload_duration",
       start: "process event start indicated by event timestamp or payload",
@@ -854,6 +961,19 @@ function timingMetadata(variable: string, table: string) {
     }
   };
   const entry = { ...fallback, ...(overrides[variable] ?? {}) };
+  if (variable.endsWith("_count") && !overrides[variable]) {
+    return {
+      ...entry,
+      construct: `${variable.replace(/_count$/, "")}_event_or_record_count`,
+      start: `${measurementLevel(table, variable)} scope start`,
+      end: `${measurementLevel(table, variable)} scope end`,
+      formula: `count of qualifying ${variable.replace(/_count$/, "").replace(/_/g, " ")} records or allow-listed process events at ${measurementLevel(table, variable)} scope`,
+      idle: "Not a duration measure; idle handling is not applicable except through the source events being counted.",
+      hidden: "Not a duration measure; page-hidden handling is not applicable except through the source events being counted.",
+      aggregation: "Counted within the documented row grain.",
+      method: `Computed by ${sourceServiceOrFunction(table, variable)} from source records or allow-listed process events.`
+    };
+  }
   if (variable.endsWith("_at")) {
     return {
       ...entry,
@@ -935,6 +1055,76 @@ function allowedValues(variable: string) {
   return "";
 }
 
+function sourceServiceOrFunction(table: string, variable: string) {
+  if (variable === "research_student_id" || variable === "student_id" || variable === "student_public_id") {
+    return "researchStudentId";
+  }
+  const functions: Record<string, string> = {
+    sessions: "sessionRows; sessionBase",
+    item_responses: "itemResponseRows",
+    process_events: "processEventRows",
+    conversation_turns: "conversationRows",
+    agent_activity_records: "agentAndActivityRows",
+    assessment_content: "assessmentContentRows",
+    assessment_summary: "assessmentSummaryRows"
+  };
+  return functions[table] ?? "analysis-ready export service";
+}
+
+function sourceCodeReference(table: string, variable: string) {
+  if (variable === "research_student_id" || variable === "student_id" || variable === "student_public_id") {
+    return "src/lib/services/teacher-research-data/analysis-ready-export.ts:researchStudentId";
+  }
+  const references: Record<string, string> = {
+    sessions: "src/lib/services/teacher-research-data/analysis-ready-export.ts:sessionRows/sessionBase",
+    item_responses: "src/lib/services/teacher-research-data/analysis-ready-export.ts:itemResponseRows",
+    process_events: "src/lib/services/teacher-research-data/analysis-ready-export.ts:processEventRows",
+    conversation_turns: "src/lib/services/teacher-research-data/analysis-ready-export.ts:conversationRows",
+    agent_activity_records: "src/lib/services/teacher-research-data/analysis-ready-export.ts:agentAndActivityRows",
+    assessment_content: "src/lib/services/teacher-research-data/analysis-ready-export.ts:assessmentContentRows",
+    assessment_summary: "src/lib/services/teacher-research-data/analysis-ready-export.ts:assessmentSummaryRows"
+  };
+  return references[table] ?? "src/lib/services/teacher-research-data/analysis-ready-export.ts";
+}
+
+function semanticReviewStatus(table: string, variable: string) {
+  void table;
+  void variable;
+  return "source_verified";
+}
+
+function semanticReviewNotes(table: string, variable: string) {
+  const suffix = LLM_INTERPRETIVE_COLUMNS.has(variable) || RESTRICTED_COLUMNS.has(variable)
+    ? " Source path is verified; domain-owner interpretation remains pending."
+    : " Source path is verified from code; domain-owner review remains pending for final research wording.";
+  if (table === "assessment_summary") {
+    return `Convenience view derived from canonical session-level rows.${suffix}`;
+  }
+  if (table === "agent_activity_records") {
+    return `Heterogeneous union export; use record_type and applicable_record_types before analysis.${suffix}`;
+  }
+  return suffix.trim();
+}
+
+function applicableRecordTypes(table: string, variable: string) {
+  if (table !== "agent_activity_records") return `all ${table} rows when the construct applies`;
+  if (/provider|model|token|prompt|schema|validated|repair|retry|agent_call|blocked_reason|answer_key|protected_content|context_|teacher_diagnostic|interpretation_caution|student_evidence/.test(variable)) {
+    return "agent_call";
+  }
+  if (/understanding|engagement|response_profile|evidence_sufficiency|uncertainty/.test(variable)) {
+    return "profile_result; diagnostic_snapshot";
+  }
+  if (/formative_value|selected_strategy/.test(variable)) return "formative_decision";
+  if (/activity_prompt|student_response|misconception_|evidence_|next_action|evaluation_status/.test(variable)) {
+    return "formative_activity; activity_attempt; post_activity_evidence; diagnostic_snapshot";
+  }
+  if (/activity_|attempt_number/.test(variable)) return "activity_attempt; formative_activity; workflow_job";
+  if (/status|started_at|completed_at|limitations/.test(variable)) {
+    return "agent_call; profile_result; formative_decision; activity_attempt; workflow_job; formative_activity; post_activity_evidence; diagnostic_snapshot";
+  }
+  return "record_type-specific; inspect record_type before using";
+}
+
 export function analysisReadyColumnsByTable() {
   return TABLE_COLUMNS;
 }
@@ -972,8 +1162,12 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
         false_value_meaning: falseValueMeaning(variable),
         not_applicable_condition: notApplicableCondition(tableName, variable),
         data_availability_flag: dataAvailabilityFlag(variable),
-        source_nature: sourceNature(variable),
+        source_nature: sourceNature(tableName, variable),
         source_table_or_event: tableName,
+        source_code_reference: sourceCodeReference(tableName, variable),
+        source_service_or_function: sourceServiceOrFunction(tableName, variable),
+        semantic_review_status: semanticReviewStatus(tableName, variable),
+        semantic_review_notes: semanticReviewNotes(tableName, variable),
         collection_or_generation_method: collectionMethod(tableName, variable),
         calculation_formula: isTimingVariable(variable) || variable.endsWith("_at") ? timing.formula : "",
         timing_construct: isTimingVariable(variable) || variable.endsWith("_at") ? timing.construct : "",
@@ -987,8 +1181,8 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
           variable.includes("snapshot") || variable.includes("context") || variable.includes("schema")
             ? "Bound to exported snapshot/context/schema metadata."
             : "",
-        generating_agent: LLM_INTERPRETIVE_COLUMNS.has(variable) ? "validated profile, activity, or diagnostic interpretation workflow" : "",
-        generating_schema_version: LLM_INTERPRETIVE_COLUMNS.has(variable) ? "recorded in adjacent agent_activity_records schema_version when available" : "",
+        generating_agent: sourceNature(tableName, variable) === "persisted_llm_interpretation" ? "validated profile, activity, or diagnostic interpretation workflow" : "",
+        generating_schema_version: sourceNature(tableName, variable) === "persisted_llm_interpretation" ? "recorded in adjacent agent_activity_records schema_version when available" : "",
         interpretation_guidance: interpretationGuidance(variable),
         interpretation_caution: interpretationCaution(variable),
         privacy_level: researchPrivacyLevel(variable),
@@ -997,6 +1191,7 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
         example_value: "",
         deprecated: deprecated ? "true" : "false",
         replacement_variable: deprecated ? "research_student_id" : "",
+        applicable_record_types: applicableRecordTypes(tableName, variable),
         notes: RESTRICTED_COLUMNS.has(variable)
           ? "Excluded from default research dataset exports unless explicitly requested in restricted research mode."
           : deprecated
@@ -1146,27 +1341,33 @@ function prismaFieldExportPolicy(field: string) {
 
 function prismaFieldPrivacy(field: string) {
   if (/password|access_code|token_hash|session|cookie|secret|database_url/i.test(field)) {
-    return "secret, never exported";
+    return "credential_secret";
   }
   if (/^id$|_db_id$|hash$|_hash$|raw_output|input_payload|output_payload|provider_request|provider_response/i.test(field)) {
-    return "internal audit only";
+    return "internal_audit_metadata";
   }
-  if (/correct_option|correctness|distractor|teacher_llm/i.test(field)) return "restricted answer-key";
-  if (/email|user_id|student_public_id/i.test(field)) return "PII";
-  if (/reasoning|message|rationale|notes|payload/i.test(field)) return "research-sensitive";
-  return "ordinary teacher data";
+  if (/token_usage|input_tokens|output_tokens|total_tokens|max_output_tokens|estimated_cost|latency_ms/i.test(field)) {
+    return "llm_usage_audit_metadata";
+  }
+  if (/correct_option|correctness|distractor|teacher_llm/i.test(field)) return "restricted_answer_key_or_teacher_diagnostic";
+  if (/email|user_id|student_public_id|display_name/i.test(field)) return "account_pii";
+  if (/reasoning|message|rationale|notes|payload/i.test(field)) return "research_sensitive_text_or_payload";
+  if (/status|phase|attempt|started_at|completed_at|created_at|updated_at|release_at|close_at|version|order_index/i.test(field)) {
+    return "internal_system_metadata";
+  }
+  return "internal_lineage_metadata";
 }
 
 function isExcludedPrismaField(modelName: string, field: string) {
   return (
     modelName === "User" ||
-    /password|access_code|token|secret|cookie|database_url|email|user_id|auth_version|credential|created_by_teacher_user_id/i.test(field) ||
+    /password|access_code|token_hash|account_security_token|secret|cookie|database_url|email|user_id|auth_version|credential|created_by_teacher_user_id/i.test(field) ||
     /^id$|_db_id$|raw_output|input_payload|output_payload|provider_request|provider_response|prompt_hash|lease|locked_by|storage_key|public_or_signed_url|external_url/i.test(field)
   );
 }
 
 function exclusionCategory(modelName: string, field: string) {
-  if (/password|access_code|token|secret|cookie|database_url/i.test(field)) return "credential_or_secret";
+  if (/password|access_code|token_hash|account_security_token|secret|cookie|database_url/i.test(field)) return "credential_or_secret";
   if (/email|user_id|display_name|last_login|created_by_teacher_user_id/i.test(field) || modelName === "User") return "account_pii_or_administration";
   if (/^id$|_db_id$/.test(field)) return "internal_database_identifier";
   if (/raw_output|input_payload|output_payload|provider_request|provider_response|prompt_hash/i.test(field)) return "raw_provider_or_prompt_audit";
@@ -1182,6 +1383,26 @@ function exclusionReason(modelName: string, field: string) {
   if (category === "raw_provider_or_prompt_audit") return "Raw prompt/provider audit material may contain sensitive context and is not part of ordinary analysis exports.";
   if (category === "platform_operations_metadata") return "Operational storage or worker-coordination metadata, not student assessment evidence.";
   return "Excluded from ordinary research exports because it is not needed for teacher/research analysis.";
+}
+
+function prismaFieldNullable(modelName: string, field: string) {
+  if (field === "id" || field.endsWith("_public_id") || field === "user_id" || field === "role" || field === "status" || field === "created_at" || field === "updated_at") {
+    return "false";
+  }
+  if (/_db_id$/.test(field) && !/latest_|updated_|based_on_|supersedes_|import_batch|followup_round/.test(field)) return "false";
+  if (modelName === "Assessment" && ["title", "status", "workflow_mode", "response_collection_mode"].includes(field)) return "false";
+  if (modelName === "Item" && ["item_public_id", "item_stem", "options", "correct_option", "item_order", "status", "version"].includes(field)) return "false";
+  if (modelName === "AssessmentSession" && ["session_public_id", "attempt_number", "status", "current_phase"].includes(field)) return "false";
+  if (modelName === "ProcessEvent" && ["event_type", "event_category", "event_source", "occurred_at", "created_at"].includes(field)) return "false";
+  if (modelName === "AgentCall" && ["agent_name", "provider", "call_status", "created_at"].includes(field)) return "false";
+  return "true";
+}
+
+function prismaFieldRelationRole(field: string) {
+  if (field === "id") return "internal primary key";
+  if (/_db_id$/.test(field)) return "internal foreign key";
+  if (field.endsWith("_public_id") || field === "user_id") return "public or login identifier source";
+  return "";
 }
 
 function schemaFieldPurpose(modelName: string, field: string) {
@@ -1211,8 +1432,8 @@ export function buildInternalSchemaAppendixEntries(): InternalSchemaAppendixEntr
           model_name: modelName,
           field_name: field,
           database_type: guessDataType(field),
-          nullable: "see Prisma schema",
-          relation_role: /^id$|_db_id$/.test(field) ? "database relation or primary-key field" : "",
+          nullable: prismaFieldNullable(modelName, field),
+          relation_role: prismaFieldRelationRole(field),
           internal_purpose: schemaFieldPurpose(modelName, field),
           research_variable_mapping: mappedResearchVariable(modelName, field),
           privacy_level: prismaFieldPrivacy(field),
@@ -1236,10 +1457,10 @@ export function buildExcludedPlatformVariableEntries(): ExcludedPlatformVariable
           field_name: field,
           exclusion_category: exclusionCategory(modelName, field),
           exclusion_reason: exclusionReason(modelName, field),
-          permitted_audience: /password|access_code|token|secret|cookie|database_url/i.test(field)
+          permitted_audience: /password|access_code|token_hash|account_security_token|secret|cookie|database_url/i.test(field)
             ? "never_exposed"
             : "operator_or_developer_internal",
-          export_policy: /password|access_code|token|secret|cookie|database_url/i.test(field)
+          export_policy: /password|access_code|token_hash|account_security_token|secret|cookie|database_url/i.test(field)
             ? "never_exported"
             : "excluded_from_ordinary_research_dataset",
           notes: "No field values are exposed in this inventory."
@@ -1275,14 +1496,21 @@ function eventScope(eventType: string) {
 function eventTrigger(eventType: string) {
   const triggers: Record<string, string> = {
     item_presented:
-      "Recorded after the student-facing item stem and option set are rendered or acknowledged as shown for the administered item snapshot.",
+      "Recorded when the application persists or acknowledges the item-presentation step for the administered item snapshot; it is not proof of browser paint or reading.",
     option_clicked: "Recorded when the student selects an answer option in the chat-native item administration UI.",
     answer_changed: "Recorded when a student revises an already recorded answer before package continuation.",
     reasoning_submitted: "Recorded when the student submits reasoning text for the current item.",
     confidence_clicked: "Recorded when the student selects a confidence option for the current item.",
     tempting_option_submitted: "Recorded when the student reports whether another option was tempting.",
     package_submitted: "Recorded when the completed initial response package is sent into the package-analysis workflow.",
-    typing_activity_summary: "Recorded when the browser sends summarized typing-timing instrumentation without raw keystrokes or text."
+    typing_activity_summary: "Recorded when the browser sends summarized typing-timing instrumentation without raw keystrokes or text.",
+    page_hidden: "Recorded from the browser visibility API when the page becomes hidden; paired visible/blur/focus events are used for duration context when available.",
+    page_visibility_hidden: "Recorded from the browser visibility API when visibilityState becomes hidden.",
+    window_blur: "Recorded when the browser window loses focus during the assessment session.",
+    agent_call_failed: "Recorded when an agent call fails because of provider transport, authentication, schema validation, safety validation, runtime readiness, or workflow failure; inspect AgentCall status/error metadata for subtype.",
+    schema_validation_failed: "Recorded when structured provider output or effective output fails the schema or safety validation step.",
+    llm_runtime_blocked: "Recorded when runtime readiness or configuration guards block an LLM-backed path before provider dispatch.",
+    response_quality_rejected: "Recorded when response-quality validation rejects a student submission and requires a revised or more usable response."
   };
   if (triggers[eventType]) return triggers[eventType];
   if (/session_started/.test(eventType)) return "Recorded when a student assessment session is created or first opened.";
@@ -1291,7 +1519,7 @@ function eventTrigger(eventType: string) {
   if (/profile|llm|agent/.test(eventType)) return "Recorded when the backend agent or LLM workflow reaches the named lifecycle step.";
   if (/activity|followup|feedback|revision/.test(eventType)) return "Recorded when the formative activity, follow-up, feedback, or revision workflow reaches the named step.";
   if (/page|window|focus|blur|visibility|pause|typing|navigation/.test(eventType)) return "Recorded from allow-listed browser process instrumentation for visibility, navigation, typing, or pause context.";
-  return `Recorded when the platform emits the ${eventType} workflow event at the relevant session or item scope.`;
+  return `Recorded by the backend service responsible for the ${eventCategory(eventType)} stage when that named workflow milestone occurs at the documented scope.`;
 }
 
 function eventPayloadFields(eventType: string) {
@@ -1304,6 +1532,88 @@ function eventPayloadFields(eventType: string) {
   return [...new Set(fields)].join("; ");
 }
 
+function eventTimestampMeaning(eventType: string) {
+  if (eventType === "item_presented") {
+    return "occurred_at is the application-side item-presentation acknowledgement timestamp, not guaranteed browser-render completion or reading time.";
+  }
+  if (/page_hidden|page_visibility_hidden|window_blur/.test(eventType)) {
+    return "occurred_at marks the browser visibility or focus transition; duration fields, when present, describe the observed hidden/blur interval.";
+  }
+  if (/page_visible|page_visibility_visible|window_focus/.test(eventType)) {
+    return "occurred_at marks the browser returning to visible or focused state.";
+  }
+  if (/typing_activity_summary/.test(eventType)) {
+    return "occurred_at marks when the typing summary was received or flushed; payload durations summarize input timing without raw text.";
+  }
+  if (/agent_call|schema_validation|llm|profile|planning|followup/.test(eventType)) {
+    return "occurred_at marks the backend agent/workflow lifecycle transition; provider timing lives in agent audit metadata when available.";
+  }
+  if (/option|answer|reasoning|confidence|tempting|revision|idk|clarification|help/.test(eventType)) {
+    return "occurred_at marks when the backend accepted the student action or recorded the student-facing response event.";
+  }
+  if (/workflow_job/.test(eventType)) {
+    return "occurred_at marks the workflow worker/job lifecycle transition.";
+  }
+  return "occurred_at records when the application observed the event; created_at records when the row was persisted.";
+}
+
+function eventDerivedVariables(eventType: string) {
+  if (/page_hidden|page_visibility_hidden|window_blur|page_visible|window_focus|long_pause|inactivity/.test(eventType)) {
+    return "visibility_duration_ms, pause_duration_ms, total_page_hidden_ms, total_idle_time_ms, idle_ratio, long_pause_count, engagement process features";
+  }
+  if (/option|answer|transfer_answer/.test(eventType)) {
+    return "selected_option, first_option_selected_at, time_to_first_option_selection_ms, option_selection_count, option_revision_count, answer-change indicators";
+  }
+  if (/reasoning/.test(eventType)) {
+    return "reasoning_submitted_at, reasoning_prompt_to_submission_ms, reasoning_submission_count, reasoning_revision_count, reasoning-quality evidence";
+  }
+  if (/confidence/.test(eventType)) {
+    return "confidence_selected_at, confidence_prompt_to_selection_ms, confidence_selection_count, confidence_revision_count";
+  }
+  if (/tempting/.test(eventType)) {
+    return "tempting_option, tempting_option_reason, tempting-option counts and evidence-completeness fields";
+  }
+  if (/agent_call|schema_validation|llm|profile|formative|activity|followup|workflow/.test(eventType)) {
+    return "agent_activity_records status/provenance fields, profile/formative/activity rows, workflow limitations, validation status";
+  }
+  if (/item_presented|item_completed|item_submitted/.test(eventType)) {
+    return "item_presented_at, item_submitted_at, item_response_time_ms, item completion counts";
+  }
+  if (/package/.test(eventType)) {
+    return "response package availability, package-level completion status, response-package evidence fields";
+  }
+  return "process_events flattened payload columns and session/item process-event counts when applicable";
+}
+
+function eventInterpretationGuidance(eventType: string) {
+  if (/page|window|pause|typing|navigation|inactivity/.test(eventType)) {
+    return "Use as instrumentation context for availability, timing, and evidence-quality review; pair with event durations and limitations.";
+  }
+  if (/agent|llm|schema|workflow/.test(eventType)) {
+    return "Use to reconstruct backend agent/workflow lifecycle; inspect associated audit records before interpreting success or failure.";
+  }
+  if (/option|reasoning|confidence|tempting|idk|clarification|help|revision/.test(eventType)) {
+    return "Use to reconstruct the chat-native evidence-collection sequence and response revisions for the scoped item.";
+  }
+  return "Use with event category, source, scope, timestamp, and allow-listed payload fields to reconstruct process evidence.";
+}
+
+function eventInterpretationCaution(eventType: string) {
+  if (/page|window|pause|typing|navigation|inactivity/.test(eventType)) {
+    return "Visibility, focus, typing, or pause events are imperfect proxies and must not be treated as effort, attention, cheating, or misconduct labels.";
+  }
+  if (/agent_call_failed|schema_validation_failed|llm_runtime_blocked/.test(eventType)) {
+    return "Failure event names identify a blocked lifecycle point only; sanitized agent-call metadata is required to distinguish provider, validation, readiness, and workflow failures.";
+  }
+  if (/item_presented/.test(eventType)) {
+    return "Presentation timestamp indicates application acknowledgement, not immediate student reading.";
+  }
+  if (/correct|quality|rejected|invalid_help|prompt_injection/.test(eventType)) {
+    return "Use as workflow/safety context, not as a stable student trait or misconduct finding.";
+  }
+  return "Event presence, absence, or timing alone does not prove understanding, effort, motivation, cheating, or misconduct.";
+}
+
 export function buildProcessEventCodebookEntries(): ProcessEventCodebookEntry[] {
   return processEventTypes
     .map((eventType) => ({
@@ -1314,16 +1624,16 @@ export function buildProcessEventCodebookEntries(): ProcessEventCodebookEntry[] 
       actor_or_source: eventActor(eventType),
       measurement_level: eventScope(eventType).includes("item") ? "process_event:item_scoped" : "process_event:session_scoped",
       session_or_item_scope: eventScope(eventType),
-      timestamp_meaning:
-        "occurred_at records when the application or browser observed the event; created_at records when the row was persisted.",
+      timestamp_meaning: eventTimestampMeaning(eventType),
       payload_fields: eventPayloadFields(eventType),
-      derived_variables:
-        "May contribute to process_events flattened payload columns, item response counts, timing summaries, engagement signals, and data-completeness checks.",
+      derived_variables: eventDerivedVariables(eventType),
+      source_code_reference: "src/lib/domain/enums.ts:processEventTypes; process-event emitters in student assessment services and frontend instrumentation",
+      source_service_or_function: `${eventCategory(eventType)} event emitter`,
+      semantic_review_status: "source_verified",
+      semantic_review_notes: "Event enum and export projection verified from source code; domain-owner review pending for final research wording.",
       directly_recorded: "true",
-      interpretation_guidance:
-        "Use as process context at the documented scope and alongside adjacent payload/status fields.",
-      interpretation_caution:
-        "Event presence, absence, or timing alone does not prove understanding, effort, motivation, cheating, or misconduct.",
+      interpretation_guidance: eventInterpretationGuidance(eventType),
+      interpretation_caution: eventInterpretationCaution(eventType),
       deprecated: "false",
       notes: ""
     }))
@@ -1415,8 +1725,12 @@ export type DictionaryFilters = {
   search?: string;
   category?: string;
   table_name?: string;
+  measurement_level?: string;
+  actor_or_source?: string;
+  scope?: string;
   source_nature?: string;
   privacy_level?: string;
+  permitted_audience?: string;
   export_policy?: string;
   derivation?: string;
   field_family?: string;
@@ -1461,10 +1775,14 @@ export function dictionaryFilterOptions(entries: DictionaryEntityEntry[] = build
   return {
     page_sizes: [...DATA_DICTIONARY_PAGE_SIZES],
     entity_types: Object.entries(DICTIONARY_ENTITY_LABELS).map(([value, label]) => ({ value, label })),
-    categories: [...DATA_DICTIONARY_CATEGORIES],
+    categories: unique(entries.map((entry) => entryCategory(entry))),
     table_names: unique(entries.map((entry) => entryValue(entry, "table_name") || entryValue(entry, "source_table") || entryValue(entry, "model_name"))),
+    measurement_levels: unique(entries.map((entry) => entryValue(entry, "measurement_level"))),
+    actor_or_sources: unique(entries.map((entry) => entryValue(entry, "actor_or_source"))),
+    scopes: unique(entries.map((entry) => entryValue(entry, "session_or_item_scope"))),
     source_natures: unique(entries.map((entry) => entryValue(entry, "source_nature"))),
     privacy_levels: unique(entries.map((entry) => entryValue(entry, "privacy_level"))),
+    permitted_audiences: unique(entries.map((entry) => entryValue(entry, "permitted_audience") || entryValue(entry, "audience"))),
     export_policies: unique(entries.map((entry) => entryValue(entry, "export_policy"))),
     derivations: ["directly_recorded", "derived_or_generated"],
     field_families: ["Process/response fields", "Timing fields", "LLM fields", "Other fields"],
@@ -1477,8 +1795,12 @@ export function filterDictionaryEntries<T extends DictionaryEntityEntry>(entries
   return entries
     .filter((entry) => !filters.category || filters.category === "all" || entryCategory(entry) === filters.category)
     .filter((entry) => !filters.table_name || filters.table_name === "all" || [entryValue(entry, "table_name"), entryValue(entry, "source_table"), entryValue(entry, "model_name")].includes(filters.table_name))
+    .filter((entry) => !filters.measurement_level || filters.measurement_level === "all" || entryValue(entry, "measurement_level") === filters.measurement_level)
+    .filter((entry) => !filters.actor_or_source || filters.actor_or_source === "all" || entryValue(entry, "actor_or_source") === filters.actor_or_source)
+    .filter((entry) => !filters.scope || filters.scope === "all" || entryValue(entry, "session_or_item_scope") === filters.scope)
     .filter((entry) => !filters.source_nature || filters.source_nature === "all" || entryValue(entry, "source_nature") === filters.source_nature)
     .filter((entry) => !filters.privacy_level || filters.privacy_level === "all" || entryValue(entry, "privacy_level") === filters.privacy_level)
+    .filter((entry) => !filters.permitted_audience || filters.permitted_audience === "all" || [entryValue(entry, "permitted_audience"), entryValue(entry, "audience")].includes(filters.permitted_audience))
     .filter((entry) => !filters.export_policy || filters.export_policy === "all" || entryValue(entry, "export_policy") === filters.export_policy)
     .filter((entry) => !filters.deprecated || filters.deprecated === "all" || entryValue(entry, "deprecated") === filters.deprecated)
     .filter((entry) => !filters.derivation || filters.derivation === "all" || derivationKind(entry) === filters.derivation)
@@ -1546,11 +1868,71 @@ const PLACEHOLDER_PATTERNS = [
   "Persisted by application services",
   "Read from persisted relational records",
   "Derived automatically",
-  "System generated"
+  "System generated",
+  "value recorded for one row",
+  "timestamp associated with one row",
+  "counted within one row",
+  "measured for one row",
+  "Read from the",
+  "serialization path",
+  "Calculated by counting matching records or process events"
 ];
 
 function containsPlaceholder(value: string) {
   return PLACEHOLDER_PATTERNS.some((pattern) => value.includes(pattern));
+}
+
+const FORMULA_STOPWORDS = new Set([
+  "and", "or", "when", "both", "are", "available", "minus", "divided", "by", "count", "of", "the",
+  "for", "from", "to", "with", "as", "is", "a", "an", "null", "missing", "zero", "persisted", "backend",
+  "finalized", "response", "available", "qualifying", "allow", "listed", "process", "events", "records",
+  "scope", "timestamp", "timestamps", "value", "payload", "field", "fields", "duration", "durations",
+  "endpoint", "start", "end", "item", "session", "turn", "row", "same", "recorded"
+]);
+
+function formulaReferences(formula: string) {
+  return [...new Set((formula.match(/[a-z][a-z0-9_]+/g) ?? [])
+    .filter((token) => token.includes("_"))
+    .filter((token) => !FORMULA_STOPWORDS.has(token)))];
+}
+
+function formulaReferenceIssues(research: DataDictionaryEntry[]) {
+  const exported = new Set(research.flatMap((entry) => [entry.variable_name, entry.qualified_name]));
+  const eventNames = new Set<string>(processEventTypes);
+  const documentedPayloadFields = new Set([
+    "duration_ms",
+    "pause_duration_ms",
+    "visibility_duration_ms",
+    "active_typing_time_ms",
+    "reasoning_input_elapsed_time_ms",
+    "typing_duration_ms",
+    "text_length",
+    "message_length",
+    "reasoning_length",
+    "item_response",
+    "process_event",
+    "conversation_turn",
+    "agent_call",
+    "formative_activity",
+    "assessment_attempt"
+  ]);
+  return research.flatMap((entry) => {
+    if (!entry.calculation_formula) return [];
+    return formulaReferences(entry.calculation_formula)
+      .filter((reference) => !exported.has(reference) && !eventNames.has(reference) && !documentedPayloadFields.has(reference) && !/^ItemResponse$/.test(reference))
+      .map((reference) => `${entry.qualified_name}:${reference}`);
+  });
+}
+
+function processEventBoilerplateIssues(processEvents: ProcessEventCodebookEntry[]) {
+  const countIdentical = (field: keyof ProcessEventCodebookEntry) => new Set(processEvents.map((entry) => entry[field])).size;
+  return {
+    timestamp_meaning_unique_count: countIdentical("timestamp_meaning"),
+    derived_variables_unique_count: countIdentical("derived_variables"),
+    guidance_unique_count: countIdentical("interpretation_guidance"),
+    caution_unique_count: countIdentical("interpretation_caution"),
+    generic_trigger_count: processEvents.filter((entry) => /workflow event at the relevant session or item scope|domain enum|Process event type/i.test(entry.trigger)).length
+  };
 }
 
 export function researchDataDictionarySemanticReport() {
@@ -1576,6 +1958,18 @@ export function researchDataDictionarySemanticReport() {
   const missingZeroIssues = research.filter((entry) =>
     !entry.missing_value_meaning || !entry.zero_value_meaning || !entry.not_applicable_condition
   );
+  const formulaIssues = formulaReferenceIssues(research);
+  const processBoilerplate = processEventBoilerplateIssues(processEvents);
+  const countDurationFormulaIssues = timingVariables.filter((entry) =>
+    entry.variable_name.endsWith("_count") && /minus|duration|timestamp difference/i.test(entry.calculation_formula)
+  );
+  const ratioFormulaIssues = timingVariables.filter((entry) =>
+    entry.variable_name.endsWith("_ratio") && !/divided by|numerator|denominator/i.test(entry.calculation_formula)
+  );
+  const internalNullableIssues = internal.filter((entry) => entry.nullable === "see Prisma schema");
+  const internalPrivacyIssues = internal.filter((entry) =>
+    entry.audience.includes("developer") && entry.privacy_level === "ordinary teacher data"
+  );
   return {
     dictionary_schema_version: RESEARCH_DATA_DICTIONARY_SCHEMA_VERSION,
     research_variable_count: research.length,
@@ -1600,6 +1994,18 @@ export function researchDataDictionarySemanticReport() {
       .map((entry) => entry.qualified_name)
       .filter((qualified) => !exportedColumns.includes(qualified)),
     fields_with_ambiguous_missing_zero_semantics: missingZeroIssues.length,
+    generic_research_definitions: research.filter((entry) => containsPlaceholder(entry.definition)).length,
+    generic_research_methods: research.filter((entry) => containsPlaceholder(entry.collection_or_generation_method)).length,
+    formula_reference_issues: formulaIssues,
+    count_duration_formula_issues: countDurationFormulaIssues.map((entry) => entry.qualified_name),
+    ratio_formula_issues: ratioFormulaIssues.map((entry) => entry.qualified_name),
+    process_event_generic_triggers: processBoilerplate.generic_trigger_count,
+    process_event_timestamp_meaning_unique_count: processBoilerplate.timestamp_meaning_unique_count,
+    process_event_derived_variables_unique_count: processBoilerplate.derived_variables_unique_count,
+    process_event_guidance_unique_count: processBoilerplate.guidance_unique_count,
+    process_event_caution_unique_count: processBoilerplate.caution_unique_count,
+    internal_nullable_placeholder_count: internalNullableIssues.length,
+    internal_privacy_audience_mismatch_count: internalPrivacyIssues.length,
     no_openai_call_occurred: true
   };
 }

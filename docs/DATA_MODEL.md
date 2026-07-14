@@ -743,8 +743,12 @@ CSV files from existing tables:
   snapshot record, distinguished by `record_type`.
 - `assessment_content.csv`: one row per administered item snapshot.
 - `assessment_summary.csv`: one row per student-assessment attempt summary.
-- `research_data_dictionary.csv`: one row per exported research dataset variable.
-- `process_event_codebook.csv`: one row per allow-listed process-event type.
+- `research_data_dictionary.csv`: one row per exported research dataset variable,
+  including source-code reference, source service/function, semantic review
+  status, timing semantics, privacy/export policy, and interpretation cautions.
+- `process_event_codebook.csv`: one row per allow-listed process-event type,
+  including event-specific trigger, actor/source, scope, timestamp meaning,
+  source-code reference, derived variables, and interpretation cautions.
 
 Internal database UUIDs remain internal. Export joins use public IDs such as
 `session_public_id`, `assessment_public_id`, `item_public_id`,

@@ -32,6 +32,7 @@ function main() {
   const eventHeader = processEventCodebookCsv().split(/\r?\n/, 1)[0] ?? "";
 
   assertIncludes(clientSource, "Data dictionary selected entity list", "Data dictionary UI");
+  assertIncludes(clientSource, "Dictionary section", "Data dictionary section filter");
   assertIncludes(clientSource, "Research variables", "Data dictionary sections");
   assertIncludes(clientSource, "Process event codebook", "Data dictionary sections");
   assertIncludes(clientSource, "Internal schema appendix", "Data dictionary sections");
@@ -42,6 +43,8 @@ function main() {
   assertIncludes(clientSource, "Type", "Research variable cards");
   assertIncludes(clientSource, "Definition", "Research variable cards");
   assertIncludes(clientSource, "Collection or generation method", "Research variable cards");
+  assertIncludes(clientSource, "Source code reference", "Research variable cards");
+  assertIncludes(clientSource, "Review status", "Research variable cards");
   assertIncludes(clientSource, "Missing value meaning", "Research variable cards");
   assertIncludes(clientSource, "Zero value meaning", "Research variable cards");
   assertIncludes(clientSource, "Timing semantics", "Timing cards");
@@ -50,6 +53,7 @@ function main() {
   assertIncludes(clientSource, "Download filtered dictionary CSV", "Data dictionary actions");
 
   assertNotIncludes(clientSource, "Total variables", "Data dictionary counts");
+  assertNotIncludes(clientSource, "Category or code group", "Data dictionary filters");
   assertNotIncludes(clientSource, "View current page JSON", "Data dictionary actions");
   assertNotIncludes(clientSource, "<th className=\"px-3 py-2\">Table</th>", "Data dictionary table");
 

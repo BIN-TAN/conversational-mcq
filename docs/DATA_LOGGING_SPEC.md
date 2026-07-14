@@ -295,8 +295,8 @@ The research dataset ZIP contains:
 | `agent_activity_records.csv` | One row per agent call, workflow decision, formative activity attempt, or diagnostic update record | Uses `record_type` to distinguish incompatible row types; non-applicable fields remain null. |
 | `assessment_content.csv` | One row per administered item snapshot | Reflects content actually administered. Restricted item-key and diagnostic-note fields are excluded by default. |
 | `assessment_summary.csv` | One row per student-assessment attempt summary | Includes safe session counts, status, timing, latest student-safe diagnostic signals, and explicit limitations. |
-| `research_data_dictionary.csv` | One row per ordinary or restricted research dataset variable | Documents qualified variable name, dataset/table, measurement level, source nature, missing/zero/false semantics, privacy, export policy, timing formulas, and interpretation cautions. |
-| `process_event_codebook.csv` | One row per allow-listed process-event type | Documents event trigger, actor/source, scope, timestamp meaning, allow-listed payload fields, derived variables, and interpretation cautions. |
+| `research_data_dictionary.csv` | One row per ordinary or restricted research dataset variable | Documents qualified variable name, dataset/table, measurement level, source nature, source-code reference, source service/function, source-verification status, missing/zero/false semantics, privacy, export policy, timing formulas, applicable record types, and interpretation cautions. |
+| `process_event_codebook.csv` | One row per allow-listed process-event type | Documents event trigger, actor/source, scope, timestamp meaning, allow-listed payload fields, derived variables, source-code reference, source-verification status, and interpretation cautions. |
 
 The standard research dataset ZIP does not include the internal source-schema
 appendix or platform/excluded field inventory. Those are documentation and
@@ -327,10 +327,10 @@ the authoritative start/end events. Core formulas include:
   `started_at`.
 - `active_interaction_time_ms`: elapsed session time minus recorded idle time
   when idle instrumentation is available.
-- `time_to_first_action_ms`: first qualifying student action minus item start or
-  item presentation.
-- `time_to_first_option_selection_ms`: first option click/selection minus item
-  start or item presentation.
+- `time_to_first_action_ms`: `first_student_action_at` minus the exported
+  `item_presented_at` timestamp when both are available.
+- `time_to_first_option_selection_ms`: `first_option_selected_at` minus the
+  exported `item_presented_at` timestamp when both are available.
 - `reasoning_prompt_to_submission_ms`: reasoning submission minus reasoning
   prompt.
 - `confidence_prompt_to_selection_ms`: confidence selection minus confidence
@@ -371,6 +371,13 @@ Restricted fields are documented in `research_data_dictionary.csv` with
 type in the application domain enum. Event counts are contextual process
 evidence only; they must not be interpreted as misconduct labels or stable
 learner traits.
+
+The dictionary browser exposes a single `Dictionary section` filter. The normal
+default is Research variables. Internal schema appendix and platform/excluded
+field inventories are marked Advanced and are documentation/audit aids, not
+ordinary teacher workflows. `source_verified` means the export source path was
+traced in code; domain-owner review is tracked separately and remains pending
+until explicitly completed.
 
 ### Tabular Formatting Standards
 

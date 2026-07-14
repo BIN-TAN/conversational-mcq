@@ -74,8 +74,12 @@ function main() {
   assert(clientSource.includes("Showing {dictionary.first_visible_row}-{dictionary.last_visible_row}"), "Visible row range should be shown.");
   assert(clientSource.includes("Page {dictionary.page} of {dictionary.total_pages}"), "Current page and total pages should be shown.");
   assertIncludes(clientSource, "Search selected section", "Dictionary UI");
-  assertIncludes(clientSource, "Category or code group", "Dictionary UI");
+  assertIncludes(clientSource, "Dictionary section", "Dictionary UI");
+  assertIncludes(clientSource, "Code group", "Dictionary UI");
+  assertIncludes(clientSource, "Prisma model", "Dictionary UI");
+  assertIncludes(clientSource, "Exclusion category", "Dictionary UI");
   assertIncludes(clientSource, "Page size", "Dictionary UI");
+  assertIncludes(clientSource, "Measurement level", "Dictionary UI");
   assertIncludes(clientSource, "Directly recorded or derived", "Dictionary UI");
   assertIncludes(clientSource, "Deprecated status", "Dictionary UI");
   assertIncludes(clientSource, "Process event codebook", "Dictionary UI");

@@ -65,6 +65,7 @@
     "student:data-dictionary-pagination-smoke": "tsx prisma/student-data-dictionary-pagination-smoke-test.ts",
     "student:data-dictionary-taxonomy-smoke": "tsx prisma/student-data-dictionary-taxonomy-smoke-test.ts",
     "student:data-dictionary-list-ui-smoke": "tsx prisma/student-data-dictionary-list-ui-smoke-test.ts",
+    "student:data-dictionary-specificity-smoke": "tsx prisma/student-data-dictionary-specificity-smoke-test.ts",
     "student:data-dictionary-semantic-audit-smoke": "tsx prisma/student-data-dictionary-semantic-audit-smoke-test.ts",
     "student:data-dictionary-timing-smoke": "tsx prisma/student-data-dictionary-timing-smoke-test.ts",
     "student:data-dictionary-privacy-smoke": "tsx prisma/student-data-dictionary-privacy-smoke-test.ts",

@@ -38,6 +38,21 @@ function main() {
     assert(!hasPlaceholder(entry.trigger), `${eventType} should not use placeholder trigger.`);
   }
 
+  const uniqueTimestampMeanings = new Set(entries.map((entry) => entry.timestamp_meaning));
+  const uniqueDerivedMappings = new Set(entries.map((entry) => entry.derived_variables));
+  const uniqueGuidance = new Set(entries.map((entry) => entry.interpretation_guidance));
+  assert(uniqueTimestampMeanings.size > 4, "Codebook timestamp meanings should be event-family-specific.");
+  assert(uniqueDerivedMappings.size > 4, "Codebook derived-variable mappings should not be one identical boilerplate.");
+  assert(uniqueGuidance.size > 3, "Codebook interpretation guidance should not be one identical boilerplate.");
+  assert(
+    byEventType.get("agent_call_failed")?.trigger.includes("provider transport"),
+    "agent_call_failed should distinguish provider, validation, readiness, and workflow failure contexts."
+  );
+  assert(
+    byEventType.get("page_hidden")?.trigger.includes("browser visibility"),
+    "page_hidden should define the browser visibility event."
+  );
+
   const csv = processEventCodebookCsv(entries);
   assert(!/sk-[A-Za-z0-9_-]{20,}/.test(csv), "Codebook CSV must not expose API-key shaped values.");
   assert(!/postgres(?:ql)?:\/\//i.test(csv), "Codebook CSV must not expose database URLs.");

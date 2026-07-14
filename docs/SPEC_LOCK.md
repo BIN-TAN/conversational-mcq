@@ -2424,15 +2424,19 @@ Phase 6A.5 must not implement:
 - `process_event_codebook.csv` documents one row per process-event type with
   trigger, actor/source, scope, timestamp meaning, allow-listed payload fields,
   derived variables, and interpretation cautions.
-- The Data dictionary UI must provide separate sections for Research variables,
-  Process event codebook, Internal schema appendix, and Platform administration
-  and excluded variables. It must show separate counts and default to Research
-  variables.
+- The Data dictionary UI must provide one `Dictionary section` filter with
+  Research variables, Process event codebook, Internal schema appendix -
+  Advanced, and Platform administration and excluded variables - Advanced. It
+  must show separate non-interactive counts and default to Research variables.
 - Research variables must include qualified name, dataset/table, measurement
-  level, source nature, missing/zero/false/not-applicable semantics, privacy
-  level, export policy, timing formulas where applicable, and interpretation
-  cautions. It must support teacher-controlled page sizes of 25, 50, 100, 250,
-  and 500 rows and no hardcoded 80-row limit.
+  level, source nature, source-code reference, source service/function,
+  semantic review status, missing/zero/false/not-applicable semantics, privacy
+  level, export policy, timing formulas where applicable, applicable record
+  types where needed, and interpretation cautions. It must support
+  teacher-controlled page sizes of 25, 50, 100, 250, and 500 rows and no
+  hardcoded 80-row limit.
+- `source_verified` records source-code verification only. It must not be
+  represented as domain-owner approval.
 - Ordinary research dataset exports must use `research_student_id` as the
   pseudonymous student join key. Login usernames, emails, internal database IDs,
   credentials, hashes, and secrets must not appear in default research exports.

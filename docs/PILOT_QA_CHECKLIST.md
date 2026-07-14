@@ -417,8 +417,10 @@ Default exports must not include answer keys, correctness labels, password or
 access-code hashes, session cookies, database URLs, API keys, raw provider
 requests, unrestricted raw provider output, or internal database UUIDs. Use the
 research data dictionary and process event codebook to verify row grain,
-measurement level, missing/zero semantics, privacy level, source, event trigger,
-and interpretation cautions before analysis.
+measurement level, missing/zero semantics, privacy level, source-code reference,
+source-verification status, event trigger, and interpretation cautions before
+analysis. Treat `source_verified` as code-trace verification only; domain-owner
+review remains a separate checklist.
 - `Download assessment CSV` produces `assessment_<id>_students.csv` with one row per student-assessment session attempt for the selected assessment.
 - `Download student CSV` produces `student_<student_id>_sessions.csv` with one row per assessment session attempt for the selected student.
 - `Download matrix CSV` produces `student_assessment_matrix.csv` with one row per current student and assessment pair.

@@ -2240,12 +2240,14 @@ The unified export center has two normal teacher-facing sections:
   `agent_activity_records.csv`, `assessment_content.csv`,
   `assessment_summary.csv`, `research_data_dictionary.csv`, and
   `process_event_codebook.csv`.
-- Data dictionary: a paginated and downloadable browser with separate sections
-  for research variables, process-event codes, internal schema lineage, and
-  excluded/platform fields. Research variable rows document qualified name,
-  dataset/table, measurement level, source nature, missing/zero semantics,
-  privacy level, export policy, collection/generation method, interpretation
-  guidance, and limitations.
+- Data dictionary: a paginated and downloadable browser with a `Dictionary
+  section` filter for research variables, process-event codes, internal schema
+  lineage, and excluded/platform fields. Research variable rows document
+  qualified name, dataset/table, measurement level, source nature, source-code
+  reference, source service/function, source-verification status, missing/zero
+  semantics, privacy level, export policy, collection/generation method,
+  interpretation guidance, and limitations. Internal and excluded sections are
+  advanced documentation views, not ordinary teacher workflows.
 
 Legacy teacher UI routes `/teacher/data/explorer` and `/teacher/data/export`
 redirect to the unified export center. Existing authorized CSV and archive API

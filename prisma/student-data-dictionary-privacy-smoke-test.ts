@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { buildAnalysisReadyResearchDataBundle } from "../src/lib/services/teacher-research-data/analysis-ready-export";
 import {
   buildAnalysisReadyDictionaryEntries,
+  buildInternalSchemaAppendixEntries,
   buildExcludedPlatformVariableEntries
 } from "../src/lib/services/teacher-research-data/dictionary";
 import {
@@ -37,11 +38,21 @@ async function main() {
   process.env.RUN_LIVE_LLM_SMOKE = "";
 
   const researchVariables = buildAnalysisReadyDictionaryEntries();
+  const internal = buildInternalSchemaAppendixEntries();
   const excluded = buildExcludedPlatformVariableEntries();
   assert(excluded.some((entry) => entry.field_name === "password_hash" && entry.export_policy === "never_exported"), "Password hashes must be never exported.");
   assert(excluded.some((entry) => entry.field_name === "access_code_hash" && entry.export_policy === "never_exported"), "Access-code hashes must be never exported.");
   assert(excluded.some((entry) => entry.field_name === "email"), "Emails should be in the excluded inventory.");
   assert(!researchVariables.some((entry) => /email|password|access_code|auth_token|session_token|secret|database_url/i.test(entry.variable_name)), "PII/secrets must not be research variables.");
+  assert(!excluded.some((entry) => /input_tokens|output_tokens|total_tokens|max_output_tokens|token_usage/.test(entry.field_name)), "Token usage fields are audit metadata, not excluded secrets.");
+  assert(
+    internal
+      .filter((entry) => /input_tokens|output_tokens|total_tokens|max_output_tokens|token_usage/.test(entry.field_name))
+      .every((entry) => /token|usage|agent_activity_records/.test(entry.research_variable_mapping + entry.privacy_level + entry.internal_purpose)),
+    "Token usage source fields should map to LLM execution/reproducibility metadata."
+  );
+  assert(internal.every((entry) => entry.nullable === "true" || entry.nullable === "false"), "Internal nullable values should be explicit.");
+  assert(!internal.some((entry) => entry.privacy_level === "ordinary teacher data"), "Internal appendix should not label developer/operator fields as ordinary teacher data.");
 
   await cleanupTeacherReviewDemoFixture(prisma);
   await ensureTeacherReviewDemoFixture(prisma);
