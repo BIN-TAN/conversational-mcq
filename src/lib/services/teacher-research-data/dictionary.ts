@@ -578,6 +578,7 @@ function sourceNature(table: string, variable: string): string {
   if (table === "agent_activity_records" && /token|model|provider|prompt|schema|retry|validated|repair|status/.test(variable)) {
     return "system_configuration";
   }
+  if (variable.endsWith("_ratio")) return "aggregate_derived";
   if (variable.endsWith("_count")) return "aggregate_derived";
   if (isTimingVariable(variable) || variable.endsWith("_at")) return "timestamp_derived";
   if (LLM_INTERPRETIVE_COLUMNS.has(variable)) return "persisted_llm_interpretation";
@@ -606,10 +607,10 @@ function researchExportPolicy(variable: string) {
 }
 
 function categoryFor(table: string, variable: string): DataDictionaryCategory {
-  if (isTimingVariable(variable)) return "Timing and interaction data";
+  if (isTimingVariable(variable) || variable.endsWith("_at")) return "Timing and interaction data";
   if (table === "item_responses") {
-    if (/correctness|score|unsupported_correct|guessing|answer_selection_evidence_weight/.test(variable)) return "Outcome and scoring data";
-    if (/reasoning_quality|misconception|evidence_sufficiency|interpretation|diagnostic|teacher_guidance|alternative/.test(variable)) {
+    if (/correctness|score|unsupported_correct/.test(variable)) return "Outcome and scoring data";
+    if (/reasoning_quality|misconception|evidence_sufficiency|interpretation|diagnostic|teacher_guidance|alternative|guessing|answer_selection_evidence_weight/.test(variable)) {
       return "Diagnostic and interpretation outputs";
     }
     return "Item response data";
@@ -644,6 +645,116 @@ function categoryFor(table: string, variable: string): DataDictionaryCategory {
   return "Session and participation variables";
 }
 
+function normalizedSubject(variable: string) {
+  return variable.replace(/_at$|_ms$|_count$|_ratio$/g, "").replace(/_/g, " ");
+}
+
+function timestampDefinition(table: string, variable: string) {
+  const overrides: Record<string, string> = {
+    "sessions.started_at": "Timestamp when the assessment attempt was first opened or created for the student.",
+    "sessions.last_activity_at": "Timestamp of the latest recorded session activity used to represent the most recent interaction before export.",
+    "sessions.completed_at": "Timestamp when the assessment session was marked complete.",
+    "sessions.resumed_at": "Timestamp when the student resumed the assessment after a save-and-exit or interrupted session.",
+    "sessions.exited_at": "Timestamp when the student explicitly saved and exited the assessment.",
+    "sessions.export_generated_at": "Timestamp when the research export file set was generated.",
+    "sessions.release_at": "Assessment release timestamp used to document the availability window for the assessment attempt context.",
+    "sessions.close_at": "Assessment close timestamp used to document the availability window for new starts.",
+    "item_responses.submitted_at": "Timestamp when the item response row was submitted or finalized.",
+    "item_responses.revised_at": "Timestamp of the latest accepted edit to the item response during package review or revision.",
+    "item_responses.item_presented_at": "Timestamp when the application recorded that the administered item was presented to the student.",
+    "item_responses.first_student_action_at": "Earliest timestamp for an accepted student action on the administered item.",
+    "item_responses.first_option_selected_at": "Timestamp of the first accepted option selection for the administered item.",
+    "item_responses.reasoning_prompted_at": "Timestamp when the application presented the reasoning prompt for the administered item.",
+    "item_responses.reasoning_started_at": "Timestamp when the first available reasoning-start signal was recorded for the administered item.",
+    "item_responses.reasoning_submitted_at": "Timestamp when the student's reasoning response was accepted for the administered item.",
+    "item_responses.confidence_prompted_at": "Timestamp when the confidence prompt was presented for the administered item.",
+    "item_responses.confidence_selected_at": "Timestamp when the student's confidence selection was accepted for the administered item.",
+    "item_responses.last_student_action_at": "Timestamp of the latest accepted student action before item submission.",
+    "item_responses.item_submitted_at": "Timestamp when the item response was completed for progression to the next assessment step.",
+    "conversation_turns.created_at": "Timestamp when the conversation turn was persisted in the transcript.",
+    "process_events.occurred_at": "Timestamp when the application or browser observed the process event.",
+    "process_events.created_at": "Timestamp when the process-event row was persisted by the backend.",
+    "agent_activity_records.started_at": "Timestamp when the agent, activity, or workflow record started processing.",
+    "agent_activity_records.completed_at": "Timestamp when the agent, activity, or workflow record reached a terminal status.",
+    "assessment_content.snapshot_created_at": "Timestamp when the administered assessment or item snapshot represented by this content row was created.",
+    "assessment_summary.started_at": "Timestamp when the summarized assessment attempt started.",
+    "assessment_summary.completed_at": "Timestamp when the summarized assessment attempt completed."
+  };
+  return (
+    overrides[`${table}.${variable}`] ??
+    `${sentenceTitle(variable)} timestamp recorded for the ${measurementLevel(table, variable)} row from the ${sourceServiceOrFunction(table, variable)} export source.`
+  );
+}
+
+function countDefinition(table: string, variable: string) {
+  const overrides: Record<string, string> = {
+    retry_count: "Number of bounded retry attempts recorded for the agent or workflow record.",
+    input_token_count: "Number of input tokens reported by provider usage metadata for the agent call.",
+    output_token_count: "Number of output tokens reported by provider usage metadata for the agent call.",
+    total_token_count: "Total provider token count recorded for the agent call, usually input plus output tokens when available.",
+    actual_initial_item_count: "Number of initial package items scheduled or administered for the assessment attempt.",
+    completed_initial_item_count: "Number of initial package items completed by the student in the assessment attempt.",
+    current_item_index: "Zero-based or one-based item-progress index used by the session state machine for the current item position.",
+    item_response_count: "Number of item-response rows associated with the assessment attempt or assessment-summary row.",
+    process_event_count: "Number of process-event rows associated with the assessment attempt or assessment-summary row.",
+    conversation_turn_count: "Number of conversation-turn rows associated with the assessment attempt or assessment-summary row.",
+    agent_call_count: "Number of agent-call audit records associated with the assessment attempt or assessment-summary row.",
+    formative_activity_attempt_count: "Number of formative activity runtime attempts associated with the assessment attempt.",
+    post_activity_evidence_count: "Number of post-activity misconception-evidence records associated with the assessment attempt.",
+    diagnostic_snapshot_count: "Number of post-activity diagnostic snapshots associated with the assessment attempt.",
+    unsupported_correct_response_count: "Number of correct selected answers whose accompanying evidence did not strongly support the correctness classification.",
+    revision_count: "Number of accepted response revisions recorded for the item response.",
+    option_selection_count: "Number of accepted option-selection events recorded for the administered item.",
+    option_revision_count: "Number of answer-change events recorded after the first option selection for the administered item.",
+    reasoning_submission_count: "Number of accepted reasoning submissions recorded for the administered item.",
+    reasoning_revision_count: "Number of accepted reasoning edits recorded for the administered item.",
+    confidence_selection_count: "Number of accepted confidence selections recorded for the administered item.",
+    confidence_revision_count: "Number of confidence-change events recorded after the first confidence selection for the administered item.",
+    navigation_event_count: "Number of item-scoped navigation process events recorded during the response.",
+    page_hidden_count: "Number of item-scoped page-hidden, page-visibility-hidden, or window-blur events recorded during the response.",
+    typing_activity_event_count: "Number of item-scoped typing activity summaries or typing instrumentation events recorded for the response.",
+    response_quality_check_count: "Number of response-quality checks applied to the item response.",
+    response_quality_rejection_count: "Number of response-quality checks that rejected or requested repair for the item response.",
+    insufficient_knowledge_count: "Number of times the student selected or expressed insufficient knowledge for the item response.",
+    procedural_clarification_count: "Number of procedural clarification requests recorded for the item response.",
+    content_question_count: "Number of content-help requests recorded before feedback eligibility for the item response.",
+    invalid_help_request_count: "Number of help requests rejected because they were not allowed in the current protected assessment phase.",
+    actual_total_item_count: "Number of items represented in the process-event context when the event was recorded.",
+    long_pause_count: "Number of session-scoped long-pause process events recorded during the assessment attempt."
+  };
+  return (
+    overrides[variable] ??
+    `Number of ${normalizedSubject(variable)} records or events represented in the ${table} row at ${measurementLevel(table, variable)} scope.`
+  );
+}
+
+function measuredValueDefinition(table: string, variable: string) {
+  const overrides: Record<string, string> = {
+    active_interaction_time_ms: "Estimated session time in milliseconds after subtracting recorded idle intervals when active-time instrumentation is available.",
+    elapsed_session_time_ms: "Elapsed session time in milliseconds from session start to completion or latest activity.",
+    total_idle_time_ms: "Total recorded idle duration in milliseconds across eligible idle or long-pause process events.",
+    total_page_hidden_ms: "Total recorded duration in milliseconds during which the assessment page was hidden or blurred.",
+    idle_ratio: "Ratio of recorded idle time to elapsed session time when both numerator and denominator are available.",
+    total_long_pause_ms: "Sum of recorded long-pause durations in milliseconds for the assessment session.",
+    maximum_long_pause_ms: "Largest recorded long-pause duration in milliseconds for the assessment session.",
+    time_to_first_action_ms: "Milliseconds between item presentation and the first accepted student action for the administered item.",
+    time_to_first_option_selection_ms: "Milliseconds between item presentation and the first accepted option selection.",
+    reasoning_prompt_to_submission_ms: "Milliseconds between the reasoning prompt and the accepted reasoning submission.",
+    reasoning_active_time_ms: "Recorded active or elapsed reasoning-input time in milliseconds, depending on the available typing instrumentation payload.",
+    confidence_prompt_to_selection_ms: "Milliseconds between the confidence prompt and the accepted confidence selection.",
+    last_action_to_submission_ms: "Milliseconds between the latest accepted student action and item submission.",
+    item_response_time_ms: "Elapsed item-response time in milliseconds from item presentation to item submission or the backend-finalized item response duration.",
+    duration_ms: "Allow-listed process-event duration in milliseconds when an event payload reports a measured interval.",
+    visibility_duration_ms: "Duration in milliseconds for a recorded page visibility or hidden interval.",
+    pause_duration_ms: "Duration in milliseconds for a recorded pause or inactivity interval.",
+    response_or_action_latency_ms: "Milliseconds between the previous relevant prompt or turn and the student's response/action turn."
+  };
+  return (
+    overrides[variable] ??
+    `${sentenceTitle(variable)} measured value for the ${measurementLevel(table, variable)} row, computed by ${sourceServiceOrFunction(table, variable)} from documented source timestamps or payload values.`
+  );
+}
+
 function definition(table: string, variable: string) {
   const overrides: Record<string, string> = {
     research_student_id:
@@ -664,6 +775,12 @@ function definition(table: string, variable: string) {
     tempting_option_reason: "Student-authored explanation for why the reported tempting option seemed plausible.",
     correct_option: "Restricted item-key field. Export only in explicitly restricted teacher/research contexts.",
     correctness: "Restricted deterministic response classification comparing the student-selected option with the session-bound correct-option snapshot.",
+    estimated_guessing_risk:
+      "Restricted interpretive evidence-quality signal estimating whether the selected answer may be weakly supported by reasoning and confidence evidence. It is not a claim that the student guessed.",
+    answer_selection_evidence_weight:
+      "Restricted interpretive signal describing how much weight the selected answer should receive relative to reasoning, confidence, and tempting-option evidence.",
+    teacher_guidance_considered:
+      "Boolean indicator that teacher-authored diagnostic guidance was available and incorporated into the item-response interpretation path.",
     message_text:
       "Conversation turn text. Source meaning depends on actor_type: student turns are student-authored, agent turns are generated or scripted system messages, and system turns are application-authored messages.",
     event_type: "Allow-listed process-event code recorded for one process event row. Event-code semantics are documented in the process event codebook.",
@@ -678,9 +795,9 @@ function definition(table: string, variable: string) {
       "Assessment release timestamp used to document the availability window for the assessment attempt context."
   };
   if (overrides[variable]) return overrides[variable];
-  if (isTimingVariable(variable)) return `${sentenceTitle(variable)} timing construct documented for the ${table} export and measured at ${measurementLevel(table, variable)} scope.`;
-  if (variable.endsWith("_count")) return `${sentenceTitle(variable)} aggregate count for the ${table} export at ${measurementLevel(table, variable)} scope.`;
-  if (variable.endsWith("_at")) return `${sentenceTitle(variable)} lifecycle timestamp for the ${table} export at ${measurementLevel(table, variable)} scope.`;
+  if (variable.endsWith("_at")) return timestampDefinition(table, variable);
+  if (variable.endsWith("_count")) return countDefinition(table, variable);
+  if (isTimingVariable(variable)) return measuredValueDefinition(table, variable);
   if (LLM_INTERPRETIVE_COLUMNS.has(variable)) {
     return `${sentenceTitle(variable)} persisted as an assessment-specific interpretation from validated diagnostic, profile, activity, or post-activity evidence.`;
   }
@@ -785,11 +902,11 @@ function interpretationGuidance(variable: string) {
 }
 
 function interpretationCaution(variable: string) {
-  if (LLM_INTERPRETIVE_COLUMNS.has(variable)) return "LLM-derived interpretive signal; not a directly observed fact, not a stable trait, and not ground truth.";
   if (/reasoning_quality_signal|correctness_support_level|estimated_guessing_risk|answer_selection_evidence_weight/.test(variable)) {
-    return "Interpretive evidence-quality signal; not a directly observed fact, not a stable trait, not a student-facing label, and not ground truth.";
+    return "Interpretive evidence-quality signal; not a directly observed fact, not confirmed guessing, not a stable trait, not a student-facing label, and not ground truth.";
   }
-  if (/misconception|guessing/i.test(variable)) return "Inferred hypothesis; not confirmed misconception or confirmed guessing.";
+  if (/misconception|guessing/i.test(variable)) return "Inferred hypothesis; not confirmed misconception or confirmed guessing, not a stable trait, and not ground truth.";
+  if (LLM_INTERPRETIVE_COLUMNS.has(variable)) return "LLM-derived interpretive signal; not a directly observed fact, not a stable trait, and not ground truth.";
   if (/engagement/i.test(variable)) return "Evidence-quality signal; not a motivation, effort, cheating, or misconduct label.";
   if (variable.endsWith("_ms") || /latency|duration|pause|idle|hidden|typing/i.test(variable)) {
     return "Timing context may include reading, thinking, idle, connectivity, or device effects.";
@@ -1017,6 +1134,7 @@ function missingValueMeaning(variable: string) {
 
 function zeroValueMeaning(variable: string) {
   if (variable.endsWith("_count")) return "Zero means the construct was applicable and observed, but no qualifying records or events occurred.";
+  if (variable.endsWith("_ratio")) return "Zero means the ratio was evaluated and the numerator was zero while the denominator was positive.";
   if (isTimingVariable(variable)) return "Zero means the interval was applicable and the recorded start and end were simultaneous or the observed duration was zero.";
   return "Not a numeric count or duration field.";
 }
@@ -1406,6 +1524,9 @@ function prismaFieldRelationRole(field: string) {
 }
 
 function schemaFieldPurpose(modelName: string, field: string) {
+  if (modelName === "AgentCall" && /token_usage|input_tokens|output_tokens|total_tokens|max_output_tokens/i.test(field)) {
+    return "Source field for LLM provider usage, token-limit, and cost-audit lineage; it is not a credential or secret.";
+  }
   if (/correct_option|correctness|distractor|teacher_llm/i.test(field)) return "Restricted item-key or teacher-authored diagnostic context used for authorized audit and item review.";
   if (/profile|formative|diagnostic|evidence|misconception|activity/i.test(field)) return "Source field for diagnostic, formative activity, or post-activity evidence lineage.";
   if (/event|payload|message|reasoning|response/i.test(field)) return "Source field for process, transcript, or response evidence lineage.";
@@ -1414,6 +1535,16 @@ function schemaFieldPurpose(modelName: string, field: string) {
 }
 
 function mappedResearchVariable(modelName: string, field: string) {
+  if (modelName === "AgentCall") {
+    const agentCallMappings: Record<string, string> = {
+      input_tokens: "agent_activity_records.input_token_count; sessions.total_input_tokens",
+      output_tokens: "agent_activity_records.output_token_count; sessions.total_output_tokens",
+      total_tokens: "agent_activity_records.total_token_count; sessions.total_tokens",
+      token_usage: "agent_activity_records.input_token_count; agent_activity_records.output_token_count; agent_activity_records.total_token_count",
+      max_output_tokens: "agent_activity_records schema/version/provenance fields; max output token limit is retained for audit lineage and not exported as an ordinary research variable"
+    };
+    if (agentCallMappings[field]) return agentCallMappings[field];
+  }
   const fieldOnly = field.replace(/_snapshot$/, "");
   const match = buildAnalysisReadyDictionaryEntries().find((entry) => entry.variable_name === fieldOnly || entry.variable_name === field);
   if (match) return match.qualified_name;
@@ -1875,7 +2006,11 @@ const PLACEHOLDER_PATTERNS = [
   "measured for one row",
   "Read from the",
   "serialization path",
-  "Calculated by counting matching records or process events"
+  "Calculated by counting matching records or process events",
+  "lifecycle timestamp for the",
+  "aggregate count for the",
+  "timing construct documented for the",
+  "measured value for the"
 ];
 
 function containsPlaceholder(value: string) {
