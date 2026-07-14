@@ -2255,3 +2255,48 @@ export option, explicit confirmation, and a completed export audit record; they
 remain teacher/research-only. Null means unavailable, not recorded, not
 generated, or not applicable; zero means an instrumented count was evaluated and
 the counted event did not occur.
+
+## Per-Agent OpenAI Model Configuration
+
+The approved operational baseline remains `gpt-5.4-mini-2026-03-17` with
+`reasoning_effort=low` and the approved operational configuration hash. Phase
+31ad adds server-side per-agent reasoning-effort variables without activating a
+new model stack by default. Allowed values are `none`, `low`, `medium`, `high`,
+`xhigh`, and `max`; the old `minimal` value is rejected.
+
+The GPT-5.6 candidate stack is documented in
+`config/candidate-operational-agent-config.gpt-5.6.json`. It is not approved for
+student-facing runtime until the model-upgrade evaluation and explicit approval
+workflow pass. No normal test or build makes a paid call.
+
+No-live commands:
+
+```bash
+npm run operational:model-upgrade:preflight
+npm run operational:model-upgrade:dry-run
+npm run operational:model-upgrade:compare
+npm run operational:model-upgrade:report
+npm run operational:per-agent-reasoning-config-smoke
+npm run operational:model-upgrade-evaluation-smoke
+```
+
+The guarded live evaluation command skips by default:
+
+```bash
+npm run operational:model-upgrade:live-smoke
+RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --confirm-paid-api
+```
+
+Approval remains explicit and evidence-gated:
+
+```bash
+npm run operational:model-upgrade:approve -- \
+  --candidate-run <run_public_id> \
+  --expected-hash <candidate_hash> \
+  --confirm "approve GPT-5.6 operational candidate"
+```
+
+Rollback is environment-only: restore the prior `OPENAI_MODEL_*` values or
+remove candidate overrides, restore the previous
+`OPERATIONAL_APPROVED_CONFIG_HASH`, redeploy, and verify
+`npm run operational:approval-manifest:verify`.

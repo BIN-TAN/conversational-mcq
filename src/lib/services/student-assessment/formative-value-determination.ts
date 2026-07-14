@@ -6,8 +6,12 @@ import { z } from "zod";
 import type { AgentName } from "@/lib/agents/names";
 import { assertNoProhibitedProviderInput, redactForAudit } from "@/lib/agents/redaction";
 import { prisma } from "@/lib/db";
-import { getServerEnv } from "@/lib/env";
-import { getLlmRuntimeConfig, LlmConfigurationError, type AgentModelConfig } from "@/lib/llm/config";
+import {
+  getLlmRuntimeConfig,
+  LlmConfigurationError,
+  resolveOpenAIModelConfigForRole,
+  type AgentModelConfig
+} from "@/lib/llm/config";
 import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
@@ -368,10 +372,6 @@ function stableSnapshotId(packet: ProfileIntegrationInterpretationPacketV1) {
   return `profile_integration_snapshot_${hash}`;
 }
 
-function configured(value?: string | null) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
 function providerAuditUpdate(providerResult: StructuredAgentResult<unknown>) {
   const rawOutput =
     providerResult.raw_output ?? (
@@ -419,26 +419,18 @@ function providerAuditUpdate(providerResult: StructuredAgentResult<unknown>) {
 }
 
 function resolveFormativeValueModelConfig(): AgentModelConfig {
-  const env = getServerEnv();
-  const modelName = [env.OPENAI_MODEL_PROFILE_INTEGRATION, env.OPENAI_MODEL_PLANNING, env.OPENAI_MODEL_FOLLOWUP]
-    .find((value) => configured(value));
-
-  if (!configured(modelName)) {
+  try {
+    return resolveOpenAIModelConfigForRole("formative_value_determination_agent");
+  } catch (error) {
+    if (error instanceof LlmConfigurationError) {
+      throw error;
+    }
     throw new LlmConfigurationError(
       "formative_value_model_missing",
       "OPENAI_MODEL_PROFILE_INTEGRATION, OPENAI_MODEL_PLANNING, or OPENAI_MODEL_FOLLOWUP is required when live formative value determination is explicitly enabled.",
       { agent_name: FORMATIVE_VALUE_AGENT_NAME }
     );
   }
-
-  return {
-    model_name: String(modelName),
-    max_output_tokens:
-      env.OPENAI_MAX_OUTPUT_TOKENS_PROFILE_INTEGRATION ??
-      env.OPENAI_MAX_OUTPUT_TOKENS_PLANNING ??
-      env.OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP ??
-      2500
-  };
 }
 
 let formativeValueProviderOverrideForTest: LlmProvider | null = null;

@@ -3,7 +3,11 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { FormativeValueSchema } from "@/lib/domain/enums";
-import { getLlmRuntimeConfig, resolveAgentModelConfig } from "@/lib/llm/config";
+import {
+  getLlmRuntimeConfig,
+  resolveAgentModelConfig,
+  type AgentModelConfig
+} from "@/lib/llm/config";
 import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
@@ -1935,6 +1939,7 @@ async function callProviderOrMock(input: {
   let runtimeProvider: "mock" | "openai" = "mock";
   let modelName = "mock-chat-native-formative-profile";
   let liveCallAllowed = false;
+  let modelConfig: AgentModelConfig | null = null;
 
   try {
     const runtime = getLlmRuntimeConfig();
@@ -1942,7 +1947,8 @@ async function callProviderOrMock(input: {
     liveCallAllowed = runtime.provider === "openai" && runtime.live_calls_enabled;
 
     if (liveCallAllowed) {
-      modelName = resolveAgentModelConfig(CHAT_NATIVE_PROFILE_AGENT_NAME).model_name;
+      modelConfig = resolveAgentModelConfig(CHAT_NATIVE_PROFILE_AGENT_NAME);
+      modelName = modelConfig.model_name;
     }
   } catch {
     runtimeProvider = "mock";
@@ -1961,6 +1967,8 @@ async function callProviderOrMock(input: {
       client_request_id: `chat_native_profile_${randomUUID()}`,
       agent_invocation_key: input.agent_invocation_key,
       prompt_hash: CHAT_NATIVE_PROFILE_PROMPT_HASH,
+      reasoning_effort: modelConfig?.reasoning_effort ?? null,
+      max_output_tokens: modelConfig?.max_output_tokens ?? null,
       prompt_version: CHAT_NATIVE_PROFILE_PROMPT_VERSION,
       schema_version: CHAT_NATIVE_PROFILE_SCHEMA_VERSION,
       input_payload: prismaJson(redactForAudit(input.provider_input)),
@@ -2009,7 +2017,7 @@ async function callProviderOrMock(input: {
 
   assertNoProhibitedProviderInput(input.provider_input);
   const provider = chatNativeFormativeProviderOverrideForTest ?? createLlmProvider();
-  const modelConfig = resolveAgentModelConfig(CHAT_NATIVE_PROFILE_AGENT_NAME);
+  modelConfig = modelConfig ?? resolveAgentModelConfig(CHAT_NATIVE_PROFILE_AGENT_NAME);
   const providerResult = await provider.executeStructured({
     agent_name: CHAT_NATIVE_PROFILE_AGENT_NAME,
     model_config: modelConfig,
@@ -2184,6 +2192,7 @@ async function callTargetedFeedbackProviderOrMock(input: {
   let runtimeProvider: "mock" | "openai" = "mock";
   let modelName = "mock-chat-native-targeted-feedback";
   let liveCallAllowed = false;
+  let modelConfig: AgentModelConfig | null = null;
 
   try {
     const runtime = getLlmRuntimeConfig();
@@ -2191,7 +2200,8 @@ async function callTargetedFeedbackProviderOrMock(input: {
     liveCallAllowed = runtime.provider === "openai" && runtime.live_calls_enabled;
 
     if (liveCallAllowed) {
-      modelName = resolveAgentModelConfig(CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_NAME).model_name;
+      modelConfig = resolveAgentModelConfig(CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_NAME);
+      modelName = modelConfig.model_name;
     }
   } catch {
     runtimeProvider = "mock";
@@ -2211,6 +2221,8 @@ async function callTargetedFeedbackProviderOrMock(input: {
       client_request_id: `chat_native_targeted_feedback_${randomUUID()}`,
       agent_invocation_key: input.agent_invocation_key,
       prompt_hash: CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_HASH,
+      reasoning_effort: modelConfig?.reasoning_effort ?? null,
+      max_output_tokens: modelConfig?.max_output_tokens ?? null,
       prompt_version: CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_VERSION,
       schema_version: CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION,
       input_payload: prismaJson(redactForAudit(input.provider_input)),
@@ -2260,7 +2272,7 @@ async function callTargetedFeedbackProviderOrMock(input: {
 
   assertNoProhibitedProviderInput(input.provider_input);
   const provider = chatNativeFormativeProviderOverrideForTest ?? createLlmProvider();
-  const modelConfig = resolveAgentModelConfig(CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_NAME);
+  modelConfig = modelConfig ?? resolveAgentModelConfig(CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_NAME);
   const providerResult = await provider.executeStructured({
     agent_name: CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_NAME,
     model_config: modelConfig,

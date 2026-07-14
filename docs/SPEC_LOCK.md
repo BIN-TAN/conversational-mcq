@@ -2703,3 +2703,40 @@ Phase 6A.5 must not implement:
 - Email-provider credentials must remain server-side if present, but they are
   deprecated for the classroom pilot and must not affect login, readiness, or
   the standard teacher UI.
+
+## Phase 31AD Per-Agent Model Configuration Lock
+
+- The current approved operational baseline remains
+  `gpt-5.4-mini-2026-03-17` with `reasoning_effort=low` and the approved
+  operational manifest/hash until a separate candidate evaluation and explicit
+  approval completes.
+- Server-side OpenAI reasoning-effort variables are available per live role:
+  `OPENAI_REASONING_EFFORT_ITEM_VERIFICATION`,
+  `OPENAI_REASONING_EFFORT_ITEM_ADMIN`,
+  `OPENAI_REASONING_EFFORT_RESPONSE_COLLECTION`,
+  `OPENAI_REASONING_EFFORT_PROFILING`,
+  `OPENAI_REASONING_EFFORT_PROFILE_INTEGRATION`,
+  `OPENAI_REASONING_EFFORT_PLANNING`, `OPENAI_REASONING_EFFORT_FOLLOWUP`,
+  `OPENAI_REASONING_EFFORT_MCQ_DIAGNOSTIC_AUTHORING`,
+  `OPENAI_REASONING_EFFORT_MCQ_FORMATTING`, and
+  `OPENAI_REASONING_EFFORT_CONNECTIVITY_TEST`.
+- Allowed effort values are `none`, `low`, `medium`, `high`, `xhigh`, and
+  `max`. Invalid explicit values fail closed for LLM readiness/dispatch and
+  must not break authentication, logout, account management, data exports, or
+  ordinary non-LLM teacher pages.
+- The GPT-5.6 candidate profile is a separate artifact at
+  `config/candidate-operational-agent-config.gpt-5.6.json`. It is not approved
+  by model name alone and must not silently switch production.
+- Candidate comparison must use identical synthetic fixtures, record model,
+  reasoning effort, token limits, prompt/schema versions, validators, retries,
+  usage, cost where pricing exists, and safety/quality metrics. Candidate
+  acceptance requires no critical leakage, no schema/invalid-output regression,
+  maintained or improved diagnostic/formative quality, cost within limits, no
+  unsupported claims, and no move-on/fallback regression.
+- Student-facing operational extension roles outside the current five-agent
+  manifest require explicit operational approval coverage before production
+  use. Teacher authoring roles require teacher-tool review and do not approve
+  student-facing runtime.
+- Normal tests, dry runs, and reports must make no OpenAI call. Guarded live
+  candidate evaluation must be skipped unless explicitly enabled with
+  `RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1` and paid-call confirmation.

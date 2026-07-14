@@ -4,8 +4,12 @@ import { z } from "zod";
 import type { AgentName } from "@/lib/agents/names";
 import { assertNoProhibitedProviderInput, redactForAudit } from "@/lib/agents/redaction";
 import { prisma } from "@/lib/db";
-import { getServerEnv } from "@/lib/env";
-import { getLlmRuntimeConfig, LlmConfigurationError, type AgentModelConfig } from "@/lib/llm/config";
+import {
+  getLlmRuntimeConfig,
+  LlmConfigurationError,
+  resolveOpenAIModelConfigForRole,
+  type AgentModelConfig
+} from "@/lib/llm/config";
 import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
@@ -338,10 +342,6 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function configured(value?: string | null) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
 function prismaJson(value: unknown) {
   return toPrismaJson(value) ?? Prisma.JsonNull;
 }
@@ -425,28 +425,18 @@ function safeProviderFailureReason(providerResult: StructuredAgentResult<unknown
 }
 
 function resolveFormativeActivityModelConfig(): AgentModelConfig {
-  const env = getServerEnv();
-  const modelName = [env.OPENAI_MODEL_PROFILE_INTEGRATION, env.OPENAI_MODEL_PLANNING, env.OPENAI_MODEL_FOLLOWUP]
-    .find((value) => configured(value));
-
-  if (!configured(modelName)) {
+  try {
+    return resolveOpenAIModelConfigForRole("formative_activity_dialogue_agent");
+  } catch (error) {
+    if (error instanceof LlmConfigurationError) {
+      throw error;
+    }
     throw new LlmConfigurationError(
       "formative_activity_model_missing",
       "OPENAI_MODEL_PROFILE_INTEGRATION, OPENAI_MODEL_PLANNING, or OPENAI_MODEL_FOLLOWUP is required when live formative activity generation is explicitly enabled.",
       { agent_name: FORMATIVE_ACTIVITY_AGENT_NAME }
     );
   }
-
-  return {
-    model_name: String(modelName),
-    reasoning_effort: (env.OPENAI_REASONING_EFFORT_PLANNING ??
-      env.OPENAI_REASONING_EFFORT_FOLLOWUP) as AgentModelConfig["reasoning_effort"],
-    max_output_tokens:
-      env.OPENAI_MAX_OUTPUT_TOKENS_PROFILE_INTEGRATION ??
-      env.OPENAI_MAX_OUTPUT_TOKENS_PLANNING ??
-      env.OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP ??
-      3500
-  };
 }
 
 async function resolveAuditContext(sessionPublicId: string) {

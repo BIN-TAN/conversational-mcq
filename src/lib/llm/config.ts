@@ -3,11 +3,29 @@ import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
 import { getServerEnv } from "@/lib/env";
 import { resolveOpenAICredentialFromEnv } from "@/lib/llm/openai-credential-resolver";
 
-export const ReasoningEffort = z.enum(["none", "minimal", "low", "medium", "high"]);
+export const ReasoningEffort = z.enum(["none", "low", "medium", "high", "xhigh", "max"]);
 export const Verbosity = z.enum(["low", "medium", "high"]);
+export const LiveModelRole = z.enum([
+  "item_verification_agent",
+  "item_administration_tutor_agent",
+  "response_collection_agent",
+  "student_profiling_agent",
+  "profile_integration_agent",
+  "formative_value_and_planning_agent",
+  "formative_value_determination_agent",
+  "followup_agent",
+  "formative_activity_dialogue_agent",
+  "formative_activity_quality_reviewer_agent",
+  "formative_activity_response_evaluator_agent",
+  "post_activity_evidence_evaluator_agent",
+  "mcq_diagnostic_authoring_assistant_agent",
+  "mcq_import_formatting_assistant_agent",
+  "connectivity_test"
+]);
 
 export type ReasoningEffort = z.infer<typeof ReasoningEffort>;
 export type Verbosity = z.infer<typeof Verbosity>;
+export type LiveModelRole = z.infer<typeof LiveModelRole>;
 
 export type LlmProviderName = "mock" | "openai";
 
@@ -75,6 +93,285 @@ const agentEnvKeys = {
   maxTokens: keyof ReturnType<typeof getServerEnv>;
 }>;
 
+type EnvKey = keyof ReturnType<typeof getServerEnv>;
+type RoleSource = {
+  model: EnvKey;
+  reasoning: EnvKey;
+  maxTokens?: EnvKey;
+  defaultMaxTokens?: number;
+};
+
+const roleEnvSources = {
+  item_verification_agent: [{
+    model: "OPENAI_MODEL_ITEM_VERIFICATION",
+    reasoning: "OPENAI_REASONING_EFFORT_ITEM_VERIFICATION",
+    maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_ITEM_VERIFICATION",
+    defaultMaxTokens: 3000
+  }],
+  item_administration_tutor_agent: [
+    {
+      model: "OPENAI_MODEL_ITEM_ADMIN",
+      reasoning: "OPENAI_REASONING_EFFORT_ITEM_ADMIN",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_ITEM_ADMIN",
+      defaultMaxTokens: 1200
+    },
+    {
+      model: "OPENAI_MODEL_FOLLOWUP",
+      reasoning: "OPENAI_REASONING_EFFORT_FOLLOWUP",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP",
+      defaultMaxTokens: 2500
+    }
+  ],
+  response_collection_agent: [{
+    model: "OPENAI_MODEL_RESPONSE_COLLECTION",
+    reasoning: "OPENAI_REASONING_EFFORT_RESPONSE_COLLECTION",
+    maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_RESPONSE_COLLECTION",
+    defaultMaxTokens: 1500
+  }],
+  student_profiling_agent: [{
+    model: "OPENAI_MODEL_PROFILING",
+    reasoning: "OPENAI_REASONING_EFFORT_PROFILING",
+    maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PROFILING",
+    defaultMaxTokens: 4000
+  }],
+  profile_integration_agent: [
+    {
+      model: "OPENAI_MODEL_PROFILE_INTEGRATION",
+      reasoning: "OPENAI_REASONING_EFFORT_PROFILE_INTEGRATION",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PROFILE_INTEGRATION",
+      defaultMaxTokens: 3000
+    },
+    {
+      model: "OPENAI_MODEL_PLANNING",
+      reasoning: "OPENAI_REASONING_EFFORT_PLANNING",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PLANNING",
+      defaultMaxTokens: 3000
+    },
+    {
+      model: "OPENAI_MODEL_FOLLOWUP",
+      reasoning: "OPENAI_REASONING_EFFORT_FOLLOWUP",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP",
+      defaultMaxTokens: 2500
+    }
+  ],
+  formative_value_and_planning_agent: [{
+    model: "OPENAI_MODEL_PLANNING",
+    reasoning: "OPENAI_REASONING_EFFORT_PLANNING",
+    maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PLANNING",
+    defaultMaxTokens: 3000
+  }],
+  formative_value_determination_agent: [
+    {
+      model: "OPENAI_MODEL_PROFILE_INTEGRATION",
+      reasoning: "OPENAI_REASONING_EFFORT_PROFILE_INTEGRATION",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PROFILE_INTEGRATION",
+      defaultMaxTokens: 2500
+    },
+    {
+      model: "OPENAI_MODEL_PLANNING",
+      reasoning: "OPENAI_REASONING_EFFORT_PLANNING",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PLANNING",
+      defaultMaxTokens: 3000
+    },
+    {
+      model: "OPENAI_MODEL_FOLLOWUP",
+      reasoning: "OPENAI_REASONING_EFFORT_FOLLOWUP",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP",
+      defaultMaxTokens: 2500
+    }
+  ],
+  followup_agent: [{
+    model: "OPENAI_MODEL_FOLLOWUP",
+    reasoning: "OPENAI_REASONING_EFFORT_FOLLOWUP",
+    maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP",
+    defaultMaxTokens: 2500
+  }],
+  formative_activity_dialogue_agent: [
+    {
+      model: "OPENAI_MODEL_FOLLOWUP",
+      reasoning: "OPENAI_REASONING_EFFORT_FOLLOWUP",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP",
+      defaultMaxTokens: 3500
+    },
+    {
+      model: "OPENAI_MODEL_PLANNING",
+      reasoning: "OPENAI_REASONING_EFFORT_PLANNING",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PLANNING",
+      defaultMaxTokens: 3000
+    },
+    {
+      model: "OPENAI_MODEL_PROFILE_INTEGRATION",
+      reasoning: "OPENAI_REASONING_EFFORT_PROFILE_INTEGRATION",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PROFILE_INTEGRATION",
+      defaultMaxTokens: 3000
+    }
+  ],
+  formative_activity_quality_reviewer_agent: [
+    {
+      model: "OPENAI_MODEL_FOLLOWUP",
+      reasoning: "OPENAI_REASONING_EFFORT_FOLLOWUP",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP",
+      defaultMaxTokens: 2500
+    },
+    {
+      model: "OPENAI_MODEL_PLANNING",
+      reasoning: "OPENAI_REASONING_EFFORT_PLANNING",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PLANNING",
+      defaultMaxTokens: 3000
+    }
+  ],
+  formative_activity_response_evaluator_agent: [
+    {
+      model: "OPENAI_MODEL_FOLLOWUP",
+      reasoning: "OPENAI_REASONING_EFFORT_FOLLOWUP",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP",
+      defaultMaxTokens: 3000
+    },
+    {
+      model: "OPENAI_MODEL_PLANNING",
+      reasoning: "OPENAI_REASONING_EFFORT_PLANNING",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PLANNING",
+      defaultMaxTokens: 3000
+    },
+    {
+      model: "OPENAI_MODEL_PROFILE_INTEGRATION",
+      reasoning: "OPENAI_REASONING_EFFORT_PROFILE_INTEGRATION",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PROFILE_INTEGRATION",
+      defaultMaxTokens: 3000
+    }
+  ],
+  post_activity_evidence_evaluator_agent: [
+    {
+      model: "OPENAI_MODEL_FOLLOWUP",
+      reasoning: "OPENAI_REASONING_EFFORT_FOLLOWUP",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP",
+      defaultMaxTokens: 3000
+    },
+    {
+      model: "OPENAI_MODEL_PLANNING",
+      reasoning: "OPENAI_REASONING_EFFORT_PLANNING",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PLANNING",
+      defaultMaxTokens: 3000
+    }
+  ],
+  mcq_diagnostic_authoring_assistant_agent: [{
+    model: "OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING",
+    reasoning: "OPENAI_REASONING_EFFORT_MCQ_DIAGNOSTIC_AUTHORING",
+    maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_MCQ_DIAGNOSTIC_AUTHORING",
+    defaultMaxTokens: 2500
+  }],
+  mcq_import_formatting_assistant_agent: [{
+    model: "OPENAI_MODEL_MCQ_FORMATTING",
+    reasoning: "OPENAI_REASONING_EFFORT_MCQ_FORMATTING",
+    maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_MCQ_FORMATTING",
+    defaultMaxTokens: 3000
+  }],
+  connectivity_test: [{
+    model: "OPENAI_MODEL_CONNECTIVITY_TEST",
+    reasoning: "OPENAI_REASONING_EFFORT_CONNECTIVITY_TEST",
+    defaultMaxTokens: 200
+  }]
+} as const satisfies Record<LiveModelRole, readonly RoleSource[]>;
+
+export const liveModelRoles = LiveModelRole.options;
+
+export type RoleModelReadiness = {
+  role: LiveModelRole;
+  model_configured: boolean;
+  effective_model: string | null;
+  reasoning_effort: ReasoningEffort | null;
+  max_output_tokens: number | null;
+  model_env_key: string | null;
+  reasoning_env_key: string | null;
+  approval_boundary: "operational_manifest" | "operational_extension_required" | "teacher_tool" | "utility";
+  compatibility_status: "compatible" | "incompatible" | "not_configured";
+  compatibility_issues: string[];
+};
+
+function approvalBoundary(role: LiveModelRole): RoleModelReadiness["approval_boundary"] {
+  if (AgentName.safeParse(role).success) {
+    return "operational_manifest";
+  }
+  if (role === "mcq_diagnostic_authoring_assistant_agent" || role === "mcq_import_formatting_assistant_agent") {
+    return "teacher_tool";
+  }
+  if (role === "connectivity_test") {
+    return "utility";
+  }
+  return "operational_extension_required";
+}
+
+function modelCapabilityFor(modelName: string) {
+  if (/^gpt-5\.6-luna$/u.test(modelName)) {
+    return new Set<ReasoningEffort>(["none", "low"]);
+  }
+  if (/^gpt-5\.6-terra$/u.test(modelName)) {
+    return new Set<ReasoningEffort>(["low", "medium", "high"]);
+  }
+  if (/^gpt-5\.6-sol$/u.test(modelName)) {
+    return new Set<ReasoningEffort>(["low", "medium", "high", "xhigh", "max"]);
+  }
+  if (/^gpt-5\.4-mini(?:-\d{4}-\d{2}-\d{2})?$/u.test(modelName)) {
+    return new Set<ReasoningEffort>(["none", "low", "medium", "high"]);
+  }
+  if (modelName.startsWith("mock-") || modelName.startsWith("synthetic-") || modelName.startsWith("injected-")) {
+    return new Set<ReasoningEffort>(ReasoningEffort.options);
+  }
+  return null;
+}
+
+function roleAllowsModel(role: LiveModelRole, modelName: string) {
+  if (!modelName.startsWith("gpt-5.6-")) {
+    return true;
+  }
+  const candidateAllowed: Partial<Record<LiveModelRole, string[]>> = {
+    item_verification_agent: ["gpt-5.6-terra"],
+    item_administration_tutor_agent: ["gpt-5.6-luna"],
+    response_collection_agent: ["gpt-5.6-luna"],
+    student_profiling_agent: ["gpt-5.6-terra"],
+    profile_integration_agent: ["gpt-5.6-terra"],
+    formative_value_and_planning_agent: ["gpt-5.6-sol"],
+    formative_value_determination_agent: ["gpt-5.6-terra", "gpt-5.6-sol"],
+    followup_agent: ["gpt-5.6-sol"],
+    formative_activity_dialogue_agent: ["gpt-5.6-sol"],
+    formative_activity_quality_reviewer_agent: ["gpt-5.6-sol"],
+    formative_activity_response_evaluator_agent: ["gpt-5.6-sol"],
+    post_activity_evidence_evaluator_agent: ["gpt-5.6-sol"],
+    mcq_diagnostic_authoring_assistant_agent: ["gpt-5.6-terra"],
+    mcq_import_formatting_assistant_agent: ["gpt-5.6-luna"],
+    connectivity_test: ["gpt-5.6-luna"]
+  };
+  return (candidateAllowed[role] ?? []).includes(modelName);
+}
+
+export function modelConfigCompatibilityIssues(role: LiveModelRole, config: AgentModelConfig) {
+  const issues: string[] = [];
+  if (!roleAllowsModel(role, config.model_name)) {
+    issues.push("model_not_allowed_for_agent");
+  }
+  if (config.reasoning_effort) {
+    const capability = modelCapabilityFor(config.model_name);
+    if (capability && !capability.has(config.reasoning_effort)) {
+      issues.push("reasoning_effort_not_supported_by_model");
+    }
+  }
+  if (config.max_output_tokens !== undefined && config.max_output_tokens <= 0) {
+    issues.push("max_output_tokens_not_positive");
+  }
+  return issues;
+}
+
+export function assertModelConfigCompatible(role: LiveModelRole, config: AgentModelConfig) {
+  const issues = modelConfigCompatibilityIssues(role, config);
+  if (issues.length > 0) {
+    throw new LlmConfigurationError(
+      "agent_model_config_incompatible",
+      `${role} model configuration is not compatible with the approved agent/model policy.`,
+      { agent_name: role, model_name: config.model_name, reasoning_effort: config.reasoning_effort, issues }
+    );
+  }
+}
+
 export function getLlmRuntimeConfig(): LlmRuntimeConfig {
   const env = getServerEnv();
   const provider = env.LLM_PROVIDER;
@@ -115,11 +412,58 @@ export function getLlmRuntimeConfig(): LlmRuntimeConfig {
   };
 }
 
+function sourceModelValue(env: ReturnType<typeof getServerEnv>, source: RoleSource) {
+  const modelValue = env[source.model];
+  return configured(typeof modelValue === "string" ? modelValue : undefined)
+    ? String(modelValue)
+    : null;
+}
+
+function numberValue(env: ReturnType<typeof getServerEnv>, key?: EnvKey) {
+  if (!key) return undefined;
+  const value = env[key];
+  return typeof value === "number" ? value : undefined;
+}
+
+function maxTokensKey(source: RoleSource) {
+  return "maxTokens" in source ? source.maxTokens : undefined;
+}
+
+function reasoningValue(env: ReturnType<typeof getServerEnv>, key: EnvKey) {
+  const value = env[key];
+  return typeof value === "string" ? ReasoningEffort.parse(value) : undefined;
+}
+
+function resolveRoleSource(env: ReturnType<typeof getServerEnv>, role: LiveModelRole) {
+  const sources = roleEnvSources[role];
+  return sources.find((source) => sourceModelValue(env, source)) ?? null;
+}
+
+export function resolveOpenAIModelConfigForRole(role: LiveModelRole): AgentModelConfig {
+  const parsedRole = LiveModelRole.parse(role);
+  const env = getServerEnv();
+  const source = resolveRoleSource(env, parsedRole);
+
+  if (!source) {
+    throw new LlmConfigurationError(
+      AgentName.safeParse(parsedRole).success ? "agent_model_missing" : `${parsedRole}_model_missing`,
+      `${parsedRole} requires one of ${roleEnvSources[parsedRole].map((entry) => entry.model).join(", ")} when live OpenAI calls are enabled.`,
+      { agent_name: parsedRole, model_env_keys: roleEnvSources[parsedRole].map((entry) => entry.model) }
+    );
+  }
+
+  const config: AgentModelConfig = {
+    model_name: sourceModelValue(env, source)!,
+    reasoning_effort: reasoningValue(env, source.reasoning),
+    max_output_tokens: numberValue(env, maxTokensKey(source)) ?? source.defaultMaxTokens
+  };
+  assertModelConfigCompatible(parsedRole, config);
+  return config;
+}
+
 export function resolveAgentModelConfig(agentName: AgentNameType): AgentModelConfig {
   const parsedAgentName = AgentName.parse(agentName);
   const runtime = getLlmRuntimeConfig();
-  const env = getServerEnv();
-  const keys = agentEnvKeys[parsedAgentName];
 
   if (runtime.provider === "mock") {
     return {
@@ -127,24 +471,7 @@ export function resolveAgentModelConfig(agentName: AgentNameType): AgentModelCon
     };
   }
 
-  const modelName = env[keys.model];
-
-  if (!configured(typeof modelName === "string" ? modelName : undefined)) {
-    throw new LlmConfigurationError(
-      "agent_model_missing",
-      `Model name is required for ${parsedAgentName} when OpenAI live calls are enabled.`,
-      { agent_name: parsedAgentName }
-    );
-  }
-
-  const reasoningEffort = env[keys.reasoning] as ReasoningEffort | undefined;
-  const maxOutputTokens = env[keys.maxTokens] as number | undefined;
-
-  return {
-    model_name: String(modelName),
-    reasoning_effort: reasoningEffort,
-    max_output_tokens: maxOutputTokens
-  };
+  return resolveOpenAIModelConfigForRole(parsedAgentName);
 }
 
 export function resolveConnectivityModelConfig(): AgentModelConfig {
@@ -165,25 +492,56 @@ export function resolveConnectivityModelConfig(): AgentModelConfig {
     );
   }
 
-  return {
+  const config: AgentModelConfig = {
     model_name: String(env.OPENAI_MODEL_CONNECTIVITY_TEST),
+    reasoning_effort: env.OPENAI_REASONING_EFFORT_CONNECTIVITY_TEST,
     max_output_tokens: 200
   };
+  assertModelConfigCompatible("connectivity_test", config);
+  return config;
 }
 
 export function agentModelReadiness() {
   return Object.fromEntries(
-    AgentName.options.map((agentName) => {
-      const keys = agentEnvKeys[agentName];
+    LiveModelRole.options.map((role) => {
       const env = getServerEnv();
-      const model = env[keys.model];
+      const source = resolveRoleSource(env, role);
+      const configuredModel = source ? sourceModelValue(env, source) : null;
+      const reasoning = source ? reasoningValue(env, source.reasoning) ?? null : null;
+      const maxTokens = source ? numberValue(env, maxTokensKey(source)) ?? source.defaultMaxTokens ?? null : null;
+      const compatibilityIssues = configuredModel
+        ? modelConfigCompatibilityIssues(role, {
+            model_name: configuredModel,
+            reasoning_effort: reasoning ?? undefined,
+            max_output_tokens: maxTokens ?? undefined
+          })
+        : [];
 
       return [
-        agentName,
+        role,
         {
-          model_configured: configured(typeof model === "string" ? model : undefined)
+          role,
+          model_configured: Boolean(configuredModel),
+          effective_model: configuredModel,
+          reasoning_effort: reasoning,
+          max_output_tokens: maxTokens,
+          model_env_key: source?.model ?? null,
+          reasoning_env_key: source?.reasoning ?? null,
+          approval_boundary: approvalBoundary(role),
+          compatibility_status: configuredModel
+            ? compatibilityIssues.length === 0 ? "compatible" : "incompatible"
+            : "not_configured",
+          compatibility_issues: compatibilityIssues
         }
       ];
     })
-  ) as Record<AgentNameType, { model_configured: boolean }>;
+  ) as Record<LiveModelRole, RoleModelReadiness>;
+}
+
+export function legacyAgentEnvKeys() {
+  return agentEnvKeys;
+}
+
+export function liveModelRoleEnvSources() {
+  return roleEnvSources;
 }

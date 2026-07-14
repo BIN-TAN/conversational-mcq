@@ -7,7 +7,11 @@ import {
   assertNoProhibitedProviderInput,
   redactForAudit
 } from "@/lib/agents/redaction";
-import { getLlmRuntimeConfig, type AgentModelConfig } from "@/lib/llm/config";
+import {
+  getLlmRuntimeConfig,
+  resolveOpenAIModelConfigForRole,
+  type AgentModelConfig
+} from "@/lib/llm/config";
 import { getAssessmentTutorRuntimeStatus } from "@/lib/llm/assessment-tutor-readiness";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
@@ -230,17 +234,14 @@ function configured(value?: string | null) {
 }
 
 function resolveItemAdminModelConfig(): AgentModelConfig | null {
-  const env = getServerEnv();
-  const modelName = env.OPENAI_MODEL_ITEM_ADMIN || env.OPENAI_MODEL_FOLLOWUP;
-
-  if (!configured(modelName)) {
+  try {
+    return resolveOpenAIModelConfigForRole("item_administration_tutor_agent");
+  } catch (error) {
+    if (error instanceof Error) {
+      return null;
+    }
     return null;
   }
-
-  return {
-    model_name: String(modelName),
-    max_output_tokens: env.OPENAI_MAX_OUTPUT_TOKENS_ITEM_ADMIN ?? 1200
-  };
 }
 
 export async function resolveItemAdministrationTutorRuntimeMode(): Promise<ItemAdministrationTutorRuntimeMode> {
@@ -976,6 +977,7 @@ export async function runItemAdministrationTutor(input: {
       client_request_id: `item_admin_tutor_${randomUUID()}`,
       agent_invocation_key: input.audit_context.agent_invocation_key,
       prompt_hash: ITEM_ADMINISTRATION_TUTOR_PROMPT_HASH,
+      reasoning_effort: modelConfig.reasoning_effort ?? null,
       max_output_tokens: modelConfig.max_output_tokens ?? null,
       prompt_version: ITEM_ADMINISTRATION_TUTOR_PROMPT_VERSION,
       schema_version: ITEM_ADMINISTRATION_TUTOR_SCHEMA_VERSION,

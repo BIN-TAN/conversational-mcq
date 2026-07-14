@@ -411,3 +411,36 @@ npm run operator:rename-teacher-smoke
 npm run student:production-schema-readiness-smoke
 npm run operator:production-runtime-smoke
 ```
+
+## Per-Agent OpenAI Configuration and Rollback
+
+Production must not switch models merely because a newer alias exists. The
+approved baseline remains `gpt-5.4-mini-2026-03-17` with low reasoning effort.
+Per-agent model and reasoning-effort overrides must be included in the active
+configuration hash and must match the approved hash before guarded-live
+operational calls can run.
+
+No-live candidate checks:
+
+```bash
+npm run operational:model-upgrade:preflight
+npm run operational:model-upgrade:dry-run
+npm run operational:model-upgrade:compare
+npm run operational:model-upgrade:report
+```
+
+Guarded paid evaluation is opt-in only:
+
+```bash
+RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 \
+npm run operational:model-upgrade:live-eval -- --confirm-paid-api
+```
+
+Rollback sequence:
+
+1. Restore prior `OPENAI_MODEL_*` values or remove candidate overrides.
+2. Restore prior `OPENAI_REASONING_EFFORT_*` values or leave them blank.
+3. Restore the previous `OPERATIONAL_APPROVED_CONFIG_HASH`.
+4. Redeploy.
+5. Run `npm run operational:approval-manifest:verify` and
+   `npm run operational:agents:preflight`.

@@ -155,12 +155,19 @@ Phase 6A LLM variables are optional unless intentionally enabling live connectiv
 - `LLM_LIVE_CALLS_ENABLED`
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL_ITEM_VERIFICATION`
+- `OPENAI_MODEL_ITEM_ADMIN`
 - `OPENAI_MODEL_RESPONSE_COLLECTION`
 - `OPENAI_MODEL_PROFILING`
+- `OPENAI_MODEL_PROFILE_INTEGRATION`
 - `OPENAI_MODEL_PLANNING`
 - `OPENAI_MODEL_FOLLOWUP`
+- `OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING`
+- `OPENAI_MODEL_MCQ_FORMATTING`
 - `OPENAI_MODEL_CONNECTIVITY_TEST`
-- `OPENAI_REASONING_EFFORT_*`
+- `OPENAI_REASONING_EFFORT_*`: per-agent, server-side only; allowed values
+  are `none`, `low`, `medium`, `high`, `xhigh`, and `max`. Missing values keep
+  the approved baseline behavior. Invalid explicit values fail closed for LLM
+  readiness/dispatch and must not block authentication or non-LLM pages.
 - `OPENAI_MAX_OUTPUT_TOKENS_*`
 - `OPENAI_REQUEST_TIMEOUT_MS`
 - `OPENAI_MAX_RETRIES`
@@ -187,6 +194,11 @@ Phase 6A LLM variables are optional unless intentionally enabling live connectiv
 - `INITIAL_CHAT_MESSAGE_MAX_CHARS`
 - `RESPONSE_COLLECTION_CONTEXT_MAX_TURNS`
 - `RESPONSE_COLLECTION_CONTEXT_MAX_CHARS`
+
+The approved operational baseline remains `gpt-5.4-mini-2026-03-17` with low
+reasoning effort until a separate candidate evaluation and approval workflow
+produces a new approved hash. The GPT-5.6 candidate stack is stored separately
+in `config/candidate-operational-agent-config.gpt-5.6.json`.
 
 No model name is hardcoded. No documentation should describe a specific model as currently latest.
 

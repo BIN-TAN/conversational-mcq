@@ -467,6 +467,10 @@ No logs, exports, screenshots, or notes should contain API keys, cookies, auth t
 
 - This checklist supports pilot readiness only; it does not establish classroom validity.
 - Live LLM behavior requires manual operator configuration and an explicit opt-in smoke command.
+- Per-agent GPT-5.6 model settings are candidate configuration only until
+  `npm run operational:model-upgrade:preflight`,
+  `npm run operational:model-upgrade:dry-run`, the guarded live candidate
+  evaluation, human review, and explicit approval complete.
 - The fixed IRT MVP uses a limited item set.
 - Teacher upload is not implemented in this rewrite phase.
 - Transfer-item feedback is not implemented in this phase.

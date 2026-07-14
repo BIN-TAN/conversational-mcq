@@ -4,8 +4,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { assertNoProhibitedProviderInput, redactForAudit } from "@/lib/agents/redaction";
 import type { AgentName } from "@/lib/agents/names";
-import { getServerEnv } from "@/lib/env";
-import { getLlmRuntimeConfig, LlmConfigurationError, type AgentModelConfig } from "@/lib/llm/config";
+import {
+  getLlmRuntimeConfig,
+  LlmConfigurationError,
+  resolveOpenAIModelConfigForRole,
+  type AgentModelConfig
+} from "@/lib/llm/config";
 import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
@@ -146,10 +150,6 @@ export type ActivityMisconceptionEvidenceLiveEvaluationInput = {
 export type ActivityMisconceptionEvidenceLiveAgentInput =
   ReturnType<typeof buildActivityMisconceptionEvidenceLiveAgentInput>;
 
-function configured(value?: string | null) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
 function hashJson(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -231,28 +231,18 @@ function safeProviderFailureReason(providerResult: StructuredAgentResult<unknown
 }
 
 function resolveActivityEvidenceEvaluatorModelConfig(): AgentModelConfig {
-  const env = getServerEnv();
-  const modelName = [env.OPENAI_MODEL_PROFILE_INTEGRATION, env.OPENAI_MODEL_PLANNING, env.OPENAI_MODEL_FOLLOWUP]
-    .find((value) => configured(value));
-
-  if (!configured(modelName)) {
+  try {
+    return resolveOpenAIModelConfigForRole("post_activity_evidence_evaluator_agent");
+  } catch (error) {
+    if (error instanceof LlmConfigurationError) {
+      throw error;
+    }
     throw new LlmConfigurationError(
       "activity_misconception_evidence_model_missing",
       "OPENAI_MODEL_PROFILE_INTEGRATION, OPENAI_MODEL_PLANNING, or OPENAI_MODEL_FOLLOWUP is required when live activity misconception evidence evaluation is explicitly enabled.",
       { agent_name: ACTIVITY_RESPONSE_EVALUATOR_AGENT_NAME }
     );
   }
-
-  return {
-    model_name: String(modelName),
-    reasoning_effort: (env.OPENAI_REASONING_EFFORT_PLANNING ??
-      env.OPENAI_REASONING_EFFORT_FOLLOWUP) as AgentModelConfig["reasoning_effort"],
-    max_output_tokens:
-      env.OPENAI_MAX_OUTPUT_TOKENS_PROFILE_INTEGRATION ??
-      env.OPENAI_MAX_OUTPUT_TOKENS_PLANNING ??
-      env.OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP ??
-      3000
-  };
 }
 
 async function resolveAuditContext(sessionPublicId: string) {

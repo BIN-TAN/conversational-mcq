@@ -1,0 +1,98 @@
+{
+  "manifest_version": "phase31ad-gpt-5.6-candidate-v1",
+  "approval_state": "candidate_not_approved",
+  "baseline_manifest_path": "config/approved-operational-agent-config.json",
+  "candidate_profile_name": "gpt-5.6 mixed-stack candidate",
+  "evaluation_required": true,
+  "human_review_required": true,
+  "student_facing_operational_use_approved": false,
+  "teacher_tool_use_approved": false,
+  "roles": {
+    "item_verification_agent": {
+      "model_name": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3000
+    },
+    "item_administration_tutor_agent": {
+      "model_name": "gpt-5.6-luna",
+      "reasoning_effort": "low",
+      "max_output_tokens": 1200
+    },
+    "response_collection_agent": {
+      "model_name": "gpt-5.6-luna",
+      "reasoning_effort": "low",
+      "max_output_tokens": 1500
+    },
+    "student_profiling_agent": {
+      "model_name": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 4000
+    },
+    "profile_integration_agent": {
+      "model_name": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3000
+    },
+    "formative_value_and_planning_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3000
+    },
+    "formative_value_determination_agent": {
+      "model_name": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 2500
+    },
+    "followup_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 2500
+    },
+    "formative_activity_dialogue_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3500
+    },
+    "formative_activity_quality_reviewer_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 2500
+    },
+    "formative_activity_response_evaluator_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3000
+    },
+    "post_activity_evidence_evaluator_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3000
+    },
+    "mcq_diagnostic_authoring_assistant_agent": {
+      "model_name": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 2500
+    },
+    "mcq_import_formatting_assistant_agent": {
+      "model_name": "gpt-5.6-luna",
+      "reasoning_effort": "low",
+      "max_output_tokens": 3000
+    },
+    "connectivity_test": {
+      "model_name": "gpt-5.6-luna",
+      "reasoning_effort": "none",
+      "max_output_tokens": 200
+    }
+  },
+  "acceptance_criteria": {
+    "critical_student_facing_leakage": 0,
+    "schema_validation_not_worse_than_baseline": true,
+    "unrecoverable_invalid_output_not_worse_than_baseline": true,
+    "diagnostic_quality_maintained_or_improved": true,
+    "formative_planning_quality_maintained_or_improved": true,
+    "latency_within_operator_approved_range": true,
+    "projected_cost_within_course_limits": true,
+    "no_new_unsupported_claims": true,
+    "no_move_on_or_fallback_regression": true
+  }
+}

@@ -6,8 +6,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import type { AgentName } from "@/lib/agents/names";
 import { assertNoProhibitedProviderInput, redactForAudit } from "@/lib/agents/redaction";
-import { getServerEnv } from "@/lib/env";
-import { getLlmRuntimeConfig, LlmConfigurationError, type AgentModelConfig } from "@/lib/llm/config";
+import {
+  getLlmRuntimeConfig,
+  LlmConfigurationError,
+  resolveOpenAIModelConfigForRole,
+  type AgentModelConfig
+} from "@/lib/llm/config";
 import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
@@ -378,10 +382,6 @@ function prismaJson(value: unknown) {
   return toPrismaJson(value) ?? Prisma.JsonNull;
 }
 
-function configured(value?: string | null) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
 function providerAuditUpdate(providerResult: StructuredAgentResult<unknown>) {
   const rawOutput =
     providerResult.raw_output ?? (
@@ -429,26 +429,18 @@ function providerAuditUpdate(providerResult: StructuredAgentResult<unknown>) {
 }
 
 function resolveProfileIntegrationModelConfig(): AgentModelConfig {
-  const env = getServerEnv();
-  const modelName = [env.OPENAI_MODEL_PROFILE_INTEGRATION, env.OPENAI_MODEL_PLANNING, env.OPENAI_MODEL_FOLLOWUP]
-    .find((value) => configured(value));
-
-  if (!configured(modelName)) {
+  try {
+    return resolveOpenAIModelConfigForRole("profile_integration_agent");
+  } catch (error) {
+    if (error instanceof LlmConfigurationError) {
+      throw error;
+    }
     throw new LlmConfigurationError(
       "profile_integration_model_missing",
       "OPENAI_MODEL_PROFILE_INTEGRATION, OPENAI_MODEL_PLANNING, or OPENAI_MODEL_FOLLOWUP is required when live profile integration is explicitly enabled.",
       { agent_name: PROFILE_INTEGRATION_AGENT_NAME }
     );
   }
-
-  return {
-    model_name: String(modelName),
-    max_output_tokens:
-      env.OPENAI_MAX_OUTPUT_TOKENS_PROFILE_INTEGRATION ??
-      env.OPENAI_MAX_OUTPUT_TOKENS_PLANNING ??
-      env.OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP ??
-      3000
-  };
 }
 
 let profileIntegrationProviderOverrideForTest: LlmProvider | null = null;

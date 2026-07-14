@@ -4,7 +4,11 @@ import path from "node:path";
 import { z } from "zod";
 import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
 import { listAgentPrompts } from "@/lib/agents/prompts/registry";
-import type { AgentModelConfig } from "@/lib/llm/config";
+import {
+  liveModelRoleEnvSources,
+  type AgentModelConfig,
+  type LiveModelRole
+} from "@/lib/llm/config";
 import { getServerEnv } from "@/lib/env";
 
 export const APPROVED_OPERATIONAL_CONFIG_PATH = path.join(
@@ -101,6 +105,67 @@ const agentMaxTokenEnvKeys: Record<AgentNameType, keyof ReturnType<typeof getSer
   followup_agent: "OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP"
 };
 
+const operationalExtensionRoles: LiveModelRole[] = [
+  "item_administration_tutor_agent",
+  "profile_integration_agent",
+  "formative_value_determination_agent",
+  "formative_activity_dialogue_agent",
+  "formative_activity_quality_reviewer_agent",
+  "formative_activity_response_evaluator_agent",
+  "post_activity_evidence_evaluator_agent"
+];
+
+function configuredString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function approvedBaselineModelEquivalent(model: string | null, approvedSnapshot: string) {
+  return model === null || model === approvedSnapshot || model === "gpt-5.4-mini";
+}
+
+function explicitOperationalRuntimeModelOverrides(
+  env: ReturnType<typeof getServerEnv>,
+  approvedConfig: ApprovedOperationalAgentConfig
+) {
+  const sourcesByRole = liveModelRoleEnvSources();
+  const roles = [...AgentName.options, ...operationalExtensionRoles] as LiveModelRole[];
+  const overrides: Record<string, unknown> = {};
+
+  for (const role of roles) {
+    const selectedSource = sourcesByRole[role].find((source) => configuredString(env[source.model]));
+    if (!selectedSource) {
+      continue;
+    }
+
+    const selectedMaxTokensKey = "maxTokens" in selectedSource ? selectedSource.maxTokens : undefined;
+    const model = configuredString(env[selectedSource.model]);
+    const reasoning = configuredString(env[selectedSource.reasoning]);
+    const maxOutputTokens = selectedMaxTokensKey && typeof env[selectedMaxTokensKey] === "number"
+      ? env[selectedMaxTokensKey]
+      : undefined;
+    const approvedMaxOutputTokens = AgentName.safeParse(role).success
+      ? approvedConfig.agents[role as AgentNameType]?.max_output_tokens
+      : selectedSource.defaultMaxTokens;
+    const differs =
+      !approvedBaselineModelEquivalent(model, approvedConfig.model_snapshot) ||
+      (reasoning !== null && reasoning !== approvedConfig.reasoning_effort) ||
+      (maxOutputTokens !== undefined && maxOutputTokens !== approvedMaxOutputTokens);
+
+    if (differs) {
+      overrides[role] = {
+        model_name: model,
+        reasoning_effort: reasoning,
+        max_output_tokens: maxOutputTokens ?? null,
+        model_env_key: selectedSource.model,
+        reasoning_env_key: selectedSource.reasoning,
+        max_output_tokens_env_key: selectedMaxTokensKey ?? null
+      };
+    }
+  }
+
+  return overrides;
+}
+
 function stable(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(stable);
@@ -137,8 +202,9 @@ export function activeOperationalAgentConfigSnapshot() {
   const env = getServerEnv();
   const prompts = Object.fromEntries(listAgentPrompts().map((prompt) => [prompt.agent_name, prompt]));
   const approvedConfig = readApprovedOperationalAgentConfig();
+  const runtimeModelOverrides = explicitOperationalRuntimeModelOverrides(env, approvedConfig);
 
-  return {
+  const snapshot: Record<string, unknown> = {
     model_snapshot: "gpt-5.4-mini-2026-03-17",
     reasoning_effort: "low",
     agents: Object.fromEntries(
@@ -170,6 +236,21 @@ export function activeOperationalAgentConfigSnapshot() {
     safety_validator_version: "eval-safety-v3",
     effective_result_version: env.OPERATIONAL_EFFECTIVE_RESULT_VERSION,
     effective_validator_version: env.OPERATIONAL_EFFECTIVE_VALIDATOR_VERSION
+  };
+
+  if (Object.keys(runtimeModelOverrides).length > 0) {
+    snapshot.runtime_model_overrides = runtimeModelOverrides;
+  }
+
+  return snapshot as {
+    model_snapshot: string;
+    reasoning_effort: string;
+    agents: ApprovedOperationalConfigVerification["active_agents"];
+    semantic_validator_version: string;
+    safety_validator_version: string;
+    effective_result_version: string;
+    effective_validator_version: string;
+    runtime_model_overrides?: Record<string, unknown>;
   };
 }
 

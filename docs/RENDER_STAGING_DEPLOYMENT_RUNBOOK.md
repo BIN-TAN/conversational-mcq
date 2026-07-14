@@ -104,6 +104,35 @@ LLM_SESSION_TOKEN_LIMIT=<pilot limit>
 LLM_AGENT_CALL_LIMIT_PER_SESSION=<pilot limit>
 ```
 
+Optional GPT-5.6 candidate values for a separately approved model-upgrade
+evaluation/rollout only:
+
+```text
+OPENAI_MODEL_ITEM_VERIFICATION=gpt-5.6-terra
+OPENAI_REASONING_EFFORT_ITEM_VERIFICATION=medium
+OPENAI_MODEL_ITEM_ADMIN=gpt-5.6-luna
+OPENAI_REASONING_EFFORT_ITEM_ADMIN=low
+OPENAI_MODEL_RESPONSE_COLLECTION=gpt-5.6-luna
+OPENAI_REASONING_EFFORT_RESPONSE_COLLECTION=low
+OPENAI_MODEL_PROFILING=gpt-5.6-terra
+OPENAI_REASONING_EFFORT_PROFILING=medium
+OPENAI_MODEL_PROFILE_INTEGRATION=gpt-5.6-terra
+OPENAI_REASONING_EFFORT_PROFILE_INTEGRATION=medium
+OPENAI_MODEL_PLANNING=gpt-5.6-sol
+OPENAI_REASONING_EFFORT_PLANNING=medium
+OPENAI_MODEL_FOLLOWUP=gpt-5.6-sol
+OPENAI_REASONING_EFFORT_FOLLOWUP=medium
+OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING=gpt-5.6-terra
+OPENAI_REASONING_EFFORT_MCQ_DIAGNOSTIC_AUTHORING=medium
+OPENAI_MODEL_MCQ_FORMATTING=gpt-5.6-luna
+OPENAI_REASONING_EFFORT_MCQ_FORMATTING=low
+OPENAI_MODEL_CONNECTIVITY_TEST=gpt-5.6-luna
+OPENAI_REASONING_EFFORT_CONNECTIVITY_TEST=none
+```
+
+Do not set the candidate values for classroom use until the candidate
+evaluation and approval workflow outputs a new `OPERATIONAL_APPROVED_CONFIG_HASH`.
+
 `DATABASE_URL` should be wired from Render Postgres by the Blueprint. If Render cannot wire it automatically, use the internal Render Postgres connection string from the database page and set it only in Render's server-side environment variable UI.
 
 Never set `OPENAI_API_KEY`, `DATABASE_URL`, or `SESSION_SECRET` as `NEXT_PUBLIC_` variables.

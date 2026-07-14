@@ -187,7 +187,7 @@ export class OpenAIResponsesProvider implements LlmProvider {
         request.model_config.reasoning_effort !== undefined
           ? { effort: request.model_config.reasoning_effort }
           : undefined;
-      const body = {
+      const body: Record<string, unknown> = {
         model: request.model_config.model_name,
         instructions: request.instructions,
         input: JSON.stringify(request.input),
@@ -208,7 +208,7 @@ export class OpenAIResponsesProvider implements LlmProvider {
         throw new Error("test_only_transport_hook_active_before_fetch");
       }
       const { data, request_id: requestId } = await client.responses
-        .parse(body, {
+        .parse(body as Parameters<typeof client.responses.parse>[0], {
           timeout: request.timeout_ms,
           maxRetries: 0,
           idempotencyKey: request.client_request_id

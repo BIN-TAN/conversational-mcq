@@ -82,9 +82,13 @@ export default async function TeacherLlmSystemPage() {
                 <tr>
                   <th className="px-3 py-2">Agent</th>
                   <th className="px-3 py-2">Model configured</th>
+                  <th className="px-3 py-2">Effective model</th>
+                  <th className="px-3 py-2">Reasoning effort</th>
+                  <th className="px-3 py-2">Max output tokens</th>
                   <th className="px-3 py-2">Prompt version</th>
                   <th className="px-3 py-2">Schema version</th>
                   <th className="px-3 py-2">Prompt status</th>
+                  <th className="px-3 py-2">Approval status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -92,6 +96,9 @@ export default async function TeacherLlmSystemPage() {
                   <tr key={agentName}>
                     <td className="px-3 py-2 font-mono text-xs">{agentName}</td>
                     <td className="px-3 py-2">{value.model_configured ? "yes" : "no"}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{value.effective_model ?? "not configured"}</td>
+                    <td className="px-3 py-2">{value.reasoning_effort ?? "not configured"}</td>
+                    <td className="px-3 py-2">{value.max_output_tokens ?? "not configured"}</td>
                     <td className="px-3 py-2">
                       {promptVersions[agentName] ?? "not registered"}
                     </td>
@@ -100,6 +107,17 @@ export default async function TeacherLlmSystemPage() {
                     </td>
                     <td className="px-3 py-2">
                       {promptStatuses[agentName] ?? "not registered"}
+                    </td>
+                    <td className="px-3 py-2">
+                      {value.compatibility_status === "incompatible"
+                        ? `invalid: ${value.compatibility_issues.join(", ")}`
+                        : value.approval_boundary === "operational_manifest"
+                          ? "active and approved"
+                          : value.approval_boundary === "operational_extension_required"
+                            ? "configured but unapproved"
+                            : value.approval_boundary === "teacher_tool"
+                              ? "teacher tool review"
+                              : "utility"}
                     </td>
                   </tr>
                 ))}

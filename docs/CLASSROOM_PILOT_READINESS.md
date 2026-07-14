@@ -280,6 +280,19 @@ server-side storage is configured. LLM interpretation receives descriptions and
 summaries through `llm_media_context`; it does not receive direct image/video
 content in this phase and must not infer unseen media content from URLs.
 
+## Per-Agent Model Upgrade Readiness
+
+The classroom pilot remains on the approved GPT-5.4-mini baseline until a
+candidate model stack is evaluated and approved. Phase 31ad documents a GPT-5.6
+candidate in `config/candidate-operational-agent-config.gpt-5.6.json`, but that
+artifact is not production approval. Before any candidate rollout, run the
+no-live comparison commands, run the guarded live synthetic evaluation only with
+explicit paid-call approval, complete required human review, then run the
+approval command with the expected candidate hash. Rollback is to restore the
+previous `OPENAI_MODEL_*` and `OPENAI_REASONING_EFFORT_*` values or remove the
+overrides, restore the old `OPERATIONAL_APPROVED_CONFIG_HASH`, redeploy, and
+verify guarded integration status.
+
 ## LLM Diagnostic Context Readiness
 
 The pilot build now includes a shared internal

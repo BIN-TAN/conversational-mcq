@@ -8,10 +8,10 @@ import {
   redactForAudit
 } from "@/lib/agents/redaction";
 import { prisma } from "@/lib/db";
-import { getServerEnv } from "@/lib/env";
 import {
   getLlmRuntimeConfig,
   LlmConfigurationError,
+  resolveOpenAIModelConfigForRole,
   type AgentModelConfig
 } from "@/lib/llm/config";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
@@ -481,10 +481,6 @@ function toRequiredPrismaJson(value: unknown) {
 
 function decodeBase64(input: string): Buffer {
   return Buffer.from(input, "base64");
-}
-
-function configured(value?: string | null) {
-  return typeof value === "string" && value.trim().length > 0;
 }
 
 function safeFileName(value?: string | null) {
@@ -1517,39 +1513,33 @@ export async function withMcqFormattingProviderForTest<T>(
 }
 
 function resolveMcqDiagnosticAuthoringModelConfig(): AgentModelConfig {
-  const env = getServerEnv();
-  const modelName = env.OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING;
-
-  if (!configured(modelName)) {
+  try {
+    return resolveOpenAIModelConfigForRole("mcq_diagnostic_authoring_assistant_agent");
+  } catch (error) {
+    if (error instanceof LlmConfigurationError) {
+      throw error;
+    }
     throw new LlmConfigurationError(
       "mcq_diagnostic_authoring_model_missing",
       "OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING is required for live MCQ diagnostic authoring suggestions.",
       { agent_name: DIAGNOSTIC_ASSISTANT_AGENT_NAME }
     );
   }
-
-  return {
-    model_name: String(modelName),
-    max_output_tokens: env.OPENAI_MAX_OUTPUT_TOKENS_MCQ_DIAGNOSTIC_AUTHORING ?? 2500
-  };
 }
 
 function resolveMcqFormattingModelConfig(): AgentModelConfig {
-  const env = getServerEnv();
-  const modelName = env.OPENAI_MODEL_MCQ_FORMATTING;
-
-  if (!configured(modelName)) {
+  try {
+    return resolveOpenAIModelConfigForRole("mcq_import_formatting_assistant_agent");
+  } catch (error) {
+    if (error instanceof LlmConfigurationError) {
+      throw error;
+    }
     throw new LlmConfigurationError(
       "mcq_formatting_model_missing",
       "OPENAI_MODEL_MCQ_FORMATTING is required for live MCQ formatting assistance.",
       { agent_name: FORMATTING_ASSISTANT_AGENT_NAME }
     );
   }
-
-  return {
-    model_name: String(modelName),
-    max_output_tokens: env.OPENAI_MAX_OUTPUT_TOKENS_MCQ_FORMATTING ?? 3000
-  };
 }
 
 function diagnosticSuggestionMode(candidate: McqImportCandidate) {

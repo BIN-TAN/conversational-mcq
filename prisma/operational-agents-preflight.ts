@@ -4,6 +4,7 @@ import {
   activeOperationalConfigHash,
   verifyApprovedOperationalAgentConfig
 } from "../src/lib/agents/operational/approved-config";
+import { agentModelReadiness } from "../src/lib/llm/config";
 import { getGuardedOperationalAgentIntegrationReadiness } from "../src/lib/operational/guarded-agent-integration";
 
 loadEnvConfig(process.cwd());
@@ -42,6 +43,7 @@ async function main() {
         model_snapshot: readiness.approved_evaluation.model_snapshot,
         reasoning_effort: readiness.approved_evaluation.reasoning_effort,
         active_agent_versions: readiness.active_agent_versions,
+        agent_model_readiness: agentModelReadiness(),
         semantic_validator_version: readiness.approved_evaluation.semantic_validator_version,
         safety_validator_version: readiness.approved_evaluation.safety_validator_version,
         effective_result_version: readiness.config.effective_result_version,

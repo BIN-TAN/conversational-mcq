@@ -16,6 +16,10 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
 3. Teacher login:
    - Expected: approved teacher/research account can sign in, see the green/gold dashboard shell, use Log out, and return to the public landing page.
    - Expected: the assessment dashboard shows the simplified assessment-level cards: Total students, Not started, Started not completed, Completed, and Average time spent. It should use one Participation status chart instead of duplicate status/progress charts.
+   - Expected: `/teacher/system/llm` shows each configured model, reasoning
+     effort, max output token limit, and approval state. If GPT-5.6 candidate
+     variables are configured without a matching approved hash, the page should
+     say the configured model settings are not approved for operational use.
 
 4. Student login:
    - Expected: approved test student can sign in with classroom ID and temporary password/access code or a student-changed password.
@@ -96,4 +100,6 @@ Stop the dry run and do not share the Canvas link if any of these occur:
 - live provider failures show unsafe messages to students;
 - research export is unavailable or includes unapproved protected data;
 - Render logs or browser output expose credentials;
+- GPT-5.6 candidate variables are set but guarded integration is not approved
+  with the matching candidate hash;
 - the Canvas setup attempts LTI, OAuth, grade passback, roster sync, Developer Keys, or Canvas API integration.

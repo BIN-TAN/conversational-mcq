@@ -3,6 +3,16 @@ import { z } from "zod";
 const optionalEnum = <T extends [string, ...string[]]>(values: T) =>
   z.preprocess((value) => (value === "" ? undefined : value), z.enum(values).optional());
 
+const openAiReasoningEffortValues: ["none", "low", "medium", "high", "xhigh", "max"] = [
+  "none",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max"
+];
+const optionalOpenAiReasoningEffort = optionalEnum(openAiReasoningEffortValues);
+
 const optionalPositiveInt = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.coerce.number().int().positive().optional()
@@ -87,23 +97,16 @@ const serverEnvSchema = z.object({
   OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING: z.string().optional(),
   OPENAI_MODEL_MCQ_FORMATTING: z.string().optional(),
   OPENAI_MODEL_CONNECTIVITY_TEST: z.string().optional(),
-  OPENAI_REASONING_EFFORT_ITEM_VERIFICATION: optionalEnum([
-    "none",
-    "minimal",
-    "low",
-    "medium",
-    "high"
-  ]),
-  OPENAI_REASONING_EFFORT_RESPONSE_COLLECTION: optionalEnum([
-    "none",
-    "minimal",
-    "low",
-    "medium",
-    "high"
-  ]),
-  OPENAI_REASONING_EFFORT_PROFILING: optionalEnum(["none", "minimal", "low", "medium", "high"]),
-  OPENAI_REASONING_EFFORT_PLANNING: optionalEnum(["none", "minimal", "low", "medium", "high"]),
-  OPENAI_REASONING_EFFORT_FOLLOWUP: optionalEnum(["none", "minimal", "low", "medium", "high"]),
+  OPENAI_REASONING_EFFORT_ITEM_VERIFICATION: optionalOpenAiReasoningEffort,
+  OPENAI_REASONING_EFFORT_ITEM_ADMIN: optionalOpenAiReasoningEffort,
+  OPENAI_REASONING_EFFORT_RESPONSE_COLLECTION: optionalOpenAiReasoningEffort,
+  OPENAI_REASONING_EFFORT_PROFILING: optionalOpenAiReasoningEffort,
+  OPENAI_REASONING_EFFORT_PROFILE_INTEGRATION: optionalOpenAiReasoningEffort,
+  OPENAI_REASONING_EFFORT_PLANNING: optionalOpenAiReasoningEffort,
+  OPENAI_REASONING_EFFORT_FOLLOWUP: optionalOpenAiReasoningEffort,
+  OPENAI_REASONING_EFFORT_MCQ_DIAGNOSTIC_AUTHORING: optionalOpenAiReasoningEffort,
+  OPENAI_REASONING_EFFORT_MCQ_FORMATTING: optionalOpenAiReasoningEffort,
+  OPENAI_REASONING_EFFORT_CONNECTIVITY_TEST: optionalOpenAiReasoningEffort,
   OPENAI_MAX_OUTPUT_TOKENS_ITEM_VERIFICATION: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_ITEM_ADMIN: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_RESPONSE_COLLECTION: optionalPositiveInt,
@@ -244,6 +247,13 @@ function normalizeEnvIssues(issues: z.ZodIssue[]): EnvConfigurationIssue[] {
       return {
         path,
         message: "expected 'true' or 'false' when set; missing is allowed and defaults to false"
+      };
+    }
+
+    if (path.startsWith("OPENAI_REASONING_EFFORT_")) {
+      return {
+        path,
+        message: "expected one of none, low, medium, high, xhigh, max when set; missing is allowed"
       };
     }
 
