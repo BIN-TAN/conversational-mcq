@@ -17,6 +17,14 @@ function source(file: string) {
   return readFileSync(path.join(process.cwd(), file), "utf8");
 }
 
+function assertIncludes(value: string, expected: string, label: string) {
+  assert(value.includes(expected), `${label} should include ${expected}.`);
+}
+
+function assertNotIncludes(value: string, unexpected: string, label: string) {
+  assert(!value.includes(unexpected), `${label} should not include ${unexpected}.`);
+}
+
 function main() {
   const entries = buildAnalysisReadyDictionaryEntries();
   assert(entries.length > 80, "Dictionary fixture should contain more than 80 variables.");
@@ -63,6 +71,16 @@ function main() {
   assert(clientSource.includes("setDictionaryPage(1);"), "Changing filters or page size should reset to page 1.");
   assert(clientSource.includes("Showing {dictionary.first_visible_row}-{dictionary.last_visible_row}"), "Visible row range should be shown.");
   assert(clientSource.includes("Page {dictionary.page} of {dictionary.total_pages}"), "Current page and total pages should be shown.");
+  assertIncludes(clientSource, "Search variables", "Dictionary UI");
+  assertIncludes(clientSource, "Category", "Dictionary UI");
+  assertIncludes(clientSource, "Page size", "Dictionary UI");
+  assertIncludes(clientSource, "Directly recorded or derived", "Dictionary UI");
+  assertIncludes(clientSource, "Deprecated status", "Dictionary UI");
+  assertNotIncludes(clientSource, "All tables", "Dictionary UI");
+  assertNotIncludes(clientSource, "All source types", "Dictionary UI");
+  assertNotIncludes(clientSource, "All privacy levels", "Dictionary UI");
+  assertNotIncludes(clientSource, "All export tiers", "Dictionary UI");
+  assertNotIncludes(clientSource, "All field families", "Dictionary UI");
 
   console.log(
     JSON.stringify(

@@ -253,12 +253,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
   const [dictionary, setDictionary] = useState<DataDictionaryResponse | null>(null);
   const [dictionarySearch, setDictionarySearch] = useState("");
   const [dictionaryCategoryFilter, setDictionaryCategoryFilter] = useState("all");
-  const [dictionaryTableFilter, setDictionaryTableFilter] = useState("all");
-  const [dictionarySourceFilter, setDictionarySourceFilter] = useState("all");
-  const [dictionaryPrivacyFilter, setDictionaryPrivacyFilter] = useState("all");
-  const [dictionaryTierFilter, setDictionaryTierFilter] = useState("all");
   const [dictionaryDerivationFilter, setDictionaryDerivationFilter] = useState("all");
-  const [dictionaryFamilyFilter, setDictionaryFamilyFilter] = useState("all");
   const [dictionaryDeprecatedFilter, setDictionaryDeprecatedFilter] = useState("all");
   const [dictionaryPage, setDictionaryPage] = useState(1);
   const [dictionaryPageSize, setDictionaryPageSize] = useState(100);
@@ -305,26 +300,16 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
         page_size: dictionaryPageSize,
         search: dictionarySearch.trim(),
         category: dictionaryCategoryFilter,
-        table_name: dictionaryTableFilter,
-        source_type: dictionarySourceFilter,
-        privacy_level: dictionaryPrivacyFilter,
-        export_tier: dictionaryTierFilter,
         derivation: dictionaryDerivationFilter,
-        field_family: dictionaryFamilyFilter,
         deprecated: dictionaryDeprecatedFilter
       }),
     [
       dictionaryCategoryFilter,
       dictionaryDeprecatedFilter,
       dictionaryDerivationFilter,
-      dictionaryFamilyFilter,
       dictionaryPage,
       dictionaryPageSize,
-      dictionaryPrivacyFilter,
       dictionarySearch,
-      dictionarySourceFilter,
-      dictionaryTableFilter,
-      dictionaryTierFilter
     ]
   );
 
@@ -501,7 +486,6 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
               <DownloadLink disabled={!hasData} href={datasetHref} label="Generate research dataset" />
-              <DownloadLink href={`/api/teacher/research-data/dictionary${dictionaryDownloadQuery}`} label="Download data dictionary CSV" />
             </div>
           </section>
 
@@ -564,11 +548,8 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
             <DownloadLink href={`/api/teacher/research-data/dictionary${dictionaryDownloadQuery}`} label="Download filtered dictionary CSV" />
-            <a className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink hover:border-accent" href={`/api/teacher/research-data/dictionary?${dictionaryQuery.toString()}`}>
-              View current page JSON
-            </a>
           </div>
-          <div className="mt-5 grid gap-3 lg:grid-cols-4">
+          <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
             <label className="flex flex-col gap-2 text-sm font-medium text-ink">
               Search variables
               <input
@@ -595,86 +576,6 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
                 <option value="all">All categories</option>
                 {(dictionary?.filter_options.categories ?? []).map((category) => (
                   <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-              Table
-              <select
-                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-                onChange={(event) => {
-                  setDictionaryTableFilter(event.target.value);
-                  resetDictionaryPage();
-                }}
-                value={dictionaryTableFilter}
-              >
-                <option value="all">All tables</option>
-                {(dictionary?.filter_options.table_names ?? []).map((table) => (
-                  <option key={table} value={table}>{table}</option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-              Source type
-              <select
-                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-                onChange={(event) => {
-                  setDictionarySourceFilter(event.target.value);
-                  resetDictionaryPage();
-                }}
-                value={dictionarySourceFilter}
-              >
-                <option value="all">All source types</option>
-                {(dictionary?.filter_options.source_types ?? []).map((sourceType) => (
-                  <option key={sourceType} value={sourceType}>{sourceType}</option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-              Privacy
-              <select
-                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-                onChange={(event) => {
-                  setDictionaryPrivacyFilter(event.target.value);
-                  resetDictionaryPage();
-                }}
-                value={dictionaryPrivacyFilter}
-              >
-                <option value="all">All privacy levels</option>
-                {(dictionary?.filter_options.privacy_levels ?? []).map((privacyLevel) => (
-                  <option key={privacyLevel} value={privacyLevel}>{privacyLevel}</option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-              Export tier
-              <select
-                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-                onChange={(event) => {
-                  setDictionaryTierFilter(event.target.value);
-                  resetDictionaryPage();
-                }}
-                value={dictionaryTierFilter}
-              >
-                <option value="all">All export tiers</option>
-                {(dictionary?.filter_options.export_tiers ?? []).map((tier) => (
-                  <option key={tier} value={tier}>{tier}</option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-              Field family
-              <select
-                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-                onChange={(event) => {
-                  setDictionaryFamilyFilter(event.target.value);
-                  resetDictionaryPage();
-                }}
-                value={dictionaryFamilyFilter}
-              >
-                <option value="all">All field families</option>
-                {(dictionary?.filter_options.field_families ?? []).map((family) => (
-                  <option key={family} value={family}>{family}</option>
                 ))}
               </select>
             </label>
@@ -765,42 +666,52 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
                   <button className="rounded-md border border-line bg-white px-3 py-1 font-semibold disabled:text-slate-400" disabled={dictionary.page >= dictionary.total_pages} onClick={() => setDictionaryPage(dictionary.total_pages)} type="button">Last</button>
                 </div>
               </div>
-              <div className="overflow-x-auto rounded-lg border border-line">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
-                    <tr>
-                      <th className="px-3 py-2">Variable</th>
-                      <th className="px-3 py-2">Category</th>
-                      <th className="px-3 py-2">Table</th>
-                      <th className="px-3 py-2">Type</th>
-                      <th className="px-3 py-2">Source</th>
-                      <th className="px-3 py-2">Privacy</th>
-                      <th className="px-3 py-2">Export tier</th>
-                      <th className="px-3 py-2">Definition and method</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {dictionary.rows.map((entry) => (
-                      <tr key={`${entry.table_name}.${entry.variable_name}`}>
-                        <td className="px-3 py-2 font-mono text-xs">{entry.variable_name}</td>
-                        <td className="px-3 py-2">{entry.category}</td>
-                        <td className="px-3 py-2">{entry.table_name}</td>
-                        <td className="px-3 py-2">{entry.data_type}</td>
-                        <td className="px-3 py-2">{entry.source_type}</td>
-                        <td className="px-3 py-2">{entry.privacy_level}</td>
-                        <td className="px-3 py-2">{entry.export_tier}</td>
-                        <td className="max-w-xl px-3 py-2 text-muted">
-                          <span>{entry.definition}</span>
-                          <span className="mt-1 block">{entry.collection_or_generation_method}</span>
-                          <span className="mt-1 block text-ink">{entry.interpretation_guidance}</span>
+              <div className="space-y-3" aria-label="Data dictionary variable list">
+                {dictionary.rows.map((entry) => (
+                  <article
+                    className="rounded-lg border border-line bg-white p-4 shadow-soft"
+                    key={`${entry.table_name}.${entry.variable_name}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Variable</p>
+                        <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">
+                          {entry.variable_name}
+                        </h3>
+                      </div>
+                      <span className="rounded-full border border-line bg-slate-50 px-3 py-1 text-xs font-semibold text-ink">
+                        {entry.category}
+                      </span>
+                    </div>
+                    <dl className="mt-4 grid gap-4 md:grid-cols-2">
+                      <div>
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Type</dt>
+                        <dd className="mt-1 text-sm text-ink">{entry.data_type}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Category</dt>
+                        <dd className="mt-1 text-sm text-ink">{entry.category}</dd>
+                      </div>
+                      <div className="md:col-span-2">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Definition</dt>
+                        <dd className="mt-1 max-w-4xl text-sm leading-6 text-ink">
+                          {entry.definition}
                           {entry.interpretation_caution ? (
                             <span className="mt-1 block text-amber-800">{entry.interpretation_caution}</span>
                           ) : null}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </dd>
+                      </div>
+                      <div className="md:col-span-2">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+                          Collection or generation method
+                        </dt>
+                        <dd className="mt-1 max-w-4xl text-sm leading-6 text-muted">
+                          {entry.collection_or_generation_method}
+                        </dd>
+                      </div>
+                    </dl>
+                  </article>
+                ))}
               </div>
             </div>
           ) : null}

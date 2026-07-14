@@ -46,8 +46,12 @@ function main() {
   assertIncludes(unifiedClient, "Previous", "Unified research export client");
   assertIncludes(unifiedClient, "Next", "Unified research export client");
   assertIncludes(unifiedClient, "Last", "Unified research export client");
-  assertIncludes(unifiedClient, "All privacy levels", "Unified research export client");
-  assertIncludes(unifiedClient, "All export tiers", "Unified research export client");
+  assertIncludes(unifiedClient, "Directly recorded or derived", "Unified research export client");
+  assertIncludes(unifiedClient, "Deprecated status", "Unified research export client");
+  assertNotIncludes(unifiedClient, "All privacy levels", "Unified research export client");
+  assertNotIncludes(unifiedClient, "All export tiers", "Unified research export client");
+  assertNotIncludes(unifiedClient, "All source types", "Unified research export client");
+  assertNotIncludes(unifiedClient, "All field families", "Unified research export client");
   assertIncludes(unifiedClient, "No data are available for the selected scope", "Unified research export client");
   assertIncludes(unifiedClient, "Generate research dataset", "Unified research export client");
   assertNotIncludes(unifiedClient, "Generate analysis-ready ZIP", "Unified research export client");

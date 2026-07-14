@@ -64,6 +64,7 @@
     "student:research-export-simplification-smoke": "tsx prisma/student-research-export-simplification-smoke-test.ts",
     "student:data-dictionary-pagination-smoke": "tsx prisma/student-data-dictionary-pagination-smoke-test.ts",
     "student:data-dictionary-taxonomy-smoke": "tsx prisma/student-data-dictionary-taxonomy-smoke-test.ts",
+    "student:data-dictionary-list-ui-smoke": "tsx prisma/student-data-dictionary-list-ui-smoke-test.ts",
     "student:teacher-mcq-import-smoke": "tsx prisma/teacher-mcq-import-smoke-test.ts",
     "student:teacher-mcq-docx-import-smoke": "tsx prisma/teacher-mcq-docx-import-smoke-test.ts",
     "student:teacher-mcq-formatting-assistant-smoke": "tsx prisma/teacher-mcq-formatting-assistant-smoke-test.ts",
