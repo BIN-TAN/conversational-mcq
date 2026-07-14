@@ -1,20 +1,24 @@
 import { stringify } from "csv-stringify/sync";
 import { processEventTypes } from "@/lib/domain/enums";
 
-export const ANALYSIS_READY_EXPORT_VERSION = "analysis-ready-research-export-v1" as const;
-export const RESEARCH_DATA_DICTIONARY_VERSION = "research-data-dictionary-v1" as const;
+export const RESEARCH_DATASET_EXPORT_VERSION = "research-dataset-v1" as const;
+export const ANALYSIS_READY_EXPORT_VERSION = RESEARCH_DATASET_EXPORT_VERSION;
+export const RESEARCH_DATA_DICTIONARY_VERSION = "research-data-dictionary-v2" as const;
 
-export const ANALYSIS_READY_TABLES = [
+export const RESEARCH_DATASET_TABLES = [
   "sessions",
   "item_responses",
   "process_events",
   "conversation_turns",
-  "agent_and_activity_records",
+  "agent_activity_records",
   "assessment_content",
+  "assessment_summary",
   "data_dictionary"
 ] as const;
 
-export type AnalysisReadyTableName = (typeof ANALYSIS_READY_TABLES)[number];
+export const ANALYSIS_READY_TABLES = RESEARCH_DATASET_TABLES;
+
+export type AnalysisReadyTableName = (typeof RESEARCH_DATASET_TABLES)[number];
 
 export const SESSIONS_COLUMNS = [
   "student_id",
@@ -200,7 +204,7 @@ export const CONVERSATION_TURNS_COLUMNS = [
   "limitation_code"
 ] as const;
 
-export const AGENT_AND_ACTIVITY_RECORDS_COLUMNS = [
+export const AGENT_ACTIVITY_RECORDS_COLUMNS = [
   "record_type",
   "session_public_id",
   "student_id",
@@ -256,6 +260,8 @@ export const AGENT_AND_ACTIVITY_RECORDS_COLUMNS = [
   "next_action"
 ] as const;
 
+export const AGENT_AND_ACTIVITY_RECORDS_COLUMNS = AGENT_ACTIVITY_RECORDS_COLUMNS;
+
 export const ASSESSMENT_CONTENT_COLUMNS = [
   "assessment_public_id",
   "assessment_snapshot_public_id",
@@ -281,7 +287,36 @@ export const ASSESSMENT_CONTENT_COLUMNS = [
   "snapshot_created_at"
 ] as const;
 
+export const ASSESSMENT_SUMMARY_COLUMNS = [
+  "student_id",
+  "student_public_id",
+  "assessment_public_id",
+  "assessment_title",
+  "session_public_id",
+  "attempt_number",
+  "session_status",
+  "completion_status",
+  "started_at",
+  "completed_at",
+  "item_response_count",
+  "completed_initial_item_count",
+  "process_event_count",
+  "conversation_turn_count",
+  "agent_call_count",
+  "formative_activity_attempt_count",
+  "latest_student_safe_status",
+  "assessment_specific_understanding_category",
+  "engagement_review_category",
+  "evidence_sufficiency",
+  "elapsed_session_time_ms",
+  "active_interaction_time_ms",
+  "unsupported_correct_response_count",
+  "estimated_guessing_risk_max",
+  "summary_limitations"
+] as const;
+
 export const DATA_DICTIONARY_COLUMNS = [
+  "category",
   "table_name",
   "variable_name",
   "display_name",
@@ -295,18 +330,18 @@ export const DATA_DICTIONARY_COLUMNS = [
   "zero_value_meaning",
   "source_type",
   "source_table_or_event",
-  "generation_method",
+  "collection_or_generation_method",
   "calculation_formula",
   "timing_start_event",
   "timing_end_event",
   "aggregation_rule",
   "attempt_policy",
   "version_binding",
+  "interpretation_guidance",
+  "interpretation_caution",
   "privacy_level",
   "export_tier",
-  "interpretation_caution",
   "example_value",
-  "introduced_schema_version",
   "deprecated",
   "notes"
 ] as const;
@@ -318,9 +353,10 @@ const ROW_GRAINS: Record<AnalysisReadyTableName, string> = {
   item_responses: "one row per student response to one administered item snapshot",
   process_events: "one row per recorded process event",
   conversation_turns: "one row per visible or research-readable conversation turn",
-  agent_and_activity_records:
+  agent_activity_records:
     "one row per agent call, workflow decision, formative activity attempt, or diagnostic update record",
   assessment_content: "one row per administered item snapshot",
+  assessment_summary: "one row per student-assessment attempt summary",
   data_dictionary: "one row per exported or classified variable"
 };
 
@@ -329,10 +365,30 @@ const TABLE_COLUMNS: Record<AnalysisReadyTableName, readonly string[]> = {
   item_responses: ITEM_RESPONSES_COLUMNS,
   process_events: PROCESS_EVENTS_COLUMNS,
   conversation_turns: CONVERSATION_TURNS_COLUMNS,
-  agent_and_activity_records: AGENT_AND_ACTIVITY_RECORDS_COLUMNS,
+  agent_activity_records: AGENT_ACTIVITY_RECORDS_COLUMNS,
   assessment_content: ASSESSMENT_CONTENT_COLUMNS,
+  assessment_summary: ASSESSMENT_SUMMARY_COLUMNS,
   data_dictionary: DATA_DICTIONARY_COLUMNS
 };
+
+export const DATA_DICTIONARY_PAGE_SIZES = [25, 50, 100, 250, 500] as const;
+
+export const DATA_DICTIONARY_CATEGORIES = [
+  "Assessment system variables",
+  "Assessment variables",
+  "Session and participation variables",
+  "Process and response data",
+  "Timing and interaction data",
+  "Diagnostic and interpretation data",
+  "Formative activity and follow-up data",
+  "Outcome data",
+  "LLM and workflow audit data",
+  "Export, provenance, and versioning data",
+  "Account and access data",
+  "Internal security data"
+] as const;
+
+export type DataDictionaryCategory = (typeof DATA_DICTIONARY_CATEGORIES)[number];
 
 const RESTRICTED_COLUMNS = new Set([
   "correct_option",
@@ -409,6 +465,7 @@ function sourceType(variable: string) {
   if (LLM_INTERPRETIVE_COLUMNS.has(variable)) return "persisted LLM output";
   if (RESTRICTED_COLUMNS.has(variable)) return "restricted answer-key field";
   if (variable.includes("diagnostic") || variable.includes("teacher_guidance")) return "teacher-authored metadata";
+  if (variable.includes("outcome")) return "externally imported outcome";
   if (variable.startsWith("export_") || variable.includes("schema_version") || variable.includes("commit")) return "system configuration";
   return "directly recorded";
 }
@@ -422,10 +479,45 @@ function privacyLevel(variable: string) {
 }
 
 function exportTier(table: string, variable: string) {
-  if (RESTRICTED_COLUMNS.has(variable)) return "full archive only";
-  if (table === "data_dictionary") return "analysis-ready";
-  if (table.startsWith("prisma.")) return "classified inventory";
-  return "analysis-ready";
+  if (/password|access_code|token_hash|session_secret|cookie|api_key|database_url/i.test(variable)) {
+    return "never_exported";
+  }
+  if (RESTRICTED_COLUMNS.has(variable)) return "restricted_research_dataset";
+  if (table === "data_dictionary") return "research_dataset";
+  if (table.startsWith("prisma.")) return prismaFieldExportTier(variable);
+  return "research_dataset";
+}
+
+function categoryFor(table: string, variable: string): DataDictionaryCategory {
+  if (/password|access_code|token_hash|secret|cookie|api_key|database_url/i.test(variable)) return "Internal security data";
+  if (/user_id|email|role|account|credential|login|teacher_user/i.test(variable)) return "Account and access data";
+  if (/export_|schema_version|version|snapshot|hash|commit|fingerprint|context_|source_|provenance/i.test(variable)) {
+    return "Export, provenance, and versioning data";
+  }
+  if (table === "agent_activity_records" || table === "prisma.AgentCall" || table === "prisma.WorkflowJob" || /agent|provider|model|prompt|token|workflow|retry|validated|blocked|repair/i.test(variable)) {
+    return "LLM and workflow audit data";
+  }
+  if (table === "assessment_content" || table === "prisma.Assessment" || table === "prisma.ConceptUnit" || table === "prisma.Item" || table === "prisma.ItemMediaAsset" || /stem|option|media|diagnostic_focus|teacher_llm|distractor|correct_option|item_|assessment_title/i.test(variable)) {
+    return "Assessment variables";
+  }
+  if (table === "sessions" || table === "assessment_summary" || table === "prisma.AssessmentSession" || table === "prisma.ConceptUnitSession" || /session_status|attempt|phase|started_at|completed_at|resumed_at|current_|completion|participation/i.test(variable)) {
+    return "Session and participation variables";
+  }
+  if (table === "process_events" || table === "conversation_turns" || table === "item_responses" || table === "process_event_type_inventory" || /selected_option|reasoning|confidence|tempting|skipped|revision|event_|turn_|message|response_/i.test(variable)) {
+    if (variable.endsWith("_ms") || /time|latency|duration|pause|idle|hidden|typing/i.test(variable)) {
+      return "Timing and interaction data";
+    }
+    return "Process and response data";
+  }
+  if (/understanding|engagement|profile|misconception|evidence_sufficiency|interpretation|alternative|guessing/i.test(variable)) {
+    return "Diagnostic and interpretation data";
+  }
+  if (/formative|activity|followup|revision|transfer|post_activity|snapshot/i.test(variable)) {
+    return "Formative activity and follow-up data";
+  }
+  if (/correctness|outcome|score|completed/i.test(variable)) return "Outcome data";
+  if (/status|mode|included|published|archived|created_at|updated_at/i.test(variable)) return "Assessment system variables";
+  return "Assessment system variables";
 }
 
 function definition(table: string, variable: string) {
@@ -453,6 +545,61 @@ function definition(table: string, variable: string) {
     overrides[variable] ??
     `${titleize(variable)} exported from ${table}. See source and generation fields for how it is recorded or derived.`
   );
+}
+
+function collectionMethod(table: string, variable: string) {
+  const overrides: Record<string, string> = {
+    selected_option: "Recorded when the student submits or confirms an option selection for the administered item snapshot.",
+    reasoning_text: "Recorded from the student's submitted reasoning response for the current item.",
+    confidence_rating: "Recorded when the student selects the confidence control for the administered item.",
+    tempting_option: "Recorded from the student's submitted tempting-option response when one is provided.",
+    tempting_option_reason: "Recorded from the student's explanation of why another option seemed tempting.",
+    time_to_first_action_ms:
+      "Calculated as the timestamp difference between item presentation or item start and the first qualifying student-action event for the same item.",
+    option_revision_count: "Count of valid option changes after the first recorded option selection for one item response.",
+    assessment_specific_understanding_category:
+      "Persisted output from the assessment-specific profile/evidence integration workflow using response package, item evidence, and process context.",
+    engagement_review_category:
+      "Persisted evidence-quality review output from the profile integration or engagement evidence workflow; agent and prompt/schema provenance are recorded in adjacent audit fields when available; it is not a motivation or misconduct label.",
+    misconception_hypothesis:
+      "Generated by the validated profile/activity interpretation agent workflow or teacher-reviewed as a tentative interpretation from response-package evidence. It is inferred, not directly observed.",
+    event_type: "Recorded by frontend, backend, agent, or workflow services when the named process event occurs.",
+    provider: "Recorded by the agent execution audit layer when an LLM or mock provider call is attempted.",
+    total_token_count: "Recorded from provider usage metadata when available, or left null when unavailable."
+  };
+  if (overrides[variable]) return overrides[variable];
+  if (variable.endsWith("_count")) return "Calculated by counting matching records or process events within the documented row grain.";
+  if (variable.endsWith("_ms")) return "Calculated from recorded timestamps or timing payload fields identified by the timing start/end columns.";
+  if (LLM_INTERPRETIVE_COLUMNS.has(variable)) {
+    return "Generated by a validated LLM-backed or effective-system interpretation workflow from response packages, process evidence, and approved context; generating agent and prompt/schema versions are recorded in agent/workflow audit fields when available; missing values mean no valid output was recorded.";
+  }
+  if (sourceType(variable) === "teacher-authored metadata") return "Recorded when a teacher authors or imports assessment/item diagnostic context.";
+  if (sourceType(variable) === "externally imported outcome") return "Imported from a teacher-provided summative outcome batch and linked by the validated import workflow.";
+  if (sourceType(variable) === "system configuration") return "Generated by the export/runtime service from version, snapshot, or application provenance metadata.";
+  if (table.startsWith("prisma.")) return "Persisted by application services in the normalized database; see the model and field name for the owning workflow.";
+  return "Read from persisted relational records or safe flattened payload fields for the documented row grain.";
+}
+
+function interpretationGuidance(variable: string) {
+  if (LLM_INTERPRETIVE_COLUMNS.has(variable) || /misconception|guessing|engagement|understanding|profile/i.test(variable)) {
+    return "Use as assessment-context evidence requiring human interpretation; do not treat it as a stable trait or ground truth.";
+  }
+  if (variable.endsWith("_ms") || /time|latency|duration|pause|idle|hidden|typing/i.test(variable)) {
+    return "Use as process context. Short or long timing alone does not prove understanding, guessing, disengagement, cheating, or misconduct.";
+  }
+  if (/correct_option|correctness/i.test(variable)) return "Restricted scoring/key context for teacher/research analysis only; never show to students during protected phases.";
+  if (/password|access_code|hash|secret|cookie|token/i.test(variable)) return "Documented only to prevent export; values must never be exposed.";
+  return "Interpret within the documented row grain and alongside adjacent status and limitation fields.";
+}
+
+function interpretationCaution(variable: string) {
+  if (LLM_INTERPRETIVE_COLUMNS.has(variable)) return "LLM-derived interpretive signal; not a directly observed fact, not a stable trait, and not ground truth.";
+  if (/misconception|guessing/i.test(variable)) return "Inferred hypothesis; not confirmed misconception or confirmed guessing.";
+  if (/engagement/i.test(variable)) return "Evidence-quality signal; not a motivation, effort, cheating, or misconduct label.";
+  if (variable.endsWith("_ms") || /latency|duration|pause|idle|hidden|typing/i.test(variable)) {
+    return "Timing context may include reading, thinking, idle, connectivity, or device effects.";
+  }
+  return "";
 }
 
 function timingStart(variable: string) {
@@ -484,6 +631,7 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
   for (const [tableName, columns] of Object.entries(TABLE_COLUMNS)) {
     for (const variable of columns) {
       entries.push({
+        category: categoryFor(tableName, variable),
         table_name: tableName,
         variable_name: variable,
         display_name: titleize(variable),
@@ -505,13 +653,11 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
         zero_value_meaning: variable.endsWith("_count") ? "Instrumented count was evaluated and the event did not occur." : "",
         source_type: sourceType(variable),
         source_table_or_event: tableName,
-        generation_method:
-          variable.endsWith("_count")
-            ? "Calculated during export from scoped relational records."
-            : variable.endsWith("_ms")
-              ? "Calculated from recorded timestamps or process-feature rows when available."
-              : "Read from persisted relational records or safe flattened payload fields.",
-        calculation_formula: variable.endsWith("_ms") ? `${timingEnd(variable)} minus ${timingStart(variable)}` : "",
+        collection_or_generation_method: collectionMethod(tableName, variable),
+        calculation_formula:
+          variable.endsWith("_ms") && timingStart(variable) && timingEnd(variable)
+            ? `${timingEnd(variable)} minus ${timingStart(variable)}`
+            : "",
         timing_start_event: timingStart(variable),
         timing_end_event: timingEnd(variable),
         aggregation_rule: variable.endsWith("_count") ? "Count matching records/events within the row grain." : "",
@@ -520,16 +666,14 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
           variable.includes("snapshot") || variable.includes("context") || variable.includes("schema")
             ? "Bound to exported snapshot/context/schema metadata."
             : "",
+        interpretation_guidance: interpretationGuidance(variable),
+        interpretation_caution: interpretationCaution(variable),
         privacy_level: privacyLevel(variable),
         export_tier: exportTier(tableName, variable),
-        interpretation_caution: LLM_INTERPRETIVE_COLUMNS.has(variable)
-          ? "Interpretive assessment-specific signal, not a stable trait or definitive measurement."
-          : "",
         example_value: "",
-        introduced_schema_version: ANALYSIS_READY_EXPORT_VERSION,
         deprecated: "false",
         notes: RESTRICTED_COLUMNS.has(variable)
-          ? "Excluded from default analysis-ready exports unless explicitly requested in restricted research mode."
+          ? "Excluded from default research dataset exports unless explicitly requested in restricted research mode."
           : ""
       });
     }
@@ -537,6 +681,7 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
 
   for (const eventType of processEventTypes) {
     entries.push({
+      category: "Process and response data",
       table_name: "process_event_type_inventory",
       variable_name: eventType,
       display_name: titleize(eventType),
@@ -550,18 +695,20 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
       zero_value_meaning: "A count of zero means no matching event occurred in the export scope.",
       source_type: "directly recorded",
       source_table_or_event: "process_events.event_type",
-      generation_method: "Logged by frontend/backend/agent/system services when the named event occurs.",
+      collection_or_generation_method:
+        `Logged by frontend, backend, agent, or workflow services when the ${eventType} process event occurs; payload fields are flattened only when allow-listed.`,
       calculation_formula: "",
       timing_start_event: "",
       timing_end_event: "",
       aggregation_rule: "Counts are scoped by session, item, or export query when used in derived variables.",
       attempt_policy: "Events remain scoped to their session_public_id.",
       version_binding: "Domain enum at export time.",
-      privacy_level: "ordinary teacher data",
-      export_tier: "analysis-ready",
+      interpretation_guidance:
+        "Use as directly recorded process context within session/item scope. Event presence or absence alone is not a learner trait or misconduct finding.",
       interpretation_caution: "Process events are context signals and do not prove misconduct or stable traits.",
+      privacy_level: "ordinary teacher data",
+      export_tier: "research_dataset",
       example_value: eventType,
-      introduced_schema_version: RESEARCH_DATA_DICTIONARY_VERSION,
       deprecated: "false",
       notes: ""
     });
@@ -698,15 +845,15 @@ const RESEARCH_RELEVANT_MODEL_FIELDS: Record<string, readonly string[]> = {
 
 function prismaFieldExportTier(field: string) {
   if (/password|access_code|token_hash|session|cookie|secret|database_url/i.test(field)) {
-    return "never exported";
+    return "never_exported";
   }
   if (/^id$|_db_id$|hash$|_hash$|raw_output|input_payload|raw_provider|prompt_hash/i.test(field)) {
-    return "full archive only";
+    return "advanced_archive_only";
   }
   if (/correct_option|correctness|distractor|misconception|diagnostic_focus|teacher_llm/i.test(field)) {
-    return "full archive only";
+    return "restricted_research_dataset";
   }
-  return "analysis-ready";
+  return "research_dataset";
 }
 
 function prismaFieldPrivacy(field: string) {
@@ -725,6 +872,7 @@ function prismaFieldPrivacy(field: string) {
 export function prismaFieldClassificationEntries(): DataDictionaryEntry[] {
   return Object.entries(RESEARCH_RELEVANT_MODEL_FIELDS).flatMap(([modelName, fields]) =>
     fields.map((field) => ({
+      category: categoryFor(`prisma.${modelName}`, field),
       table_name: `prisma.${modelName}`,
       variable_name: field,
       display_name: `${modelName}.${field}`,
@@ -736,28 +884,26 @@ export function prismaFieldClassificationEntries(): DataDictionaryEntry[] {
       nullable: "see Prisma schema",
       missing_value_meaning: "See Prisma schema nullability and adjacent status fields.",
       zero_value_meaning: field.endsWith("_count") ? "Instrumented count was evaluated and did not occur." : "",
-      source_type: prismaFieldExportTier(field) === "never exported"
+      source_type: prismaFieldExportTier(field) === "never_exported"
         ? "secret credential field"
-        : prismaFieldExportTier(field) === "full archive only"
+        : prismaFieldExportTier(field) === "advanced_archive_only" || prismaFieldExportTier(field) === "restricted_research_dataset"
           ? "internal audit or restricted field"
           : "directly recorded",
       source_table_or_event: modelName,
-      generation_method: "Persisted by application services in the normalized database.",
+      collection_or_generation_method: collectionMethod(`prisma.${modelName}`, field),
       calculation_formula: "",
       timing_start_event: "",
       timing_end_event: "",
       aggregation_rule: "",
       attempt_policy: "Session-scoped fields remain separated by session_public_id and attempt_number where applicable.",
       version_binding: "",
+      interpretation_guidance: interpretationGuidance(field),
+      interpretation_caution: interpretationCaution(field),
       privacy_level: prismaFieldPrivacy(field),
       export_tier: prismaFieldExportTier(field),
-      interpretation_caution: /profile|diagnostic|formative|engagement|ability/i.test(field)
-        ? "Interpretive field; use as assessment-context evidence rather than a stable trait."
-        : "",
       example_value: "",
-      introduced_schema_version: RESEARCH_DATA_DICTIONARY_VERSION,
       deprecated: "false",
-      notes: prismaFieldExportTier(field) === "never exported" ? "Classified to prevent accidental export." : ""
+      notes: prismaFieldExportTier(field) === "never_exported" ? "Classified to prevent accidental export." : ""
     }))
   );
 }
@@ -777,6 +923,110 @@ export function dataDictionaryCsv(entries = buildAnalysisReadyDictionaryEntries(
   );
 }
 
+export type DictionaryFilters = {
+  search?: string;
+  category?: string;
+  table_name?: string;
+  source_type?: string;
+  privacy_level?: string;
+  export_tier?: string;
+  derivation?: string;
+  field_family?: string;
+  deprecated?: string;
+};
+
+export type DictionaryPageQuery = DictionaryFilters & {
+  page?: number;
+  page_size?: number;
+};
+
+function isAllowedPageSize(value: number): value is (typeof DATA_DICTIONARY_PAGE_SIZES)[number] {
+  return DATA_DICTIONARY_PAGE_SIZES.includes(value as (typeof DATA_DICTIONARY_PAGE_SIZES)[number]);
+}
+
+function fieldFamily(entry: DataDictionaryEntry) {
+  const combined = `${entry.category} ${entry.variable_name} ${entry.source_type}`.toLowerCase();
+  if (/llm|agent|provider|model|prompt|workflow/.test(combined)) return "LLM fields";
+  if (/time|timing|latency|duration|pause|idle|hidden|typing|_ms/.test(combined)) return "Timing fields";
+  if (/process|event|response|reasoning|confidence|selected|tempting|turn/.test(combined)) return "Process/response fields";
+  return "Other fields";
+}
+
+function derivationKind(entry: DataDictionaryEntry) {
+  if (/derived|calculated|count|timestamp|LLM|interpretation|system configuration|externally imported/i.test(entry.source_type)) {
+    return "derived_or_generated";
+  }
+  return "directly_recorded";
+}
+
+export function dictionaryFilterOptions(entries = buildAnalysisReadyDictionaryEntries()) {
+  const unique = (values: string[]) => [...new Set(values.filter(Boolean))].sort();
+  return {
+    page_sizes: [...DATA_DICTIONARY_PAGE_SIZES],
+    categories: [...DATA_DICTIONARY_CATEGORIES],
+    table_names: unique(entries.map((entry) => entry.table_name)),
+    source_types: unique(entries.map((entry) => entry.source_type)),
+    privacy_levels: unique(entries.map((entry) => entry.privacy_level)),
+    export_tiers: unique(entries.map((entry) => entry.export_tier)),
+    derivations: ["directly_recorded", "derived_or_generated"],
+    field_families: ["Process/response fields", "Timing fields", "LLM fields", "Other fields"],
+    deprecated_values: ["false", "true"]
+  };
+}
+
+export function filterDictionaryEntries(entries: DataDictionaryEntry[], filters: DictionaryFilters) {
+  const search = filters.search?.trim().toLowerCase() ?? "";
+  return entries
+    .filter((entry) => !filters.category || filters.category === "all" || entry.category === filters.category)
+    .filter((entry) => !filters.table_name || filters.table_name === "all" || entry.table_name === filters.table_name)
+    .filter((entry) => !filters.source_type || filters.source_type === "all" || entry.source_type === filters.source_type)
+    .filter((entry) => !filters.privacy_level || filters.privacy_level === "all" || entry.privacy_level === filters.privacy_level)
+    .filter((entry) => !filters.export_tier || filters.export_tier === "all" || entry.export_tier === filters.export_tier)
+    .filter((entry) => !filters.deprecated || filters.deprecated === "all" || entry.deprecated === filters.deprecated)
+    .filter((entry) => !filters.derivation || filters.derivation === "all" || derivationKind(entry) === filters.derivation)
+    .filter((entry) => !filters.field_family || filters.field_family === "all" || fieldFamily(entry) === filters.field_family)
+    .filter((entry) => {
+      if (!search) return true;
+      return [
+        entry.category,
+        entry.table_name,
+        entry.variable_name,
+        entry.display_name,
+        entry.definition,
+        entry.collection_or_generation_method,
+        entry.source_table_or_event,
+        entry.source_type
+      ].some((value) => value.toLowerCase().includes(search));
+    });
+}
+
+export function paginateDictionaryEntries(entries: DataDictionaryEntry[], query: DictionaryPageQuery) {
+  const pageSize = isAllowedPageSize(Number(query.page_size)) ? Number(query.page_size) : 100;
+  const total = entries.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const requestedPage = Number.isFinite(Number(query.page)) ? Math.floor(Number(query.page)) : 1;
+  const page = Math.min(Math.max(1, requestedPage), totalPages);
+  const start = (page - 1) * pageSize;
+  const rows = entries.slice(start, start + pageSize);
+  return {
+    rows,
+    total,
+    page,
+    page_size: pageSize,
+    total_pages: totalPages,
+    first_visible_row: total === 0 ? 0 : start + 1,
+    last_visible_row: Math.min(total, start + rows.length)
+  };
+}
+
+function countBy(entries: DataDictionaryEntry[], key: keyof DataDictionaryEntry) {
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    counts.set(entry[key], (counts.get(entry[key]) ?? 0) + 1);
+  }
+  return Object.fromEntries([...counts.entries()].sort());
+}
+
 export function dictionaryStats(entries = buildAnalysisReadyDictionaryEntries()) {
   const byTier = new Map<string, number>();
   const byPrivacy = new Map<string, number>();
@@ -787,7 +1037,9 @@ export function dictionaryStats(entries = buildAnalysisReadyDictionaryEntries())
   return {
     variable_count: entries.length,
     process_event_type_count: processEventTypes.length,
+    by_category: countBy(entries, "category"),
     by_export_tier: Object.fromEntries([...byTier.entries()].sort()),
-    by_privacy_level: Object.fromEntries([...byPrivacy.entries()].sort())
+    by_privacy_level: Object.fromEntries([...byPrivacy.entries()].sort()),
+    by_source_type: countBy(entries, "source_type")
   };
 }

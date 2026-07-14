@@ -6,7 +6,7 @@ See `docs/DISTRACTOR_INFORMED_MISCONCEPTION_DIAGNOSIS.md` for the current framin
 
 The current implemented scope includes the Phase 4B student initial-administration UI, the Phase 5A read-only teacher_researcher session-review platform, the Phase 5B summative outcome import plus master CSV export tools, Phase 6A LLM infrastructure scaffolding, Phase 6A.5 classroom LLM access/usage safeguards, Phase 6B Student Profiling Agent integration, Phase 6C Formative Value and Planning Agent integration, Phase 6D1 first-round Follow-up Agent conversation, Phase 6D2A assessment availability plus asynchronous automatic workflow startup, Phase 6D2B iterative follow-up evidence updating inside the current concept unit, Phase 6D3 student-led concept progression plus final assessment completion, Phase 7A roster/student-account management, Phase 7B complete master CSV export coverage for persisted platform records, Phase 7C Response Collection Agent integration for student free-text messages during initial administration, Phase 7D Item Verification Agent governance for teacher-authored item sets, Phase 7E1 internal mock evaluation harness for the five active agents, Phase 7E2A guarded live-evaluation canary support with annotation adjudication, Phase 7E2B full-pilot evaluation infrastructure, Phase 7E2C targeted remediation/regression tooling, Phase 8A default-off guarded operational agent integration with disabled/mock/guarded-live modes, and later chat-native fixed IRT MVP profiling/formative activity tooling. Item generation, item rewriting, classroom live model activation, adaptive concept routing, countdown timers, public deployment, email/SMS delivery, student self-registration, and claims of classroom validity remain intentionally unimplemented.
 
-Teacher/research review includes both a readable conversation-only transcript and a separate structured event log. The teacher data area also provides summary assessment/student/matrix CSV downloads, analysis-ready detailed CSV bundles, and a default research-safe ZIP export for all sessions. Default research exports include manifests, data dictionaries, turn-level latency rows, engagement process-feature rows, and evidence-quality aggregates while excluding secrets, raw provider data, raw process payloads, answer keys, correct options, raw distractor metadata, and raw misconception IDs. Restricted item-key exports require an explicit teacher/research request.
+Teacher/research review includes both a readable conversation-only transcript and a separate structured event log. The teacher data area also provides a standard Research dataset ZIP, a paginated Data dictionary, and legacy authorized CSV/archive APIs for compatibility. Default research exports include data dictionaries, turn-level latency rows, engagement process-feature rows, and evidence-quality aggregates while excluding secrets, raw provider data, raw process payloads, answer keys, correct options, raw distractor metadata, and raw misconception IDs. Restricted item-key exports require an explicit teacher/research request.
 
 Phase 30k adds internal/research-only safeguards against correctness inflation. Correct option selection is not sufficient evidence of understanding: target-aligned answers with weak reasoning, low confidence, uncertainty markers, or missing distractor-boundary explanation are treated conservatively until reasoning, conceptual-boundary evidence, or distractor-boundary evidence supports the interpretation. These indicators are not shown to students and are not cheating, misconduct, motivation, GenAI-use, or direct ability labels.
 
@@ -1274,10 +1274,9 @@ Manual browser flow:
 4. Run `npm run dev`.
 5. Sign in as `teacher_demo` with `teacher_demo_password`.
 6. Open `/teacher/data/summative-outcomes`, preview a valid or invalid CSV, inspect validation results, and commit a valid preview.
-7. Open `/teacher/data/research`, review Quick summary, Analysis-ready dataset,
-   Full archive, and Data dictionary sections, then download the analysis-ready
-   ZIP. Legacy master CSV APIs remain authorized for backward-compatible
-   workflows.
+7. Open `/teacher/data/research`, verify only Research dataset and Data
+   dictionary sections are visible, then download the research dataset ZIP.
+   Legacy master CSV APIs remain authorized for backward-compatible workflows.
 8. Sign out, sign in as `student_demo` with `student_demo_access_code`, and confirm data/export pages and APIs are forbidden.
 
 See `docs/SUMMATIVE_OUTCOMES.md`, `docs/MASTER_CSV_EXPORT.md`, and `docs/MASTER_EXPORT_DATA_DICTIONARY.md` for the detailed data/export contracts.
@@ -2234,24 +2233,22 @@ two normal workflows only:
 - Research data and exports
 - Summative outcomes
 
-The unified export center separates four tiers:
+The unified export center has two normal teacher-facing sections:
 
-- Quick summary: selected assessment summary, selected student summary, and
-  student x assessment matrix CSV files.
-- Analysis-ready dataset: one ZIP with `sessions.csv`, `item_responses.csv`,
+- Research dataset: one ZIP with `sessions.csv`, `item_responses.csv`,
   `process_events.csv`, `conversation_turns.csv`,
-  `agent_and_activity_records.csv`, `assessment_content.csv`, and
-  `data_dictionary.csv`.
-- Full archive: the existing comprehensive restricted research ZIP for audit
-  and reproducibility.
-- Data dictionary: downloadable variable inventory with row grain, type, source,
-  missingness, privacy level, export tier, generation method, and limitations.
+  `agent_activity_records.csv`, `assessment_content.csv`,
+  `assessment_summary.csv`, and `data_dictionary.csv`.
+- Data dictionary: a paginated and downloadable variable inventory with
+  data-nature category, row grain, type, source, missingness, privacy level,
+  export tier, collection/generation method, interpretation guidance, and
+  limitations.
 
 Legacy teacher UI routes `/teacher/data/explorer` and `/teacher/data/export`
 redirect to the unified export center. Existing authorized CSV and archive API
 endpoints remain available for backward compatibility.
 
-Default analysis-ready exports exclude answer keys, correctness fields, teacher
+Default research dataset exports exclude answer keys, correctness fields, teacher
 diagnostic notes, credentials, hashes, raw provider payloads, database URLs,
 cookies, and API keys. Restricted research fields require an explicit restricted
 export option, explicit confirmation, and a completed export audit record; they

@@ -728,7 +728,7 @@ erDiagram
 ## Research Export Tables
 
 Phase 31ab adds a unified teacher-facing export center without changing the
-database schema. `/teacher/data/research` generates analysis-ready relational
+database schema. `/teacher/data/research` generates research dataset relational
 CSV files from existing tables:
 
 - `sessions.csv`: one row per `assessment_sessions` attempt.
@@ -737,11 +737,12 @@ CSV files from existing tables:
   payload fields.
 - `conversation_turns.csv`: one row per visible/research-readable
   `conversation_turns` record.
-- `agent_and_activity_records.csv`: one row per safe `agent_calls`,
+- `agent_activity_records.csv`: one row per safe `agent_calls`,
   `student_profiles`, `formative_decisions`, `followup_rounds`,
   `workflow_jobs`, activity attempts, activity evidence, or post-activity
   snapshot record, distinguished by `record_type`.
 - `assessment_content.csv`: one row per administered item snapshot.
+- `assessment_summary.csv`: one row per student-assessment attempt summary.
 - `data_dictionary.csv`: one row per exported or classified variable.
 
 Internal database UUIDs remain internal. Export joins use public IDs such as

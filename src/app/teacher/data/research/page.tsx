@@ -7,7 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 export default async function TeacherResearchDataExportsPage({
   searchParams
 }: {
-  searchParams?: Promise<{ tab?: string }>;
+  searchParams?: Promise<{ section?: string; tab?: string }>;
 }) {
   const user = await getCurrentUser();
 
@@ -20,26 +20,18 @@ export default async function TeacherResearchDataExportsPage({
   }
 
   const resolvedSearchParams = await searchParams;
-  const tab = resolvedSearchParams?.tab;
-  const initialTab =
-    tab === "analysis" || tab === "archive" || tab === "dictionary" || tab === "quick"
-      ? tab
-      : "quick";
+  const section = resolvedSearchParams?.section ?? resolvedSearchParams?.tab;
+  const initialSection = section === "dictionary" ? "dictionary" : "dataset";
 
   return (
     <main className="min-h-screen px-6 py-8">
       <div className="mx-auto max-w-7xl">
         <DataNav userId={user.user_id} />
         <TeacherPageHeader title="Research data and exports" />
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
-          Download assessment data at the right row grain: quick summaries, normalized analysis
-          tables, full archive files, or the variable dictionary.
-        </p>
         <section className="mt-6">
-          <ResearchDataExportsClient initialTab={initialTab} />
+          <ResearchDataExportsClient initialSection={initialSection} />
         </section>
       </div>
     </main>
   );
 }
-

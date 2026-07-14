@@ -1,0 +1,82 @@
+import {
+  buildAnalysisReadyDictionaryEntries,
+  dataDictionaryCsv,
+  filterDictionaryEntries,
+  paginateDictionaryEntries
+} from "../src/lib/services/teacher-research-data/dictionary";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function source(file: string) {
+  return readFileSync(path.join(process.cwd(), file), "utf8");
+}
+
+function main() {
+  const entries = buildAnalysisReadyDictionaryEntries();
+  assert(entries.length > 80, "Dictionary fixture should contain more than 80 variables.");
+
+  for (const pageSize of [25, 50, 100, 250, 500]) {
+    const page = paginateDictionaryEntries(entries, { page: 1, page_size: pageSize });
+    assert(page.total === entries.length, `Page size ${pageSize} should preserve total count.`);
+    assert(page.rows.length === Math.min(pageSize, entries.length), `Page size ${pageSize} returned wrong row count.`);
+    assert(page.first_visible_row === 1, `Page size ${pageSize} should start at row 1.`);
+  }
+
+  const pageSize25 = paginateDictionaryEntries(entries, { page: 2, page_size: 25 });
+  assert(pageSize25.page === 2, "Next page should be reachable.");
+  assert(pageSize25.first_visible_row === 26, "Second 25-row page should begin at row 26.");
+  const previousPage = paginateDictionaryEntries(entries, { page: pageSize25.page - 1, page_size: 25 });
+  assert(previousPage.page === 1, "Previous page should be reachable.");
+  const lastPage = paginateDictionaryEntries(entries, { page: 9999, page_size: 25 });
+  assert(lastPage.page === lastPage.total_pages, "Last page should clamp to total pages.");
+  assert(lastPage.last_visible_row === entries.length, "Last page should end at the registry total.");
+  const firstPage = paginateDictionaryEntries(entries, { page: 1, page_size: 25 });
+  assert(firstPage.page === 1, "First page should be reachable.");
+
+  const filtered = filterDictionaryEntries(entries, {
+    category: "Internal security data",
+    deprecated: "false"
+  });
+  assert(filtered.length > 0, "Filter should operate across the complete registry.");
+  assert(
+    filtered.every((entry) => entry.category === "Internal security data"),
+    "Category filter should return only matching rows."
+  );
+  const filteredCsv = dataDictionaryCsv(filtered);
+  const filteredCsvRows = Math.max(0, filteredCsv.trim().split(/\r?\n/).length - 1);
+  assert(filteredCsvRows === filtered.length, "Dictionary CSV should include all filtered rows, not one visible page.");
+
+  const keys = new Set(entries.map((entry) => `${entry.table_name}.${entry.variable_name}`));
+  assert(keys.size === entries.length, "Dictionary should not contain duplicate variable rows.");
+  assert(!/sk-[A-Za-z0-9_-]{20,}/.test(filteredCsv), "Dictionary CSV must not expose API-key shaped values.");
+  assert(!/postgres(?:ql)?:\/\//i.test(filteredCsv), "Dictionary CSV must not expose database URLs.");
+  assert(!/SESSION_SECRET=.*|OPENAI_API_KEY=.*/i.test(filteredCsv), "Dictionary CSV must not expose secret values.");
+
+  const clientSource = source("src/components/teacher-data/research-data-exports-client.tsx");
+  assert(!clientSource.includes(".slice(0, 80)"), "Frontend should not hardcode an 80-row dictionary limit.");
+  assert(clientSource.includes("setDictionaryPage(1);"), "Changing filters or page size should reset to page 1.");
+  assert(clientSource.includes("Showing {dictionary.first_visible_row}-{dictionary.last_visible_row}"), "Visible row range should be shown.");
+  assert(clientSource.includes("Page {dictionary.page} of {dictionary.total_pages}"), "Current page and total pages should be shown.");
+
+  console.log(
+    JSON.stringify(
+      {
+        status: "passed",
+        total_variables: entries.length,
+        page_sizes_checked: [25, 50, 100, 250, 500],
+        filtered_rows: filtered.length,
+        no_openai_call_occurred: true
+      },
+      null,
+      2
+    )
+  );
+}
+
+main();

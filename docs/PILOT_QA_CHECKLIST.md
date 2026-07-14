@@ -396,21 +396,20 @@ landing page should show only:
 - Research data and exports
 - Summative outcomes
 
-On `/teacher/data/research`, verify the four sections:
+On `/teacher/data/research`, verify the two sections:
 
-1. Quick summary
-2. Analysis-ready dataset
-3. Full archive
-4. Data dictionary
+1. Research dataset
+2. Data dictionary
 
-For a pilot dry run, download the analysis-ready ZIP and confirm it contains:
+For a pilot dry run, download the research dataset ZIP and confirm it contains:
 
 - `sessions.csv`
 - `item_responses.csv`
 - `process_events.csv`
 - `conversation_turns.csv`
-- `agent_and_activity_records.csv`
+- `agent_activity_records.csv`
 - `assessment_content.csv`
+- `assessment_summary.csv`
 - `data_dictionary.csv`
 
 Default exports must not include answer keys, correctness labels, password or

@@ -2407,22 +2407,24 @@ Phase 6A.5 must not implement:
   `Research data and exports` and `Summative outcomes`. It must not show
   separate routine cards for Data Explorer, Master CSV export, or Download all
   research data.
-- `/teacher/data/research` is the unified teacher-facing export center. It
-  separates Quick summary, Analysis-ready dataset, Full archive, and Data
-  dictionary sections.
+- `/teacher/data/research` is the unified teacher-facing export center. It has
+  exactly two normal sections: Research dataset and Data dictionary.
 - Legacy UI routes `/teacher/data/explorer` and `/teacher/data/export` redirect
-  to `/teacher/data/research?tab=quick` and
-  `/teacher/data/research?tab=analysis`. Existing authorized APIs may remain for
-  backward compatibility.
-- The analysis-ready ZIP contains normalized CSV tables at clear row grains:
+  to `/teacher/data/research?section=dataset`. Existing authorized APIs may
+  remain for backward compatibility.
+- The Research dataset ZIP contains normalized CSV tables at clear row grains:
   `sessions.csv`, `item_responses.csv`, `process_events.csv`,
-  `conversation_turns.csv`, `agent_and_activity_records.csv`,
-  `assessment_content.csv`, and `data_dictionary.csv`.
+  `conversation_turns.csv`, `agent_activity_records.csv`,
+  `assessment_content.csv`, `assessment_summary.csv`, and
+  `data_dictionary.csv`.
 - `data_dictionary.csv` is the authoritative variable inventory. It documents
-  row grain, data type, units, allowed values, source, generation method,
-  timing formulas, missingness, privacy level, export tier, interpretation
-  cautions, and limitations.
-- Default analysis-ready exports exclude credentials, hashes, session secrets,
+  data-nature category, row grain, data type, units, allowed values, source,
+  collection/generation method, timing formulas, missingness, privacy level,
+  secondary export tier, interpretation guidance, cautions, and limitations.
+- The data dictionary must categorize variables by data nature, not by export
+  product. It must support teacher-controlled page sizes of 25, 50, 100, 250,
+  and 500 rows and no hardcoded 80-row limit.
+- Default research dataset exports exclude credentials, hashes, session secrets,
   API keys, database URLs, raw provider requests, unrestricted raw provider
   output, internal database UUIDs, unrestricted answer keys, correctness fields,
   and teacher diagnostic notes. Restricted fields require explicit

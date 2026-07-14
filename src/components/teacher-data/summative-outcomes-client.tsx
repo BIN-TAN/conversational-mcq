@@ -116,10 +116,6 @@ export function SummativeOutcomesClient() {
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-ink">Import summative outcomes</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-              Upload or paste supervised outcome CSV data. Preview validates rows and creates an
-              audit batch; commit creates active outcome records only from a valid preview.
-            </p>
           </div>
           <a
             className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink hover:border-accent"

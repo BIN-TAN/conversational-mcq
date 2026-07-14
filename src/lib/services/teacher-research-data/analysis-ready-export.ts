@@ -11,9 +11,10 @@ import {
   type ExportSourceIdentity
 } from "@/lib/services/teacher-research-export/source-identity";
 import {
-  AGENT_AND_ACTIVITY_RECORDS_COLUMNS,
+  AGENT_ACTIVITY_RECORDS_COLUMNS,
   ANALYSIS_READY_EXPORT_VERSION,
   ASSESSMENT_CONTENT_COLUMNS,
+  ASSESSMENT_SUMMARY_COLUMNS,
   CONVERSATION_TURNS_COLUMNS,
   dataDictionaryCsv,
   ITEM_RESPONSES_COLUMNS,
@@ -704,6 +705,45 @@ function itemResponseRows(sessions: AnalysisSession[], includeRestricted: boolea
   return rows;
 }
 
+function assessmentSummaryRows(source: ExportSourceIdentity, sessions: AnalysisSession[], supplemental: SupplementalRecords) {
+  const sessionRowsById = new Map(
+    sessionRows(source, sessions, supplemental).map((row) => [String(row.session_public_id), row])
+  );
+  return sessions.map((session) => {
+    const row = sessionRowsById.get(session.session_public_id);
+    if (!row) {
+      throw new Error(`Missing session summary row for ${session.session_public_id}.`);
+    }
+    return {
+      student_id: row.student_id,
+      student_public_id: row.student_public_id,
+      assessment_public_id: row.assessment_public_id,
+      assessment_title: row.assessment_title,
+      session_public_id: row.session_public_id,
+      attempt_number: row.attempt_number,
+      session_status: row.session_status ?? session.status,
+      completion_status: row.session_completion_status ?? session.status,
+      started_at: row.started_at ?? iso(session.started_at),
+      completed_at: row.completed_at ?? iso(session.completed_at),
+      item_response_count: row.item_response_count ?? 0,
+      completed_initial_item_count: row.completed_initial_item_count ?? 0,
+      process_event_count: row.process_event_count ?? session.process_events.length,
+      conversation_turn_count: row.conversation_turn_count ?? session.conversation_turns.length,
+      agent_call_count: row.agent_call_count ?? session.agent_calls.length,
+      formative_activity_attempt_count: row.formative_activity_attempt_count ?? 0,
+      latest_student_safe_status: row.latest_student_safe_status ?? null,
+      assessment_specific_understanding_category: row.assessment_specific_understanding_category ?? null,
+      engagement_review_category: row.engagement_review_category ?? null,
+      evidence_sufficiency: row.evidence_sufficiency ?? null,
+      elapsed_session_time_ms: row.elapsed_session_time_ms ?? null,
+      active_interaction_time_ms: row.active_interaction_time_ms ?? null,
+      unsupported_correct_response_count: row.unsupported_correct_response_count ?? 0,
+      estimated_guessing_risk_max: row.estimated_guessing_risk_max ?? null,
+      summary_limitations: "assessment_specific_summary_not_psychometric_ability_estimate"
+    } satisfies CsvRow;
+  });
+}
+
 function processEventRows(sessions: AnalysisSession[]) {
   return sessions.flatMap((session) =>
     session.process_events.map((event, index) => {
@@ -1058,12 +1098,16 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
       data: csv(CONVERSATION_TURNS_COLUMNS, conversationRows(sessions))
     },
     {
-      path: "agent_and_activity_records.csv",
-      data: csv(AGENT_AND_ACTIVITY_RECORDS_COLUMNS, agentAndActivityRows(sessions, supplemental))
+      path: "agent_activity_records.csv",
+      data: csv(AGENT_ACTIVITY_RECORDS_COLUMNS, agentAndActivityRows(sessions, supplemental))
     },
     {
       path: "assessment_content.csv",
       data: csv(columnsFor(ASSESSMENT_CONTENT_COLUMNS, includeRestricted), assessmentContentRows(sessions, includeRestricted))
+    },
+    {
+      path: "assessment_summary.csv",
+      data: csv(ASSESSMENT_SUMMARY_COLUMNS, assessmentSummaryRows(source, sessions, supplemental))
     },
     {
       path: "data_dictionary.csv",
@@ -1082,7 +1126,7 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
           : "all_authorized";
 
   return {
-    filename: `${suffix}_analysis_ready_dataset.zip`,
+    filename: `${suffix}_research_dataset.zip`,
     content_type: "application/zip",
     buffer: createStoreOnlyZip(files),
     files,

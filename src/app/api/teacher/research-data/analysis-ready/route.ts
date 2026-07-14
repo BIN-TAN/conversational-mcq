@@ -61,7 +61,7 @@ export async function GET(request: Request) {
           export_schema_version: result.source.export_schema_version,
           completed_at: new Date(),
           options: {
-            export_type: "analysis_ready_dataset",
+            export_type: "research_dataset",
             restricted_fields_included: true,
             explicit_confirmation_received: true,
             export_run_public_id: result.source.export_run_public_id,

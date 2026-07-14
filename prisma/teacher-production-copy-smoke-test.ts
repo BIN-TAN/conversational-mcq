@@ -191,8 +191,10 @@ function assertDataDefinitionsRemainAvailable() {
   const simpleExplorer = source("src/components/teacher-data/simple-csv-explorer-client.tsx");
 
   assertIncludes(dataExplorer, "Research data and exports", "Research export page");
-  assertIncludes(dataExportClient, "Analysis-ready dataset", "Research export client");
+  assertIncludes(dataExportClient, "Research dataset", "Research export client");
   assertIncludes(dataExportClient, "Data dictionary", "Research export client");
+  assertExcludes(dataExportClient, "Quick summary", "Research export client");
+  assertExcludes(dataExportClient, "Full archive", "Research export client");
   assertIncludes(masterExport, "Generate master assessment CSV", "Master export component");
   assertIncludes(masterExport, "normalized database", "Master export component");
   assertIncludes(simpleExplorer, "Data dictionary", "Simple CSV explorer");

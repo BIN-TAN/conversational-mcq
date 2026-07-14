@@ -2,8 +2,9 @@ import { parse } from "csv-parse/sync";
 import { PrismaClient } from "@prisma/client";
 import { buildAnalysisReadyResearchDataBundle } from "../src/lib/services/teacher-research-data/analysis-ready-export";
 import {
-  AGENT_AND_ACTIVITY_RECORDS_COLUMNS,
+  AGENT_ACTIVITY_RECORDS_COLUMNS,
   ASSESSMENT_CONTENT_COLUMNS,
+  ASSESSMENT_SUMMARY_COLUMNS,
   CONVERSATION_TURNS_COLUMNS,
   DATA_DICTIONARY_COLUMNS,
   ITEM_RESPONSES_COLUMNS,
@@ -85,20 +86,22 @@ async function main() {
       "item_responses.csv",
       "process_events.csv",
       "conversation_turns.csv",
-      "agent_and_activity_records.csv",
+      "agent_activity_records.csv",
       "assessment_content.csv",
+      "assessment_summary.csv",
       "data_dictionary.csv"
     ];
-    assert(result.filename.includes("analysis_ready_dataset.zip"), "Analysis-ready filename should be explicit.");
-    assert(result.no_live_provider_call_made === true, "Analysis-ready export should not make provider calls.");
+    assert(result.filename.includes("research_dataset.zip"), "Research dataset filename should be explicit.");
+    assert(result.no_live_provider_call_made === true, "Research dataset export should not make provider calls.");
     assert(result.files.map((file) => file.path).join("|") === expectedFiles.join("|"), "Unexpected ZIP file list.");
 
     const sessions = parseCsv<Record<string, string>>(fileData(result.files, "sessions.csv"));
     const itemResponses = parseCsv<Record<string, string>>(fileData(result.files, "item_responses.csv"));
     const processEvents = parseCsv<Record<string, string>>(fileData(result.files, "process_events.csv"));
     const turns = parseCsv<Record<string, string>>(fileData(result.files, "conversation_turns.csv"));
-    const agentRecords = parseCsv<Record<string, string>>(fileData(result.files, "agent_and_activity_records.csv"));
+    const agentRecords = parseCsv<Record<string, string>>(fileData(result.files, "agent_activity_records.csv"));
     const contentRows = parseCsv<Record<string, string>>(fileData(result.files, "assessment_content.csv"));
+    const summaryRows = parseCsv<Record<string, string>>(fileData(result.files, "assessment_summary.csv"));
     const dictionaryRows = parseCsv<Record<string, string>>(fileData(result.files, "data_dictionary.csv"));
 
     assert(sessions.length > 0, "sessions.csv should contain rows.");
@@ -106,16 +109,18 @@ async function main() {
     assert(processEvents.length > 0, "process_events.csv should contain rows.");
     assert(turns.length > 0, "conversation_turns.csv should contain rows.");
     assert(contentRows.length >= 3, "assessment_content.csv should contain administered item snapshots.");
+    assert(summaryRows.length > 0, "assessment_summary.csv should contain student-assessment summary rows.");
     assert(dictionaryRows.length > 300, "data_dictionary.csv should contain broad inventory rows.");
-    assert(Array.isArray(agentRecords), "agent_and_activity_records.csv should parse even if sparse.");
+    assert(Array.isArray(agentRecords), "agent_activity_records.csv should parse even if sparse.");
 
     for (const [path, columns] of [
       ["sessions.csv", SESSIONS_COLUMNS],
       ["item_responses.csv", ITEM_RESPONSES_COLUMNS],
       ["process_events.csv", PROCESS_EVENTS_COLUMNS],
       ["conversation_turns.csv", CONVERSATION_TURNS_COLUMNS],
-      ["agent_and_activity_records.csv", AGENT_AND_ACTIVITY_RECORDS_COLUMNS],
+      ["agent_activity_records.csv", AGENT_ACTIVITY_RECORDS_COLUMNS],
       ["assessment_content.csv", ASSESSMENT_CONTENT_COLUMNS],
+      ["assessment_summary.csv", ASSESSMENT_SUMMARY_COLUMNS],
       ["data_dictionary.csv", DATA_DICTIONARY_COLUMNS]
     ] as const) {
       const actualHeader = header(fileData(result.files, path));
@@ -138,8 +143,9 @@ async function main() {
       ["item_responses.csv", "item_responses"],
       ["process_events.csv", "process_events"],
       ["conversation_turns.csv", "conversation_turns"],
-      ["agent_and_activity_records.csv", "agent_and_activity_records"],
-      ["assessment_content.csv", "assessment_content"]
+      ["agent_activity_records.csv", "agent_activity_records"],
+      ["assessment_content.csv", "assessment_content"],
+      ["assessment_summary.csv", "assessment_summary"]
     ] as const) {
       for (const column of header(fileData(result.files, path))) {
         assert(dictionaryKeys.has(`${tableName}.${column}`), `${path}.${column} missing from dictionary.`);
@@ -169,11 +175,11 @@ async function main() {
       formulaFixture.files
         .filter((file) => file.path !== "data_dictionary.csv")
         .every((file) => !/password_hash|access_code_hash|SESSION_SECRET|OPENAI_API_KEY/i.test(file.data)),
-      "Analysis-ready files should not expose secrets."
+      "Research dataset files should not expose secrets."
     );
 
     const afterAgentCalls = await prisma.agentCall.count();
-    assert(beforeAgentCalls === afterAgentCalls, "Analysis-ready smoke should not create agent calls.");
+    assert(beforeAgentCalls === afterAgentCalls, "Research dataset smoke should not create agent calls.");
 
     console.log(
       JSON.stringify(

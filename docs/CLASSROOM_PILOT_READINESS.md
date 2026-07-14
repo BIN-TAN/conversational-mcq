@@ -70,7 +70,7 @@ After a completed or partially completed classroom session, teacher/research rev
 - agent audit summaries when LLM calls occurred;
 - session data-completeness record;
 - summary assessment/student/matrix CSV downloads from `/teacher/data/research`;
-- analysis-ready CSV ZIP bundles from `/teacher/data/research`;
+- research dataset ZIP bundles from `/teacher/data/research`;
 - bulk research export;
 - research export integrity review.
 
@@ -123,8 +123,8 @@ Readiness is a local engineering and workflow check. It does not establish learn
 9. Log in as teacher.
 10. Open the session detail.
 11. Inspect readable transcript, structured event log, process events, and session evidence audit.
-12. Open `/teacher/data/research` and download the quick summary CSVs and the analysis-ready dataset ZIP.
-13. Use Full archive only when audit/reproducibility files are needed.
+12. Open `/teacher/data/research` and download the Research dataset ZIP.
+13. Use advanced archive routes only when audit/reproducibility files are needed.
 14. Run `npm run student:research-export-integrity-review`.
 15. Confirm no protected data leaks.
 

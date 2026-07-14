@@ -300,9 +300,8 @@ Generated export artifacts remain under ignored local paths and must not be comm
 15. Student completes the three protected initial items.
 16. Student completes the activity response and move-on/choose-another path.
 17. Have the teacher inspect session detail, readable transcript, structured event log, process events, session evidence audit, and research export.
-18. Open `/teacher/data/research`, verify Quick summary, Analysis-ready dataset,
-    Full archive, and Data dictionary sections, then download the analysis-ready
-    ZIP for a pilot data check.
+18. Open `/teacher/data/research`, verify Research dataset and Data dictionary
+    sections, then download the research dataset ZIP for a pilot data check.
 19. Run export integrity review.
 20. Complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`.
 21. Record only safe pass/fail observations, public IDs, status fields, and limitations.

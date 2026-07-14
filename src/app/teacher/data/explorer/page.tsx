@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function DeprecatedTeacherDataExplorerPage() {
-  redirect("/teacher/data/research?tab=quick");
+  redirect("/teacher/data/research?section=dataset");
 }

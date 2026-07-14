@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Archive, BookOpen, Download, Loader2, PackageCheck, RefreshCw, Table2 } from "lucide-react";
+import { BookOpen, Download, Loader2, RefreshCw } from "lucide-react";
 import { errorFromUnknown, fetchExportJobs } from "./api";
 import { EmptyPanel, ErrorPanel, formatDate, StatusPill } from "./ui";
 import type { ExportJob, StructuredApiError } from "./types";
@@ -43,6 +43,7 @@ type OptionsResponse = {
 };
 
 type DataDictionaryEntry = {
+  category: string;
   table_name: string;
   variable_name: string;
   display_name: string;
@@ -50,11 +51,13 @@ type DataDictionaryEntry = {
   row_grain: string;
   data_type: string;
   source_type: string;
-  generation_method: string;
-  missing_value_meaning: string;
+  source_table_or_event: string;
+  collection_or_generation_method: string;
+  interpretation_guidance: string;
+  interpretation_caution: string;
   privacy_level: string;
   export_tier: string;
-  interpretation_caution: string;
+  deprecated: string;
 };
 
 type DataDictionaryResponse = {
@@ -62,18 +65,38 @@ type DataDictionaryResponse = {
   stats: {
     variable_count: number;
     process_event_type_count: number;
+    by_category: Record<string, number>;
     by_export_tier: Record<string, number>;
     by_privacy_level: Record<string, number>;
+    by_source_type: Record<string, number>;
   };
-  entries: DataDictionaryEntry[];
+  rows: DataDictionaryEntry[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  first_visible_row: number;
+  last_visible_row: number;
+  category_counts: Record<string, number>;
+  filters: Record<string, string>;
+  filter_options: {
+    page_sizes: number[];
+    categories: string[];
+    table_names: string[];
+    source_types: string[];
+    privacy_levels: string[];
+    export_tiers: string[];
+    derivations: string[];
+    field_families: string[];
+    deprecated_values: string[];
+  };
 };
 
-type TabId = "quick" | "analysis" | "archive" | "dictionary";
+type SectionId = "dataset" | "dictionary";
+type ScopeMode = "all" | "assessment" | "student";
 
-const tabs: Array<{ id: TabId; label: string }> = [
-  { id: "quick", label: "Quick summary" },
-  { id: "analysis", label: "Analysis-ready dataset" },
-  { id: "archive", label: "Full archive" },
+const sections: Array<{ id: SectionId; label: string }> = [
+  { id: "dataset", label: "Research dataset" },
   { id: "dictionary", label: "Data dictionary" }
 ];
 
@@ -88,8 +111,8 @@ async function fetchOptions(): Promise<OptionsResponse> {
   return response.json() as Promise<OptionsResponse>;
 }
 
-async function fetchDictionary(): Promise<DataDictionaryResponse> {
-  const response = await fetch("/api/teacher/research-data/dictionary?format=json", {
+async function fetchDictionary(query: URLSearchParams): Promise<DataDictionaryResponse> {
+  const response = await fetch(`/api/teacher/research-data/dictionary?${query.toString()}`, {
     headers: { Accept: "application/json" }
   });
   if (!response.ok) {
@@ -140,10 +163,19 @@ function DownloadLink({ href, label, disabled = false }: { href: string; label: 
   );
 }
 
+function queryWithDefined(values: Record<string, string | number | boolean | undefined>) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined || value === "" || value === "all") continue;
+    params.set(key, String(value));
+  }
+  return params;
+}
+
 function scopeQuery(input: {
   assessmentId: string;
   studentId: string;
-  scopeMode: "all" | "assessment" | "student";
+  scopeMode: ScopeMode;
   includeIncomplete: boolean;
   includeRestricted: boolean;
 }) {
@@ -167,7 +199,7 @@ function selectedCounts(input: {
   options: OptionsResponse | null;
   assessmentId: string;
   studentId: string;
-  scopeMode: "all" | "assessment" | "student";
+  scopeMode: ScopeMode;
 }) {
   if (input.scopeMode === "assessment") {
     return input.options?.assessments.find((assessment) => assessment.assessment_public_id === input.assessmentId)?.counts ?? null;
@@ -175,7 +207,7 @@ function selectedCounts(input: {
   if (input.scopeMode === "student") {
     return input.options?.students.find((student) => student.user_id === input.studentId)?.counts ?? null;
   }
-  const counts = (input.options?.assessments ?? []).reduce<ExportAvailabilityCounts>(
+  return (input.options?.assessments ?? []).reduce<ExportAvailabilityCounts>(
     (total, assessment) => ({
       sessions: total.sessions + assessment.counts.sessions,
       item_responses: total.item_responses + assessment.counts.item_responses,
@@ -201,32 +233,48 @@ function selectedCounts(input: {
       diagnostic_snapshots: 0
     }
   );
-  return counts;
 }
 
-export function ResearchDataExportsClient({ initialTab = "quick" }: { initialTab?: TabId }) {
-  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+function jobOption(job: ExportJob, key: string) {
+  if (!job.options || typeof job.options !== "object") return "";
+  const value = (job.options as Record<string, unknown>)[key];
+  return value === null || value === undefined ? "" : String(value);
+}
+
+export function ResearchDataExportsClient({ initialSection = "dataset" }: { initialSection?: SectionId }) {
+  const [activeSection, setActiveSection] = useState<SectionId>(initialSection);
   const [options, setOptions] = useState<OptionsResponse | null>(null);
   const [jobs, setJobs] = useState<ExportJob[]>([]);
   const [assessmentId, setAssessmentId] = useState("");
   const [studentId, setStudentId] = useState("");
-  const [scopeMode, setScopeMode] = useState<"all" | "assessment" | "student">("all");
+  const [scopeMode, setScopeMode] = useState<ScopeMode>("all");
   const [includeIncomplete, setIncludeIncomplete] = useState(true);
   const [includeRestricted, setIncludeRestricted] = useState(false);
   const [dictionary, setDictionary] = useState<DataDictionaryResponse | null>(null);
   const [dictionarySearch, setDictionarySearch] = useState("");
+  const [dictionaryCategoryFilter, setDictionaryCategoryFilter] = useState("all");
   const [dictionaryTableFilter, setDictionaryTableFilter] = useState("all");
+  const [dictionarySourceFilter, setDictionarySourceFilter] = useState("all");
   const [dictionaryPrivacyFilter, setDictionaryPrivacyFilter] = useState("all");
   const [dictionaryTierFilter, setDictionaryTierFilter] = useState("all");
+  const [dictionaryDerivationFilter, setDictionaryDerivationFilter] = useState("all");
+  const [dictionaryFamilyFilter, setDictionaryFamilyFilter] = useState("all");
+  const [dictionaryDeprecatedFilter, setDictionaryDeprecatedFilter] = useState("all");
+  const [dictionaryPage, setDictionaryPage] = useState(1);
+  const [dictionaryPageSize, setDictionaryPageSize] = useState(100);
   const [dictionaryLoading, setDictionaryLoading] = useState(false);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const urlTab = new URLSearchParams(window.location.search).get("tab") as TabId | null;
-    if (urlTab && tabs.some((tab) => tab.id === urlTab)) {
-      setActiveTab(urlTab);
+    const params = new URLSearchParams(window.location.search);
+    const section = params.get("section") ?? params.get("tab");
+    if (section === "dictionary") setActiveSection("dictionary");
+    if (section === "dataset" || section === "quick" || section === "analysis" || section === "archive") {
+      setActiveSection("dataset");
     }
+    const pageSize = Number(params.get("page_size"));
+    if ([25, 50, 100, 250, 500].includes(pageSize)) setDictionaryPageSize(pageSize);
   }, []);
 
   async function refresh() {
@@ -249,10 +297,51 @@ export function ResearchDataExportsClient({ initialTab = "quick" }: { initialTab
     void refresh();
   }, []);
 
+  const dictionaryQuery = useMemo(
+    () =>
+      queryWithDefined({
+        format: "json",
+        page: dictionaryPage,
+        page_size: dictionaryPageSize,
+        search: dictionarySearch.trim(),
+        category: dictionaryCategoryFilter,
+        table_name: dictionaryTableFilter,
+        source_type: dictionarySourceFilter,
+        privacy_level: dictionaryPrivacyFilter,
+        export_tier: dictionaryTierFilter,
+        derivation: dictionaryDerivationFilter,
+        field_family: dictionaryFamilyFilter,
+        deprecated: dictionaryDeprecatedFilter
+      }),
+    [
+      dictionaryCategoryFilter,
+      dictionaryDeprecatedFilter,
+      dictionaryDerivationFilter,
+      dictionaryFamilyFilter,
+      dictionaryPage,
+      dictionaryPageSize,
+      dictionaryPrivacyFilter,
+      dictionarySearch,
+      dictionarySourceFilter,
+      dictionaryTableFilter,
+      dictionaryTierFilter
+    ]
+  );
+
+  const dictionaryDownloadQuery = useMemo(() => {
+    const params = new URLSearchParams(dictionaryQuery);
+    params.delete("format");
+    params.delete("page");
+    params.delete("page_size");
+    const query = params.toString();
+    return query ? `?${query}` : "";
+  }, [dictionaryQuery]);
+
   useEffect(() => {
-    if (activeTab !== "dictionary" || dictionary || dictionaryLoading) return;
+    if (activeSection !== "dictionary") return;
     setDictionaryLoading(true);
-    fetchDictionary()
+    setError(null);
+    fetchDictionary(dictionaryQuery)
       .then((loadedDictionary) => {
         setDictionary(loadedDictionary);
       })
@@ -262,78 +351,51 @@ export function ResearchDataExportsClient({ initialTab = "quick" }: { initialTab
       .finally(() => {
         setDictionaryLoading(false);
       });
-  }, [activeTab, dictionary, dictionaryLoading]);
+  }, [activeSection, dictionaryQuery]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set("section", activeSection);
+    if (activeSection === "dictionary") {
+      params.set("page", String(dictionaryPage));
+      params.set("page_size", String(dictionaryPageSize));
+      for (const [key, value] of dictionaryQuery.entries()) {
+        if (key !== "format" && key !== "page" && key !== "page_size") params.set(key, value);
+      }
+    }
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+  }, [activeSection, dictionaryPage, dictionaryPageSize, dictionaryQuery]);
+
+  function resetDictionaryPage() {
+    setDictionaryPage(1);
+  }
 
   const counts = selectedCounts({ options, assessmentId, studentId, scopeMode });
   const hasData = (counts?.sessions ?? 0) > 0;
-  const query = scopeQuery({ assessmentId, studentId, scopeMode, includeIncomplete, includeRestricted });
-  const quickAssessmentHref = assessmentId
-    ? `/api/teacher/data-explorer/assessments/${encodeURIComponent(assessmentId)}/csv`
-    : "#";
-  const quickStudentHref = studentId
-    ? `/api/teacher/data-explorer/students/${encodeURIComponent(studentId)}/csv`
-    : "#";
-  const analysisHref = `/api/teacher/research-data/analysis-ready${query}`;
-  const archiveHref = includeRestricted
-    ? "/api/teacher/research-export?include_restricted_item_keys=true"
-    : "/api/teacher/research-export";
-  const selectedAssessment = useMemo(
-    () => options?.assessments.find((assessment) => assessment.assessment_public_id === assessmentId) ?? null,
-    [assessmentId, options]
-  );
-  const selectedStudent = useMemo(
-    () => options?.students.find((student) => student.user_id === studentId) ?? null,
-    [studentId, options]
-  );
-  const dictionaryTables = useMemo(
-    () => [...new Set((dictionary?.entries ?? []).map((entry) => entry.table_name))].sort(),
-    [dictionary]
-  );
-  const dictionaryPrivacyLevels = useMemo(
-    () => [...new Set((dictionary?.entries ?? []).map((entry) => entry.privacy_level))].sort(),
-    [dictionary]
-  );
-  const dictionaryTiers = useMemo(
-    () => [...new Set((dictionary?.entries ?? []).map((entry) => entry.export_tier))].sort(),
-    [dictionary]
-  );
-  const filteredDictionaryEntries = useMemo(() => {
-    const queryText = dictionarySearch.trim().toLowerCase();
-    return (dictionary?.entries ?? [])
-      .filter((entry) => dictionaryTableFilter === "all" || entry.table_name === dictionaryTableFilter)
-      .filter((entry) => dictionaryPrivacyFilter === "all" || entry.privacy_level === dictionaryPrivacyFilter)
-      .filter((entry) => dictionaryTierFilter === "all" || entry.export_tier === dictionaryTierFilter)
-      .filter((entry) => {
-        if (!queryText) return true;
-        return [
-          entry.table_name,
-          entry.variable_name,
-          entry.display_name,
-          entry.definition,
-          entry.source_type,
-          entry.privacy_level,
-          entry.export_tier
-        ].some((value) => value.toLowerCase().includes(queryText));
-      })
-      .slice(0, 80);
-  }, [dictionary, dictionaryPrivacyFilter, dictionarySearch, dictionaryTableFilter, dictionaryTierFilter]);
+  const datasetHref = `/api/teacher/research-data/analysis-ready${scopeQuery({
+    assessmentId,
+    studentId,
+    scopeMode,
+    includeIncomplete,
+    includeRestricted
+  })}`;
 
   return (
     <div className="space-y-6">
       <ErrorPanel error={error} />
       <section className="rounded-lg border border-line bg-white p-4 shadow-soft">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Research data export sections">
-          {tabs.map((tab) => (
+          {sections.map((section) => (
             <button
               className={[
                 "rounded-md px-3 py-2 text-sm font-semibold transition",
-                activeTab === tab.id ? "bg-accent text-white" : "border border-line bg-white text-ink hover:border-accent"
+                activeSection === section.id ? "bg-accent text-white" : "border border-line bg-white text-ink hover:border-accent"
               ].join(" ")}
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              key={section.id}
+              onClick={() => setActiveSection(section.id)}
               type="button"
             >
-              {tab.label}
+              {section.label}
             </button>
           ))}
           <button
@@ -356,185 +418,215 @@ export function ResearchDataExportsClient({ initialTab = "quick" }: { initialTab
         </section>
       ) : null}
 
-      <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-        <h2 className="text-xl font-semibold text-ink">Export scope</h2>
-        <div className="mt-4 grid gap-4 lg:grid-cols-3">
-          <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-            Scope
-            <select
-              className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-              onChange={(event) => setScopeMode(event.target.value as "all" | "assessment" | "student")}
-              value={scopeMode}
-            >
-              <option value="all">All authorized data</option>
-              <option value="assessment">Selected assessment</option>
-              <option value="student">Selected student</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-            Assessment
-            <select
-              className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-              disabled={scopeMode === "student"}
-              onChange={(event) => setAssessmentId(event.target.value)}
-              value={assessmentId}
-            >
-              {(options?.assessments ?? []).map((assessment) => (
-                <option key={assessment.assessment_public_id} value={assessment.assessment_public_id}>
-                  {assessment.title} ({assessment.availability})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-            Student
-            <select
-              className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-              disabled={scopeMode === "assessment"}
-              onChange={(event) => setStudentId(event.target.value)}
-              value={studentId}
-            >
-              {(options?.students ?? []).map((student) => (
-                <option key={student.user_id} value={student.user_id}>
-                  {student.user_id}
-                  {student.display_name ? ` - ${student.display_name}` : ""} ({student.availability})
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        {countPills(counts)}
-        {!hasData ? (
-          <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            No data are available for the selected scope. Choose a scope with student sessions before
-            generating analysis files.
-          </p>
-        ) : null}
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <label className="flex items-start gap-2 rounded-lg border border-line p-3 text-sm">
-            <input
-              checked={includeIncomplete}
-              onChange={(event) => setIncludeIncomplete(event.target.checked)}
-              type="checkbox"
-            />
-            <span>
-              <span className="font-semibold text-ink">Include incomplete sessions</span>
-              <span className="mt-1 block text-muted">Represent interrupted attempts explicitly instead of hiding them.</span>
-            </span>
-          </label>
-          <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-            <input
-              checked={includeRestricted}
-              onChange={(event) => setIncludeRestricted(event.target.checked)}
-              type="checkbox"
-            />
-            <span>
-              <span className="font-semibold text-amber-950">Restricted research fields</span>
-              <span className="mt-1 block text-amber-900">
-                Include answer-key and teacher diagnostic fields only for authorized research review.
-              </span>
-            </span>
-          </label>
-        </div>
-      </section>
-
-      {activeTab === "quick" ? (
-        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-          <div className="flex items-start gap-3">
-            <Table2 className="mt-1 h-5 w-5 text-accent" aria-hidden="true" />
-            <div>
-              <h2 className="text-xl font-semibold text-ink">Quick summary</h2>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                Spreadsheet summaries for assessment, student, and student x assessment matrix review.
-              </p>
+      {activeSection === "dataset" ? (
+        <>
+          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+            <h2 className="text-xl font-semibold text-ink">Research dataset</h2>
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+              <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                Scope
+                <select
+                  className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                  onChange={(event) => setScopeMode(event.target.value as ScopeMode)}
+                  value={scopeMode}
+                >
+                  <option value="all">All authorized data</option>
+                  <option value="assessment">Selected assessment</option>
+                  <option value="student">Selected student</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                Assessment
+                <select
+                  className="h-10 rounded-md border border-line bg-white px-3 text-sm disabled:bg-slate-100"
+                  disabled={scopeMode !== "assessment"}
+                  onChange={(event) => setAssessmentId(event.target.value)}
+                  value={assessmentId}
+                >
+                  {(options?.assessments ?? []).map((assessment) => (
+                    <option key={assessment.assessment_public_id} value={assessment.assessment_public_id}>
+                      {assessment.title} ({assessment.availability})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                Student
+                <select
+                  className="h-10 rounded-md border border-line bg-white px-3 text-sm disabled:bg-slate-100"
+                  disabled={scopeMode !== "student"}
+                  onChange={(event) => setStudentId(event.target.value)}
+                  value={studentId}
+                >
+                  {(options?.students ?? []).map((student) => (
+                    <option key={student.user_id} value={student.user_id}>
+                      {student.user_id}
+                      {student.display_name ? ` - ${student.display_name}` : ""} ({student.availability})
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-          </div>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <DownloadLink disabled={!selectedAssessment || selectedAssessment.counts.sessions === 0} href={quickAssessmentHref} label="Selected assessment summary" />
-            <DownloadLink disabled={!selectedStudent || selectedStudent.counts.sessions === 0} href={quickStudentHref} label="Selected student summary" />
-            <DownloadLink href="/api/teacher/data-explorer/matrix/csv" label="Student x assessment matrix" />
-          </div>
-        </section>
+            {countPills(counts)}
+            {!hasData ? (
+              <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                No data are available for the selected scope. Choose a scope with student sessions before generating a research dataset.
+              </p>
+            ) : null}
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <label className="flex items-start gap-2 rounded-lg border border-line p-3 text-sm">
+                <input
+                  checked={includeIncomplete}
+                  onChange={(event) => setIncludeIncomplete(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>
+                  <span className="font-semibold text-ink">Include incomplete sessions</span>
+                  <span className="mt-1 block text-muted">Represent interrupted attempts explicitly instead of hiding them.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                <input
+                  checked={includeRestricted}
+                  onChange={(event) => setIncludeRestricted(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>
+                  <span className="font-semibold text-amber-950">Restricted research fields</span>
+                  <span className="mt-1 block text-amber-900">
+                    Include answer-key and teacher diagnostic fields only for authorized research review.
+                  </span>
+                </span>
+              </label>
+            </div>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <DownloadLink disabled={!hasData} href={datasetHref} label="Generate research dataset" />
+              <DownloadLink href={`/api/teacher/research-data/dictionary${dictionaryDownloadQuery}`} label="Download data dictionary CSV" />
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
+            <h2 className="text-xl font-semibold text-ink">Export job history</h2>
+            {jobs.length === 0 ? (
+              <EmptyPanel title="No background exports have been generated yet." />
+            ) : (
+              <div className="mt-4 overflow-x-auto rounded-lg border border-line">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
+                    <tr>
+                      <th className="px-3 py-2">Export ID</th>
+                      <th className="px-3 py-2">Scope</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">File/table set</th>
+                      <th className="px-3 py-2">Restricted</th>
+                      <th className="px-3 py-2">Rows</th>
+                      <th className="px-3 py-2">Created</th>
+                      <th className="px-3 py-2">Completed</th>
+                      <th className="px-3 py-2">Download</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {jobs.slice(0, 8).map((job) => (
+                      <tr key={job.export_public_id}>
+                        <td className="px-3 py-2 font-mono text-xs">{job.export_public_id}</td>
+                        <td className="px-3 py-2">{jobOption(job, "export_scope") || "legacy"}</td>
+                        <td className="px-3 py-2">
+                          <StatusPill value={job.status} tone={job.status === "completed" ? "good" : job.status === "failed" ? "bad" : "warn"} />
+                        </td>
+                        <td className="px-3 py-2">{jobOption(job, "export_type") || job.export_schema_version || "legacy export"}</td>
+                        <td className="px-3 py-2">{jobOption(job, "restricted_fields_included") || "false"}</td>
+                        <td className="px-3 py-2">{job.row_count ?? ""}</td>
+                        <td className="px-3 py-2">{formatDate(job.created_at)}</td>
+                        <td className="px-3 py-2">{formatDate(job.completed_at)}</td>
+                        <td className="px-3 py-2">
+                          {job.download_url ? <a className="font-semibold text-accent hover:underline" href={job.download_url}>Download</a> : "Not available"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </>
       ) : null}
 
-      {activeTab === "analysis" ? (
-        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-          <div className="flex items-start gap-3">
-            <PackageCheck className="mt-1 h-5 w-5 text-accent" aria-hidden="true" />
-            <div>
-              <h2 className="text-xl font-semibold text-ink">Analysis-ready dataset</h2>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                One ZIP containing normalized CSV tables: sessions, item responses, process events,
-                conversation turns, agent/activity records, administered content, and the data dictionary.
-              </p>
-            </div>
-          </div>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <DownloadLink disabled={!hasData} href={analysisHref} label="Generate analysis-ready ZIP" />
-            <DownloadLink href="/api/teacher/research-data/dictionary" label="Download data dictionary CSV" />
-          </div>
-        </section>
-      ) : null}
-
-      {activeTab === "archive" ? (
-        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-          <div className="flex items-start gap-3">
-            <Archive className="mt-1 h-5 w-5 text-accent" aria-hidden="true" />
-            <div>
-              <h2 className="text-xl font-semibold text-ink">Full archive</h2>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                Comprehensive restricted research ZIP with audit manifests and redacted structured records.
-                Use this when reproducibility or audit context matters.
-              </p>
-            </div>
-          </div>
-          <div className="mt-5">
-            <DownloadLink href={archiveHref} label="Generate full archive" />
-          </div>
-        </section>
-      ) : null}
-
-      {activeTab === "dictionary" ? (
+      {activeSection === "dictionary" ? (
         <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
           <div className="flex items-start gap-3">
             <BookOpen className="mt-1 h-5 w-5 text-accent" aria-hidden="true" />
             <div>
               <h2 className="text-xl font-semibold text-ink">Data dictionary</h2>
               <p className="mt-2 text-sm leading-6 text-muted">
-                Search row grain, source, generation method, missingness, privacy level, export tier,
-                and interpretation cautions before downloading the CSV.
+                Browse variable definitions, row grains, collection methods, interpretation boundaries, privacy, and export status.
               </p>
             </div>
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
-            <DownloadLink href="/api/teacher/research-data/dictionary" label="Download data dictionary CSV" />
-            <a className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink hover:border-accent" href="/api/teacher/research-data/dictionary?format=json">
-              View data dictionary JSON
+            <DownloadLink href={`/api/teacher/research-data/dictionary${dictionaryDownloadQuery}`} label="Download filtered dictionary CSV" />
+            <a className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink hover:border-accent" href={`/api/teacher/research-data/dictionary?${dictionaryQuery.toString()}`}>
+              View current page JSON
             </a>
           </div>
           <div className="mt-5 grid gap-3 lg:grid-cols-4">
-            <label className="flex flex-col gap-2 text-sm font-medium text-ink lg:col-span-1">
+            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
               Search variables
               <input
                 className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-                onChange={(event) => setDictionarySearch(event.target.value)}
-                placeholder="Variable, definition, or source"
+                onChange={(event) => {
+                  setDictionarySearch(event.target.value);
+                  resetDictionaryPage();
+                }}
+                placeholder="Variable, definition, method, or source"
                 type="search"
                 value={dictionarySearch}
               />
             </label>
             <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+              Category
+              <select
+                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                onChange={(event) => {
+                  setDictionaryCategoryFilter(event.target.value);
+                  resetDictionaryPage();
+                }}
+                value={dictionaryCategoryFilter}
+              >
+                <option value="all">All categories</option>
+                {(dictionary?.filter_options.categories ?? []).map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
               Table
               <select
                 className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-                onChange={(event) => setDictionaryTableFilter(event.target.value)}
+                onChange={(event) => {
+                  setDictionaryTableFilter(event.target.value);
+                  resetDictionaryPage();
+                }}
                 value={dictionaryTableFilter}
               >
                 <option value="all">All tables</option>
-                {dictionaryTables.map((table) => (
-                  <option key={table} value={table}>
-                    {table}
-                  </option>
+                {(dictionary?.filter_options.table_names ?? []).map((table) => (
+                  <option key={table} value={table}>{table}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+              Source type
+              <select
+                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                onChange={(event) => {
+                  setDictionarySourceFilter(event.target.value);
+                  resetDictionaryPage();
+                }}
+                value={dictionarySourceFilter}
+              >
+                <option value="all">All source types</option>
+                {(dictionary?.filter_options.source_types ?? []).map((sourceType) => (
+                  <option key={sourceType} value={sourceType}>{sourceType}</option>
                 ))}
               </select>
             </label>
@@ -542,14 +634,15 @@ export function ResearchDataExportsClient({ initialTab = "quick" }: { initialTab
               Privacy
               <select
                 className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-                onChange={(event) => setDictionaryPrivacyFilter(event.target.value)}
+                onChange={(event) => {
+                  setDictionaryPrivacyFilter(event.target.value);
+                  resetDictionaryPage();
+                }}
                 value={dictionaryPrivacyFilter}
               >
                 <option value="all">All privacy levels</option>
-                {dictionaryPrivacyLevels.map((privacyLevel) => (
-                  <option key={privacyLevel} value={privacyLevel}>
-                    {privacyLevel}
-                  </option>
+                {(dictionary?.filter_options.privacy_levels ?? []).map((privacyLevel) => (
+                  <option key={privacyLevel} value={privacyLevel}>{privacyLevel}</option>
                 ))}
               </select>
             </label>
@@ -557,15 +650,80 @@ export function ResearchDataExportsClient({ initialTab = "quick" }: { initialTab
               Export tier
               <select
                 className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-                onChange={(event) => setDictionaryTierFilter(event.target.value)}
+                onChange={(event) => {
+                  setDictionaryTierFilter(event.target.value);
+                  resetDictionaryPage();
+                }}
                 value={dictionaryTierFilter}
               >
                 <option value="all">All export tiers</option>
-                {dictionaryTiers.map((tier) => (
-                  <option key={tier} value={tier}>
-                    {tier}
-                  </option>
+                {(dictionary?.filter_options.export_tiers ?? []).map((tier) => (
+                  <option key={tier} value={tier}>{tier}</option>
                 ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+              Field family
+              <select
+                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                onChange={(event) => {
+                  setDictionaryFamilyFilter(event.target.value);
+                  resetDictionaryPage();
+                }}
+                value={dictionaryFamilyFilter}
+              >
+                <option value="all">All field families</option>
+                {(dictionary?.filter_options.field_families ?? []).map((family) => (
+                  <option key={family} value={family}>{family}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+              Page size
+              <select
+                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                onChange={(event) => {
+                  setDictionaryPageSize(Number(event.target.value));
+                  resetDictionaryPage();
+                }}
+                value={dictionaryPageSize}
+              >
+                {[25, 50, 100, 250, 500].map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+              Directly recorded or derived
+              <select
+                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                onChange={(event) => {
+                  setDictionaryDerivationFilter(event.target.value);
+                  resetDictionaryPage();
+                }}
+                value={dictionaryDerivationFilter}
+              >
+                <option value="all">All derivation types</option>
+                {(dictionary?.filter_options.derivations ?? []).map((derivation) => (
+                  <option key={derivation} value={derivation}>{derivation}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+              Deprecated status
+              <select
+                className="h-10 rounded-md border border-line bg-white px-3 text-sm"
+                onChange={(event) => {
+                  setDictionaryDeprecatedFilter(event.target.value);
+                  resetDictionaryPage();
+                }}
+                value={dictionaryDeprecatedFilter}
+              >
+                <option value="all">All variables</option>
+                <option value="false">Active variables</option>
+                <option value="true">Deprecated variables</option>
               </select>
             </label>
           </div>
@@ -579,16 +737,32 @@ export function ResearchDataExportsClient({ initialTab = "quick" }: { initialTab
             <div className="mt-5 space-y-4">
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-lg border border-line bg-slate-50 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted">Variables</p>
+                  <p className="text-xs uppercase tracking-wide text-muted">Total variables</p>
                   <p className="mt-1 text-2xl font-semibold text-ink">{dictionary.stats.variable_count}</p>
                 </div>
                 <div className="rounded-lg border border-line bg-slate-50 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted">Process-event types</p>
-                  <p className="mt-1 text-2xl font-semibold text-ink">{dictionary.stats.process_event_type_count}</p>
+                  <p className="text-xs uppercase tracking-wide text-muted">Filtered variables</p>
+                  <p className="mt-1 text-2xl font-semibold text-ink">{dictionary.total}</p>
                 </div>
                 <div className="rounded-lg border border-line bg-slate-50 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted">Shown rows</p>
-                  <p className="mt-1 text-2xl font-semibold text-ink">{filteredDictionaryEntries.length}</p>
+                  <p className="text-xs uppercase tracking-wide text-muted">Visible range</p>
+                  <p className="mt-1 text-2xl font-semibold text-ink">
+                    {dictionary.first_visible_row}-{dictionary.last_visible_row}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-slate-50 p-3 text-sm">
+                <span>
+                  Showing {dictionary.first_visible_row}-{dictionary.last_visible_row} of {dictionary.total} variables
+                </span>
+                <span>
+                  Page {dictionary.page} of {dictionary.total_pages}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  <button className="rounded-md border border-line bg-white px-3 py-1 font-semibold disabled:text-slate-400" disabled={dictionary.page <= 1} onClick={() => setDictionaryPage(1)} type="button">First</button>
+                  <button className="rounded-md border border-line bg-white px-3 py-1 font-semibold disabled:text-slate-400" disabled={dictionary.page <= 1} onClick={() => setDictionaryPage((page) => Math.max(1, page - 1))} type="button">Previous</button>
+                  <button className="rounded-md border border-line bg-white px-3 py-1 font-semibold disabled:text-slate-400" disabled={dictionary.page >= dictionary.total_pages} onClick={() => setDictionaryPage((page) => page + 1)} type="button">Next</button>
+                  <button className="rounded-md border border-line bg-white px-3 py-1 font-semibold disabled:text-slate-400" disabled={dictionary.page >= dictionary.total_pages} onClick={() => setDictionaryPage(dictionary.total_pages)} type="button">Last</button>
                 </div>
               </div>
               <div className="overflow-x-auto rounded-lg border border-line">
@@ -596,18 +770,20 @@ export function ResearchDataExportsClient({ initialTab = "quick" }: { initialTab
                   <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
                     <tr>
                       <th className="px-3 py-2">Variable</th>
+                      <th className="px-3 py-2">Category</th>
                       <th className="px-3 py-2">Table</th>
                       <th className="px-3 py-2">Type</th>
                       <th className="px-3 py-2">Source</th>
                       <th className="px-3 py-2">Privacy</th>
                       <th className="px-3 py-2">Export tier</th>
-                      <th className="px-3 py-2">Definition</th>
+                      <th className="px-3 py-2">Definition and method</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
-                    {filteredDictionaryEntries.map((entry) => (
+                    {dictionary.rows.map((entry) => (
                       <tr key={`${entry.table_name}.${entry.variable_name}`}>
                         <td className="px-3 py-2 font-mono text-xs">{entry.variable_name}</td>
+                        <td className="px-3 py-2">{entry.category}</td>
                         <td className="px-3 py-2">{entry.table_name}</td>
                         <td className="px-3 py-2">{entry.data_type}</td>
                         <td className="px-3 py-2">{entry.source_type}</td>
@@ -615,6 +791,8 @@ export function ResearchDataExportsClient({ initialTab = "quick" }: { initialTab
                         <td className="px-3 py-2">{entry.export_tier}</td>
                         <td className="max-w-xl px-3 py-2 text-muted">
                           <span>{entry.definition}</span>
+                          <span className="mt-1 block">{entry.collection_or_generation_method}</span>
+                          <span className="mt-1 block text-ink">{entry.interpretation_guidance}</span>
                           {entry.interpretation_caution ? (
                             <span className="mt-1 block text-amber-800">{entry.interpretation_caution}</span>
                           ) : null}
@@ -628,42 +806,6 @@ export function ResearchDataExportsClient({ initialTab = "quick" }: { initialTab
           ) : null}
         </section>
       ) : null}
-
-      <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-        <h2 className="text-xl font-semibold text-ink">Current export job history</h2>
-        {jobs.length === 0 ? (
-          <EmptyPanel title="No background exports have been generated yet." />
-        ) : (
-          <div className="mt-4 overflow-x-auto rounded-lg border border-line">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
-                <tr>
-                  <th className="px-3 py-2">Export ID</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Rows</th>
-                  <th className="px-3 py-2">Created</th>
-                  <th className="px-3 py-2">Download</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {jobs.slice(0, 8).map((job) => (
-                  <tr key={job.export_public_id}>
-                    <td className="px-3 py-2 font-mono text-xs">{job.export_public_id}</td>
-                    <td className="px-3 py-2">
-                      <StatusPill value={job.status} tone={job.status === "completed" ? "good" : job.status === "failed" ? "bad" : "warn"} />
-                    </td>
-                    <td className="px-3 py-2">{job.row_count ?? ""}</td>
-                    <td className="px-3 py-2">{formatDate(job.created_at)}</td>
-                    <td className="px-3 py-2">
-                      {job.download_url ? <a className="font-semibold text-accent hover:underline" href={job.download_url}>Download</a> : "Not available"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
     </div>
   );
 }

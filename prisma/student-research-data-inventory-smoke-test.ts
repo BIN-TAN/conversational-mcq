@@ -1,6 +1,7 @@
 import {
   analysisReadyColumnsByTable,
   buildAnalysisReadyDictionaryEntries,
+  DATA_DICTIONARY_CATEGORIES,
   dictionaryStats,
   prismaFieldClassificationEntries
 } from "../src/lib/services/teacher-research-data/dictionary";
@@ -29,12 +30,25 @@ function main() {
     );
   }
 
-  for (const entry of entries.filter((entry) => entry.export_tier === "analysis-ready")) {
+  for (const entry of entries.filter((entry) => entry.export_tier === "research_dataset")) {
+    assert(entry.category.trim(), `${entry.table_name}.${entry.variable_name} needs a substantive category.`);
     assert(entry.definition.trim(), `${entry.table_name}.${entry.variable_name} needs a definition.`);
     assert(entry.row_grain.trim(), `${entry.table_name}.${entry.variable_name} needs row grain.`);
     assert(entry.source_type.trim(), `${entry.table_name}.${entry.variable_name} needs source type.`);
     assert(entry.missing_value_meaning.trim(), `${entry.table_name}.${entry.variable_name} needs missingness semantics.`);
+    assert(
+      entry.collection_or_generation_method.trim(),
+      `${entry.table_name}.${entry.variable_name} needs collection/generation method.`
+    );
   }
+
+  const categories = new Set(entries.map((entry) => entry.category));
+  for (const category of DATA_DICTIONARY_CATEGORIES) {
+    assert(categories.has(category), `Missing data-nature dictionary category ${category}.`);
+  }
+  assert(!categories.has("Quick summary"), "Dictionary category should not be an old export product.");
+  assert(!categories.has("Analysis-ready"), "Dictionary category should not be an old export product.");
+  assert(!categories.has("Full archive"), "Dictionary category should not be an old export product.");
 
   const classifications = prismaFieldClassificationEntries();
   assert(classifications.length > 200, "Expected broad Prisma research-field classification coverage.");
@@ -48,7 +62,7 @@ function main() {
   );
   assert(secretEntries.length >= 2, "Expected credential/hash fields in the classified inventory.");
   assert(
-    secretEntries.every((entry) => entry.export_tier === "never exported"),
+    secretEntries.every((entry) => entry.export_tier === "never_exported"),
     "Credential/hash fields must be marked never exported."
   );
 
@@ -58,7 +72,7 @@ function main() {
   assert(restrictedEntries.length >= 4, "Expected restricted answer-key/diagnostic fields in dictionary.");
   assert(
     restrictedEntries.every((entry) =>
-      entry.export_tier === "full archive only" || entry.privacy_level === "restricted answer-key"
+      entry.export_tier === "restricted_research_dataset" || entry.privacy_level === "restricted answer-key"
     ),
     "Answer-key and diagnostic-note fields must be restricted."
   );
@@ -86,4 +100,3 @@ function main() {
 }
 
 main();
-

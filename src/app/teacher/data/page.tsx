@@ -29,10 +29,6 @@ export default async function TeacherDataPage() {
           >
             <Table2 className="h-5 w-5 text-accent" aria-hidden="true" />
             <h2 className="mt-4 text-lg font-semibold text-ink">Research data and exports</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Download quick summaries, analysis-ready CSV tables, full archive files, and the
-              variable dictionary from one place.
-            </p>
           </Link>
 
           <Link
@@ -41,10 +37,6 @@ export default async function TeacherDataPage() {
           >
             <FileUp className="h-5 w-5 text-accent" aria-hidden="true" />
             <h2 className="mt-4 text-lg font-semibold text-ink">Summative outcomes</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Upload or paste outcome CSV data, preview validation results, commit valid batches,
-              and inspect import history.
-            </p>
           </Link>
 
         </section>
