@@ -22,6 +22,12 @@ import {
   PROCESS_EVENTS_COLUMNS,
   SESSIONS_COLUMNS
 } from "./dictionary";
+import {
+  ResearchPseudonymizationConfigError,
+  assertResearchPseudonymizationReadyForExport,
+  researchPseudonymizationMetadata,
+  researchStudentId
+} from "./pseudonymization";
 
 type CsvPrimitive = string | number | boolean | null;
 type CsvRow = Record<string, CsvPrimitive>;
@@ -329,10 +335,6 @@ function sha(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
-function researchStudentId(userId: string) {
-  return `rs_${createHash("sha256").update(`research_student_id:v1:${userId}`).digest("hex").slice(0, 20)}`;
-}
-
 function authorizedSessionOr(teacherUserDbId: string): Prisma.AssessmentSessionWhereInput[] {
   return [
     { assessment: { created_by_user_db_id: teacherUserDbId } },
@@ -480,11 +482,16 @@ function studentSafeStatus(profile: ReturnType<typeof latestProfile>) {
 function sessionBase(source: ExportSourceIdentity, session: AnalysisSession) {
   const responses = session.concept_unit_sessions.flatMap((entry) => entry.item_responses);
   const pseudonymousStudentId = researchStudentId(session.user.user_id);
+  const pseudonymization = researchPseudonymizationMetadata();
   return {
     ...sourceIdentityRow(source),
     research_student_id: pseudonymousStudentId,
     student_id: pseudonymousStudentId,
     student_public_id: pseudonymousStudentId,
+    research_pseudonym_version: pseudonymization.research_pseudonym_version,
+    pseudonymization_method: pseudonymization.pseudonymization_method,
+    pseudonymization_version: pseudonymization.research_pseudonym_version,
+    pseudonymization_key_fingerprint: pseudonymization.pseudonymization_key_fingerprint,
     assessment_public_id: session.assessment.assessment_public_id,
     assessment_snapshot_public_id: assessmentSnapshotId(session),
     session_public_id: session.session_public_id,
@@ -723,8 +730,13 @@ function assessmentSummaryRows(source: ExportSourceIdentity, sessions: AnalysisS
       throw new Error(`Missing session summary row for ${session.session_public_id}.`);
     }
     return {
+      research_student_id: row.research_student_id,
       student_id: row.student_id,
       student_public_id: row.student_public_id,
+      research_pseudonym_version: row.research_pseudonym_version,
+      pseudonymization_method: row.pseudonymization_method,
+      pseudonymization_version: row.pseudonymization_version,
+      pseudonymization_key_fingerprint: row.pseudonymization_key_fingerprint,
       assessment_public_id: row.assessment_public_id,
       assessment_title: row.assessment_title,
       session_public_id: row.session_public_id,
@@ -1086,6 +1098,15 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
   include_incomplete_sessions?: boolean;
   include_restricted_fields?: boolean;
 }) {
+  try {
+    assertResearchPseudonymizationReadyForExport();
+  } catch (error) {
+    if (error instanceof ResearchPseudonymizationConfigError) {
+      throw new ContentServiceError(error.code, error.message, 500);
+    }
+    throw error;
+  }
+
   const sessions = await loadSessions(input);
   if (sessions.length === 0) {
     throw new ContentServiceError(

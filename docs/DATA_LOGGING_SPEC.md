@@ -309,14 +309,28 @@ Use public IDs rather than internal database UUIDs:
 - `session_public_id` joins sessions, item responses, process events,
   conversation turns, agent/activity records, and assessment summaries.
 - `research_student_id` is the ordinary research join key for students. It is a
-  pseudonymous hash-based identifier and is not the login username, email, or an
-  internal database UUID.
+  pseudonymous, versioned HMAC-SHA-256 identifier generated from the canonical
+  operational user identifier using a server-side
+  `RESEARCH_PSEUDONYMIZATION_KEY`. It is not the login username, email, or an
+  internal database UUID. The key is not exported.
+- `research_pseudonym_version`, `pseudonymization_method`,
+  `pseudonymization_version`, and `pseudonymization_key_fingerprint` document
+  pseudonymization provenance. The fingerprint is a short one-way identifier
+  for reproducibility checks, not the key.
 - `assessment_public_id` joins assessment-level records.
 - `assessment_snapshot_public_id` binds rows to the administered assessment
   context for a specific session.
 - `item_public_id` and `item_snapshot_public_id` join administered item
   response/content records.
 - `attempt_number` keeps repeated attempts separate.
+
+Production research exports fail closed if `RESEARCH_PSEUDONYMIZATION_KEY` is
+missing or if legacy pseudonymization is requested. This failure is limited to
+research-export generation; authentication, account management, assessment
+management, and non-export pages must remain available. Development/test runs
+may use a deterministic non-production key. Legacy `legacy_sha256_v1`
+pseudonyms are documented only for backward compatibility and are not joinable
+to HMAC pseudonyms without a separately authorized linkage process.
 
 ### Timing Formulas
 

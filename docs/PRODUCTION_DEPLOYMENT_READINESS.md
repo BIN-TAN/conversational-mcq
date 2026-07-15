@@ -281,6 +281,14 @@ npm run student:research-export-integrity-smoke
 
 Generated export artifacts remain under ignored local paths and must not be committed.
 
+Production research exports require server-only
+`RESEARCH_PSEUDONYMIZATION_KEY` for `hmac_sha256_v1` student pseudonyms. The
+key must not appear in browser code, logs, CSVs, or commits. If the key is
+missing, research export generation fails closed with a typed configuration
+error; login, account management, assessment management, and ordinary non-export
+pages remain available. The exported `pseudonymization_key_fingerprint` is only
+a short one-way provenance marker for detecting key/configuration changes.
+
 ## Classroom Web Access Plan
 
 1. Deploy a Render staging HTTPS URL with `render.yaml`.
@@ -323,6 +331,8 @@ Before real classroom use:
 - Backup policy and restore drill are documented.
 - Access to production database and export downloads is restricted.
 - Teacher/research export endpoints require `teacher_researcher` authorization.
+- Production research exports have a configured
+  `RESEARCH_PSEUDONYMIZATION_KEY` and use `hmac_sha256_v1` pseudonymization.
 - Student endpoints do not expose answer keys, correctness labels, distractor metadata, raw provider payloads, prompt text, internal labels, or agent audit metadata.
 - Logs exclude raw student reasoning unless explicitly approved by research protocol and protected by the deployment environment.
 - Exports exclude restricted item keys by default.

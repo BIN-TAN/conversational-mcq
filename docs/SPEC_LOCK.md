@@ -2438,8 +2438,21 @@ Phase 6A.5 must not implement:
 - `source_verified` records source-code verification only. It must not be
   represented as domain-owner approval.
 - Ordinary research dataset exports must use `research_student_id` as the
-  pseudonymous student join key. Login usernames, emails, internal database IDs,
-  credentials, hashes, and secrets must not appear in default research exports.
+  pseudonymous student join key. New production exports must generate it with
+  versioned keyed HMAC-SHA-256 over the canonical operational user identifier
+  using server-only `RESEARCH_PSEUDONYMIZATION_KEY`. Login usernames, emails,
+  internal database IDs, credentials, hashes, and secrets must not appear in
+  default research exports.
+- Research exports must include safe pseudonymization provenance fields where
+  defined: `research_pseudonym_version`, `pseudonymization_method`,
+  `pseudonymization_version`, and `pseudonymization_key_fingerprint`. The
+  fingerprint is non-secret provenance only. Changing the key or version
+  changes `research_student_id`; ordinary exports must not include an
+  unrestricted linkage table.
+- If production research pseudonymization is missing or invalid, research
+  export generation must fail closed with a typed configuration error while
+  authentication, logout, account management, and non-LLM/non-export teacher
+  pages remain available.
 - Default research dataset exports exclude credentials, hashes, session secrets,
   API keys, database URLs, raw provider requests, unrestricted raw provider
   output, internal database UUIDs, unrestricted answer keys, correctness fields,

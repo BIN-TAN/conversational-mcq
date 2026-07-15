@@ -9,9 +9,11 @@ Dictionary schema version: `research-data-dictionary-v3`
 Phase 31af rebuilt the research data dictionary from one generated schema-like
 inventory into four explicit documentation entities. Phase 31ag corrected
 residual semantic drift, added source-code evidence and review status fields,
-and separated source-code verification from domain-owner approval:
+and separated source-code verification from domain-owner approval. Phase 31ah
+hardened remaining union-table semantics, process-event specificity, excluded
+field mappings, token lineage, and versioned keyed pseudonymization:
 
-- Research dataset variables: 278
+- Research dataset variables: 286
 - Process event types: 156
 - Internal schema fields: 281
 - Platform administration and excluded fields: 102
@@ -25,7 +27,10 @@ columns. The Phase 31ag specificity audit additionally reports zero generic
 row-based definitions, zero generic serialization-path methods, zero unresolved
 formula references, zero count/duration formula mismatches, zero ratio formula
 mismatches, zero generic process-event triggers, zero internal nullable
-placeholders, and zero internal privacy/audience mismatches.
+placeholders, and zero internal privacy/audience mismatches. The Phase 31ah
+artifact verifier additionally reports zero unresolved agent/activity
+applicability rows, correct provider-versus-aggregate token lineage, and
+HMAC pseudonymization provenance in the emitted CSV artifacts.
 
 ## Fields Reviewed
 
@@ -74,6 +79,11 @@ The review covered:
 - Added pseudonymous `research_student_id` and deprecated the legacy
   `student_id` and `student_public_id` research-export aliases as pseudonymous
   compatibility columns.
+- Replaced the ordinary research-export pseudonymization path with
+  versioned keyed HMAC-SHA-256 using `RESEARCH_PSEUDONYMIZATION_KEY`, and
+  added row-level pseudonymization provenance fields:
+  `research_pseudonym_version`, `pseudonymization_method`,
+  `pseudonymization_version`, and `pseudonymization_key_fingerprint`.
 - Updated default analysis-ready export contents to include
   `research_data_dictionary.csv` and `process_event_codebook.csv`, while
   excluding the internal schema appendix and excluded-variable inventory.
@@ -86,19 +96,30 @@ The review covered:
 - Repaired timing formulas so exported timing definitions reference exported
   variables or documented event/payload names, not hidden implementation fields
   such as `item_started_at`.
-- Made process-event codebook rows event-family-specific for triggers,
-  timestamp meanings, payload fields, downstream variables, guidance, and
-  cautions.
+- Made process-event codebook rows event-specific enough to remove unresolved
+  `named step` / `named workflow` language while retaining source-code
+  verification status.
 - Marked `assessment_summary.csv` as a derived convenience view over canonical
   session-level data and documented `agent_activity_records.csv` as a
-  heterogeneous union requiring `record_type`.
+  record-type union requiring `record_type`.
+- Corrected `agent_activity_records` applicability from the actual
+  `agentAndActivityRows()` serializer branches: `agent_call`,
+  `profile_result`, `formative_decision`, `activity_attempt`, `workflow_job`,
+  `formative_activity`, `post_activity_evidence`, and
+  `diagnostic_snapshot`.
+- Corrected token lineage so provider-returned call token counts are
+  `provider_reported_usage_metadata`, session-level token totals are
+  `aggregate_derived`, and token-limit configuration remains internal
+  usage/audit metadata rather than a credential.
 
 ## Unresolved Questions
 
 - Every row is source-code verified, but domain-owner review remains pending.
   Do not treat `source_verified` as substantive domain approval.
-- The pseudonymous `research_student_id` is stable for export joins, but a
-  separate restricted linkage-file workflow remains intentionally unimplemented.
+- The pseudonymous `research_student_id` is stable for export joins only when
+  the same pseudonymization version, canonical operational user identifier,
+  and HMAC key are used. Changing the key changes pseudonyms. A separate
+  restricted linkage-file workflow remains intentionally unimplemented.
 - Some source-schema mappings are approximate because one internal Prisma field
   can feed multiple flattened research variables. The appendix flags these as
   lineage aids, not ordinary research variables.

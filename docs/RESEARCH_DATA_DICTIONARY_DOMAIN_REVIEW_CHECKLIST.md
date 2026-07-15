@@ -187,12 +187,19 @@ All rows below are source verified and domain review pending:
 - `sessions.research_student_id`
 - `sessions.student_id`
 - `sessions.student_public_id`
+- `sessions.research_pseudonym_version`
+- `sessions.pseudonymization_method`
+- `sessions.pseudonymization_version`
+- `sessions.pseudonymization_key_fingerprint`
 
 Review questions:
 
-- Is deterministic namespace hashing acceptable for the current pilot?
-- Should a keyed salt or restricted linkage-file workflow be required before
+- Is versioned HMAC-SHA-256 pseudonymization acceptable for the current pilot
+  export protocol?
+- Are key management, rotation, and fingerprint documentation sufficient before
   broader deployment?
+- Should a restricted linkage-file workflow be designed later for authorized
+  identity reconciliation, with separate authorization and audit logging?
 - Is the documented stability scope sufficient for longitudinal joins across
   exports and deployments?
 
@@ -207,4 +214,3 @@ Review questions:
   language before dissertation analysis.
 - Whether process-event categories need domain-owner names rather than current
   engineering code groups.
-

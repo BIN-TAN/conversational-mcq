@@ -327,6 +327,7 @@ function DictionaryCard({ entry, entityType }: { entry: DataDictionaryEntry; ent
         </div>
         <dl className="mt-4 grid gap-4 md:grid-cols-2">
           <DefinitionRow label="Source table" value={entry.source_table} />
+          <DefinitionRow label="Research-variable mapping" value={entry.research_variable_mapping || "No direct research variable."} />
           <DefinitionRow label="Exclusion reason" value={entry.exclusion_reason} />
           <DefinitionRow label="Permitted audience" value={entry.permitted_audience} />
           <DefinitionRow label="Export policy" value={entry.export_policy} />

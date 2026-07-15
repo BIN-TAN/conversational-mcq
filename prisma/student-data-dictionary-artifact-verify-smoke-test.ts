@@ -95,7 +95,7 @@ function verifyRequiredColumns(headers: string[], requiredColumns: readonly stri
 }
 
 function verifyResearchRows(rows: CsvRow[]) {
-  assert(rows.length === 278, `research_data_dictionary.csv expected 278 rows, received ${rows.length}.`);
+  assert(rows.length === 286, `research_data_dictionary.csv expected 286 rows, received ${rows.length}.`);
   assert(
     rows.every((row) => !genericFragments.some((fragment) => (row.definition + row.collection_or_generation_method).includes(fragment))),
     "research_data_dictionary.csv still contains generic row, timestamp, count, measured-value, or serialization wording."
@@ -141,6 +141,16 @@ function verifyResearchRows(rows: CsvRow[]) {
   expectContains(researchStudentId, "definition", "Pseudonymous student join key");
   expectContains(researchStudentId, "definition", "not the student's login username");
   expectContains(researchStudentId, "collection_or_generation_method", "researchStudentId()");
+  expectContains(researchStudentId, "collection_or_generation_method", "HMAC-SHA-256");
+  expectContains(researchStudentId, "interpretation_caution", "Pseudonymous, not anonymous");
+
+  const pseudonymVersion = requireRow(rows, "qualified_name", "sessions.research_pseudonym_version");
+  expectValue(pseudonymVersion, "source_nature", "system_configuration");
+  expectContains(pseudonymVersion, "allowed_values", "hmac_sha256_v1");
+
+  const pseudonymFingerprint = requireRow(rows, "qualified_name", "sessions.pseudonymization_key_fingerprint");
+  expectValue(pseudonymFingerprint, "privacy_level", "export_provenance");
+  expectContains(pseudonymFingerprint, "definition", "Short one-way fingerprint");
 
   const correctness = requireRow(rows, "qualified_name", "item_responses.correctness");
   expectValue(correctness, "source_nature", "deterministic_derived");
@@ -183,6 +193,23 @@ function verifyResearchRows(rows: CsvRow[]) {
   expectValue(longPauseCount, "unit", "count");
   expectContains(longPauseCount, "calculation_formula", "count of long_pause");
   expectNotContains(longPauseCount, "calculation_formula", "duration");
+
+  const activityPrompt = requireRow(rows, "qualified_name", "agent_activity_records.activity_prompt");
+  expectValue(activityPrompt, "source_nature", "persisted_llm_interpretation");
+  expectContains(activityPrompt, "applicable_record_types", "formative_activity");
+  expectNotContains(activityPrompt, "applicable_record_types", "agent_call");
+  expectContains(activityPrompt, "collection_or_generation_method", "does not copy raw activity packets");
+
+  const agentInputTokens = requireRow(rows, "qualified_name", "agent_activity_records.input_token_count");
+  expectValue(agentInputTokens, "source_nature", "provider_reported_usage_metadata");
+  expectContains(agentInputTokens, "collection_or_generation_method", "AgentCall.input_tokens");
+
+  const sessionInputTokens = requireRow(rows, "qualified_name", "sessions.total_input_tokens");
+  expectValue(sessionInputTokens, "source_nature", "aggregate_derived");
+  expectContains(sessionInputTokens, "definition", "Number of");
+
+  const assessmentSummaryStudent = requireRow(rows, "qualified_name", "assessment_summary.research_student_id");
+  expectContains(assessmentSummaryStudent, "definition", "Pseudonymous student join key");
 }
 
 function verifyProcessEventRows(rows: CsvRow[]) {
@@ -231,11 +258,14 @@ function verifyExcludedRows(rows: CsvRow[]) {
     rows.some((row) => row.field_name === "password_hash" && row.exclusion_category === "credential_or_secret"),
     "Password hashes should remain excluded as credentials/secrets."
   );
+  const userId = requireRow(rows, "qualified_name", "prisma.User.user_id");
+  expectContains(userId, "research_variable_mapping", "sessions.research_student_id");
+  expectContains(userId, "exclusion_reason", "research-facing representation");
 }
 
 function verifySemanticReport() {
   const report = researchDataDictionarySemanticReport();
-  assert(report.research_variable_count === 278, "Semantic report row count mismatch for research variables.");
+  assert(report.research_variable_count === 286, "Semantic report row count mismatch for research variables.");
   assert(report.process_event_type_count === 156, "Semantic report row count mismatch for process events.");
   assert(report.internal_schema_field_count === 281, "Semantic report row count mismatch for internal schema appendix.");
   assert(report.excluded_platform_field_count === 102, "Semantic report row count mismatch for excluded fields.");
@@ -265,7 +295,7 @@ function main() {
     {
       fileName: "research_data_dictionary.csv",
       content: dataDictionaryCsv(),
-      expectedRowCount: 278,
+      expectedRowCount: 286,
       expectedColumns: DATA_DICTIONARY_COLUMNS,
       requiredColumns: requiredResearchColumns
     },
@@ -288,7 +318,7 @@ function main() {
       content: excludedPlatformVariablesCsv(),
       expectedRowCount: 102,
       expectedColumns: EXCLUDED_PLATFORM_VARIABLE_COLUMNS,
-      requiredColumns: ["exclusion_category", "exclusion_reason", "permitted_audience", "export_policy"]
+      requiredColumns: ["research_variable_mapping", "exclusion_category", "exclusion_reason", "permitted_audience", "export_policy"]
     }
   ];
 
@@ -346,6 +376,8 @@ function main() {
       },
       generic_research_definitions: semanticReport.generic_research_definitions,
       generic_research_methods: semanticReport.generic_research_methods,
+      placeholder_research_definitions: semanticReport.placeholder_research_definitions,
+      placeholder_process_event_definitions: semanticReport.placeholder_process_event_definitions,
       formula_reference_issues: semanticReport.formula_reference_issues.length,
       count_duration_formula_issues: semanticReport.count_duration_formula_issues.length,
       ratio_formula_issues: semanticReport.ratio_formula_issues.length,

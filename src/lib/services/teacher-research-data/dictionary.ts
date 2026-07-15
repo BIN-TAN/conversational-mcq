@@ -24,6 +24,10 @@ export const SESSIONS_COLUMNS = [
   "research_student_id",
   "student_id",
   "student_public_id",
+  "research_pseudonym_version",
+  "pseudonymization_method",
+  "pseudonymization_version",
+  "pseudonymization_key_fingerprint",
   "assessment_public_id",
   "assessment_snapshot_public_id",
   "session_public_id",
@@ -296,6 +300,10 @@ export const ASSESSMENT_SUMMARY_COLUMNS = [
   "research_student_id",
   "student_id",
   "student_public_id",
+  "research_pseudonym_version",
+  "pseudonymization_method",
+  "pseudonymization_version",
+  "pseudonymization_key_fingerprint",
   "assessment_public_id",
   "assessment_title",
   "session_public_id",
@@ -419,6 +427,7 @@ export const EXCLUDED_PLATFORM_VARIABLE_COLUMNS = [
   "qualified_name",
   "source_table",
   "field_name",
+  "research_variable_mapping",
   "exclusion_category",
   "exclusion_reason",
   "permitted_audience",
@@ -517,6 +526,129 @@ const LLM_INTERPRETIVE_COLUMNS = new Set([
   "uncertainty"
 ]);
 
+const ALL_AGENT_ACTIVITY_RECORD_TYPES =
+  "agent_call; profile_result; formative_decision; activity_attempt; workflow_job; formative_activity; post_activity_evidence; diagnostic_snapshot";
+
+const AGENT_ACTIVITY_APPLICABILITY: Record<string, string> = {
+  record_type: ALL_AGENT_ACTIVITY_RECORD_TYPES,
+  session_public_id: ALL_AGENT_ACTIVITY_RECORD_TYPES,
+  research_student_id: ALL_AGENT_ACTIVITY_RECORD_TYPES,
+  student_id: ALL_AGENT_ACTIVITY_RECORD_TYPES,
+  assessment_public_id: ALL_AGENT_ACTIVITY_RECORD_TYPES,
+  assessment_snapshot_public_id: ALL_AGENT_ACTIVITY_RECORD_TYPES,
+  item_snapshot_public_id: "agent_call when item-scoped context exists; otherwise null for current serializer branches",
+  agent_call_public_id: "agent_call",
+  agent_name: "agent_call",
+  provider: "agent_call",
+  model: "agent_call",
+  status: ALL_AGENT_ACTIVITY_RECORD_TYPES,
+  blocked_reason: "agent_call",
+  started_at: ALL_AGENT_ACTIVITY_RECORD_TYPES,
+  completed_at: ALL_AGENT_ACTIVITY_RECORD_TYPES,
+  retry_count: "agent_call; workflow_job",
+  input_token_count: "agent_call",
+  output_token_count: "agent_call",
+  total_token_count: "agent_call",
+  prompt_version: "agent_call",
+  schema_version: "agent_call",
+  output_validated: "agent_call",
+  repair_attempted: "agent_call",
+  repair_status: "agent_call",
+  context_schema_version: "agent_call",
+  assessment_context_hash: "agent_call",
+  teacher_diagnostic_context_present: "agent_call",
+  interpretation_caution_present: "agent_call",
+  student_evidence_present: "agent_call",
+  context_version_bound: "agent_call",
+  answer_key_internal_only: "agent_call",
+  protected_content_exposed: "agent_call",
+  understanding_category: "profile_result",
+  engagement_category: "profile_result",
+  response_profile: "profile_result",
+  diagnostic_purpose: "formative_activity; post_activity_evidence; diagnostic_snapshot",
+  formative_value: "formative_decision",
+  selected_strategy: "formative_decision",
+  evidence_sufficiency: "profile_result",
+  uncertainty: "profile_result",
+  limitations: ALL_AGENT_ACTIVITY_RECORD_TYPES,
+  activity_public_id: "activity_attempt; workflow_job; formative_activity; post_activity_evidence; diagnostic_snapshot",
+  activity_type: "activity_attempt; workflow_job; formative_activity; post_activity_evidence",
+  activity_target: "formative_activity",
+  activity_prompt: "reserved for formative_activity first-turn prompt when persisted; current serializer leaves null",
+  attempt_number: "activity_attempt; formative_activity",
+  student_response: "reserved for post_activity_evidence or activity evaluation response text when a safe excerpt is explicitly populated; current serializer leaves null",
+  evaluation_status: "post_activity_evidence; diagnostic_snapshot",
+  misconception_persisted: "post_activity_evidence",
+  misconception_weakened: "post_activity_evidence",
+  misconception_changed: "post_activity_evidence",
+  misconception_resolved: "post_activity_evidence",
+  evidence_insufficient: "post_activity_evidence",
+  next_action: "post_activity_evidence; diagnostic_snapshot"
+};
+
+const AGENT_ACTIVITY_DEFINITIONS: Record<string, string> = {
+  record_type: "Discriminator naming which concrete agent/activity serializer branch produced the row.",
+  agent_call_public_id: "Public or deterministic identifier for the LLM or mock-provider agent-call audit record.",
+  agent_name: "Agent identifier recorded by the agent-call audit layer for the executed or attempted backend agent.",
+  provider: "Provider family recorded for the agent call, such as mock or OpenAI, when the agent-call branch is populated.",
+  model: "Model name recorded for the provider-backed agent call when available.",
+  status: "Lifecycle status for the exported agent call, profile result, formative decision, activity attempt, workflow job, post-activity evidence record, or diagnostic snapshot.",
+  blocked_reason: "Sanitized readiness, guard, validation, or provider-blocking reason recorded for an agent call when a call could not complete normally.",
+  started_at: "Timestamp when the exported agent, profile, decision, activity, job, evidence, or snapshot record began or was created.",
+  completed_at: "Timestamp when the exported agent, activity, job, evidence, or snapshot record reached a terminal or persisted state.",
+  retry_count: "Number of bounded retry attempts recorded for an agent call or workflow job.",
+  input_token_count: "Input token count reported by provider usage metadata for an agent-call row.",
+  output_token_count: "Output token count reported by provider usage metadata for an agent-call row.",
+  total_token_count: "Total token count reported by provider usage metadata for an agent-call row when the provider supplies it.",
+  prompt_version: "Prompt version recorded for the agent-call row to support reproducibility review.",
+  schema_version: "Provider-facing output schema version recorded for the agent-call row.",
+  output_validated: "Boolean indicating whether the agent-call output passed the applicable schema and safety validation.",
+  repair_attempted: "Boolean derived from the presence of sanitized validation error metadata on an agent-call row.",
+  repair_status: "Sanitized repair or validation-error status for an agent-call row.",
+  context_schema_version: "Assessment-context schema version bound to an agent-call row.",
+  assessment_context_hash: "Hash of the exported assessment/session context used to bind an agent call to its source context without exposing the full context payload.",
+  teacher_diagnostic_context_present: "Agent-call branch flag indicating whether teacher-authored diagnostic context was present in the allowed input.",
+  interpretation_caution_present: "Agent-call branch flag indicating that interpretive outputs require caution and human review.",
+  student_evidence_present: "Agent-call branch flag indicating that the allowed input included student response evidence.",
+  context_version_bound: "Agent-call branch flag indicating that the call was bound to a versioned assessment/session context.",
+  answer_key_internal_only: "Agent-call branch flag documenting that answer-key material remained internal-only in the call/audit path.",
+  protected_content_exposed: "Agent-call branch safety flag indicating whether protected content was exposed in the audited output path.",
+  understanding_category: "Assessment-specific understanding category persisted by the profile-result branch.",
+  engagement_category: "Engagement evidence category persisted by the profile-result branch; this is an evidence-quality signal, not a trait.",
+  response_profile: "Profile-result branch value summarizing the student's response pattern evidence for the assessment context.",
+  diagnostic_purpose: "Diagnostic purpose associated with a formative activity, post-activity evidence record, or diagnostic snapshot.",
+  formative_value: "Formative value selected by the formative-decision branch from validated evidence and mapping rules.",
+  selected_strategy: "Strategy classification for the formative-decision branch, including whether the default mapping was followed or deviated with rationale.",
+  evidence_sufficiency: "Profile-result branch classification of whether available evidence was sufficient for the diagnostic interpretation.",
+  uncertainty: "Profile-result branch provenance marker describing whether the profile was initial or updated.",
+  limitations: "Sanitized limitation, caution, or failure summary carried by the exported branch without raw provider payloads or secret values.",
+  activity_public_id: "Public identifier for a follow-up round, workflow job, formative activity attempt, post-activity evidence record, or diagnostic snapshot.",
+  activity_type: "Activity family, follow-up type, workflow job type, or post-activity activity family for activity-related branches.",
+  activity_target: "Concept-unit or activity target recorded for a formative-activity runtime attempt.",
+  activity_prompt: "Student-facing prompt used to initiate a generated formative activity when a validated runtime activity prompt is explicitly persisted for export.",
+  attempt_number: "Attempt or round number for follow-up/activity-attempt branches.",
+  student_response: "Safe student activity response excerpt when an activity-evaluation branch explicitly emits one; current export does not populate raw student response text.",
+  evaluation_status: "Evaluation source or evidence-quality status recorded by post-activity evidence and diagnostic snapshot branches.",
+  misconception_persisted: "Boolean indicating that post-activity evidence supported keeping the candidate misconception hypothesis.",
+  misconception_weakened: "Boolean indicating that post-activity evidence weakened the candidate misconception hypothesis.",
+  misconception_changed: "Boolean indicating that post-activity evidence changed the candidate misconception hypothesis.",
+  misconception_resolved: "Boolean indicating that post-activity evidence supported resolving the candidate misconception hypothesis.",
+  evidence_insufficient: "Boolean indicating that post-activity evidence quality was insufficient for a diagnostic update.",
+  next_action: "Recommended next diagnostic purpose emitted by post-activity evidence or diagnostic snapshot branches."
+};
+
+const AGENT_ACTIVITY_METHODS: Record<string, string> = {
+  input_token_count: "Copied in agentAndActivityRows() from AgentCall.input_tokens after the provider adapter stores usage metadata; null means the provider did not return usable usage for that call.",
+  output_token_count: "Copied in agentAndActivityRows() from AgentCall.output_tokens after the provider adapter stores usage metadata; null means the provider did not return usable usage for that call.",
+  total_token_count: "Copied in agentAndActivityRows() from AgentCall.total_tokens after the provider adapter stores usage metadata; null means the provider did not return usable usage for that call.",
+  activity_prompt: "Reserved for a future safe activity-prompt projection; current agentAndActivityRows() does not copy raw activity packets or prompts into this column.",
+  student_response: "Reserved for a future safe activity-response projection; current agentAndActivityRows() does not copy raw student activity text into this column.",
+  evaluation_status: "Copied from ActivityMisconceptionEvidenceRecord.evaluation_source for post_activity_evidence rows and PostActivityDiagnosticSnapshot.evidence_quality for diagnostic_snapshot rows.",
+  activity_type: "Copied from FollowupRound, WorkflowJob.job_type, ActivityRuntimeAttempt.activity_family, or ActivityMisconceptionEvidenceRecord.activity_family according to record_type.",
+  status: "Copied from the status field of the source branch: AgentCall.call_status, profile/decision recorded status, FollowupRound.status, WorkflowJob.status, ActivityRuntimeAttempt.status, evidence recorded status, or snapshot activity_update_status.",
+  limitations: "Copied only from sanitized limitation/status fields such as validation_error markers, mapping-deviation reason, follow-up trigger type, workflow error category, or limitations summary/code."
+};
+
 function titleize(name: string) {
   return name.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
 }
@@ -565,6 +697,9 @@ function sourceNature(table: string, variable: string): string {
   if (variable === "research_student_id" || variable === "student_id" || variable === "student_public_id") {
     return "deterministic_derived";
   }
+  if (/^research_pseudonym_version$|^pseudonymization_method$|^pseudonymization_version$|^pseudonymization_key_fingerprint$/.test(variable)) {
+    return "system_configuration";
+  }
   if (table === "conversation_turns" && variable === "message_text") return "mixed_by_actor_type";
   if (variable === "reasoning_quality_signal") return "persisted_llm_interpretation";
   if (variable === "correctness") return "deterministic_derived";
@@ -575,8 +710,18 @@ function sourceNature(table: string, variable: string): string {
     return "deterministic_derived";
   }
   if (variable === "app_environment") return "system_configuration";
-  if (table === "agent_activity_records" && /token|model|provider|prompt|schema|retry|validated|repair|status/.test(variable)) {
+  if (table === "agent_activity_records" && /input_token_count|output_token_count|total_token_count/.test(variable)) {
+    return "provider_reported_usage_metadata";
+  }
+  if ((table === "sessions" || table === "assessment_summary") && /total_input_tokens|total_output_tokens|total_tokens|agent_call_count/.test(variable)) {
+    return "aggregate_derived";
+  }
+  if (table === "agent_activity_records" && /model|provider|prompt_version|schema_version|retry|validated|repair|status|context_schema_version/.test(variable)) {
     return "system_configuration";
+  }
+  if (table === "agent_activity_records" && variable === "activity_prompt") return "persisted_llm_interpretation";
+  if (table === "agent_activity_records" && /evaluation_status|misconception_|evidence_insufficient|next_action/.test(variable)) {
+    return "deterministic_derived";
   }
   if (variable.endsWith("_ratio")) return "aggregate_derived";
   if (variable.endsWith("_count")) return "aggregate_derived";
@@ -596,6 +741,7 @@ function researchPrivacyLevel(variable: string) {
   if (RESTRICTED_COLUMNS.has(variable)) return "restricted_answer_key_or_teacher_diagnostic";
   if (SENSITIVE_TEXT_COLUMNS.has(variable)) return "research_sensitive_text";
   if (variable === "research_student_id" || variable === "student_id" || variable === "student_public_id") return "pseudonymous_research_id";
+  if (/pseudonymization|research_pseudonym_version/.test(variable)) return "export_provenance";
   if (variable.includes("provider_request") || variable.includes("provider_response")) return "advanced_audit_only";
   return "ordinary_research";
 }
@@ -607,6 +753,7 @@ function researchExportPolicy(variable: string) {
 }
 
 function categoryFor(table: string, variable: string): DataDictionaryCategory {
+  if (/pseudonymization|research_pseudonym_version/.test(variable)) return "Export, provenance, and versioning data";
   if (isTimingVariable(variable) || variable.endsWith("_at")) return "Timing and interaction data";
   if (table === "item_responses") {
     if (/correctness|score|unsupported_correct/.test(variable)) return "Outcome and scoring data";
@@ -758,11 +905,19 @@ function measuredValueDefinition(table: string, variable: string) {
 function definition(table: string, variable: string) {
   const overrides: Record<string, string> = {
     research_student_id:
-      "Pseudonymous student join key generated for research exports from the operational login identifier through the export namespace hash. It is not the student's login username, email, or internal database UUID.",
+      "Pseudonymous student join key used to connect the same student's rows across authorized research tables under the same pseudonymization configuration. It is not the student's login username, email, or internal database UUID.",
     student_id:
       "Deprecated compatibility alias for research_student_id. New analyses should use research_student_id.",
     student_public_id:
       "Deprecated compatibility alias for research_student_id retained for older analysis scripts.",
+    research_pseudonym_version:
+      "Version label for the pseudonymization algorithm used to generate research_student_id in this export.",
+    pseudonymization_method:
+      "Safe method label for the pseudonymization process used to generate research_student_id; no key material is exported.",
+    pseudonymization_version:
+      "Compatibility version label for the pseudonymization process; this duplicates research_pseudonym_version for explicit provenance.",
+    pseudonymization_key_fingerprint:
+      "Short one-way fingerprint of the server-side pseudonymization key used only to verify that exports were generated with the same key configuration.",
     session_public_id: "Public assessment-session identifier used as the primary join key across session-level export files.",
     assessment_snapshot_public_id:
       "Deterministic assessment-session snapshot identifier binding exported rows to the administered content context.",
@@ -792,9 +947,18 @@ function definition(table: string, variable: string) {
     app_environment:
       "Application environment label captured with the export source identity for reproducibility.",
     release_at:
-      "Assessment release timestamp used to document the availability window for the assessment attempt context."
+      "Assessment release timestamp used to document the availability window for the assessment attempt context.",
+    total_input_tokens:
+      "Number of provider-reported input tokens summed across agent-call audit records included in the assessment attempt.",
+    total_output_tokens:
+      "Number of provider-reported output tokens summed across agent-call audit records included in the assessment attempt.",
+    total_tokens:
+      "Number of provider-reported total tokens summed across agent-call audit records included in the assessment attempt."
   };
   if (overrides[variable]) return overrides[variable];
+  if (table === "agent_activity_records" && AGENT_ACTIVITY_DEFINITIONS[variable]) {
+    return AGENT_ACTIVITY_DEFINITIONS[variable];
+  }
   if (variable.endsWith("_at")) return timestampDefinition(table, variable);
   if (variable.endsWith("_count")) return countDefinition(table, variable);
   if (isTimingVariable(variable)) return measuredValueDefinition(table, variable);
@@ -805,7 +969,7 @@ function definition(table: string, variable: string) {
     return `${sentenceTitle(variable)} restricted teacher/research context for interpreting the administered item or response.`;
   }
   if (table === "sessions") {
-    return `${sentenceTitle(variable)} session-level field drawn from the AssessmentSession, assessment context, or safe session aggregate for one assessment attempt.`;
+    return `${sentenceTitle(variable)} describes the canonical session-level assessment attempt row in sessions.csv; source fields are AssessmentSession, assessment context, profile evidence, process-event aggregates, or supplemental activity counts identified by source_service_or_function.`;
   }
   if (table === "item_responses") {
     return `${sentenceTitle(variable)} item-response field drawn from the ItemResponse record, response package evidence, or item-scoped process events for one administered item snapshot.`;
@@ -817,13 +981,13 @@ function definition(table: string, variable: string) {
     return `${sentenceTitle(variable)} conversation-turn attribute for one visible or research-readable transcript turn.`;
   }
   if (table === "agent_activity_records") {
-    return `${sentenceTitle(variable)} heterogeneous agent/activity attribute whose applicability depends on record_type.`;
+    return `${sentenceTitle(variable)} from the agent/activity union export; use applicable_record_types to identify the exact serializer branch that populates this field.`;
   }
   if (table === "assessment_content") {
     return `${sentenceTitle(variable)} administered-content snapshot field for the assessment or item version shown in a student session.`;
   }
   if (table === "assessment_summary") {
-    return `${sentenceTitle(variable)} derived convenience summary field copied or aggregated from the canonical sessions and related export tables.`;
+    return `${sentenceTitle(variable)} in the derived assessment_summary.csv convenience view; duplicated session fields originate from sessions.csv and aggregate fields follow the documented session-level inclusion rule.`;
   }
   return `${sentenceTitle(variable)} research-export field documented at ${measurementLevel(table, variable)} scope.`;
 }
@@ -831,11 +995,19 @@ function definition(table: string, variable: string) {
 function collectionMethod(table: string, variable: string) {
   const overrides: Record<string, string> = {
     research_student_id:
-      "Computed in researchStudentId() by hashing the operational user_id with namespace research_student_id:v1 before CSV serialization; raw usernames and emails are not written to ordinary research dataset files.",
+      "Computed in researchStudentId() with versioned HMAC-SHA-256 over the canonical operational user identifier using RESEARCH_PSEUDONYMIZATION_KEY; raw usernames, emails, and key material are not written to research dataset files.",
     student_id:
       "Filled with the same pseudonymous value as research_student_id for backward compatibility with older analysis scripts.",
     student_public_id:
       "Filled with the same pseudonymous value as research_student_id for backward compatibility with older analysis scripts.",
+    research_pseudonym_version:
+      "Written by sessionBase() from researchPseudonymizationMetadata() so each exported row identifies the pseudonymization algorithm version.",
+    pseudonymization_method:
+      "Written by sessionBase() from researchPseudonymizationMetadata() as a safe method label; the key and input identifier are never exported.",
+    pseudonymization_version:
+      "Written by sessionBase() from researchPseudonymizationMetadata() as an explicit compatibility version for downstream provenance checks.",
+    pseudonymization_key_fingerprint:
+      "Written by sessionBase() from a short SHA-256 fingerprint of the server-side pseudonymization key so authorized operators can detect key changes without exposing the key.",
     selected_option: "Recorded when the student submits or confirms an option selection for the administered item snapshot.",
     reasoning_text: "Recorded from the student's submitted reasoning response for the current item.",
     confidence_rating: "Recorded when the student selects the confidence control for the administered item.",
@@ -857,18 +1029,22 @@ function collectionMethod(table: string, variable: string) {
     misconception_hypothesis:
       "Generated by the validated profile/activity interpretation agent workflow or teacher-reviewed as a tentative interpretation from response-package evidence. It is inferred, not directly observed.",
     reasoning_quality_signal:
-      "Serialized by itemResponseRows() from response-package evidence produced by the validated response/profile interpretation workflow.",
+      "itemResponseRows() emits this from response-package evidence produced by the validated response/profile interpretation workflow.",
     correctness_support_level:
-      "Serialized by itemResponseRows() from restricted response-package evidence that qualifies correctness with reasoning and confidence support.",
+      "itemResponseRows() emits this restricted scalar from response-package evidence that qualifies correctness with reasoning and confidence support.",
     estimated_guessing_risk:
-      "Serialized by itemResponseRows() from restricted response-package evidence generated by the validated interpretation workflow; not teacher-authored and not student-facing.",
+      "itemResponseRows() emits this restricted scalar from response-package evidence generated by the validated interpretation workflow; it is not teacher-authored and not student-facing.",
     answer_selection_evidence_weight:
-      "Serialized by itemResponseRows() from restricted response-package evidence describing how much the selected answer should contribute to interpretation.",
+      "itemResponseRows() emits this restricted scalar from response-package evidence describing how much the selected answer should contribute to interpretation.",
     event_type: "Recorded by the frontend, backend, agent, or workflow component that emits the process event; event meanings are maintained in process_event_codebook.csv.",
     provider: "Recorded by the agent execution audit layer when an LLM or mock provider call is attempted.",
-    total_token_count: "Recorded from provider usage metadata when available, or left null when unavailable."
+    total_token_count:
+      "Copied in agentAndActivityRows() from AgentCall.total_tokens after the provider adapter stores usage metadata; null means the provider did not return usable usage for that call."
   };
   if (overrides[variable]) return overrides[variable];
+  if (table === "agent_activity_records" && AGENT_ACTIVITY_METHODS[variable]) {
+    return AGENT_ACTIVITY_METHODS[variable];
+  }
   if (variable.endsWith("_count")) {
     return `Computed by the ${sourceServiceOrFunction(table, variable)} export path from the relevant ${table} records or allow-listed event types at ${measurementLevel(table, variable)} scope.`;
   }
@@ -878,15 +1054,15 @@ function collectionMethod(table: string, variable: string) {
   }
   if (sourceNature(table, variable) === "teacher_authored") return "Recorded when a teacher authors or imports assessment/item diagnostic context for the selected assessment or item.";
   if (sourceNature(table, variable) === "externally_imported") return "Imported through the validated external outcome workflow and linked to the assessment/session scope recorded in the row.";
-  if (sourceNature(table, variable) === "system_configuration") return `Written by ${sourceServiceOrFunction(table, variable)} from version, snapshot, configuration, or application provenance metadata at export time.`;
-  if (table === "sessions") return `Serialized by sessionRows() or sessionBase() from AssessmentSession, Assessment, profile, event, and supplemental activity records.`;
-  if (table === "item_responses") return `Serialized by itemResponseRows() from ItemResponse, item snapshots, response-package evidence, and item-scoped process events.`;
-  if (table === "process_events") return `Serialized by processEventRows() from ProcessEvent fields and allow-listed payload keys; raw payload JSON is not exported.`;
-  if (table === "conversation_turns") return `Serialized by conversationRows() from ConversationTurn fields with safe context labels and latency calculations.`;
-  if (table === "agent_activity_records") return `Serialized by agentAndActivityRows() from agent calls, profiles, formative decisions, follow-up rounds, workflow jobs, and activity-runtime evidence records; record_type determines applicability.`;
-  if (table === "assessment_content") return `Serialized by assessmentContentRows() from administered item snapshots and active media metadata.`;
-  if (table === "assessment_summary") return `Serialized by assessmentSummaryRows() as a convenience view derived from sessionRows() and related session aggregates.`;
-  return `Serialized by the analysis-ready export service for ${measurementLevel(table, variable)} scope.`;
+  if (sourceNature(table, variable) === "system_configuration") return `${sourceServiceOrFunction(table, variable)} writes version, snapshot, configuration, or application provenance metadata at export time.`;
+  if (table === "sessions") return `sessionRows() or sessionBase() emits this canonical session-level value from AssessmentSession, Assessment, profile, event, or supplemental activity source records according to the variable definition.`;
+  if (table === "item_responses") return `itemResponseRows() emits this item-response value from ItemResponse, administered item snapshots, response-package evidence, or item-scoped process events according to the variable definition.`;
+  if (table === "process_events") return `processEventRows() emits this allow-listed process-event value from ProcessEvent fields and selected safe payload keys; raw payload JSON is excluded.`;
+  if (table === "conversation_turns") return `conversationRows() emits this transcript value from ConversationTurn fields with safe context labels and latency calculations.`;
+  if (table === "agent_activity_records") return `agentAndActivityRows() emits this union value only for the serializer branches listed in applicable_record_types.`;
+  if (table === "assessment_content") return `assessmentContentRows() emits this content snapshot value from administered item snapshots and active media metadata.`;
+  if (table === "assessment_summary") return `assessmentSummaryRows() emits this derived convenience value from sessionRows() and related session aggregates.`;
+  return `analysis-ready export service emits this value for ${measurementLevel(table, variable)} scope.`;
 }
 
 function interpretationGuidance(variable: string) {
@@ -902,6 +1078,15 @@ function interpretationGuidance(variable: string) {
 }
 
 function interpretationCaution(variable: string) {
+  if (variable === "research_student_id" || variable === "student_id" || variable === "student_public_id") {
+    return "Pseudonymous, not anonymous. Authorized operators with operational identity access or approved linkage procedures may still re-identify records; changing the HMAC key or version changes cross-export joins.";
+  }
+  if (/pseudonymization|research_pseudonym_version/.test(variable)) {
+    return "Provenance only. The fingerprint is not the key and cannot support reversal, but key rotation changes research_student_id values across exports.";
+  }
+  if (variable === "activity_prompt") {
+    return "Generated student-facing activity text when populated; not a stable trait, not a confirmed misconception, and not a raw provider payload.";
+  }
   if (/reasoning_quality_signal|correctness_support_level|estimated_guessing_risk|answer_selection_evidence_weight/.test(variable)) {
     return "Interpretive evidence-quality signal; not a directly observed fact, not confirmed guessing, not a stable trait, not a student-facing label, and not ground truth.";
   }
@@ -1112,7 +1297,15 @@ function measurementLevel(table: string, variable: string) {
   if (table === "process_events") return "process_event";
   if (table === "conversation_turns") return "conversation_turn";
   if (table === "agent_activity_records") {
-    if (/activity|attempt|post_activity|diagnostic_snapshot/.test(variable)) return "formative_activity";
+    const applicable = AGENT_ACTIVITY_APPLICABILITY[variable] ?? "";
+    if (applicable.includes(";")) return "agent_activity_union";
+    if (applicable.includes("formative_activity")) return "formative_activity";
+    if (applicable.includes("post_activity_evidence")) return "post_activity_evidence";
+    if (applicable.includes("diagnostic_snapshot")) return "diagnostic_snapshot";
+    if (applicable.includes("formative_decision")) return "formative_decision";
+    if (applicable.includes("profile_result")) return "profile_result";
+    if (applicable.includes("workflow_job")) return "workflow_job";
+    if (applicable.includes("activity_attempt")) return "activity_attempt";
     return "agent_call";
   }
   if (table === "assessment_content") return variable.startsWith("assessment_") ? "assessment" : "item";
@@ -1126,6 +1319,8 @@ function nullableSemantics(variable: string) {
 
 function missingValueMeaning(variable: string) {
   if (variable === "research_student_id" || variable.endsWith("_public_id")) return "Missing value indicates an export construction error for a required join key.";
+  if (/pseudonymization|research_pseudonym_version/.test(variable)) return "Missing value indicates an export provenance construction error.";
+  if (AGENT_ACTIVITY_APPLICABILITY[variable]) return "Null means the field was not applicable to the row's record_type, the source branch did not populate it, or the provider/source record lacked that safe scalar value.";
   if (isTimingVariable(variable)) return "Null means the timing construct was not applicable, the relevant start/end event was absent, or instrumentation was insufficient; consult limitation and availability fields.";
   if (LLM_INTERPRETIVE_COLUMNS.has(variable)) return "Null means no validated interpretive output was recorded for this row and scope.";
   if (RESTRICTED_COLUMNS.has(variable)) return "Blank in the default dataset means the restricted field was intentionally omitted; available only in explicitly confirmed restricted exports.";
@@ -1146,6 +1341,9 @@ function falseValueMeaning(variable: string) {
 }
 
 function notApplicableCondition(table: string, variable: string) {
+  if (table === "agent_activity_records" && AGENT_ACTIVITY_APPLICABILITY[variable]) {
+    return `Not applicable outside these record_type values: ${AGENT_ACTIVITY_APPLICABILITY[variable]}.`;
+  }
   if (variable.includes("reasoning")) return "Not applicable when the item or activity did not include a reasoning step.";
   if (variable.includes("confidence")) return "Not applicable when the workflow did not ask for confidence.";
   if (variable.includes("tempting")) return "Not applicable when the tempting-option step was not administered or the student reported no tempting option.";
@@ -1162,6 +1360,7 @@ function dataAvailabilityFlag(variable: string) {
 }
 
 function allowedValues(variable: string) {
+  if (variable === "research_pseudonym_version" || variable === "pseudonymization_version") return "hmac_sha256_v1; legacy_sha256_v1";
   if (variable === "confidence_rating") return "low; medium; high";
   if (variable === "actor_type") return "student; agent; system; orchestrator; teacher_researcher";
   if (variable === "event_type") return "See process_event_codebook.csv.";
@@ -1177,6 +1376,9 @@ function sourceServiceOrFunction(table: string, variable: string) {
   if (variable === "research_student_id" || variable === "student_id" || variable === "student_public_id") {
     return "researchStudentId";
   }
+  if (/pseudonymization|research_pseudonym_version/.test(variable)) {
+    return "researchPseudonymizationMetadata; sessionBase";
+  }
   const functions: Record<string, string> = {
     sessions: "sessionRows; sessionBase",
     item_responses: "itemResponseRows",
@@ -1191,7 +1393,10 @@ function sourceServiceOrFunction(table: string, variable: string) {
 
 function sourceCodeReference(table: string, variable: string) {
   if (variable === "research_student_id" || variable === "student_id" || variable === "student_public_id") {
-    return "src/lib/services/teacher-research-data/analysis-ready-export.ts:researchStudentId";
+    return "src/lib/services/teacher-research-data/pseudonymization.ts:researchStudentId";
+  }
+  if (/pseudonymization|research_pseudonym_version/.test(variable)) {
+    return "src/lib/services/teacher-research-data/pseudonymization.ts:researchPseudonymizationMetadata; src/lib/services/teacher-research-data/analysis-ready-export.ts:sessionBase";
   }
   const references: Record<string, string> = {
     sessions: "src/lib/services/teacher-research-data/analysis-ready-export.ts:sessionRows/sessionBase",
@@ -1219,28 +1424,14 @@ function semanticReviewNotes(table: string, variable: string) {
     return `Convenience view derived from canonical session-level rows.${suffix}`;
   }
   if (table === "agent_activity_records") {
-    return `Heterogeneous union export; use record_type and applicable_record_types before analysis.${suffix}`;
+    return `Record-type union export; use record_type and applicable_record_types before analysis.${suffix}`;
   }
   return suffix.trim();
 }
 
 function applicableRecordTypes(table: string, variable: string) {
   if (table !== "agent_activity_records") return `all ${table} rows when the construct applies`;
-  if (/provider|model|token|prompt|schema|validated|repair|retry|agent_call|blocked_reason|answer_key|protected_content|context_|teacher_diagnostic|interpretation_caution|student_evidence/.test(variable)) {
-    return "agent_call";
-  }
-  if (/understanding|engagement|response_profile|evidence_sufficiency|uncertainty/.test(variable)) {
-    return "profile_result; diagnostic_snapshot";
-  }
-  if (/formative_value|selected_strategy/.test(variable)) return "formative_decision";
-  if (/activity_prompt|student_response|misconception_|evidence_|next_action|evaluation_status/.test(variable)) {
-    return "formative_activity; activity_attempt; post_activity_evidence; diagnostic_snapshot";
-  }
-  if (/activity_|attempt_number/.test(variable)) return "activity_attempt; formative_activity; workflow_job";
-  if (/status|started_at|completed_at|limitations/.test(variable)) {
-    return "agent_call; profile_result; formative_decision; activity_attempt; workflow_job; formative_activity; post_activity_evidence; diagnostic_snapshot";
-  }
-  return "record_type-specific; inspect record_type before using";
+  return AGENT_ACTIVITY_APPLICABILITY[variable] ?? ALL_AGENT_ACTIVITY_RECORD_TYPES;
 }
 
 export function analysisReadyColumnsByTable() {
@@ -1495,9 +1686,11 @@ function exclusionCategory(modelName: string, field: string) {
 
 function exclusionReason(modelName: string, field: string) {
   const category = exclusionCategory(modelName, field);
+  const mapping = mappedResearchVariable(modelName, field);
   if (category === "credential_or_secret") return "Credential, token, hash, or secret field. Values are never exported.";
-  if (category === "account_pii_or_administration") return "Account administration or personally identifying information, not an assessment research construct.";
-  if (category === "internal_database_identifier") return "Internal database identifier. Public IDs or research_student_id are used for research joins instead.";
+  if (mapping) return `The raw internal field is not separately exported. Its research-facing representation is ${mapping}.`;
+  if (category === "account_pii_or_administration") return "Account administration or personally identifying information excluded from ordinary research exports.";
+  if (category === "internal_database_identifier") return "Internal database identifier excluded from ordinary research exports; public IDs or research_student_id are used for research joins where needed.";
   if (category === "raw_provider_or_prompt_audit") return "Raw prompt/provider audit material may contain sensitive context and is not part of ordinary analysis exports.";
   if (category === "platform_operations_metadata") return "Operational storage or worker-coordination metadata, not student assessment evidence.";
   return "Excluded from ordinary research exports because it is not needed for teacher/research analysis.";
@@ -1535,6 +1728,94 @@ function schemaFieldPurpose(modelName: string, field: string) {
 }
 
 function mappedResearchVariable(modelName: string, field: string) {
+  const directMappings: Record<string, Record<string, string>> = {
+    User: {
+      id: "sessions.research_student_id; item_responses.research_student_id; process_events.research_student_id; conversation_turns.research_student_id; agent_activity_records.research_student_id; assessment_summary.research_student_id",
+      user_id: "sessions.research_student_id; item_responses.research_student_id; process_events.research_student_id; conversation_turns.research_student_id; agent_activity_records.research_student_id; assessment_summary.research_student_id",
+      user_id_normalized: "sessions.research_student_id; item_responses.research_student_id; process_events.research_student_id; conversation_turns.research_student_id; agent_activity_records.research_student_id; assessment_summary.research_student_id",
+      display_name: "not exported; research joins use research_student_id",
+      email: "not exported; research joins use research_student_id",
+      email_normalized: "not exported; research joins use research_student_id"
+    },
+    Assessment: {
+      id: "sessions.assessment_public_id; item_responses.assessment_public_id; process_events.assessment_public_id; conversation_turns.assessment_public_id; agent_activity_records.assessment_public_id; assessment_content.assessment_public_id; assessment_summary.assessment_public_id",
+      created_by_user_db_id: "not exported in ordinary research dataset",
+      release_at: "sessions.release_at",
+      close_at: "sessions.close_at"
+    },
+    AssessmentSession: {
+      id: "sessions.session_public_id; item_responses.session_public_id; process_events.session_public_id; conversation_turns.session_public_id; agent_activity_records.session_public_id; assessment_summary.session_public_id",
+      user_db_id: "sessions.research_student_id; assessment_summary.research_student_id",
+      assessment_db_id: "sessions.assessment_public_id; assessment_summary.assessment_public_id",
+      current_concept_unit_db_id: "not exported in ordinary research dataset"
+    },
+    ConceptUnit: {
+      id: "assessment_content.assessment_public_id plus assessment_content.item_public_id context",
+      assessment_db_id: "assessment_content.assessment_public_id"
+    },
+    Item: {
+      id: "assessment_content.item_public_id; item_responses.item_public_id; process_events.item_public_id; conversation_turns.item_public_id",
+      concept_unit_db_id: "assessment_content.assessment_public_id and item order context"
+    },
+    ProcessEvent: {
+      id: "process_events.event_public_id",
+      assessment_session_db_id: "process_events.session_public_id",
+      concept_unit_session_db_id: "process_events.session_public_id plus item/context columns",
+      item_db_id: "process_events.item_public_id",
+      event_type: "process_events.event_type; process_event_codebook.event_type",
+      payload: "process_events allow-listed payload_* scalar columns"
+    },
+    ConversationTurn: {
+      id: "conversation_turns.session_public_id plus conversation_turns.turn_index",
+      assessment_session_db_id: "conversation_turns.session_public_id",
+      concept_unit_session_db_id: "conversation_turns.context_label",
+      item_db_id: "conversation_turns.item_public_id",
+      structured_payload: "conversation_turns.context_label and safe transcript fields where applicable"
+    },
+    AgentCall: {
+      id: "agent_activity_records.agent_call_public_id",
+      assessment_session_db_id: "agent_activity_records.session_public_id",
+      concept_unit_session_db_id: "agent_activity_records.session_public_id plus context fields",
+      followup_round_db_id: "agent_activity_records.activity_public_id when applicable",
+      provider_request_id: "not exported in ordinary research dataset; advanced audit only",
+      provider_response_id: "not exported in ordinary research dataset; advanced audit only",
+      client_request_id: "agent_activity_records.agent_call_public_id",
+      agent_invocation_key: "agent_activity_records.agent_call_public_id",
+      prompt_hash: "not exported in ordinary research dataset; prompt_version/schema_version are exported",
+      input_payload: "not exported; safe scalar provenance and validation fields are in agent_activity_records",
+      raw_output: "not exported; safe scalar provenance and validation fields are in agent_activity_records",
+      output_payload: "not exported; safe scalar provenance and validation fields are in agent_activity_records"
+    },
+    WorkflowJob: {
+      id: "agent_activity_records.activity_public_id",
+      assessment_session_db_id: "agent_activity_records.session_public_id",
+      concept_unit_session_db_id: "agent_activity_records.session_public_id plus context fields",
+      idempotency_key: "not exported in ordinary research dataset",
+      payload: "not exported; workflow status and limitation fields are in agent_activity_records"
+    },
+    ActivityRuntimeAttempt: {
+      id: "agent_activity_records.activity_public_id",
+      student_public_id: "agent_activity_records.research_student_id",
+      source_activity_packet_ref: "not exported in ordinary research dataset",
+      first_turn_agent_call_db_id: "agent_activity_records.agent_call_public_id through linked agent-call audit when available",
+      reviewer_agent_call_db_id: "agent_activity_records.agent_call_public_id through linked agent-call audit when available",
+      repair_agent_call_db_id: "agent_activity_records.agent_call_public_id through linked agent-call audit when available"
+    },
+    ActivityMisconceptionEvidenceRecord: {
+      id: "agent_activity_records.activity_public_id",
+      student_public_id: "agent_activity_records.research_student_id",
+      source_evaluator_agent_call_db_id: "agent_activity_records.agent_call_public_id through linked agent-call audit when available",
+      evidence_packet: "not exported; safe scalar evidence update fields are in agent_activity_records"
+    },
+    PostActivityDiagnosticSnapshot: {
+      id: "agent_activity_records.activity_public_id",
+      evidence_record_db_id: "agent_activity_records.activity_public_id through linked evidence record",
+      student_public_id: "agent_activity_records.research_student_id",
+      snapshot_payload: "not exported; safe scalar diagnostic snapshot fields are in agent_activity_records"
+    }
+  };
+  const direct = directMappings[modelName]?.[field];
+  if (direct) return direct;
   if (modelName === "AgentCall") {
     const agentCallMappings: Record<string, string> = {
       input_tokens: "agent_activity_records.input_token_count; sessions.total_input_tokens",
@@ -1586,6 +1867,7 @@ export function buildExcludedPlatformVariableEntries(): ExcludedPlatformVariable
           qualified_name: `prisma.${modelName}.${field}`,
           source_table: `prisma.${modelName}`,
           field_name: field,
+          research_variable_mapping: mappedResearchVariable(modelName, field),
           exclusion_category: exclusionCategory(modelName, field),
           exclusion_reason: exclusionReason(modelName, field),
           permitted_audience: /password|access_code|token_hash|account_security_token|secret|cookie|database_url/i.test(field)
@@ -1647,10 +1929,14 @@ function eventTrigger(eventType: string) {
   if (/session_started/.test(eventType)) return "Recorded when a student assessment session is created or first opened.";
   if (/session_completed/.test(eventType)) return "Recorded when the application marks the assessment session complete.";
   if (/agent_message|message_shown/.test(eventType)) return "Recorded when a student-visible agent message is created or acknowledged as shown.";
-  if (/profile|llm|agent/.test(eventType)) return "Recorded when the backend agent or LLM workflow reaches the named lifecycle step.";
-  if (/activity|followup|feedback|revision/.test(eventType)) return "Recorded when the formative activity, follow-up, feedback, or revision workflow reaches the named step.";
+  if (/profile/.test(eventType)) return `Recorded when the backend profile workflow emits ${eventType} while creating, validating, or storing profile evidence for the assessment session.`;
+  if (/llm|agent/.test(eventType)) return `Recorded when the backend agent workflow emits ${eventType} during readiness, dispatch, validation, repair, or audit persistence.`;
+  if (/activity/.test(eventType)) return `Recorded when the formative activity runtime emits ${eventType} while creating, starting, completing, evaluating, or persisting activity evidence.`;
+  if (/followup/.test(eventType)) return `Recorded when the follow-up workflow emits ${eventType} while opening, handling, updating, or finalizing a follow-up round.`;
+  if (/feedback/.test(eventType)) return `Recorded when targeted feedback generation or display emits ${eventType} for the assessment session.`;
+  if (/revision/.test(eventType)) return `Recorded when the revision workflow emits ${eventType} after a student edit, revision prompt, or revision submission is accepted.`;
   if (/page|window|focus|blur|visibility|pause|typing|navigation/.test(eventType)) return "Recorded from allow-listed browser process instrumentation for visibility, navigation, typing, or pause context.";
-  return `Recorded by the backend service responsible for the ${eventCategory(eventType)} stage when that named workflow milestone occurs at the documented scope.`;
+  return `Recorded when the application emits the ${eventType} process event from the ${eventCategory(eventType)} workflow at the documented scope.`;
 }
 
 function eventPayloadFields(eventType: string) {
@@ -2010,7 +2296,16 @@ const PLACEHOLDER_PATTERNS = [
   "lifecycle timestamp for the",
   "aggregate count for the",
   "timing construct documented for the",
-  "measured value for the"
+  "measured value for the",
+  "heterogeneous agent/activity attribute",
+  "session-level field drawn from",
+  "value associated with",
+  "timestamp associated with",
+  "Read from the serializer",
+  "Derived by the export service",
+  "applies according to record type",
+  "record_type-specific; inspect record_type",
+  "Serialized by"
 ];
 
 function containsPlaceholder(value: string) {
@@ -2066,7 +2361,9 @@ function processEventBoilerplateIssues(processEvents: ProcessEventCodebookEntry[
     derived_variables_unique_count: countIdentical("derived_variables"),
     guidance_unique_count: countIdentical("interpretation_guidance"),
     caution_unique_count: countIdentical("interpretation_caution"),
-    generic_trigger_count: processEvents.filter((entry) => /workflow event at the relevant session or item scope|domain enum|Process event type/i.test(entry.trigger)).length
+    generic_trigger_count: processEvents.filter((entry) =>
+      /workflow event at the relevant session or item scope|domain enum|Process event type|named lifecycle|named workflow|named step|corresponding action occurs/i.test(entry.trigger)
+    ).length
   };
 }
 

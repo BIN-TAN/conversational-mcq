@@ -102,6 +102,8 @@ LLM_DAILY_STUDENT_TOKEN_LIMIT=<pilot limit>
 LLM_SESSION_CALL_LIMIT=<pilot limit>
 LLM_SESSION_TOKEN_LIMIT=<pilot limit>
 LLM_AGENT_CALL_LIMIT_PER_SESSION=<pilot limit>
+RESEARCH_PSEUDONYMIZATION_KEY=<generated server-side research-export HMAC key>
+RESEARCH_PSEUDONYMIZATION_VERSION=hmac_sha256_v1
 ```
 
 Optional GPT-5.6 candidate values for a separately approved model-upgrade
@@ -135,7 +137,11 @@ evaluation and approval workflow outputs a new `OPERATIONAL_APPROVED_CONFIG_HASH
 
 `DATABASE_URL` should be wired from Render Postgres by the Blueprint. If Render cannot wire it automatically, use the internal Render Postgres connection string from the database page and set it only in Render's server-side environment variable UI.
 
-Never set `OPENAI_API_KEY`, `DATABASE_URL`, or `SESSION_SECRET` as `NEXT_PUBLIC_` variables.
+Never set `OPENAI_API_KEY`, `DATABASE_URL`, `SESSION_SECRET`, or
+`RESEARCH_PSEUDONYMIZATION_KEY` as `NEXT_PUBLIC_` variables. The research
+pseudonymization key is required for production research exports; if it is
+missing, only research export generation fails closed. Login, account
+management, and assessment pages should remain available.
 
 Screenshot placeholder: Render Environment variables screen with values hidden.
 

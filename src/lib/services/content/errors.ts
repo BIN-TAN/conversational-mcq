@@ -20,6 +20,9 @@ export type ContentErrorCode =
   | "publish_validation_failed"
   | "warnings_need_acknowledgement"
   | "current_verification_missing_or_stale"
+  | "research_pseudonymization_key_missing"
+  | "research_pseudonymization_version_invalid"
+  | "legacy_pseudonymization_not_allowed_in_production"
   | "internal_error";
 
 export type ContentValidationIssue = {
