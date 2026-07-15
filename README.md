@@ -2240,15 +2240,15 @@ The unified export center has two normal teacher-facing sections:
   `agent_activity_records.csv`, `assessment_content.csv`,
   `assessment_summary.csv`, `research_data_dictionary.csv`, and
   `process_event_codebook.csv`.
-- Data dictionary: a paginated, collapsed-by-default browser that opens on
-  **Core research variables** only. It includes a plain-language category guide,
-  a single category filter, a data-production-method filter, deprecated-status
-  filtering, and a core CSV download that reflects the current filters.
-  Measurement level remains in expanded details and CSV exports, but is not a
-  normal browsing filter. Supplementary variables, the full process-event
-  codebook, LLM execution/workflow audit fields, internal schema lineage, and
-  excluded/platform fields are available only in the secondary Advanced data
-  documentation area.
+- Data dictionary: a paginated, collapsed-by-default documentation browser that
+  defaults to **Research dataset variables**. It clearly separates Research
+  dataset variables, Learning-process event definitions, Internal database
+  schema -- Technical, and Excluded platform and security fields -- Not
+  exported. The dictionary documents fields; the Research dataset section
+  generates actual student/session data. Research-variable browsing shows
+  Search, Category, and Page size only. Other dictionary sections show Search
+  and Page size only, with a single context-sensitive CSV download for the
+  selected section.
 
 The research dictionary uses explicit documentation tiers
 `core_research`, `supplementary_research`, `technical_documentation`, and

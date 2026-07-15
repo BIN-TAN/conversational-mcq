@@ -88,6 +88,7 @@ export const SESSIONS_COLUMNS = [
 
 export const ITEM_RESPONSES_COLUMNS = [
   "session_public_id",
+  "attempt_number",
   "research_student_id",
   "student_id",
   "assessment_public_id",
@@ -628,10 +629,10 @@ export const RESEARCH_CATEGORY_REGISTRY = [
 export type ResearchCategoryId = (typeof RESEARCH_CATEGORY_REGISTRY)[number]["category_id"];
 
 export const DICTIONARY_ENTITY_LABELS: Record<DictionaryEntityType, string> = {
-  research_variable: "Research variables",
-  process_event_code: "Process event codebook",
-  internal_schema_field: "Internal source-schema appendix",
-  excluded_platform_field: "Platform administration and excluded variables"
+  research_variable: "Research dataset variables",
+  process_event_code: "Learning-process event definitions",
+  internal_schema_field: "Internal database schema — Technical",
+  excluded_platform_field: "Excluded platform and security fields — Not exported"
 };
 
 const categoryById = new Map(RESEARCH_CATEGORY_REGISTRY.map((category) => [category.category_id, category]));
@@ -1253,6 +1254,8 @@ function measuredValueDefinition(table: string, variable: string) {
 
 function definition(table: string, variable: string) {
   const overrides: Record<string, string> = {
+    attempt_number:
+      "Assessment-session attempt number used with session_public_id and item_public_id to distinguish repeated attempts or reruns.",
     research_student_id:
       "Pseudonymous student join key used to connect the same student's rows across authorized research tables under the same pseudonymization configuration. It is not the student's login username, email, or internal database UUID.",
     student_id:
@@ -1349,6 +1352,10 @@ function collectionMethod(table: string, variable: string) {
       "Filled with the same pseudonymous value as research_student_id for backward compatibility with older analysis scripts.",
     student_public_id:
       "Filled with the same pseudonymous value as research_student_id for backward compatibility with older analysis scripts.",
+    attempt_number:
+      table === "item_responses"
+        ? "Copied from AssessmentSession.attempt_number into item_responses.csv so item-level timing rows carry the attempt join key directly."
+        : "Copied from AssessmentSession.attempt_number for session/summary rows, or from the activity/follow-up attempt source for compatible agent/activity records.",
     research_pseudonym_version:
       "Written by sessionBase() from researchPseudonymizationMetadata() so each exported row identifies the pseudonymization algorithm version.",
     pseudonymization_method:

@@ -18,8 +18,8 @@ function main() {
   assert(client.includes("<summary className=\"flex cursor-pointer"), "Dictionary records need accessible summaries.");
   assert(!client.includes("<article className=\"rounded-lg border border-line bg-white p-4 shadow-soft\""), "Dictionary records should not render as permanently expanded cards.");
   assert(client.includes("Category guide"), "Core dictionary page should include a category guide.");
-  assert(client.includes("Download core data dictionary CSV"), "Default download action should be labeled as core dictionary CSV.");
-  assert(client.includes("Advanced data documentation"), "Advanced documentation should be visually separate.");
+  assert(client.includes("Download research variable dictionary CSV"), "Default download action should be labeled as research variable dictionary CSV.");
+  assert(!client.includes("Advanced data documentation"), "Advanced documentation panel should be removed from the header.");
   assert(client.includes("key={`${dictionaryQuery.toString()}:${dictionaryEntryKey(entry, index)}`"), "Filtering/pagination/section changes should remount rows collapsed.");
   assert(client.includes("dictionaryEntryKey(entry, index)"), "Dictionary rows need robust unique summary keys.");
   assert(!client.includes("setDictionaryMeasurementLevelFilter"), "Measurement level should not be a visible browsing filter.");

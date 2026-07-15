@@ -11,7 +11,7 @@ for ordinary analysis.
 | Tier | Definition | Default visibility |
 |---|---|---|
 | `core_research` | Variables directly needed to describe the assessment, analyze student responses and processes, evaluate formative activity, examine revisions or transfer, or reproduce principal study analyses. | Default Data dictionary view |
-| `supplementary_research` | Variables that support sensitivity analysis, system-performance analysis, advanced process analysis, model-usage analysis, or troubleshooting. | Advanced data documentation |
+| `supplementary_research` | Variables that support sensitivity analysis, system-performance analysis, advanced process analysis, model-usage analysis, or troubleshooting. | Authorized CSV/API documentation, not the ordinary default dictionary browse |
 | `technical_documentation` | Internal schema lineage, worker state, serializer internals, raw implementation fields, advanced provider audit information, and developer/operator documentation. | Advanced/operator documentation only |
 | `excluded_platform` | PII, authentication, credential, security, account administration, unrestricted raw payloads, and fields intentionally excluded from research exports. | Excluded inventory only |
 
@@ -79,9 +79,10 @@ The core categories are:
 ## Export Compatibility
 
 The current standard research dataset keeps legacy file paths for compatibility.
-The Data dictionary UI and dictionary API now default to core research variables
-and core learning-process events. Supplementary/full codebooks and technical
-appendices remain available through advanced documentation links.
+The Data dictionary UI and dictionary API now default to Research dataset
+variables and core learning-process event definitions. Technical appendices and
+excluded-field inventories are selected through the same dictionary-section
+selector, with one contextual CSV download for the selected section.
 The heterogeneous `agent_activity_records.csv` table is retained as a
 deprecated legacy compatibility view until split logical datasets are promoted.
 

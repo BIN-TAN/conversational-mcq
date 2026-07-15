@@ -16,12 +16,17 @@ field mappings, token lineage, and versioned keyed pseudonymization:
 Phase 31ai adds a research-facing documentation tier on top of those generated
 artifacts. The default browser view now shows only `core_research` variables,
 uses the shared plain-language category registry, and renders all records
-collapsed by default. Supplementary variables, operational process events,
-internal schema fields, and excluded platform fields remain available as
-advanced documentation; they are no longer mixed into the ordinary core count or
-category filters.
+collapsed by default. Supplementary variables and the full operational
+process-event codebook remain available through authorized CSV/API filters, but
+they are no longer mixed into the ordinary core count or category filters.
 
-- Research dataset variables: 286
+Phase 31aj simplifies the dictionary browser into four explicit sections:
+Research dataset variables, Learning-process event definitions, Internal
+database schema — Technical, and Excluded platform and security fields — Not
+exported. It also adds `item_responses.attempt_number` as an item-response
+join key so item-level timing rows carry the attempt number directly.
+
+- Research dataset variables: 287
 - Process event types: 156
 - Internal schema fields: 281
 - Platform administration and excluded fields: 102

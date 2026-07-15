@@ -2424,16 +2424,26 @@ Phase 6A.5 must not implement:
 - `process_event_codebook.csv` documents one row per process-event type with
   trigger, actor/source, scope, timestamp meaning, allow-listed payload fields,
   derived variables, and interpretation cautions.
-- The Data dictionary UI must default to Core research variables
-  (`documentation_tier=core_research`) and must not mix process-event groups,
-  internal schema fields, or excluded/platform fields into the core result
-  count. Supplementary variables, the full process-event codebook, internal
-  schema appendix, and platform/excluded fields must be visually secondary
-  advanced documentation.
-- Research variable browsing must show one plain-language Category filter, a
-  data-production-method filter, deprecated status, search, and page size.
-  Measurement level remains in the registry, CSV download, and expanded details
-  but must not be a normal visible browsing filter.
+- The Data dictionary UI must default to Research dataset variables
+  (`entity_type=research_variable`, `documentation_tier=core_research`) and
+  must not mix process-event groups, internal schema fields, or excluded/platform
+  fields into the research-variable result count. Its four teacher-facing
+  sections are Research dataset variables, Learning-process event definitions,
+  Internal database schema — Technical, and Excluded platform and security
+  fields — Not exported. The dictionary is documentation; Research dataset is
+  the section that generates actual student/session data.
+- Research variable browsing must show Search, one plain-language Category
+  filter, and page size. Process-event, internal-schema, and excluded-field
+  browsing must show Search and page size only. Measurement level, source
+  nature, deprecated status, exclusion category, permitted audience, and export
+  policy remain in registries/CSV/expanded details as applicable, but must not
+  be normal visible browsing filters.
+- Item-response timing is item-grain: one completed administered item response
+  can have one `item_response_time_ms`, and a three-item mini-test can produce
+  three item-response durations. Conversation-turn latency is turn-grain:
+  answer, reasoning, confidence, tempting-option, package-review, activity, and
+  follow-up turns may each carry separate prompt-to-student response/action
+  latency values. Null timing means unavailable/not applicable, not zero.
 - Research variables must include qualified name, dataset/table, documentation
   tier, stable research category ID/display name, measurement level, source
   nature, source-code reference, source service/function, semantic review

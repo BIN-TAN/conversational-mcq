@@ -2,6 +2,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadEnvConfig } from "@next/env";
 import { PrismaClient } from "@prisma/client";
+import { parse as parseCsv } from "csv-parse/sync";
+import { buildAnalysisReadyResearchDataBundle } from "../src/lib/services/teacher-research-data/analysis-ready-export";
 import {
   buildResearchExportIntegrityReview,
   REQUIRED_RESEARCH_EXPORT_FILES,
@@ -10,6 +12,7 @@ import {
 import {
   cleanupTeacherReviewDemoFixture,
   ensureTeacherReviewDemoFixture,
+  teacherReviewAssessmentPublicId,
   teacherReviewSessionPublicId
 } from "./demo-teacher-review-fixture";
 
@@ -21,6 +24,20 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function parseCsvRows<T extends Record<string, string>>(content: string): T[] {
+  return parseCsv(content, { columns: true, skip_empty_lines: true }) as T[];
+}
+
+function fileData(files: Array<{ path: string; data: string }>, path: string) {
+  const file = files.find((entry) => entry.path === path);
+  assert(file, `Missing ${path}.`);
+  return file.data;
+}
+
+function csvHeader(content: string) {
+  return content.split(/\r?\n/, 1)[0]?.split(",") ?? [];
 }
 
 async function addUnansweredPromptForLatencyLimitTest() {
@@ -56,7 +73,7 @@ async function main() {
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
   process.env.RUN_LIVE_LLM_SMOKE = "";
 
-  await ensureTeacherReviewDemoFixture(prisma);
+  const fixture = await ensureTeacherReviewDemoFixture(prisma);
   await addUnansweredPromptForLatencyLimitTest();
 
   try {
@@ -128,6 +145,62 @@ async function main() {
       correctnessFixture.uncertainty_marker_types.length > 0,
       "Correctness-inflation fixture should detect uncertainty markers."
     );
+
+    const normalized = await buildAnalysisReadyResearchDataBundle({
+      teacher_user_db_id: fixture.teacher.id,
+      scope: "selected_assessment",
+      assessment_public_id: teacherReviewAssessmentPublicId
+    });
+    const normalizedRestricted = await buildAnalysisReadyResearchDataBundle({
+      teacher_user_db_id: fixture.teacher.id,
+      scope: "selected_assessment",
+      assessment_public_id: teacherReviewAssessmentPublicId,
+      include_restricted_fields: true
+    });
+    const dictionaryRows = parseCsvRows<Record<string, string>>(fileData(normalized.files, "research_data_dictionary.csv"));
+    const processEventRows = parseCsvRows<Record<string, string>>(fileData(normalized.files, "process_events.csv"));
+    const processCodebookRows = parseCsvRows<Record<string, string>>(fileData(normalized.files, "process_event_codebook.csv"));
+    const dictionaryKeys = new Set(dictionaryRows.map((row) => `${row.table_name}.${row.variable_name}`));
+    const ordinaryFiles = [
+      ["sessions.csv", "sessions"],
+      ["item_responses.csv", "item_responses"],
+      ["process_events.csv", "process_events"],
+      ["conversation_turns.csv", "conversation_turns"],
+      ["agent_activity_records.csv", "agent_activity_records"],
+      ["assessment_content.csv", "assessment_content"],
+      ["assessment_summary.csv", "assessment_summary"]
+    ] as const;
+    const coverageReport = ordinaryFiles.map(([file, table]) => {
+      const exportedColumns = csvHeader(fileData(normalized.files, file));
+      const missingDictionaryDefinitions = exportedColumns.filter((column) => !dictionaryKeys.has(`${table}.${column}`));
+      return {
+        file,
+        table,
+        exported_columns: exportedColumns.length,
+        documented_columns: exportedColumns.length - missingDictionaryDefinitions.length,
+        missing_dictionary_definitions: missingDictionaryDefinitions
+      };
+    });
+    assert(
+      coverageReport.every((entry) => entry.missing_dictionary_definitions.length === 0),
+      `Normalized research dataset columns missing dictionary definitions: ${JSON.stringify(coverageReport, null, 2)}`
+    );
+
+    const defaultItemHeader = new Set(csvHeader(fileData(normalized.files, "item_responses.csv")));
+    const restrictedItemHeader = new Set(csvHeader(fileData(normalizedRestricted.files, "item_responses.csv")));
+    for (const restrictedColumn of ["correct_option", "correctness"]) {
+      assert(!defaultItemHeader.has(restrictedColumn), `Unrestricted item_responses.csv leaked ${restrictedColumn}.`);
+      assert(restrictedItemHeader.has(restrictedColumn), `Restricted item_responses.csv did not include ${restrictedColumn}.`);
+    }
+    const defaultContentHeader = new Set(csvHeader(fileData(normalized.files, "assessment_content.csv")));
+    const restrictedContentHeader = new Set(csvHeader(fileData(normalizedRestricted.files, "assessment_content.csv")));
+    for (const restrictedColumn of ["distractor_diagnostic_notes", "teacher_llm_media_description"]) {
+      assert(!defaultContentHeader.has(restrictedColumn), `Unrestricted assessment_content.csv leaked ${restrictedColumn}.`);
+      assert(restrictedContentHeader.has(restrictedColumn), `Restricted assessment_content.csv did not include ${restrictedColumn}.`);
+    }
+    const codebookEventTypes = new Set(processCodebookRows.map((row) => row.event_type));
+    const unknownEventTypes = [...new Set(processEventRows.map((row) => row.event_type))].filter((eventType) => !codebookEventTypes.has(eventType));
+    assert(unknownEventTypes.length === 0, `Process-event data used event types missing from codebook: ${unknownEventTypes.join(", ")}`);
 
     const afterCounts = {
       sessions: await prisma.assessmentSession.count(),

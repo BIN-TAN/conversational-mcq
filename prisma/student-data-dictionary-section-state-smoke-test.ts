@@ -38,7 +38,11 @@ function main() {
   assert(client.includes("let cancelled = false"), "Dictionary fetch effect should ignore stale responses after section changes.");
   assert(client.includes("documentation_tier: dictionaryEntityType === \"research_variable\" ? \"core_research\""), "Research query should force the core tier.");
   assert(client.includes("process_event_tier: dictionaryEntityType === \"process_event_code\" ? \"core_learning_process\""), "Process-event query should force the core process tier.");
+  assert(client.includes("setDictionarySearch(\"\");"), "Section changes should clear stale search text.");
+  assert(client.includes("category: dictionaryEntityType === \"research_variable\" ? dictionaryCategoryFilter : undefined"), "Category filter should only be sent for research variables.");
   assert(!client.includes("setDictionaryMeasurementLevelFilter"), "Visible measurement-level filter state should be removed.");
+  assert(!client.includes("actor_or_source:"), "Process-event actor/source filter should not survive section changes.");
+  assert(!client.includes("permitted_audience:"), "Excluded-field audience filter should not survive section changes.");
   assert(route.includes("documentation_tier") && route.includes("process_event_tier"), "Dictionary route must normalize tier filters.");
 
   console.log(JSON.stringify({

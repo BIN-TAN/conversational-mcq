@@ -104,7 +104,7 @@ function verifyRequiredColumns(headers: string[], requiredColumns: readonly stri
 }
 
 function verifyResearchRows(rows: CsvRow[]) {
-  assert(rows.length === 286, `research_data_dictionary.csv expected 286 rows, received ${rows.length}.`);
+  assert(rows.length === 287, `research_data_dictionary.csv expected 287 rows, received ${rows.length}.`);
   assert(
     rows.every((row) => !genericFragments.some((fragment) => (row.definition + row.collection_or_generation_method).includes(fragment))),
     "research_data_dictionary.csv still contains generic row, timestamp, count, measured-value, or serialization wording."
@@ -184,6 +184,11 @@ function verifyResearchRows(rows: CsvRow[]) {
   expectValue(itemResponseTime, "substantive_category", "Timing and interaction data");
   expectValue(itemResponseTime, "timing_start_event", "item_presented_at");
   expectNotContains(itemResponseTime, "calculation_formula", "item_started_at");
+
+  const itemAttemptNumber = requireRow(rows, "qualified_name", "item_responses.attempt_number");
+  expectValue(itemAttemptNumber, "measurement_level", "item_response");
+  expectContains(itemAttemptNumber, "definition", "Assessment-session attempt number");
+  expectContains(itemAttemptNumber, "collection_or_generation_method", "item_responses.csv");
 
   const timeToFirstAction = requireRow(rows, "qualified_name", "item_responses.time_to_first_action_ms");
   expectValue(timeToFirstAction, "timing_start_event", "item_presented_at");
@@ -281,7 +286,7 @@ function verifyExcludedRows(rows: CsvRow[]) {
 
 function verifySemanticReport() {
   const report = researchDataDictionarySemanticReport();
-  assert(report.research_variable_count === 286, "Semantic report row count mismatch for research variables.");
+  assert(report.research_variable_count === 287, "Semantic report row count mismatch for research variables.");
   assert(report.process_event_type_count === 156, "Semantic report row count mismatch for process events.");
   assert(report.internal_schema_field_count === 281, "Semantic report row count mismatch for internal schema appendix.");
   assert(report.excluded_platform_field_count === 102, "Semantic report row count mismatch for excluded fields.");
@@ -311,7 +316,7 @@ function main() {
     {
       fileName: "research_data_dictionary.csv",
       content: dataDictionaryCsv(),
-      expectedRowCount: 286,
+      expectedRowCount: 287,
       expectedColumns: DATA_DICTIONARY_COLUMNS,
       requiredColumns: requiredResearchColumns
     },
@@ -346,7 +351,7 @@ function main() {
     {
       fileName: "duplicate_variable_audit.csv",
       content: duplicateVariableAuditCsv(),
-      expectedRowCount: 286,
+      expectedRowCount: 287,
       expectedColumns: DUPLICATE_VARIABLE_AUDIT_COLUMNS,
       requiredColumns: ["variable_name", "qualified_name", "canonical_qualified_name", "duplicate_relationship", "core_visibility"]
     }
@@ -404,7 +409,7 @@ function main() {
         internal_schema_appendix: semanticReport.internal_schema_field_count,
         excluded_platform_variables: semanticReport.excluded_platform_field_count,
         research_category_dictionary: 10,
-        duplicate_variable_audit: 286
+        duplicate_variable_audit: 287
       },
       generic_research_definitions: semanticReport.generic_research_definitions,
       generic_research_methods: semanticReport.generic_research_methods,

@@ -386,12 +386,46 @@ type in the application domain enum. Event counts are contextual process
 evidence only; they must not be interpreted as misconduct labels or stable
 learner traits.
 
-The dictionary browser exposes a single `Dictionary section` filter. The normal
-default is Research variables. Internal schema appendix and platform/excluded
-field inventories are marked Advanced and are documentation/audit aids, not
-ordinary teacher workflows. `source_verified` means the export source path was
-traced in code; domain-owner review is tracked separately and remains pending
-until explicitly completed.
+The dictionary browser exposes a single `Dictionary section` selector with four
+teacher-facing choices:
+
+- `Research dataset variables`: actual columns or derived measures in research
+  dataset exports. Restricted fields require explicit authorization.
+- `Learning-process event definitions`: allowed `event_type` values. Actual
+  event occurrences are rows in `process_events.csv`.
+- `Internal database schema — Technical`: implementation-source and lineage
+  documentation only; these fields are not ordinary research columns.
+- `Excluded platform and security fields — Not exported`: fields intentionally
+  withheld from ordinary research exports. Values are not displayed.
+
+The Data dictionary is documentation. Use the separate Research dataset section
+to generate and download actual student/session data. `source_verified` means
+the export source path was traced in code; domain-owner review is tracked
+separately and remains pending until explicitly completed.
+
+### Timing Grain Guide
+
+Item-response timing is collected separately for each administered item. A
+three-item mini-test can therefore produce three `item_response_time_ms` values,
+joined by `research_student_id`, `session_public_id`, `attempt_number`, and
+`item_public_id` or the administered item snapshot identifier. Item revisions
+update the response row and revision counters/events; they do not create
+additional item-response rows unless an implementation explicitly versions an
+attempt.
+
+Conversation-turn latency, such as
+`conversation_turns.response_or_action_latency_ms`, is stored at
+conversation-turn grain. A single item can produce multiple latency values
+because answer selection, reasoning, confidence, tempting-option reporting, and
+other stages may each create separate turns or actions. Required join/context
+fields are `session_public_id`, `turn_index`, `actor_type`, `phase`, and
+`item_public_id` when item-scoped. Package review, formative activity,
+follow-up, and other session-level turns may have no `item_public_id`. Null
+latency means unavailable or not applicable; it is not zero.
+
+Elapsed time is not equivalent to active cognitive-processing time.
+Conversational latency is not equivalent to ability, effort, or motivation.
+Page-hidden or idle time does not prove disengagement.
 
 ### Tabular Formatting Standards
 

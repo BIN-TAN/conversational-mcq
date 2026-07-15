@@ -33,11 +33,11 @@ function main() {
 
   assertIncludes(clientSource, "Data dictionary selected entity list", "Data dictionary UI");
   assertIncludes(clientSource, "Dictionary section", "Data dictionary section filter");
-  assertIncludes(clientSource, "Core research variables", "Data dictionary sections");
-  assertIncludes(clientSource, "Core learning-process events", "Data dictionary sections");
-  assertIncludes(clientSource, "Internal schema appendix", "Data dictionary sections");
-  assertIncludes(clientSource, "Platform administration and excluded variables", "Data dictionary sections");
-  assertIncludes(clientSource, "Variable", "Research variable cards");
+  assertIncludes(clientSource, "Research dataset variables", "Data dictionary sections");
+  assertIncludes(clientSource, "Learning-process event definitions", "Data dictionary sections");
+  assertIncludes(clientSource, "Internal database schema", "Data dictionary sections");
+  assertIncludes(clientSource, "Excluded platform and security fields", "Data dictionary sections");
+  assertIncludes(clientSource, "Research variable", "Research variable cards");
   assertIncludes(clientSource, "Dataset/table", "Research variable cards");
   assertIncludes(clientSource, "Measurement level", "Research variable cards");
   assertIncludes(clientSource, "Type", "Research variable cards");
@@ -50,12 +50,15 @@ function main() {
   assertIncludes(clientSource, "Timing semantics", "Timing cards");
   assertIncludes(clientSource, "Trigger", "Process event cards");
   assertIncludes(clientSource, "Exclusion reason", "Excluded field cards");
-  assertIncludes(clientSource, "Download core data dictionary CSV", "Data dictionary actions");
+  assertIncludes(clientSource, "Download research variable dictionary CSV", "Data dictionary actions");
   assertIncludes(clientSource, "<details className=\"group rounded-lg", "Collapsed dictionary records");
   assertIncludes(clientSource, "Category guide", "Data dictionary category guide");
+  assertIncludes(clientSource, "This page documents research fields. Use Research dataset", "Dictionary/dataset boundary");
 
   assertNotIncludes(clientSource, "Total variables", "Data dictionary counts");
   assertNotIncludes(clientSource, "Category or code group", "Data dictionary filters");
+  assertNotIncludes(clientSource, "Advanced data documentation", "Data dictionary advanced panel");
+  assertNotIncludes(clientSource, "Core variables currently shown", "Data dictionary statistic cards");
   assertNotIncludes(clientSource, "View current page JSON", "Data dictionary actions");
   assertNotIncludes(clientSource, "<th className=\"px-3 py-2\">Table</th>", "Data dictionary table");
 

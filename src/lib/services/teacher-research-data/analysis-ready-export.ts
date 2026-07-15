@@ -634,6 +634,7 @@ function itemResponseRows(sessions: AnalysisSession[], includeRestricted: boolea
         ]);
         const row: CsvRow = {
           session_public_id: session.session_public_id,
+          attempt_number: session.attempt_number,
           research_student_id: researchStudentId(session.user.user_id),
           student_id: researchStudentId(session.user.user_id),
           assessment_public_id: session.assessment.assessment_public_id,

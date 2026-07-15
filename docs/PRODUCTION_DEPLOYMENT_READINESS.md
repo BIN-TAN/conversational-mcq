@@ -310,10 +310,10 @@ a short one-way provenance marker for detecting key/configuration changes.
 17. Have the teacher inspect session detail, readable transcript, structured event log, process events, session evidence audit, and research export.
 18. Open `/teacher/data/research`, verify Research dataset and Data dictionary
     sections, then download the research dataset ZIP for a pilot data check.
-19. In Data dictionary, verify the default section is Core research variables,
-    records are collapsed, the Category guide is visible, and supplementary,
-    full process-event, internal schema, and excluded platform records appear
-    only in Advanced data documentation.
+19. In Data dictionary, verify the default section is Research dataset
+    variables, records are collapsed, the Category guide is visible only for
+    research variables, and each dictionary section has one context-sensitive
+    download button.
 20. Run export integrity review.
 21. Complete `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`.
 22. Record only safe pass/fail observations, public IDs, status fields, and limitations.

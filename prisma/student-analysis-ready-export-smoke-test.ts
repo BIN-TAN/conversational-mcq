@@ -2,6 +2,9 @@ import { parse } from "csv-parse/sync";
 import { PrismaClient } from "@prisma/client";
 import { buildAnalysisReadyResearchDataBundle } from "../src/lib/services/teacher-research-data/analysis-ready-export";
 import {
+  buildCoreResearchDictionaryEntries,
+  buildExcludedPlatformVariableEntries,
+  buildInternalSchemaAppendixEntries,
   AGENT_ACTIVITY_RECORDS_COLUMNS,
   ASSESSMENT_CONTENT_COLUMNS,
   ASSESSMENT_SUMMARY_COLUMNS,
@@ -143,6 +146,17 @@ async function main() {
     }
 
     const dictionaryKeys = new Set(dictionaryRows.map((row) => `${row.table_name}.${row.variable_name}`));
+    const exportHeadersByTable = new Map<string, Set<string>>(
+      ([
+        ["sessions", "sessions.csv"],
+        ["item_responses", "item_responses.csv"],
+        ["process_events", "process_events.csv"],
+        ["conversation_turns", "conversation_turns.csv"],
+        ["agent_activity_records", "agent_activity_records.csv"],
+        ["assessment_content", "assessment_content.csv"],
+        ["assessment_summary", "assessment_summary.csv"]
+      ] as const).map(([tableName, path]) => [tableName, new Set(header(fileData(result.files, path)))])
+    );
     for (const [path, tableName] of [
       ["sessions.csv", "sessions"],
       ["item_responses.csv", "item_responses"],
@@ -154,6 +168,35 @@ async function main() {
     ] as const) {
       for (const column of header(fileData(result.files, path))) {
         assert(dictionaryKeys.has(`${tableName}.${column}`), `${path}.${column} missing from dictionary.`);
+      }
+    }
+    const coreResearchExportVariables = buildCoreResearchDictionaryEntries().filter(
+      (entry) => entry.export_policy === "research_dataset"
+    );
+    const missingCoreColumns = coreResearchExportVariables.filter((entry) => {
+      const tableHeader = exportHeadersByTable.get(entry.table_name);
+      return tableHeader ? !tableHeader.has(entry.variable_name) : false;
+    });
+    assert(
+      missingCoreColumns.length === 0,
+      `Core research variables missing from documented export tables: ${missingCoreColumns.map((entry) => entry.qualified_name).join(", ")}`
+    );
+
+    const restrictedDictionaryRows = dictionaryRows.filter((row) => row.export_policy === "restricted_research_dataset_only");
+    assert(restrictedDictionaryRows.length > 0, "Dictionary should identify restricted research fields.");
+    for (const restricted of restrictedDictionaryRows) {
+      const defaultHeader = exportHeadersByTable.get(restricted.table_name);
+      if (defaultHeader) {
+        assert(!defaultHeader.has(restricted.variable_name), `${restricted.qualified_name} leaked into unrestricted export.`);
+      }
+    }
+
+    const internalQualifiedFields = new Set(buildInternalSchemaAppendixEntries().map((entry) => `${entry.model_name}.${entry.field_name}`));
+    const excludedQualifiedFields = new Set(buildExcludedPlatformVariableEntries().map((entry) => `${entry.source_table}.${entry.field_name}`));
+    for (const [tableName, columns] of exportHeadersByTable.entries()) {
+      for (const column of columns) {
+        assert(!internalQualifiedFields.has(`${tableName}.${column}`) || dictionaryKeys.has(`${tableName}.${column}`), `${tableName}.${column} is an internal field without safe research mapping.`);
+        assert(!excludedQualifiedFields.has(`${tableName}.${column}`), `${tableName}.${column} is an excluded platform/security field.`);
       }
     }
 
@@ -180,12 +223,18 @@ async function main() {
       header(fileData(formulaFixture.files, "item_responses.csv")).includes("correct_option"),
       "Restricted mode should include explicit restricted columns."
     );
+    const restrictedHeader = new Set(header(fileData(formulaFixture.files, "item_responses.csv")));
+    assert(restrictedHeader.has("correctness"), "Restricted mode should include correctness.");
     assert(
       formulaFixture.files
         .filter((file) => !["research_data_dictionary.csv", "process_event_codebook.csv"].includes(file.path))
         .every((file) => !/password_hash|access_code_hash|SESSION_SECRET|OPENAI_API_KEY/i.test(file.data)),
       "Research dataset files should not expose secrets."
     );
+
+    const codebookEventTypes = new Set(eventCodebookRows.map((row) => row.event_type));
+    const unknownEventTypes = [...new Set(processEvents.map((row) => row.event_type))].filter((eventType) => !codebookEventTypes.has(eventType));
+    assert(unknownEventTypes.length === 0, `Process event rows used unknown event types: ${unknownEventTypes.join(", ")}`);
 
     const afterAgentCalls = await prisma.agentCall.count();
     assert(beforeAgentCalls === afterAgentCalls, "Research dataset smoke should not create agent calls.");
