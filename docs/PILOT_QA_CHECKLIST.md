@@ -40,7 +40,7 @@ Supported Canvas placements:
 Suggested Canvas wording:
 
 ```text
-Open the Conversational MCQ activity using the link below. Use the classroom ID and access code provided by your instructor. Complete the activity in one sitting if possible. If the page says it could not safely review a response, follow the on-screen options to try again, choose another activity, or move on. Your teacher will review completion and research data inside the Conversational MCQ system, not through Canvas grade passback.
+Open the Conversational MCQ activity using the link below. Use the classroom ID and access code provided by your instructor. Complete the activity in one sitting if possible. If the page says it could not safely review a response, follow the on-screen options to try again, choose another activity, or continue to the next available step. Your teacher will review completion and research data inside Conversational MCQ, not through Canvas grade passback.
 ```
 
 Canvas gradebook will not automatically receive completion or scores. Teacher/research completion review and exports happen inside Conversational MCQ.
@@ -85,6 +85,12 @@ cleanup, and safe aggregate audit records with:
 
 ```bash
 npm run student:teacher-assessment-deletion-smoke
+```
+
+Attempt lifecycle behavior: students can Pause and leave to resume the same attempt later, or explicitly End attempt after confirmation. If a resumable attempt exists, the dashboard should show Resume attempt and End current attempt, not Start. Teachers can close a stuck or test attempt from session review with Close attempt and allow another; this preserves old attempt records and does not delete data. Verify with:
+
+```bash
+npm run student:attempt-lifecycle-smoke
 ```
 
 Before changing pilot content, verify teacher-managed item authoring:

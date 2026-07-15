@@ -150,8 +150,9 @@ async function activeSessionCount(input: { studentDbId: string; assessmentDbId: 
 
   return sessions.filter(
     (session) =>
-      session.status !== "completed" &&
+      (session.status === "active" || session.status === "paused") &&
       session.current_phase !== "session_completed" &&
+      session.current_phase !== "student_exited" &&
       !session.completed_at
   ).length;
 }

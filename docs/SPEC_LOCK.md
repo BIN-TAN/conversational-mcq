@@ -555,10 +555,19 @@ Assessment phase transitions are deterministic and service-validated. LLM judgme
 
 - Arbitrary phase jumps are rejected and logged as `transition_rejected`.
 - Valid phase changes log `phase_exited`, `transition_validated`, and `phase_entered`.
-- Active phases may transition to `student_exited`.
+- Active phases may transition to `student_exited` only for terminal student-ended or teacher-ended attempts. Ordinary Pause and leave uses session status `paused`, preserves `resume_phase` / `resume_context`, and remains resumable.
 - Blocking failures may transition to `needs_review`.
 - `session_completed` is terminal and must not return to active phases.
 - Calling a phase update when the session is already in that phase updates activity time but does not re-log the same transition.
+
+Phase 31al2 attempt lifecycle rules:
+
+- One student may have at most one active or paused attempt for the same assessment.
+- A paused attempt must be resumed rather than replaced.
+- A student-ended or teacher-ended attempt is terminal, cannot be resumed, and remains preserved for audit/research.
+- Teacher close controls may allow a later new attempt without deleting or overwriting the old attempt.
+- Formative activity skip actions must use destination-specific student-facing labels and must be logged as skipped, not completed.
+- Timing formulas and instrumentation definitions are unchanged by lifecycle controls.
 
 ## Phase 3C Content Governance
 

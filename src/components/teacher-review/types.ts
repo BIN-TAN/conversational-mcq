@@ -107,6 +107,11 @@ export type SessionDetailResponse = {
     can_retry_current_step: boolean;
     can_stop_followup: boolean;
   };
+  attempt_controls: {
+    can_close_attempt: boolean;
+    close_label: string;
+    close_requires_reason: boolean;
+  };
   current_concept_unit: {
     concept_unit_public_id: string;
     title: string;

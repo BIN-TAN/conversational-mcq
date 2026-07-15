@@ -65,6 +65,8 @@ The LLM can generate conversational language inside these states, but it must no
 
 Create or resume the student assessment session. Show a conversational opening and begin the first item when the student starts.
 
+Only one active or paused attempt may exist for a student and assessment. If a resumable attempt exists, the student assessment list shows Resume attempt and End current attempt, not a new Start button. Ending an attempt is terminal and preserves all records; pausing an attempt remains resumable.
+
 ### ITEM_PRESENTED
 
 Show the item stem and options in chat. The app records that the item was presented and transitions to `AWAIT_ANSWER`.
@@ -173,7 +175,7 @@ The LLM may produce language and structured interpretations, but backend validat
 
 ## Phase 30a Loop Policy
 
-The diagnostic loop should be described as continuing until no actionable distractor-linked misconception evidence remains, until the current misconception hypothesis is weakened or unsupported, until evidence becomes insufficient, until the student chooses to move on, or until a runtime guard stops the loop. It should not be described as looping until all misconceptions are eliminated.
+The diagnostic loop should be described as continuing until no actionable distractor-linked misconception evidence remains, until the current misconception hypothesis is weakened or unsupported, until evidence becomes insufficient, until the student chooses a destination-specific continue action, or until a runtime guard stops the loop. It should not be described as looping until all misconceptions are eliminated.
 
 ## Phase 31al Post-Package State Contract
 
@@ -192,9 +194,20 @@ together, but state ownership remains explicit:
 Only `NextInteractionV2.prompt` may contain the next actionable student prompt.
 Package feedback must not contain a separate quick-check question. While an
 await state is active, the UI must not show a "Prepare learning activity" button
-or generate a second activity before the student responds, skips, or moves on.
+or generate a second activity before the student responds, chooses another activity, or selects a destination-specific skip/continue action.
 
 Correctness status is separate from answer-key reveal. The default pilot policy
 shows total and item-level correct/incorrect status after the package, while
 the correct option and full explanation remain hidden until
 `answer_reveal_policy` permits reveal.
+
+## Phase 31al2 Attempt Lifecycle and Navigation
+
+Attempt lifecycle behavior is defined in `docs/ASSESSMENT_LIFECYCLE_TIMING_BOUNDARIES.md`.
+
+Student-facing controls must distinguish:
+
+- Pause and leave: resumable.
+- End attempt: terminal after confirmation.
+
+Teacher-facing review may close a stuck or test attempt and allow another attempt without deleting or overwriting the original attempt. Formative activity skip actions should use destination-specific labels such as "Continue to transfer item" rather than generic "Move on" wording. Skipped formative activity is recorded as skipped, not completed.

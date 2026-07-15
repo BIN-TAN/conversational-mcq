@@ -425,6 +425,14 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
         session.workflow_mode_snapshot === "automatic" &&
         session.current_phase === "followup_active"
     },
+    attempt_controls: {
+      can_close_attempt:
+        !["completed", "student_exited"].includes(session.status) &&
+        !["session_completed", "student_exited"].includes(session.current_phase) &&
+        !session.completed_at,
+      close_label: "Close attempt and allow another",
+      close_requires_reason: false
+    },
     current_concept_unit: session.current_concept_unit
       ? {
           concept_unit_public_id: session.current_concept_unit.concept_unit_public_id,

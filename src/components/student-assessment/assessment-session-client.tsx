@@ -19,6 +19,7 @@ import {
   chooseStudentActivityRuntimeAction,
   chooseProgression,
   completeInitialConceptUnit,
+  endAssessmentAttempt,
   exitSession,
   fetchSessionState,
   fetchStudentReview,
@@ -1233,7 +1234,7 @@ function FormativeActivityControls({
   isBusy: boolean;
   formativeActivityDraft: string;
   setFormativeActivityDraft: (value: string) => void;
-  onChooseActivityRuntimeAction: (choiceState: "choose_another_activity" | "move_on") => void;
+  onChooseActivityRuntimeAction: (choiceState: "choose_another_activity" | "skip_activity_to_transfer") => void;
   onSendFormativeActivityResponse: () => void;
 }) {
   const runtime = activityRuntime ?? null;
@@ -1262,12 +1263,12 @@ function FormativeActivityControls({
       {runtime.can_move_on ? (
         <button
           className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
-          data-testid="activity-runtime-move-on"
+          data-testid="activity-runtime-skip-activity"
           disabled={isBusy}
-          onClick={() => onChooseActivityRuntimeAction("move_on")}
+          onClick={() => onChooseActivityRuntimeAction("skip_activity_to_transfer")}
           type="button"
         >
-          Move on
+          Continue to transfer item
         </button>
       ) : null}
     </div>
@@ -1318,7 +1319,7 @@ function FormativeActivityControls({
               ))}
             </ul>
             <p className="mt-2 text-sm text-muted">
-              Alternative activity selection is recorded for this version. You can continue with the current activity or move on.
+              Alternative activity selection is recorded for this version. You can continue with the current activity or continue to the next step.
             </p>
           </div>
         ) : null}
@@ -1517,11 +1518,13 @@ function StudentAssessmentChatShell({
   state,
   isBusy,
   onExit,
+  onEndAttempt,
   children
 }: {
   state: StudentSessionState;
   isBusy: boolean;
   onExit: () => void;
+  onEndAttempt: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -1541,16 +1544,27 @@ function StudentAssessmentChatShell({
             {state.assessment_state.replaceAll("_", " ").toLowerCase()}
           </p>
         </div>
-        <button
-          className="inline-flex w-fit items-center justify-center gap-2 rounded-full border border-line bg-white px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
-          data-testid="save-exit"
-          disabled={isBusy || !state.can_exit}
-          onClick={onExit}
-          type="button"
-        >
-          <LogOut className="h-4 w-4" aria-hidden="true" />
-          Pause
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="inline-flex w-fit items-center justify-center gap-2 rounded-full border border-line bg-white px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+            data-testid="save-exit"
+            disabled={isBusy || !state.can_exit}
+            onClick={onExit}
+            type="button"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            Pause and leave
+          </button>
+          <button
+            className="inline-flex w-fit items-center justify-center rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+            data-testid="end-attempt"
+            disabled={isBusy || !state.can_end_attempt}
+            onClick={onEndAttempt}
+            type="button"
+          >
+            End attempt
+          </button>
+        </div>
       </header>
       {children}
     </div>
@@ -1627,7 +1641,7 @@ function activeItemPrompt(input: {
   onContinuePackage: () => void;
   onSaveReviewEdit: () => void;
   onStartReviewEdit: (item: StudentReviewItem) => void;
-  onChooseActivityRuntimeAction: (choiceState: "choose_another_activity" | "move_on") => void;
+  onChooseActivityRuntimeAction: (choiceState: "choose_another_activity" | "skip_activity_to_transfer") => void;
   onSendFormativeActivityResponse: () => void;
   onStartActivityRuntime: () => void;
   onSendRevision: () => void;
@@ -2298,6 +2312,35 @@ export function AssessmentSessionClient({
     }
   }
 
+  async function handleEndAttempt() {
+    if (!activeSessionPublicId) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "End this attempt?\n\nYour responses so far will be saved, but you will not be able to resume this attempt. You may start another attempt only if the assessment's attempt policy allows it."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsBusy(true);
+    setError(null);
+    setFailedAction(null);
+
+    try {
+      await endAssessmentAttempt(activeSessionPublicId);
+      router.push("/student/assessment");
+    } catch (errorValue) {
+      handleError(errorValue, "End attempt", () => {
+        void handleEndAttempt();
+      });
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   async function handleSendFollowup() {
     const trimmed = followupDraft.trim();
 
@@ -2362,7 +2405,7 @@ export function AssessmentSessionClient({
     }
   }
 
-  async function handleChooseActivityRuntimeAction(choiceState: "choose_another_activity" | "move_on") {
+  async function handleChooseActivityRuntimeAction(choiceState: "choose_another_activity" | "skip_activity_to_transfer") {
     if (!state) {
       return;
     }
@@ -2382,7 +2425,7 @@ export function AssessmentSessionClient({
       setState(nextState);
       await refreshSecondaryData(nextState.session_public_id);
     } catch (errorValue) {
-      handleError(errorValue, choiceState === "move_on" ? "Move on" : "Choose another activity", () => {
+      handleError(errorValue, choiceState === "skip_activity_to_transfer" ? "Continue to transfer item" : "Choose another activity", () => {
         void handleChooseActivityRuntimeAction(choiceState);
       });
     } finally {
@@ -2657,6 +2700,7 @@ export function AssessmentSessionClient({
   return (
     <StudentAssessmentChatShell
       isBusy={isBusy}
+      onEndAttempt={() => void handleEndAttempt()}
       onExit={() => void handleExit()}
       state={state}
     >

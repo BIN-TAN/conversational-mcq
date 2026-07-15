@@ -353,6 +353,8 @@ async function createCompletedSession(suffix: string): Promise<CompletedSession>
     select: { id: true }
   });
 
+  await cleanupRuntimeForSessions([started.session.session_public_id]);
+
   return {
     student_db_id: student.id,
     session_public_id: started.session.session_public_id,

@@ -36,6 +36,8 @@ The student should experience the assessment as a natural sequence of short conv
 
 MCQ options and confidence choices can appear as clickable chips inside the chat. Clicking an option or confidence chip should create a student chat bubble and automatically advance to the next step.
 
+The assessment list and session shell should support explicit attempt lifecycle actions. Pause and leave preserves a resumable attempt. End attempt is terminal after confirmation and preserves the prior attempt for audit/research. A student must not have two active or paused attempts for the same assessment at the same time.
+
 The first three-item package must not use:
 
 - Saved messages;

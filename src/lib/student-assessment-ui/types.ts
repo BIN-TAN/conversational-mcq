@@ -69,6 +69,23 @@ export const AvailableAssessmentSchema = StudentAssessmentSummarySchema.extend({
   existing_attempt_number: z.number().nullable().optional(),
   latest_completed_session_public_id: z.string().nullable().optional(),
   latest_completed_attempt_number: z.number().nullable().optional(),
+  latest_terminal_session_public_id: z.string().nullable().optional(),
+  latest_terminal_attempt_number: z.number().nullable().optional(),
+  attempt_policy: z
+    .object({
+      policy_version: z.string(),
+      maximum_attempts: z.number().nullable(),
+      attempts_used: z.number(),
+      remaining_attempts: z.number().nullable(),
+      resumable_attempt_present: z.boolean(),
+      student_may_end_attempt: z.boolean(),
+      student_ended_attempt_counts_toward_limit: z.boolean(),
+      completed_attempts_permit_new_attempt: z.boolean(),
+      start_window_state: z.string(),
+      resume_window_state: z.string(),
+      teacher_override_state: z.string()
+    })
+    .optional(),
   can_start: z.boolean(),
   can_resume: z.boolean()
 });
@@ -188,6 +205,7 @@ export const StudentSessionStateSchema = z.object({
   missing_evidence: z.array(MissingEvidenceFieldSchema),
   can_exit: z.boolean(),
   can_resume: z.boolean(),
+  can_end_attempt: z.boolean(),
   initial_chat: z.object({
     message_max_chars: z.number()
   }),

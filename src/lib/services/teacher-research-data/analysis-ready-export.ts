@@ -331,6 +331,19 @@ function payloadNumber(payload: unknown, keys: string[]) {
   return null;
 }
 
+function payloadBoolean(payload: unknown, keys: string[]) {
+  const record = asRecord(payload);
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "boolean") return value;
+  }
+  return null;
+}
+
+function jsonString(value: unknown) {
+  return value === null || value === undefined ? null : JSON.stringify(value);
+}
+
 function sha(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -572,6 +585,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
 
   return sessions.map((session) => {
     const responses = session.concept_unit_sessions.flatMap((entry) => entry.item_responses);
+    const sessionEvents = session.process_events;
     const initialResponses = responses.filter((response) => response.item.item_order <= 3);
     const longPauseEvents = session.process_events.filter((event) => event.event_type === "long_pause");
     const hiddenEvents = session.process_events.filter((event) =>
@@ -592,6 +606,54 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       const evidence = packageEvidenceByItem(session).get(response.item.item_public_id);
       return asRecord(evidence).unsupported_correct_response === true;
     }).length;
+    const activityAttempts = supplemental.activityAttempts.filter(
+      (activity) => activity.session_public_id === session.session_public_id
+    );
+    const latestActivityAttempt = activityAttempts.at(-1) ?? null;
+    const activitySkippedEvent = lastEvent(sessionEvents, ["formative_activity_skipped"]);
+    const teacherEndedEvent = lastEvent(sessionEvents, ["attempt_ended_by_teacher"]);
+    const studentEndedEvent = lastEvent(sessionEvents, ["attempt_ended_by_student"]);
+    const completionEvent = lastEvent(sessionEvents, [
+      "assessment_completed",
+      "assessment_completed_with_unresolved_evidence",
+      "session_completed"
+    ]);
+    const attemptStartedEvent = firstEvent(sessionEvents, ["attempt_started"]);
+    const teacherOverrideMetadata = teacherEndedEvent
+      ? {
+          request_id: payloadString(teacherEndedEvent.payload, ["request_id"]),
+          terminal_status: payloadString(teacherEndedEvent.payload, ["terminal_status"]),
+          override_applied: payloadBoolean(teacherEndedEvent.payload, ["override_applied"])
+        }
+      : null;
+    const attemptLifecycleStatus =
+      session.status === "completed" || session.current_phase === "session_completed" || session.completed_at
+        ? "completed"
+        : teacherEndedEvent
+          ? "ended_by_teacher"
+          : studentEndedEvent || session.status === "student_exited" || session.current_phase === "student_exited"
+            ? "ended_by_student"
+            : session.status === "paused"
+              ? "paused"
+              : session.status === "active"
+                ? "active"
+                : session.status;
+    const terminalReason =
+      attemptLifecycleStatus === "completed"
+        ? "completed"
+        : attemptLifecycleStatus === "ended_by_teacher"
+          ? "ended_by_teacher"
+          : attemptLifecycleStatus === "ended_by_student"
+            ? "ended_by_student"
+            : attemptLifecycleStatus === "paused"
+              ? "paused"
+              : null;
+    const formativeActivityCompletionStatus =
+      latestActivityAttempt?.status === "move_on_recommended"
+        ? "skipped"
+        : latestActivityAttempt?.completed_at
+          ? "completed"
+          : latestActivityAttempt?.status ?? null;
     return {
       ...sessionBase(source, session),
       session_status: session.status,
@@ -601,6 +663,32 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       completed_at: iso(session.completed_at),
       resumed_at: iso(firstEvent(session.process_events, ["session_resumed"])?.occurred_at ?? null),
       exited_at: iso(firstEvent(session.process_events, ["session_exited"])?.occurred_at ?? null),
+      attempt_lifecycle_status: attemptLifecycleStatus,
+      terminal_reason: terminalReason,
+      ended_by_actor:
+        attemptLifecycleStatus === "ended_by_teacher"
+          ? "teacher"
+          : attemptLifecycleStatus === "ended_by_student"
+            ? "student"
+            : null,
+      pause_count: countEvents(sessionEvents, ["attempt_paused", "session_paused"]),
+      resume_count: countEvents(sessionEvents, ["attempt_resumed", "session_resumed"]),
+      last_runtime_state: latestActivityAttempt?.status ?? null,
+      formative_activity_completion_status: formativeActivityCompletionStatus,
+      activity_skip_reason: activitySkippedEvent
+        ? payloadString(activitySkippedEvent.payload, ["skip_reason", "reason"]) ?? "student_selected_skip_activity"
+        : null,
+      selected_navigation_destination: payloadString(activitySkippedEvent?.payload, [
+        "selected_navigation_destination",
+        "destination_type"
+      ]),
+      assessment_completion_reason:
+        completionEvent?.event_type ??
+        (attemptLifecycleStatus === "completed" ? "session_completed" : terminalReason),
+      attempt_policy_version:
+        payloadString(attemptStartedEvent?.payload, ["attempt_policy_version"]) ??
+        "assessment-attempt-policy-v1",
+      teacher_override_metadata: jsonString(teacherOverrideMetadata),
       actual_initial_item_count: initialResponses.length,
       completed_initial_item_count: initialResponses.filter((response) => response.item_submitted_at).length,
       current_item_index: responses.length ? Math.max(...responses.map((response) => response.item.item_order)) : null,

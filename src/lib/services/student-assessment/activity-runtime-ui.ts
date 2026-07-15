@@ -78,8 +78,29 @@ const SourceActivityPacketRefSchema = z.object({
 
 const FeedbackSchema = z.object({
   message: z.string().min(1),
-  next_options: z.array(z.enum(["continue", "choose another activity", "move on"])).min(1).max(3)
+  next_options: z.array(z.enum([
+    "continue",
+    "choose another activity",
+    "skip this activity and continue",
+    "continue to transfer item",
+    "continue to next concept",
+    "finish assessment",
+    "return to assessment summary",
+    "move on"
+  ])).min(1).max(3)
 }).strict();
+
+function normalizeRuntimeFeedback(feedback: z.infer<typeof FeedbackSchema>):
+  StudentActivityRuntimeProjection["feedback"] {
+  return {
+    message: feedback.message
+      .replace(/\bmove on\b/gi, "continue to the next step")
+      .replace(/\bMove on\b/g, "Continue to the next step"),
+    next_options: feedback.next_options.map((option) =>
+      option === "move on" ? "skip this activity and continue" : option
+    ) as NonNullable<StudentActivityRuntimeProjection["feedback"]>["next_options"]
+  };
+}
 
 export type StudentActivityRuntimeGenerationOverride = (input: {
   profile_integration_packet: ProfileIntegrationInterpretationPacketV1;
@@ -195,7 +216,7 @@ async function latestEvidenceFeedback(
   });
   const parsed = FeedbackSchema.safeParse(record?.student_safe_feedback);
 
-  return parsed.success ? parsed.data : null;
+  return parsed.success ? normalizeRuntimeFeedback(parsed.data) : null;
 }
 
 function projectionForNoAttempt(): StudentActivityRuntimeProjection {
@@ -232,8 +253,8 @@ function projectionForStartFailure(): StudentActivityRuntimeProjection {
     focus_label: null,
     first_turn_message: null,
     response_prompt: null,
-    helper_text: "You can try again, choose another activity, or move on.",
-    allowed_actions: ["start_activity", "choose_another_activity", "move_on"],
+    helper_text: "You can try again, choose another activity, or continue to the next step.",
+    allowed_actions: ["start_activity", "choose_another_activity", "skip_activity_to_transfer"],
     can_start: true,
     can_submit_response: false,
     can_choose_another_activity: true,
@@ -241,8 +262,8 @@ function projectionForStartFailure(): StudentActivityRuntimeProjection {
     can_continue: false,
     message_max_chars: ACTIVITY_RUNTIME_MAX_RESPONSE_CHARS,
     feedback: {
-      message: "I could not safely prepare this activity right now. You can try again, choose another activity, or move on.",
-      next_options: ["continue", "choose another activity", "move on"]
+      message: "I could not safely prepare this activity right now. You can try again, choose another activity, or continue to the next step.",
+      next_options: ["continue", "choose another activity", "skip this activity and continue"]
     },
     next_recommendation_label: null,
     alternative_activity_labels: alternativeActivityLabels
@@ -298,7 +319,7 @@ async function projectionForAttempt(
   const recommendation =
     loopResult?.next_runtime_recommendation ??
     (attempt.status === "move_on_recommended"
-      ? "move_on"
+        ? "move_on"
       : attempt.status === "choose_alternative_recommended"
         ? "choose_alternative_activity"
         : attempt.status === "failed_closed"
@@ -317,7 +338,7 @@ async function projectionForAttempt(
           : uiState === "feedback_ready"
             ? "Feedback ready"
             : uiState === "moved_on"
-              ? "Moved on"
+              ? "Activity skipped"
               : uiState === "alternative_requested"
                 ? "Alternative activity requested"
                 : uiState === "could_not_review_response_safely"
@@ -328,16 +349,16 @@ async function projectionForAttempt(
     response_prompt: source?.expected_student_action_prompt ?? null,
     helper_text:
       uiState === "could_not_review_response_safely"
-        ? "You can try again, choose another activity, or move on."
+        ? "You can try again, choose another activity, or continue to the next step."
         : "Write a short response in your own words.",
     allowed_actions:
       uiState === "waiting_for_your_response"
-        ? ["submit_response", "choose_another_activity", "move_on"]
+        ? ["submit_response", "choose_another_activity", "skip_activity_to_transfer"]
         : uiState === "feedback_ready"
-          ? ["choose_another_activity", "move_on"]
+          ? ["choose_another_activity", "skip_activity_to_transfer"]
           : uiState === "could_not_review_response_safely"
-            ? ["submit_response", "choose_another_activity", "move_on"]
-            : ["choose_another_activity", "move_on"],
+            ? ["submit_response", "choose_another_activity", "skip_activity_to_transfer"]
+            : ["choose_another_activity", "skip_activity_to_transfer"],
     can_start: false,
     can_submit_response:
       uiState === "waiting_for_your_response" ||
@@ -351,18 +372,18 @@ async function projectionForAttempt(
       feedback ??
       (uiState === "alternative_requested"
         ? {
-            message: "Alternative activity selection is recorded for this version. You can continue with the current activity or move on.",
-            next_options: ["continue", "move on"]
+            message: "Alternative activity selection is recorded for this version. You can continue with the current activity or continue to the next step.",
+            next_options: ["continue", "skip this activity and continue"]
           }
         : uiState === "moved_on"
           ? {
-              message: "You chose to move on. Your progress is saved.",
-              next_options: ["move on"]
+              message: "You skipped this activity and continued to the next step. Your progress is saved.",
+              next_options: ["continue to transfer item"]
             }
           : uiState === "could_not_review_response_safely"
             ? {
-                message: "I could not safely review this response right now. You can try again, choose another activity, or move on.",
-                next_options: ["continue", "choose another activity", "move on"]
+                message: "I could not safely review this response right now. You can try again, choose another activity, or continue to the next step.",
+                next_options: ["continue", "choose another activity", "skip this activity and continue"]
               }
             : null),
     next_recommendation_label: studentActivityRecommendationLabel(recommendation),
@@ -625,6 +646,13 @@ export async function recordStudentActivityRuntimeChoice(input: {
     return projectionForNoAttempt();
   }
 
+  if (
+    (input.choice_state === "move_on" && attempt.status === "move_on_recommended") ||
+    (input.choice_state === "choose_another_activity" && attempt.status === "choose_alternative_recommended")
+  ) {
+    return projectionForAttempt(attempt, client);
+  }
+
   const responseReference = attempt.latest_activity_response_reference
     ? undefined
     : prismaJson({
@@ -662,6 +690,64 @@ export async function recordStudentActivityRuntimeChoice(input: {
       selected_alternative_activity_family: input.selected_alternative_activity_family ?? null
     }
   });
+
+  if (input.choice_state === "move_on") {
+    const nextPhase =
+      context.session.current_phase === "session_completed"
+        ? "session_completed"
+        : "followup_stopped";
+
+    if (nextPhase !== "session_completed" && context.session.current_phase !== "followup_stopped") {
+      await client.assessmentSession.update({
+        where: { id: context.session.id },
+        data: {
+          current_phase: nextPhase,
+          status: "active",
+          last_activity_at: new Date()
+        }
+      });
+    }
+
+    await logProcessEvent({
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      event_type: "formative_activity_skipped",
+      event_category: "formative_activity_runtime",
+      event_source: "frontend",
+      payload: {
+        activity_attempt_public_id: attempt.activity_attempt_public_id,
+        client_action_id: input.client_action_id,
+        selected_navigation_destination: "skip_activity_to_transfer",
+        next_runtime_state: "TRANSFER_ITEM",
+        skipped_not_completed: true
+      }
+    });
+    await logProcessEvent({
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      event_type: "continue_to_transfer_selected",
+      event_category: "assessment_navigation",
+      event_source: "frontend",
+      payload: {
+        activity_attempt_public_id: attempt.activity_attempt_public_id,
+        client_action_id: input.client_action_id,
+        destination_type: "transfer_item"
+      }
+    });
+  } else {
+    await logProcessEvent({
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      event_type: "alternative_activity_requested",
+      event_category: "formative_activity_runtime",
+      event_source: "frontend",
+      payload: {
+        activity_attempt_public_id: attempt.activity_attempt_public_id,
+        client_action_id: input.client_action_id,
+        selected_alternative_activity_family: input.selected_alternative_activity_family ?? null
+      }
+    });
+  }
 
   return projectionForAttempt(updated, client);
 }

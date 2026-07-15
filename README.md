@@ -239,6 +239,7 @@ npm run student:initial-admin-smoke
 npm run student:ui-smoke
 npm run student:initial-chat-ui-smoke
 npm run student:conversational-flow-smoke
+npm run student:attempt-lifecycle-smoke
 npm run student:logging-smoke
 npm run student:formative-profile-smoke
 npm run student:ability-evidence-smoke
@@ -321,6 +322,14 @@ npm run student:mvp-e2e-smoke
 ```
 
 This mock-provider smoke verifies the complete fixed IRT path for both student next-choice branches. It writes developer-only evidence snapshots to `.data/student-mvp-e2e-smoke/`, which is ignored by Git.
+
+Assessment attempt lifecycle verification:
+
+```bash
+npm run student:attempt-lifecycle-smoke
+```
+
+This no-live smoke verifies one active or paused attempt per student/assessment, Pause and leave versus End attempt, teacher Close attempt and allow another, destination-specific formative navigation, preserved historical attempts, and no OpenAI calls. See `docs/ASSESSMENT_LIFECYCLE_TIMING_BOUNDARIES.md`.
 
 Ability evidence packet verification:
 

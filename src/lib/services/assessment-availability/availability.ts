@@ -48,10 +48,11 @@ function sessionIsResumable(
     return false;
   }
 
-  return !(
-    session.status === "completed" ||
-    session.current_phase === "session_completed" ||
-    Boolean(session.completed_at)
+  return (
+    (session.status === "active" || session.status === "paused") &&
+    session.current_phase !== "session_completed" &&
+    session.current_phase !== "student_exited" &&
+    !session.completed_at
   );
 }
 

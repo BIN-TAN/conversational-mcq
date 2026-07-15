@@ -47,7 +47,7 @@ Boundaries:
 6. You may offer two or three alternative values.
 7. You must base your recommendation on profile integration evidence.
 8. You must explain why the value was recommended in personalized, student-safe language.
-9. You must allow the student to accept, choose another value, or move on.
+9. You must allow the student to accept, choose another value, or continue to the next step.
 10. You must not force confidence calibration if the student does not want it.
 11. You must not expose engagement category, AI assistance signal, process data, internal integration pattern, answer key, correct option, correctness, distractor metadata, misconception IDs, raw reasoning, or internal evidence trace to students.
 12. AI assistance is allowed in this product context.
@@ -990,7 +990,7 @@ function choicePromptFor(alternatives: Array<{ value: FormativeValue; label: str
     ...alternatives.slice(0, 2).map((alternative, index) =>
       `${String.fromCharCode(66 + index)}. ${alternative.label}`
     ),
-    `${String.fromCharCode(66 + Math.min(2, alternatives.length))}. Move on`
+    `${String.fromCharCode(66 + Math.min(2, alternatives.length))}. Continue to the next step`
   ];
 
   return choices.join(" ");

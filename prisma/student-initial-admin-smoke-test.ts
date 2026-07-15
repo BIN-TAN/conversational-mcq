@@ -473,7 +473,8 @@ async function main() {
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id
     });
-    assert(exited.exit_status === "student_exited", "Student exit did not preserve a resumable session.");
+    assert(exited.exit_status === "paused", "Student exit did not preserve a resumable session.");
+    assert(exited.can_resume === true, "Paused student attempt should be resumable.");
 
     await archiveAssessment({
       teacher_user_db_id: teacher.id,

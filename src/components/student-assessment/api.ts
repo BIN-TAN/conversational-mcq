@@ -348,6 +348,19 @@ export function exitSession(sessionPublicId: string) {
   );
 }
 
+export function endAssessmentAttempt(sessionPublicId: string) {
+  return post(
+    `/api/student/sessions/${sessionPublicId}/end`,
+    {},
+    (value) =>
+      value as {
+        end_status: string;
+        can_resume: boolean;
+        terminal_status: string;
+      }
+  );
+}
+
 export function sendFollowupMessage(input: {
   sessionPublicId: string;
   message: string;
@@ -442,7 +455,12 @@ export function submitStudentActivityRuntimeResponse(input: {
 export function chooseStudentActivityRuntimeAction(input: {
   sessionPublicId: string;
   activityAttemptPublicId?: string | null;
-  choiceState: "choose_another_activity" | "move_on";
+  choiceState:
+    | "choose_another_activity"
+    | "skip_activity_to_transfer"
+    | "skip_activity_to_next_concept"
+    | "finish_assessment"
+    | "return_to_summary";
   selectedAlternativeActivityFamily?: string | null;
   clientActionId?: string;
 }): Promise<StudentActivityRuntimeProjection> {

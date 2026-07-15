@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Loader2, LogOut, Play, RefreshCcw } from "lucide-react";
 import {
+  endAssessmentAttempt,
   fetchAvailableAssessments,
   startAssessmentSession
 } from "./api";
@@ -115,6 +116,36 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
     }
   }
 
+  async function handleEndCurrentAttempt(assessment: AvailableAssessment) {
+    if (!assessment.existing_session_public_id) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "End this attempt?\n\nYour responses so far will be saved, but you will not be able to resume this attempt. You may start another attempt only if the assessment's attempt policy allows it."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setPendingAssessment(assessment.assessment_public_id);
+    setError(null);
+
+    try {
+      await endAssessmentAttempt(assessment.existing_session_public_id);
+      await loadAssessments();
+    } catch (caught) {
+      const apiError = normalizeAssessmentStartErrorForStudent(
+        caught as StructuredStudentApiError
+      );
+      await loadAssessments();
+      setError(apiError);
+    } finally {
+      setPendingAssessment(null);
+    }
+  }
+
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/student/login");
@@ -206,7 +237,9 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
               const canOpen = Boolean(assessment.can_resume && assessment.existing_session_public_id);
               const canStartNew = assessment.can_start && !canOpen;
               const startLabel =
-                assessment.latest_completed_attempt_number ? "Start new attempt" : "Start assessment";
+                assessment.latest_terminal_attempt_number || assessment.latest_completed_attempt_number
+                  ? "Start new attempt"
+                  : "Start assessment";
 
               return (
                 <article
@@ -242,6 +275,14 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                       <p className="mt-3 text-sm leading-6 text-muted">
                         {assessment.student_safe_availability_message}
                       </p>
+                      {assessment.attempt_policy ? (
+                        <p className="mt-1 text-xs text-muted">
+                          Attempt {assessment.existing_attempt_number ?? (assessment.latest_terminal_attempt_number ? assessment.latest_terminal_attempt_number + 1 : 1)}
+                          {assessment.attempt_policy.maximum_attempts
+                            ? ` of ${assessment.attempt_policy.maximum_attempts}`
+                            : ""}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-2">
                       {canStartNew ? (
@@ -265,20 +306,31 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                         </button>
                       ) : null}
                       {canOpen ? (
-                        <button
-                          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
-                          data-testid={`resume-assessment-${assessment.assessment_public_id}`}
-                          disabled={isBusy}
-                          onClick={() => void handleStart(assessment)}
-                          type="button"
-                        >
-                          {isBusy ? (
-                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                          ) : (
-                            <Play className="h-4 w-4" aria-hidden="true" />
-                          )}
-                          Resume attempt
-                        </button>
+                        <>
+                          <button
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                            data-testid={`resume-assessment-${assessment.assessment_public_id}`}
+                            disabled={isBusy}
+                            onClick={() => void handleStart(assessment)}
+                            type="button"
+                          >
+                            {isBusy ? (
+                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                            ) : (
+                              <Play className="h-4 w-4" aria-hidden="true" />
+                            )}
+                            Resume attempt
+                          </button>
+                          <button
+                            className="inline-flex h-10 items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:cursor-not-allowed disabled:opacity-60"
+                            data-testid={`end-current-attempt-${assessment.assessment_public_id}`}
+                            disabled={isBusy || !assessment.attempt_policy?.student_may_end_attempt}
+                            onClick={() => void handleEndCurrentAttempt(assessment)}
+                            type="button"
+                          >
+                            End current attempt
+                          </button>
+                        </>
                       ) : null}
                       {!assessment.can_start && !canOpen ? (
                         <button

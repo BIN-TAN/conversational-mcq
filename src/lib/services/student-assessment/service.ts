@@ -19,7 +19,7 @@ import { generatePublicId } from "@/lib/services/ids";
 import { logConversationTurn } from "@/lib/services/conversation-turns";
 import { getFollowupContextConfig } from "@/lib/agents/followup/context";
 import { logProcessEvent } from "@/lib/services/process-events";
-import { updateAssessmentSessionPhase, markSessionExited } from "@/lib/services/session-state";
+import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { buildAssessmentInterpretationContextForItemAdministration } from "@/lib/services/student-assessment/assessment-interpretation-context";
 import {
@@ -260,10 +260,10 @@ function isResumableAssessmentSession(session: {
   current_phase: string;
   completed_at: Date | null;
 }) {
-  return !(
-    session.status === "completed" ||
-    session.current_phase === "session_completed" ||
-    Boolean(session.completed_at)
+  return (
+    (session.status === "active" || session.status === "paused") &&
+    session.current_phase !== "session_completed" &&
+    !session.completed_at
   );
 }
 
@@ -275,6 +275,30 @@ function findResumableAssessmentSession<
   }
 >(sessions: T[]) {
   return sessions.find(isResumableAssessmentSession) ?? null;
+}
+
+function isCompletedAssessmentSession(session: {
+  status: string;
+  current_phase: string;
+  completed_at: Date | null;
+}) {
+  return (
+    session.status === "completed" ||
+    session.current_phase === "session_completed" ||
+    Boolean(session.completed_at)
+  );
+}
+
+function isTerminalAssessmentSession(session: {
+  status: string;
+  current_phase: string;
+  completed_at: Date | null;
+}) {
+  return (
+    isCompletedAssessmentSession(session) ||
+    session.status === "student_exited" ||
+    session.current_phase === "student_exited"
+  );
 }
 
 function stableHash(value: unknown): string {
@@ -1303,12 +1327,8 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       orderBy: [{ attempt_number: "desc" }, { created_at: "desc" }]
     });
     const existingSession = findResumableAssessmentSession(sessions);
-    const latestCompletedSession = sessions.find(
-      (session) =>
-        session.status === "completed" ||
-        session.current_phase === "session_completed" ||
-        Boolean(session.completed_at)
-    ) ?? null;
+    const latestCompletedSession = sessions.find(isCompletedAssessmentSession) ?? null;
+    const latestTerminalSession = sessions.find(isTerminalAssessmentSession) ?? null;
     const completed =
       !existingSession && Boolean(latestCompletedSession);
     const computed = computeAssessmentAvailability({
@@ -1320,11 +1340,26 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       assessment.workflow_mode === "manual_review" &&
       !existingSession &&
       !getServerEnv().ALLOW_MANUAL_REVIEW_STUDENT_STARTS;
+    const attemptPolicy = {
+      policy_version: "assessment-attempt-policy-v1",
+      maximum_attempts: null,
+      attempts_used: sessions.length,
+      remaining_attempts: null,
+      resumable_attempt_present: Boolean(existingSession),
+      student_may_end_attempt: Boolean(existingSession),
+      student_ended_attempt_counts_toward_limit: true,
+      completed_attempts_permit_new_attempt: true,
+      start_window_state: computed.availability_state,
+      resume_window_state: existingSession ? "resume_allowed_for_existing_attempt" : "no_resumable_attempt",
+      teacher_override_state: "not_applicable"
+    };
     const studentSafeAvailabilityMessage = !tutorRuntimeStatus.ready
       ? ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE
       : manualReviewNewStartBlocked
         ? "This assessment is not available for student starts yet."
-        : computed.student_safe_availability_message;
+        : existingSession
+          ? "A resumable attempt already exists. Resume or end it before starting another attempt."
+          : computed.student_safe_availability_message;
     const tutorRuntimeBlocksOpen = !tutorRuntimeStatus.ready;
 
     availability.push({
@@ -1341,9 +1376,12 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
           : computed.availability_state,
       existing_session_public_id: existingSession?.session_public_id ?? null,
       existing_session_status: existingSession?.status ?? null,
-      existing_attempt_number: existingSession?.attempt_number ?? latestCompletedSession?.attempt_number ?? null,
+      existing_attempt_number: existingSession?.attempt_number ?? latestTerminalSession?.attempt_number ?? null,
       latest_completed_session_public_id: latestCompletedSession?.session_public_id ?? null,
       latest_completed_attempt_number: latestCompletedSession?.attempt_number ?? null,
+      latest_terminal_session_public_id: latestTerminalSession?.session_public_id ?? null,
+      latest_terminal_attempt_number: latestTerminalSession?.attempt_number ?? null,
+      attempt_policy: attemptPolicy,
       can_start:
         computed.can_start_new_session &&
         !manualReviewNewStartBlocked &&
@@ -1480,6 +1518,17 @@ export async function startOrResumeStudentAssessmentSession(input: {
 
             await txLogProcessEvent(tx, {
               assessment_session_db_id: resumed.id,
+              event_type: "attempt_resumed",
+              event_category: "attempt_lifecycle",
+              event_source: "backend",
+              payload: {
+                current_phase: resumePhase,
+                assessment_public_id: assessment.assessment_public_id
+              },
+              occurred_at: now
+            });
+            await txLogProcessEvent(tx, {
+              assessment_session_db_id: resumed.id,
               event_type: "session_resumed",
               event_category: "session",
               event_source: "backend",
@@ -1611,6 +1660,21 @@ export async function startOrResumeStudentAssessmentSession(input: {
             }
           });
 
+          await txLogProcessEvent(tx, {
+            assessment_session_db_id: session.id,
+            event_type: "attempt_started",
+            event_category: "attempt_lifecycle",
+            event_source: "backend",
+            payload: {
+              attempt_number: Math.max(
+                DEFAULT_ATTEMPT_NUMBER - 1,
+                ...sessions.map((existingSession) => existingSession.attempt_number)
+              ) + 1,
+              assessment_public_id: assessment.assessment_public_id,
+              attempt_policy_version: "assessment-attempt-policy-v1"
+            },
+            occurred_at: now
+          });
           await txLogProcessEvent(tx, {
             assessment_session_db_id: session.id,
             event_type: "session_started",
@@ -2210,8 +2274,9 @@ export async function getStudentSessionState(input: {
       ? serializeStudentSafeItem(currentItem, currentResponse, currentTemptingOptionEvidence, currentInitialItemMeta)
       : null,
     missing_evidence: nextStep === "missing_evidence_repair" ? missingEvidence : [],
-    can_exit: session.status !== "completed",
-    can_resume: session.status !== "completed",
+    can_exit: !isTerminalAssessmentSession(session),
+    can_resume: isResumableAssessmentSession(session),
+    can_end_attempt: !isTerminalAssessmentSession(session),
     initial_chat: {
       message_max_chars: getServerEnv().INITIAL_CHAT_MESSAGE_MAX_CHARS
     },
@@ -3944,6 +4009,19 @@ export async function recordTemptingOption(input: {
           },
           occurred_at: now
         });
+        await logProcessEvent({
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.conceptUnitSession.id,
+          item_db_id: context.item.id,
+          event_type: "assessment_completion_summary_shown",
+          event_category: "assessment_completion",
+          event_source: "backend",
+          payload: {
+            reason: "transfer_item_completed",
+            item_public_id: context.item.item_public_id
+          },
+          occurred_at: now
+        });
       }
 
       await prisma.assessmentSession.update({
@@ -5256,14 +5334,15 @@ export async function exitStudentAssessmentSession(input: {
       id: true,
       current_phase: true,
       current_concept_unit_db_id: true,
-      status: true
+      status: true,
+      completed_at: true
     }
   });
 
-  if (session.status === "completed") {
+  if (isTerminalAssessmentSession(session)) {
     throw new StudentAssessmentServiceError(
-      "assessment_already_completed",
-      "Completed sessions cannot be exited for resume.",
+      "conflict",
+      "Terminal attempts cannot be paused.",
       409
     );
   }
@@ -5271,6 +5350,7 @@ export async function exitStudentAssessmentSession(input: {
   await prisma.assessmentSession.update({
     where: { id: session.id },
     data: {
+      status: "paused",
       resume_phase: session.current_phase,
       resume_context: toPrismaJson({
         next_step: stateBeforeExit.next_step,
@@ -5280,14 +5360,126 @@ export async function exitStudentAssessmentSession(input: {
       })
     }
   });
-  await markSessionExited({
+  await logProcessEvent({
     assessment_session_db_id: session.id,
-    reason: "student_requested_exit"
+    event_type: "attempt_paused",
+    event_category: "attempt_lifecycle",
+    event_source: "backend",
+    payload: {
+      reason: "student_requested_pause",
+      preserved_phase: session.current_phase,
+      next_step: stateBeforeExit.next_step
+    },
+    occurred_at: new Date()
+  });
+  await logProcessEvent({
+    assessment_session_db_id: session.id,
+    event_type: "session_paused",
+    event_category: "session",
+    event_source: "backend",
+    payload: {
+      reason: "student_requested_pause",
+      preserved_phase: session.current_phase
+    },
+    occurred_at: new Date()
   });
 
   return {
-    exit_status: "student_exited",
+    exit_status: "paused",
     can_resume: true
+  };
+}
+
+export async function endStudentAssessmentAttempt(input: {
+  student_user_db_id: string;
+  session_public_id: string;
+  reason?: string | null;
+}) {
+  const owned = await getOwnedSession(input);
+  const session = await prisma.assessmentSession.findUniqueOrThrow({
+    where: { id: owned.id },
+    select: {
+      id: true,
+      session_public_id: true,
+      current_phase: true,
+      status: true,
+      completed_at: true
+    }
+  });
+
+  if (isCompletedAssessmentSession(session)) {
+    throw new StudentAssessmentServiceError(
+      "assessment_already_completed",
+      "Completed attempts cannot be ended.",
+      409
+    );
+  }
+
+  if (session.status === "student_exited" || session.current_phase === "student_exited") {
+    return {
+      end_status: "already_ended",
+      can_resume: false,
+      terminal_status: "ended_by_student"
+    };
+  }
+
+  const now = new Date();
+  const reason = input.reason?.trim() || "student_requested_end";
+
+  await logProcessEvent({
+    assessment_session_db_id: session.id,
+    event_type: "attempt_end_requested",
+    event_category: "attempt_lifecycle",
+    event_source: "backend",
+    payload: {
+      requested_by: "student",
+      prior_status: session.status,
+      prior_phase: session.current_phase,
+      reason
+    },
+    occurred_at: now
+  });
+
+  await prisma.assessmentSession.update({
+    where: { id: session.id },
+    data: {
+      status: "student_exited",
+      current_phase: "student_exited",
+      resume_phase: null,
+      resume_context: Prisma.JsonNull,
+      last_activity_at: now
+    }
+  });
+
+  await logProcessEvent({
+    assessment_session_db_id: session.id,
+    event_type: "attempt_ended_by_student",
+    event_category: "attempt_lifecycle",
+    event_source: "backend",
+    payload: {
+      prior_status: session.status,
+      prior_phase: session.current_phase,
+      terminal_status: "ended_by_student",
+      reason
+    },
+    occurred_at: now
+  });
+  await logProcessEvent({
+    assessment_session_db_id: session.id,
+    event_type: "session_exited",
+    event_category: "session",
+    event_source: "backend",
+    payload: {
+      reason,
+      terminal_status: "ended_by_student"
+    },
+    occurred_at: now
+  });
+
+  return {
+    end_status: "ended_by_student",
+    can_resume: false,
+    terminal_status: "ended_by_student"
   };
 }
 

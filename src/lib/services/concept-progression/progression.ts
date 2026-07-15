@@ -669,6 +669,18 @@ async function cancelProgression(input: {
     },
     occurred_at: new Date()
   });
+  await logProcessEvent({
+    assessment_session_db_id: updated.assessment_session_db_id,
+    concept_unit_session_db_id: updated.source_concept_unit_session_db_id,
+    event_type: "assessment_completion_summary_shown",
+    event_category: "assessment_completion",
+    event_source: "backend",
+    payload: {
+      progression_public_id: updated.progression_public_id,
+      reason: "assessment_completed"
+    },
+    occurred_at: new Date()
+  });
 
   return updated;
 }

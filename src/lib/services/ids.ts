@@ -20,6 +20,7 @@ export type PublicIdKind =
   | "student_account_event"
   | "student_account_deletion_event"
   | "assessment_deletion_event"
+  | "attempt_control"
   | "account_security_token"
   | "account_security_event"
   | "operational_effective_result"
@@ -56,6 +57,7 @@ const prefixes: Record<PublicIdKind, string> = {
   student_account_event: "sae",
   student_account_deletion_event: "sade",
   assessment_deletion_event: "asde",
+  attempt_control: "actctl",
   account_security_token: "ast",
   account_security_event: "ase",
   operational_effective_result: "oper",

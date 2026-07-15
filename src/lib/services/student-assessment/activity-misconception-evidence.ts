@@ -92,7 +92,12 @@ const RecommendedNextDiagnosticPurposeSchema = z.enum([
   "move_on_or_exit",
   "student_choice_needed"
 ]);
-const StudentNextOptionSchema = z.enum(["continue", "choose another activity", "move on"]);
+const StudentNextOptionSchema = z.enum([
+  "continue",
+  "choose another activity",
+  "skip this activity and continue",
+  "move on"
+]);
 
 export const ActivityMisconceptionEvidencePacketV1Schema = z.object({
   schema_version: z.literal(ACTIVITY_MISCONCEPTION_EVIDENCE_SCHEMA_VERSION),
@@ -298,7 +303,7 @@ function defaultRecommendedNext(status: MisconceptionUpdateStatus) {
 function defaultFeedback(status: MisconceptionUpdateStatus) {
   switch (status) {
     case "student_chose_move_on":
-      return "You chose to move on. We can keep your progress and continue from here.";
+      return "You chose to continue to the next step. We can keep your progress and continue from here.";
     case "student_requested_alternative_activity":
       return "You asked for a different activity. We can switch to another safe way to work on the idea.";
     case "no_actionable_misconception_evidence":
@@ -384,7 +389,7 @@ export function buildNoLiveActivityMisconceptionEvidenceFixture(
       input.recommended_next_diagnostic_purpose ?? defaultRecommendedNext(input.update_status),
     student_safe_feedback: {
       message: input.student_safe_message ?? defaultFeedback(input.update_status),
-      next_options: ["continue", "choose another activity", "move on"]
+      next_options: ["continue", "choose another activity", "skip this activity and continue"]
     },
     safety_check: {
       answer_key_exposed: false,

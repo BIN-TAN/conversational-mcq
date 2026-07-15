@@ -187,7 +187,7 @@ export type ActivityRuntimeLoopResult = {
   post_activity_snapshot_public_id: string | null;
   student_safe_feedback: {
     message: string;
-    next_options: Array<"continue" | "choose another activity" | "move on">;
+    next_options: Array<"continue" | "choose another activity" | "skip this activity and continue">;
   };
   next_runtime_recommendation: ActivityRuntimeRecommendation;
   runtime_state: ActivityRuntimeState;
@@ -330,10 +330,26 @@ function summarizeStudentResponse(text: string) {
 
 function defaultFailedFeedback() {
   return {
-    message: "I cannot safely update this activity evidence right now. You can try again, choose another activity, or move on.",
-    next_options: ["continue", "choose another activity", "move on"] as Array<
-      "continue" | "choose another activity" | "move on"
+    message: "I cannot safely update this activity evidence right now. You can try again, choose another activity, or continue to the next step.",
+    next_options: ["continue", "choose another activity", "skip this activity and continue"] as Array<
+      "continue" | "choose another activity" | "skip this activity and continue"
     >
+  };
+}
+
+function normalizeStudentSafeFeedback(input: {
+  message: string;
+  next_options: Array<
+    "continue" | "choose another activity" | "skip this activity and continue" | "move on"
+  >;
+}): ActivityRuntimeLoopResult["student_safe_feedback"] {
+  return {
+    message: input.message
+      .replace(/\bmove on\b/gi, "continue to the next step")
+      .replace(/\bMove on\b/g, "Continue to the next step"),
+    next_options: input.next_options.map((option) =>
+      option === "move on" ? "skip this activity and continue" : option
+    )
   };
 }
 
@@ -773,7 +789,7 @@ export async function submitStudentActivityResponseForEvidenceUpdate(
     activity_attempt_public_id: attempt.activity_attempt_public_id,
     evidence_record_public_id: persisted.record.evidence_public_id,
     post_activity_snapshot_public_id: persisted.snapshot?.snapshot_public_id ?? null,
-    student_safe_feedback: evaluation.packet.student_safe_feedback,
+    student_safe_feedback: normalizeStudentSafeFeedback(evaluation.packet.student_safe_feedback),
     next_runtime_recommendation: recommendation,
     runtime_state: finalState,
     limitations: evaluation.packet.misconception_evidence_update.limitations

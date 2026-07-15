@@ -13,6 +13,7 @@ import {
   fetchSessionDetail,
   fetchSessionDataAudit,
   fetchTranscript,
+  closeAttemptAndAllowAnother,
   pauseAutomation,
   resumeAutomation,
   retryAutomation,
@@ -61,7 +62,16 @@ const tabs = [
 ] as const;
 
 const eventTypes = [
+  "attempt_started",
+  "attempt_paused",
+  "attempt_resumed",
+  "attempt_end_requested",
+  "attempt_ended_by_student",
+  "attempt_ended_by_teacher",
+  "attempt_expired",
+  "new_attempt_available",
   "session_started",
+  "session_paused",
   "session_resumed",
   "session_exited",
   "session_completed",
@@ -117,6 +127,11 @@ const eventTypes = [
   "followup_final_update_failed",
   "off_topic_followup",
   "followup_stopped",
+  "formative_activity_skipped",
+  "alternative_activity_requested",
+  "continue_to_transfer_selected",
+  "continue_to_next_concept_selected",
+  "finish_assessment_selected",
   "concept_progression_offered",
   "concept_progression_requested",
   "concept_progression_cancelled",
@@ -128,6 +143,7 @@ const eventTypes = [
   "concept_progression_completed",
   "concept_progression_moved_on_with_unresolved_evidence",
   "assessment_completion_requested",
+  "assessment_completion_summary_shown",
   "assessment_completed",
   "assessment_completed_with_unresolved_evidence",
   "workflow_job_enqueued",
@@ -226,6 +242,10 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
   } | null>(null);
   const [automationAction, setAutomationAction] = useState<{
     action: string;
+    error: StructuredApiError | null;
+    status: string | null;
+  } | null>(null);
+  const [attemptAction, setAttemptAction] = useState<{
     error: StructuredApiError | null;
     status: string | null;
   } | null>(null);
@@ -429,6 +449,39 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
     }
   }
 
+  async function handleCloseAttempt() {
+    const confirmed = window.confirm(
+      "Close this attempt and allow another?\n\nThe existing attempt and all records will be preserved. The student can start a new attempt only when the assessment policy allows it."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setAttemptAction({
+      error: null,
+      status: "running"
+    });
+
+    try {
+      const result = await closeAttemptAndAllowAnother(
+        sessionPublicId,
+        "teacher_closed_stuck_or_test_attempt"
+      );
+      setAttemptAction({
+        error: null,
+        status: result.result.status
+      });
+      await loadCore();
+      await loadProcessEvents();
+    } catch (requestError) {
+      setAttemptAction({
+        error: errorFromUnknown(requestError),
+        status: null
+      });
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
@@ -493,8 +546,10 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
 
           {activeTab === "overview" ? (
             <Overview
+              attemptAction={attemptAction}
               automationAction={automationAction}
               detail={detail}
+              onCloseAttempt={handleCloseAttempt}
               onAutomationAction={handleAutomationAction}
             />
           ) : null}
@@ -544,12 +599,16 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
 }
 
 function Overview({
+  attemptAction,
   automationAction,
   detail,
+  onCloseAttempt,
   onAutomationAction
 }: {
+  attemptAction: { error: StructuredApiError | null; status: string | null } | null;
   automationAction: { action: string; error: StructuredApiError | null; status: string | null } | null;
   detail: SessionDetailResponse;
+  onCloseAttempt: () => void;
   onAutomationAction: (action: "pause" | "resume" | "retry" | "stop_followup") => void;
 }) {
   return (
@@ -608,6 +667,43 @@ function Overview({
         />
         <Fact labelText="Response packages" value={detail.summary.response_package_count} />
       </div>
+
+      <section className="rounded-lg border border-line bg-white p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="font-semibold text-ink">Attempt controls</h3>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Close a stuck or test attempt without deleting records. The prior attempt remains
+              auditable, and a new attempt may be started only when the assessment policy allows it.
+            </p>
+          </div>
+          <button
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-900 transition hover:border-red-300 disabled:cursor-not-allowed disabled:opacity-60"
+            data-testid="teacher-close-attempt-allow-another"
+            disabled={!detail.attempt_controls.can_close_attempt || attemptAction?.status === "running"}
+            onClick={onCloseAttempt}
+            type="button"
+          >
+            <Octagon className="h-4 w-4" aria-hidden="true" />
+            {detail.attempt_controls.close_label}
+          </button>
+        </div>
+        {!detail.attempt_controls.can_close_attempt ? (
+          <p className="mt-4 rounded-md border border-line bg-slate-50 px-3 py-2 text-sm text-muted">
+            This attempt is already terminal and cannot be closed again.
+          </p>
+        ) : null}
+        {attemptAction?.error ? (
+          <div className="mt-4">
+            <ErrorState error={attemptAction.error} />
+          </div>
+        ) : null}
+        {attemptAction?.status && attemptAction.status !== "running" ? (
+          <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            Attempt action: {label(attemptAction.status)}
+          </p>
+        ) : null}
+      </section>
 
       <section className="rounded-lg border border-line bg-white p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

@@ -261,6 +261,14 @@ export async function markSessionCompleted(input: { assessment_session_db_id: st
       event_source: "backend",
       occurred_at: new Date()
     });
+    await logProcessEvent({
+      assessment_session_db_id: input.assessment_session_db_id,
+      event_type: "assessment_completion_summary_shown",
+      event_category: "assessment_completion",
+      event_source: "backend",
+      payload: { reason: "session_completed" },
+      occurred_at: new Date()
+    });
   }
 
   return result;

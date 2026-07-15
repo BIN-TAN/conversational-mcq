@@ -52,6 +52,18 @@ export const SESSIONS_COLUMNS = [
   "completed_at",
   "resumed_at",
   "exited_at",
+  "attempt_lifecycle_status",
+  "terminal_reason",
+  "ended_by_actor",
+  "pause_count",
+  "resume_count",
+  "last_runtime_state",
+  "formative_activity_completion_status",
+  "activity_skip_reason",
+  "selected_navigation_destination",
+  "assessment_completion_reason",
+  "attempt_policy_version",
+  "teacher_override_metadata",
   "actual_initial_item_count",
   "completed_initial_item_count",
   "current_item_index",
@@ -681,6 +693,18 @@ const SESSION_PARTICIPATION_VARIABLES = new Set([
   "completed_at",
   "resumed_at",
   "exited_at",
+  "attempt_lifecycle_status",
+  "terminal_reason",
+  "ended_by_actor",
+  "pause_count",
+  "resume_count",
+  "last_runtime_state",
+  "formative_activity_completion_status",
+  "activity_skip_reason",
+  "selected_navigation_destination",
+  "assessment_completion_reason",
+  "attempt_policy_version",
+  "teacher_override_metadata",
   "actual_initial_item_count",
   "completed_initial_item_count",
   "current_item_index",
@@ -743,7 +767,16 @@ const SUPPLEMENTARY_SESSION_VARIABLES = new Set([
 ]);
 
 const CORE_PROCESS_EVENT_TYPES = new Set([
+  "attempt_started",
+  "attempt_paused",
+  "attempt_resumed",
+  "attempt_end_requested",
+  "attempt_ended_by_student",
+  "attempt_ended_by_teacher",
+  "attempt_expired",
+  "new_attempt_available",
   "session_started",
+  "session_paused",
   "session_resumed",
   "session_exited",
   "session_completed",
@@ -767,7 +800,13 @@ const CORE_PROCESS_EVENT_TYPES = new Set([
   "typing_activity_summary",
   "long_pause",
   "formative_activity_shown",
+  "formative_activity_skipped",
+  "alternative_activity_requested",
+  "continue_to_transfer_selected",
+  "continue_to_next_concept_selected",
+  "finish_assessment_selected",
   "followup_response_submitted",
+  "assessment_completion_summary_shown",
   "student_activity_response_submitted",
   "targeted_feedback_shown",
   "revision_requested",
@@ -1209,6 +1248,8 @@ function countDefinition(table: string, variable: string) {
     actual_initial_item_count: "Number of initial package items scheduled or administered for the assessment attempt.",
     completed_initial_item_count: "Number of initial package items completed by the student in the assessment attempt.",
     current_item_index: "Zero-based or one-based item-progress index used by the session state machine for the current item position.",
+    pause_count: "Number of explicit pause-and-leave events recorded for the assessment attempt.",
+    resume_count: "Number of explicit resume events recorded for the assessment attempt.",
     item_response_count: "Number of item-response rows associated with the assessment attempt or assessment-summary row.",
     process_event_count: "Number of process-event rows associated with the assessment attempt or assessment-summary row.",
     conversation_turn_count: "Number of conversation-turn rows associated with the assessment attempt or assessment-summary row.",
@@ -1288,6 +1329,26 @@ function definition(table: string, variable: string) {
     pseudonymization_key_fingerprint:
       "Short one-way fingerprint of the server-side pseudonymization key used only to verify that exports were generated with the same key configuration.",
     session_public_id: "Public assessment-session identifier used as the primary join key across session-level export files.",
+    attempt_lifecycle_status:
+      "Assessment-attempt lifecycle status after normalizing active, paused, completed, student-ended, teacher-ended, and expired/unknown terminal states from AssessmentSession status and lifecycle process events.",
+    terminal_reason:
+      "Terminal or current lifecycle reason for the attempt, such as completed, paused, ended_by_student, or ended_by_teacher.",
+    ended_by_actor:
+      "Actor category that ended the attempt when applicable. Values are student, teacher, system, or null for non-ended attempts.",
+    last_runtime_state:
+      "Latest formative activity runtime attempt status associated with this assessment attempt, if any.",
+    formative_activity_completion_status:
+      "Session-level formative activity outcome summary. Skipped activity choices are marked skipped rather than completed.",
+    activity_skip_reason:
+      "Reason code for a recorded formative activity skip, derived from the formative_activity_skipped process event when present.",
+    selected_navigation_destination:
+      "Destination selected by the student or backend after a formative activity decision, such as skip_activity_to_transfer.",
+    assessment_completion_reason:
+      "Reason code describing how the assessment reached completion or why it remains incomplete.",
+    attempt_policy_version:
+      "Version label for the attempt policy applied when the attempt started or was exported.",
+    teacher_override_metadata:
+      "Safe teacher-control metadata for an attempt close action, such as an attempt-control request identifier and terminal status. It does not include secrets or database UUIDs.",
     assessment_snapshot_public_id:
       "Deterministic assessment-session snapshot identifier binding exported rows to the administered content context.",
     item_snapshot_public_id:

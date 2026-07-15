@@ -23,6 +23,14 @@ The platform should log these event types:
 
 ```text
 session_started
+attempt_started
+attempt_paused
+attempt_resumed
+attempt_end_requested
+attempt_ended_by_student
+attempt_ended_by_teacher
+new_attempt_available
+session_paused
 agent_message_shown
 item_presented
 option_clicked
@@ -37,6 +45,11 @@ package_submitted
 llm_profile_requested
 llm_profile_received
 formative_activity_shown
+formative_activity_skipped
+alternative_activity_requested
+continue_to_transfer_selected
+continue_to_next_concept_selected
+finish_assessment_selected
 followup_response_submitted
 targeted_feedback_shown
 revision_submitted
@@ -44,6 +57,7 @@ next_choice_selected
 transfer_item_presented
 transfer_item_completed
 session_completed
+assessment_completion_summary_shown
 ```
 
 Each event should include:
@@ -143,6 +157,29 @@ Likely current support:
 - `agent_calls` stores provider/model metadata, prompt and schema versions, input/output payloads, validation state, retry counts, usage, latency, and status.
 - `operational_agent_effective_results` stores effective outputs after deterministic guards, canonicalization, fallback, and validation.
 - Student-visible messages should be linked through `conversation_turns` and should not expose hidden prompts, model metadata, answer keys, or audit-only details.
+
+## Attempt Lifecycle Data
+
+Attempt lifecycle is represented with existing session fields plus process events. No new lifecycle table is required for the current implementation.
+
+The research export should expose:
+
+```text
+attempt_lifecycle_status
+terminal_reason
+ended_by_actor
+pause_count
+resume_count
+last_runtime_state
+formative_activity_completion_status
+activity_skip_reason
+selected_navigation_destination
+assessment_completion_reason
+attempt_policy_version
+teacher_override_metadata
+```
+
+Lifecycle and navigation fields are contextual process data. They do not change timing formulas and must not be interpreted as understanding, motivation, cheating, or misconduct by themselves.
 
 ## Formative Profile Fields
 

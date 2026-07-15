@@ -151,3 +151,12 @@ export function stopAutomationFollowup(sessionPublicId: string, conceptUnitPubli
     }
   );
 }
+
+export function closeAttemptAndAllowAnother(sessionPublicId: string, reason?: string) {
+  return apiRequest<{
+    result: { status: string; request_id: string; override_applied: boolean };
+  }>(`/api/teacher/sessions/${sessionPublicId}/attempt/end`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason ?? null })
+  });
+}
