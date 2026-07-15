@@ -317,7 +317,7 @@ function assertNeutralEvidenceAndSafety() {
   );
   assert.ok(
     withTempting.feedback.evidence_references.every((ref) =>
-      ref.evidence_types.includes("tempting_option")
+      ref.evidence_types.includes("tempting option evidence")
     )
   );
 }

@@ -68,6 +68,11 @@
       "reasoning_effort": "medium",
       "max_output_tokens": 3000
     },
+    "student_communication_agent": {
+      "model_name": "gpt-5.6-terra",
+      "reasoning_effort": "low",
+      "max_output_tokens": 1600
+    },
     "mcq_diagnostic_authoring_assistant_agent": {
       "model_name": "gpt-5.6-terra",
       "reasoning_effort": "medium",

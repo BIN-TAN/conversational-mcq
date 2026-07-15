@@ -1,5 +1,18 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import {
+  buildValidatedStudentCommunication,
+  STUDENT_COMMUNICATION_FACT_LOCK_VALIDATOR_VERSION,
+  STUDENT_COMMUNICATION_FALLBACK_VERSION,
+  STUDENT_COMMUNICATION_INPUT_SCHEMA_VERSION,
+  STUDENT_COMMUNICATION_LANGUAGE_VALIDATOR_VERSION,
+  STUDENT_COMMUNICATION_OUTPUT_SCHEMA_VERSION,
+  STUDENT_COMMUNICATION_PROMPT_VERSION,
+  STUDENT_COMMUNICATION_RENDERED_VERSION,
+  type StudentCommunicationBundleV1,
+  type StudentCommunicationInputV1,
+  type StudentCommunicationValidationResult
+} from "@/lib/services/student-assessment/student-communication-agent";
 
 export const EVIDENCE_INTEGRATED_PROFILE_SCHEMA_VERSION =
   "evidence-integrated-profile-v2" as const;
@@ -325,7 +338,10 @@ export type EvidenceIntegrationBundleV2 = {
     feedback_specificity: ValidationResult;
     single_action_state: ValidationResult;
     activity_routing_coherence: ValidationResult;
+    student_communication_fact_lock: ValidationResult;
+    student_communication_language: ValidationResult;
   };
+  student_communication: StudentCommunicationBundleV1;
   artifact_versions: {
     profile_schema_version: typeof EVIDENCE_INTEGRATED_PROFILE_SCHEMA_VERSION;
     item_evidence_schema_version: typeof ITEM_EVIDENCE_SCHEMA_VERSION;
@@ -337,6 +353,13 @@ export type EvidenceIntegrationBundleV2 = {
     coherence_validator_version: typeof PROFILE_COHERENCE_VALIDATOR_VERSION;
     routing_coherence_validator_version: typeof ROUTING_COHERENCE_VALIDATOR_VERSION;
     answer_reveal_policy_version: typeof ANSWER_REVEAL_POLICY_VERSION;
+    student_communication_prompt_version: typeof STUDENT_COMMUNICATION_PROMPT_VERSION;
+    student_communication_input_schema_version: typeof STUDENT_COMMUNICATION_INPUT_SCHEMA_VERSION;
+    student_communication_output_schema_version: typeof STUDENT_COMMUNICATION_OUTPUT_SCHEMA_VERSION;
+    student_communication_fact_lock_validator_version: typeof STUDENT_COMMUNICATION_FACT_LOCK_VALIDATOR_VERSION;
+    student_communication_language_validator_version: typeof STUDENT_COMMUNICATION_LANGUAGE_VALIDATOR_VERSION;
+    student_communication_fallback_version: typeof STUDENT_COMMUNICATION_FALLBACK_VERSION;
+    student_communication_rendered_version: typeof STUDENT_COMMUNICATION_RENDERED_VERSION;
   };
   effective_evidence_package_hash: string;
 };
@@ -603,11 +626,11 @@ function evidenceReferenceFor(item: ItemEvidenceV2, summary: string): EvidenceRe
     item_public_id: item.item_public_id,
     item_position: item.item_position,
     evidence_types: [
-      "selected_option",
-      "scored_outcome",
-      item.reasoning_excerpt ? "reasoning" : "reasoning_unavailable",
-      item.confidence ? "confidence" : "confidence_unavailable",
-      item.tempting_option ? "tempting_option" : "tempting_option_unavailable"
+      "answer choice",
+      "scored result",
+      item.reasoning_excerpt ? "written explanation" : "written explanation unavailable",
+      item.confidence ? "confidence rating" : "confidence rating unavailable",
+      item.tempting_option ? "tempting option evidence" : "tempting option not reported"
     ],
     summary
   };
@@ -790,6 +813,213 @@ function evidenceSufficiencyFor(items: ItemEvidenceV2[]): EvidenceSufficiencyV2 
     return "limited";
   }
   return "insufficient";
+}
+
+function studentStatusForUnderstanding(value: AssessmentSpecificUnderstanding) {
+  return value === "foundational_knowledge_gap"
+    ? "Needs more work"
+    : value === "indeterminate_due_to_insufficient_evidence"
+      ? "Still developing"
+      : "Mostly understood";
+}
+
+function studentFacingUnderstandingExplanation(input: {
+  profile: EvidenceIntegratedProfileV2;
+  initialResults: string;
+}) {
+  const understanding = input.profile.assessment_specific_understanding.value;
+  if (understanding === "strong_well_supported_understanding") {
+    return `Your first set shows ${input.initialResults}, with explanations that give clear support for the answers.`;
+  }
+  if (understanding === "sound_understanding") {
+    return `Your first set shows ${input.initialResults}. The next step is to make the main boundary more precise.`;
+  }
+  if (understanding === "partial_understanding") {
+    return `Your first set shows ${input.initialResults}. Some evidence is usable, and one part still needs a clearer boundary.`;
+  }
+  if (understanding === "specific_misconception") {
+    return `Your first set shows ${input.initialResults}. One selected option points to an idea that needs a closer look.`;
+  }
+  if (understanding === "foundational_knowledge_gap") {
+    return `Your first set shows ${input.initialResults}. The next step should rebuild the main idea before moving further.`;
+  }
+  return `Your first set shows ${input.initialResults}. There is not enough evidence yet for a stronger summary.`;
+}
+
+function itemStatusLabel(result: z.infer<typeof CorrectnessResultSchema>) {
+  return result === "correct"
+    ? "Correct"
+    : result === "incorrect"
+      ? "Incorrect"
+      : result === "unanswered"
+        ? "Unanswered"
+        : "Not scored";
+}
+
+function responseForItem(payload: PackagePayload, itemPublicId: string | null | undefined) {
+  if (!itemPublicId) {
+    return null;
+  }
+  return itemResponses(payload).find((entry) => stringValue(entry.item_public_id) === itemPublicId) ?? null;
+}
+
+function optionsForItem(payload: PackagePayload, itemPublicId: string | null | undefined) {
+  const response = responseForItem(payload, itemPublicId);
+  const responseOptions = recordValue(response?.item_snapshot).options;
+  if (Array.isArray(responseOptions)) {
+    return responseOptions;
+  }
+  return includedItemsById(payload).get(itemPublicId ?? "")?.options;
+}
+
+function optionTextForItem(payload: PackagePayload, itemPublicId: string | null | undefined, label: string | null) {
+  return optionText(optionsForItem(payload, itemPublicId), label);
+}
+
+function communicationActivitySource(input: {
+  payload: PackagePayload;
+  profile: EvidenceIntegratedProfileV2;
+  nextInteraction: NextInteractionV2;
+}) {
+  const ref = input.nextInteraction.distractor_refs[0] ?? null;
+  const sourceItem = ref
+    ? input.profile.item_evidence.find((item) => item.item_public_id === ref.item_public_id)
+    : input.profile.item_evidence[0] ?? null;
+  const sourceOptionLabel = ref?.option_label ?? sourceItem?.selected_option ?? null;
+  return {
+    source_item_number: sourceItem?.item_position ?? null,
+    source_option_label: sourceOptionLabel,
+    source_option_text: optionTextForItem(input.payload, sourceItem?.item_public_id, sourceOptionLabel)
+  };
+}
+
+function communicationLimitations(profile: EvidenceIntegratedProfileV2) {
+  const limitations = [
+    profile.student_safe_summary.evidence_limitation_label,
+    profile.evidence_limitations.some((entry) => entry.code === "transfer_not_yet_observed")
+      ? "This first package does not yet show transfer to a new item."
+      : null
+  ].filter((entry): entry is string => Boolean(entry));
+
+  return limitations.length > 0
+    ? limitations
+    : ["This summary uses only the answers, explanations, confidence ratings, and tempting-option evidence from the first set."];
+}
+
+export function buildStudentCommunicationInputForEvidenceBundle(input: {
+  profile: EvidenceIntegratedProfileV2;
+  feedback: PackageFeedbackV2;
+  next_interaction: NextInteractionV2;
+  response_package_payload?: unknown;
+  package_public_id?: string | null;
+}): StudentCommunicationInputV1 {
+  const payload = recordValue(input.response_package_payload);
+  const packagePublicId =
+    input.package_public_id ??
+    stringValue(payload.response_package_public_id) ??
+    stringValue(payload.package_public_id) ??
+    `pkg_${hashEvidenceIntegrationValue({
+      session_public_id: input.profile.session_public_id,
+      generated_at: input.profile.generated_at,
+      outcome_summary: input.profile.outcome_summary
+    }).slice(0, 16)}`;
+  const initialResults = `${input.profile.outcome_summary.items_correct} of ${input.profile.outcome_summary.items_administered} correct`;
+  const activitySource = communicationActivitySource({
+    payload,
+    profile: input.profile,
+    nextInteraction: input.next_interaction
+  });
+
+  return {
+    communication_input_schema_version: STUDENT_COMMUNICATION_INPUT_SCHEMA_VERSION,
+    session_public_id: input.profile.session_public_id,
+    package_public_id: packagePublicId,
+    communication_purpose: "initial_package_results",
+    administered_item_summaries: input.profile.outcome_summary.item_results.map((item) => ({
+      item_number: item.item_position ?? 1,
+      item_public_id: item.item_public_id,
+      status_label: itemStatusLabel(item.result),
+      student_answer_label: item.student_answer ? `Option ${item.student_answer}` : "No answer recorded",
+      correct_answer_label: item.answer_key_revealed && item.correct_option
+        ? `Option ${item.correct_option}`
+        : null,
+      answer_explanation: item.answer_explanation,
+      distractor_boundary: item.distractor_boundary
+    })),
+    validated_outcome_summary: {
+      items_administered: input.profile.outcome_summary.items_administered,
+      items_correct: input.profile.outcome_summary.items_correct,
+      initial_results: initialResults
+    },
+    validated_understanding_summary: {
+      status: studentStatusForUnderstanding(input.profile.assessment_specific_understanding.value),
+      student_label: input.profile.student_safe_summary.understanding_label,
+      safe_explanation: studentFacingUnderstandingExplanation({
+        profile: input.profile,
+        initialResults
+      })
+    },
+    validated_reasoning_summary: {
+      student_label: input.profile.student_safe_summary.reasoning_label,
+      safe_explanation: input.profile.reasoning_quality.explanation
+    },
+    validated_confidence_summary: {
+      student_label: input.profile.student_safe_summary.confidence_label,
+      safe_explanation: input.profile.confidence_calibration.explanation
+    },
+    validated_evidence_limitations: communicationLimitations(input.profile),
+    validated_growth_target: {
+      student_facing_text: input.profile.growth_target.target,
+      compatible_activity_types: input.profile.growth_target.compatible_activity_types
+    },
+    validated_item_explanations: input.profile.outcome_summary.item_results.map((item) => ({
+      item_number: item.item_position ?? 1,
+      why_correct:
+        item.answer_explanation ??
+        "A concise explanation was not available for this administered item.",
+      distractor_boundary: item.distractor_boundary
+    })),
+    validated_activity_contract: {
+      activity_family: input.next_interaction.activity_family,
+      activity_type: input.next_interaction.activity_type,
+      ...activitySource,
+      expected_response_format: input.next_interaction.expected_response_format,
+      next_runtime_state: input.next_interaction.next_runtime_state,
+      prompt: input.next_interaction.prompt
+    },
+    answer_reveal_state: {
+      full_answer_key_revealed:
+        input.profile.outcome_summary.restricted_answer_reveal_state.full_answer_key_revealed,
+      may_show_correct_options_for_administered_items:
+        input.profile.outcome_summary.restricted_answer_reveal_state.full_answer_key_revealed
+    },
+    language: "en",
+    reading_level_target: "undergraduate_plain_english",
+    maximum_length_constraints: {
+      initial_results_intro_max_chars: 260,
+      summary_max_chars: 500,
+      activity_prompt_max_chars: 900,
+      completion_message_max_chars: 260
+    },
+    source_profile_version: input.profile.profile_schema_version,
+    source_activity_version: input.next_interaction.next_interaction_schema_version
+  };
+}
+
+function communicationValidationToResult(
+  validation: StudentCommunicationValidationResult
+): ValidationResult {
+  return {
+    valid: validation.valid,
+    validator_version: validation.validator_version,
+    issues: validation.issues.map((issue) => ({
+      rule_code: issue.rule_code,
+      field_path: issue.field_path,
+      message: issue.blocked_pattern_label
+        ? `${issue.rule_code}: ${issue.blocked_pattern_label}`
+        : issue.rule_code
+    }))
+  };
 }
 
 export function buildEvidenceIntegratedProfileBundle(input: {
@@ -1083,9 +1313,6 @@ export function buildEvidenceIntegratedProfileBundle(input: {
       itemsCorrect === itemEvidence.length
         ? "All initial answers were scored correct."
         : `${itemsCorrect} of ${itemEvidence.length} initial answers were scored correct.`,
-      `Item evidence used here: ${evidenceRefs
-        .map((ref) => `Item ${ref.item_position ?? "?"} used ${ref.evidence_types.join(", ")}`)
-        .join("; ")}.`,
       reasoningQuality === "accurate_but_concise"
         ? "Your reasoning gives useful evidence, but some boundaries are compressed."
         : profile.reasoning_quality.explanation
@@ -1105,6 +1332,35 @@ export function buildEvidenceIntegratedProfileBundle(input: {
     response_package_payload: payload
   });
 
+  const studentCommunicationInput = buildStudentCommunicationInputForEvidenceBundle({
+    profile,
+    feedback,
+    next_interaction: nextInteraction,
+    response_package_payload: payload
+  });
+  const studentCommunication = {
+    input: studentCommunicationInput,
+    ...buildValidatedStudentCommunication(studentCommunicationInput)
+  };
+  const communicationOutput = studentCommunication.output;
+
+  profile.student_safe_summary.initial_results = communicationOutput.initial_results_intro.replace(/^Initial results:\s*/i, "").replace(/[.]$/u, "");
+  profile.student_safe_summary.understanding_label = communicationOutput.what_responses_show;
+  profile.student_safe_summary.reasoning_label = communicationOutput.explanations_summary;
+  profile.student_safe_summary.confidence_label = communicationOutput.confidence_summary;
+  profile.student_safe_summary.next_focus = communicationOutput.next_focus;
+  profile.student_safe_summary.boundary_statement =
+    "This summary uses only the evidence from the administered items in this assessment package.";
+  feedback.result_summary = communicationOutput.initial_results_intro;
+  feedback.strengths = [
+    communicationOutput.what_responses_show,
+    communicationOutput.explanations_summary,
+    communicationOutput.confidence_summary
+  ];
+  feedback.confidence_comment = communicationOutput.confidence_summary;
+  feedback.evidence_limitation = profile.student_safe_summary.evidence_limitation_label;
+  nextInteraction.prompt = communicationOutput.activity_prompt;
+
   const validators = {
     profile_coherence: validateEvidenceProfileCoherence(profile),
     feedback_specificity: validatePackageFeedbackSpecificity({ feedback, profile }),
@@ -1112,12 +1368,15 @@ export function buildEvidenceIntegratedProfileBundle(input: {
     activity_routing_coherence: validateActivityRoutingCoherence({
       profile,
       next_interaction: nextInteraction
-    })
+    }),
+    student_communication_fact_lock: communicationValidationToResult(studentCommunication.fact_validation),
+    student_communication_language: communicationValidationToResult(studentCommunication.language_validation)
   };
   const bundle = {
     profile,
     feedback,
     next_interaction: nextInteraction,
+    student_communication: studentCommunication,
     validators,
     artifact_versions: {
       profile_schema_version: EVIDENCE_INTEGRATED_PROFILE_SCHEMA_VERSION,
@@ -1129,7 +1388,14 @@ export function buildEvidenceIntegratedProfileBundle(input: {
       state_machine_version: CHAT_NATIVE_STATE_MACHINE_VERSION,
       coherence_validator_version: PROFILE_COHERENCE_VALIDATOR_VERSION,
       routing_coherence_validator_version: ROUTING_COHERENCE_VALIDATOR_VERSION,
-      answer_reveal_policy_version: ANSWER_REVEAL_POLICY_VERSION
+      answer_reveal_policy_version: ANSWER_REVEAL_POLICY_VERSION,
+      student_communication_prompt_version: STUDENT_COMMUNICATION_PROMPT_VERSION,
+      student_communication_input_schema_version: STUDENT_COMMUNICATION_INPUT_SCHEMA_VERSION,
+      student_communication_output_schema_version: STUDENT_COMMUNICATION_OUTPUT_SCHEMA_VERSION,
+      student_communication_fact_lock_validator_version: STUDENT_COMMUNICATION_FACT_LOCK_VALIDATOR_VERSION,
+      student_communication_language_validator_version: STUDENT_COMMUNICATION_LANGUAGE_VALIDATOR_VERSION,
+      student_communication_fallback_version: STUDENT_COMMUNICATION_FALLBACK_VERSION,
+      student_communication_rendered_version: STUDENT_COMMUNICATION_RENDERED_VERSION
     },
     effective_evidence_package_hash: ""
   };

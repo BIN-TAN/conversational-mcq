@@ -42,6 +42,7 @@ import {
   stopFollowupForFormativeLoopGuard
 } from "@/lib/services/student-assessment/formative-loop-guard";
 import {
+  buildStudentCommunicationInputForEvidenceBundle,
   buildEvidenceIntegratedProfileBundle,
   EvidenceIntegratedProfileV2Schema,
   NextInteractionV2Schema,
@@ -50,6 +51,7 @@ import {
   type EvidenceIntegratedProfileV2,
   type NextInteractionV2
 } from "@/lib/services/student-assessment/evidence-integrated-profile";
+import { buildValidatedStudentCommunication } from "@/lib/services/student-assessment/student-communication-agent";
 import {
   createActivityRuntimeAttemptFromEvidenceIntegratedRouter,
   type CreateEvidenceIntegratedActivityRuntimeAttemptInput
@@ -2092,6 +2094,15 @@ function storedEvidenceIntegratedBundle(value: unknown): EvidenceIntegrationBund
 
   const validators = recordValue(record.validation_results);
   const artifactVersions = recordValue(record.artifact_versions);
+  const communicationInput = buildStudentCommunicationInputForEvidenceBundle({
+    profile: profile.data,
+    feedback: feedback.data,
+    next_interaction: nextInteraction.data
+  });
+  const studentCommunication = {
+    input: communicationInput,
+    ...buildValidatedStudentCommunication(communicationInput)
+  };
   const effectiveHash =
     typeof record.effective_evidence_package_hash === "string" && record.effective_evidence_package_hash.trim()
       ? record.effective_evidence_package_hash.trim()
@@ -2107,11 +2118,16 @@ function storedEvidenceIntegratedBundle(value: unknown): EvidenceIntegrationBund
     profile: profile.data,
     feedback: feedback.data,
     next_interaction: nextInteraction.data,
+    student_communication: studentCommunication,
     validators: {
       profile_coherence: validatorResult(validators.profile_coherence),
       feedback_specificity: validatorResult(validators.feedback_specificity),
       single_action_state: validatorResult(validators.single_action_state),
-      activity_routing_coherence: validatorResult(validators.activity_routing_coherence)
+      activity_routing_coherence: validatorResult(validators.activity_routing_coherence),
+      student_communication_fact_lock:
+        validatorResult(validators.student_communication_fact_lock),
+      student_communication_language:
+        validatorResult(validators.student_communication_language)
     },
     artifact_versions: artifactVersions as EvidenceIntegrationBundleV2["artifact_versions"],
     effective_evidence_package_hash: effectiveHash
@@ -3299,6 +3315,7 @@ async function persistProfileDecisionAndActivity(input: {
                 evidence_integrated_profile_v2: evidenceBundle.profile,
                 package_feedback_v2: evidenceBundle.feedback,
                 next_interaction_v2: evidenceBundle.next_interaction,
+                student_communication_v1: evidenceBundle.student_communication,
                 validation_results: evidenceBundle.validators,
                 artifact_versions: evidenceBundle.artifact_versions,
                 effective_evidence_package_hash: evidenceBundle.effective_evidence_package_hash
@@ -3325,6 +3342,7 @@ async function persistProfileDecisionAndActivity(input: {
             ? {
                 package_feedback_v2: evidenceBundle.feedback,
                 next_interaction_v2: evidenceBundle.next_interaction,
+                student_communication_v1: evidenceBundle.student_communication,
                 effective_evidence_package_hash: evidenceBundle.effective_evidence_package_hash
               }
             : [
@@ -3372,6 +3390,7 @@ async function persistProfileDecisionAndActivity(input: {
                 one_action_at_a_time: true,
                 package_feedback_v2: evidenceBundle.feedback,
                 next_interaction_v2: evidenceBundle.next_interaction,
+                student_communication_v1: evidenceBundle.student_communication,
                 answer_reveal_state: evidenceBundle.profile.outcome_summary.restricted_answer_reveal_state,
                 validation_results: evidenceBundle.validators
               }

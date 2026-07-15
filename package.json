@@ -82,6 +82,8 @@
     "student:data-collection-completeness-smoke": "tsx prisma/student-data-collection-completeness-smoke-test.ts",
     "student:evidence-profile-coherence-smoke": "tsx prisma/student-evidence-integrated-profile-smoke-test.ts",
     "student:evidence-linked-feedback-smoke": "tsx prisma/student-evidence-integrated-profile-smoke-test.ts",
+    "student:student-communication-agent-smoke": "tsx prisma/student-communication-agent-smoke-test.ts",
+    "student:student-communication-language-smoke": "tsx prisma/student-communication-language-smoke-test.ts",
     "student:distractor-first-routing-smoke": "tsx prisma/student-evidence-integrated-profile-smoke-test.ts",
     "student:single-action-state-smoke": "tsx prisma/student-evidence-integrated-profile-smoke-test.ts",
     "student:package-results-and-reveal-smoke": "tsx prisma/student-evidence-integrated-profile-smoke-test.ts",

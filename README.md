@@ -2360,3 +2360,41 @@ npm run student:single-action-state-smoke
 npm run student:package-results-and-reveal-smoke
 npm run student:incident-profile-routing-regression-smoke
 ```
+
+## Fact-Locked Student Communication Agent
+
+Phase 31an adds a bounded `student_communication_agent` contract for natural
+student-facing wording after the response package facts are frozen. The agent
+may improve fluency, transitions, concise profile language, answer-review
+wording, and activity instructions. It must not change item correctness,
+selected or correct answers, scoring, understanding status, reasoning summary,
+confidence interpretation, evidence limitations, growth target, answer-reveal
+policy, activity type, source item or option, expected response mode, or runtime
+state.
+
+Runtime remains deterministic unless the communication agent is separately
+evaluated and approved. Current output uses
+`StudentCommunicationInputV1`, `StudentCommunicationOutputV1`, fact-lock
+validators, banned-language scanning, and a deterministic fallback marked
+`fallback_used=true`, `live_generation_approved=false`. The fallback removes
+internal field names such as `selected_option`, `scored_outcome`, and
+`tempting_option_unavailable` from student-facing package feedback while
+preserving audit evidence internally.
+
+Optional server-only variables for a future approved live candidate are:
+
+```text
+OPENAI_MODEL_STUDENT_COMMUNICATION
+OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION
+OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION
+```
+
+Candidate values after evaluation approval are `gpt-5.6-terra`, `low`, and
+`1600`. Setting these variables before approval changes the operational
+extension hash/readiness state but does not by itself approve live production
+use. The no-live checks are:
+
+```bash
+npm run student:student-communication-agent-smoke
+npm run student:student-communication-language-smoke
+```

@@ -187,6 +187,26 @@ The live profile integration path stores `agent_calls` audit metadata for `profi
 
 If a schema-shaped live output fails only because it contains remediable direction/planning language, unsupported integrity/authenticity/external-assistance claims, internal correct-option phrasing, or a high-confidence overclaim, the service may make one repair attempt using the same redacted evidence and safe validation issue metadata only. The invalid output is not included in the repair prompt and is never accepted. The repair candidate may be safety-canonicalized to remove unsupported internal wording before strict validation; if it still fails validation, the path fails closed and writes sanitized live-smoke diagnostics under `.data/profile-integration-live-smoke/failures/`. The profile integration packet treats AI-assistance signals as internal evidence-production context only; no assistance or provenance claim is made when the signal is `insufficient_evidence` or `none_indicated`, and student-facing text never mentions AI assistance, process data, engagement category, integrity, or authenticity.
 
+## Student Communication Projection
+
+After profile/routing facts are frozen, the system builds a
+`student-communication-input-v1` packet and validates a
+`student-communication-output-v1` response against fact-lock and
+student-language rules. In the current no-live MVP path, this uses the
+deterministic `student-communication-deterministic-fallback-v1`; it removes
+internal field names from student-facing summaries and makes activity prompts
+name the source item and option where relevant. The optional future live role is
+`student_communication_agent`, but production live use remains blocked until
+synthetic evaluation, explicit approval, and a matching approved configuration
+hash are completed.
+
+No-live verification:
+
+```bash
+npm run student:student-communication-agent-smoke
+npm run student:student-communication-language-smoke
+```
+
 ## Formative Value Determination Packet
 
 The fixed IRT MVP can build a `formative-value-determination-v1` packet from the profile integration interpretation packet:

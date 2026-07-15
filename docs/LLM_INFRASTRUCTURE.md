@@ -161,6 +161,7 @@ Phase 6A LLM variables are optional unless intentionally enabling live connectiv
 - `OPENAI_MODEL_PROFILE_INTEGRATION`
 - `OPENAI_MODEL_PLANNING`
 - `OPENAI_MODEL_FOLLOWUP`
+- `OPENAI_MODEL_STUDENT_COMMUNICATION`
 - `OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING`
 - `OPENAI_MODEL_MCQ_FORMATTING`
 - `OPENAI_MODEL_CONNECTIVITY_TEST`
@@ -199,6 +200,14 @@ The approved operational baseline remains `gpt-5.4-mini-2026-03-17` with low
 reasoning effort until a separate candidate evaluation and approval workflow
 produces a new approved hash. The GPT-5.6 candidate stack is stored separately
 in `config/candidate-operational-agent-config.gpt-5.6.json`.
+
+`OPENAI_MODEL_STUDENT_COMMUNICATION`,
+`OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION`, and
+`OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION` are optional Phase 31an
+extension variables for a future fact-locked student communication agent. They
+must remain unset in production until the communication agent is evaluated,
+approved, and covered by the approved operational configuration hash. The
+current runtime uses deterministic, fact-locked fallback wording.
 
 No model name is hardcoded. No documentation should describe a specific model as currently latest.
 

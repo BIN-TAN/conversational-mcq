@@ -1756,6 +1756,52 @@ Phase 6A.5 must not implement:
   does not implement activity planning, and does not authorize changes to item
   content, scoring, item administration, or teacher upload.
 
+## Phase 31an Student Communication Lock
+
+- Student-facing package language after the initial response package must come
+  from a fact-locked communication projection. The current approved runtime uses
+  deterministic `student-communication-deterministic-fallback-v1`; a live
+  `student_communication_agent` is an approval-bound extension only.
+- `StudentCommunicationInputV1` may contain only administered item summaries,
+  validated outcome/profile/reasoning/confidence summaries, validated evidence
+  limitations, the validated growth target, administered item answer
+  explanations, the validated activity contract, answer-reveal state, and
+  version metadata. It must not include raw teacher notes, hidden prompts,
+  credentials, internal database IDs, unadministered answer keys, or chain of
+  thought.
+- `StudentCommunicationOutputV1` may improve fluency, concision, transitions,
+  and student-facing tone only. It must not change item correctness, selected
+  answers, correct answers, scoring, understanding status, reasoning category,
+  confidence interpretation, evidence limitations, growth target, answer
+  explanation meaning, activity family or type, source item or option, expected
+  response mode, runtime state, or answer-reveal policy.
+- Fact-lock validators must reject changed item count, missing item reviews,
+  changed correctness, changed selected or correct options, generic answer
+  explanations, changed growth target, omitted source item/option context,
+  unadministered answer reveal, unsupported claims about motivation, effort,
+  misconduct, or ability, and student-visible internal terms.
+- Student-facing communication must not expose terms such as `selected_option`,
+  `scored_outcome`, `tempting_option_unavailable`, calibration enum labels,
+  ontology, profile schema, evidence package, persisted, runtime, routing,
+  diagnostic purpose, source reference, recorded for this version, future
+  version, raw model output, structured output, agent call, system prompt, API
+  keys, headers, or secrets.
+- Activity prompts shown to students must name the item number and option label
+  where relevant, include enough option text for context, and state exactly
+  what the student should type. Abstract activity-family menus and internal
+  activity names remain forbidden.
+- Optional server-only configuration variables are
+  `OPENAI_MODEL_STUDENT_COMMUNICATION`,
+  `OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION`, and
+  `OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION`. Candidate values
+  `gpt-5.6-terra`, `low`, and `1600` require synthetic evaluation, explicit
+  approval, and a matching operational approved configuration hash before live
+  production use.
+- If communication generation fails in a future live path, semantic decisions
+  remain intact and the system must use a concise deterministic student-safe
+  fallback without blocking assessment completion or exposing raw provider
+  output.
+
 ## Phase 29a Formative Activity Design Lock
 
 - Phase 29a defines the formative activity design layer only. It adds

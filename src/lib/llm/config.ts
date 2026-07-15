@@ -18,6 +18,7 @@ export const LiveModelRole = z.enum([
   "formative_activity_quality_reviewer_agent",
   "formative_activity_response_evaluator_agent",
   "post_activity_evidence_evaluator_agent",
+  "student_communication_agent",
   "mcq_diagnostic_authoring_assistant_agent",
   "mcq_import_formatting_assistant_agent",
   "connectivity_test"
@@ -254,6 +255,12 @@ const roleEnvSources = {
       defaultMaxTokens: 3000
     }
   ],
+  student_communication_agent: [{
+    model: "OPENAI_MODEL_STUDENT_COMMUNICATION",
+    reasoning: "OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION",
+    maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION",
+    defaultMaxTokens: 1600
+  }],
   mcq_diagnostic_authoring_assistant_agent: [{
     model: "OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING",
     reasoning: "OPENAI_REASONING_EFFORT_MCQ_DIAGNOSTIC_AUTHORING",
@@ -337,6 +344,7 @@ function roleAllowsModel(role: LiveModelRole, modelName: string) {
     formative_activity_quality_reviewer_agent: ["gpt-5.6-sol"],
     formative_activity_response_evaluator_agent: ["gpt-5.6-sol"],
     post_activity_evidence_evaluator_agent: ["gpt-5.6-sol"],
+    student_communication_agent: ["gpt-5.6-terra"],
     mcq_diagnostic_authoring_assistant_agent: ["gpt-5.6-terra"],
     mcq_import_formatting_assistant_agent: ["gpt-5.6-luna"],
     connectivity_test: ["gpt-5.6-luna"]

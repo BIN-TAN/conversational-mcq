@@ -54,6 +54,7 @@ const baselineDefaultMaxTokens: Partial<Record<LiveModelRole, number>> = {
   formative_activity_quality_reviewer_agent: 2500,
   formative_activity_response_evaluator_agent: 3000,
   post_activity_evidence_evaluator_agent: 3000,
+  student_communication_agent: 1600,
   mcq_diagnostic_authoring_assistant_agent: 2500,
   mcq_import_formatting_assistant_agent: 3000,
   connectivity_test: 200
@@ -72,6 +73,7 @@ const roleSurface: Record<LiveModelRole, "student_operational" | "teacher_tool" 
   formative_activity_quality_reviewer_agent: "student_operational",
   formative_activity_response_evaluator_agent: "student_operational",
   post_activity_evidence_evaluator_agent: "student_operational",
+  student_communication_agent: "student_operational",
   mcq_diagnostic_authoring_assistant_agent: "teacher_tool",
   mcq_import_formatting_assistant_agent: "teacher_tool",
   connectivity_test: "utility"
