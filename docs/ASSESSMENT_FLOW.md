@@ -221,3 +221,24 @@ Student-facing controls must distinguish:
 - End attempt: terminal after confirmation.
 
 Teacher-facing review may close a stuck or test attempt and allow another attempt without deleting or overwriting the original attempt. In the formative stage, the student-facing terminal action is **End assessment**, not generic "Move on" wording. Ending from this stage records a specific terminal reason and completes the attempt without showing another activity or transfer item.
+
+## Phase 31ao Post-Activity Topic Dialogue
+
+After the student submits a formative activity response, the backend creates a
+`PostActivityLearningDecisionV1` from persisted evidence. The decision, not the
+LLM, selects the next runtime path:
+
+- `ready_to_advance`: show valid progression choices.
+- `improving_but_incomplete`: enter bounded topic dialogue.
+- `specific_misconception_remaining`: enter misconception-focused topic dialogue.
+- `foundational_support_needed`: provide bounded scaffolded topic dialogue.
+- `insufficient_new_evidence`: ask one low-burden clarification within the topic.
+
+The explicit dialogue states are:
+
+`SHOW_POST_ACTIVITY_FEEDBACK -> SHOW_TOPIC_DIALOGUE_PROMPT -> AWAIT_TOPIC_DIALOGUE_RESPONSE -> EVALUATE_TOPIC_DIALOGUE_RESPONSE -> SHOW_PROGRESSION_CHOICES | SHOW_FINAL_SUPPORT_OPTIONS`
+
+Only one learning prompt may await a response at a time. Refresh and resume must
+restore the persisted prompt/response state rather than regenerate dialogue.
+The default maximum is three student dialogue turns, after which the UI offers
+final support options and valid progression/end choices.

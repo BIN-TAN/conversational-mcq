@@ -93,20 +93,19 @@ export type StudentCommunicationInputV1 = z.infer<typeof StudentCommunicationInp
 
 export const StudentCommunicationOutputV1Schema = z.object({
   communication_schema_version: z.literal(STUDENT_COMMUNICATION_OUTPUT_SCHEMA_VERSION),
-  initial_results_intro: z.string().min(1).max(260),
-  what_responses_show: z.string().min(1).max(500),
-  explanations_summary: z.string().min(1).max(500),
-  confidence_summary: z.string().min(1).max(420),
-  next_focus: z.string().min(1).max(500),
-  item_reviews: z.array(z.object({
+  package_feedback_narrative: z.string().min(1).max(1200),
+  item_review_introductions: z.array(z.object({
     item_number: z.number().int().positive(),
     status_label: z.enum(["Correct", "Incorrect", "Unanswered", "Not scored"]),
     student_answer_label: z.string().min(1),
     correct_answer_label: z.string().min(1).nullable(),
-    why_correct: z.string().min(1).max(800)
+    introduction: z.string().min(1).max(260)
   }).strict()).min(1),
   activity_transition: z.string().min(1).max(260),
   activity_prompt: z.string().min(1).max(900),
+  post_activity_feedback: z.string().min(1).max(700),
+  ready_to_advance_message: z.string().min(1).max(300),
+  topic_dialogue_transition: z.string().min(1).max(300),
   completion_message: z.string().min(1).max(260),
   evidence_reference_map: z.array(z.object({
     item_number: z.number().int().positive(),
@@ -207,6 +206,22 @@ function activityPromptFor(input: StudentCommunicationInputV1) {
   return `${sourcePrefix} ${normalizedPrompt} ${contract.expected_response_format}`;
 }
 
+function joinNaturalSentences(parts: Array<string | null | undefined>) {
+  return parts
+    .map((part) => part?.trim().replace(/\s+/g, " "))
+    .filter((part): part is string => Boolean(part))
+    .join(" ");
+}
+
+function cleanConfidenceText(value: string) {
+  return value
+    .replace(/\bconfidence calibrated\b/gi, "confidence mostly matched the evidence")
+    .replace(/\breasonably_calibrated\b/gi, "mostly matched")
+    .replace(/\boverconfident\b/gi, "sounded more certain than the evidence supported")
+    .replace(/\bunderconfident\b/gi, "sounded less certain than the answer evidence supported")
+    .replace(/\bcalibration\b/gi, "confidence pattern");
+}
+
 export function buildDeterministicStudentCommunicationFallback(
   input: StudentCommunicationInputV1
 ): StudentCommunicationOutputV1 {
@@ -217,29 +232,34 @@ export function buildDeterministicStudentCommunicationFallback(
     correct_answer_label: input.answer_reveal_state.may_show_correct_options_for_administered_items
       ? item.correct_answer_label
       : null,
-    why_correct:
-      item.answer_explanation ??
-      "This item has an administered answer review, but a concise explanation was not available."
+    introduction: `Item ${item.item_number} is ready for review.`
   }));
   const limitationText = input.validated_evidence_limitations.length > 0
-    ? ` ${input.validated_evidence_limitations[0]}`
+    ? input.validated_evidence_limitations[0]
     : "";
+  const packageNarrative = joinNaturalSentences([
+    `You answered ${input.validated_outcome_summary.initial_results}.`,
+    input.validated_understanding_summary.safe_explanation,
+    input.validated_reasoning_summary.safe_explanation,
+    cleanConfidenceText(input.validated_confidence_summary.safe_explanation || input.validated_confidence_summary.student_label),
+    limitationText,
+    `The main idea to strengthen is: ${input.validated_growth_target.student_facing_text}.`,
+    "Based on your responses, here is a recommended activity that can help you strengthen this idea:"
+  ]);
 
   return {
     communication_schema_version: STUDENT_COMMUNICATION_OUTPUT_SCHEMA_VERSION,
-    initial_results_intro: `Initial results: ${input.validated_outcome_summary.initial_results}.`,
-    what_responses_show:
-      `${input.validated_understanding_summary.student_label}. ${input.validated_understanding_summary.safe_explanation}`,
-    explanations_summary: input.validated_reasoning_summary.safe_explanation,
-    confidence_summary: input.validated_confidence_summary.student_label,
-    next_focus: input.validated_growth_target.student_facing_text,
-    item_reviews: itemReviews,
+    package_feedback_narrative: packageNarrative,
+    item_review_introductions: itemReviews,
     activity_transition: "Here is a different way to work on the same idea.",
     activity_prompt: activityPromptFor(input),
+    post_activity_feedback: "Thanks. I can use that response to decide whether to continue with this idea or move to the next step.",
+    ready_to_advance_message: "Your response addresses the key distinction clearly. You can continue when you are ready.",
+    topic_dialogue_transition: "Let us work through the remaining part of this idea together.",
     completion_message: "You can use this next response to make the idea clearer.",
     evidence_reference_map: input.administered_item_summaries.map((item) => ({
       item_number: item.item_number,
-      evidence_summary: `Item ${item.item_number} used the answer choice, result, explanation, confidence rating, and tempting-option evidence when available.${limitationText}`.trim()
+      evidence_summary: `Item ${item.item_number} used the answer choice, result, explanation, confidence rating, and tempting-option evidence when available.`
     }))
   };
 }
@@ -306,32 +326,32 @@ export function validateStudentCommunicationOutputFacts(input: {
   const issues: StudentCommunicationIssue[] = [];
   const expectedItems = input.frozen_input.administered_item_summaries;
 
-  if (output.item_reviews.length !== expectedItems.length) {
+  if (output.item_review_introductions.length !== expectedItems.length) {
     issues.push({
       rule_code: "item_count_changed",
-      field_path: "item_reviews"
+      field_path: "item_review_introductions"
     });
   }
 
   for (const expected of expectedItems) {
-    const actual = output.item_reviews.find((item) => item.item_number === expected.item_number);
+    const actual = output.item_review_introductions.find((item) => item.item_number === expected.item_number);
     if (!actual) {
       issues.push({
         rule_code: "item_review_missing",
-        field_path: `item_reviews.item_${expected.item_number}`
+        field_path: `item_review_introductions.item_${expected.item_number}`
       });
       continue;
     }
     if (actual.status_label !== expected.status_label) {
       issues.push({
         rule_code: "correctness_changed",
-        field_path: `item_reviews.item_${expected.item_number}.status_label`
+        field_path: `item_review_introductions.item_${expected.item_number}.status_label`
       });
     }
     if (actual.student_answer_label !== expected.student_answer_label) {
       issues.push({
         rule_code: "selected_answer_changed",
-        field_path: `item_reviews.item_${expected.item_number}.student_answer_label`
+        field_path: `item_review_introductions.item_${expected.item_number}.student_answer_label`
       });
     }
     const expectedCorrect = input.frozen_input.answer_reveal_state.may_show_correct_options_for_administered_items
@@ -340,21 +360,15 @@ export function validateStudentCommunicationOutputFacts(input: {
     if (actual.correct_answer_label !== expectedCorrect) {
       issues.push({
         rule_code: expectedCorrect ? "correct_answer_changed" : "unadministered_answer_reveal",
-        field_path: `item_reviews.item_${expected.item_number}.correct_answer_label`
-      });
-    }
-    if (/because it is the correct answer/i.test(actual.why_correct)) {
-      issues.push({
-        rule_code: "generic_answer_explanation",
-        field_path: `item_reviews.item_${expected.item_number}.why_correct`
+        field_path: `item_review_introductions.item_${expected.item_number}.correct_answer_label`
       });
     }
   }
 
-  if (output.next_focus !== input.frozen_input.validated_growth_target.student_facing_text) {
+  if (!output.package_feedback_narrative.includes(input.frozen_input.validated_growth_target.student_facing_text)) {
     issues.push({
       rule_code: "growth_target_changed",
-      field_path: "next_focus"
+      field_path: "package_feedback_narrative"
     });
   }
 

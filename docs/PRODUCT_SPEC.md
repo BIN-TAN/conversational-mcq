@@ -133,3 +133,23 @@ The formative route is distractor-first whenever the student has enough
 conceptual footing to evaluate, correct, rank, transform, or reason about
 administered distractors. Foundational or prerequisite support is used only when
 the evidence shows distractor work is not yet accessible.
+
+## Phase 31ao Student Communication and Topic Dialogue
+
+Student-facing package feedback should read as one concise, evidence-linked
+tutor message, not as a technical profile report. Structured evidence remains
+available to teacher and research views, but the student sidebar should not
+duplicate the full narrative. It should retain only persistent reference
+information: Initial results, total correct, administered answer reviews, and a
+compact current-step/progress cue.
+
+The `student_communication_agent` is fact-locked. It may improve tone,
+conciseness, transitions, and student-facing wording, but it must not change
+scored facts, answer reveal state, growth target, activity contract, or runtime
+destinations.
+
+The `topic_dialogue_agent` is bounded topic support after a formative activity.
+It is not unrestricted chat. It may address only the current topic, current
+concept, administered items, relevant distractors, the frozen growth target, and
+the student's activity response. It must redirect unrelated questions and must
+stop at the configured turn limit or when the student is ready to advance.

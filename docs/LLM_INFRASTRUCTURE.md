@@ -366,3 +366,32 @@ The full pilot extends the evaluation-only live path to 100 synthetic outputs.
 It uses separate `EVAL_PILOT_*` settings and does not use the operational
 `executeAgent` persistence path. Enabling the pilot does not enable classroom
 live calls, and pilot outputs stay in eval tables only.
+
+## Phase 31ao Communication and Topic Dialogue Agents
+
+Two student-facing extension roles are now represented in configuration:
+
+- `student_communication_agent`
+- `topic_dialogue_agent`
+
+The communication role verbalizes frozen assessment facts. The topic-dialogue
+role provides bounded support after a formative activity. Both roles remain
+candidate/extension roles until separately evaluated and approved. Merely
+setting model variables must not bypass the operational approved-hash gate.
+
+Server-only optional variables:
+
+```text
+OPENAI_MODEL_STUDENT_COMMUNICATION
+OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION
+OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION
+OPENAI_MODEL_TOPIC_DIALOGUE
+OPENAI_REASONING_EFFORT_TOPIC_DIALOGUE
+OPENAI_MAX_OUTPUT_TOKENS_TOPIC_DIALOGUE
+TOPIC_DIALOGUE_MAX_STUDENT_TURNS
+TOPIC_DIALOGUE_RECENT_TURN_WINDOW
+```
+
+Absent communication/topic-dialogue model variables use deterministic no-live
+fallback behavior. The browser never calls OpenAI directly, and normal smoke
+tests must continue to report zero OpenAI calls.

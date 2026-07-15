@@ -36,11 +36,15 @@ export type FrontendProcessEvent = {
     | "package_results_shown"
     | "item_correctness_status_shown"
     | "profile_feedback_shown"
+    | "student_communication_shown"
     | "next_interaction_shown"
     | "distractor_activity_shown"
     | "foundational_activity_shown"
     | "diagnostic_clarification_requested"
-    | "formative_activity_shown";
+    | "formative_activity_shown"
+    | "topic_dialogue_prompt_shown"
+    | "topic_dialogue_response_shown"
+    | "progression_choices_shown";
   event_category?: string;
   item_public_id?: string;
   visibility_duration_ms?: number;
@@ -471,6 +475,29 @@ export function submitStudentActivityRuntimeResponse(input: {
       activity_attempt_public_id: input.activityAttemptPublicId,
       response_text: input.responseText,
       client_message_id: input.clientMessageId ?? newClientActionId("activity-runtime-response")
+    },
+    (value) =>
+      StudentActivityRuntimeProjectionSchema.parse(
+        (value as { activity_runtime: unknown }).activity_runtime
+      )
+  );
+}
+
+export function submitTopicDialogueResponse(input: {
+  sessionPublicId: string;
+  dialoguePublicId: string;
+  studentMessage: string;
+  clientOperationId?: string;
+  expectedDialogueVersion?: string | null;
+}): Promise<StudentActivityRuntimeProjection> {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/topic-dialogue/respond`,
+    {
+      dialogue_public_id: input.dialoguePublicId,
+      student_message: input.studentMessage,
+      client_operation_id:
+        input.clientOperationId ?? newClientActionId("topic-dialogue-response"),
+      expected_dialogue_version: input.expectedDialogueVersion ?? undefined
     },
     (value) =>
       StudentActivityRuntimeProjectionSchema.parse(

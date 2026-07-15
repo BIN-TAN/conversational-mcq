@@ -428,3 +428,23 @@ This runbook does not implement or require:
 - public self-registration;
 - SMS delivery;
 - classroom-validity claims.
+
+## Phase 31ao Optional Communication/Topic Variables
+
+The Phase 31ao student communication and topic-dialogue roles are not approved
+for live production use by default. Leave their model variables blank unless a
+separate evaluation and approval workflow explicitly authorizes them:
+
+- `OPENAI_MODEL_STUDENT_COMMUNICATION`
+- `OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION`
+- `OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION`
+- `OPENAI_MODEL_TOPIC_DIALOGUE`
+- `OPENAI_REASONING_EFFORT_TOPIC_DIALOGUE`
+- `OPENAI_MAX_OUTPUT_TOKENS_TOPIC_DIALOGUE`
+- `TOPIC_DIALOGUE_MAX_STUDENT_TURNS`
+- `TOPIC_DIALOGUE_RECENT_TURN_WINDOW`
+
+Rollback for this phase is to redeploy without those optional model variables
+and keep the previous `OPERATIONAL_APPROVED_CONFIG_HASH`. The deterministic
+student communication and bounded-dialogue smokes should pass without live
+provider calls.

@@ -102,3 +102,17 @@ Detailed item-level evidence remains in the operational teacher/research
 session detail and stored JSON artifact. If a later analysis requires item-level
 evidence as rows, add a normalized item-evidence dataset with one row per
 administered item rather than widening `sessions.csv`.
+
+## Phase 31ao Communication and Topic Dialogue Records
+
+Student communication narrative should be exported once by reference/version,
+not copied into every item, event, or session-summary row. Research-ready exports
+may include communication output version, deterministic fallback flag, and the
+agent-call or structured artifact reference.
+
+Topic dialogue should be represented as turn-level data when included:
+dialogue public ID, turn number, actor type, safe student/tutor message field,
+response function, evidence update, remaining issue, evidence sufficiency,
+topic-boundary redirect flag, next action, progression selection, fallback or
+repair status, and prompt/schema/model version metadata. Timing-contract-v2
+fields remain unchanged and should not be recomputed for this feature.

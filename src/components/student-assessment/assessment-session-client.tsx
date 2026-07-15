@@ -37,6 +37,7 @@ import {
   startStudentActivityRuntime,
   startAssessmentSession,
   submitStudentActivityRuntimeResponse,
+  submitTopicDialogueResponse,
   stopFollowup,
   updateInFlowItem,
   updatePackageReviewItem
@@ -1335,6 +1336,44 @@ function FormativeActivityControls({
     );
   }
 
+  if (
+    runtime.topic_dialogue?.state === "awaiting_response" ||
+    runtime.topic_dialogue?.state === "final_support"
+  ) {
+    return (
+      <>
+        <AgentMessage>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Topic support
+          </p>
+          <p className="mt-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-ink">
+            {runtime.topic_dialogue.tutor_message ?? runtime.feedback?.message ?? runtime.status_message}
+          </p>
+          {runtime.topic_dialogue.response_prompt ? (
+            <p className="mt-3 text-sm font-medium text-ink">
+              {runtime.topic_dialogue.response_prompt}
+            </p>
+          ) : null}
+          {runtime.topic_dialogue.state === "final_support" ? destinationButtons : choiceButtons}
+        </AgentMessage>
+        {runtime.topic_dialogue.state === "awaiting_response" ? (
+          <TextComposer
+            disabled={isBusy || !runtime.can_submit_response}
+            label="Topic response"
+            maxLength={runtime.message_max_chars}
+            onChange={setFormativeActivityDraft}
+            onSend={onSendFormativeActivityResponse}
+            placeholder="Write your response..."
+            sendLabel="Send"
+            sendTestId="send-topic-dialogue-response"
+            testId="topic-dialogue-response-input"
+            value={formativeActivityDraft}
+          />
+        ) : null}
+      </>
+    );
+  }
+
   if (runtime.ui_state === "reviewing_your_response") {
     return (
       <AgentMessage>
@@ -1458,34 +1497,6 @@ function NextChoiceControls({
   );
 }
 
-function studentFacingConfidenceText(label: string) {
-  const normalized = label.trim().toLowerCase().replaceAll("_", " ");
-  const lowCertaintyMismatch = ["under", "confident"].join("");
-  const highCertaintyMismatch = ["over", "confident"].join("");
-
-  if (!normalized) {
-    return "There is not enough confidence information to identify a clear pattern yet.";
-  }
-
-  if (normalized.includes("reasonably calibrated") || normalized.includes("confidence calibrated")) {
-    return "Your confidence mostly matched your answers.";
-  }
-
-  if (normalized.includes(lowCertaintyMismatch)) {
-    return "You were more cautious than your strongest explanations suggested.";
-  }
-
-  if (normalized.includes(highCertaintyMismatch)) {
-    return "You sounded more certain than the evidence in your explanation supported.";
-  }
-
-  if (normalized.includes("mixed calibration")) {
-    return "Your confidence pattern was mixed across the three questions.";
-  }
-
-  return label;
-}
-
 function LearningProfilePanel({
   profile,
   packageResults
@@ -1497,7 +1508,7 @@ function LearningProfilePanel({
     return null;
   }
 
-  if (profile && !profile.explanation.trim() && !profile.next_focus.trim() && !packageResults) {
+  if (!packageResults) {
     return null;
   }
 
@@ -1508,12 +1519,12 @@ function LearningProfilePanel({
     >
       <details className="rounded-2xl border border-line bg-white/85 px-4 py-3 shadow-sm" open>
         <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-accent-soft">
-          What your responses show
+          Initial results
         </summary>
         <div className="mt-3 rounded-xl bg-[#f7f9f6] px-3 py-3 text-sm leading-5 text-ink">
           {packageResults ? (
             <div data-testid="package-results-summary">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Initial results</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Total correct</p>
               <p className="mt-1 font-semibold text-ink">{packageResults.result_summary}</p>
               <div className="mt-3 space-y-2" data-testid="initial-answer-review-list">
                 {packageResults.items.map((item) => (
@@ -1553,41 +1564,6 @@ function LearningProfilePanel({
                   </details>
                 ))}
               </div>
-            </div>
-          ) : null}
-          {profile ? (
-            <div className={packageResults ? "mt-4 border-t border-line pt-3" : ""}>
-              {profile.current_understanding ? (
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Overall pattern</p>
-                  <p className="mt-1 font-semibold text-ink">{profile.current_understanding.label}</p>
-                </div>
-              ) : (
-                <h3 className="text-sm font-semibold text-ink">{profile.status}</h3>
-              )}
-              {profile.reasoning ? (
-                <div className="mt-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Your explanations</p>
-                  <p className="mt-1">{profile.reasoning.label}</p>
-                </div>
-              ) : null}
-              {profile.confidence ? (
-                <div className="mt-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">How sure you were</p>
-                  <p className="mt-1">{studentFacingConfidenceText(profile.confidence.label)}</p>
-                </div>
-              ) : null}
-              {profile.evidence_limitation ? (
-                <div className="mt-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">What to keep in mind</p>
-                  <p className="mt-1">{profile.evidence_limitation}</p>
-                </div>
-              ) : null}
-              <div className="mt-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Next focus</p>
-                <p className="mt-1">{profile.next_focus}</p>
-              </div>
-              {!profile.current_understanding ? <p className="mt-2">{profile.explanation}</p> : null}
             </div>
           ) : null}
         </div>
@@ -2187,13 +2163,25 @@ export function AssessmentSessionClient({
       | "next_interaction_shown"
       | "distractor_activity_shown"
       | "formative_activity_shown"
+      | "student_communication_shown"
+      | "topic_dialogue_prompt_shown"
+      | "topic_dialogue_response_shown"
+      | "progression_choices_shown"
     > = [
       "package_results_shown",
       "item_correctness_status_shown",
       "profile_feedback_shown",
       "next_interaction_shown",
       "distractor_activity_shown",
-      "formative_activity_shown"
+      "formative_activity_shown",
+      "student_communication_shown",
+      ...(state.activity_runtime?.topic_dialogue?.state === "awaiting_response"
+        ? ["topic_dialogue_prompt_shown" as const]
+        : []),
+      ...(state.activity_runtime?.topic_dialogue?.state === "ready_to_advance" ||
+      state.activity_runtime?.topic_dialogue?.state === "final_support"
+        ? ["progression_choices_shown" as const]
+        : [])
     ];
     const unsent = eventTypes.filter((eventType) => {
       const key = `${eventType}:${contentId}`;
@@ -2217,6 +2205,8 @@ export function AssessmentSessionClient({
             ? "package_results"
             : eventType === "profile_feedback_shown"
               ? "package_feedback"
+              : eventType.startsWith("topic_dialogue") || eventType === "progression_choices_shown"
+                ? "topic_dialogue"
               : "formative_routing",
         client_occurred_at: new Date().toISOString(),
         payload: basePayload
@@ -2680,6 +2670,21 @@ export function AssessmentSessionClient({
     setFailedAction(null);
 
     try {
+      if (activityRuntime?.topic_dialogue?.state === "awaiting_response") {
+        const nextActivityRuntime = await submitTopicDialogueResponse({
+          sessionPublicId: state.session_public_id,
+          dialoguePublicId: activityRuntime.topic_dialogue.dialogue_public_id,
+          studentMessage: trimmed,
+          clientOperationId: newClientActionId("topic-dialogue")
+        });
+        setFormativeActivityDraft("");
+        setActivityRuntime(nextActivityRuntime);
+        const nextState = await fetchSessionState(state.session_public_id);
+        setState(nextState);
+        await refreshSecondaryData(nextState.session_public_id);
+        return;
+      }
+
       if (!activityRuntime?.activity_attempt_public_id) {
         throw {
           code: "activity_not_ready",

@@ -509,3 +509,22 @@ During browser QA after the initial three-item package, verify:
   not a generic foundational explanation.
 - Teacher session detail shows the v2 evidence chain, validator results,
   routing justification, artifact versions, and effective evidence hash.
+
+## Phase 31ao Communication and Topic Dialogue QA
+
+During browser QA after a formative activity:
+
+- Verify the post-package profile narrative appears once in tutor chat and not
+  again in the right sidebar.
+- Verify the sidebar still shows Initial results, total correct, answer reviews,
+  and progress/current-step information.
+- Verify the tutor wording does not expose internal headings, enum values,
+  "runtime", "routing", "schema", "fallback", or similar implementation terms.
+- Submit a partial activity response and verify the student receives one bounded
+  topic-centered prompt with one text box.
+- Ask an unrelated question and verify the tutor redirects to the assessment
+  topic without answering the unrelated question.
+- Continue until the turn cap is reached and verify the student is offered valid
+  final support/progression/end choices rather than an endless loop.
+- Confirm no live provider call is made unless a separately approved live
+  configuration is intentionally enabled.

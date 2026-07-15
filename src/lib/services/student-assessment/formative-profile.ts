@@ -2135,16 +2135,7 @@ function storedEvidenceIntegratedBundle(value: unknown): EvidenceIntegrationBund
 }
 
 function postPackageSummaryFromBundle(bundle: EvidenceIntegrationBundleV2) {
-  return [
-    bundle.feedback.result_summary,
-    ...bundle.feedback.strengths,
-    bundle.feedback.cross_item_pattern,
-    bundle.feedback.confidence_comment,
-    bundle.feedback.evidence_limitation,
-    `Next focus: ${bundle.feedback.growth_target}`
-  ]
-    .filter((entry): entry is string => Boolean(entry))
-    .join("\n\n");
+  return bundle.student_communication.output.package_feedback_narrative;
 }
 
 async function latestActivityAttemptForSession(input: {
@@ -2183,17 +2174,25 @@ export async function reconcilePackageCompletionState(input: {
         }
       }
     });
-    const profile = await tx.studentProfile.findFirst({
+    const candidateProfiles = await tx.studentProfile.findMany({
       where: { concept_unit_session_db_id: conceptUnitSession.id },
       orderBy: [{ created_at: "desc" }],
+      take: 10,
       select: { id: true, item_level_evidence: true }
     });
+    const profileWithBundle = candidateProfiles
+      .map((candidate) => ({
+        profile: candidate,
+        bundle: storedEvidenceIntegratedBundle(candidate.item_level_evidence)
+      }))
+      .find((candidate) => candidate.bundle);
+    const profile = profileWithBundle?.profile ?? candidateProfiles[0] ?? null;
+    const bundle = profileWithBundle?.bundle ?? null;
     const decision = await tx.formativeDecision.findFirst({
       where: { concept_unit_session_db_id: conceptUnitSession.id },
       orderBy: [{ created_at: "desc" }],
       select: { id: true }
     });
-    const bundle = storedEvidenceIntegratedBundle(profile?.item_level_evidence);
     let round = await tx.followupRound.findFirst({
       where: {
         concept_unit_session_db_id: conceptUnitSession.id,
@@ -3438,16 +3437,7 @@ async function persistProfileDecisionAndActivity(input: {
     });
 
     const postPackageSummary = evidenceBundle
-      ? [
-          evidenceBundle.feedback.result_summary,
-          ...evidenceBundle.feedback.strengths,
-          evidenceBundle.feedback.cross_item_pattern,
-          evidenceBundle.feedback.confidence_comment,
-          evidenceBundle.feedback.evidence_limitation,
-          `Next focus: ${evidenceBundle.feedback.growth_target}`
-        ]
-          .filter((entry): entry is string => Boolean(entry))
-          .join("\n\n")
+      ? postPackageSummaryFromBundle(evidenceBundle)
       : studentFacingPostPackageSummary(
           input.output,
           input.deferred_student_concerns ?? []
@@ -3565,6 +3555,37 @@ async function persistProfileDecisionAndActivity(input: {
             payload: prismaJson({
               presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
               turn_message_type: "package_feedback"
+            }),
+            occurred_at: now
+          },
+          {
+            assessment_session_db_id: input.assessment_session_db_id,
+            concept_unit_session_db_id: input.concept_unit_session_db_id,
+            event_type: "student_communication_generated",
+            event_category: "package_feedback",
+            event_source: "backend",
+            payload: prismaJson({
+              presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
+              agent_name: evidenceBundle.student_communication.metadata.agent_name,
+              output_schema_version:
+                evidenceBundle.student_communication.metadata.output_schema_version,
+              fallback_used: evidenceBundle.student_communication.metadata.fallback_used,
+              validation_status:
+                evidenceBundle.student_communication.metadata.validation_status
+            }),
+            occurred_at: now
+          },
+          {
+            assessment_session_db_id: input.assessment_session_db_id,
+            concept_unit_session_db_id: input.concept_unit_session_db_id,
+            event_type: "student_communication_persisted",
+            event_category: "package_feedback",
+            event_source: "backend",
+            payload: prismaJson({
+              presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
+              turn_message_type: "package_feedback",
+              communication_schema_version:
+                evidenceBundle.student_communication.output.communication_schema_version
             }),
             occurred_at: now
           },

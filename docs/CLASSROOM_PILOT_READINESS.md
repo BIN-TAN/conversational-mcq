@@ -340,3 +340,17 @@ npm run student:incident-profile-routing-regression-smoke
 These checks are engineering controls only. They do not establish classroom
 validity, psychometric ability estimation, motivation detection, or misconduct
 detection.
+
+## Phase 31ao Communication and Topic Dialogue Readiness
+
+The student-facing profile narrative is now expected to appear once in tutor
+chat. The student sidebar remains a reference panel for Initial results, total
+correct, administered item reviews, and current progress. Browser QA should
+verify that full profile prose, internal headings, enum values, and implementation
+terms are absent from the student sidebar and activity cards.
+
+After a formative activity response, partial or insufficient evidence enters a
+bounded topic-centered dialogue. The dialogue must stay on the current topic,
+redirect unrelated questions, enforce the turn limit, and offer valid
+progression/end choices. This is an engineering readiness behavior and remains
+separate from any classroom-validity claim.

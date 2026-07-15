@@ -113,7 +113,8 @@ const operationalExtensionRoles: LiveModelRole[] = [
   "formative_activity_quality_reviewer_agent",
   "formative_activity_response_evaluator_agent",
   "post_activity_evidence_evaluator_agent",
-  "student_communication_agent"
+  "student_communication_agent",
+  "topic_dialogue_agent"
 ];
 
 function configuredString(value: unknown) {

@@ -119,10 +119,16 @@ function main() {
   assert.equal(communication.metadata.live_generation_approved, false);
   assert.equal(communication.fact_validation.valid, true);
   assert.equal(communication.language_validation.valid, true);
-  assert.equal(communication.output.item_reviews.length, 3);
+  assert.equal(communication.output.item_review_introductions.length, 3);
   assert.deepEqual(
-    communication.output.item_reviews.map((item) => item.status_label),
+    communication.output.item_review_introductions.map((item) => item.status_label),
     ["Correct", "Correct", "Correct"]
+  );
+  assert.ok(
+    communication.output.package_feedback_narrative.includes(
+      "Based on your responses, here is a recommended activity"
+    ),
+    "package narrative should transition naturally into the recommended activity"
   );
   assert.ok(
     communication.output.activity_prompt.includes("For Item 1"),
@@ -157,6 +163,10 @@ function main() {
     ...bundle.feedback.strengths,
     bundle.feedback.confidence_comment,
     bundle.next_interaction.prompt,
+    bundle.student_communication.output.package_feedback_narrative,
+    bundle.student_communication.output.post_activity_feedback,
+    bundle.student_communication.output.ready_to_advance_message,
+    bundle.student_communication.output.topic_dialogue_transition,
     ...strings(packageResults)
   ]);
 
@@ -171,7 +181,7 @@ function main() {
 
   const changedCorrectness = {
     ...fallback,
-    item_reviews: fallback.item_reviews.map((item, index) =>
+    item_review_introductions: fallback.item_review_introductions.map((item, index) =>
       index === 0 ? { ...item, status_label: "Incorrect" as const } : item
     )
   };
@@ -183,7 +193,7 @@ function main() {
 
   const changedAnswer = {
     ...fallback,
-    item_reviews: fallback.item_reviews.map((item, index) =>
+    item_review_introductions: fallback.item_review_introductions.map((item, index) =>
       index === 0 ? { ...item, correct_answer_label: "Option A" } : item
     )
   };
@@ -193,7 +203,7 @@ function main() {
     "fact lock should reject changed correct answer"
   );
 
-  const changedFocus = { ...fallback, next_focus: "Study more." };
+  const changedFocus = { ...fallback, package_feedback_narrative: "Study more." };
   assert.equal(
     validateStudentCommunicationOutputFacts({ frozen_input: frozenInput, output: changedFocus }).valid,
     false,

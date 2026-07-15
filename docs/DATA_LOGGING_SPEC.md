@@ -1073,3 +1073,44 @@ columns such as `assessment_specific_understanding_category`,
 `next_interaction_type`, `activity_type`, and `routing_policy_version`.
 Nested item evidence remains structured JSON in operational audit views rather
 than being forced into an unreadable wide table.
+
+## Phase 31ao Communication and Topic Dialogue Evidence
+
+Student communication output is persisted once after response-package scoring,
+profile interpretation, growth-target selection, answer reveal, and activity
+contract selection are frozen. The student-facing package narrative should be
+stored as one reusable communication output and shown in the tutor chat. It
+should not be duplicated in the student sidebar.
+
+Topic-dialogue evidence is stored through existing conversation turns,
+`agent_calls`, activity-runtime attempts, activity misconception evidence
+records, and process events. The current implementation does not add a separate
+topic-dialogue table; the stable dialogue public ID, turn number, response
+function, evidence update, evidence sufficiency, boundary redirect, next action,
+fallback/version metadata, and agent-call reference are stored in safe structured
+conversation payloads and audit records.
+
+New safe process events include:
+
+- `student_communication_generated`
+- `student_communication_persisted`
+- `student_communication_shown`
+- `post_activity_decision_created`
+- `topic_dialogue_started`
+- `topic_dialogue_prompt_shown`
+- `topic_dialogue_response_submitted`
+- `topic_dialogue_response_generated`
+- `topic_dialogue_response_shown`
+- `topic_dialogue_boundary_redirected`
+- `topic_dialogue_ready_to_advance`
+- `topic_dialogue_turn_limit_reached`
+- `progression_choices_shown`
+- `progression_choice_selected`
+
+Research exports may include communication output version, deterministic
+fallback status, post-activity status, recommended route, topic dialogue public
+ID, turn number, student/tutor message fields under the research privacy policy,
+evidence update, remaining issue, evidence sufficiency, topic-boundary redirect,
+next action, progression selection, and model/prompt/schema/fallback metadata.
+They must not duplicate the full student-facing narrative across multiple
+tables and must keep `timing-contract-v2` fields unchanged.

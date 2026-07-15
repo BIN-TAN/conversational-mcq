@@ -2914,3 +2914,30 @@ Phase 6A.5 must not implement:
   estimates from elapsed time.
 - Timing values are process context only and must not be interpreted alone as
   ability, effort, motivation, engagement, guessing, cheating, or misconduct.
+
+## Phase 31AO Student Communication and Topic Dialogue Lock
+
+- The student sidebar must not duplicate the full post-package profile
+  narrative. It is limited to Initial results, total correct, administered item
+  answer reviews, and compact progress/current-step information.
+- Student-facing package feedback is a natural tutor-chat narrative generated
+  from frozen facts. It must not expose backend headings such as "Your
+  explanations", "How sure you were", "Next focus", "Confidence calibration",
+  "Evidence limitations", "Growth target", or raw enum/internal labels.
+- `student_communication_agent` is fact-locked. It may improve wording only; it
+  must not change correctness, selected/correct options, item count, answer
+  reveal state, profile facts, growth target, activity contract, expected
+  response mode, or runtime destination.
+- `topic_dialogue_agent` is bounded support after formative activities. It may
+  discuss only the current topic, current concept, administered items,
+  distractors, frozen growth target, and the student's activity response. It
+  must redirect unrelated questions and must not become general chat.
+- Default topic dialogue policy is three student turns and a six-turn recent
+  context window. `TOPIC_DIALOGUE_MAX_STUDENT_TURNS` and
+  `TOPIC_DIALOGUE_RECENT_TURN_WINDOW` may tune those values server-side; invalid
+  explicit values fail environment validation.
+- Phase 31ao adds configuration surfaces for `student_communication_agent` and
+  `topic_dialogue_agent`, but it does not approve live provider use for either
+  role. Production guarded-live use requires separate evaluation, human review,
+  manifest/hash approval, and matching operational approved configuration.
+- Timing-contract-v2 formulas and historical timing semantics are unchanged.

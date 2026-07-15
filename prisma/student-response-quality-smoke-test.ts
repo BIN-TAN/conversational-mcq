@@ -61,7 +61,11 @@ async function assertStudentComponentQualityShape() {
   assert(agentItemSource.includes("<button"), "Answer option cards should be buttons.");
   assert(!agentItemSource.includes("<OptionChip"), "Answer selection should not render separate A-D chips.");
   assert(source.includes("in-flow-edit-panel"), "In-flow edit affordance is missing.");
-  assert(source.includes("What your responses show"), "Student-safe learning profile panel is missing.");
+  assert(source.includes("Total correct"), "Student sidebar should retain compact initial-results wording.");
+  assert(source.includes("data-testid=\"initial-answer-review-list\""), "Student sidebar should retain answer reviews.");
+  assert(!source.includes("What your responses show"), "Student sidebar should not duplicate the profile narrative.");
+  assert(!source.includes("Your explanations"), "Student sidebar should not duplicate reasoning narrative.");
+  assert(!source.includes("How sure you were"), "Student sidebar should not duplicate confidence narrative.");
   assert(!source.includes("Current learning profile"), "Student view should not use technical learning-profile wording.");
   assert(!source.includes("Confidence calibrated"), "Student view should not expose calibration wording.");
   assert(!/reasonably_calibrated|overconfident|underconfident/.test(source), "Student view should not expose confidence enum values.");

@@ -1344,22 +1344,23 @@ export function buildEvidenceIntegratedProfileBundle(input: {
   };
   const communicationOutput = studentCommunication.output;
 
-  profile.student_safe_summary.initial_results = communicationOutput.initial_results_intro.replace(/^Initial results:\s*/i, "").replace(/[.]$/u, "");
-  profile.student_safe_summary.understanding_label = communicationOutput.what_responses_show;
-  profile.student_safe_summary.reasoning_label = communicationOutput.explanations_summary;
-  profile.student_safe_summary.confidence_label = communicationOutput.confidence_summary;
-  profile.student_safe_summary.next_focus = communicationOutput.next_focus;
+  profile.student_safe_summary.initial_results = initialResults;
+  profile.student_safe_summary.understanding_label = studentCommunicationInput.validated_understanding_summary.student_label;
+  profile.student_safe_summary.reasoning_label = studentCommunicationInput.validated_reasoning_summary.student_label;
+  profile.student_safe_summary.confidence_label = studentCommunicationInput.validated_confidence_summary.student_label;
+  profile.student_safe_summary.next_focus = studentCommunicationInput.validated_growth_target.student_facing_text;
   profile.student_safe_summary.boundary_statement =
     "This summary uses only the evidence from the administered items in this assessment package.";
-  feedback.result_summary = communicationOutput.initial_results_intro;
-  feedback.strengths = [
-    communicationOutput.what_responses_show,
-    communicationOutput.explanations_summary,
-    communicationOutput.confidence_summary
-  ];
-  feedback.confidence_comment = communicationOutput.confidence_summary;
-  feedback.evidence_limitation = profile.student_safe_summary.evidence_limitation_label;
-  nextInteraction.prompt = communicationOutput.activity_prompt;
+  feedback.result_summary = communicationOutput.package_feedback_narrative;
+  feedback.strengths = [studentCommunicationInput.validated_reasoning_summary.student_label];
+  feedback.cross_item_pattern = studentCommunicationInput.validated_understanding_summary.student_label;
+  feedback.confidence_comment = studentCommunicationInput.validated_confidence_summary.student_label;
+  feedback.evidence_limitation =
+    studentCommunicationInput.validated_evidence_limitations[0] ?? null;
+  nextInteraction.prompt = [
+    communicationOutput.activity_transition,
+    communicationOutput.activity_prompt
+  ].join("\n\n");
 
   const validators = {
     profile_coherence: validateEvidenceProfileCoherence(profile),
@@ -1721,6 +1722,20 @@ export function validatePackageFeedbackSpecificity(input: {
   profile: EvidenceIntegratedProfileV2;
 }): ValidationResult {
   const issues: ValidationResult["issues"] = [];
+  const scoredCorrectCount = input.profile.outcome_summary.items_correct;
+  const scoredCorrectText: Record<number, string> = {
+    0: "zero",
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+    7: "seven",
+    8: "eight",
+    9: "nine",
+    10: "ten"
+  };
   if (input.feedback.evidence_references.length < input.profile.item_evidence.length) {
     issues.push({
       rule_code: "missing_item_evidence_reference",
@@ -1735,14 +1750,18 @@ export function validatePackageFeedbackSpecificity(input: {
       message: "Growth target must be evidence-linked and specific."
     });
   }
-  if (/[?]\s*$/.test(input.feedback.result_summary) || /Quick check|What do you think|Explain\b/i.test(input.feedback.result_summary)) {
+  if (/[?]\s*$/.test(input.feedback.result_summary) || /Quick check|What do you think/i.test(input.feedback.result_summary)) {
     issues.push({
       rule_code: "actionable_question_in_feedback",
       field_path: "feedback.result_summary",
       message: "Feedback body must not contain the next actionable prompt."
     });
   }
-  if (!input.feedback.result_summary.includes(String(input.profile.outcome_summary.items_correct))) {
+  const summaryLower = input.feedback.result_summary.toLowerCase();
+  const includesScoredCount =
+    summaryLower.includes(String(scoredCorrectCount)) ||
+    Boolean(scoredCorrectText[scoredCorrectCount] && summaryLower.includes(scoredCorrectText[scoredCorrectCount]));
+  if (!includesScoredCount) {
     issues.push({
       rule_code: "correctness_summary_mismatch",
       field_path: "feedback.result_summary",

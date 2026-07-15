@@ -182,11 +182,42 @@ async function main() {
     assert(recovered.outcome?.recovery_action === "reconciled", "Recovery should be reported as reconciled.");
 
     const afterRecovery = await counts(prepared.state.session_public_id);
+    const recoveryDebug = await prisma.conceptUnitSession.findMany({
+      where: { assessment_session_db_id: session.id },
+      select: {
+        id: true,
+        followup_rounds: {
+          select: { id: true, status: true },
+          orderBy: [{ round_index: "desc" }],
+          take: 3
+        },
+        student_profiles: {
+          select: { id: true, item_level_evidence: true },
+          orderBy: [{ created_at: "desc" }],
+          take: 3
+        }
+      }
+    });
+    const safeRecoveryDebug = recoveryDebug.map((entry) => ({
+      concept_unit_session_id: entry.id,
+      round_statuses: entry.followup_rounds.map((round) => round.status),
+      profile_evidence_keys: entry.student_profiles.map((profile) =>
+        profile.item_level_evidence && typeof profile.item_level_evidence === "object" && !Array.isArray(profile.item_level_evidence)
+          ? Object.keys(profile.item_level_evidence as Record<string, unknown>)
+          : []
+      )
+    }));
     assert(afterRecovery.agent_calls === 1, "Recovery must not regenerate agent call.");
     assert(afterRecovery.profiles === afterSecond.profiles, "Recovery must not duplicate profile.");
     assert(afterRecovery.decisions === afterSecond.decisions, "Recovery must not duplicate decision.");
     assert(afterRecovery.rounds === afterSecond.rounds, "Recovery must not duplicate round.");
-    assert(afterRecovery.activity_attempts === 1, "Recovery should restore one activity attempt.");
+    assert(
+      afterRecovery.activity_attempts === 1,
+      `Recovery should restore one activity attempt; found ${afterRecovery.activity_attempts}. ` +
+        `Recovery=${JSON.stringify(recovered.outcome?.operation_audit.conflict_recovery_metadata ?? {})}; ` +
+        `warnings=${JSON.stringify(recovered.outcome?.safe_warnings ?? [])}; ` +
+        `debug=${JSON.stringify(safeRecoveryDebug)}.`
+    );
     assert(afterRecovery.next_interaction_turns === 1, "Recovery should restore one next-interaction turn.");
     assert((afterRecovery.events.package_completion_reconciled ?? 0) >= 1, "Recovery event should be recorded.");
 

@@ -17,6 +17,8 @@ export const StudentActivityRuntimeUiStateSchema = z.enum([
 export const StudentActivityRuntimeActionSchema = z.enum([
   "start_activity",
   "submit_response",
+  "submit_topic_dialogue_response",
+  "ask_question_about_topic",
   "choose_another_activity",
   "skip_activity_to_transfer",
   "skip_activity_to_next_concept",
@@ -54,6 +56,23 @@ export const StudentActivityRuntimeProjectionSchema = z.object({
   can_continue: z.boolean(),
   message_max_chars: z.number().int().positive().max(ACTIVITY_RUNTIME_MAX_RESPONSE_CHARS),
   feedback: StudentActivityRuntimeFeedbackSchema.nullable(),
+  topic_dialogue: z.object({
+    dialogue_public_id: z.string().min(1),
+    state: z.enum([
+      "not_started",
+      "awaiting_response",
+      "reviewing_response",
+      "ready_to_advance",
+      "final_support"
+    ]),
+    turn_number: z.number().int().nonnegative(),
+    maximum_turns: z.number().int().positive(),
+    tutor_message: z.string().min(1).max(900).nullable(),
+    response_prompt: z.string().min(1).max(420).nullable(),
+    remaining_issue: z.string().min(1).max(700).nullable(),
+    next_action: z.string().min(1).max(80).nullable(),
+    topic_boundary: z.enum(["inside_scope", "redirected_to_topic"]).nullable()
+  }).nullable().optional(),
   next_recommendation_label: z.string().min(1).max(180).nullable(),
   alternative_activity_labels: z.array(z.string().min(1).max(120)).max(6)
 }).strict();
@@ -80,21 +99,21 @@ export type StudentActivityProjectionIssue = {
 };
 
 const ACTIVITY_FOCUS_LABELS = {
-  conceptual_entry_grounding: "Start from the basic idea",
-  distractor_misconception_probe: "Work through a tempting option",
-  reasoning_boundary_repair: "Repair your explanation",
-  independent_misconception_verification: "Explain it without the options",
-  diagnostic_clarification: "Start from the basic idea",
-  reasoning_refinement: "Repair your explanation",
-  confidence_calibration: "Check your confidence using your evidence",
-  independent_understanding_verification: "Explain it without the options",
-  consolidation_and_transfer: "Try a nearby unscored practice idea",
-  basic_concept_grounding: "Start from the basic idea",
-  distractor_contrast: "Work through a tempting option",
-  reasoning_chain_repair: "Repair your explanation",
-  independent_reconstruction: "Explain it without the options",
-  confidence_evidence_audit: "Check your confidence using your evidence",
-  transfer_and_distractor_generation: "Try a nearby unscored practice idea"
+  conceptual_entry_grounding: "Recommended activity",
+  distractor_misconception_probe: "Recommended activity",
+  reasoning_boundary_repair: "Recommended activity",
+  independent_misconception_verification: "Recommended activity",
+  diagnostic_clarification: "Recommended activity",
+  reasoning_refinement: "Recommended activity",
+  confidence_calibration: "Recommended activity",
+  independent_understanding_verification: "Recommended activity",
+  consolidation_and_transfer: "Recommended activity",
+  basic_concept_grounding: "Recommended activity",
+  distractor_contrast: "Recommended activity",
+  reasoning_chain_repair: "Recommended activity",
+  independent_reconstruction: "Recommended activity",
+  confidence_evidence_audit: "Recommended activity",
+  transfer_and_distractor_generation: "Recommended activity"
 } as const;
 
 export function studentActivityFocusLabel(input: {

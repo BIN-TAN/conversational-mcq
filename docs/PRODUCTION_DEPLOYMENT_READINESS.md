@@ -470,3 +470,26 @@ Rollback sequence:
 4. Redeploy.
 5. Run `npm run operational:approval-manifest:verify` and
    `npm run operational:agents:preflight`.
+
+## Phase 31ao Communication and Topic Dialogue Deployment Notes
+
+The student communication and topic-dialogue roles are extension roles. They
+must remain deterministic/no-live unless their candidate model configuration has
+completed no-live tests, synthetic evaluation, human review, and explicit
+operational approval with a matching approved configuration hash.
+
+Optional Render/server variables for candidate evaluation:
+
+- `OPENAI_MODEL_STUDENT_COMMUNICATION`
+- `OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION`
+- `OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION`
+- `OPENAI_MODEL_TOPIC_DIALOGUE`
+- `OPENAI_REASONING_EFFORT_TOPIC_DIALOGUE`
+- `OPENAI_MAX_OUTPUT_TOKENS_TOPIC_DIALOGUE`
+- `TOPIC_DIALOGUE_MAX_STUDENT_TURNS`
+- `TOPIC_DIALOGUE_RECENT_TURN_WINDOW`
+
+Do not add these values to public or browser-visible configuration. If a
+candidate rollout must be reverted, remove the candidate variables, restore the
+previous approved hash, redeploy, and rerun the no-live student communication
+and topic-dialogue smoke tests before classroom use.
