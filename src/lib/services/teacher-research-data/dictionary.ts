@@ -69,16 +69,29 @@ export const SESSIONS_COLUMNS = [
   "current_item_index",
   "session_completion_status",
   "session_limitations",
+  "session_wall_clock_elapsed_ms",
+  "session_resumable_active_window_ms",
+  "session_visible_window_ms",
+  "session_active_interaction_time_ms",
+  "session_idle_time_ms",
   "active_interaction_time_ms",
   "elapsed_session_time_ms",
   "timing_metric_available",
   "timing_metric_type",
   "total_idle_time_ms",
   "total_page_hidden_ms",
+  "page_hidden_interval_count",
+  "page_hidden_timing_quality_status",
   "idle_ratio",
   "long_pause_count",
   "total_long_pause_ms",
   "maximum_long_pause_ms",
+  "timing_contract_version",
+  "timing_source_version",
+  "timing_quality_status",
+  "timing_limitations",
+  "derived_at",
+  "instrumentation_complete",
   "item_response_count",
   "process_event_count",
   "conversation_turn_count",
@@ -161,20 +174,36 @@ export const ITEM_RESPONSES_COLUMNS = [
   "item_presented_at",
   "first_student_action_at",
   "time_to_first_action_ms",
+  "time_to_first_response_action_ms",
   "first_option_selected_at",
   "time_to_first_option_selection_ms",
+  "post_option_completion_time_ms",
   "reasoning_prompted_at",
   "reasoning_started_at",
   "reasoning_submitted_at",
   "reasoning_prompt_to_submission_ms",
+  "reasoning_elapsed_time_ms",
   "reasoning_active_time_ms",
+  "reasoning_active_typing_time_ms",
+  "reasoning_input_elapsed_time_ms",
   "confidence_prompted_at",
   "confidence_selected_at",
   "confidence_prompt_to_selection_ms",
+  "confidence_response_time_ms",
+  "tempting_option_prompted_at",
+  "tempting_option_submitted_at",
+  "tempting_option_response_time_ms",
   "last_student_action_at",
   "item_submitted_at",
   "last_action_to_submission_ms",
+  "item_elapsed_response_time_ms",
   "item_response_time_ms",
+  "timing_contract_version",
+  "timing_source_version",
+  "timing_quality_status",
+  "timing_limitations",
+  "derived_at",
+  "instrumentation_complete",
   "option_selection_count",
   "option_revision_count",
   "reasoning_submission_count",
@@ -218,6 +247,13 @@ export const PROCESS_EVENTS_COLUMNS = [
   "phase",
   "occurred_at",
   "created_at",
+  "client_occurred_at",
+  "server_received_at",
+  "persisted_at",
+  "clock_source",
+  "timing_contract_version",
+  "timing_source_version",
+  "timing_quality_status",
   "item_position",
   "actual_total_item_count",
   "payload_source",
@@ -229,6 +265,10 @@ export const PROCESS_EVENTS_COLUMNS = [
   "payload_no_tempting_option",
   "duration_ms",
   "visibility_duration_ms",
+  "visibility_interval_start_at",
+  "visibility_interval_end_at",
+  "visibility_interval_duration_ms",
+  "visibility_interval_quality_status",
   "pause_duration_ms",
   "limitation_code"
 ] as const;
@@ -248,6 +288,8 @@ export const CONVERSATION_TURNS_COLUMNS = [
   "created_at",
   "message_text",
   "response_or_action_latency_ms",
+  "prompt_to_student_action_latency_ms",
+  "latency_recorded_on_turn",
   "response_text_present",
   "turn_status",
   "limitation_code"
@@ -1334,24 +1376,48 @@ function countDefinition(table: string, variable: string) {
 
 function measuredValueDefinition(table: string, variable: string) {
   const overrides: Record<string, string> = {
-    active_interaction_time_ms: "Estimated session time in milliseconds after subtracting recorded idle intervals when active-time instrumentation is available.",
-    elapsed_session_time_ms: "Elapsed session time in milliseconds from session start to completion or latest activity.",
+    session_wall_clock_elapsed_ms: "Elapsed wall-clock time in milliseconds from attempt start to terminal or latest activity timestamp; includes pauses and offline time.",
+    session_resumable_active_window_ms: "Sum of resumable active attempt windows in milliseconds from started/resumed events to paused/ended/completed events.",
+    session_visible_window_ms: "Resumable active window time minus paired page-hidden intervals when visibility instrumentation is available.",
+    session_active_interaction_time_ms: "Validated active interaction time in milliseconds; null when active-interaction instrumentation is insufficient.",
+    session_idle_time_ms: "Recorded idle duration in milliseconds within active windows when explicit idle/pause instrumentation is available.",
+    active_interaction_time_ms: "Deprecated compatibility field for session active interaction time; use session_active_interaction_time_ms.",
+    elapsed_session_time_ms: "Legacy elapsed session time in milliseconds from session start to completion or latest activity; use session_wall_clock_elapsed_ms for the timing-contract-v2 construct.",
     total_idle_time_ms: "Total recorded idle duration in milliseconds across eligible idle or long-pause process events.",
-    total_page_hidden_ms: "Total recorded duration in milliseconds during which the assessment page was hidden or blurred.",
+    total_page_hidden_ms: "Total paired page-hidden duration in milliseconds from page_visibility_hidden/page_hidden to the next page_visibility_visible/page_visible event; window blur is not double-counted.",
+    page_hidden_interval_count: "Number of valid paired page-hidden intervals.",
+    page_hidden_timing_quality_status: "Quality status for page-hidden interval pairing.",
     idle_ratio: "Ratio of recorded idle time to elapsed session time when both numerator and denominator are available.",
     total_long_pause_ms: "Sum of recorded long-pause durations in milliseconds for the assessment session.",
     maximum_long_pause_ms: "Largest recorded long-pause duration in milliseconds for the assessment session.",
     time_to_first_action_ms: "Milliseconds between item presentation and the first accepted student action for the administered item.",
+    time_to_first_response_action_ms: "Milliseconds between item presentation and the first qualifying student response action for the administered item.",
     time_to_first_option_selection_ms: "Milliseconds between item presentation and the first accepted option selection.",
-    reasoning_prompt_to_submission_ms: "Milliseconds between the reasoning prompt and the accepted reasoning submission.",
-    reasoning_active_time_ms: "Recorded active or elapsed reasoning-input time in milliseconds, depending on the available typing instrumentation payload.",
-    confidence_prompt_to_selection_ms: "Milliseconds between the confidence prompt and the accepted confidence selection.",
+    post_option_completion_time_ms: "Milliseconds between first accepted option selection and completed item submission.",
+    reasoning_prompt_to_submission_ms: "Compatibility alias for reasoning_elapsed_time_ms.",
+    reasoning_elapsed_time_ms: "Milliseconds between the reasoning prompt and the accepted reasoning submission.",
+    reasoning_active_time_ms: "Deprecated compatibility alias for reasoning_active_typing_time_ms.",
+    reasoning_active_typing_time_ms: "Sum of validated active reasoning typing intervals in milliseconds; null when active typing instrumentation is insufficient.",
+    reasoning_input_elapsed_time_ms: "Elapsed reasoning input-field time from frontend typing summaries when available; may include idle time.",
+    confidence_prompt_to_selection_ms: "Compatibility alias for confidence_response_time_ms.",
+    confidence_response_time_ms: "Milliseconds between the confidence prompt and the accepted confidence selection.",
+    tempting_option_response_time_ms: "Milliseconds between the tempting-option prompt and the accepted tempting-option response.",
     last_action_to_submission_ms: "Milliseconds between the latest accepted student action and item submission.",
-    item_response_time_ms: "Elapsed item-response time in milliseconds from item presentation to item submission or the backend-finalized item response duration.",
+    item_elapsed_response_time_ms: "Milliseconds from item presentation to item submission under timing-contract-v2.",
+    item_response_time_ms: "Deprecated legacy backend-finalized item-response duration. Historical values may start at response-row creation rather than item presentation.",
+    timing_contract_version: "Version label for timing formulas used to derive the exported timing fields.",
+    timing_source_version: "Version label for timing source extraction and event-pairing logic.",
+    timing_quality_status: "Safe status describing whether timing endpoints were valid, partial, missing, or legacy ambiguous.",
+    timing_limitations: "Pipe-separated safe limitation codes explaining missing, partial, or legacy timing evidence.",
+    derived_at: "Timestamp when the exported derived timing value was generated.",
+    instrumentation_complete: "Boolean indicating whether all required instrumentation for the timing construct was available.",
     duration_ms: "Allow-listed process-event duration in milliseconds when an event payload reports a measured interval.",
-    visibility_duration_ms: "Duration in milliseconds for a recorded page visibility or hidden interval.",
+    visibility_duration_ms: "Legacy raw event duration value. For page-hidden analysis use visibility_interval_duration_ms and total_page_hidden_ms.",
+    visibility_interval_duration_ms: "Duration in milliseconds for a paired page-hidden interval derived from hidden and visible event timestamps.",
     pause_duration_ms: "Duration in milliseconds for a recorded pause or inactivity interval.",
-    response_or_action_latency_ms: "Milliseconds between the previous relevant prompt or turn and the student's response/action turn."
+    response_or_action_latency_ms: "Compatibility field for prompt_to_student_action_latency_ms, stored on the preceding agent prompt turn.",
+    prompt_to_student_action_latency_ms: "Milliseconds from a student-visible agent prompt turn to the next qualifying student turn/action.",
+    latency_recorded_on_turn: "Indicates that prompt-to-student latency is recorded on the prompt turn rather than the student response row."
   };
   return (
     overrides[variable] ??
@@ -1497,14 +1563,47 @@ function collectionMethod(table: string, variable: string) {
     tempting_option: "Recorded from the student's submitted tempting-option response when one is provided.",
     tempting_option_reason: "Recorded from the student's explanation of why another option seemed tempting.",
     time_to_first_action_ms:
+      "Compatibility alias calculated in itemResponseRows() as first_student_action_at minus item_presented_at for the same administered item when both timestamps are available.",
+    time_to_first_response_action_ms:
       "Calculated in itemResponseRows() as first_student_action_at minus item_presented_at for the same administered item when both timestamps are available.",
+    time_to_first_option_selection_ms:
+      "Calculated in itemResponseRows() as first_option_selected_at minus item_presented_at for the same administered item when both timestamps are available.",
+    item_elapsed_response_time_ms:
+      "Calculated in itemResponseRows() as item_submitted_at minus item_presented_at under timing-contract-v2.",
+    post_option_completion_time_ms:
+      "Calculated in itemResponseRows() as item_submitted_at minus first_option_selected_at.",
+    reasoning_elapsed_time_ms:
+      "Calculated in itemResponseRows() as reasoning_submitted_at minus reasoning_prompted_at.",
+    confidence_response_time_ms:
+      "Calculated in itemResponseRows() as confidence_selected_at minus confidence_prompted_at.",
+    tempting_option_response_time_ms:
+      "Calculated in itemResponseRows() as tempting_option_submitted_at minus tempting_option_prompted_at.",
+    reasoning_active_typing_time_ms:
+      "Copied only from validated active_typing_time_ms frontend typing summaries; null when unavailable.",
+    reasoning_input_elapsed_time_ms:
+      "Copied from frontend typing summary elapsed-time fields when available and labeled as elapsed input time, not active typing.",
     option_revision_count: "Calculated in itemResponseRows() from item-scoped answer_changed process events after the first option selection.",
     reasoning_revision_count: "Calculated in itemResponseRows() from item-scoped reasoning_revised and reasoning_edited process events.",
     confidence_revision_count: "Calculated in itemResponseRows() from item-scoped confidence_changed process events.",
-    page_hidden_count: "Calculated in itemResponseRows() by counting item-scoped page_hidden, page_visibility_hidden, and window_blur process events.",
+    page_hidden_count: "Calculated in itemResponseRows() by counting item-scoped page_hidden and page_visibility_hidden events; window_blur is not treated as a page-hidden interval.",
     long_pause_count: "Calculated in sessionRows() by counting session-scoped long_pause process events.",
     idle_ratio: "Calculated in sessionRows() as total_idle_time_ms divided by elapsed_session_time_ms; null when the denominator is missing or zero.",
-    item_response_time_ms: "Read from ItemResponse.item_response_time_ms, which is finalized by the item-response service from item presentation/start through item submission.",
+    item_response_time_ms: "Read from legacy ItemResponse.item_response_time_ms for backward compatibility; use item_elapsed_response_time_ms for corrected timing-contract-v2 analysis.",
+    total_page_hidden_ms:
+      "Calculated in sessionRows() from paired page_visibility_hidden/page_hidden to page_visibility_visible/page_visible timestamp intervals, not from frontend cumulative duration payloads.",
+    page_hidden_interval_count: "Calculated in sessionRows() from valid paired page-hidden intervals.",
+    session_wall_clock_elapsed_ms:
+      "Calculated in sessionRows() as terminal or latest activity timestamp minus attempt start timestamp.",
+    session_resumable_active_window_ms:
+      "Calculated in sessionRows() as the sum of attempt started/resumed to paused/ended/completed intervals.",
+    session_visible_window_ms:
+      "Calculated in sessionRows() as session_resumable_active_window_ms minus valid paired page-hidden intervals.",
+    session_active_interaction_time_ms:
+      "Left null unless validated active interaction intervals are available; timing-contract-v2 does not manufacture active time from elapsed time.",
+    session_idle_time_ms:
+      "Calculated from explicit long_pause and inactivity_detected duration payloads when present.",
+    prompt_to_student_action_latency_ms:
+      "Calculated in conversationRows() on the preceding agent prompt turn as next student turn timestamp minus prompt turn timestamp.",
     assessment_specific_understanding_category:
       "Persisted output from the assessment-specific profile/evidence integration workflow using response package, item evidence, and process context.",
     reasoning_quality_category:
@@ -1651,13 +1750,58 @@ function timingMetadata(variable: string, table: string) {
   };
   const overrides: Record<string, Partial<typeof fallback>> = {
     active_interaction_time_ms: {
+      construct: "deprecated_session_active_interaction_time_alias",
+      start: "not applicable for timing-contract-v2 unless active interaction intervals are available",
+      end: "not applicable for timing-contract-v2 unless active interaction intervals are available",
+      formula: "deprecated compatibility alias; use session_active_interaction_time_ms",
+      idle: "Null unless explicit active interaction intervals are available.",
+      hidden: "Null unless explicit active interaction intervals are available.",
+      method: "Exported as a deprecated compatibility field; timing-contract-v2 does not manufacture active time from elapsed minus idle."
+    },
+    session_wall_clock_elapsed_ms: {
+      construct: "session_wall_clock_elapsed_time",
+      start: "started_at",
+      end: "completed_at or last_activity_at",
+      formula: "completed_at or last_activity_at minus started_at",
+      idle: "Includes pauses, idle periods, and offline time.",
+      hidden: "Includes page-hidden periods.",
+      method: "Calculated by deriveSessionTiming() from AssessmentSession timestamps."
+    },
+    session_resumable_active_window_ms: {
+      construct: "session_resumable_active_window_time",
+      start: "attempt_started or attempt_resumed",
+      end: "attempt_paused, attempt_ended_by_student, attempt_ended_by_teacher, assessment_completed, or latest activity",
+      formula: "sum of each started/resumed to paused/ended/completed interval",
+      idle: "Includes idle time inside active windows.",
+      hidden: "Includes page-hidden time inside active windows.",
+      method: "Calculated by deriveSessionTiming() from lifecycle process-event timestamps."
+    },
+    session_visible_window_ms: {
+      construct: "session_visible_window_time",
+      start: "session_resumable_active_window_ms",
+      end: "paired page-hidden intervals",
+      formula: "session_resumable_active_window_ms minus total_page_hidden_ms",
+      idle: "Includes idle visible time unless explicit idle variables are used separately.",
+      hidden: "Excludes paired page-hidden intervals.",
+      method: "Calculated by deriveSessionTiming() from active windows and paired visibility intervals."
+    },
+    session_active_interaction_time_ms: {
       construct: "session_active_interaction_time",
-      start: "session_started or first recorded active interaction",
-      end: "session_completed or last recorded active interaction",
-      formula: "elapsed_session_time_ms minus recorded idle intervals when instrumentation is available",
-      idle: "Recorded idle intervals are subtracted when available; null means active-time instrumentation was insufficient.",
-      hidden: "Page-hidden time may remain unless it was included in recorded idle intervals.",
-      method: "Calculated in the export service from session start/end timestamps and recorded idle process-event durations."
+      start: "validated active interaction interval start",
+      end: "validated active interaction interval end",
+      formula: "sum of validated active interaction intervals; null when instrumentation is insufficient",
+      idle: "Excludes idle only when active interaction instrumentation supports it.",
+      hidden: "Excludes hidden only when active interaction instrumentation supports it.",
+      method: "Left null by deriveSessionTiming() unless validated active interaction intervals are available."
+    },
+    session_idle_time_ms: {
+      construct: "session_recorded_idle_time",
+      start: "long_pause or inactivity_detected event start",
+      end: "event duration endpoint",
+      formula: "sum of explicit pause_duration_ms or duration_ms values for idle events",
+      idle: "This variable is the recorded idle duration.",
+      hidden: "Page-hidden time is separate unless also explicitly recorded as idle.",
+      method: "Calculated by deriveSessionTiming() from explicit idle event durations."
     },
     elapsed_session_time_ms: {
       construct: "session_elapsed_time",
@@ -1678,10 +1822,20 @@ function timingMetadata(variable: string, table: string) {
     },
     total_page_hidden_ms: {
       construct: "session_page_hidden_time",
-      start: "page_hidden, page_visibility_hidden, or window_blur event start",
-      end: "event payload visibility duration endpoint",
-      formula: "sum of visibility_duration_ms across page-hidden events in the session",
-      hidden: "This variable is the recorded page-hidden duration."
+      start: "page_visibility_hidden or page_hidden timestamp",
+      end: "next page_visibility_visible or page_visible timestamp",
+      formula: "sum of paired visible timestamp minus hidden timestamp intervals",
+      hidden: "This variable is the paired page-hidden duration; window_blur is not double-counted.",
+      method: "Calculated by deriveVisibilityIntervals() from hidden/visible event timestamp pairs."
+    },
+    page_hidden_interval_count: {
+      construct: "session_page_hidden_interval_count",
+      start: "started_at",
+      end: "completed_at or latest activity",
+      formula: "count of valid paired page-hidden intervals",
+      hidden: "Counts paired page-hidden intervals.",
+      aggregation: "Counted across the session.",
+      method: "Calculated by deriveVisibilityIntervals() from hidden/visible event timestamp pairs."
     },
     maximum_long_pause_ms: {
       construct: "maximum_recorded_pause_duration",
@@ -1693,45 +1847,112 @@ function timingMetadata(variable: string, table: string) {
       formula: "sum of pause_duration_ms across long_pause events in the session"
     },
     item_response_time_ms: {
+      construct: "deprecated_legacy_item_response_time",
+      start: "legacy ItemResponse.item_started_at or response-row creation time",
+      end: "item_submitted_at",
+      formula: "persisted ItemResponse.item_response_time_ms; historical values may not start at item presentation",
+      idle: "Includes idle periods unless adjusted by separate active-time fields.",
+      hidden: "Includes page-hidden periods unless adjusted by separate focus/visibility fields.",
+      method: "Read from the legacy item_responses column for backward compatibility; use item_elapsed_response_time_ms for timing-contract-v2."
+    },
+    item_elapsed_response_time_ms: {
       construct: "item_elapsed_response_time",
       start: "item_presented_at",
       end: "item_submitted_at",
-      formula: "item_submitted_at minus item_presented_at, or persisted ItemResponse.item_response_time_ms when the backend finalized the response",
-      idle: "Includes idle periods unless adjusted by separate active-time fields.",
-      hidden: "Includes page-hidden periods unless adjusted by separate focus/visibility fields.",
-      method: "Stored on the item response when the item response is finalized."
+      formula: "item_submitted_at minus item_presented_at",
+      idle: "Includes idle periods unless paired with separate active-time variables.",
+      hidden: "Includes page-hidden periods unless paired with separate visibility-adjusted variables.",
+      method: "Calculated by deriveItemTiming() from item_presented and item_submitted timestamps."
     },
     time_to_first_action_ms: {
+      construct: "deprecated_alias_item_prompt_to_first_student_action_latency",
+      start: "item_presented_at",
+      end: "first_student_action_at",
+      formula: "first_student_action_at minus item_presented_at",
+      method: "Compatibility alias for time_to_first_response_action_ms."
+    },
+    time_to_first_response_action_ms: {
       construct: "item_prompt_to_first_student_action_latency",
       start: "item_presented_at",
       end: "first_student_action_at",
-      formula: "first_student_action_at minus item_presented_at"
+      formula: "first_student_action_at minus item_presented_at",
+      method: "Calculated by deriveItemTiming() using only qualifying student response actions."
     },
     time_to_first_option_selection_ms: {
       construct: "item_prompt_to_first_option_selection_latency",
       start: "item_presented_at",
       end: "first_option_selected_at",
-      formula: "first_option_selected_at minus item_presented_at"
+      formula: "first_option_selected_at minus item_presented_at",
+      method: "Calculated by deriveItemTiming() using accepted option-selection events."
+    },
+    post_option_completion_time_ms: {
+      construct: "post_option_completion_time",
+      start: "first_option_selected_at",
+      end: "item_submitted_at",
+      formula: "item_submitted_at minus first_option_selected_at",
+      method: "Calculated by deriveItemTiming() from option and item submission timestamps."
     },
     reasoning_prompt_to_submission_ms: {
-      construct: "reasoning_prompt_to_response_latency",
+      construct: "deprecated_alias_reasoning_prompt_to_response_latency",
       start: "reasoning prompt agent message timestamp",
       end: "reasoning submitted event timestamp",
-      formula: "reasoning_submitted_at minus reasoning_prompted_at"
+      formula: "reasoning_submitted_at minus reasoning_prompted_at",
+      method: "Compatibility alias for reasoning_elapsed_time_ms."
+    },
+    reasoning_elapsed_time_ms: {
+      construct: "reasoning_prompt_to_response_latency",
+      start: "reasoning_prompted_at",
+      end: "reasoning_submitted_at",
+      formula: "reasoning_submitted_at minus reasoning_prompted_at",
+      method: "Calculated by deriveItemTiming() from reasoning prompt and submission timestamps."
     },
     reasoning_active_time_ms: {
-      construct: "reasoning_input_active_or_elapsed_time",
+      construct: "deprecated_alias_reasoning_active_typing_time",
       start: "first reasoning input activity event",
       end: "reasoning submission or typing summary endpoint",
-      formula: "active_typing_time_ms when available; otherwise reasoning_input_elapsed_time_ms from typing_activity_summary payload",
-      idle: "Active typing excludes idle only when the active_typing_time_ms payload is available; otherwise elapsed input time may include pauses.",
-      hidden: "Page-hidden handling depends on the frontend typing summary payload."
+      formula: "active_typing_time_ms when available",
+      idle: "Null when active typing intervals are unavailable.",
+      hidden: "Page-hidden handling depends on frontend typing instrumentation.",
+      method: "Compatibility alias for reasoning_active_typing_time_ms."
+    },
+    reasoning_active_typing_time_ms: {
+      construct: "reasoning_active_typing_time",
+      start: "validated active typing interval start",
+      end: "validated active typing interval end",
+      formula: "sum of active_typing_time_ms from validated typing summaries",
+      idle: "Excludes idle only when active typing instrumentation supports it; null otherwise.",
+      hidden: "Page-hidden handling depends on frontend typing instrumentation.",
+      method: "Copied by deriveItemTiming() only from active_typing_time_ms payloads."
+    },
+    reasoning_input_elapsed_time_ms: {
+      construct: "reasoning_input_elapsed_time",
+      start: "reasoning input field start",
+      end: "reasoning submission or typing summary endpoint",
+      formula: "reasoning_input_elapsed_time_ms or typing_duration_ms from typing summary payload",
+      idle: "May include idle time.",
+      hidden: "May include hidden time unless frontend excludes it.",
+      method: "Copied by deriveItemTiming() from elapsed typing summary payload fields."
     },
     confidence_prompt_to_selection_ms: {
+      construct: "deprecated_alias_confidence_prompt_to_selection_latency",
+      start: "confidence_prompted_at",
+      end: "confidence_selected_at",
+      formula: "confidence_selected_at minus confidence_prompted_at",
+      method: "Compatibility alias for confidence_response_time_ms."
+    },
+    confidence_response_time_ms: {
       construct: "confidence_prompt_to_selection_latency",
-      start: "confidence prompt agent message timestamp",
-      end: "confidence selected event timestamp",
-      formula: "confidence_selected_at minus confidence_prompted_at"
+      start: "confidence_prompted_at",
+      end: "confidence_selected_at",
+      formula: "confidence_selected_at minus confidence_prompted_at",
+      method: "Calculated by deriveItemTiming() from confidence prompt and selection timestamps."
+    },
+    tempting_option_response_time_ms: {
+      construct: "tempting_option_prompt_to_response_latency",
+      start: "tempting_option_prompted_at",
+      end: "tempting_option_submitted_at",
+      formula: "tempting_option_submitted_at minus tempting_option_prompted_at",
+      method: "Calculated by deriveItemTiming() from tempting-option prompt and response timestamps."
     },
     last_action_to_submission_ms: {
       construct: "last_student_action_to_item_submission_latency",
@@ -1788,11 +2009,29 @@ function timingMetadata(variable: string, table: string) {
       formula: "pause_duration_ms payload value"
     },
     visibility_duration_ms: {
-      construct: "recorded_visibility_or_hidden_duration",
-      start: "visibility event start",
-      end: "visibility event end",
-      formula: "visibility_duration_ms payload value",
-      hidden: "This variable directly records page visibility or hidden interval duration."
+      construct: "legacy_raw_visibility_duration_payload",
+      start: "frontend event payload start, if known",
+      end: "frontend event payload endpoint, if known",
+      formula: "raw visibility_duration_ms event field when provided; may be cumulative in historical data",
+      hidden: "Do not use as the canonical page-hidden interval without event-pair validation.",
+      method: "Read from the raw ProcessEvent.visibility_duration_ms field for audit only."
+    },
+    visibility_interval_duration_ms: {
+      construct: "paired_page_hidden_interval_duration",
+      start: "visibility_interval_start_at",
+      end: "visibility_interval_end_at",
+      formula: "visibility_interval_end_at minus visibility_interval_start_at",
+      hidden: "Canonical single hidden interval duration when pairing is valid.",
+      method: "Calculated by deriveVisibilityIntervals() from hidden/visible event timestamp pairs."
+    },
+    prompt_to_student_action_latency_ms: {
+      construct: "prompt_to_student_action_latency",
+      start: "agent prompt turn created_at",
+      end: "next student turn created_at",
+      formula: "next student turn created_at minus prompt turn created_at",
+      idle: "Includes idle time between prompt display and student action.",
+      hidden: "Includes page-hidden time unless analyzed separately.",
+      method: "Calculated in conversationRows() and stored on the prompt turn."
     },
     latency_ms: {
       construct: "agent_call_latency",
@@ -1979,12 +2218,28 @@ export function analysisReadyColumnsByTable() {
   return TABLE_COLUMNS;
 }
 
+function replacementVariable(table: string, variable: string) {
+  if (variable === "student_id" || variable === "student_public_id") return "research_student_id";
+  const replacements: Record<string, string> = {
+    "item_responses.item_response_time_ms": "item_elapsed_response_time_ms",
+    "item_responses.time_to_first_action_ms": "time_to_first_response_action_ms",
+    "item_responses.reasoning_prompt_to_submission_ms": "reasoning_elapsed_time_ms",
+    "item_responses.reasoning_active_time_ms": "reasoning_active_typing_time_ms",
+    "item_responses.confidence_prompt_to_selection_ms": "confidence_response_time_ms",
+    "conversation_turns.response_or_action_latency_ms": "prompt_to_student_action_latency_ms",
+    "sessions.active_interaction_time_ms": "session_active_interaction_time_ms",
+    "sessions.elapsed_session_time_ms": "session_wall_clock_elapsed_ms"
+  };
+  return replacements[`${table}.${variable}`] ?? "";
+}
+
 export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
   const entries: DataDictionaryEntry[] = [];
   for (const [tableName, columns] of Object.entries(TABLE_COLUMNS)) {
     for (const variable of columns) {
       const timing = timingMetadata(variable, tableName);
-      const deprecated = variable === "student_id" || variable === "student_public_id";
+      const replacement = replacementVariable(tableName, variable);
+      const deprecated = Boolean(replacement);
       const researchCategoryId = researchCategoryIdFor(tableName, variable);
       entries.push({
         entity_type: "research_variable",
@@ -2006,6 +2261,8 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
             ? "count"
             : variable.endsWith("_ratio")
               ? "ratio"
+              : variable.endsWith("_status") || variable.endsWith("_on_turn")
+                ? "category"
               : variable.endsWith("_at")
                 ? "ISO 8601 UTC timestamp"
                 : "",
@@ -2044,14 +2301,14 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
         export_policy: researchExportPolicy(variable),
         example_value: "",
         deprecated: deprecated ? "true" : "false",
-        replacement_variable: deprecated ? "research_student_id" : "",
+        replacement_variable: replacement,
         duplicate_relationship: duplicateRelationshipFor(tableName, variable),
         canonical_qualified_name: canonicalQualifiedNameFor(tableName, variable),
         applicable_record_types: applicableRecordTypes(tableName, variable),
         notes: RESTRICTED_COLUMNS.has(variable)
           ? "Excluded from default research dataset exports unless explicitly requested in restricted research mode."
           : deprecated
-            ? "Legacy column name retained for backward compatibility; values are pseudonymous and match research_student_id."
+            ? "Legacy or compatibility column retained for backward compatibility; use replacement_variable for the current analysis construct."
           : ""
       });
     }
@@ -2539,16 +2796,16 @@ function eventTimestampMeaning(eventType: string) {
 
 function eventDerivedVariables(eventType: string) {
   if (/page_hidden|page_visibility_hidden|window_blur|page_visible|window_focus|long_pause|inactivity/.test(eventType)) {
-    return "visibility_duration_ms, pause_duration_ms, total_page_hidden_ms, total_idle_time_ms, idle_ratio, long_pause_count, engagement process features";
+    return "visibility_interval_duration_ms, total_page_hidden_ms, session_visible_window_ms, pause_duration_ms, total_idle_time_ms, idle_ratio, long_pause_count, engagement process features";
   }
   if (/option|answer|transfer_answer/.test(eventType)) {
-    return "selected_option, first_option_selected_at, time_to_first_option_selection_ms, option_selection_count, option_revision_count, answer-change indicators";
+    return "selected_option, first_option_selected_at, time_to_first_option_selection_ms, time_to_first_response_action_ms, option_selection_count, option_revision_count, answer-change indicators";
   }
   if (/reasoning/.test(eventType)) {
-    return "reasoning_submitted_at, reasoning_prompt_to_submission_ms, reasoning_submission_count, reasoning_revision_count, reasoning-quality evidence";
+    return "reasoning_submitted_at, reasoning_elapsed_time_ms, reasoning_active_typing_time_ms, reasoning_submission_count, reasoning_revision_count, reasoning-quality evidence";
   }
   if (/confidence/.test(eventType)) {
-    return "confidence_selected_at, confidence_prompt_to_selection_ms, confidence_selection_count, confidence_revision_count";
+    return "confidence_selected_at, confidence_response_time_ms, confidence_selection_count, confidence_revision_count";
   }
   if (/tempting/.test(eventType)) {
     return "tempting_option, tempting_option_reason, tempting-option counts and evidence-completeness fields";
@@ -2557,7 +2814,7 @@ function eventDerivedVariables(eventType: string) {
     return "agent_activity_records status/provenance fields, profile/formative/activity rows, workflow limitations, validation status";
   }
   if (/item_presented|item_completed|item_submitted/.test(eventType)) {
-    return "item_presented_at, item_submitted_at, item_response_time_ms, item completion counts";
+    return "item_presented_at, item_submitted_at, item_elapsed_response_time_ms, item completion counts";
   }
   if (/package/.test(eventType)) {
     return "response package availability, package-level completion status, response-package evidence fields";

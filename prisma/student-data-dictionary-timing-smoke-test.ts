@@ -34,10 +34,11 @@ function main() {
   assert(timingEntries.every((entry) => entry.page_hidden_handling), "Timing fields need page-hidden handling.");
 
   const sessionElapsed = entries.find((entry) => entry.qualified_name === "sessions.elapsed_session_time_ms");
-  const itemElapsed = entries.find((entry) => entry.qualified_name === "item_responses.item_response_time_ms");
+  const itemElapsed = entries.find((entry) => entry.qualified_name === "item_responses.item_elapsed_response_time_ms");
+  const legacyItemElapsed = entries.find((entry) => entry.qualified_name === "item_responses.item_response_time_ms");
   const turnLatency = entries.find((entry) => entry.qualified_name === "conversation_turns.response_or_action_latency_ms");
   assert(sessionElapsed?.measurement_level === "session", "Session elapsed time should be session-level.");
-  assert(itemElapsed?.measurement_level === "item_response", "Item response time should be item-response-level.");
+  assert(itemElapsed?.measurement_level === "item_response", "Item elapsed response time should be item-response-level.");
   assert(turnLatency?.measurement_level === "conversation_turn", "Turn latency should be conversation-turn-level.");
   assert(
     sessionElapsed.timing_construct !== itemElapsed.timing_construct &&
@@ -45,12 +46,15 @@ function main() {
     "Session, item, and conversation timing constructs should be distinguishable."
   );
 
-  const ambiguousResponseTime = entries.find((entry) => entry.qualified_name === "item_responses.item_response_time_ms");
-  assert(ambiguousResponseTime?.measurement_level === "item_response", "Legacy item_response_time_ms should be item-response grain.");
-  assert(!ambiguousResponseTime?.calculation_formula.includes("item_started_at"), "Timing formulas should not reference unexported item_started_at.");
+  assert(legacyItemElapsed?.measurement_level === "item_response", "Legacy item_response_time_ms should be item-response grain.");
+  assert(legacyItemElapsed?.deprecated === "true", "Legacy item_response_time_ms should be marked deprecated.");
   assert(
-    ambiguousResponseTime?.timing_start_event === "item_presented_at",
-    "item_response_time_ms should use exported item_presented_at as the documented start event."
+    legacyItemElapsed?.replacement_variable === "item_elapsed_response_time_ms",
+    "Legacy item_response_time_ms should point to item_elapsed_response_time_ms."
+  );
+  assert(
+    itemElapsed?.timing_start_event === "item_presented_at",
+    "item_elapsed_response_time_ms should use exported item_presented_at as the documented start event."
   );
 
   const report = researchDataDictionarySemanticReport();

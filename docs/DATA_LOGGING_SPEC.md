@@ -256,6 +256,42 @@ Process data should provide context for engagement, timing, and evidence suffici
 
 Do not label students as cheating, dishonest, or confirmed GenAI users based on process data.
 
+## Timing Contract
+
+The current analysis contract is `timing-contract-v2`.
+
+Item timing must be derived from explicit event endpoints:
+
+- `item_elapsed_response_time_ms`: `item_presented_at -> item_submitted_at`
+- `time_to_first_response_action_ms`: `item_presented_at -> first qualifying student response action`
+- `time_to_first_option_selection_ms`: `item_presented_at -> first accepted option selection`
+- `post_option_completion_time_ms`: `first_option_selected_at -> item_submitted_at`
+- `reasoning_elapsed_time_ms`: `reasoning_prompted_at -> reasoning_submitted_at`
+- `reasoning_active_typing_time_ms`: validated active typing intervals only; null when instrumentation is insufficient
+- `confidence_response_time_ms`: `confidence_prompted_at -> confidence_selected_at`
+- `tempting_option_response_time_ms`: tempting-option prompt to accepted tempting-option response
+
+The legacy `item_response_time_ms` field remains for backward compatibility only. Historical values may start at item-response row creation rather than item presentation, so exports must prefer `item_elapsed_response_time_ms` for corrected item-level elapsed timing.
+
+Page-hidden time must be derived from paired visibility events:
+
+- `page_visibility_hidden` or `page_hidden` starts an interval.
+- the next `page_visibility_visible` or `page_visible` ends the interval.
+- frontend cumulative visibility-duration payloads must not be treated as single hidden intervals unless explicitly identified as interval durations.
+- window blur/focus events are separate focus instrumentation and must not be double-counted as page-hidden time.
+
+Session timing separates:
+
+- wall-clock elapsed time;
+- resumable active-window time;
+- visible-window time;
+- explicit idle time;
+- active interaction time.
+
+Active interaction time must not be manufactured by subtracting arbitrary idle estimates from elapsed time. If validated active interaction intervals are unavailable, active interaction time remains null and the export records a timing limitation.
+
+Every derived timing export should include timing contract/source version, quality status, limitations, derived timestamp, and instrumentation-completeness metadata. Timing variables are process context only. Timing alone must not be interpreted as ability, effort, motivation, engagement, guessing, cheating, or misconduct.
+
 ## Privacy and Safety
 
 Logging must not store:

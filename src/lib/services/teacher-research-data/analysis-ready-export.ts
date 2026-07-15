@@ -4,6 +4,15 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ContentServiceError } from "@/lib/services/content/errors";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
+import {
+  TIMING_CONTRACT_VERSION,
+  TIMING_SOURCE_VERSION,
+  deriveItemTiming,
+  deriveSessionTiming,
+  deriveVisibilityIntervals,
+  eventTimestamp,
+  timingLimitationsText
+} from "@/lib/services/student-assessment/timing-contract";
 import { createStoreOnlyZip } from "@/lib/services/teacher-research-export/zip";
 import {
   buildExportSourceIdentity,
@@ -272,16 +281,6 @@ function csv(columns: readonly string[], rows: CsvRow[]) {
 
 function columnsFor(columns: readonly string[], includeRestricted: boolean) {
   return includeRestricted ? [...columns] : columns.filter((column) => !restrictedDefaultColumns.has(column));
-}
-
-function eventMs(event: Pick<AnalysisSession["process_events"][number], "occurred_at" | "created_at">) {
-  return ms(event.occurred_at) ?? ms(event.created_at);
-}
-
-function optionalEventMs(
-  event?: Pick<AnalysisSession["process_events"][number], "occurred_at" | "created_at"> | null
-) {
-  return event ? eventMs(event) : null;
 }
 
 function firstEvent(events: AnalysisSession["process_events"], types: string[]) {
@@ -592,15 +591,19 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
     const sessionEvents = session.process_events;
     const initialResponses = responses.filter((response) => response.item.item_order <= 3);
     const longPauseEvents = session.process_events.filter((event) => event.event_type === "long_pause");
-    const hiddenEvents = session.process_events.filter((event) =>
-      ["page_hidden", "page_visibility_hidden", "window_blur"].includes(event.event_type)
-    );
     const idleEvents = session.process_events.filter((event) =>
       ["long_pause", "inactivity_detected"].includes(event.event_type)
     );
     const totalIdle = sumEventDuration(idleEvents, "pause_duration_ms");
     const elapsed = diff(ms(session.started_at ?? session.created_at), ms(session.completed_at ?? session.last_activity_at ?? session.updated_at));
-    const activeTime = elapsed !== null && totalIdle !== null ? Math.max(0, elapsed - totalIdle) : null;
+    const sessionTiming = deriveSessionTiming({
+      session_started_at: session.started_at ?? session.created_at,
+      session_completed_at: session.completed_at,
+      last_activity_at: session.last_activity_at,
+      updated_at: session.updated_at,
+      events: session.process_events
+    });
+    const activeTime = sessionTiming.session_active_interaction_time_ms;
     const profile = latestProfile(session);
     const profileV2 = evidenceProfileV2(profile);
     const nextInteraction = evidenceNextInteractionV2(profile);
@@ -732,16 +735,29 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       current_item_index: responses.length ? Math.max(...responses.map((response) => response.item.item_order)) : null,
       session_completion_status: session.status,
       session_limitations: responses.length ? "" : "no_item_responses_recorded",
+      session_wall_clock_elapsed_ms: sessionTiming.session_wall_clock_elapsed_ms,
+      session_resumable_active_window_ms: sessionTiming.session_resumable_active_window_ms,
+      session_visible_window_ms: sessionTiming.session_visible_window_ms,
+      session_active_interaction_time_ms: sessionTiming.session_active_interaction_time_ms,
+      session_idle_time_ms: sessionTiming.session_idle_time_ms,
       active_interaction_time_ms: activeTime,
       elapsed_session_time_ms: elapsed,
       timing_metric_available: elapsed !== null,
-      timing_metric_type: elapsed !== null ? "elapsed_session_time_minus_recorded_idle_when_available" : null,
+      timing_metric_type: elapsed !== null ? "legacy_elapsed_session_time" : null,
       total_idle_time_ms: totalIdle,
-      total_page_hidden_ms: sumEventDuration(hiddenEvents, "visibility_duration_ms"),
+      total_page_hidden_ms: sessionTiming.total_page_hidden_ms,
+      page_hidden_interval_count: sessionTiming.page_hidden_interval_count,
+      page_hidden_timing_quality_status: sessionTiming.page_hidden_timing_quality_status,
       idle_ratio: elapsed && totalIdle !== null ? Number((totalIdle / elapsed).toFixed(4)) : null,
       long_pause_count: longPauseEvents.length,
       total_long_pause_ms: sumEventDuration(longPauseEvents, "pause_duration_ms"),
       maximum_long_pause_ms: maxEventDuration(longPauseEvents, "pause_duration_ms"),
+      timing_contract_version: sessionTiming.timing_contract_version,
+      timing_source_version: sessionTiming.timing_source_version,
+      timing_quality_status: sessionTiming.timing_quality_status,
+      timing_limitations: timingLimitationsText(sessionTiming.timing_limitations),
+      derived_at: source.export_generated_at,
+      instrumentation_complete: sessionTiming.instrumentation_complete,
       item_response_count: responses.length,
       process_event_count: session.process_events.length,
       conversation_turn_count: session.conversation_turns.length,
@@ -802,7 +818,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
   });
 }
 
-function itemResponseRows(sessions: AnalysisSession[], includeRestricted: boolean) {
+function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSession[], includeRestricted: boolean) {
   const rows: CsvRow[] = [];
   for (const session of sessions) {
     const packageEvidence = packageEvidenceByItem(session);
@@ -810,41 +826,12 @@ function itemResponseRows(sessions: AnalysisSession[], includeRestricted: boolea
       for (const response of conceptUnitSession.item_responses) {
         const itemEvents = session.process_events.filter((event) => event.item?.item_public_id === response.item.item_public_id);
         const evidence = asRecord(packageEvidence.get(response.item.item_public_id));
-        const firstAction = firstEvent(itemEvents, [
-          "option_clicked",
-          "option_selected",
-          "reasoning_started",
-          "reasoning_entered",
-          "reasoning_submitted",
-          "confidence_clicked",
-          "confidence_selected",
-          "tempting_option_submitted"
-        ]);
-        const firstOption = firstEvent(itemEvents, ["option_clicked", "option_selected", "transfer_answer_selected"]);
-        const reasoningPrompt = firstEvent(
-          itemEvents.filter((event) => payloadString(event.payload, ["prompt_type", "message_type"])?.includes("reason")),
-          ["agent_message_shown"]
-        ) ?? firstEvent(itemEvents, ["agent_message_shown"]);
-        const confidencePrompt = firstEvent(
-          itemEvents.filter((event) => payloadString(event.payload, ["prompt_type", "message_type"])?.includes("confidence")),
-          ["agent_message_shown"]
-        ) ?? firstEvent(itemEvents, ["agent_message_shown"]);
-        const reasoningSubmitted = firstEvent(itemEvents, ["reasoning_submitted", "transfer_reasoning_submitted"]);
-        const confidenceSelected = firstEvent(itemEvents, ["confidence_clicked", "confidence_selected", "transfer_confidence_clicked"]);
-        const lastAction = lastEvent(itemEvents, [
-          "option_clicked",
-          "option_selected",
-          "transfer_answer_selected",
-          "reasoning_submitted",
-          "transfer_reasoning_submitted",
-          "confidence_clicked",
-          "confidence_selected",
-          "transfer_confidence_clicked",
-          "tempting_option_submitted",
-          "transfer_tempting_option_submitted",
-          "tempting_option_reason_submitted",
-          "transfer_tempting_option_reason_submitted"
-        ]);
+        const timing = deriveItemTiming({
+          events: itemEvents,
+          item_started_at: response.item_started_at,
+          item_submitted_at: response.item_submitted_at,
+          persisted_item_response_time_ms: response.item_response_time_ms
+        });
         const row: CsvRow = {
           session_public_id: session.session_public_id,
           attempt_number: session.attempt_number,
@@ -876,27 +863,39 @@ function itemResponseRows(sessions: AnalysisSession[], includeRestricted: boolea
           submitted_at: iso(response.item_submitted_at),
           revised_at: response.revision_count > 0 ? iso(response.updated_at) : null,
           revision_count: response.revision_count,
-          item_presented_at: iso(firstEvent(itemEvents, ["item_presented", "transfer_item_presented"])?.occurred_at ?? response.item_started_at),
-          first_student_action_at: iso(firstAction?.occurred_at ?? null),
-          time_to_first_action_ms: diff(ms(response.item_started_at), optionalEventMs(firstAction)),
-          first_option_selected_at: iso(firstOption?.occurred_at ?? null),
-          time_to_first_option_selection_ms: diff(ms(response.item_started_at), optionalEventMs(firstOption)),
-          reasoning_prompted_at: iso(reasoningPrompt?.occurred_at ?? null),
-          reasoning_started_at: iso(firstEvent(itemEvents, ["reasoning_entered"])?.occurred_at ?? null),
-          reasoning_submitted_at: iso(reasoningSubmitted?.occurred_at ?? null),
-          reasoning_prompt_to_submission_ms: diff(optionalEventMs(reasoningPrompt), optionalEventMs(reasoningSubmitted)),
-          reasoning_active_time_ms: payloadNumber(firstEvent(itemEvents, ["typing_activity_summary"])?.payload, [
-            "active_typing_time_ms",
-            "reasoning_input_elapsed_time_ms",
-            "typing_duration_ms"
-          ]),
-          confidence_prompted_at: iso(confidencePrompt?.occurred_at ?? null),
-          confidence_selected_at: iso(confidenceSelected?.occurred_at ?? null),
-          confidence_prompt_to_selection_ms: diff(optionalEventMs(confidencePrompt), optionalEventMs(confidenceSelected)),
-          last_student_action_at: iso(lastAction?.occurred_at ?? null),
-          item_submitted_at: iso(response.item_submitted_at),
-          last_action_to_submission_ms: diff(optionalEventMs(lastAction), ms(response.item_submitted_at)),
+          item_presented_at: iso(timing.item_presented_at),
+          first_student_action_at: iso(timing.first_student_action_at),
+          time_to_first_action_ms: timing.time_to_first_response_action_ms,
+          time_to_first_response_action_ms: timing.time_to_first_response_action_ms,
+          first_option_selected_at: iso(timing.first_option_selected_at),
+          time_to_first_option_selection_ms: timing.time_to_first_option_selection_ms,
+          post_option_completion_time_ms: timing.post_option_completion_time_ms,
+          reasoning_prompted_at: iso(timing.reasoning_prompted_at),
+          reasoning_started_at: iso(timing.reasoning_started_at),
+          reasoning_submitted_at: iso(timing.reasoning_submitted_at),
+          reasoning_prompt_to_submission_ms: timing.reasoning_elapsed_time_ms,
+          reasoning_elapsed_time_ms: timing.reasoning_elapsed_time_ms,
+          reasoning_active_time_ms: timing.reasoning_active_typing_time_ms,
+          reasoning_active_typing_time_ms: timing.reasoning_active_typing_time_ms,
+          reasoning_input_elapsed_time_ms: timing.reasoning_input_elapsed_time_ms,
+          confidence_prompted_at: iso(timing.confidence_prompted_at),
+          confidence_selected_at: iso(timing.confidence_selected_at),
+          confidence_prompt_to_selection_ms: timing.confidence_response_time_ms,
+          confidence_response_time_ms: timing.confidence_response_time_ms,
+          tempting_option_prompted_at: iso(timing.tempting_option_prompted_at),
+          tempting_option_submitted_at: iso(timing.tempting_option_submitted_at),
+          tempting_option_response_time_ms: timing.tempting_option_response_time_ms,
+          last_student_action_at: iso(timing.last_student_action_at),
+          item_submitted_at: iso(timing.item_submitted_at),
+          last_action_to_submission_ms: timing.last_action_to_submission_ms,
+          item_elapsed_response_time_ms: timing.item_elapsed_response_time_ms,
           item_response_time_ms: response.item_response_time_ms,
+          timing_contract_version: timing.timing_contract_version,
+          timing_source_version: timing.timing_source_version,
+          timing_quality_status: timing.timing_quality_status,
+          timing_limitations: timingLimitationsText(timing.timing_limitations),
+          derived_at: source.export_generated_at,
+          instrumentation_complete: timing.instrumentation_complete,
           option_selection_count: countEvents(itemEvents, ["option_clicked", "option_selected", "transfer_answer_selected"]),
           option_revision_count: countEvents(itemEvents, ["answer_changed"]),
           reasoning_submission_count: countEvents(itemEvents, ["reasoning_submitted", "transfer_reasoning_submitted"]),
@@ -904,7 +903,7 @@ function itemResponseRows(sessions: AnalysisSession[], includeRestricted: boolea
           confidence_selection_count: countEvents(itemEvents, ["confidence_clicked", "confidence_selected", "transfer_confidence_clicked"]),
           confidence_revision_count: countEvents(itemEvents, ["confidence_changed"]),
           navigation_event_count: countEvents(itemEvents, ["navigation_event"]),
-          page_hidden_count: countEvents(itemEvents, ["page_hidden", "page_visibility_hidden", "window_blur"]),
+          page_hidden_count: countEvents(itemEvents, ["page_hidden", "page_visibility_hidden"]),
           typing_activity_event_count: countEvents(itemEvents, ["typing_activity_summary"]),
           response_quality_check_count: countEvents(itemEvents, ["response_quality_checked"]),
           response_quality_rejection_count: countEvents(itemEvents, ["response_quality_rejected"]),
@@ -990,9 +989,16 @@ function assessmentSummaryRows(source: ExportSourceIdentity, sessions: AnalysisS
 
 function processEventRows(sessions: AnalysisSession[]) {
   return sessions.flatMap((session) =>
-    session.process_events.map((event, index) => {
+    {
+      const visibilityIntervals = deriveVisibilityIntervals(session.process_events);
+      const visibilityByStart = new Map(
+        visibilityIntervals.map((interval) => [interval.start_at.getTime(), interval])
+      );
+      return session.process_events.map((event, index) => {
       const payload = asRecord(event.payload);
       const duration = event.pause_duration_ms ?? event.visibility_duration_ms ?? payloadNumber(payload, ["duration_ms"]);
+      const timestamp = eventTimestamp(event);
+      const visibilityInterval = timestamp ? visibilityByStart.get(timestamp.getTime()) : undefined;
       return {
         event_public_id: `${session.session_public_id}:event:${index + 1}`,
         session_public_id: session.session_public_id,
@@ -1009,6 +1015,13 @@ function processEventRows(sessions: AnalysisSession[]) {
         phase: payloadString(payload, ["phase"]),
         occurred_at: iso(event.occurred_at),
         created_at: iso(event.created_at),
+        client_occurred_at: payloadString(payload, ["client_occurred_at"]),
+        server_received_at: payloadString(payload, ["server_received_at"]),
+        persisted_at: iso(event.created_at),
+        clock_source: payloadString(payload, ["clock_source"]) ?? (event.event_source === "frontend" ? "server_received" : "backend"),
+        timing_contract_version: payloadString(payload, ["timing_contract_version"]) ?? TIMING_CONTRACT_VERSION,
+        timing_source_version: payloadString(payload, ["timing_source_version"]) ?? TIMING_SOURCE_VERSION,
+        timing_quality_status: payloadString(payload, ["timing_quality_status"]),
         item_position: event.item?.item_order ?? null,
         actual_total_item_count: session.concept_unit_sessions.flatMap((entry) => entry.item_responses).length,
         payload_source: payloadString(payload, ["source"]),
@@ -1020,10 +1033,15 @@ function processEventRows(sessions: AnalysisSession[]) {
         payload_no_tempting_option: payload.no_tempting_option === true,
         duration_ms: duration,
         visibility_duration_ms: event.visibility_duration_ms,
+        visibility_interval_start_at: iso(visibilityInterval?.start_at ?? null),
+        visibility_interval_end_at: iso(visibilityInterval?.end_at ?? null),
+        visibility_interval_duration_ms: visibilityInterval?.duration_ms ?? null,
+        visibility_interval_quality_status: visibilityInterval?.quality_status ?? null,
         pause_duration_ms: event.pause_duration_ms,
         limitation_code: "raw_payload_excluded"
       } satisfies CsvRow;
     })
+    }
   );
 }
 
@@ -1033,6 +1051,8 @@ function conversationRows(sessions: AnalysisSession[]) {
       const nextStudentTurn = session.conversation_turns
         .slice(index + 1)
         .find((candidate) => candidate.actor_type === "student");
+      const promptLatency =
+        turn.actor_type !== "student" && nextStudentTurn ? diff(ms(turn.created_at), ms(nextStudentTurn.created_at)) : null;
       return {
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
@@ -1050,8 +1070,9 @@ function conversationRows(sessions: AnalysisSession[]) {
           "session",
         created_at: iso(turn.created_at),
         message_text: turn.message_text,
-        response_or_action_latency_ms:
-          turn.actor_type !== "student" && nextStudentTurn ? diff(ms(turn.created_at), ms(nextStudentTurn.created_at)) : null,
+        response_or_action_latency_ms: promptLatency,
+        prompt_to_student_action_latency_ms: promptLatency,
+        latency_recorded_on_turn: turn.actor_type !== "student" ? "prompt_turn" : "not_applicable",
         response_text_present: Boolean(turn.message_text?.trim()),
         turn_status: "recorded",
         limitation_code: "structured_payload_excluded"
@@ -1469,7 +1490,7 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
     },
     {
       path: "item_responses.csv",
-      data: csv(columnsFor(ITEM_RESPONSES_COLUMNS, includeRestricted), itemResponseRows(sessions, includeRestricted))
+      data: csv(columnsFor(ITEM_RESPONSES_COLUMNS, includeRestricted), itemResponseRows(source, sessions, includeRestricted))
     },
     {
       path: "process_events.csv",

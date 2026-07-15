@@ -2890,3 +2890,27 @@ Phase 6A.5 must not implement:
   motivation, effort, cheating, or misconduct.
 - The Phase 31al work does not change scoring, correct keys, item content,
   timing formulas, or historical records.
+
+## Phase 31AM Timing Contract Lock
+
+- Research timing exports use `timing-contract-v2` for new derived timing
+  fields. Historical persisted fields remain available but must be labeled as
+  legacy or ambiguous when their endpoint contract differs.
+- Canonical item elapsed time is `item_elapsed_response_time_ms =
+  item_submitted_at - item_presented_at`. The legacy `item_response_time_ms`
+  field is retained only for backward compatibility and must not be treated as
+  the corrected item-presented-to-submitted interval.
+- First-action and first-option timing start at the item presentation event, not
+  item-response row creation or backend transition acknowledgement.
+- Reasoning elapsed time is prompt-to-submission. Active typing time is exported
+  only when validated active typing instrumentation is available; null must not
+  be converted to zero or replaced by elapsed input time.
+- Page-hidden duration is derived from hidden-to-visible event pairs. Cumulative
+  frontend visibility-duration payloads and window blur/focus events must not
+  be double-counted as page-hidden intervals.
+- Session timing separates wall-clock elapsed time, resumable active windows,
+  visible windows, explicit idle time, and active interaction time. Active
+  interaction time must not be manufactured by subtracting arbitrary idle
+  estimates from elapsed time.
+- Timing values are process context only and must not be interpreted alone as
+  ability, effort, motivation, engagement, guessing, cheating, or misconduct.

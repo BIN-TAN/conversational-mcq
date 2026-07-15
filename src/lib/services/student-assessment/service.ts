@@ -62,6 +62,10 @@ import {
   type ItemAdministrationTutorResult
 } from "@/lib/services/student-assessment/item-administration-tutor";
 import {
+  TIMING_CONTRACT_VERSION,
+  TIMING_SOURCE_VERSION
+} from "@/lib/services/student-assessment/timing-contract";
+import {
   persistProfileIntegrationSnapshotForSession,
   projectStoredStudentProfileIntegration
 } from "@/lib/services/student-assessment/profile-integration";
@@ -6183,9 +6187,16 @@ export async function ingestFrontendProcessEvents(input: {
   const created = [];
 
   for (const event of events) {
+    const serverReceivedAt = new Date();
+    const clockSource = event.client_occurred_at ? "frontend_client" : "server_received";
     const payload = {
       ...(event.payload ?? {}),
-      client_occurred_at: event.client_occurred_at?.toISOString()
+      client_occurred_at: event.client_occurred_at?.toISOString(),
+      server_received_at: serverReceivedAt.toISOString(),
+      clock_source: clockSource,
+      timing_contract_version: TIMING_CONTRACT_VERSION,
+      timing_source_version: TIMING_SOURCE_VERSION,
+      timing_quality_status: event.client_occurred_at ? "client_timestamp_recorded" : "client_timestamp_missing"
     };
     const payloadBytes = Buffer.byteLength(JSON.stringify(payload), "utf8");
 
@@ -6271,7 +6282,7 @@ export async function ingestFrontendProcessEvents(input: {
         visibility_duration_ms: event.visibility_duration_ms,
         pause_duration_ms: event.pause_duration_ms,
         payload,
-        occurred_at: new Date()
+        occurred_at: event.client_occurred_at ?? serverReceivedAt
       })
     );
   }
