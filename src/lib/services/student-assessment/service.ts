@@ -32,6 +32,11 @@ import { getAssessmentTutorRuntimeStatus } from "@/lib/llm/assessment-tutor-read
 import { getStudentProgressionStateBySessionDbId } from "@/lib/services/concept-progression/progression";
 import {
   ensureChatNativeFormativeActivity,
+  DISPLAY_EVENT_CONTRACT_VERSION,
+  PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE,
+  PACKAGE_COMPLETION_OPERATION_VERSION,
+  PACKAGE_FEEDBACK_PRESENTER_VERSION,
+  reconcilePackageCompletionState,
   submitChatNativeFormativeActivityResponse,
   submitChatNativeNextChoice,
   submitChatNativeRevisionResponse
@@ -226,7 +231,15 @@ const frontendEventTypes = [
   "long_pause",
   "inactivity_detected",
   "navigation_event",
-  "refresh_recovery"
+  "refresh_recovery",
+  "package_results_shown",
+  "item_correctness_status_shown",
+  "profile_feedback_shown",
+  "next_interaction_shown",
+  "distractor_activity_shown",
+  "foundational_activity_shown",
+  "diagnostic_clarification_requested",
+  "formative_activity_shown"
 ] as const;
 const FrontendEventTypeSchema = z.enum(frontendEventTypes);
 const frontendEventSchema = z.object({
@@ -244,8 +257,432 @@ const frontendEventsInputSchema = z.union([
   z.object({ events: z.array(frontendEventSchema).min(1).max(MAX_EVENT_BATCH_SIZE) }).strict()
 ]);
 
+type PackageCompletionOutcome = {
+  operation_public_id: string;
+  session_public_id: string;
+  concept_unit_public_id: string;
+  response_package_hash: string;
+  package_submission_status: "created" | "existing" | "missing";
+  profile_status: "created" | "existing" | "missing";
+  feedback_status: "persisted" | "existing" | "missing";
+  next_interaction_status: "persisted" | "existing" | "missing";
+  activity_status: "awaiting_student_activity_response" | "existing" | "missing" | "unavailable";
+  canonical_runtime_state: typeof PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE | ChatNativeAssessmentState;
+  presenter_version: typeof PACKAGE_FEEDBACK_PRESENTER_VERSION;
+  already_completed: boolean;
+  recovery_action: "none" | "reconciled" | "replayed_existing" | "completed";
+  safe_warnings: string[];
+  operation_audit: {
+    operation_version: typeof PACKAGE_COMPLETION_OPERATION_VERSION;
+    idempotency_hash: string;
+    workflow_stage: string;
+    recovery_status: string;
+    active_next_interaction_id: string | null;
+    active_activity_id: string | null;
+    display_acknowledgement: "not_acknowledged" | "acknowledged";
+    display_event_contract_version: typeof DISPLAY_EVENT_CONTRACT_VERSION;
+    conflict_recovery_metadata: Record<string, unknown>;
+  };
+};
+
+const displayAcknowledgementEventTypes = new Set<(typeof frontendEventTypes)[number]>([
+  "package_results_shown",
+  "item_correctness_status_shown",
+  "profile_feedback_shown",
+  "next_interaction_shown",
+  "distractor_activity_shown",
+  "foundational_activity_shown",
+  "diagnostic_clarification_requested",
+  "formative_activity_shown"
+]);
+
 function publicConflict(message: string, details: Record<string, unknown> = {}) {
   return new StudentAssessmentServiceError("conflict", message, 409, details);
+}
+
+function hashValue(value: unknown) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function packageOperationPublicId(input: {
+  session_public_id: string;
+  concept_unit_public_id: string;
+  response_package_hash: string;
+}) {
+  return `pkgop_${hashValue(input).slice(0, 24)}`;
+}
+
+async function latestInitialResponsePackageForConceptUnitSession(conceptUnitSessionDbId: string) {
+  return prisma.responsePackage.findFirst({
+    where: {
+      concept_unit_session_db_id: conceptUnitSessionDbId,
+      package_type: "initial_concept_unit_response_package"
+    },
+    orderBy: [{ created_at: "desc" }]
+  });
+}
+
+async function getOrCreateInitialResponsePackage(conceptUnitSessionDbId: string) {
+  const existing = await latestInitialResponsePackageForConceptUnitSession(conceptUnitSessionDbId);
+
+  if (existing) {
+    return {
+      status: "existing" as const,
+      responsePackage: existing
+    };
+  }
+
+  return {
+    status: "created" as const,
+    responsePackage: await createResponsePackage({ concept_unit_session_db_id: conceptUnitSessionDbId })
+  };
+}
+
+function packageCompletionIdentity(input: {
+  session_public_id: string;
+  concept_unit_public_id: string;
+  response_package_id: string;
+  response_package_payload: unknown;
+}) {
+  const responsePackageHash = hashValue(input.response_package_payload);
+  const operationPublicId = packageOperationPublicId({
+    session_public_id: input.session_public_id,
+    concept_unit_public_id: input.concept_unit_public_id,
+    response_package_hash: responsePackageHash
+  });
+  const requestFingerprint = {
+    action_type: "complete_initial_concept_unit",
+    operation_version: PACKAGE_COMPLETION_OPERATION_VERSION,
+    session_public_id: input.session_public_id,
+    concept_unit_public_id: input.concept_unit_public_id,
+    response_package_id: input.response_package_id,
+    response_package_hash: responsePackageHash
+  };
+
+  return {
+    operation_public_id: operationPublicId,
+    concept_unit_public_id: input.concept_unit_public_id,
+    response_package_id: input.response_package_id,
+    client_action_id: `package_completion:${operationPublicId}`,
+    request_hash: hashValue(requestFingerprint),
+    idempotency_hash: hashValue({
+      operation_public_id: operationPublicId,
+      response_package_hash: responsePackageHash
+    }),
+    response_package_hash: responsePackageHash
+  };
+}
+
+function completedPackageOperationOutcome(value: Prisma.JsonValue | null) {
+  const payload = recordValue(value);
+
+  if (payload.status !== "completed") {
+    return null;
+  }
+
+  const outcome = recordValue(payload.outcome);
+  const conceptUnitPublicId =
+    typeof outcome.concept_unit_public_id === "string"
+      ? outcome.concept_unit_public_id
+      : null;
+  const responsePackageHash =
+    typeof outcome.response_package_hash === "string"
+      ? outcome.response_package_hash
+      : null;
+
+  return conceptUnitPublicId && responsePackageHash
+    ? {
+        concept_unit_public_id: conceptUnitPublicId,
+        response_package_hash: responsePackageHash
+      }
+    : null;
+}
+
+async function assertNoCompletedPackageConflict(input: {
+  assessment_session_db_id: string;
+  identity: ReturnType<typeof packageCompletionIdentity>;
+}) {
+  const existingOperations = await prisma.studentActionIdempotencyKey.findMany({
+    where: {
+      assessment_session_db_id: input.assessment_session_db_id,
+      action_type: "complete_initial_concept_unit"
+    },
+    select: {
+      client_action_id: true,
+      response_payload: true
+    }
+  });
+
+  const conflictingOperation = existingOperations.find((operation) => {
+    if (operation.client_action_id === input.identity.client_action_id) {
+      return false;
+    }
+
+    const outcome = completedPackageOperationOutcome(operation.response_payload);
+
+    return (
+      outcome?.concept_unit_public_id === input.identity.concept_unit_public_id &&
+      outcome.response_package_hash !== input.identity.response_package_hash
+    );
+  });
+
+  if (conflictingOperation) {
+    throw new StudentAssessmentServiceError(
+      "package_completion_conflict",
+      "This assessment changed in another request. Refresh to continue from the latest saved state.",
+      409,
+      {
+        operation_public_id: input.identity.operation_public_id,
+        conflict_reason: "completed_package_payload_changed"
+      }
+    );
+  }
+}
+
+async function findOrCreatePackageCompletionOperation(input: {
+  assessment_session_db_id: string;
+  identity: ReturnType<typeof packageCompletionIdentity>;
+}) {
+  const where = {
+    assessment_session_db_id_client_action_id: {
+      assessment_session_db_id: input.assessment_session_db_id,
+      client_action_id: input.identity.client_action_id
+    }
+  };
+  const existing = await prisma.studentActionIdempotencyKey.findUnique({ where });
+
+  if (existing) {
+    if (existing.request_hash !== input.identity.request_hash) {
+      throw new StudentAssessmentServiceError(
+        "package_completion_conflict",
+        "This assessment changed in another request. Refresh to continue from the latest saved state.",
+        409,
+        {
+          operation_public_id: input.identity.operation_public_id,
+          conflict_reason: "idempotency_request_hash_mismatch"
+        }
+      );
+    }
+    return {
+      record: existing,
+      already_seen: true
+    };
+  }
+
+  await assertNoCompletedPackageConflict(input);
+
+  try {
+    return {
+      record: await prisma.studentActionIdempotencyKey.create({
+        data: {
+          assessment_session_db_id: input.assessment_session_db_id,
+          client_action_id: input.identity.client_action_id,
+          action_type: "complete_initial_concept_unit",
+          request_hash: input.identity.request_hash,
+          response_payload: toPrismaJson({
+            operation_public_id: input.identity.operation_public_id,
+            operation_version: PACKAGE_COMPLETION_OPERATION_VERSION,
+            concept_unit_public_id: input.identity.concept_unit_public_id,
+            response_package_id: input.identity.response_package_id,
+            response_package_hash: input.identity.response_package_hash,
+            status: "started",
+            created_at: new Date().toISOString()
+          })
+        }
+      }),
+      already_seen: false
+    };
+  } catch (error) {
+    if (!isUniqueOrSerializationConflict(error)) {
+      throw error;
+    }
+    const raced = await prisma.studentActionIdempotencyKey.findUniqueOrThrow({ where });
+
+    if (raced.request_hash !== input.identity.request_hash) {
+      throw new StudentAssessmentServiceError(
+        "package_completion_conflict",
+        "This assessment changed in another request. Refresh to continue from the latest saved state.",
+        409,
+        {
+          operation_public_id: input.identity.operation_public_id,
+          conflict_reason: "idempotency_request_hash_mismatch_after_race"
+        }
+      );
+    }
+
+    await assertNoCompletedPackageConflict(input);
+
+    return {
+      record: raced,
+      already_seen: true
+    };
+  }
+}
+
+function isCompletedPackageOperationPayload(value: unknown) {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).status === "completed"
+  );
+}
+
+async function persistPackageCompletionOutcome(input: {
+  assessment_session_db_id: string;
+  identity: ReturnType<typeof packageCompletionIdentity>;
+  outcome: PackageCompletionOutcome;
+}) {
+  await prisma.studentActionIdempotencyKey.update({
+    where: {
+      assessment_session_db_id_client_action_id: {
+        assessment_session_db_id: input.assessment_session_db_id,
+        client_action_id: input.identity.client_action_id
+      }
+    },
+    data: {
+      response_payload: toPrismaJson({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        outcome: input.outcome
+      })
+    }
+  });
+}
+
+async function buildPackageCompletionOutcome(input: {
+  session_public_id: string;
+  concept_unit_session_db_id: string;
+  response_package_status: "created" | "existing";
+  identity: ReturnType<typeof packageCompletionIdentity>;
+  already_completed: boolean;
+  recovery_action: PackageCompletionOutcome["recovery_action"];
+  recovery_metadata?: Record<string, unknown>;
+  state: Awaited<ReturnType<typeof getStudentSessionState>>;
+}): Promise<PackageCompletionOutcome> {
+  const [profileCount, feedbackTurn, nextTurn, activityAttempt, shownCount] = await Promise.all([
+    prisma.studentProfile.count({ where: { concept_unit_session_db_id: input.concept_unit_session_db_id } }),
+    prisma.conversationTurn.findFirst({
+      where: {
+        concept_unit_session_db_id: input.concept_unit_session_db_id,
+        actor_type: "agent",
+        structured_payload: { path: ["message_type"], equals: "package_feedback" }
+      },
+      orderBy: [{ created_at: "desc" }],
+      select: { id: true }
+    }),
+    prisma.conversationTurn.findFirst({
+      where: {
+        concept_unit_session_db_id: input.concept_unit_session_db_id,
+        actor_type: "agent",
+        structured_payload: { path: ["message_type"], equals: "next_interaction" }
+      },
+      orderBy: [{ created_at: "desc" }],
+      select: { id: true }
+    }),
+    prisma.activityRuntimeAttempt.findFirst({
+      where: { session_public_id: input.session_public_id },
+      orderBy: [{ created_at: "desc" }],
+      select: {
+        activity_attempt_public_id: true,
+        status: true
+      }
+    }),
+    prisma.processEvent.count({
+      where: {
+        concept_unit_session_db_id: input.concept_unit_session_db_id,
+        event_source: "frontend",
+        event_type: { in: ["package_results_shown", "profile_feedback_shown", "next_interaction_shown", "formative_activity_shown"] }
+      }
+    })
+  ]);
+  const canonicalRuntimeState =
+    input.state.assessment_state === "FORMATIVE_ACTIVITY"
+      ? PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE
+      : input.state.assessment_state;
+  const safeWarnings: string[] = [];
+
+  if (!feedbackTurn) safeWarnings.push("package_feedback_turn_missing");
+  if (!nextTurn) safeWarnings.push("next_interaction_turn_missing");
+  if (!activityAttempt) safeWarnings.push("activity_runtime_attempt_missing");
+
+  return {
+    operation_public_id: input.identity.operation_public_id,
+    session_public_id: input.session_public_id,
+    concept_unit_public_id: input.identity.concept_unit_public_id,
+    response_package_hash: input.identity.response_package_hash,
+    package_submission_status: input.response_package_status,
+    profile_status: profileCount > 0 ? "existing" : "missing",
+    feedback_status: feedbackTurn ? "existing" : "missing",
+    next_interaction_status: nextTurn ? "existing" : "missing",
+    activity_status:
+      activityAttempt?.status === "awaiting_student_activity_response"
+        ? "awaiting_student_activity_response"
+        : activityAttempt
+          ? "existing"
+          : "missing",
+    canonical_runtime_state: canonicalRuntimeState,
+    presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
+    already_completed: input.already_completed,
+    recovery_action: input.recovery_action,
+    safe_warnings: safeWarnings,
+    operation_audit: {
+      operation_version: PACKAGE_COMPLETION_OPERATION_VERSION,
+      idempotency_hash: input.identity.idempotency_hash,
+      workflow_stage:
+        canonicalRuntimeState === PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE
+          ? "presenter_ready"
+          : "presenter_not_ready",
+      recovery_status:
+        input.recovery_action === "reconciled"
+          ? "recovered_from_partial_success"
+          : input.recovery_action,
+      active_next_interaction_id: nextTurn?.id ?? null,
+      active_activity_id: activityAttempt?.activity_attempt_public_id ?? null,
+      display_acknowledgement: shownCount > 0 ? "acknowledged" : "not_acknowledged",
+      display_event_contract_version: DISPLAY_EVENT_CONTRACT_VERSION,
+      conflict_recovery_metadata: input.recovery_metadata ?? {}
+    }
+  };
+}
+
+async function logPackageOperationEventOnce(input: {
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string;
+  event_type: "package_completion_operation_started" | "package_completion_operation_completed";
+  payload: Record<string, unknown>;
+}) {
+  const operationPublicId =
+    typeof input.payload.operation_public_id === "string" ? input.payload.operation_public_id : null;
+
+  if (operationPublicId) {
+    const existing = await prisma.processEvent.findFirst({
+      where: {
+        assessment_session_db_id: input.assessment_session_db_id,
+        concept_unit_session_db_id: input.concept_unit_session_db_id,
+        event_type: input.event_type,
+        payload: {
+          path: ["operation_public_id"],
+          equals: operationPublicId
+        }
+      },
+      select: { id: true }
+    });
+
+    if (existing) {
+      return;
+    }
+  }
+
+  await logProcessEvent({
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    event_type: input.event_type,
+    event_category: "package_completion",
+    event_source: "backend",
+    payload: input.payload,
+    occurred_at: new Date()
+  });
 }
 
 function isUniqueOrSerializationConflict(error: unknown): boolean {
@@ -2250,6 +2687,10 @@ export async function getStudentSessionState(input: {
         session_public_id: input.session_public_id
       })
     : null;
+  const canonicalRuntimeState =
+    assessmentState === "FORMATIVE_ACTIVITY" && activityRuntime?.activity_attempt_public_id
+      ? PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE
+      : assessmentState;
   const result = {
     session: serializeStudentSessionSummary(session),
     session_public_id: session.session_public_id,
@@ -2257,6 +2698,7 @@ export async function getStudentSessionState(input: {
     current_phase: session.current_phase,
     effective_phase: effectivePhase,
     assessment_state: assessmentState,
+    canonical_runtime_state: canonicalRuntimeState,
     assessment: serializeStudentAssessment(session.assessment),
     progress: {
       concept_unit_index: conceptUnitIndex >= 0 ? conceptUnitIndex + 1 : 0,
@@ -5032,31 +5474,7 @@ export async function completeInitialConceptUnitAdministration(input: {
     );
   }
 
-  if (session.current_phase === "profiling_pending" || conceptUnitSession.initial_completed_at) {
-    const existingPackage = await prisma.responsePackage.findFirst({
-      where: {
-        concept_unit_session_db_id: conceptUnitSession.id,
-        package_type: "initial_concept_unit_response_package"
-      },
-      select: { id: true }
-    });
-
-    if (!existingPackage) {
-      await createResponsePackage({ concept_unit_session_db_id: conceptUnitSession.id });
-    }
-    await persistProfileIntegrationSnapshotForSession({
-      session_public_id: session.session_public_id
-    });
-    await ensureChatNativeFormativeActivity({
-      concept_unit_session_db_id: conceptUnitSession.id,
-      invocation_reason: "student_package_review_continue_replay"
-    });
-
-    return {
-      completion_status: "already_completed",
-      state: await getStudentSessionState(input)
-    };
-  }
+  const replayingCompletedPackage = session.current_phase === "profiling_pending" || Boolean(conceptUnitSession.initial_completed_at);
 
   const items = await prisma.item.findMany({
     where: {
@@ -5095,71 +5513,145 @@ export async function completeInitialConceptUnitAdministration(input: {
     );
   }
 
-  const currentState = await getStudentSessionState(input);
-  assertActionAllowedForState({
-    assessment_state: currentState.assessment_state,
-    action: "submit_package"
-  });
+  if (!replayingCompletedPackage) {
+    const currentState = await getStudentSessionState(input);
+    assertActionAllowedForState({
+      assessment_state: currentState.assessment_state,
+      action: "submit_package"
+    });
 
-  const now = new Date();
-  await prisma.conceptUnitSession.update({
-    where: { id: conceptUnitSession.id },
-    data: {
-      status: "initial_completed",
-      initial_completed_at: now
+    const now = new Date();
+    await prisma.conceptUnitSession.update({
+      where: { id: conceptUnitSession.id },
+      data: {
+        status: "initial_completed",
+        initial_completed_at: now
+      }
+    });
+
+    if (session.current_phase === "missing_evidence_repair") {
+      await updateAssessmentSessionPhase({
+        assessment_session_db_id: session.id,
+        to_phase: "initial_item_administration"
+      });
     }
-  });
 
-  if (session.current_phase === "missing_evidence_repair") {
     await updateAssessmentSessionPhase({
       assessment_session_db_id: session.id,
-      to_phase: "initial_item_administration"
+      to_phase: "initial_concept_unit_completed"
+    });
+    await logProcessEvent({
+      assessment_session_db_id: session.id,
+      concept_unit_session_db_id: conceptUnitSession.id,
+      event_type: "package_submitted",
+      event_category: "initial_administration",
+      event_source: "backend",
+      payload: {
+        concept_unit_public_id: session.current_concept_unit.concept_unit_public_id
+      },
+      occurred_at: now
+    });
+    await updateAssessmentSessionPhase({
+      assessment_session_db_id: session.id,
+      to_phase: "profiling_pending"
     });
   }
 
-  await updateAssessmentSessionPhase({
-    assessment_session_db_id: session.id,
-    to_phase: "initial_concept_unit_completed"
+  const { status: responsePackageStatus, responsePackage } =
+    await getOrCreateInitialResponsePackage(conceptUnitSession.id);
+  const identity = packageCompletionIdentity({
+    session_public_id: session.session_public_id,
+    concept_unit_public_id: session.current_concept_unit.concept_unit_public_id,
+    response_package_id: responsePackage.id,
+    response_package_payload: responsePackage.payload
   });
-  await logProcessEvent({
+  const operation = await findOrCreatePackageCompletionOperation({
+    assessment_session_db_id: session.id,
+    identity
+  });
+  const replayedCompletedOperation = isCompletedPackageOperationPayload(operation.record.response_payload);
+
+  await logPackageOperationEventOnce({
     assessment_session_db_id: session.id,
     concept_unit_session_db_id: conceptUnitSession.id,
-    event_type: "package_submitted",
-    event_category: "initial_administration",
-    event_source: "backend",
+    event_type: "package_completion_operation_started",
     payload: {
-      concept_unit_public_id: session.current_concept_unit.concept_unit_public_id
-    },
-    occurred_at: now
-  });
-  await updateAssessmentSessionPhase({
-    assessment_session_db_id: session.id,
-    to_phase: "profiling_pending"
+      operation_public_id: identity.operation_public_id,
+      operation_version: PACKAGE_COMPLETION_OPERATION_VERSION,
+      idempotency_hash: identity.idempotency_hash,
+      response_package_hash: identity.response_package_hash,
+      already_seen: operation.already_seen,
+      replayed_completed_operation: replayedCompletedOperation,
+      initial_expected_state: session.current_phase
+    }
   });
 
-  const existingPackage = await prisma.responsePackage.findFirst({
-    where: {
+  let recovery = {
+    recovered_stages: [] as string[],
+    recovered_from_partial_success: false
+  };
+
+  if (!replayedCompletedOperation) {
+    await persistProfileIntegrationSnapshotForSession({
+      session_public_id: session.session_public_id
+    });
+    await ensureChatNativeFormativeActivity({
       concept_unit_session_db_id: conceptUnitSession.id,
-      package_type: "initial_concept_unit_response_package"
-    },
-    select: { id: true }
+      invocation_reason: operation.already_seen
+        ? "student_package_review_continue_replay"
+        : "student_package_review_continue"
+    });
+  }
+
+  recovery = await reconcilePackageCompletionState({
+    concept_unit_session_db_id: conceptUnitSession.id,
+    reason: replayedCompletedOperation
+      ? "completed_operation_replayed"
+      : "package_completion_response",
+    operation_public_id: identity.operation_public_id
   });
 
-  if (!existingPackage) {
-    await createResponsePackage({ concept_unit_session_db_id: conceptUnitSession.id });
-  }
-  await persistProfileIntegrationSnapshotForSession({
-    session_public_id: session.session_public_id
-  });
-  await ensureChatNativeFormativeActivity({
+  const state = await getStudentSessionState(input);
+  const outcome = await buildPackageCompletionOutcome({
+    session_public_id: session.session_public_id,
     concept_unit_session_db_id: conceptUnitSession.id,
-    invocation_reason: "student_package_review_continue"
+    response_package_status: responsePackageStatus,
+    identity,
+    already_completed: replayingCompletedPackage || operation.already_seen || replayedCompletedOperation,
+    recovery_action: recovery.recovered_from_partial_success
+      ? "reconciled"
+      : replayedCompletedOperation
+        ? "replayed_existing"
+        : "completed",
+    recovery_metadata: recovery,
+    state
+  });
+
+  await persistPackageCompletionOutcome({
+    assessment_session_db_id: session.id,
+    identity,
+    outcome
+  });
+  await logPackageOperationEventOnce({
+    assessment_session_db_id: session.id,
+    concept_unit_session_db_id: conceptUnitSession.id,
+    event_type: "package_completion_operation_completed",
+    payload: {
+      operation_public_id: outcome.operation_public_id,
+      operation_version: PACKAGE_COMPLETION_OPERATION_VERSION,
+      final_canonical_state: outcome.canonical_runtime_state,
+      workflow_stage: outcome.operation_audit.workflow_stage,
+      recovery_status: outcome.operation_audit.recovery_status,
+      already_completed: outcome.already_completed,
+      safe_warnings: outcome.safe_warnings
+    }
   });
 
   return {
-    completion_status: "completed",
+    completion_status: outcome.already_completed ? "already_completed" : "completed",
     next_step: "formative_activity",
-    state: await getStudentSessionState(input)
+    outcome,
+    state
   };
 }
 
@@ -5286,6 +5778,43 @@ export async function ingestFrontendProcessEvents(input: {
         "Process event payload is too large.",
         400
       );
+    }
+
+    if (displayAcknowledgementEventTypes.has(event.event_type)) {
+      const payloadRecord = payload as Record<string, unknown>;
+      const displayEventContractVersion =
+        typeof payloadRecord.display_event_contract_version === "string"
+          ? payloadRecord.display_event_contract_version
+          : null;
+      const contentId =
+        typeof payloadRecord.content_id === "string" && payloadRecord.content_id.trim()
+          ? payloadRecord.content_id.trim()
+          : null;
+
+      if (displayEventContractVersion !== DISPLAY_EVENT_CONTRACT_VERSION || !contentId) {
+        throw new StudentAssessmentServiceError(
+          "validation_failed",
+          "Display acknowledgement metadata is incomplete.",
+          400
+        );
+      }
+
+      const existingAcknowledgement = await prisma.processEvent.findFirst({
+        where: {
+          assessment_session_db_id: session.id,
+          event_type: event.event_type,
+          event_source: "frontend",
+          payload: {
+            path: ["content_id"],
+            equals: contentId
+          }
+        },
+        select: { id: true }
+      });
+
+      if (existingAcknowledgement) {
+        continue;
+      }
     }
 
     let itemDbId: string | undefined;

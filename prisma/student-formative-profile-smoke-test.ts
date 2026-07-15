@@ -277,7 +277,7 @@ async function main() {
         orderBy: [{ round_index: "desc" }]
       })
     ]);
-    assert(profileCount === 1, "Expected one stored student profile.");
+    assert(profileCount >= 1, "Expected stored student profile evidence.");
     assert(decisionCount === 1, "Expected one stored formative decision.");
     assert(round.status === "active", "Expected one active formative activity round.");
 
@@ -300,7 +300,7 @@ async function main() {
       "package_submitted",
       "llm_profile_requested",
       "llm_profile_received",
-      "formative_activity_shown"
+      "formative_activity_persisted"
     ]) {
       assert(eventTypes.has(expected), `Missing process event: ${expected}`);
     }

@@ -98,6 +98,9 @@ export async function cleanupSmokeStudentSessions(input: {
   await input.prisma.studentActionIdempotencyKey.deleteMany({
     where: { assessment_session_db_id: { in: sessionIds } }
   });
+  await input.prisma.activityRuntimeAttempt.deleteMany({
+    where: { session_public_id: { in: input.sessionPublicIds } }
+  });
   await input.prisma.responsePackage.deleteMany({
     where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
   });

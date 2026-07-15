@@ -32,6 +32,7 @@ import {
   saveTemptingOption,
   selectNextChoice,
   sendFollowupMessage,
+  sendProcessEvents,
   sendRevisionResponse,
   startStudentActivityRuntime,
   startAssessmentSession,
@@ -51,6 +52,8 @@ const MAX_REASONING_LENGTH = 5000;
 const IDK_OPTION_LABEL = "E";
 const IDK_OPTION_TEXT = "I don't know yet.";
 const STUDENT_FACING_TUTOR_LABEL = "Assessment Tutor";
+const PACKAGE_FEEDBACK_PRESENTER_VERSION = "package-feedback-presenter-v1";
+const DISPLAY_EVENT_CONTRACT_VERSION = "display-ack-v1";
 
 type FailedAction = {
   label: string;
@@ -1938,6 +1941,7 @@ export function AssessmentSessionClient({
   const [editingReviewItemId, setEditingReviewItemId] = useState<string | null>(null);
   const [reviewEditDraft, setReviewEditDraft] = useState<PackageReviewEditDraft | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const displayAcknowledgementRef = useRef<Set<string>>(new Set());
 
   useStudentProcessEvents({
     sessionPublicId: state?.session_public_id ?? resolvedInitialSessionPublicId ?? "pending-session",
@@ -2062,6 +2066,83 @@ export function AssessmentSessionClient({
   useEffect(() => {
     setActivityRuntime(state?.activity_runtime ?? null);
   }, [state?.activity_runtime]);
+
+  useEffect(() => {
+    if (!state || state.assessment_state !== "FORMATIVE_ACTIVITY") {
+      return;
+    }
+
+    const activityAttemptPublicId =
+      activityRuntime?.activity_attempt_public_id ??
+      state.activity_runtime?.activity_attempt_public_id ??
+      null;
+    const contentId = [
+      state.session_public_id,
+      state.current_concept_unit?.concept_unit_public_id ?? "no_concept",
+      activityAttemptPublicId ?? "no_activity",
+      PACKAGE_FEEDBACK_PRESENTER_VERSION
+    ].join(":");
+    const basePayload = {
+      display_event_contract_version: DISPLAY_EVENT_CONTRACT_VERSION,
+      presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
+      rendered_state: state.assessment_state,
+      canonical_runtime_state: state.canonical_runtime_state ?? state.assessment_state,
+      content_id: contentId,
+      activity_attempt_public_id: activityAttemptPublicId,
+      next_step: state.next_step
+    };
+    const eventTypes: Array<
+      | "package_results_shown"
+      | "item_correctness_status_shown"
+      | "profile_feedback_shown"
+      | "next_interaction_shown"
+      | "distractor_activity_shown"
+      | "formative_activity_shown"
+    > = [
+      "package_results_shown",
+      "item_correctness_status_shown",
+      "profile_feedback_shown",
+      "next_interaction_shown",
+      "distractor_activity_shown",
+      "formative_activity_shown"
+    ];
+    const unsent = eventTypes.filter((eventType) => {
+      const key = `${eventType}:${contentId}`;
+      if (displayAcknowledgementRef.current.has(key)) {
+        return false;
+      }
+      displayAcknowledgementRef.current.add(key);
+      return true;
+    });
+
+    if (unsent.length === 0) {
+      return;
+    }
+
+    void sendProcessEvents(
+      state.session_public_id,
+      unsent.map((eventType) => ({
+        event_type: eventType,
+        event_category:
+          eventType === "package_results_shown" || eventType === "item_correctness_status_shown"
+            ? "package_results"
+            : eventType === "profile_feedback_shown"
+              ? "package_feedback"
+              : "formative_routing",
+        client_occurred_at: new Date().toISOString(),
+        payload: basePayload
+      }))
+    ).catch(() => undefined);
+  }, [
+    activityRuntime?.activity_attempt_public_id,
+    state?.activity_runtime?.activity_attempt_public_id,
+    state?.assessment_state,
+    state?.canonical_runtime_state,
+    state?.current_concept_unit?.concept_unit_public_id,
+    state?.next_step,
+    state,
+    state?.session_public_id
+  ]);
 
   useEffect(() => {
     if (state?.assessment_state !== "REVISION") {
@@ -2247,12 +2328,51 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Continue to feedback", () =>
-      completeInitialConceptUnit({
-        sessionPublicId: state.session_public_id,
-        conceptUnitPublicId: state.current_concept_unit?.concept_unit_public_id ?? ""
-      })
-    );
+    const sessionPublicId = state.session_public_id;
+    const conceptUnitPublicId = state.current_concept_unit.concept_unit_public_id;
+
+    void (async () => {
+      setIsBusy(true);
+      setError(null);
+      setFailedAction(null);
+
+      try {
+        const result = await completeInitialConceptUnit({
+          sessionPublicId,
+          conceptUnitPublicId
+        });
+        setState(result.state);
+        setActivityRuntime(result.state.activity_runtime ?? null);
+        await refreshSecondaryData(result.state.session_public_id);
+      } catch (errorValue) {
+        try {
+          const canonicalState = await fetchSessionState(sessionPublicId);
+          const recovered =
+            canonicalState.assessment_state !== "PACKAGE_REVIEW" &&
+            (
+              canonicalState.assessment_state === "FORMATIVE_ACTIVITY" ||
+              canonicalState.next_step === "formative_activity" ||
+              Boolean(canonicalState.package_results) ||
+              Boolean(canonicalState.activity_runtime?.activity_attempt_public_id)
+            );
+
+          if (recovered) {
+            setState(canonicalState);
+            setActivityRuntime(canonicalState.activity_runtime ?? null);
+            await refreshSecondaryData(canonicalState.session_public_id);
+            return;
+          }
+        } catch {
+          // Fall through to the ordinary retry UI when canonical state cannot be read.
+        }
+
+        handleError(errorValue, "Continue to feedback", () => {
+          void handleCompletePackage();
+        });
+      } finally {
+        setIsBusy(false);
+      }
+    })();
   }
 
   function handleStartReviewEdit(item: StudentReviewItem) {

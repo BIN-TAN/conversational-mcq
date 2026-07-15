@@ -36,6 +36,7 @@ export type StudentAssessmentErrorCode =
   | "invalid_progression_choice"
   | "next_concept_not_found"
   | "idempotency_conflict"
+  | "package_completion_conflict"
   | "forbidden"
   | "not_found"
   | "validation_failed"

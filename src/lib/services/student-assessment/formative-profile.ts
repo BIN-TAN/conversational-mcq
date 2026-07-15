@@ -43,6 +43,10 @@ import {
 } from "@/lib/services/student-assessment/formative-loop-guard";
 import {
   buildEvidenceIntegratedProfileBundle,
+  EvidenceIntegratedProfileV2Schema,
+  NextInteractionV2Schema,
+  PackageFeedbackV2Schema,
+  type EvidenceIntegrationBundleV2,
   type EvidenceIntegratedProfileV2,
   type NextInteractionV2
 } from "@/lib/services/student-assessment/evidence-integrated-profile";
@@ -51,6 +55,12 @@ import {
   type CreateEvidenceIntegratedActivityRuntimeAttemptInput
 } from "@/lib/services/student-assessment/activity-runtime-loop";
 import { StudentAssessmentServiceError } from "./errors";
+
+export const PACKAGE_FEEDBACK_PRESENTER_VERSION = "package-feedback-presenter-v1" as const;
+export const PACKAGE_COMPLETION_OPERATION_VERSION = "package-completion-operation-v1" as const;
+export const DISPLAY_EVENT_CONTRACT_VERSION = "display-ack-v1" as const;
+export const PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE =
+  "AWAIT_FORMATIVE_ACTIVITY_RESPONSE" as const;
 
 export const FormativeNeedSchema = z.enum([
   "diagnosis",
@@ -2053,6 +2063,316 @@ function evidenceRuntimeAttemptInput(input: {
   };
 }
 
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function validatorResult(value: unknown): EvidenceIntegrationBundleV2["validators"]["profile_coherence"] {
+  const record = recordValue(value);
+
+  return {
+    valid: record.valid === true,
+    validator_version:
+      typeof record.validator_version === "string" ? record.validator_version : "recovered-validator-result",
+    issues: Array.isArray(record.issues) ? record.issues as EvidenceIntegrationBundleV2["validators"]["profile_coherence"]["issues"] : []
+  };
+}
+
+function storedEvidenceIntegratedBundle(value: unknown): EvidenceIntegrationBundleV2 | null {
+  const record = recordValue(value);
+  const profile = EvidenceIntegratedProfileV2Schema.safeParse(record.evidence_integrated_profile_v2);
+  const feedback = PackageFeedbackV2Schema.safeParse(record.package_feedback_v2);
+  const nextInteraction = NextInteractionV2Schema.safeParse(record.next_interaction_v2);
+
+  if (!profile.success || !feedback.success || !nextInteraction.success) {
+    return null;
+  }
+
+  const validators = recordValue(record.validation_results);
+  const artifactVersions = recordValue(record.artifact_versions);
+  const effectiveHash =
+    typeof record.effective_evidence_package_hash === "string" && record.effective_evidence_package_hash.trim()
+      ? record.effective_evidence_package_hash.trim()
+      : createHash("sha256")
+          .update(JSON.stringify({
+            profile: profile.data,
+            feedback: feedback.data,
+            next_interaction: nextInteraction.data
+          }))
+          .digest("hex");
+
+  return {
+    profile: profile.data,
+    feedback: feedback.data,
+    next_interaction: nextInteraction.data,
+    validators: {
+      profile_coherence: validatorResult(validators.profile_coherence),
+      feedback_specificity: validatorResult(validators.feedback_specificity),
+      single_action_state: validatorResult(validators.single_action_state),
+      activity_routing_coherence: validatorResult(validators.activity_routing_coherence)
+    },
+    artifact_versions: artifactVersions as EvidenceIntegrationBundleV2["artifact_versions"],
+    effective_evidence_package_hash: effectiveHash
+  };
+}
+
+function postPackageSummaryFromBundle(bundle: EvidenceIntegrationBundleV2) {
+  return [
+    bundle.feedback.result_summary,
+    ...bundle.feedback.strengths,
+    bundle.feedback.cross_item_pattern,
+    bundle.feedback.confidence_comment,
+    bundle.feedback.evidence_limitation,
+    `Next focus: ${bundle.feedback.growth_target}`
+  ]
+    .filter((entry): entry is string => Boolean(entry))
+    .join("\n\n");
+}
+
+async function latestActivityAttemptForSession(input: {
+  session_public_id: string;
+  tx?: Prisma.TransactionClient;
+}) {
+  const client = input.tx ?? prisma;
+  return client.activityRuntimeAttempt.findFirst({
+    where: { session_public_id: input.session_public_id },
+    orderBy: [{ created_at: "desc" }]
+  });
+}
+
+export async function reconcilePackageCompletionState(input: {
+  concept_unit_session_db_id: string;
+  reason: string;
+  operation_public_id?: string;
+}) {
+  const now = new Date();
+  const recoveredStages: string[] = [];
+
+  const result = await prisma.$transaction(async (tx) => {
+    const conceptUnitSession = await tx.conceptUnitSession.findUniqueOrThrow({
+      where: { id: input.concept_unit_session_db_id },
+      select: {
+        id: true,
+        assessment_session_db_id: true,
+        assessment_session: {
+          select: {
+            current_phase: true,
+            session_public_id: true,
+            assessment: { select: { assessment_public_id: true } },
+            current_concept_unit: { select: { concept_unit_public_id: true } },
+            user: { select: { user_id: true } }
+          }
+        }
+      }
+    });
+    const profile = await tx.studentProfile.findFirst({
+      where: { concept_unit_session_db_id: conceptUnitSession.id },
+      orderBy: [{ created_at: "desc" }],
+      select: { id: true, item_level_evidence: true }
+    });
+    const decision = await tx.formativeDecision.findFirst({
+      where: { concept_unit_session_db_id: conceptUnitSession.id },
+      orderBy: [{ created_at: "desc" }],
+      select: { id: true }
+    });
+    const bundle = storedEvidenceIntegratedBundle(profile?.item_level_evidence);
+    let round = await tx.followupRound.findFirst({
+      where: {
+        concept_unit_session_db_id: conceptUnitSession.id,
+        status: { in: ["active", "completed", "stopped"] }
+      },
+      orderBy: [{ round_index: "desc" }]
+    });
+
+    if (!round && profile && decision) {
+      const latest = await tx.followupRound.findFirst({
+        where: { concept_unit_session_db_id: conceptUnitSession.id },
+        orderBy: [{ round_index: "desc" }],
+        select: { round_index: true }
+      });
+      round = await tx.followupRound.create({
+        data: {
+          concept_unit_session_db_id: conceptUnitSession.id,
+          round_index: (latest?.round_index ?? 0) + 1,
+          formative_decision_db_id: decision.id,
+          status: "active",
+          started_at: now
+        }
+      });
+      await tx.conceptUnitSession.update({
+        where: { id: conceptUnitSession.id },
+        data: {
+          followup_status: "active",
+          followup_started_at: now,
+          followup_round_count: { increment: 1 }
+        }
+      });
+      recoveredStages.push("followup_round_restored");
+    }
+
+    if (round && bundle) {
+      const existingFeedbackTurn = await tx.conversationTurn.findFirst({
+        where: {
+          concept_unit_session_db_id: conceptUnitSession.id,
+          followup_round_db_id: round.id,
+          actor_type: "agent",
+          structured_payload: { path: ["message_type"], equals: "package_feedback" }
+        },
+        select: { id: true }
+      });
+
+      if (!existingFeedbackTurn) {
+        await tx.conversationTurn.create({
+          data: {
+            assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
+            concept_unit_session_db_id: conceptUnitSession.id,
+            followup_round_db_id: round.id,
+            phase: "planning_completed",
+            actor_type: "agent",
+            agent_name: FORMATIVE_ACTIVITY_AGENT_NAME,
+            message_text: postPackageSummaryFromBundle(bundle),
+            structured_payload: toPrismaJson({
+              source: FORMATIVE_ACTIVITY_AGENT_NAME,
+              message_type: "package_feedback",
+              presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
+              summary_version: "student-facing-post-package-feedback-v2",
+              validation_status: "recovered_from_persisted_profile",
+              validation_issues: [],
+              package_feedback_v2: bundle.feedback
+            }),
+            created_at: now
+          }
+        });
+        recoveredStages.push("package_feedback_turn_restored");
+      }
+
+      const existingNextTurn = await tx.conversationTurn.findFirst({
+        where: {
+          concept_unit_session_db_id: conceptUnitSession.id,
+          followup_round_db_id: round.id,
+          actor_type: "agent",
+          structured_payload: { path: ["message_type"], equals: "next_interaction" }
+        },
+        select: { id: true }
+      });
+
+      if (!existingNextTurn) {
+        await tx.conversationTurn.create({
+          data: {
+            assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
+            concept_unit_session_db_id: conceptUnitSession.id,
+            followup_round_db_id: round.id,
+            phase: "planning_completed",
+            actor_type: "agent",
+            agent_name: FORMATIVE_ACTIVITY_AGENT_NAME,
+            message_text: bundle.next_interaction.prompt,
+            structured_payload: toPrismaJson({
+              source: FORMATIVE_ACTIVITY_AGENT_NAME,
+              message_type: "next_interaction",
+              presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
+              next_interaction_v2: bundle.next_interaction
+            }),
+            created_at: now
+          }
+        });
+        recoveredStages.push("next_interaction_turn_restored");
+      }
+
+      const existingAttempt = await latestActivityAttemptForSession({
+        session_public_id: conceptUnitSession.assessment_session.session_public_id,
+        tx
+      });
+
+      if (!existingAttempt && profile && decision) {
+        await createActivityRuntimeAttemptFromEvidenceIntegratedRouter(
+          evidenceRuntimeAttemptInput({
+            session_public_id: conceptUnitSession.assessment_session.session_public_id,
+            student_public_id: conceptUnitSession.assessment_session.user.user_id,
+            assessment_public_id: conceptUnitSession.assessment_session.assessment.assessment_public_id,
+            concept_unit_id:
+              conceptUnitSession.assessment_session.current_concept_unit?.concept_unit_public_id ??
+              "unknown_concept_unit",
+            profile,
+            decision,
+            bundle
+          }),
+          tx
+        );
+        recoveredStages.push("activity_runtime_attempt_restored");
+      }
+    }
+
+    if (
+      round?.status === "active" &&
+      ["initial_concept_unit_completed", "profiling_pending", "profiling_completed", "planning_pending"].includes(
+        conceptUnitSession.assessment_session.current_phase
+      )
+    ) {
+      await tx.assessmentSession.update({
+        where: { id: conceptUnitSession.assessment_session_db_id },
+        data: {
+          current_phase: "planning_completed",
+          last_activity_at: now
+        }
+      });
+      await tx.processEvent.create({
+        data: {
+          assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
+          concept_unit_session_db_id: conceptUnitSession.id,
+          event_type: "phase_entered",
+          event_category: "phase",
+          event_source: "system",
+          payload: toPrismaJson({
+            from_phase: conceptUnitSession.assessment_session.current_phase,
+            to_phase: "planning_completed",
+            reason: "package_completion_reconciler_runtime_state"
+          }),
+          occurred_at: now
+        }
+      });
+      recoveredStages.push("runtime_state_entered");
+    }
+
+    return {
+      round_status: round?.status ?? null,
+      has_feedback: Boolean(bundle?.feedback),
+      has_next_interaction: Boolean(bundle?.next_interaction)
+    };
+  });
+
+  if (recoveredStages.length > 0) {
+    const conceptUnitSession = await prisma.conceptUnitSession.findUniqueOrThrow({
+      where: { id: input.concept_unit_session_db_id },
+      select: { assessment_session_db_id: true }
+    });
+    await logProcessEvent({
+      assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      event_type: "package_completion_reconciled",
+      event_category: "package_completion",
+      event_source: "system",
+      payload: {
+        operation_public_id: input.operation_public_id ?? null,
+        reason: input.reason,
+        recovered_stages: recoveredStages,
+        canonical_runtime_state: PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE,
+        presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION
+      },
+      occurred_at: now
+    });
+  }
+
+  return {
+    recovered_stages: recoveredStages,
+    recovered_from_partial_success: recoveredStages.length > 0,
+    has_feedback: result.has_feedback,
+    has_next_interaction: result.has_next_interaction,
+    has_active_round: result.round_status === "active"
+  };
+}
+
 async function latestInitialResponsePackage(conceptUnitSessionDbId: string) {
   return prisma.responsePackage.findFirst({
     where: {
@@ -3129,6 +3449,7 @@ async function persistProfileDecisionAndActivity(input: {
           summary_version: evidenceBundle
             ? "student-facing-post-package-feedback-v2"
             : "student-facing-post-package-summary-v1",
+          presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
           deferred_student_concerns: input.deferred_student_concerns ?? [],
           validation_status: input.validation_status,
           validation_issues: input.validation_issues,
@@ -3151,6 +3472,7 @@ async function persistProfileDecisionAndActivity(input: {
         structured_payload: prismaJson({
           source: FORMATIVE_ACTIVITY_AGENT_NAME,
           message_type: evidenceBundle ? "next_interaction" : "matched_formative_activity",
+          presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
           matched_activity: input.output.matched_activity,
           next_expected_action: input.output.next_expected_action,
           next_interaction_v2: evidenceBundle?.next_interaction ?? null
@@ -3165,10 +3487,11 @@ async function persistProfileDecisionAndActivity(input: {
           {
             assessment_session_db_id: input.assessment_session_db_id,
             concept_unit_session_db_id: input.concept_unit_session_db_id,
-            event_type: "package_results_shown",
+            event_type: "package_results_generated",
             event_category: "package_results",
             event_source: "backend",
             payload: prismaJson({
+              presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
               result_summary: evidenceBundle.feedback.result_summary,
               answer_reveal_state:
                 evidenceBundle.profile.outcome_summary.restricted_answer_reveal_state
@@ -3178,10 +3501,23 @@ async function persistProfileDecisionAndActivity(input: {
           {
             assessment_session_db_id: input.assessment_session_db_id,
             concept_unit_session_db_id: input.concept_unit_session_db_id,
-            event_type: "item_correctness_status_shown",
+            event_type: "package_results_persisted",
             event_category: "package_results",
             event_source: "backend",
             payload: prismaJson({
+              presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
+              turn_message_type: "package_feedback"
+            }),
+            occurred_at: now
+          },
+          {
+            assessment_session_db_id: input.assessment_session_db_id,
+            concept_unit_session_db_id: input.concept_unit_session_db_id,
+            event_type: "item_correctness_status_persisted",
+            event_category: "package_results",
+            event_source: "backend",
+            payload: prismaJson({
+              presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
               item_count: evidenceBundle.profile.outcome_summary.item_results.length,
               full_answer_key_revealed:
                 evidenceBundle.profile.outcome_summary.restricted_answer_reveal_state.full_answer_key_revealed
@@ -3191,10 +3527,11 @@ async function persistProfileDecisionAndActivity(input: {
           {
             assessment_session_db_id: input.assessment_session_db_id,
             concept_unit_session_db_id: input.concept_unit_session_db_id,
-            event_type: "profile_feedback_shown",
+            event_type: "profile_feedback_generated",
             event_category: "package_feedback",
             event_source: "backend",
             payload: prismaJson({
+              presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
               feedback_schema_version: evidenceBundle.feedback.feedback_schema_version,
               evidence_reference_count: evidenceBundle.feedback.evidence_references.length
             }),
@@ -3203,10 +3540,23 @@ async function persistProfileDecisionAndActivity(input: {
           {
             assessment_session_db_id: input.assessment_session_db_id,
             concept_unit_session_db_id: input.concept_unit_session_db_id,
-            event_type: "next_interaction_shown",
+            event_type: "profile_feedback_persisted",
+            event_category: "package_feedback",
+            event_source: "backend",
+            payload: prismaJson({
+              presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
+              turn_message_type: "package_feedback"
+            }),
+            occurred_at: now
+          },
+          {
+            assessment_session_db_id: input.assessment_session_db_id,
+            concept_unit_session_db_id: input.concept_unit_session_db_id,
+            event_type: "next_interaction_generated",
             event_category: "formative_routing",
             event_source: "backend",
             payload: prismaJson({
+              presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
               interaction_type: evidenceBundle.next_interaction.interaction_type,
               activity_type: evidenceBundle.next_interaction.activity_type,
               next_runtime_state: evidenceBundle.next_interaction.next_runtime_state
@@ -3216,17 +3566,27 @@ async function persistProfileDecisionAndActivity(input: {
           {
             assessment_session_db_id: input.assessment_session_db_id,
             concept_unit_session_db_id: input.concept_unit_session_db_id,
-            event_type:
-              evidenceBundle.next_interaction.interaction_type === "foundational_support_activity"
-                ? "foundational_activity_shown"
-                : evidenceBundle.next_interaction.interaction_type === "diagnostic_clarification"
-                  ? "diagnostic_clarification_requested"
-                  : "distractor_activity_shown",
+            event_type: "next_interaction_persisted",
             event_category: "formative_routing",
             event_source: "backend",
             payload: prismaJson({
+              presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
+              turn_message_type: "next_interaction",
               activity_type: evidenceBundle.next_interaction.activity_type,
               routing_policy_version: evidenceBundle.next_interaction.routing_policy_version
+            }),
+            occurred_at: now
+          },
+          {
+            assessment_session_db_id: input.assessment_session_db_id,
+            concept_unit_session_db_id: input.concept_unit_session_db_id,
+            event_type: "formative_activity_generated",
+            event_category: "formative_activity",
+            event_source: "backend",
+            payload: prismaJson({
+              presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
+              activity_type: evidenceBundle.next_interaction.activity_type,
+              interaction_type: evidenceBundle.next_interaction.interaction_type
             }),
             occurred_at: now
           }
@@ -3248,7 +3608,7 @@ async function persistProfileDecisionAndActivity(input: {
       });
 
       if (!existingAttempt) {
-        await createActivityRuntimeAttemptFromEvidenceIntegratedRouter(
+        const attempt = await createActivityRuntimeAttemptFromEvidenceIntegratedRouter(
           evidenceRuntimeAttemptInput({
             session_public_id: session.session_public_id,
             student_public_id: session.user.user_id,
@@ -3261,6 +3621,22 @@ async function persistProfileDecisionAndActivity(input: {
           }),
           tx
         );
+        await tx.processEvent.create({
+          data: {
+            assessment_session_db_id: input.assessment_session_db_id,
+            concept_unit_session_db_id: input.concept_unit_session_db_id,
+            event_type: "formative_activity_persisted",
+            event_category: "formative_activity",
+            event_source: "backend",
+            payload: prismaJson({
+              presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
+              activity_attempt_public_id: attempt.activity_attempt_public_id,
+              activity_type: evidenceBundle.next_interaction.activity_type,
+              canonical_runtime_state: PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE
+            }),
+            occurred_at: now
+          }
+        });
       }
     }
 
@@ -3505,19 +3881,6 @@ export async function ensureChatNativeFormativeActivity(input: {
       }
     });
   }
-
-  await logProcessEvent({
-    assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
-    concept_unit_session_db_id: conceptUnitSession.id,
-    event_type: "formative_activity_shown",
-    event_category: "formative_activity",
-    event_source: "backend",
-    payload: {
-      agent_call_id: providerResult.agent_call_id,
-      matched_activity: providerResult.output.matched_activity,
-      persistence_status: persisted.status
-    }
-  });
 
   return {
     status: persisted.status,

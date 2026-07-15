@@ -165,6 +165,7 @@ export const StudentSessionStateSchema = z.object({
   current_phase: z.string(),
   effective_phase: z.string(),
   assessment_state: ChatNativeAssessmentStateSchema,
+  canonical_runtime_state: z.string().optional(),
   assessment: StudentAssessmentSummarySchema,
   progress: z.object({
     concept_unit_index: z.number(),

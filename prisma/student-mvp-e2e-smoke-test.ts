@@ -278,7 +278,7 @@ async function runScenario(input: {
       "package_submitted",
       "llm_profile_requested",
       "llm_profile_received",
-      "formative_activity_shown",
+      "formative_activity_persisted",
       "followup_response_submitted",
       "formative_activity_evaluated",
       "learning_profile_updated",

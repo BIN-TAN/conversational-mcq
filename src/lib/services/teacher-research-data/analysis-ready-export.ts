@@ -340,6 +340,10 @@ function payloadBoolean(payload: unknown, keys: string[]) {
   return null;
 }
 
+function sourceRefString(sourceRef: unknown, keys: string[]) {
+  return payloadString(sourceRef, keys);
+}
+
 function jsonString(value: unknown) {
   return value === null || value === undefined ? null : JSON.stringify(value);
 }
@@ -654,6 +658,39 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
         : latestActivityAttempt?.completed_at
           ? "completed"
           : latestActivityAttempt?.status ?? null;
+    const packageCompletionEvent = lastEvent(sessionEvents, ["package_completion_operation_completed"]);
+    const recoveryEvent = lastEvent(sessionEvents, ["package_completion_reconciled"]);
+    const displayAckEvent = lastEvent(sessionEvents, [
+      "package_results_shown",
+      "profile_feedback_shown",
+      "next_interaction_shown",
+      "formative_activity_shown"
+    ]);
+    const nextInteractionTurn = [...session.conversation_turns].reverse().find((turn) => {
+      const payload = asRecord(turn.structured_payload);
+      return payload.message_type === "next_interaction";
+    });
+    const canonicalRuntimeState =
+      session.current_phase === "planning_completed" &&
+      latestActivityAttempt?.status === "awaiting_student_activity_response"
+        ? "AWAIT_FORMATIVE_ACTIVITY_RESPONSE"
+        : session.current_phase;
+    const conflictRecoveryMetadata = {
+      package_completion_event: packageCompletionEvent
+        ? {
+            operation_public_id: payloadString(packageCompletionEvent.payload, ["operation_public_id"]),
+            workflow_stage: payloadString(packageCompletionEvent.payload, ["workflow_stage"]),
+            recovery_status: payloadString(packageCompletionEvent.payload, ["recovery_status"]),
+            already_completed: payloadBoolean(packageCompletionEvent.payload, ["already_completed"])
+          }
+        : null,
+      recovery_event: recoveryEvent
+        ? {
+            recovered_stages: asRecord(recoveryEvent.payload).recovered_stages ?? null,
+            reason: payloadString(recoveryEvent.payload, ["reason"])
+          }
+        : null
+    };
     return {
       ...sessionBase(source, session),
       session_status: session.status,
@@ -731,6 +768,15 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
           ? revealState.correctness_status_reveal_policy
           : null,
       next_interaction_type: profileString(nextInteraction, "interaction_type"),
+      package_completion_operation_id: payloadString(packageCompletionEvent?.payload, ["operation_public_id"]),
+      package_completion_workflow_stage: payloadString(packageCompletionEvent?.payload, ["workflow_stage"]),
+      package_completion_recovery_status: payloadString(packageCompletionEvent?.payload, ["recovery_status"]),
+      canonical_runtime_state: canonicalRuntimeState,
+      active_next_interaction_id: nextInteractionTurn ? `${session.session_public_id}:turn:${nextInteractionTurn.created_at.toISOString()}` : null,
+      active_activity_id: latestActivityAttempt?.activity_attempt_public_id ?? null,
+      display_acknowledgement: displayAckEvent ? "acknowledged" : "not_acknowledged",
+      display_event_contract_version: payloadString(displayAckEvent?.payload, ["display_event_contract_version"]),
+      conflict_recovery_metadata: jsonString(conflictRecoveryMetadata),
       activity_type: profileString(nextInteraction, "activity_type"),
       routing_policy_version: profileString(nextInteraction, "routing_policy_version"),
       activity_taxonomy_version: profileString(nextInteraction, "activity_taxonomy_version"),
@@ -1131,6 +1177,7 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
       activity_type: activity.activity_family,
       diagnostic_purpose: activity.diagnostic_purpose,
       activity_target: activity.concept_unit_id,
+      activity_prompt: sourceRefString(activity.source_activity_packet_ref, ["safe_activity_prompt"]),
       attempt_number: 1,
       status: activity.status,
       started_at: iso(activity.started_at),

@@ -31,7 +31,15 @@ export type FrontendProcessEvent = {
     | "long_pause"
     | "inactivity_detected"
     | "navigation_event"
-    | "refresh_recovery";
+    | "refresh_recovery"
+    | "package_results_shown"
+    | "item_correctness_status_shown"
+    | "profile_feedback_shown"
+    | "next_interaction_shown"
+    | "distractor_activity_shown"
+    | "foundational_activity_shown"
+    | "diagnostic_clarification_requested"
+    | "formative_activity_shown";
   event_category?: string;
   item_public_id?: string;
   visibility_duration_ms?: number;
@@ -336,7 +344,14 @@ export function completeInitialConceptUnit(input: {
   return post(
     `/api/student/sessions/${input.sessionPublicId}/concept-units/${input.conceptUnitPublicId}/complete-initial`,
     {},
-    (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
+    (value) => {
+      const parsed = value as { state: unknown; outcome?: unknown };
+
+      return {
+        state: StudentSessionStateSchema.parse(parsed.state),
+        outcome: parsed.outcome ?? null
+      };
+    }
   );
 }
 

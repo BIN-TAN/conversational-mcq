@@ -97,6 +97,15 @@ export const SESSIONS_COLUMNS = [
   "answer_reveal_policy",
   "correctness_status_reveal_policy",
   "next_interaction_type",
+  "package_completion_operation_id",
+  "package_completion_workflow_stage",
+  "package_completion_recovery_status",
+  "canonical_runtime_state",
+  "active_next_interaction_id",
+  "active_activity_id",
+  "display_acknowledgement",
+  "display_event_contract_version",
+  "conflict_recovery_metadata",
   "activity_type",
   "routing_policy_version",
   "activity_taxonomy_version",
@@ -980,7 +989,7 @@ const AGENT_ACTIVITY_APPLICABILITY: Record<string, string> = {
   activity_public_id: "activity_attempt; workflow_job; formative_activity; post_activity_evidence; diagnostic_snapshot",
   activity_type: "activity_attempt; workflow_job; formative_activity; post_activity_evidence",
   activity_target: "formative_activity",
-  activity_prompt: "reserved for formative_activity first-turn prompt when persisted; current serializer leaves null",
+  activity_prompt: "formative_activity",
   attempt_number: "activity_attempt; formative_activity",
   student_response: "reserved for post_activity_evidence or activity evaluation response text when a safe excerpt is explicitly populated; current serializer leaves null",
   evaluation_status: "post_activity_evidence; diagnostic_snapshot",
@@ -1047,7 +1056,7 @@ const AGENT_ACTIVITY_METHODS: Record<string, string> = {
   input_token_count: "Copied in agentAndActivityRows() from AgentCall.input_tokens after the provider adapter stores usage metadata; null means the provider did not return usable usage for that call.",
   output_token_count: "Copied in agentAndActivityRows() from AgentCall.output_tokens after the provider adapter stores usage metadata; null means the provider did not return usable usage for that call.",
   total_token_count: "Copied in agentAndActivityRows() from AgentCall.total_tokens after the provider adapter stores usage metadata; null means the provider did not return usable usage for that call.",
-  activity_prompt: "Reserved for a future safe activity-prompt projection; current agentAndActivityRows() does not copy raw activity packets or prompts into this column.",
+  activity_prompt: "Copied in agentAndActivityRows() from ActivityRuntimeAttempt.source_activity_packet_ref.safe_activity_prompt after the runtime packet has been validated and redacted for student-safe use.",
   student_response: "Reserved for a future safe activity-response projection; current agentAndActivityRows() does not copy raw student activity text into this column.",
   evaluation_status: "Copied from ActivityMisconceptionEvidenceRecord.evaluation_source for post_activity_evidence rows and PostActivityDiagnosticSnapshot.evidence_quality for diagnostic_snapshot rows.",
   activity_type: "Copied from FollowupRound, WorkflowJob.job_type, ActivityRuntimeAttempt.activity_family, or ActivityMisconceptionEvidenceRecord.activity_family according to record_type.",
@@ -1472,6 +1481,24 @@ function collectionMethod(table: string, variable: string) {
       "Extracted by sessionRows() from evidence_integrated_profile_v2.outcome_summary.restricted_answer_reveal_state.correctness_status_reveal_policy.",
     next_interaction_type:
       "Extracted by sessionRows() from next_interaction_v2.interaction_type to show the single next wait-state interaction selected after package feedback.",
+    package_completion_operation_id:
+      "Extracted by sessionRows() from the package_completion_operation_completed process event payload; it identifies the idempotent package-to-feedback operation without exposing database transaction IDs.",
+    package_completion_workflow_stage:
+      "Extracted by sessionRows() from package-completion operation metadata to show whether the package-to-feedback workflow reached presenter_ready.",
+    package_completion_recovery_status:
+      "Extracted by sessionRows() from package-completion operation metadata to show completed, replayed, or recovered partial-success status.",
+    canonical_runtime_state:
+      "Calculated by sessionRows() from current phase and active activity records; planning_completed with an active activity is reported as AWAIT_FORMATIVE_ACTIVITY_RESPONSE.",
+    active_next_interaction_id:
+      "Extracted by sessionRows() from the persisted next-interaction conversation turn when package feedback has selected an actionable next interaction.",
+    active_activity_id:
+      "Extracted by sessionRows() from the active ActivityRuntimeAttempt public ID when a student activity is awaiting response.",
+    display_acknowledgement:
+      "Calculated by sessionRows() from frontend display acknowledgement events using display_event_contract_version; backend generated/persisted events alone do not count as shown.",
+    display_event_contract_version:
+      "Extracted by sessionRows() from frontend display acknowledgement payloads when the browser confirms package feedback or activity display.",
+    conflict_recovery_metadata:
+      "Sanitized JSON summary from package-completion operation metadata and reconciliation events documenting recovery without raw student package payloads.",
     activity_type:
       "Extracted by sessionRows() from next_interaction_v2.activity_type to identify the distractor, scaffold, foundational, or clarification activity form.",
     routing_policy_version:
