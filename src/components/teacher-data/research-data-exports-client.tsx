@@ -52,7 +52,11 @@ type DataDictionaryResponse = {
   stats: {
     variable_count: number;
     research_variable_count: number;
+    core_research_variable_count: number;
+    supplementary_research_variable_count: number;
     process_event_type_count: number;
+    core_process_event_count: number;
+    operational_process_event_count: number;
     internal_schema_field_count: number;
     excluded_platform_field_count: number;
     selected_entity_count: number;
@@ -70,6 +74,20 @@ type DataDictionaryResponse = {
   first_visible_row: number;
   last_visible_row: number;
   category_counts: Record<string, number>;
+  research_category_counts: Record<string, number>;
+  research_category_dictionary: Array<{
+    category_id: string;
+    display_name: string;
+    definition: string;
+    inclusion_criteria: string;
+    exclusion_criteria: string;
+    typical_measurement_levels: string;
+    included_datasets: string;
+    examples_of_data_collected: string;
+    interpretation_boundaries: string;
+    variable_count: string;
+    display_order: string;
+  }>;
   filters: Record<string, string>;
   filter_options: {
     page_sizes: number[];
@@ -77,6 +95,8 @@ type DataDictionaryResponse = {
     categories: string[];
     table_names: string[];
     measurement_levels: string[];
+    documentation_tiers: string[];
+    process_event_tiers: string[];
     actor_or_sources: string[];
     scopes: string[];
     source_natures: string[];
@@ -103,8 +123,8 @@ const sections: Array<{ id: SectionId; label: string }> = [
 ];
 
 const dictionaryEntityLabels: Array<{ id: DictionaryEntityType; label: string }> = [
-  { id: "research_variable", label: "Research variables" },
-  { id: "process_event_code", label: "Process event codebook" },
+  { id: "research_variable", label: "Core research variables" },
+  { id: "process_event_code", label: "Core learning-process events" },
   { id: "internal_schema_field", label: "Internal schema appendix - Advanced" },
   { id: "excluded_platform_field", label: "Platform administration and excluded variables - Advanced" }
 ];
@@ -260,19 +280,42 @@ function DefinitionRow({ label, value }: { label: string; value?: string }) {
   );
 }
 
+function dictionaryEntryType(entry: DataDictionaryEntry, fallback: DictionaryEntityType): DictionaryEntityType {
+  const entityType = entry.entity_type;
+  if (
+    entityType === "research_variable" ||
+    entityType === "process_event_code" ||
+    entityType === "internal_schema_field" ||
+    entityType === "excluded_platform_field"
+  ) {
+    return entityType;
+  }
+  return fallback;
+}
+
+function dictionaryEntryKey(entry: DataDictionaryEntry, index: number) {
+  return entry.qualified_name || entry.event_type || `${entry.entity_type || "dictionary-row"}:${index}`;
+}
+
 function DictionaryCard({ entry, entityType }: { entry: DataDictionaryEntry; entityType: DictionaryEntityType }) {
-  if (entityType === "process_event_code") {
+  const effectiveEntityType = dictionaryEntryType(entry, entityType);
+
+  if (effectiveEntityType === "process_event_code") {
+    const eventType = entry.event_type || entry.qualified_name || "Unknown process event";
     return (
-      <article className="rounded-lg border border-line bg-white p-4 shadow-soft" key={entry.event_type}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+      <details className="group rounded-lg border border-line bg-white p-4 shadow-soft">
+        <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Process event</p>
-            <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">{entry.event_type}</h3>
+            <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">{eventType}</h3>
+            <p className="mt-1 text-sm text-muted">
+              {entry.event_category || "Uncategorized"} · {entry.process_event_tier || "process event"} · {entry.measurement_level}
+            </p>
           </div>
           <span className="rounded-full border border-line bg-slate-50 px-3 py-1 text-xs font-semibold text-ink">
-            {entry.event_category}
+            {entry.process_event_tier || entry.event_category}
           </span>
-        </div>
+        </summary>
         <dl className="mt-4 grid gap-4 md:grid-cols-2">
           <DefinitionRow label="Trigger" value={entry.trigger} />
           <DefinitionRow label="Actor/source" value={entry.actor_or_source} />
@@ -285,22 +328,24 @@ function DictionaryCard({ entry, entityType }: { entry: DataDictionaryEntry; ent
           <DefinitionRow label="Review status" value={entry.semantic_review_status} />
           <DefinitionRow label="Interpretation caution" value={entry.interpretation_caution} />
         </dl>
-      </article>
+      </details>
     );
   }
 
-  if (entityType === "internal_schema_field") {
+  if (effectiveEntityType === "internal_schema_field") {
+    const qualifiedName = entry.qualified_name || [entry.model_name, entry.field_name].filter(Boolean).join(".") || "Unknown internal field";
     return (
-      <article className="rounded-lg border border-line bg-white p-4 shadow-soft" key={entry.qualified_name}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+      <details className="group rounded-lg border border-line bg-white p-4 shadow-soft">
+        <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Internal schema field</p>
-            <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">{entry.qualified_name}</h3>
+            <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">{qualifiedName}</h3>
+            <p className="mt-1 text-sm text-muted">{entry.model_name || "Internal schema"} · {entry.database_type || "field"}</p>
           </div>
           <span className="rounded-full border border-line bg-slate-50 px-3 py-1 text-xs font-semibold text-ink">
             {entry.export_policy}
           </span>
-        </div>
+        </summary>
         <dl className="mt-4 grid gap-4 md:grid-cols-2">
           <DefinitionRow label="Model / field" value={`${entry.model_name}.${entry.field_name}`} />
           <DefinitionRow label="Database type" value={entry.database_type} />
@@ -309,22 +354,24 @@ function DictionaryCard({ entry, entityType }: { entry: DataDictionaryEntry; ent
           <DefinitionRow label="Privacy" value={entry.privacy_level} />
           <DefinitionRow label="Audience" value={entry.audience} />
         </dl>
-      </article>
+      </details>
     );
   }
 
-  if (entityType === "excluded_platform_field") {
+  if (effectiveEntityType === "excluded_platform_field") {
+    const qualifiedName = entry.qualified_name || [entry.source_table, entry.field_name].filter(Boolean).join(".") || "Unknown excluded field";
     return (
-      <article className="rounded-lg border border-line bg-white p-4 shadow-soft" key={entry.qualified_name}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+      <details className="group rounded-lg border border-line bg-white p-4 shadow-soft">
+        <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Excluded/platform field</p>
-            <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">{entry.qualified_name}</h3>
+            <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">{qualifiedName}</h3>
+            <p className="mt-1 text-sm text-muted">{entry.exclusion_category || "Excluded"} · {entry.export_policy}</p>
           </div>
           <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
             {entry.exclusion_category}
           </span>
-        </div>
+        </summary>
         <dl className="mt-4 grid gap-4 md:grid-cols-2">
           <DefinitionRow label="Source table" value={entry.source_table} />
           <DefinitionRow label="Research-variable mapping" value={entry.research_variable_mapping || "No direct research variable."} />
@@ -333,26 +380,33 @@ function DictionaryCard({ entry, entityType }: { entry: DataDictionaryEntry; ent
           <DefinitionRow label="Export policy" value={entry.export_policy} />
           <DefinitionRow label="Notes" value={entry.notes} />
         </dl>
-      </article>
+      </details>
     );
   }
 
+  const qualifiedName = entry.qualified_name || [entry.table_name, entry.variable_name].filter(Boolean).join(".") || "Unknown variable";
+  const category = entry.research_category_display_name || entry.substantive_category || "Uncategorized";
   return (
-    <article className="rounded-lg border border-line bg-white p-4 shadow-soft" key={entry.qualified_name}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+    <details className="group rounded-lg border border-line bg-white p-4 shadow-soft">
+      <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Variable</p>
-          <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">{entry.qualified_name}</h3>
+          <h3 className="mt-1 break-words font-mono text-base font-semibold text-ink">{qualifiedName}</h3>
+          <p className="mt-1 text-sm text-muted">
+            {entry.display_name || entry.variable_name} · {category} · {entry.data_type || "value"}
+          </p>
         </div>
         <span className="rounded-full border border-line bg-slate-50 px-3 py-1 text-xs font-semibold text-ink">
-          {entry.substantive_category}
+          {entry.documentation_tier || "core_research"}
         </span>
-      </div>
+      </summary>
       <dl className="mt-4 grid gap-4 md:grid-cols-2">
         <DefinitionRow label="Dataset/table" value={entry.table_name} />
+        <DefinitionRow label="Core category" value={category} />
+        <DefinitionRow label="Documentation tier" value={entry.documentation_tier} />
         <DefinitionRow label="Measurement level" value={entry.measurement_level} />
         <DefinitionRow label="Type" value={entry.data_type} />
-        <DefinitionRow label="Category" value={entry.substantive_category} />
+        <DefinitionRow label="Legacy category" value={entry.substantive_category} />
         <div className="md:col-span-2">
           <DefinitionRow label="Definition" value={entry.definition} />
         </div>
@@ -367,6 +421,8 @@ function DictionaryCard({ entry, entityType }: { entry: DataDictionaryEntry; ent
         <DefinitionRow label="Source service/function" value={entry.source_service_or_function} />
         <DefinitionRow label="Review status" value={entry.semantic_review_status} />
         <DefinitionRow label="Applicable record types" value={entry.applicable_record_types} />
+        <DefinitionRow label="Canonical variable" value={entry.canonical_qualified_name} />
+        <DefinitionRow label="Duplicate relationship" value={entry.duplicate_relationship} />
         {entry.timing_construct ? (
           <div className="md:col-span-2 rounded-md border border-line bg-slate-50 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Timing semantics</p>
@@ -380,7 +436,61 @@ function DictionaryCard({ entry, entityType }: { entry: DataDictionaryEntry; ent
           </div>
         ) : null}
       </dl>
-    </article>
+    </details>
+  );
+}
+
+function CategoryGuide({
+  dictionary,
+  selectedCategory
+}: {
+  dictionary: DataDictionaryResponse;
+  selectedCategory: string;
+}) {
+  if (dictionary.entity_type !== "research_variable") return null;
+  const categories = [...dictionary.research_category_dictionary].sort(
+    (left, right) => Number(left.display_order) - Number(right.display_order)
+  );
+  const selected =
+    selectedCategory === "all"
+      ? null
+      : categories.find((category) => category.display_name === selectedCategory || category.category_id === selectedCategory) ?? null;
+
+  return (
+    <section className="rounded-lg border border-line bg-slate-50 p-4" aria-labelledby="category-guide-heading">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-muted" id="category-guide-heading">
+        Category guide
+      </h3>
+      {selected ? (
+        <div className="mt-3 space-y-3">
+          <div>
+            <p className="text-base font-semibold text-ink">{selected.display_name}</p>
+            <p className="mt-1 text-sm leading-6 text-muted">{selected.definition}</p>
+          </div>
+          <dl className="grid gap-3 md:grid-cols-2">
+            <DefinitionRow label="What data are collected" value={selected.examples_of_data_collected} />
+            <DefinitionRow label="Main datasets" value={selected.included_datasets} />
+            <DefinitionRow label="Typical row grain" value={selected.typical_measurement_levels} />
+            <DefinitionRow label="Number of active core variables" value={selected.variable_count} />
+            <div className="md:col-span-2">
+              <DefinitionRow label="Interpretation boundaries" value={selected.interpretation_boundaries} />
+            </div>
+          </dl>
+        </div>
+      ) : (
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {categories.map((category) => (
+            <div className="rounded-md border border-line bg-white p-3" key={category.category_id}>
+              <p className="font-semibold text-ink">{category.display_name}</p>
+              <p className="mt-1 text-sm leading-6 text-muted">{category.definition}</p>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                {category.variable_count} active core variables
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -398,7 +508,6 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
   const [dictionarySearch, setDictionarySearch] = useState("");
   const [dictionaryCategoryFilter, setDictionaryCategoryFilter] = useState("all");
   const [dictionaryDerivationFilter, setDictionaryDerivationFilter] = useState("all");
-  const [dictionaryMeasurementLevelFilter, setDictionaryMeasurementLevelFilter] = useState("all");
   const [dictionaryActorSourceFilter, setDictionaryActorSourceFilter] = useState("all");
   const [dictionaryScopeFilter, setDictionaryScopeFilter] = useState("all");
   const [dictionaryTableFilter, setDictionaryTableFilter] = useState("all");
@@ -461,7 +570,8 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
         page_size: dictionaryPageSize,
         search: dictionarySearch.trim(),
         category: dictionaryCategoryFilter,
-        measurement_level: dictionaryEntityType === "research_variable" ? dictionaryMeasurementLevelFilter : undefined,
+        documentation_tier: dictionaryEntityType === "research_variable" ? "core_research" : undefined,
+        process_event_tier: dictionaryEntityType === "process_event_code" ? "core_learning_process" : undefined,
         source_nature: dictionaryEntityType === "research_variable" ? dictionaryDerivationFilter : undefined,
         actor_or_source: dictionaryEntityType === "process_event_code" ? dictionaryActorSourceFilter : undefined,
         scope: dictionaryEntityType === "process_event_code" ? dictionaryScopeFilter : undefined,
@@ -478,7 +588,6 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
       dictionaryDerivationFilter,
       dictionaryEntityType,
       dictionaryExportPolicyFilter,
-      dictionaryMeasurementLevelFilter,
       dictionaryPage,
       dictionaryPageSize,
       dictionaryPermittedAudienceFilter,
@@ -500,18 +609,22 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
 
   useEffect(() => {
     if (activeSection !== "dictionary") return;
+    let cancelled = false;
     setDictionaryLoading(true);
     setError(null);
     fetchDictionary(dictionaryQuery)
       .then((loadedDictionary) => {
-        setDictionary(loadedDictionary);
+        if (!cancelled) setDictionary(loadedDictionary);
       })
       .catch((caught) => {
-        setError(errorFromUnknown(caught));
+        if (!cancelled) setError(errorFromUnknown(caught));
       })
       .finally(() => {
-        setDictionaryLoading(false);
+        if (!cancelled) setDictionaryLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [activeSection, dictionaryQuery]);
 
   useEffect(() => {
@@ -535,7 +648,6 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
     setDictionaryEntityType(nextType);
     setDictionaryCategoryFilter("all");
     setDictionaryDerivationFilter("all");
-    setDictionaryMeasurementLevelFilter("all");
     setDictionaryActorSourceFilter("all");
     setDictionaryScopeFilter("all");
     setDictionaryTableFilter("all");
@@ -733,7 +845,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
             <div>
               <h2 className="text-xl font-semibold text-ink">Data dictionary</h2>
               <p className="mt-2 text-sm leading-6 text-muted">
-                Browse research variables, process-event codes, internal schema lineage, and excluded/platform fields without mixing them into one variable list.
+                Variables intended for ordinary research analysis. Supplementary process, schema, and platform documentation remain separate from the core variable list.
               </p>
             </div>
           </div>
@@ -751,7 +863,27 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
               </select>
             </label>
             <div className="self-end">
-              <DownloadLink href={`/api/teacher/research-data/dictionary${dictionaryDownloadQuery}`} label="Download filtered dictionary CSV" />
+              <DownloadLink
+                href={`/api/teacher/research-data/dictionary${dictionaryDownloadQuery}`}
+                label={
+                  dictionaryEntityType === "research_variable"
+                    ? "Download core data dictionary CSV"
+                    : dictionaryEntityType === "process_event_code"
+                      ? "Download core process-event codebook CSV"
+                      : "Download advanced documentation CSV"
+                }
+              />
+            </div>
+          </div>
+          <div className="mt-4 rounded-lg border border-line bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-ink">Advanced data documentation</p>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Supplementary research variables, the full process-event codebook, LLM execution/workflow audit fields, internal schema appendix, and excluded platform fields are available as separate documentation. They are not mixed into the default core variable count.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2 text-sm">
+              <DownloadLink href="/api/teacher/research-data/dictionary?entity_type=research_variable&documentation_tier=supplementary_research&deprecated=false" label="Download supplementary dictionary CSV" />
+              <DownloadLink href="/api/teacher/research-data/dictionary?entity_type=process_event_code&process_event_tier=all&deprecated=false" label="Download full process-event codebook CSV" />
+              <DownloadLink href="/api/teacher/research-data/dictionary?entity_type=internal_schema_field" label="Download internal schema appendix CSV" />
             </div>
           </div>
           <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
@@ -824,23 +956,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
             {dictionaryEntityType === "research_variable" ? (
               <>
                 <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-                  Measurement level
-                  <select
-                    className="h-10 rounded-md border border-line bg-white px-3 text-sm"
-                    onChange={(event) => {
-                      setDictionaryMeasurementLevelFilter(event.target.value);
-                      resetDictionaryPage();
-                    }}
-                    value={dictionaryMeasurementLevelFilter}
-                  >
-                    <option value="all">All measurement levels</option>
-                    {(dictionary?.filter_options.measurement_levels ?? []).map((level) => (
-                      <option key={level} value={level}>{level}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-                  Directly recorded or derived
+                  How the data are produced
                   <select
                     className="h-10 rounded-md border border-line bg-white px-3 text-sm"
                     onChange={(event) => {
@@ -849,7 +965,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
                     }}
                     value={dictionaryDerivationFilter}
                   >
-                    <option value="all">All source natures</option>
+                    <option value="all">All production methods</option>
                     {(dictionary?.filter_options.source_natures ?? []).map((source) => (
                       <option key={source} value={source}>{source}</option>
                     ))}
@@ -991,22 +1107,56 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
           ) : null}
           {dictionary ? (
             <div className="mt-5 space-y-4">
+              <CategoryGuide dictionary={dictionary} selectedCategory={dictionaryCategoryFilter} />
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-lg border border-line bg-slate-50 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted">Research variables</p>
-                  <p className="mt-1 text-2xl font-semibold text-ink">{dictionary.stats.research_variable_count}</p>
+                  <p className="text-xs uppercase tracking-wide text-muted">Core variables currently shown</p>
+                  <p className="mt-1 text-2xl font-semibold text-ink">{dictionary.total}</p>
                 </div>
                 <div className="rounded-lg border border-line bg-slate-50 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted">Process event types</p>
-                  <p className="mt-1 text-2xl font-semibold text-ink">{dictionary.stats.process_event_type_count}</p>
+                  <p className="text-xs uppercase tracking-wide text-muted">Selected category</p>
+                  <p className="mt-1 text-sm font-semibold text-ink">{dictionaryCategoryFilter === "all" ? "All categories" : dictionaryCategoryFilter}</p>
                 </div>
                 <div className="rounded-lg border border-line bg-slate-50 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted">Internal / excluded</p>
+                  <p className="text-xs uppercase tracking-wide text-muted">Core / supplementary variables</p>
                   <p className="mt-1 text-2xl font-semibold text-ink">
-                    {dictionary.stats.internal_schema_field_count} / {dictionary.stats.excluded_platform_field_count}
+                    {dictionary.stats.core_research_variable_count} / {dictionary.stats.supplementary_research_variable_count}
                   </p>
                 </div>
               </div>
+              {dictionary.entity_type === "research_variable" ? (
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-lg border border-line bg-white p-3">
+                    <p className="text-xs uppercase tracking-wide text-muted">Datasets represented</p>
+                    <p className="mt-1 text-sm font-semibold text-ink">
+                      {[...new Set(dictionary.rows.map((entry) => entry.table_name).filter(Boolean))].join(", ") || "None"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-line bg-white p-3">
+                    <p className="text-xs uppercase tracking-wide text-muted">Directly recorded</p>
+                    <p className="mt-1 text-2xl font-semibold text-ink">
+                      {dictionary.rows.filter((entry) => entry.source_nature === "directly_recorded" || entry.source_nature === "student_reported").length}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-line bg-white p-3">
+                    <p className="text-xs uppercase tracking-wide text-muted">Derived / interpreted</p>
+                    <p className="mt-1 text-2xl font-semibold text-ink">
+                      {dictionary.rows.filter((entry) => entry.source_nature !== "directly_recorded" && entry.source_nature !== "student_reported").length}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-lg border border-line bg-white p-3">
+                    <p className="text-xs uppercase tracking-wide text-muted">Core learning-process events</p>
+                    <p className="mt-1 text-2xl font-semibold text-ink">{dictionary.stats.core_process_event_count}</p>
+                  </div>
+                  <div className="rounded-lg border border-line bg-white p-3">
+                    <p className="text-xs uppercase tracking-wide text-muted">Operational process events</p>
+                    <p className="mt-1 text-2xl font-semibold text-ink">{dictionary.stats.operational_process_event_count}</p>
+                  </div>
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-slate-50 p-3 text-sm">
                 <span>
                   Showing {dictionary.first_visible_row}-{dictionary.last_visible_row} of {dictionary.total} rows in the selected section
@@ -1022,8 +1172,12 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
                 </div>
               </div>
               <div className="space-y-3" aria-label="Data dictionary selected entity list">
-                {dictionary.rows.map((entry) => (
-                  <DictionaryCard entry={entry} entityType={dictionaryEntityType} key={entry.qualified_name ?? entry.event_type} />
+                {dictionary.rows.map((entry, index) => (
+                  <DictionaryCard
+                    entry={entry}
+                    entityType={dictionary.entity_type}
+                    key={`${dictionaryQuery.toString()}:${dictionaryEntryKey(entry, index)}`}
+                  />
                 ))}
               </div>
             </div>

@@ -2424,17 +2424,32 @@ Phase 6A.5 must not implement:
 - `process_event_codebook.csv` documents one row per process-event type with
   trigger, actor/source, scope, timestamp meaning, allow-listed payload fields,
   derived variables, and interpretation cautions.
-- The Data dictionary UI must provide one `Dictionary section` filter with
-  Research variables, Process event codebook, Internal schema appendix -
-  Advanced, and Platform administration and excluded variables - Advanced. It
-  must show separate non-interactive counts and default to Research variables.
-- Research variables must include qualified name, dataset/table, measurement
-  level, source nature, source-code reference, source service/function,
-  semantic review status, missing/zero/false/not-applicable semantics, privacy
-  level, export policy, timing formulas where applicable, applicable record
-  types where needed, and interpretation cautions. It must support
-  teacher-controlled page sizes of 25, 50, 100, 250, and 500 rows and no
-  hardcoded 80-row limit.
+- The Data dictionary UI must default to Core research variables
+  (`documentation_tier=core_research`) and must not mix process-event groups,
+  internal schema fields, or excluded/platform fields into the core result
+  count. Supplementary variables, the full process-event codebook, internal
+  schema appendix, and platform/excluded fields must be visually secondary
+  advanced documentation.
+- Research variable browsing must show one plain-language Category filter, a
+  data-production-method filter, deprecated status, search, and page size.
+  Measurement level remains in the registry, CSV download, and expanded details
+  but must not be a normal visible browsing filter.
+- Research variables must include qualified name, dataset/table, documentation
+  tier, stable research category ID/display name, measurement level, source
+  nature, source-code reference, source service/function, semantic review
+  status, missing/zero/false/not-applicable semantics, privacy level, export
+  policy, timing formulas where applicable, duplicate/canonical relationship,
+  applicable record types where needed, and interpretation cautions. Records
+  must render collapsed by default and support teacher-controlled page sizes of
+  25, 50, 100, 250, and 500 rows with no hardcoded 80-row limit.
+- The shared research category registry must define category ID, display name,
+  definition, inclusion/exclusion criteria, typical row grains, included
+  datasets, examples, interpretation boundaries, and active core-variable
+  counts. The UI Category guide and `research_category_dictionary.csv/json`
+  must use the same registry.
+- Process-event codebook rows must include a process-event tier. The default
+  process-event browser view must show core learning-process events; operational
+  workflow/provider/export/security events belong in advanced documentation.
 - `source_verified` records source-code verification only. It must not be
   represented as domain-owner approval.
 - Ordinary research dataset exports must use `research_student_id` as the

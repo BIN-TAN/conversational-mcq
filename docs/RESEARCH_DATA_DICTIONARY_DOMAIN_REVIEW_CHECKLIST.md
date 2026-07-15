@@ -7,6 +7,34 @@ interpretation. `source_verified` means the export source path and formula were
 traced in code. It does not mean the variable wording has been approved for
 publication, dissertation use, or final analysis.
 
+## Phase 31ai Core Documentation Review
+
+The Data dictionary now defaults to `core_research` variables and groups them
+through these research-facing categories:
+
+1. Research identifiers and joins
+2. Assessment and item context
+3. Session and participation
+4. Item responses and metacognitive reports
+5. Timing and interaction
+6. Conversation and revision process
+7. Diagnostic interpretations
+8. Formative activity and follow-up
+9. Transfer and outcomes
+10. Data quality and research provenance
+
+Review questions:
+
+- Are the category names and definitions appropriate for an ordinary research
+  data dictionary?
+- Should any variable currently marked `core_research` be moved to
+  `supplementary_research` or `technical_documentation` before pilot export?
+- Are any supplementary variables needed for the planned principal analyses?
+- Are `assessment_summary.csv` convenience copies clearly marked as copied or
+  derived rather than independent constructs?
+- Are core learning-process event tiers conservative enough, or should any
+  event be moved between core and supplementary/operational tiers?
+
 ## Timing Variables
 
 All rows below are source verified and domain review pending:

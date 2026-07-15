@@ -44,7 +44,7 @@ async function main() {
   assertIncludes(client, "Data dictionary", "Research export client");
   assertIncludes(client, "Generate research dataset", "Research export client");
   assertNotIncludes(client, "Download data dictionary CSV", "Research dataset section");
-  assertIncludes(client, "Download filtered dictionary CSV", "Data dictionary section");
+  assertIncludes(client, "Download core data dictionary CSV", "Data dictionary section");
   assertNotIncludes(client, "View current page JSON", "Research export client");
   assertNotIncludes(client, "Quick summary", "Research export client");
   assertNotIncludes(client, "Analysis-ready dataset", "Research export client");

@@ -33,8 +33,8 @@ function main() {
 
   assertIncludes(clientSource, "Data dictionary selected entity list", "Data dictionary UI");
   assertIncludes(clientSource, "Dictionary section", "Data dictionary section filter");
-  assertIncludes(clientSource, "Research variables", "Data dictionary sections");
-  assertIncludes(clientSource, "Process event codebook", "Data dictionary sections");
+  assertIncludes(clientSource, "Core research variables", "Data dictionary sections");
+  assertIncludes(clientSource, "Core learning-process events", "Data dictionary sections");
   assertIncludes(clientSource, "Internal schema appendix", "Data dictionary sections");
   assertIncludes(clientSource, "Platform administration and excluded variables", "Data dictionary sections");
   assertIncludes(clientSource, "Variable", "Research variable cards");
@@ -50,7 +50,9 @@ function main() {
   assertIncludes(clientSource, "Timing semantics", "Timing cards");
   assertIncludes(clientSource, "Trigger", "Process event cards");
   assertIncludes(clientSource, "Exclusion reason", "Excluded field cards");
-  assertIncludes(clientSource, "Download filtered dictionary CSV", "Data dictionary actions");
+  assertIncludes(clientSource, "Download core data dictionary CSV", "Data dictionary actions");
+  assertIncludes(clientSource, "<details className=\"group rounded-lg", "Collapsed dictionary records");
+  assertIncludes(clientSource, "Category guide", "Data dictionary category guide");
 
   assertNotIncludes(clientSource, "Total variables", "Data dictionary counts");
   assertNotIncludes(clientSource, "Category or code group", "Data dictionary filters");
@@ -83,7 +85,7 @@ function main() {
       {
         status: "passed",
         research_variables: entries.length,
-        visible_layout: "entity_cards",
+        visible_layout: "collapsed_entity_disclosures",
         csv_metadata_columns: DATA_DICTIONARY_COLUMNS.length,
         no_openai_call_occurred: true
       },

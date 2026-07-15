@@ -7,6 +7,8 @@ import {
   dictionaryFilterOptions,
   filterDictionaryEntries,
   dictionaryStats,
+  buildResearchCategoryDictionaryEntries,
+  researchCategoryDictionaryCsv,
   paginateDictionaryEntries,
   DATA_DICTIONARY_PAGE_SIZES,
   RESEARCH_DATA_DICTIONARY_SCHEMA_VERSION,
@@ -35,12 +37,19 @@ function dictionaryQuery(url: URL) {
     throw new ContentServiceError("validation_failed", "Data dictionary search is too long.", 400);
   }
 
+  const entityType = (url.searchParams.get("entity_type") ?? "research_variable") as DictionaryEntityType;
   return {
     page,
     page_size: pageSize,
-    entity_type: (url.searchParams.get("entity_type") ?? "research_variable") as DictionaryEntityType,
+    entity_type: entityType,
     search,
     category: url.searchParams.get("category") ?? undefined,
+    documentation_tier:
+      url.searchParams.get("documentation_tier") ??
+      (entityType === "research_variable" ? "core_research" : undefined),
+    process_event_tier:
+      url.searchParams.get("process_event_tier") ??
+      (entityType === "process_event_code" ? "core_learning_process" : undefined),
     table_name: url.searchParams.get("table_name") ?? undefined,
     measurement_level: url.searchParams.get("measurement_level") ?? undefined,
     actor_or_source: url.searchParams.get("actor_or_source") ?? undefined,
@@ -62,6 +71,8 @@ function assertKnownFilterValues(
   const checks: Array<[keyof ReturnType<typeof dictionaryQuery>, readonly string[]]> = [
     ["entity_type", dictionaryEntityTypes],
     ["category", options.categories],
+    ["documentation_tier", options.documentation_tiers],
+    ["process_event_tier", options.process_event_tiers],
     ["table_name", options.table_names],
     ["measurement_level", options.measurement_levels],
     ["actor_or_source", options.actor_or_sources],
@@ -107,10 +118,14 @@ export async function GET(request: Request) {
         stats: dictionaryStats(entries),
         ...page,
         category_counts: dictionaryStats(filteredEntries).by_category,
+        research_category_counts: dictionaryStats(filteredEntries).by_research_category,
+        research_category_dictionary: buildResearchCategoryDictionaryEntries(),
         filters: {
           entity_type: query.entity_type,
           search: query.search,
           category: query.category ?? "all",
+          documentation_tier: query.documentation_tier ?? "all",
+          process_event_tier: query.process_event_tier ?? "all",
           table_name: query.table_name ?? "all",
           measurement_level: query.measurement_level ?? "all",
           actor_or_source: query.actor_or_source ?? "all",
@@ -127,14 +142,30 @@ export async function GET(request: Request) {
       });
     }
 
+    if (url.searchParams.get("category_registry") === "true") {
+      return new NextResponse(researchCategoryDictionaryCsv(), {
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="research_category_dictionary.csv"`,
+          "Cache-Control": "no-store"
+        }
+      });
+    }
+
     const filename =
       query.entity_type === "process_event_code"
-        ? "process_event_codebook.csv"
+        ? query.process_event_tier === "core_learning_process"
+          ? "core_process_event_codebook.csv"
+          : "process_event_codebook.csv"
         : query.entity_type === "internal_schema_field"
           ? "internal_schema_appendix.csv"
           : query.entity_type === "excluded_platform_field"
             ? "excluded_platform_variables.csv"
-            : "research_data_dictionary.csv";
+            : query.documentation_tier === "core_research"
+              ? "core_research_data_dictionary.csv"
+              : query.documentation_tier === "supplementary_research"
+                ? "supplementary_research_data_dictionary.csv"
+                : "research_data_dictionary.csv";
 
     return new NextResponse(dictionaryCsvForEntityType(query.entity_type, filteredEntries), {
       headers: {

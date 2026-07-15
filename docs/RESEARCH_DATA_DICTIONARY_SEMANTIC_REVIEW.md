@@ -13,10 +13,20 @@ and separated source-code verification from domain-owner approval. Phase 31ah
 hardened remaining union-table semantics, process-event specificity, excluded
 field mappings, token lineage, and versioned keyed pseudonymization:
 
+Phase 31ai adds a research-facing documentation tier on top of those generated
+artifacts. The default browser view now shows only `core_research` variables,
+uses the shared plain-language category registry, and renders all records
+collapsed by default. Supplementary variables, operational process events,
+internal schema fields, and excluded platform fields remain available as
+advanced documentation; they are no longer mixed into the ordinary core count or
+category filters.
+
 - Research dataset variables: 286
 - Process event types: 156
 - Internal schema fields: 281
 - Platform administration and excluded fields: 102
+- Default browser view: active core research variables only; deprecated aliases
+  and convenience copies are hidden from the default count.
 
 The semantic audit reported zero placeholder research definitions, zero
 placeholder process-event definitions, zero timing variables missing measurement
@@ -111,6 +121,15 @@ The review covered:
   `provider_reported_usage_metadata`, session-level token totals are
   `aggregate_derived`, and token-limit configuration remains internal
   usage/audit metadata rather than a credential.
+- Added `documentation_tier`, `research_category_id`,
+  `research_category_display_name`, `duplicate_relationship`, and
+  `canonical_qualified_name` to research-variable rows.
+- Added `process_event_tier` to process-event codebook rows so core
+  learning-process events can be separated from supplementary, operational, and
+  security/excluded events.
+- Added generated `research_category_dictionary.csv/json` and
+  `duplicate_variable_audit.csv` artifacts under the ignored `.data` artifact
+  directory during smoke verification.
 
 ## Unresolved Questions
 
@@ -125,6 +144,9 @@ The review covered:
   lineage aids, not ordinary research variables.
 - Timing semantics depend on available browser/process instrumentation. Missing
   timing still requires analysts to consult limitation and availability fields.
+- Documentation tiers and category wording remain source-code verified but
+  still need domain-owner review before dissertation publication wording is
+  treated as final.
 
 ## Acceptance Notes
 

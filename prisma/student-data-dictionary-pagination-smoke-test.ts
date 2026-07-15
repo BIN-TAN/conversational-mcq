@@ -79,10 +79,11 @@ function main() {
   assertIncludes(clientSource, "Prisma model", "Dictionary UI");
   assertIncludes(clientSource, "Exclusion category", "Dictionary UI");
   assertIncludes(clientSource, "Page size", "Dictionary UI");
-  assertIncludes(clientSource, "Measurement level", "Dictionary UI");
-  assertIncludes(clientSource, "Directly recorded or derived", "Dictionary UI");
+  assertIncludes(clientSource, "Measurement level", "Dictionary expanded details");
+  assertIncludes(clientSource, "How the data are produced", "Dictionary UI");
+  assertNotIncludes(clientSource, "setDictionaryMeasurementLevelFilter", "Dictionary UI");
   assertIncludes(clientSource, "Deprecated status", "Dictionary UI");
-  assertIncludes(clientSource, "Process event codebook", "Dictionary UI");
+  assertIncludes(clientSource, "Core learning-process events", "Dictionary UI");
   assertIncludes(clientSource, "Platform administration and excluded variables", "Dictionary UI");
   assertNotIncludes(clientSource, "All tables", "Dictionary UI");
   assertNotIncludes(clientSource, "All source types", "Dictionary UI");

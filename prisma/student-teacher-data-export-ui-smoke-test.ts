@@ -46,9 +46,9 @@ function main() {
   assertIncludes(unifiedClient, "Previous", "Unified research export client");
   assertIncludes(unifiedClient, "Next", "Unified research export client");
   assertIncludes(unifiedClient, "Last", "Unified research export client");
-  assertIncludes(unifiedClient, "Directly recorded or derived", "Unified research export client");
+  assertIncludes(unifiedClient, "How the data are produced", "Unified research export client");
   assertIncludes(unifiedClient, "Deprecated status", "Unified research export client");
-  assertIncludes(unifiedClient, "Process event codebook", "Unified research export client");
+  assertIncludes(unifiedClient, "Core learning-process events", "Unified research export client");
   assertIncludes(unifiedClient, "Internal schema appendix", "Unified research export client");
   assertIncludes(unifiedClient, "Platform administration and excluded variables", "Unified research export client");
   assertNotIncludes(unifiedClient, "All privacy levels", "Unified research export client");

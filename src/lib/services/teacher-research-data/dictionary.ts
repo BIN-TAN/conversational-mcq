@@ -336,6 +336,9 @@ export const DATA_DICTIONARY_COLUMNS = [
   "table_name",
   "variable_name",
   "display_name",
+  "documentation_tier",
+  "research_category_id",
+  "research_category_display_name",
   "substantive_category",
   "measurement_level",
   "definition",
@@ -374,6 +377,8 @@ export const DATA_DICTIONARY_COLUMNS = [
   "example_value",
   "deprecated",
   "replacement_variable",
+  "duplicate_relationship",
+  "canonical_qualified_name",
   "applicable_record_types",
   "notes"
 ] as const;
@@ -384,6 +389,7 @@ export const PROCESS_EVENT_CODEBOOK_COLUMNS = [
   "entity_type",
   "event_type",
   "event_category",
+  "process_event_tier",
   "trigger",
   "actor_or_source",
   "measurement_level",
@@ -478,12 +484,355 @@ export const DATA_DICTIONARY_CATEGORIES = [
 
 export type DataDictionaryCategory = (typeof DATA_DICTIONARY_CATEGORIES)[number];
 
+export const DOCUMENTATION_TIERS = [
+  "core_research",
+  "supplementary_research",
+  "technical_documentation",
+  "excluded_platform"
+] as const;
+
+export type DocumentationTier = (typeof DOCUMENTATION_TIERS)[number];
+
+export const PROCESS_EVENT_TIERS = [
+  "core_learning_process",
+  "supplementary_process",
+  "operational_system",
+  "security_or_excluded"
+] as const;
+
+export type ProcessEventTier = (typeof PROCESS_EVENT_TIERS)[number];
+
+export const RESEARCH_CATEGORY_REGISTRY = [
+  {
+    category_id: "research_identifiers_and_joins",
+    display_name: "Research identifiers and joins",
+    definition: "Safe pseudonymous identifiers and version fields needed to join core research tables without exposing account identities.",
+    inclusion_criteria: "Pseudonymous student, assessment, session, item, snapshot, package, export, and dictionary identifiers required for analysis joins.",
+    exclusion_criteria: "Login usernames, emails, internal database IDs, credential fields, and unrestricted linkage data.",
+    typical_measurement_levels: "student, assessment, session, item, export",
+    included_datasets: "sessions; item_responses; process_events; conversation_turns; agent_activity_records; assessment_content; assessment_summary",
+    examples_of_data_collected: "research_student_id, assessment_public_id, session_public_id, item_public_id, snapshot identifiers, pseudonymization version",
+    interpretation_boundaries: "Identifiers support linkage and reproducibility only; they are not substantive outcomes.",
+    display_order: 1
+  },
+  {
+    category_id: "assessment_and_item_context",
+    display_name: "Assessment and item context",
+    definition: "Assessment, item, option, media, snapshot, and teacher-authored diagnostic context that describes what was administered.",
+    inclusion_criteria: "Assessment title/public ID, item order, item type, option labels/text, authored diagnostic notes when export policy permits, and administered snapshots.",
+    exclusion_criteria: "Student responses, raw account data, and unrestricted answer-key fields in ordinary exports.",
+    typical_measurement_levels: "assessment, item, option, snapshot",
+    included_datasets: "assessment_content; sessions; item_responses",
+    examples_of_data_collected: "assessment_title, item_order, option text, media_public_ids, teacher diagnostic notes in restricted mode",
+    interpretation_boundaries: "Context fields describe materials and design; they do not measure student understanding by themselves.",
+    display_order: 2
+  },
+  {
+    category_id: "session_and_participation",
+    display_name: "Session and participation",
+    definition: "Attempt-level participation, progress, completion, and availability variables.",
+    inclusion_criteria: "Attempt number, session status, started/completed timestamps, completed item counts, interruption/completion state, and progress state.",
+    exclusion_criteria: "Fine-grained browser events and internal worker status.",
+    typical_measurement_levels: "session, attempt",
+    included_datasets: "sessions; assessment_summary",
+    examples_of_data_collected: "attempt_number, session_status, current_phase, completed_initial_item_count, session_completion_status",
+    interpretation_boundaries: "Participation variables describe workflow status, not ability or motivation.",
+    display_order: 3
+  },
+  {
+    category_id: "item_responses_metacognitive_reports",
+    display_name: "Item responses and metacognitive reports",
+    definition: "Student answer, reasoning, confidence, tempting-option, revision, and response-availability variables.",
+    inclusion_criteria: "Selected option, reasoning text, confidence, tempting option, response/revision indicators, missingness, and protected correctness fields where permitted.",
+    exclusion_criteria: "Teacher-only item design fields and process-event internals.",
+    typical_measurement_levels: "item response",
+    included_datasets: "item_responses",
+    examples_of_data_collected: "selected_option, reasoning_text, confidence_rating, tempting_option, revision_count, correctness in restricted research mode",
+    interpretation_boundaries: "Responses are evidence for assessment-specific interpretation; correctness fields remain protected and context-dependent.",
+    display_order: 4
+  },
+  {
+    category_id: "timing_and_interaction",
+    display_name: "Timing and interaction",
+    definition: "Analytically meaningful elapsed, active, idle, hidden, latency, pause, and interaction-count measures.",
+    inclusion_criteria: "Item/session elapsed time, active response time, prompt-to-response time, time to first action, page-hidden time, idle time, long-pause counts, and selection/revision counts.",
+    exclusion_criteria: "Every raw browser event and unrestricted process payloads.",
+    typical_measurement_levels: "session, item, turn, event",
+    included_datasets: "sessions; item_responses; process_events; conversation_turns; assessment_summary",
+    examples_of_data_collected: "item_response_time_ms, reasoning_prompt_to_submission_ms, idle_ratio, page_hidden_count, response_or_action_latency_ms",
+    interpretation_boundaries: "Timing is contextual evidence only and must not be treated as proof of effort, attention, cheating, or motivation.",
+    display_order: 5
+  },
+  {
+    category_id: "conversation_revision_process",
+    display_name: "Conversation and revision process",
+    definition: "Turn-level conversational and revision-process data that document what students and agents said or did.",
+    inclusion_criteria: "Actor type, turn sequence, student/agent message text, revision requests, revised responses, and move-on decisions.",
+    exclusion_criteria: "Hidden prompts, raw provider payloads, answer keys, and technical metadata.",
+    typical_measurement_levels: "conversation turn, item, session",
+    included_datasets: "conversation_turns; process_events; item_responses",
+    examples_of_data_collected: "actor_type, turn_index, message_text, reasoning_revised events, next_choice_selected events",
+    interpretation_boundaries: "Conversation text is contextual evidence and may require qualitative review before inference.",
+    display_order: 6
+  },
+  {
+    category_id: "diagnostic_interpretations",
+    display_name: "Diagnostic interpretations",
+    definition: "Validated assessment-specific interpretation fields derived from student responses, process context, and LLM-supported diagnostic workflows.",
+    inclusion_criteria: "Understanding category, reasoning quality signal, misconception hypothesis, confidence calibration, evidence sufficiency, guessing-risk interpretation, and limitations.",
+    exclusion_criteria: "Raw provider output, hidden prompts, token accounting, and trait-like aggregate learner profiles.",
+    typical_measurement_levels: "session, item response, diagnostic snapshot",
+    included_datasets: "sessions; item_responses; agent_activity_records; assessment_summary",
+    examples_of_data_collected: "assessment_specific_understanding_category, misconception_hypothesis, evidence_sufficiency, estimated_guessing_risk, interpretation_limitations",
+    interpretation_boundaries: "These are provisional diagnostic interpretations, not confirmed traits, misconduct findings, or complete learning claims.",
+    display_order: 7
+  },
+  {
+    category_id: "formative_activity_followup",
+    display_name: "Formative activity and follow-up",
+    definition: "Matched formative activity, follow-up, response evaluation, targeted feedback, and move-on/continue variables.",
+    inclusion_criteria: "Selected formative value, activity type, student-facing prompt, activity response, evaluation result, feedback, follow-up round, and next action.",
+    exclusion_criteria: "Raw LLM packets, hidden agent prompts, retries, and provider implementation details.",
+    typical_measurement_levels: "activity, follow-up round, session",
+    included_datasets: "agent_activity_records; conversation_turns; process_events",
+    examples_of_data_collected: "formative_value, activity_type, activity_prompt, student_response, evaluation_status, next_action",
+    interpretation_boundaries: "Activity data describe an intervention and student response within this assessment, not broad tutoring effectiveness.",
+    display_order: 8
+  },
+  {
+    category_id: "transfer_and_outcomes",
+    display_name: "Transfer and outcomes",
+    definition: "Revision, transfer-item, post-activity, and completion/outcome variables.",
+    inclusion_criteria: "Revision outcome, transfer responses, transfer correctness where permitted, post-activity evidence, and completion outcome variables.",
+    exclusion_criteria: "Summative course outcomes and external grade data unless explicitly imported and documented elsewhere.",
+    typical_measurement_levels: "session, item response, activity evidence",
+    included_datasets: "item_responses; sessions; assessment_summary; agent_activity_records",
+    examples_of_data_collected: "transfer_item_completed, transfer response fields, unsupported_correct_response_count, post_activity_evidence_count",
+    interpretation_boundaries: "Transfer/outcome variables are local to this assessment workflow and do not establish general course mastery.",
+    display_order: 9
+  },
+  {
+    category_id: "data_quality_research_provenance",
+    display_name: "Data quality and research provenance",
+    definition: "Minimum fields needed to interpret missingness, availability, dictionary/export versions, prompt/schema/model lineage, and reproducibility limits.",
+    inclusion_criteria: "Dataset version, dictionary version, snapshot version, model/prompt/schema version when needed for LLM-derived variables, availability flags, limitations, and derivation versions.",
+    exclusion_criteria: "Detailed provider retries, raw validation output, worker internals, and operational queue state.",
+    typical_measurement_levels: "export, session, item, agent call",
+    included_datasets: "sessions; item_responses; agent_activity_records; assessment_summary",
+    examples_of_data_collected: "export_schema_version, context_schema_version, data_availability_flag, schema_version, prompt_version, limitations",
+    interpretation_boundaries: "Provenance supports reproducibility and data quality review; it is not a student-performance variable.",
+    display_order: 10
+  }
+] as const;
+
+export type ResearchCategoryId = (typeof RESEARCH_CATEGORY_REGISTRY)[number]["category_id"];
+
 export const DICTIONARY_ENTITY_LABELS: Record<DictionaryEntityType, string> = {
   research_variable: "Research variables",
   process_event_code: "Process event codebook",
   internal_schema_field: "Internal source-schema appendix",
   excluded_platform_field: "Platform administration and excluded variables"
 };
+
+const categoryById = new Map(RESEARCH_CATEGORY_REGISTRY.map((category) => [category.category_id, category]));
+
+const JOIN_KEY_VARIABLES = new Set([
+  "research_student_id",
+  "student_id",
+  "student_public_id",
+  "assessment_public_id",
+  "assessment_snapshot_public_id",
+  "session_public_id",
+  "item_public_id",
+  "item_snapshot_public_id",
+  "response_public_id",
+  "agent_call_public_id",
+  "activity_public_id",
+  "media_snapshot_public_ids"
+]);
+
+const SESSION_PARTICIPATION_VARIABLES = new Set([
+  "attempt_number",
+  "assessment_status",
+  "session_status",
+  "current_phase",
+  "completion_status",
+  "session_completion_status",
+  "started_at",
+  "last_activity_at",
+  "completed_at",
+  "resumed_at",
+  "exited_at",
+  "actual_initial_item_count",
+  "completed_initial_item_count",
+  "current_item_index",
+  "item_response_count",
+  "process_event_count",
+  "conversation_turn_count",
+  "agent_call_count",
+  "formative_activity_attempt_count",
+  "post_activity_evidence_count",
+  "diagnostic_snapshot_count"
+]);
+
+const FORMATIVE_ACTIVITY_VARIABLES = new Set([
+  "formative_value",
+  "selected_strategy",
+  "activity_public_id",
+  "activity_type",
+  "activity_target",
+  "activity_prompt",
+  "attempt_number",
+  "student_response",
+  "evaluation_status",
+  "misconception_persisted",
+  "misconception_weakened",
+  "misconception_changed",
+  "misconception_resolved",
+  "evidence_insufficient",
+  "next_action"
+]);
+
+const PROVIDER_AUDIT_VARIABLES = new Set([
+  "provider",
+  "model",
+  "status",
+  "blocked_reason",
+  "retry_count",
+  "input_token_count",
+  "output_token_count",
+  "total_token_count",
+  "prompt_version",
+  "schema_version",
+  "output_validated",
+  "repair_attempted",
+  "repair_status",
+  "context_schema_version",
+  "assessment_context_hash",
+  "teacher_diagnostic_context_present",
+  "context_version_bound",
+  "answer_key_internal_only",
+  "protected_content_exposed"
+]);
+
+const SUPPLEMENTARY_SESSION_VARIABLES = new Set([
+  "app_environment",
+  "app_commit_sha",
+  "database_instance_fingerprint",
+  "total_input_tokens",
+  "total_output_tokens",
+  "total_tokens"
+]);
+
+const CORE_PROCESS_EVENT_TYPES = new Set([
+  "session_started",
+  "session_resumed",
+  "session_exited",
+  "session_completed",
+  "item_presented",
+  "agent_message_shown",
+  "option_clicked",
+  "option_selected",
+  "answer_changed",
+  "reasoning_submitted",
+  "reasoning_entered",
+  "reasoning_revised",
+  "confidence_clicked",
+  "confidence_selected",
+  "tempting_option_submitted",
+  "tempting_option_reason_submitted",
+  "item_completed",
+  "package_review_opened",
+  "package_submitted",
+  "page_hidden",
+  "page_visible",
+  "typing_activity_summary",
+  "long_pause",
+  "formative_activity_shown",
+  "followup_response_submitted",
+  "student_activity_response_submitted",
+  "targeted_feedback_shown",
+  "revision_requested",
+  "revision_submitted",
+  "next_choice_selected",
+  "transfer_item_presented",
+  "transfer_answer_selected",
+  "transfer_reasoning_submitted",
+  "transfer_confidence_clicked",
+  "transfer_tempting_option_submitted",
+  "transfer_tempting_option_reason_submitted",
+  "transfer_item_completed",
+  "assessment_completed"
+]);
+
+function categoryDisplayName(categoryId: ResearchCategoryId) {
+  return categoryById.get(categoryId)?.display_name ?? categoryId;
+}
+
+function researchCategoryIdFor(table: string, variable: string): ResearchCategoryId {
+  if (JOIN_KEY_VARIABLES.has(variable) || /pseudonym|export_run_public_id|export_schema_version|dictionary_version/.test(variable)) {
+    return "research_identifiers_and_joins";
+  }
+  if (table === "assessment_content" || /assessment_title|assessment_status|release_at|close_at|folder_week_module|item_order|item_version|media|option_[a-d]_text|diagnostic_guidance|teacher_guidance/.test(variable)) {
+    return "assessment_and_item_context";
+  }
+  if (isTimingVariable(variable) || variable.endsWith("_at") || /duration|latency|idle|hidden|pause|typing|first_action|selection_count|revision_count|event_count|_ms|_ratio/.test(variable)) {
+    return "timing_and_interaction";
+  }
+  if (table === "conversation_turns" || /revision|revised|message_text|actor_type|turn_|next_choice/.test(variable)) {
+    return "conversation_revision_process";
+  }
+  if (table === "item_responses" || /selected_option|reasoning|confidence|tempting|correctness|guessing|skipped|response_finalized|evidence_weight/.test(variable)) {
+    return "item_responses_metacognitive_reports";
+  }
+  if (LLM_INTERPRETIVE_COLUMNS.has(variable) || /misconception|understanding|engagement|profile|evidence_sufficiency|interpretation|diagnostic|uncertainty|alternative_explanations|student_safe/.test(variable)) {
+    return "diagnostic_interpretations";
+  }
+  if (table === "agent_activity_records" && FORMATIVE_ACTIVITY_VARIABLES.has(variable)) {
+    return "formative_activity_followup";
+  }
+  if (/transfer|outcome|unsupported_correct_response|completed_with_unresolved|post_activity/.test(variable)) {
+    return "transfer_and_outcomes";
+  }
+  if (SESSION_PARTICIPATION_VARIABLES.has(variable) || table === "sessions" || table === "assessment_summary") {
+    return "session_and_participation";
+  }
+  return "data_quality_research_provenance";
+}
+
+function documentationTierFor(table: string, variable: string): DocumentationTier {
+  if (variable === "student_id" || variable === "student_public_id") return "supplementary_research";
+  if (table === "assessment_summary") return "supplementary_research";
+  if (table === "agent_activity_records" && PROVIDER_AUDIT_VARIABLES.has(variable)) return "supplementary_research";
+  if (table === "sessions" && SUPPLEMENTARY_SESSION_VARIABLES.has(variable)) return "supplementary_research";
+  if (/provider|model|prompt|schema|token|retry|repair|blocked|workflow|queue|worker/.test(variable)) return "supplementary_research";
+  return "core_research";
+}
+
+function duplicateRelationshipFor(table: string, variable: string): string {
+  if (variable === "student_id" || variable === "student_public_id") return "deprecated_alias";
+  if (table === "assessment_summary") return "derived_convenience_copy";
+  if (JOIN_KEY_VARIABLES.has(variable) || variable === "attempt_number") return "required_join_key_repetition";
+  return "unique";
+}
+
+function canonicalQualifiedNameFor(table: string, variable: string) {
+  if (variable === "student_id" || variable === "student_public_id") return `${table}.research_student_id`;
+  if (table === "assessment_summary" && SESSIONS_COLUMNS.includes(variable as (typeof SESSIONS_COLUMNS)[number])) {
+    return `sessions.${variable}`;
+  }
+  if (table === "assessment_summary" && variable === "completion_status") return "sessions.session_completion_status";
+  return `${table}.${variable}`;
+}
+
+function processEventTier(eventType: string): ProcessEventTier {
+  if (CORE_PROCESS_EVENT_TYPES.has(eventType)) return "core_learning_process";
+  if (/auth|password|login|logout|credential|security/.test(eventType)) return "security_or_excluded";
+  if (/workflow|worker|retry|export|provider|agent_call|schema|llm_runtime|repair|automation|configuration|job/.test(eventType)) {
+    return "operational_system";
+  }
+  return "supplementary_process";
+}
 
 const RESTRICTED_COLUMNS = new Set([
   "correct_option",
@@ -1444,6 +1793,7 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
     for (const variable of columns) {
       const timing = timingMetadata(variable, tableName);
       const deprecated = variable === "student_id" || variable === "student_public_id";
+      const researchCategoryId = researchCategoryIdFor(tableName, variable);
       entries.push({
         entity_type: "research_variable",
         qualified_name: `${tableName}.${variable}`,
@@ -1451,6 +1801,9 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
         table_name: tableName,
         variable_name: variable,
         display_name: titleize(variable),
+        documentation_tier: documentationTierFor(tableName, variable),
+        research_category_id: researchCategoryId,
+        research_category_display_name: categoryDisplayName(researchCategoryId),
         substantive_category: categoryFor(tableName, variable),
         measurement_level: measurementLevel(tableName, variable),
         definition: definition(tableName, variable),
@@ -1500,6 +1853,8 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
         example_value: "",
         deprecated: deprecated ? "true" : "false",
         replacement_variable: deprecated ? "research_student_id" : "",
+        duplicate_relationship: duplicateRelationshipFor(tableName, variable),
+        canonical_qualified_name: canonicalQualifiedNameFor(tableName, variable),
         applicable_record_types: applicableRecordTypes(tableName, variable),
         notes: RESTRICTED_COLUMNS.has(variable)
           ? "Excluded from default research dataset exports unless explicitly requested in restricted research mode."
@@ -1513,6 +1868,22 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
   return entries.sort((left, right) =>
     left.qualified_name.localeCompare(right.qualified_name)
   );
+}
+
+export function buildCoreResearchDictionaryEntries(entries = buildAnalysisReadyDictionaryEntries()) {
+  return entries.filter((entry) =>
+    entry.documentation_tier === "core_research" &&
+    entry.deprecated !== "true" &&
+    entry.duplicate_relationship !== "derived_convenience_copy"
+  );
+}
+
+export function buildSupplementaryResearchDictionaryEntries(entries = buildAnalysisReadyDictionaryEntries()) {
+  return entries.filter((entry) => entry.documentation_tier === "supplementary_research" || entry.duplicate_relationship === "derived_convenience_copy");
+}
+
+export function buildCoreProcessEventCodebookEntries(entries = buildProcessEventCodebookEntries()) {
+  return entries.filter((entry) => entry.process_event_tier === "core_learning_process" && entry.deprecated !== "true");
 }
 
 const RESEARCH_RELEVANT_MODEL_FIELDS: Record<string, readonly string[]> = {
@@ -2037,6 +2408,7 @@ export function buildProcessEventCodebookEntries(): ProcessEventCodebookEntry[] 
       entity_type: "process_event_code",
       event_type: eventType,
       event_category: eventCategory(eventType),
+      process_event_tier: processEventTier(eventType),
       trigger: eventTrigger(eventType),
       actor_or_source: eventActor(eventType),
       measurement_level: eventScope(eventType).includes("item") ? "process_event:item_scoped" : "process_event:session_scoped",
@@ -2141,6 +2513,8 @@ export type DictionaryFilters = {
   entity_type?: DictionaryEntityType | "all";
   search?: string;
   category?: string;
+  documentation_tier?: string;
+  process_event_tier?: string;
   table_name?: string;
   measurement_level?: string;
   actor_or_source?: string;
@@ -2168,7 +2542,17 @@ function entryValue(entry: DictionaryEntityEntry, key: string) {
 }
 
 function entryCategory(entry: DictionaryEntityEntry) {
-  return entryValue(entry, "substantive_category") || entryValue(entry, "event_category") || entryValue(entry, "exclusion_category");
+  return entryValue(entry, "research_category_display_name") || entryValue(entry, "substantive_category") || entryValue(entry, "event_category") || entryValue(entry, "exclusion_category");
+}
+
+function entryCategoryValues(entry: DictionaryEntityEntry) {
+  return [
+    entryValue(entry, "research_category_display_name"),
+    entryValue(entry, "research_category_id"),
+    entryValue(entry, "substantive_category"),
+    entryValue(entry, "event_category"),
+    entryValue(entry, "exclusion_category")
+  ].filter(Boolean);
 }
 
 function fieldFamily(entry: DictionaryEntityEntry) {
@@ -2192,9 +2576,16 @@ export function dictionaryFilterOptions(entries: DictionaryEntityEntry[] = build
   return {
     page_sizes: [...DATA_DICTIONARY_PAGE_SIZES],
     entity_types: Object.entries(DICTIONARY_ENTITY_LABELS).map(([value, label]) => ({ value, label })),
-    categories: unique(entries.map((entry) => entryCategory(entry))),
+    categories: unique(entries.flatMap((entry) => [
+      entryCategory(entry),
+      entryValue(entry, "substantive_category"),
+      entryValue(entry, "event_category"),
+      entryValue(entry, "exclusion_category")
+    ])),
     table_names: unique(entries.map((entry) => entryValue(entry, "table_name") || entryValue(entry, "source_table") || entryValue(entry, "model_name"))),
     measurement_levels: unique(entries.map((entry) => entryValue(entry, "measurement_level"))),
+    documentation_tiers: unique(entries.map((entry) => entryValue(entry, "documentation_tier"))),
+    process_event_tiers: unique(entries.map((entry) => entryValue(entry, "process_event_tier"))),
     actor_or_sources: unique(entries.map((entry) => entryValue(entry, "actor_or_source"))),
     scopes: unique(entries.map((entry) => entryValue(entry, "session_or_item_scope"))),
     source_natures: unique(entries.map((entry) => entryValue(entry, "source_nature"))),
@@ -2210,7 +2601,9 @@ export function dictionaryFilterOptions(entries: DictionaryEntityEntry[] = build
 export function filterDictionaryEntries<T extends DictionaryEntityEntry>(entries: T[], filters: DictionaryFilters): T[] {
   const search = filters.search?.trim().toLowerCase() ?? "";
   return entries
-    .filter((entry) => !filters.category || filters.category === "all" || entryCategory(entry) === filters.category)
+    .filter((entry) => !filters.category || filters.category === "all" || entryCategoryValues(entry).includes(filters.category))
+    .filter((entry) => !filters.documentation_tier || filters.documentation_tier === "all" || entryValue(entry, "documentation_tier") === filters.documentation_tier)
+    .filter((entry) => !filters.process_event_tier || filters.process_event_tier === "all" || entryValue(entry, "process_event_tier") === filters.process_event_tier)
     .filter((entry) => !filters.table_name || filters.table_name === "all" || [entryValue(entry, "table_name"), entryValue(entry, "source_table"), entryValue(entry, "model_name")].includes(filters.table_name))
     .filter((entry) => !filters.measurement_level || filters.measurement_level === "all" || entryValue(entry, "measurement_level") === filters.measurement_level)
     .filter((entry) => !filters.actor_or_source || filters.actor_or_source === "all" || entryValue(entry, "actor_or_source") === filters.actor_or_source)
@@ -2262,19 +2655,146 @@ export function dictionaryStats(entries: DictionaryEntityEntry[] = buildAnalysis
   const processEvents = buildProcessEventCodebookEntries();
   const internal = buildInternalSchemaAppendixEntries();
   const excluded = buildExcludedPlatformVariableEntries();
+  const coreResearch = allResearch.filter((entry) => entry.documentation_tier === "core_research" && entry.deprecated !== "true");
+  const supplementaryResearch = allResearch.filter((entry) => entry.documentation_tier === "supplementary_research");
+  const coreProcessEvents = processEvents.filter((entry) => entry.process_event_tier === "core_learning_process");
+  const operationalProcessEvents = processEvents.filter((entry) => entry.process_event_tier === "operational_system");
   return {
     variable_count: allResearch.length,
     research_variable_count: allResearch.length,
+    core_research_variable_count: coreResearch.length,
+    supplementary_research_variable_count: supplementaryResearch.length,
     process_event_type_count: processEvents.length,
+    core_process_event_count: coreProcessEvents.length,
+    operational_process_event_count: operationalProcessEvents.length,
     internal_schema_field_count: internal.length,
     excluded_platform_field_count: excluded.length,
     selected_entity_count: entries.length,
     by_category: countBy(entries, "substantive_category"),
+    by_research_category: countBy(entries, "research_category_display_name"),
+    by_documentation_tier: countBy(entries, "documentation_tier"),
     by_event_category: countBy(entries, "event_category"),
+    by_process_event_tier: countBy(entries, "process_event_tier"),
     by_export_policy: countBy(entries, "export_policy"),
     by_privacy_level: countBy(entries, "privacy_level"),
     by_source_nature: countBy(entries, "source_nature")
   };
+}
+
+export const RESEARCH_CATEGORY_DICTIONARY_COLUMNS = [
+  "category_id",
+  "display_name",
+  "definition",
+  "inclusion_criteria",
+  "exclusion_criteria",
+  "typical_measurement_levels",
+  "included_datasets",
+  "examples_of_data_collected",
+  "interpretation_boundaries",
+  "variable_count",
+  "display_order"
+] as const;
+
+export type ResearchCategoryDictionaryEntry = Record<(typeof RESEARCH_CATEGORY_DICTIONARY_COLUMNS)[number], string>;
+
+export function buildResearchCategoryDictionaryEntries(entries = buildAnalysisReadyDictionaryEntries()): ResearchCategoryDictionaryEntry[] {
+  const coreEntries = entries.filter((entry) => entry.documentation_tier === "core_research" && entry.deprecated !== "true");
+  return RESEARCH_CATEGORY_REGISTRY.map((category) => ({
+    category_id: category.category_id,
+    display_name: category.display_name,
+    definition: category.definition,
+    inclusion_criteria: category.inclusion_criteria,
+    exclusion_criteria: category.exclusion_criteria,
+    typical_measurement_levels: category.typical_measurement_levels,
+    included_datasets: category.included_datasets,
+    examples_of_data_collected: category.examples_of_data_collected,
+    interpretation_boundaries: category.interpretation_boundaries,
+    variable_count: String(coreEntries.filter((entry) => entry.research_category_id === category.category_id).length),
+    display_order: String(category.display_order)
+  }));
+}
+
+export function researchCategoryDictionaryCsv(entries = buildResearchCategoryDictionaryEntries()) {
+  return stringify(
+    entries.map((entry) =>
+      Object.fromEntries(RESEARCH_CATEGORY_DICTIONARY_COLUMNS.map((column) => [column, csvSafe(entry[column])]))
+    ),
+    { header: true, columns: [...RESEARCH_CATEGORY_DICTIONARY_COLUMNS] }
+  );
+}
+
+export function researchCategoryDictionaryJson(entries = buildResearchCategoryDictionaryEntries()) {
+  return JSON.stringify(entries, null, 2);
+}
+
+export const DUPLICATE_VARIABLE_AUDIT_COLUMNS = [
+  "variable_name",
+  "qualified_name",
+  "dataset_table",
+  "category",
+  "row_grain",
+  "semantic_construct",
+  "canonical_qualified_name",
+  "duplicate_relationship",
+  "justification",
+  "core_visibility",
+  "consistency_test"
+] as const;
+
+export type DuplicateVariableAuditEntry = Record<(typeof DUPLICATE_VARIABLE_AUDIT_COLUMNS)[number], string>;
+
+function duplicateJustification(entry: DataDictionaryEntry) {
+  switch (entry.duplicate_relationship) {
+    case "required_join_key_repetition":
+      return "Repeated join key needed to join row-grain-specific datasets.";
+    case "derived_convenience_copy":
+      return "Convenience-view copy retained for compatibility; canonical source identified.";
+    case "deprecated_alias":
+      return "Deprecated compatibility alias hidden from default core browsing.";
+    default:
+      return "Qualified variable is unique within the generated research dictionary.";
+  }
+}
+
+export function buildDuplicateVariableAuditEntries(entries = buildAnalysisReadyDictionaryEntries()): DuplicateVariableAuditEntry[] {
+  const unqualifiedCounts = new Map<string, number>();
+  for (const entry of entries) {
+    unqualifiedCounts.set(entry.variable_name, (unqualifiedCounts.get(entry.variable_name) ?? 0) + 1);
+  }
+
+  return entries.map((entry) => ({
+    variable_name: entry.variable_name,
+    qualified_name: entry.qualified_name,
+    dataset_table: entry.table_name,
+    category: entry.research_category_display_name,
+    row_grain: entry.measurement_level,
+    semantic_construct: entry.definition,
+    canonical_qualified_name: entry.canonical_qualified_name || entry.qualified_name,
+    duplicate_relationship:
+      (unqualifiedCounts.get(entry.variable_name) ?? 0) > 1
+        ? entry.duplicate_relationship
+        : entry.duplicate_relationship === "unique"
+          ? "unique"
+          : entry.duplicate_relationship,
+    justification: duplicateJustification(entry),
+    core_visibility: entry.documentation_tier === "core_research" && entry.deprecated !== "true" && entry.duplicate_relationship !== "derived_convenience_copy"
+      ? "visible_in_core"
+      : "hidden_by_default_or_advanced",
+    consistency_test: entry.duplicate_relationship === "derived_convenience_copy"
+      ? `Compare ${entry.qualified_name} with ${entry.canonical_qualified_name} where both are present.`
+      : entry.duplicate_relationship === "required_join_key_repetition"
+        ? `Validate join key equality only within the documented relationship, not across unrelated row grains.`
+        : "No equality consistency test required."
+  }));
+}
+
+export function duplicateVariableAuditCsv(entries = buildDuplicateVariableAuditEntries()) {
+  return stringify(
+    entries.map((entry) =>
+      Object.fromEntries(DUPLICATE_VARIABLE_AUDIT_COLUMNS.map((column) => [column, csvSafe(entry[column])]))
+    ),
+    { header: true, columns: [...DUPLICATE_VARIABLE_AUDIT_COLUMNS] }
+  );
 }
 
 const PLACEHOLDER_PATTERNS = [

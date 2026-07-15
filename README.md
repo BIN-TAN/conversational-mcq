@@ -2240,14 +2240,23 @@ The unified export center has two normal teacher-facing sections:
   `agent_activity_records.csv`, `assessment_content.csv`,
   `assessment_summary.csv`, `research_data_dictionary.csv`, and
   `process_event_codebook.csv`.
-- Data dictionary: a paginated and downloadable browser with a `Dictionary
-  section` filter for research variables, process-event codes, internal schema
-  lineage, and excluded/platform fields. Research variable rows document
-  qualified name, dataset/table, measurement level, source nature, source-code
-  reference, source service/function, source-verification status, missing/zero
-  semantics, privacy level, export policy, collection/generation method,
-  interpretation guidance, and limitations. Internal and excluded sections are
-  advanced documentation views, not ordinary teacher workflows.
+- Data dictionary: a paginated, collapsed-by-default browser that opens on
+  **Core research variables** only. It includes a plain-language category guide,
+  a single category filter, a data-production-method filter, deprecated-status
+  filtering, and a core CSV download that reflects the current filters.
+  Measurement level remains in expanded details and CSV exports, but is not a
+  normal browsing filter. Supplementary variables, the full process-event
+  codebook, LLM execution/workflow audit fields, internal schema lineage, and
+  excluded/platform fields are available only in the secondary Advanced data
+  documentation area.
+
+The research dictionary uses explicit documentation tiers
+`core_research`, `supplementary_research`, `technical_documentation`, and
+`excluded_platform`. Core variables are grouped by the shared category registry
+documented in `docs/RESEARCH_DATA_FORMAT_DECISIONS.md`, which also records
+which datasets remain tabular CSV, which future payloads should be JSONL, and
+which union/summary tables are compatibility views rather than independent core
+constructs.
 
 Legacy teacher UI routes `/teacher/data/explorer` and `/teacher/data/export`
 redirect to the unified export center. Existing authorized CSV and archive API

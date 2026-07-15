@@ -4,13 +4,17 @@ import path from "path";
 import { parse } from "csv-parse/sync";
 import {
   DATA_DICTIONARY_COLUMNS,
+  DUPLICATE_VARIABLE_AUDIT_COLUMNS,
   EXCLUDED_PLATFORM_VARIABLE_COLUMNS,
   INTERNAL_SCHEMA_APPENDIX_COLUMNS,
   PROCESS_EVENT_CODEBOOK_COLUMNS,
+  RESEARCH_CATEGORY_DICTIONARY_COLUMNS,
   dataDictionaryCsv,
+  duplicateVariableAuditCsv,
   excludedPlatformVariablesCsv,
   internalSchemaAppendixCsv,
   processEventCodebookCsv,
+  researchCategoryDictionaryCsv,
   researchDataDictionarySemanticReport
 } from "../src/lib/services/teacher-research-data/dictionary";
 
@@ -24,6 +28,11 @@ const requiredResearchColumns = [
   "source_service_or_function",
   "semantic_review_status",
   "semantic_review_notes",
+  "documentation_tier",
+  "research_category_id",
+  "research_category_display_name",
+  "duplicate_relationship",
+  "canonical_qualified_name",
   "applicable_record_types"
 ];
 
@@ -108,6 +117,8 @@ function verifyResearchRows(rows: CsvRow[]) {
 
   const selectedOption = requireRow(rows, "qualified_name", "item_responses.selected_option");
   expectValue(selectedOption, "substantive_category", "Item response data");
+  expectValue(selectedOption, "documentation_tier", "core_research");
+  expectValue(selectedOption, "research_category_display_name", "Item responses and metacognitive reports");
   expectValue(selectedOption, "source_nature", "student_reported");
   expectContains(selectedOption, "definition", "Option label selected by the student");
 
@@ -210,6 +221,9 @@ function verifyResearchRows(rows: CsvRow[]) {
 
   const assessmentSummaryStudent = requireRow(rows, "qualified_name", "assessment_summary.research_student_id");
   expectContains(assessmentSummaryStudent, "definition", "Pseudonymous student join key");
+  expectValue(assessmentSummaryStudent, "documentation_tier", "supplementary_research");
+  expectValue(assessmentSummaryStudent, "duplicate_relationship", "derived_convenience_copy");
+  expectValue(assessmentSummaryStudent, "canonical_qualified_name", "sessions.research_student_id");
 }
 
 function verifyProcessEventRows(rows: CsvRow[]) {
@@ -219,10 +233,12 @@ function verifyProcessEventRows(rows: CsvRow[]) {
   assert(rows.every((row) => row.semantic_review_status === "source_verified"), "Every emitted process-event row needs source_verified semantic status.");
 
   const agentCallFailed = requireRow(rows, "event_type", "agent_call_failed");
+  expectValue(agentCallFailed, "process_event_tier", "operational_system");
   expectContains(agentCallFailed, "trigger", "provider transport");
   expectContains(agentCallFailed, "interpretation_caution", "sanitized agent-call metadata");
 
   const itemPresented = requireRow(rows, "event_type", "item_presented");
+  expectValue(itemPresented, "process_event_tier", "core_learning_process");
   expectContains(itemPresented, "trigger", "item-presentation step");
   expectContains(itemPresented, "timestamp_meaning", "application-side item-presentation acknowledgement");
 
@@ -319,6 +335,20 @@ function main() {
       expectedRowCount: 102,
       expectedColumns: EXCLUDED_PLATFORM_VARIABLE_COLUMNS,
       requiredColumns: ["research_variable_mapping", "exclusion_category", "exclusion_reason", "permitted_audience", "export_policy"]
+    },
+    {
+      fileName: "research_category_dictionary.csv",
+      content: researchCategoryDictionaryCsv(),
+      expectedRowCount: 10,
+      expectedColumns: RESEARCH_CATEGORY_DICTIONARY_COLUMNS,
+      requiredColumns: ["category_id", "display_name", "definition", "inclusion_criteria", "exclusion_criteria", "variable_count"]
+    },
+    {
+      fileName: "duplicate_variable_audit.csv",
+      content: duplicateVariableAuditCsv(),
+      expectedRowCount: 286,
+      expectedColumns: DUPLICATE_VARIABLE_AUDIT_COLUMNS,
+      requiredColumns: ["variable_name", "qualified_name", "canonical_qualified_name", "duplicate_relationship", "core_visibility"]
     }
   ];
 
@@ -372,7 +402,9 @@ function main() {
         research_data_dictionary: semanticReport.research_variable_count,
         process_event_codebook: semanticReport.process_event_type_count,
         internal_schema_appendix: semanticReport.internal_schema_field_count,
-        excluded_platform_variables: semanticReport.excluded_platform_field_count
+        excluded_platform_variables: semanticReport.excluded_platform_field_count,
+        research_category_dictionary: 10,
+        duplicate_variable_audit: 286
       },
       generic_research_definitions: semanticReport.generic_research_definitions,
       generic_research_methods: semanticReport.generic_research_methods,
