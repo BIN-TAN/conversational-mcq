@@ -77,15 +77,17 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
     try {
       const result = await fetchAvailableAssessments();
       setAssessments(result.assessments);
+      return result.assessments;
     } catch (caught) {
       const apiError = caught as StructuredStudentApiError;
 
       if (apiError.status === 401) {
         router.push("/student/login");
-        return;
+        return [];
       }
 
       setError(apiError);
+      return [];
     } finally {
       setIsLoading(false);
     }
@@ -110,7 +112,23 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
       const apiError = normalizeAssessmentStartErrorForStudent(
         caught as StructuredStudentApiError
       );
-      await loadAssessments();
+      const latestAssessments = await loadAssessments();
+      const latestAssessment = latestAssessments.find(
+        (candidate) => candidate.assessment_public_id === assessment.assessment_public_id
+      );
+      const recoverySessionPublicId =
+        startErrorRecoverySessionPublicId(apiError) ??
+        (latestAssessment?.can_resume ? latestAssessment.existing_session_public_id : null);
+
+      if (recoverySessionPublicId) {
+        setPendingAssessment(null);
+        setError(null);
+        startTransition(() => {
+          router.push(`/student/assessment/${recoverySessionPublicId}`);
+        });
+        return;
+      }
+
       setError(apiError);
       setPendingAssessment(null);
     }
@@ -139,7 +157,16 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
       const apiError = normalizeAssessmentStartErrorForStudent(
         caught as StructuredStudentApiError
       );
-      await loadAssessments();
+      const latestAssessments = await loadAssessments();
+      const latestAssessment = latestAssessments.find(
+        (candidate) => candidate.assessment_public_id === assessment.assessment_public_id
+      );
+
+      if (!latestAssessment?.can_resume) {
+        setError(null);
+        return;
+      }
+
       setError(apiError);
     } finally {
       setPendingAssessment(null);

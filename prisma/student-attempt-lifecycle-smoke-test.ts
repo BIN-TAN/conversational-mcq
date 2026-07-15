@@ -224,6 +224,10 @@ async function main() {
     await activeAttemptCount(student.id, assessment.id) === 1,
     "Only one active/resumable attempt should exist."
   );
+  assert(
+    await eventCount(first.session.session_public_id, "attempt_resumed") === 0,
+    "Already-active resume/start recovery should not duplicate attempt_resumed events."
+  );
 
   const paused = await exitStudentAssessmentSession({
     student_user_db_id: student.id,
@@ -232,6 +236,15 @@ async function main() {
   assert(paused.exit_status === "paused" && paused.can_resume, "Pause and leave should remain resumable.");
   assert(await eventCount(first.session.session_public_id, "attempt_paused") === 1, "attempt_paused event missing.");
   assert(await eventCount(first.session.session_public_id, "session_paused") === 1, "session_paused event missing.");
+  const duplicatePause = await exitStudentAssessmentSession({
+    student_user_db_id: student.id,
+    session_public_id: first.session.session_public_id
+  });
+  assert(duplicatePause.exit_status === "already_paused", "Repeated pause should be idempotent.");
+  assert(
+    await eventCount(first.session.session_public_id, "attempt_paused") === 1,
+    "Repeated pause should not duplicate attempt_paused."
+  );
 
   const resumed = await startOrResumeStudentAssessmentSession({
     student_user_db_id: student.id,
@@ -241,7 +254,19 @@ async function main() {
     resumed.session.session_public_id === first.session.session_public_id,
     "Resume should reuse the paused session."
   );
-  assert(await eventCount(first.session.session_public_id, "attempt_resumed") >= 1, "attempt_resumed event missing.");
+  assert(await eventCount(first.session.session_public_id, "attempt_resumed") === 1, "attempt_resumed event missing.");
+  const duplicateResume = await startOrResumeStudentAssessmentSession({
+    student_user_db_id: student.id,
+    assessment_public_id: assessment.assessment_public_id
+  });
+  assert(
+    duplicateResume.session.session_public_id === first.session.session_public_id,
+    "Repeated resume of an active attempt should reuse the same session."
+  );
+  assert(
+    await eventCount(first.session.session_public_id, "attempt_resumed") === 1,
+    "Repeated active resume should not duplicate attempt_resumed."
+  );
 
   const ended = await endStudentAssessmentAttempt({
     student_user_db_id: student.id,
@@ -251,6 +276,15 @@ async function main() {
   assert(ended.can_resume === false, "Ended attempt should not be resumable.");
   assert(await eventCount(first.session.session_public_id, "attempt_end_requested") === 1, "attempt_end_requested event missing.");
   assert(await eventCount(first.session.session_public_id, "attempt_ended_by_student") === 1, "attempt_ended_by_student event missing.");
+  const duplicateEnd = await endStudentAssessmentAttempt({
+    student_user_db_id: student.id,
+    session_public_id: first.session.session_public_id
+  });
+  assert(duplicateEnd.end_status === "already_ended", "Repeated end should be idempotent.");
+  assert(
+    await eventCount(first.session.session_public_id, "attempt_ended_by_student") === 1,
+    "Repeated end should not duplicate attempt_ended_by_student."
+  );
 
   const afterStudentEnd = await availabilityRow(student.id, assessment.assessment_public_id);
   assert(afterStudentEnd.can_resume === false, "Student-ended attempt should not be resumable.");
@@ -321,6 +355,15 @@ async function main() {
   assert(await eventCount(second.session.session_public_id, "formative_activity_skipped") === 1, "formative_activity_skipped event missing.");
   assert(await eventCount(second.session.session_public_id, "finish_assessment_selected") === 1, "finish_assessment_selected event missing.");
   assert(await eventCount(second.session.session_public_id, "session_completed") === 1, "session_completed event missing.");
+  const completedEnd = await endStudentAssessmentAttempt({
+    student_user_db_id: student.id,
+    session_public_id: second.session.session_public_id
+  });
+  assert(completedEnd.end_status === "already_completed", "Completed attempts should return an idempotent terminal outcome.");
+  assert(
+    await eventCount(second.session.session_public_id, "attempt_ended_by_student") === 0,
+    "Completed End assessment attempt should not be rewritten as student_exited."
+  );
 
   const third = await startOrResumeStudentAssessmentSession({
     student_user_db_id: student.id,
@@ -331,6 +374,35 @@ async function main() {
   assert(
     third.session.session_public_id !== second.session.session_public_id,
     "Completed End assessment attempt should not be overwritten or reused."
+  );
+
+  const thirdRecord = await prisma.assessmentSession.findUniqueOrThrow({
+    where: { session_public_id: third.session.session_public_id },
+    select: { id: true }
+  });
+  await prisma.assessmentSession.update({
+    where: { id: thirdRecord.id },
+    data: {
+      resume_phase: "planning_completed",
+      resume_context: { stale: true }
+    }
+  });
+  const staleRecovery = await startOrResumeStudentAssessmentSession({
+    student_user_db_id: student.id,
+    assessment_public_id: assessment.assessment_public_id
+  });
+  assert(
+    staleRecovery.session.session_public_id === third.session.session_public_id,
+    "Stale resume fields on an active attempt should recover to the same session."
+  );
+  const normalizedThird = await prisma.assessmentSession.findUniqueOrThrow({
+    where: { id: thirdRecord.id },
+    select: { resume_phase: true, resume_context: true }
+  });
+  assert(!normalizedThird.resume_phase, "Stale active resume_phase should be cleared.");
+  assert(
+    await eventCount(third.session.session_public_id, "attempt_state_reconciled") === 1,
+    "Stale active attempt reconciliation should be logged once."
   );
 
   const teacherClosed = await closeAttemptAndAllowAnother({

@@ -66,6 +66,8 @@ export const AvailableAssessmentSchema = StudentAssessmentSummarySchema.extend({
   student_safe_availability_message: z.string(),
   existing_session_public_id: z.string().nullable(),
   existing_session_status: z.string().nullable(),
+  existing_session_lifecycle_version: z.string().nullable().optional(),
+  existing_session_canonical_status: z.string().nullable().optional(),
   existing_attempt_number: z.number().nullable().optional(),
   latest_completed_session_public_id: z.string().nullable().optional(),
   latest_completed_attempt_number: z.number().nullable().optional(),
@@ -170,6 +172,21 @@ export const StudentSessionStateSchema = z.object({
   effective_phase: z.string(),
   assessment_state: ChatNativeAssessmentStateSchema,
   canonical_runtime_state: z.string().optional(),
+  attempt_lifecycle: z
+    .object({
+      canonical_status: z.string(),
+      canonical_runtime_state: z.string(),
+      lifecycle_version: z.string(),
+      terminal: z.boolean(),
+      resumable: z.boolean(),
+      can_resume: z.boolean(),
+      can_pause: z.boolean(),
+      can_end: z.boolean(),
+      can_start_another: z.boolean(),
+      blocking_reason: z.string().nullable(),
+      consistency_issues: z.array(z.string())
+    })
+    .optional(),
   assessment: StudentAssessmentSummarySchema,
   progress: z.object({
     concept_unit_index: z.number(),

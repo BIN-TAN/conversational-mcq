@@ -3,20 +3,7 @@ import { prisma } from "@/lib/db";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { generatePublicId } from "@/lib/services/ids";
 import { StudentAssessmentServiceError } from "@/lib/services/student-assessment/errors";
-
-function isTerminalSession(session: {
-  status: string;
-  current_phase: string;
-  completed_at: Date | null;
-}) {
-  return (
-    session.status === "completed" ||
-    session.current_phase === "session_completed" ||
-    Boolean(session.completed_at) ||
-    session.status === "student_exited" ||
-    session.current_phase === "student_exited"
-  );
-}
+import { resolveCanonicalAttemptLifecycle } from "@/lib/services/student-assessment/attempt-lifecycle";
 
 export async function closeAttemptAndAllowAnother(input: {
   session_public_id: string;
@@ -31,6 +18,9 @@ export async function closeAttemptAndAllowAnother(input: {
       status: true,
       current_phase: true,
       completed_at: true,
+      resume_phase: true,
+      resume_context: true,
+      updated_at: true,
       user: { select: { user_id: true } },
       assessment: { select: { assessment_public_id: true } }
     }
@@ -40,12 +30,30 @@ export async function closeAttemptAndAllowAnother(input: {
     throw new StudentAssessmentServiceError("not_found", "Session was not found.", 404);
   }
 
-  if (isTerminalSession(session)) {
+  const lifecycle = resolveCanonicalAttemptLifecycle(session);
+  if (lifecycle.terminal) {
     return {
       status: "already_terminal" as const,
       request_id: generatePublicId("attempt_control"),
-      override_applied: false
+      override_applied: false,
+      terminal_status: lifecycle.terminal_status,
+      lifecycle_version: lifecycle.lifecycle_version
     };
+  }
+
+  if (lifecycle.blocking_reason) {
+    throw new StudentAssessmentServiceError(
+      lifecycle.blocking_reason === "attempt_needs_review"
+        ? "attempt_needs_review"
+        : "attempt_state_inconsistent",
+      "This attempt needs review before it can be closed.",
+      409,
+      {
+        session_public_id: session.session_public_id,
+        consistency_issues: lifecycle.consistency_issues,
+        lifecycle_version: lifecycle.lifecycle_version
+      }
+    );
   }
 
   const actor = await prisma.user.findUnique({
@@ -93,7 +101,8 @@ export async function closeAttemptAndAllowAnother(input: {
       new_phase: "student_exited",
       terminal_status: "ended_by_teacher",
       override_applied: false,
-      reason
+      reason,
+      operation_identity: `teacher_end_attempt:${session.session_public_id}`
     },
     occurred_at: now
   });
@@ -105,6 +114,7 @@ export async function closeAttemptAndAllowAnother(input: {
     payload: {
       request_id: requestId,
       assessment_public_id: session.assessment.assessment_public_id,
+      operation_identity: `teacher_end_attempt:${session.session_public_id}`,
       reason: "previous_attempt_closed_by_teacher"
     },
     occurred_at: now

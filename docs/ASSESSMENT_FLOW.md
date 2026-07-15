@@ -67,6 +67,8 @@ Create or resume the student assessment session. Show a conversational opening a
 
 Only one active or paused attempt may exist for a student and assessment. If a resumable attempt exists, the student assessment list shows Resume attempt and End current attempt, not a new Start button. Ending an attempt is terminal and preserves all records; pausing an attempt remains resumable.
 
+Attempt lifecycle projections must be derived through the shared canonical resolver in `src/lib/services/student-assessment/attempt-lifecycle.ts`. The resolver treats `assessment_sessions.status`, `current_phase`, `completed_at`, and resume fields as the authoritative persisted source for resumability, terminality, pause/end eligibility, and whether a new attempt may start. Student list labels, start/resume/end commands, teacher close controls, diagnostics, and repair tooling should use this same resolver rather than independently interpreting status strings. Repeated lifecycle commands should return the already-satisfied canonical state instead of surfacing a generic conflict, and safe reconciliation is limited to non-substantive lifecycle metadata such as stale active-session resume fields.
+
 ### ITEM_PRESENTED
 
 Show the item stem and options in chat. The app records that the item was presented and transitions to `AWAIT_ANSWER`.

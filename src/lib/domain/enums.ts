@@ -130,12 +130,19 @@ export const sessionAutomationStates = [
 export const SessionAutomationStateSchema = z.enum(sessionAutomationStates);
 
 export const processEventTypes = [
+  "attempt_start_requested",
   "attempt_started",
   "attempt_paused",
+  "attempt_resume_requested",
   "attempt_resumed",
+  "attempt_start_recovered",
+  "attempt_resume_recovered",
   "attempt_end_requested",
   "attempt_ended_by_student",
+  "attempt_end_recovered",
   "attempt_ended_by_teacher",
+  "attempt_state_reconciled",
+  "attempt_state_inconsistency_detected",
   "attempt_expired",
   "new_attempt_available",
   "session_started",

@@ -409,6 +409,7 @@ async function main() {
     assert(projection.ui_state === "feedback_ready", "Injected evaluator output should produce safe feedback.");
     assertProjectionSafe(projection, "activity feedback");
 
+    const previousActivityAttemptPublicId = projection.activity_attempt_public_id;
     projection = await recordStudentActivityRuntimeChoice({
       student_user_db_id: responseContext.student_db_id,
       session_public_id: responseContext.session_public_id,
@@ -416,7 +417,14 @@ async function main() {
       choice_state: "choose_another_activity",
       client_action_id: `${SMOKE_PREFIX}_choose_another`
     });
-    assert(projection.ui_state === "alternative_requested", "Choose-another activity path should be recorded.");
+    assert(
+      projection.ui_state === "waiting_for_your_response",
+      "Choose-another activity should immediately render a replacement activity."
+    );
+    assert(
+      projection.activity_attempt_public_id !== previousActivityAttemptPublicId,
+      "Choose-another activity should activate a different activity attempt."
+    );
     assertProjectionSafe(projection, "choose another projection");
 
     const countsAfterRuntime = await operationalCounts();
