@@ -1078,6 +1078,7 @@ function serializeExportJob(job: {
   export_public_id: string;
   status: string;
   file_name: string | null;
+  storage_key: string | null;
   row_count: number | null;
   options: unknown;
   export_schema_version: string | null;
@@ -1098,7 +1099,7 @@ function serializeExportJob(job: {
     expires_at: iso(job.expires_at),
     error_message: job.error_message,
     download_url:
-      job.status === "completed"
+      job.status === "completed" && job.storage_key && job.file_name
         ? `/api/teacher/export/${job.export_public_id}/download`
         : null
   };
@@ -1213,6 +1214,7 @@ export async function getExportDownload(exportPublicId: string) {
 
   return {
     file_name: job.file_name,
+    content_type: job.file_name.endsWith(".zip") ? "application/zip" : "text/csv; charset=utf-8",
     bytes: await readExportFile(job.storage_key)
   };
 }

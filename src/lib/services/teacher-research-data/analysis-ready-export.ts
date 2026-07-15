@@ -1090,6 +1090,98 @@ function assertAnalysisReadySafety(files: Array<{ path: string; data: string }>,
   }
 }
 
+function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: AnalysisSession[], supplemental: SupplementalRecords) {
+  return JSON.stringify(
+    {
+      bundle_type: "assessment_workflow_diagnostic_bundle",
+      export_schema_version: source.export_schema_version,
+      export_run_public_id: source.export_run_public_id,
+      export_scope: source.export_scope,
+      selected_session_public_id: source.selected_session_public_id ?? null,
+      generated_at: source.export_generated_at,
+      preservation_note:
+        "Export first and preserve existing profile, formative decision, follow-up, activity, process-event, conversation-turn, and agent-call records before rerunning assessment intelligence.",
+      included_files: [
+        "sessions.csv",
+        "item_responses.csv",
+        "process_events.csv",
+        "conversation_turns.csv",
+        "agent_activity_records.csv",
+        "assessment_content.csv",
+        "assessment_summary.csv",
+        "research_data_dictionary.csv",
+        "process_event_codebook.csv"
+      ],
+      sessions: sessions.map((session) => {
+        const conceptUnitSessions = session.concept_unit_sessions;
+        return {
+          session_public_id: session.session_public_id,
+          assessment_public_id: session.assessment.assessment_public_id,
+          assessment_snapshot_public_id: assessmentSnapshotId(session),
+          status: session.status,
+          current_phase: session.current_phase,
+          resume_phase: session.resume_phase,
+          attempt_number: session.attempt_number,
+          started_at: iso(session.started_at),
+          completed_at: iso(session.completed_at),
+          item_response_count: conceptUnitSessions.reduce((total, entry) => total + entry.item_responses.length, 0),
+          response_package_count: conceptUnitSessions.reduce((total, entry) => total + entry.response_packages.length, 0),
+          student_profile_count: conceptUnitSessions.reduce((total, entry) => total + entry.student_profiles.length, 0),
+          formative_decision_count: conceptUnitSessions.reduce((total, entry) => total + entry.formative_decisions.length, 0),
+          followup_round_count: conceptUnitSessions.reduce((total, entry) => total + entry.followup_rounds.length, 0),
+          formative_activity_attempt_count: supplemental.activityAttempts.filter(
+            (attempt) => attempt.session_public_id === session.session_public_id
+          ).length,
+          post_activity_evidence_count: supplemental.evidenceRecords.filter(
+            (record) => record.session_public_id === session.session_public_id
+          ).length,
+          diagnostic_snapshot_count: supplemental.snapshots.filter(
+            (snapshot) => snapshot.session_public_id === session.session_public_id
+          ).length,
+          conversation_turn_count: session.conversation_turns.length,
+          process_event_count: session.process_events.length,
+          agent_calls: session.agent_calls.map((call) => ({
+            agent_name: call.agent_name,
+            agent_version: call.agent_version,
+            provider: call.provider,
+            model_name: call.model_name,
+            call_status: call.call_status,
+            prompt_version: call.prompt_version,
+            schema_version: call.schema_version,
+            output_validated: call.output_validated,
+            validation_error_present: Boolean(call.validation_error),
+            retry_count: call.retry_count,
+            started_at: iso(call.started_at),
+            completed_at: iso(call.completed_at)
+          })),
+          workflow_jobs: session.workflow_jobs.map((job) => ({
+            job_public_id: job.job_public_id,
+            job_type: job.job_type,
+            status: job.status,
+            attempt_count: job.attempt_count,
+            max_attempts: job.max_attempts,
+            last_error_category: job.last_error_category,
+            last_error_message_present: Boolean(job.last_error_message),
+            created_at: iso(job.created_at),
+            completed_at: iso(job.completed_at)
+          }))
+        };
+      }),
+      protected_values_absent: [
+        "password",
+        "email",
+        "login_username",
+        "api_key",
+        "database_connection_secret",
+        "raw_provider_payload",
+        "hidden_system_prompt"
+      ]
+    },
+    null,
+    2
+  );
+}
+
 export async function buildAnalysisReadyResearchDataBundle(input: {
   teacher_user_db_id: string;
   scope: "all_authorized" | "selected_assessment" | "selected_student" | "selected_session";
@@ -1103,7 +1195,10 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
     assertResearchPseudonymizationReadyForExport();
   } catch (error) {
     if (error instanceof ResearchPseudonymizationConfigError) {
-      throw new ContentServiceError(error.code, error.message, 500);
+      throw new ContentServiceError(error.code, error.message, 503, {
+        retryable: true,
+        operator_action: "Run research-export:preflight and configure the server-side research pseudonymization key."
+      });
     }
     throw error;
   }
@@ -1158,6 +1253,12 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
       data: processEventCodebookCsv()
     }
   ];
+  if (input.scope === "selected_session") {
+    files.push({
+      path: "session_diagnostic_manifest.json",
+      data: sessionDiagnosticManifest(source, sessions, supplemental)
+    });
+  }
   assertAnalysisReadySafety(files, includeRestricted);
 
   const suffix =

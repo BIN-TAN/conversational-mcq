@@ -914,9 +914,15 @@ function ReadableTranscriptSection({
             </a>
             <a
               className="inline-flex h-9 items-center rounded-md border border-emerald-300 bg-white px-3 text-sm font-semibold text-emerald-950 hover:border-emerald-500"
-              href={`/api/teacher/sessions/${sessionPublicId}/research-export`}
+              href={`/teacher/data/research?section=dataset&session_public_id=${encodeURIComponent(sessionPublicId)}`}
             >
-              Download session research data
+              Export this session
+            </a>
+            <a
+              className="inline-flex h-9 items-center rounded-md border border-amber-300 bg-white px-3 text-sm font-semibold text-amber-950 hover:border-amber-500"
+              href={`/teacher/data/research?section=dataset&session_public_id=${encodeURIComponent(sessionPublicId)}&include_restricted_fields=true`}
+            >
+              Restricted session bundle
             </a>
           </div>
         </div>

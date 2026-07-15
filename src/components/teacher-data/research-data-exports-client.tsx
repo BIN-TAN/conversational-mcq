@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { BookOpen, Download, Loader2, RefreshCw } from "lucide-react";
-import { errorFromUnknown, fetchExportJobs } from "./api";
+import { errorFromUnknown, fetchExportJobs, fetchResearchExportReadiness } from "./api";
 import { EmptyPanel, ErrorPanel, formatDate, StatusPill } from "./ui";
-import type { ExportJob, StructuredApiError } from "./types";
+import type { ExportJob, ResearchExportReadiness, StructuredApiError } from "./types";
 
 type ExportAvailabilityCounts = {
   sessions: number;
@@ -110,7 +110,7 @@ type DataDictionaryResponse = {
 };
 
 type SectionId = "dataset" | "dictionary";
-type ScopeMode = "all" | "assessment" | "student";
+type ScopeMode = "all" | "assessment" | "student" | "session";
 type DictionaryEntityType =
   | "research_variable"
   | "process_event_code"
@@ -245,6 +245,22 @@ function DownloadLink({ href, label, disabled = false }: { href: string; label: 
   );
 }
 
+function ActionButton({
+  children,
+  disabled = false,
+  onClick
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button className={buttonClass(disabled)} disabled={disabled} onClick={onClick} type="button">
+      {children}
+    </button>
+  );
+}
+
 function queryWithDefined(values: Record<string, string | number | boolean | undefined>) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(values)) {
@@ -257,6 +273,7 @@ function queryWithDefined(values: Record<string, string | number | boolean | und
 function scopeQuery(input: {
   assessmentId: string;
   studentId: string;
+  sessionId: string;
   scopeMode: ScopeMode;
   includeIncomplete: boolean;
   includeRestricted: boolean;
@@ -267,6 +284,9 @@ function scopeQuery(input: {
   }
   if (input.scopeMode === "student" && input.studentId) {
     params.set("student_id", input.studentId);
+  }
+  if (input.scopeMode === "session" && input.sessionId) {
+    params.set("session_public_id", input.sessionId);
   }
   params.set("include_incomplete_sessions", input.includeIncomplete ? "true" : "false");
   if (input.includeRestricted) {
@@ -281,6 +301,7 @@ function selectedCounts(input: {
   options: OptionsResponse | null;
   assessmentId: string;
   studentId: string;
+  sessionId: string;
   scopeMode: ScopeMode;
 }) {
   if (input.scopeMode === "assessment") {
@@ -288,6 +309,22 @@ function selectedCounts(input: {
   }
   if (input.scopeMode === "student") {
     return input.options?.students.find((student) => student.user_id === input.studentId)?.counts ?? null;
+  }
+  if (input.scopeMode === "session") {
+    return input.sessionId
+      ? {
+          sessions: 1,
+          item_responses: 0,
+          process_events: 0,
+          latency_rows: 0,
+          conversation_turns: 0,
+          response_packages: 0,
+          agent_calls: 0,
+          activity_attempts: 0,
+          post_activity_evidence: 0,
+          diagnostic_snapshots: 0
+        }
+      : null;
   }
   return (input.options?.assessments ?? []).reduce<ExportAvailabilityCounts>(
     (total, assessment) => ({
@@ -588,8 +625,10 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
   const [activeSection, setActiveSection] = useState<SectionId>(initialSection);
   const [options, setOptions] = useState<OptionsResponse | null>(null);
   const [jobs, setJobs] = useState<ExportJob[]>([]);
+  const [readiness, setReadiness] = useState<ResearchExportReadiness | null>(null);
   const [assessmentId, setAssessmentId] = useState("");
   const [studentId, setStudentId] = useState("");
+  const [sessionId, setSessionId] = useState("");
   const [scopeMode, setScopeMode] = useState<ScopeMode>("all");
   const [includeIncomplete, setIncludeIncomplete] = useState(true);
   const [includeRestricted, setIncludeRestricted] = useState(false);
@@ -603,6 +642,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
   const [dictionaryLoading, setDictionaryLoading] = useState(false);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [loading, setLoading] = useState(true);
+  const [generatingDataset, setGeneratingDataset] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -622,15 +662,29 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
     }
     const pageSize = Number(params.get("page_size"));
     if ([25, 50, 100, 250, 500].includes(pageSize)) setDictionaryPageSize(pageSize);
+    const requestedSessionId = params.get("session_public_id")?.trim();
+    if (requestedSessionId) {
+      setSessionId(requestedSessionId);
+      setScopeMode("session");
+      setIncludeIncomplete(true);
+    }
+    if (params.get("include_restricted_fields") === "true") {
+      setIncludeRestricted(true);
+    }
   }, []);
 
   async function refresh() {
     setLoading(true);
     setError(null);
     try {
-      const [loadedOptions, loadedJobs] = await Promise.all([fetchOptions(), fetchExportJobs()]);
+      const [loadedOptions, loadedJobs, loadedReadiness] = await Promise.all([
+        fetchOptions(),
+        fetchExportJobs(),
+        fetchResearchExportReadiness()
+      ]);
       setOptions(loadedOptions);
       setJobs(loadedJobs.export_jobs);
+      setReadiness(loadedReadiness.readiness);
       setAssessmentId((current) => current || loadedOptions.assessments[0]?.assessment_public_id || "");
       setStudentId((current) => current || loadedOptions.students[0]?.user_id || "");
     } catch (caught) {
@@ -706,8 +760,11 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
         if (key !== "format" && key !== "page" && key !== "page_size") params.set(key, value);
       }
     }
+    if (activeSection === "dataset" && scopeMode === "session" && sessionId) {
+      params.set("session_public_id", sessionId);
+    }
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
-  }, [activeSection, dictionaryPage, dictionaryPageSize, dictionaryQuery]);
+  }, [activeSection, dictionaryPage, dictionaryPageSize, dictionaryQuery, scopeMode, sessionId]);
 
   function resetDictionaryPage() {
     setDictionaryPage(1);
@@ -721,15 +778,56 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
     resetDictionaryPage();
   }
 
-  const counts = selectedCounts({ options, assessmentId, studentId, scopeMode });
-  const hasData = (counts?.sessions ?? 0) > 0;
-  const datasetHref = `/api/teacher/research-data/analysis-ready${scopeQuery({
+  const counts = selectedCounts({ options, assessmentId, studentId, sessionId, scopeMode });
+  const hasData = scopeMode === "session" ? Boolean(sessionId) : (counts?.sessions ?? 0) > 0;
+  const datasetQuery = scopeQuery({
     assessmentId,
     studentId,
+    sessionId,
     scopeMode,
     includeIncomplete,
     includeRestricted
-  })}`;
+  });
+  const readinessBlocked = readiness ? !readiness.ready : true;
+
+  async function generateDataset() {
+    setGeneratingDataset(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/teacher/research-data/analysis-ready${datasetQuery}`, {
+        method: "POST",
+        headers: { Accept: "application/json" }
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { export_job?: ExportJob; error?: StructuredApiError }
+        | null;
+      if (!response.ok) {
+        setError(
+          payload?.error ?? {
+            code: "research_export_request_failed",
+            message: "Research dataset generation could not be started."
+          }
+        );
+        await refresh();
+        return;
+      }
+      const job = payload?.export_job;
+      if (!job?.download_url) {
+        setError({
+          code: "research_export_download_unavailable",
+          message: "The research dataset was generated but no download URL was returned."
+        });
+        await refresh();
+        return;
+      }
+      await refresh();
+      window.location.assign(job.download_url);
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
+    } finally {
+      setGeneratingDataset(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -773,7 +871,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
         <>
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <h2 className="text-xl font-semibold text-ink">Research dataset</h2>
-            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+            <div className="mt-4 grid gap-4 lg:grid-cols-4">
               <label className="flex flex-col gap-2 text-sm font-medium text-ink">
                 Scope
                 <select
@@ -784,6 +882,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
                   <option value="all">All authorized data</option>
                   <option value="assessment">Selected assessment</option>
                   <option value="student">Selected student</option>
+                  <option value="session">Selected session</option>
                 </select>
               </label>
               <label className="flex flex-col gap-2 text-sm font-medium text-ink">
@@ -817,8 +916,46 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
                   ))}
                 </select>
               </label>
+              <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+                Session
+                <input
+                  className="h-10 rounded-md border border-line bg-white px-3 text-sm disabled:bg-slate-100"
+                  disabled={scopeMode !== "session"}
+                  onChange={(event) => setSessionId(event.target.value)}
+                  placeholder="sess_..."
+                  value={sessionId}
+                />
+              </label>
             </div>
             {countPills(counts)}
+            {readiness && !readiness.ready ? (
+              <section className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h3 className="font-semibold">Research export is not configured</h3>
+                    <p className="mt-1">
+                      Production research exports require a server-side pseudonymization key. Assessment and session data remain
+                      available, but research files cannot be generated until the deployment is configured.
+                    </p>
+                    <p className="mt-2 font-medium">
+                      {readiness.blocking_reasons[0]?.label ?? "Research export readiness is blocked."}
+                    </p>
+                  </div>
+                  <button
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-amber-300 bg-white px-3 text-sm font-semibold text-amber-950 hover:border-amber-500"
+                    onClick={() => void refresh()}
+                    type="button"
+                  >
+                    Refresh readiness
+                  </button>
+                </div>
+              </section>
+            ) : readiness ? (
+              <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+                Research export ready. Pseudonymization: {readiness.pseudonymization_version}; key fingerprint:{" "}
+                {readiness.safe_key_fingerprint ?? "non-production fixture"}.
+              </p>
+            ) : null}
             {!hasData ? (
               <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                 No data are available for the selected scope. Choose a scope with student sessions before generating a research dataset.
@@ -851,7 +988,14 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
               </label>
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
-              <DownloadLink disabled={!hasData} href={datasetHref} label="Generate research dataset" />
+              <ActionButton disabled={!hasData || readinessBlocked || generatingDataset} onClick={() => void generateDataset()}>
+                {generatingDataset ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                )}
+                Generate research dataset
+              </ActionButton>
             </div>
           </section>
 
@@ -870,6 +1014,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
                       <th className="px-3 py-2">File/table set</th>
                       <th className="px-3 py-2">Restricted</th>
                       <th className="px-3 py-2">Rows</th>
+                      <th className="px-3 py-2">Failure</th>
                       <th className="px-3 py-2">Created</th>
                       <th className="px-3 py-2">Completed</th>
                       <th className="px-3 py-2">Download</th>
@@ -886,10 +1031,21 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
                         <td className="px-3 py-2">{jobOption(job, "export_type") || job.export_schema_version || "legacy export"}</td>
                         <td className="px-3 py-2">{jobOption(job, "restricted_fields_included") || "false"}</td>
                         <td className="px-3 py-2">{job.row_count ?? ""}</td>
+                        <td className="max-w-xs px-3 py-2 text-xs text-muted">
+                          {job.status === "failed" ? jobOption(job, "failure_code") || job.error_message || "Export failed" : ""}
+                        </td>
                         <td className="px-3 py-2">{formatDate(job.created_at)}</td>
                         <td className="px-3 py-2">{formatDate(job.completed_at)}</td>
                         <td className="px-3 py-2">
-                          {job.download_url ? <a className="font-semibold text-accent hover:underline" href={job.download_url}>Download</a> : "Not available"}
+                          {job.download_url ? (
+                            <a className="font-semibold text-accent hover:underline" href={job.download_url}>Download</a>
+                          ) : job.status === "failed" && jobOption(job, "retryable") === "true" ? (
+                            <button className="font-semibold text-accent hover:underline" onClick={() => void generateDataset()} type="button">
+                              Retry
+                            </button>
+                          ) : (
+                            "Not available"
+                          )}
                         </td>
                       </tr>
                     ))}

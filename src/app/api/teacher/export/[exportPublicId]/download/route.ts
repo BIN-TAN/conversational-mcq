@@ -20,7 +20,7 @@ export async function GET(
 
     return new Response(download.bytes, {
       headers: {
-        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Type": download.content_type,
         "Content-Disposition": `attachment; filename="${download.file_name}"`,
         "Cache-Control": "no-store"
       }

@@ -276,6 +276,7 @@ This may perform a lightweight authenticated model metadata check when live conf
 Verify teacher/research export integrity without provider calls:
 
 ```bash
+npm run research-export:preflight
 npm run student:research-export-integrity-smoke
 ```
 
@@ -288,6 +289,17 @@ missing, research export generation fails closed with a typed configuration
 error; login, account management, assessment management, and ordinary non-export
 pages remain available. The exported `pseudonymization_key_fingerprint` is only
 a short one-way provenance marker for detecting key/configuration changes.
+Generate a production key with a local secret manager or a command such as
+`openssl rand -hex 32`, then store it only in the deployment provider's
+server-side environment variables. Set it once and retain it securely; changing
+the key changes future research pseudonyms. The Research data page now reads
+the same readiness state as the API: when the key or export storage is blocked,
+it disables dataset generation, keeps filter selections and dictionary access,
+shows the safe blocking reason, and records failed export jobs with retryable
+typed reasons. Completed prior export jobs remain downloadable. For incident
+review, export the affected session before rerunning profiling or formative
+workflows so existing profile, formative decision, follow-up, activity, process,
+conversation, and agent-call records are preserved.
 
 ## Classroom Web Access Plan
 

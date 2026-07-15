@@ -2270,6 +2270,18 @@ remain teacher/research-only. Null means unavailable, not recorded, not
 generated, or not applicable; zero means an instrumented count was evaluated and
 the counted event did not occur.
 
+Production research dataset generation requires server-only
+`RESEARCH_PSEUDONYMIZATION_KEY` using `hmac_sha256_v1`. Generate it outside the
+repo, for example `openssl rand -hex 32`, store it in the deployment provider's
+server-side environment, and keep it stable because changing it changes
+research pseudonyms. Run `npm run research-export:preflight` after deployment
+configuration changes. If readiness is blocked, `/teacher/data/research` keeps
+the page visible, preserves filters and Data dictionary access, disables
+generation, records a failed retryable export job with a safe typed reason, and
+does not navigate to raw API JSON. Session detail includes **Export this
+session** for incident analysis; export the session bundle before rerunning
+profiling, formative decisions, follow-up rounds, or activity logic.
+
 ## Per-Agent OpenAI Model Configuration
 
 The approved operational baseline remains `gpt-5.4-mini-2026-03-17` with

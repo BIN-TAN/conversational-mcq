@@ -332,6 +332,16 @@ may use a deterministic non-production key. Legacy `legacy_sha256_v1`
 pseudonyms are documented only for backward compatibility and are not joinable
 to HMAC pseudonyms without a separately authorized linkage process.
 
+Run `npm run research-export:preflight` before production pilots or after
+changing deployment variables. The preflight reports readiness, pseudonymization
+version, safe key fingerprint, export registry status, artifact-path
+writability, and database connectivity without provider calls or secret output.
+When readiness is blocked, the Research data page disables dataset generation
+but keeps the Data dictionary and completed export downloads available.
+Selected-session incident exports include `session_diagnostic_manifest.json`
+with safe workflow reconstruction metadata; export first before rerunning
+profiling, formative decisions, follow-up rounds, or activity logic.
+
 ### Timing Formulas
 
 Timing variables use milliseconds and `_ms` suffixes. The data dictionary stores

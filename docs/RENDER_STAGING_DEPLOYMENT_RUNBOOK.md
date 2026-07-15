@@ -106,6 +106,15 @@ RESEARCH_PSEUDONYMIZATION_KEY=<generated server-side research-export HMAC key>
 RESEARCH_PSEUDONYMIZATION_VERSION=hmac_sha256_v1
 ```
 
+Generate the research key outside the repository, for example:
+
+```bash
+openssl rand -hex 32
+```
+
+Store the value only in Render's server-side environment variable UI. Do not
+commit it, paste it into client code, or prefix it with `NEXT_PUBLIC_`.
+
 Optional GPT-5.6 candidate values for a separately approved model-upgrade
 evaluation/rollout only:
 
@@ -142,6 +151,12 @@ Never set `OPENAI_API_KEY`, `DATABASE_URL`, `SESSION_SECRET`, or
 pseudonymization key is required for production research exports; if it is
 missing, only research export generation fails closed. Login, account
 management, and assessment pages should remain available.
+Run `npm run research-export:preflight` from Render Shell after environment
+changes. It prints ready/blocked, pseudonymization version, safe key
+fingerprint, registry status, artifact-path status, and database readiness
+without printing the key. If the key is missing, `/teacher/data/research`
+shows an in-page readiness warning and failed export jobs can be retried after
+the Render variable is corrected.
 
 Screenshot placeholder: Render Environment variables screen with values hidden.
 
@@ -318,6 +333,11 @@ Screenshot placeholder: Teacher session detail.
 ## Step 18: Download Research Export
 
 Download the research export from the app. Store it in an approved protected location. Do not commit export files.
+For a single-session incident, open the session detail page and choose
+**Export this session** before rerunning profiling, follow-up, or activity
+logic. The selected-session ZIP includes the standard research CSVs plus a safe
+`session_diagnostic_manifest.json` with workflow counts, timestamps, versions,
+validation statuses, and included-file metadata.
 
 Screenshot placeholder: Research export page.
 

@@ -8,6 +8,7 @@ import type {
   AssessmentOption,
   ExportJobsResponse,
   OutcomeNamesResponse,
+  ResearchExportReadinessResponse,
   SummativeImportPreview
 } from "./types";
 
@@ -71,6 +72,12 @@ export function createMasterExport(input: {
 
 export function fetchExportJobs() {
   return apiRequest<ExportJobsResponse>("/api/teacher/export/jobs", {
+    method: "GET"
+  });
+}
+
+export function fetchResearchExportReadiness() {
+  return apiRequest<ResearchExportReadinessResponse>("/api/teacher/research-data/readiness", {
     method: "GET"
   });
 }

@@ -59,6 +59,28 @@ export type ExportJobsResponse = {
   export_jobs: ExportJob[];
 };
 
+export type ResearchExportReadiness = {
+  ready: boolean;
+  environment: string;
+  pseudonymization_method: string;
+  pseudonymization_version: string;
+  key_configured: boolean;
+  safe_key_fingerprint: string | null;
+  required_configuration: string[];
+  blocking_reasons: Array<{ code: string; label: string; operator_action: string }>;
+  warnings: string[];
+  export_schema_version: string;
+  readiness_version: string;
+  artifact_path_writable: boolean;
+  database_ready: boolean;
+  dictionary_registry_ready: boolean;
+  restricted_export_authorization_supported: boolean;
+};
+
+export type ResearchExportReadinessResponse = {
+  readiness: ResearchExportReadiness;
+};
+
 export type AssessmentOption = {
   assessment_public_id: string;
   title: string;

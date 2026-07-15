@@ -2478,6 +2478,18 @@ Phase 6A.5 must not implement:
   export generation must fail closed with a typed configuration error while
   authentication, logout, account management, and non-LLM/non-export teacher
   pages remain available.
+- Research export readiness must be checked before production dataset
+  generation. Missing or invalid pseudonymization configuration must be shown
+  in-page on `/teacher/data/research`, must not navigate teachers to raw JSON,
+  and must persist a failed export job with a safe typed reason and retryable
+  status. Data dictionary access and previous completed downloads must remain
+  available.
+- Session detail must support a selected-session research export path for
+  incident analysis. Selected-session bundles may include a safe diagnostic
+  manifest with workflow counts, public join keys, timestamps, validation
+  statuses, prompt/schema/model versions, and included-file metadata, but must
+  not include login usernames, passwords, API keys, database credentials, raw
+  provider payloads, or hidden system prompts.
 - Default research dataset exports exclude credentials, hashes, session secrets,
   API keys, database URLs, raw provider requests, unrestricted raw provider
   output, internal database UUIDs, unrestricted answer keys, correctness fields,

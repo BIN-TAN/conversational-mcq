@@ -18,7 +18,11 @@ export type ResearchPseudonymizationMetadata = {
 
 export class ResearchPseudonymizationConfigError extends Error {
   constructor(
-    public readonly code: "research_pseudonymization_key_missing" | "research_pseudonymization_version_invalid" | "legacy_pseudonymization_not_allowed_in_production",
+    public readonly code:
+      | "research_pseudonymization_key_missing"
+      | "research_pseudonymization_key_inadequate"
+      | "research_pseudonymization_version_invalid"
+      | "legacy_pseudonymization_not_allowed_in_production",
     message: string
   ) {
     super(message);
@@ -30,7 +34,7 @@ function canonicalOperationalUserIdentifier(userId: string) {
   return userId.trim().toLowerCase();
 }
 
-function keyFingerprint(key: string) {
+export function researchPseudonymizationKeyFingerprint(key: string) {
   return createHash("sha256")
     .update(`research_pseudonymization_key_fingerprint:v1:${key}`)
     .digest("hex")
@@ -63,7 +67,15 @@ function effectiveVersion(env: NodeJS.ProcessEnv): ResearchPseudonymizationVersi
 
 function resolvedKey(env: NodeJS.ProcessEnv) {
   const key = env.RESEARCH_PSEUDONYMIZATION_KEY?.trim();
-  if (key) return { key, productionReady: true };
+  if (key) {
+    if (isProductionLike(env) && key.length < 16) {
+      throw new ResearchPseudonymizationConfigError(
+        "research_pseudonymization_key_inadequate",
+        "RESEARCH_PSEUDONYMIZATION_KEY is too short for production research exports."
+      );
+    }
+    return { key, productionReady: true };
+  }
   if (isProductionLike(env)) {
     throw new ResearchPseudonymizationConfigError(
       "research_pseudonymization_key_missing",
@@ -94,7 +106,7 @@ export function researchPseudonymizationMetadata(env: NodeJS.ProcessEnv = proces
   return {
     research_pseudonym_version: RESEARCH_PSEUDONYMIZATION_HMAC_VERSION,
     pseudonymization_method: "HMAC-SHA-256",
-    pseudonymization_key_fingerprint: keyFingerprint(key),
+    pseudonymization_key_fingerprint: researchPseudonymizationKeyFingerprint(key),
     production_ready: productionReady
   };
 }

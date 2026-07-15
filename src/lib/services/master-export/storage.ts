@@ -3,18 +3,18 @@ import path from "node:path";
 import { prisma } from "@/lib/db";
 
 const EXPORT_DIR = path.join(process.cwd(), ".data", "exports");
-const storageKeyPattern = /^[a-zA-Z0-9_-]+\.csv$/;
+const storageKeyPattern = /^[a-zA-Z0-9_-]+\.(csv|zip)$/;
 
 export function exportStorageDirectory() {
   return EXPORT_DIR;
 }
 
-export function storageKeyForExport(exportPublicId: string) {
+export function storageKeyForExport(exportPublicId: string, extension: "csv" | "zip" = "csv") {
   if (!/^[a-zA-Z0-9_-]+$/.test(exportPublicId)) {
     throw new Error("Invalid export public ID.");
   }
 
-  return `${exportPublicId}.csv`;
+  return `${exportPublicId}.${extension}`;
 }
 
 function pathForStorageKey(storageKey: string) {
@@ -35,6 +35,11 @@ function pathForStorageKey(storageKey: string) {
 export async function writeExportFile(storageKey: string, contents: string) {
   await mkdir(EXPORT_DIR, { recursive: true });
   await writeFile(pathForStorageKey(storageKey), contents, "utf8");
+}
+
+export async function writeExportBytes(storageKey: string, contents: Uint8Array) {
+  await mkdir(EXPORT_DIR, { recursive: true });
+  await writeFile(pathForStorageKey(storageKey), contents);
 }
 
 export async function readExportFile(storageKey: string) {
