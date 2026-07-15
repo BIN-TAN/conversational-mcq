@@ -1231,13 +1231,20 @@ function FormativeActivityControls({
   formativeActivityDraft,
   setFormativeActivityDraft,
   onChooseActivityRuntimeAction,
+  onRequestEndAssessment,
   onSendFormativeActivityResponse
 }: {
   activityRuntime: StudentActivityRuntimeProjection | null | undefined;
   isBusy: boolean;
   formativeActivityDraft: string;
   setFormativeActivityDraft: (value: string) => void;
-  onChooseActivityRuntimeAction: (choiceState: "choose_another_activity" | "skip_activity_to_transfer") => void;
+  onChooseActivityRuntimeAction: (choiceState:
+    | "choose_another_activity"
+    | "skip_activity_to_transfer"
+    | "skip_activity_to_next_concept"
+    | "finish_assessment"
+  ) => void;
+  onRequestEndAssessment: () => void;
   onSendFormativeActivityResponse: () => void;
 }) {
   const runtime = activityRuntime ?? null;
@@ -1266,12 +1273,51 @@ function FormativeActivityControls({
       {runtime.can_move_on ? (
         <button
           className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
-          data-testid="activity-runtime-skip-activity"
+          data-testid="activity-runtime-end-assessment"
+          disabled={isBusy}
+          onClick={onRequestEndAssessment}
+          type="button"
+        >
+          End assessment
+        </button>
+      ) : null}
+    </div>
+  );
+  const canContinueToTransfer = runtime.feedback?.next_options.includes("continue to transfer item") ?? false;
+  const canContinueToNextConcept = runtime.feedback?.next_options.includes("continue to next concept") ?? false;
+  const destinationButtons = (
+    <div className="mt-4 flex flex-wrap gap-2">
+      {runtime.can_continue && canContinueToTransfer ? (
+        <button
+          className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="activity-runtime-continue-transfer"
           disabled={isBusy}
           onClick={() => onChooseActivityRuntimeAction("skip_activity_to_transfer")}
           type="button"
         >
           Continue to transfer item
+        </button>
+      ) : null}
+      {runtime.can_continue && canContinueToNextConcept ? (
+        <button
+          className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="activity-runtime-continue-next-concept"
+          disabled={isBusy}
+          onClick={() => onChooseActivityRuntimeAction("skip_activity_to_next_concept")}
+          type="button"
+        >
+          Continue to next concept
+        </button>
+      ) : null}
+      {runtime.can_move_on ? (
+        <button
+          className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="activity-runtime-end-assessment"
+          disabled={isBusy}
+          onClick={onRequestEndAssessment}
+          type="button"
+        >
+          End assessment
         </button>
       ) : null}
     </div>
@@ -1313,25 +1359,7 @@ function FormativeActivityControls({
         {runtime.next_recommendation_label ? (
           <p className="mt-3 text-sm text-muted">{runtime.next_recommendation_label}</p>
         ) : null}
-        {runtime.ui_state === "alternative_requested" ? (
-          <div className="mt-4 rounded-xl border border-line bg-[#fbfcfa] px-3 py-2.5">
-            <p className="text-sm font-semibold text-ink">Available choices for a future version</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
-              {runtime.alternative_activity_labels.map((label) => (
-                <li key={label}>{label}</li>
-              ))}
-            </ul>
-            <p className="mt-2 text-sm text-muted">
-              Alternative activity selection is recorded for this version. You can continue with the current activity or continue to the next step.
-            </p>
-          </div>
-        ) : null}
-        {runtime.can_continue ? (
-          <p className="mt-3 text-sm text-muted">
-            You can continue by responding to the next prompt when it is available, or choose another activity.
-          </p>
-        ) : null}
-        {choiceButtons}
+        {destinationButtons}
       </AgentMessage>
     );
   }
@@ -1430,6 +1458,34 @@ function NextChoiceControls({
   );
 }
 
+function studentFacingConfidenceText(label: string) {
+  const normalized = label.trim().toLowerCase().replaceAll("_", " ");
+  const lowCertaintyMismatch = ["under", "confident"].join("");
+  const highCertaintyMismatch = ["over", "confident"].join("");
+
+  if (!normalized) {
+    return "There is not enough confidence information to identify a clear pattern yet.";
+  }
+
+  if (normalized.includes("reasonably calibrated") || normalized.includes("confidence calibrated")) {
+    return "Your confidence mostly matched your answers.";
+  }
+
+  if (normalized.includes(lowCertaintyMismatch)) {
+    return "You were more cautious than your strongest explanations suggested.";
+  }
+
+  if (normalized.includes(highCertaintyMismatch)) {
+    return "You sounded more certain than the evidence in your explanation supported.";
+  }
+
+  if (normalized.includes("mixed calibration")) {
+    return "Your confidence pattern was mixed across the three questions.";
+  }
+
+  return label;
+}
+
 function LearningProfilePanel({
   profile,
   packageResults
@@ -1452,35 +1508,58 @@ function LearningProfilePanel({
     >
       <details className="rounded-2xl border border-line bg-white/85 px-4 py-3 shadow-sm" open>
         <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-accent-soft">
-          Current learning profile
+          What your responses show
         </summary>
         <div className="mt-3 rounded-xl bg-[#f7f9f6] px-3 py-3 text-sm leading-5 text-ink">
           {packageResults ? (
             <div data-testid="package-results-summary">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">Initial results</p>
               <p className="mt-1 font-semibold text-ink">{packageResults.result_summary}</p>
-              <ul className="mt-2 space-y-1 text-sm text-muted">
+              <div className="mt-3 space-y-2" data-testid="initial-answer-review-list">
                 {packageResults.items.map((item) => (
-                  <li key={item.item_public_id}>
-                    Item {item.item_position ?? "?"} — {item.status_label}
-                    {item.answer_revealed && item.revealed_answer
-                      ? ` (answer ${item.revealed_answer})`
-                      : ""}
-                  </li>
+                  <details
+                    key={item.item_public_id}
+                    className="rounded-xl border border-line bg-white px-3 py-2"
+                    data-testid="initial-answer-review-item"
+                    open
+                  >
+                    <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-accent-soft">
+                      Item {item.item_position ?? "?"} — {item.status_label}
+                    </summary>
+                    <div className="mt-2 space-y-1 text-sm text-muted">
+                      <p>
+                        <span className="font-semibold text-ink">Your answer:</span>{" "}
+                        {item.student_answer ?? item.selected_option ?? "No answer recorded"}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-ink">Correct answer:</span>{" "}
+                        {item.answer_revealed && item.revealed_answer
+                          ? item.revealed_answer
+                          : "Not shown"}
+                      </p>
+                      {item.answer_explanation_revealed && item.answer_explanation ? (
+                        <p>
+                          <span className="font-semibold text-ink">Why:</span>{" "}
+                          {item.answer_explanation}
+                        </p>
+                      ) : null}
+                      {item.distractor_boundary ? (
+                        <p>
+                          <span className="font-semibold text-ink">Boundary to notice:</span>{" "}
+                          {item.distractor_boundary}
+                        </p>
+                      ) : null}
+                    </div>
+                  </details>
                 ))}
-              </ul>
-              {!packageResults.full_answer_revealed ? (
-                <p className="mt-2 text-xs text-muted">
-                  Correct answers and explanations are still protected for this step.
-                </p>
-              ) : null}
+              </div>
             </div>
           ) : null}
           {profile ? (
             <div className={packageResults ? "mt-4 border-t border-line pt-3" : ""}>
               {profile.current_understanding ? (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Understanding</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Overall pattern</p>
                   <p className="mt-1 font-semibold text-ink">{profile.current_understanding.label}</p>
                 </div>
               ) : (
@@ -1488,19 +1567,19 @@ function LearningProfilePanel({
               )}
               {profile.reasoning ? (
                 <div className="mt-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Reasoning</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Your explanations</p>
                   <p className="mt-1">{profile.reasoning.label}</p>
                 </div>
               ) : null}
               {profile.confidence ? (
                 <div className="mt-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Confidence</p>
-                  <p className="mt-1">{profile.confidence.label}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">How sure you were</p>
+                  <p className="mt-1">{studentFacingConfidenceText(profile.confidence.label)}</p>
                 </div>
               ) : null}
               {profile.evidence_limitation ? (
                 <div className="mt-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Evidence note</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">What to keep in mind</p>
                   <p className="mt-1">{profile.evidence_limitation}</p>
                 </div>
               ) : null}
@@ -1644,7 +1723,13 @@ function activeItemPrompt(input: {
   onContinuePackage: () => void;
   onSaveReviewEdit: () => void;
   onStartReviewEdit: (item: StudentReviewItem) => void;
-  onChooseActivityRuntimeAction: (choiceState: "choose_another_activity" | "skip_activity_to_transfer") => void;
+  onChooseActivityRuntimeAction: (choiceState:
+    | "choose_another_activity"
+    | "skip_activity_to_transfer"
+    | "skip_activity_to_next_concept"
+    | "finish_assessment"
+  ) => void;
+  onRequestEndAssessment: () => void;
   onSendFormativeActivityResponse: () => void;
   onStartActivityRuntime: () => void;
   onSendRevision: () => void;
@@ -1849,6 +1934,7 @@ function activeItemPrompt(input: {
         formativeActivityDraft={input.formativeActivityDraft}
         isBusy={isBusy}
         onChooseActivityRuntimeAction={input.onChooseActivityRuntimeAction}
+        onRequestEndAssessment={input.onRequestEndAssessment}
         onSendFormativeActivityResponse={input.onSendFormativeActivityResponse}
         setFormativeActivityDraft={input.setFormativeActivityDraft}
       />
@@ -1940,6 +2026,7 @@ export function AssessmentSessionClient({
   const [inFlowEditDraft, setInFlowEditDraft] = useState<InFlowEditDraft | null>(null);
   const [editingReviewItemId, setEditingReviewItemId] = useState<string | null>(null);
   const [reviewEditDraft, setReviewEditDraft] = useState<PackageReviewEditDraft | null>(null);
+  const [endAssessmentDialogOpen, setEndAssessmentDialogOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const displayAcknowledgementRef = useRef<Set<string>>(new Set());
 
@@ -2438,7 +2525,7 @@ export function AssessmentSessionClient({
     }
 
     const confirmed = window.confirm(
-      "End this attempt?\n\nYour responses so far will be saved, but you will not be able to resume this attempt. You may start another attempt only if the assessment's attempt policy allows it."
+      "End this attempt?\n\nYou can end this attempt now. You can come back only if your instructor allows another attempt."
     );
 
     if (!confirmed) {
@@ -2525,7 +2612,12 @@ export function AssessmentSessionClient({
     }
   }
 
-  async function handleChooseActivityRuntimeAction(choiceState: "choose_another_activity" | "skip_activity_to_transfer") {
+  async function handleChooseActivityRuntimeAction(choiceState:
+    | "choose_another_activity"
+    | "skip_activity_to_transfer"
+    | "skip_activity_to_next_concept"
+    | "finish_assessment"
+  ) {
     if (!state) {
       return;
     }
@@ -2544,8 +2636,18 @@ export function AssessmentSessionClient({
       const nextState = await fetchSessionState(state.session_public_id);
       setState(nextState);
       await refreshSecondaryData(nextState.session_public_id);
+      if (choiceState === "finish_assessment") {
+        setEndAssessmentDialogOpen(false);
+      }
     } catch (errorValue) {
-      handleError(errorValue, choiceState === "skip_activity_to_transfer" ? "Continue to transfer item" : "Choose another activity", () => {
+      const label = choiceState === "finish_assessment"
+        ? "End assessment"
+        : choiceState === "skip_activity_to_transfer"
+          ? "Continue to transfer item"
+          : choiceState === "skip_activity_to_next_concept"
+            ? "Continue to next concept"
+            : "Choose another activity";
+      handleError(errorValue, label, () => {
         void handleChooseActivityRuntimeAction(choiceState);
       });
     } finally {
@@ -2804,6 +2906,7 @@ export function AssessmentSessionClient({
     onSaveReviewEdit: handleSaveReviewEdit,
     onStartReviewEdit: handleStartReviewEdit,
     onChooseActivityRuntimeAction: handleChooseActivityRuntimeAction,
+    onRequestEndAssessment: () => setEndAssessmentDialogOpen(true),
     onSendFormativeActivityResponse: handleSendFormativeActivityResponse,
     onStartActivityRuntime: handleStartActivityRuntime,
     onSendRevision: handleSendRevision,
@@ -2859,6 +2962,43 @@ export function AssessmentSessionClient({
           />
         ) : null}
       </div>
+      {endAssessmentDialogOpen ? (
+        <div
+          aria-labelledby="end-assessment-dialog-title"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/35 px-4"
+          data-testid="end-assessment-dialog"
+          role="dialog"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-line bg-white p-5 shadow-xl">
+            <h2 id="end-assessment-dialog-title" className="text-lg font-semibold text-ink">
+              End the assessment?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              This will end the assessment now. You will not complete another activity or transfer item in this attempt.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isBusy}
+                onClick={() => setEndAssessmentDialogOpen(false)}
+                type="button"
+              >
+                Keep working
+              </button>
+              <button
+                className="rounded-full bg-[#c99700] px-4 py-2 text-sm font-semibold text-ink hover:bg-[#d6aa1c] disabled:cursor-not-allowed disabled:opacity-60"
+                data-testid="confirm-end-assessment"
+                disabled={isBusy}
+                onClick={() => void handleChooseActivityRuntimeAction("finish_assessment")}
+                type="button"
+              >
+                End assessment
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {currentItem ? (
         <p className="sr-only" aria-live="polite">
           Current question {currentItem.item_order}

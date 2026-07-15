@@ -1023,8 +1023,12 @@ Safe process events for this phase include `package_results_shown`,
 `item_correctness_status_shown`, `profile_feedback_shown`,
 `next_interaction_shown`, `diagnostic_clarification_requested`,
 `distractor_activity_shown`, and `foundational_activity_shown`. Event payloads
-record schema/routing status and counts; protected answer content and raw
-teacher diagnostic notes must not be logged in ordinary event payloads.
+record schema/routing status and counts; raw teacher diagnostic notes, hidden
+scoring metadata, prompts, and unadministered item explanations must not be
+logged in ordinary event payloads. Initial-package answer explanations are
+persisted on administered `item_responses` using
+`answer_explanation_revealed`, `revealed_at`, `reveal_trigger`,
+`explanation_version`, and `student_display_acknowledged_at`.
 
 The analysis-ready research export exposes normalized profile and routing
 columns such as `assessment_specific_understanding_category`,

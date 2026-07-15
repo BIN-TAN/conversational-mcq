@@ -36,6 +36,51 @@ function boolValue(record: Record<string, unknown>, key: string): boolean {
   return record[key] === true;
 }
 
+function stringArrayValue(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.replace(/\s+/g, " ").trim())
+    .filter((entry) => entry.length > 0 && !/^correct answer\.?$/i.test(entry));
+}
+
+function optionText(options: unknown, label: string | null): string | null {
+  if (!label || !Array.isArray(options)) {
+    return null;
+  }
+
+  for (const option of options) {
+    const record = jsonRecord(option);
+    if (stringValue(record, "label")?.toUpperCase() === label.toUpperCase()) {
+      return stringValue(record, "text");
+    }
+  }
+
+  return null;
+}
+
+function conciseStudentAnswerExplanation(input: {
+  options: unknown;
+  correct_option: string;
+  expected_reasoning_patterns: unknown;
+}) {
+  const patterns = stringArrayValue(input.expected_reasoning_patterns).slice(0, 2);
+
+  if (patterns.length > 0) {
+    return patterns.join(" ");
+  }
+
+  const correctText = optionText(input.options, input.correct_option);
+  if (correctText) {
+    return `Option ${input.correct_option} fits the item because it states the relevant measurement relationship: ${correctText}`;
+  }
+
+  return `Option ${input.correct_option} best matches the measurement relationship described in this item.`;
+}
+
 function itemMetadataFromRules(value: unknown) {
   const rules = jsonRecord(value);
 
@@ -347,6 +392,17 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
         no_tempting_option: latestTemptingEvidence?.no_tempting_option ?? null,
         tempting_option: latestTemptingEvidence?.tempting_option ?? null,
         tempting_option_reason: latestTemptingEvidence?.tempting_option_reason ?? null,
+        answer_explanation_revealed: response.answer_explanation_revealed,
+        revealed_at: serializeDate(response.revealed_at),
+        reveal_trigger: response.reveal_trigger,
+        explanation_version: response.explanation_version,
+        student_display_acknowledged_at: serializeDate(response.student_display_acknowledged_at),
+        student_safe_answer_explanation: conciseStudentAnswerExplanation({
+          options: response.item.options,
+          correct_option: response.correct_option_snapshot,
+          expected_reasoning_patterns: response.item.expected_reasoning_patterns
+        }),
+        student_safe_distractor_boundary: null,
         skipped_reasoning: response.skipped_reasoning,
         skipped_confidence: response.skipped_confidence,
         skipped_item: response.skipped_item,

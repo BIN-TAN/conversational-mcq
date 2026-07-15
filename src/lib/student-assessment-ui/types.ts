@@ -154,7 +154,11 @@ export const PackageResultsSchema = z.object({
     selected_option: z.string().nullable(),
     status_label: z.string(),
     answer_revealed: z.boolean(),
-    revealed_answer: z.string().nullable()
+    revealed_answer: z.string().nullable(),
+    student_answer: z.string().nullable(),
+    answer_explanation_revealed: z.boolean(),
+    answer_explanation: z.string().nullable(),
+    distractor_boundary: z.string().nullable()
   }))
 });
 export type PackageResults = z.infer<typeof PackageResultsSchema>;

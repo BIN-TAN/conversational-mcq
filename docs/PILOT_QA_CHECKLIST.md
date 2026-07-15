@@ -492,8 +492,13 @@ No logs, exports, screenshots, or notes should contain API keys, cookies, auth t
 During browser QA after the initial three-item package, verify:
 
 - The student sees total and item-level correct/incorrect status.
-- The correct option remains hidden when `answer_reveal_policy` has not reached
-  its reveal stage.
+- The student sees the correct answer and a concise explanation for every
+  administered initial item immediately under Initial results.
+- Unadministered transfer-item answers, raw teacher diagnostic notes, prompts,
+  and hidden scoring metadata remain hidden.
+- The formative activity does not ask the student to rediscover which option is
+  correct; it asks for new reasoning about flaws, boundaries, comparisons, or
+  rewrites.
 - The learning-profile panel shows separate fields for understanding,
   reasoning, confidence, evidence limitation when useful, and next focus.
 - The student sees exactly one next prompt or activity and one active response

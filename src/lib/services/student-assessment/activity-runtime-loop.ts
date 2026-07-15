@@ -98,6 +98,16 @@ type SourceActivityPacketRef = {
   routing_policy_version?: string;
   activity_type?: string;
   routing_justification?: string;
+  target_item_index?: number | null;
+  target_item_id?: string | null;
+  target_option_label?: string | null;
+  target_construct_or_boundary?: string | null;
+  student_task_prompt?: string;
+  expected_response_mode?: "short_text" | "free_text";
+  rationale_for_selection?: string;
+  semantic_deduplication_key?: string;
+  replaced_activity_attempt_public_id?: string | null;
+  activity_switch_reason?: string | null;
 };
 
 const SourceActivityPacketRefSchema: z.ZodType<SourceActivityPacketRef> = z.object({
@@ -133,7 +143,17 @@ const SourceActivityPacketRefSchema: z.ZodType<SourceActivityPacketRef> = z.obje
   next_interaction_schema_version: z.string().optional(),
   routing_policy_version: z.string().optional(),
   activity_type: z.string().optional(),
-  routing_justification: z.string().optional()
+  routing_justification: z.string().optional(),
+  target_item_index: z.number().int().positive().nullable().optional(),
+  target_item_id: z.string().min(1).nullable().optional(),
+  target_option_label: z.string().min(1).max(8).nullable().optional(),
+  target_construct_or_boundary: z.string().min(1).nullable().optional(),
+  student_task_prompt: z.string().min(1).optional(),
+  expected_response_mode: z.enum(["short_text", "free_text"]).optional(),
+  rationale_for_selection: z.string().min(1).optional(),
+  semantic_deduplication_key: z.string().min(1).optional(),
+  replaced_activity_attempt_public_id: z.string().min(1).nullable().optional(),
+  activity_switch_reason: z.string().min(1).max(260).nullable().optional()
 }).strict();
 
 export type CreateActivityRuntimeAttemptInput = {
@@ -164,6 +184,16 @@ export type CreateEvidenceIntegratedActivityRuntimeAttemptInput = {
   routing_policy_version: string;
   activity_type: string;
   routing_justification: string;
+  target_item_index?: number | null;
+  target_item_id?: string | null;
+  target_option_label?: string | null;
+  target_construct_or_boundary?: string | null;
+  student_task_prompt?: string;
+  expected_response_mode?: "short_text" | "free_text";
+  rationale_for_selection?: string;
+  semantic_deduplication_key?: string;
+  replaced_activity_attempt_public_id?: string | null;
+  activity_switch_reason?: string | null;
   limitations?: string[];
 };
 
@@ -253,7 +283,20 @@ function sourceActivityPacketRef(packet: FormativeActivityPacketV1): SourceActiv
     distractor_student_safe_description: packet.distractor_use.student_safe_description,
     source_profile_integration_snapshot_id: packet.source_profile_integration_snapshot_id,
     source_formative_value_packet_id: packet.source_formative_value_packet_id,
-    source_activity_agent_name: FORMATIVE_ACTIVITY_AGENT_NAME
+    source_activity_agent_name: FORMATIVE_ACTIVITY_AGENT_NAME,
+    target_item_index: null,
+    target_item_id: null,
+    target_option_label: null,
+    target_construct_or_boundary: packet.activity_goal.student_safe_goal,
+    student_task_prompt: packet.first_turn.message,
+    expected_response_mode: "free_text",
+    rationale_for_selection: "Activity selected by the live activity agent from the response package evidence.",
+    semantic_deduplication_key: hashValue({
+      activity_family: packet.activity_family,
+      diagnostic_purpose: diagnosticPurposeForActivityFamily(packet.activity_family),
+      selected_formative_value: packet.selected_formative_value,
+      student_safe_goal: packet.activity_goal.student_safe_goal
+    })
   };
 }
 
@@ -345,8 +388,8 @@ function normalizeStudentSafeFeedback(input: {
 }): ActivityRuntimeLoopResult["student_safe_feedback"] {
   return {
     message: input.message
-      .replace(/\bmove on\b/gi, "continue to the next step")
-      .replace(/\bMove on\b/g, "Continue to the next step"),
+      .replace(/\bmove on\b/gi, "end the assessment")
+      .replace(/\bMove on\b/g, "End assessment"),
     next_options: input.next_options.map((option) =>
       option === "move on" ? "skip this activity and continue" : option
     )
@@ -512,7 +555,22 @@ export async function createActivityRuntimeAttemptFromEvidenceIntegratedRouter(
     next_interaction_schema_version: input.next_interaction_schema_version,
     routing_policy_version: input.routing_policy_version,
     activity_type: input.activity_type,
-    routing_justification: input.routing_justification
+    routing_justification: input.routing_justification,
+    target_item_index: input.target_item_index ?? null,
+    target_item_id: input.target_item_id ?? null,
+    target_option_label: input.target_option_label ?? null,
+    target_construct_or_boundary: input.target_construct_or_boundary ?? null,
+    student_task_prompt: input.student_task_prompt ?? input.safe_activity_prompt,
+    expected_response_mode: input.expected_response_mode ?? "free_text",
+    rationale_for_selection: input.rationale_for_selection ?? input.routing_justification,
+    semantic_deduplication_key: input.semantic_deduplication_key ?? hashValue({
+      activity_family: runtimeFamily,
+      diagnostic_purpose: input.diagnostic_purpose,
+      selected_formative_value: input.selected_formative_value,
+      prompt: input.safe_activity_prompt
+    }),
+    replaced_activity_attempt_public_id: input.replaced_activity_attempt_public_id ?? null,
+    activity_switch_reason: input.activity_switch_reason ?? null
   };
   const attemptPublicId = input.activity_attempt_public_id ?? publicId("act_attempt");
 

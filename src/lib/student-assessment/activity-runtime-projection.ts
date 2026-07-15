@@ -74,7 +74,8 @@ export type StudentActivityProjectionIssue = {
     | "provider_or_debug_label_detected"
     | "raw_process_or_metadata_label_detected"
     | "secret_or_header_label_detected"
-    | "misconduct_language_detected";
+    | "misconduct_language_detected"
+    | "student_facing_internal_phrase_detected";
   blocked_pattern_label?: string;
 };
 
@@ -129,7 +130,7 @@ export function studentActivityRecommendationLabel(value: string | null | undefi
     case "choose_alternative_activity":
       return "Choose another activity";
     case "move_on":
-      return "Continue to transfer item";
+      return "End assessment";
     case "failed_closed":
       return "The activity could not be reviewed safely";
     default:
@@ -163,7 +164,7 @@ const blockedPatterns: Array<{
   {
     rule_code: "answer_key_or_correctness_label_detected",
     blocked_pattern_label: "answer_key_or_correctness_language",
-    pattern: /\b(answer key|correct answer|correct option|correctness label|the correct option is|the answer is)\b/i
+    pattern: /\b(answer key|correctness label|the correct option is|the answer is)\b/i
   },
   {
     rule_code: "internal_activity_label_detected",
@@ -189,6 +190,11 @@ const blockedPatterns: Array<{
     rule_code: "raw_process_or_metadata_label_detected",
     blocked_pattern_label: "raw_process_or_metadata_label",
     pattern: /\b(raw process|process payload|raw distractor metadata|distractor metadata|metadata field|evidence quality enum)\b/i
+  },
+  {
+    rule_code: "student_facing_internal_phrase_detected",
+    blocked_pattern_label: "student_facing_internal_phrase",
+    pattern: /\b(recorded for this version|available choices for a future version|future version choices|workflow|runtime|routing|selection rationale|diagnostic purpose|persisted|schema|fallback|confidence calibrated|reasonably_calibrated|overconfident|underconfident)\b/i
   },
   {
     rule_code: "secret_or_header_label_detected",

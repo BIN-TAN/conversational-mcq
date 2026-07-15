@@ -105,6 +105,8 @@ export const SESSIONS_COLUMNS = [
   "active_activity_id",
   "display_acknowledgement",
   "display_event_contract_version",
+  "answer_review_display_acknowledgement",
+  "answer_review_display_event_contract_version",
   "conflict_recovery_metadata",
   "activity_type",
   "routing_policy_version",
@@ -142,6 +144,11 @@ export const ITEM_RESPONSES_COLUMNS = [
   "skipped_reasoning",
   "skipped_confidence",
   "response_finalized",
+  "answer_explanation_revealed",
+  "revealed_at",
+  "reveal_trigger",
+  "explanation_version",
+  "student_display_acknowledged_at",
   "submitted_at",
   "revised_at",
   "revision_count",
@@ -291,6 +298,14 @@ export const AGENT_ACTIVITY_RECORDS_COLUMNS = [
   "activity_public_id",
   "activity_type",
   "activity_target",
+  "activity_source_item_id",
+  "activity_source_option_label",
+  "expected_response_mode",
+  "activity_deduplication_key",
+  "activity_deduplication_version",
+  "activity_switch_count",
+  "activity_switch_history_reference",
+  "activity_switch_reason",
   "activity_prompt",
   "attempt_number",
   "student_response",
@@ -989,6 +1004,14 @@ const AGENT_ACTIVITY_APPLICABILITY: Record<string, string> = {
   activity_public_id: "activity_attempt; workflow_job; formative_activity; post_activity_evidence; diagnostic_snapshot",
   activity_type: "activity_attempt; workflow_job; formative_activity; post_activity_evidence",
   activity_target: "formative_activity",
+  activity_source_item_id: "formative_activity",
+  activity_source_option_label: "formative_activity",
+  expected_response_mode: "formative_activity",
+  activity_deduplication_key: "formative_activity",
+  activity_deduplication_version: "formative_activity",
+  activity_switch_count: "formative_activity",
+  activity_switch_history_reference: "formative_activity",
+  activity_switch_reason: "formative_activity",
   activity_prompt: "formative_activity",
   attempt_number: "activity_attempt; formative_activity",
   student_response: "reserved for post_activity_evidence or activity evaluation response text when a safe excerpt is explicitly populated; current serializer leaves null",
@@ -1040,6 +1063,14 @@ const AGENT_ACTIVITY_DEFINITIONS: Record<string, string> = {
   activity_public_id: "Public identifier for a follow-up round, workflow job, formative activity attempt, post-activity evidence record, or diagnostic snapshot.",
   activity_type: "Activity family, follow-up type, workflow job type, or post-activity activity family for activity-related branches.",
   activity_target: "Concept-unit or activity target recorded for a formative-activity runtime attempt.",
+  activity_source_item_id: "Administered item identifier that anchored the formative activity, when the activity was selected from item-level package evidence.",
+  activity_source_option_label: "Option label or distractor anchor used to focus the formative activity, when a safe option-level anchor was selected.",
+  expected_response_mode: "Student response mode expected by the activity prompt, such as short_text or free_text.",
+  activity_deduplication_key: "One-way semantic deduplication signature used to avoid serving the same activity prompt repeatedly within an attempt.",
+  activity_deduplication_version: "Version label for the activity routing or deduplication policy that produced activity_deduplication_key.",
+  activity_switch_count: "Number of recorded choose-another activity switches in the exported session context for this formative-activity row.",
+  activity_switch_history_reference: "Public activity-attempt identifier for the activity replaced by this one, when the student chose another activity.",
+  activity_switch_reason: "Safe reason code for why this activity replaced a prior activity attempt.",
   activity_prompt: "Student-facing prompt used to initiate a generated formative activity when a validated runtime activity prompt is explicitly persisted for export.",
   attempt_number: "Attempt or round number for follow-up/activity-attempt branches.",
   student_response: "Safe student activity response excerpt when an activity-evaluation branch explicitly emits one; current export does not populate raw student response text.",
@@ -1057,6 +1088,14 @@ const AGENT_ACTIVITY_METHODS: Record<string, string> = {
   output_token_count: "Copied in agentAndActivityRows() from AgentCall.output_tokens after the provider adapter stores usage metadata; null means the provider did not return usable usage for that call.",
   total_token_count: "Copied in agentAndActivityRows() from AgentCall.total_tokens after the provider adapter stores usage metadata; null means the provider did not return usable usage for that call.",
   activity_prompt: "Copied in agentAndActivityRows() from ActivityRuntimeAttempt.source_activity_packet_ref.safe_activity_prompt after the runtime packet has been validated and redacted for student-safe use.",
+  activity_source_item_id: "Copied in agentAndActivityRows() from ActivityRuntimeAttempt.source_activity_packet_ref.target_item_id after the source packet has been redacted for audit.",
+  activity_source_option_label: "Copied in agentAndActivityRows() from ActivityRuntimeAttempt.source_activity_packet_ref.target_option_label when an option-level source anchor is present.",
+  expected_response_mode: "Copied in agentAndActivityRows() from ActivityRuntimeAttempt.source_activity_packet_ref.expected_response_mode.",
+  activity_deduplication_key: "Copied in agentAndActivityRows() from ActivityRuntimeAttempt.source_activity_packet_ref.semantic_deduplication_key; this is a one-way routing signature, not an answer key or credential.",
+  activity_deduplication_version: "Copied in agentAndActivityRows() from routing_policy_version, runtime_loop_version, or next_interaction_schema_version stored in the activity source reference.",
+  activity_switch_count: "Calculated in agentAndActivityRows() by counting formative activity attempts in the same session whose source reference names a replaced activity attempt.",
+  activity_switch_history_reference: "Copied in agentAndActivityRows() from source_activity_packet_ref.replaced_activity_attempt_public_id when this activity replaced another activity.",
+  activity_switch_reason: "Copied in agentAndActivityRows() from source_activity_packet_ref.activity_switch_reason when present.",
   student_response: "Reserved for a future safe activity-response projection; current agentAndActivityRows() does not copy raw student activity text into this column.",
   evaluation_status: "Copied from ActivityMisconceptionEvidenceRecord.evaluation_source for post_activity_evidence rows and PostActivityDiagnosticSnapshot.evidence_quality for diagnostic_snapshot rows.",
   activity_type: "Copied from FollowupRound, WorkflowJob.job_type, ActivityRuntimeAttempt.activity_family, or ActivityMisconceptionEvidenceRecord.activity_family according to record_type.",
@@ -1087,6 +1126,7 @@ function guessDataType(variable: string) {
     variable.endsWith("_only") ||
     variable.endsWith("_bound") ||
     variable.endsWith("_finalized") ||
+    variable.endsWith("_revealed") ||
     variable.endsWith("_selected") ||
     variable.endsWith("_changed") ||
     variable.endsWith("_skipped")
@@ -1497,6 +1537,10 @@ function collectionMethod(table: string, variable: string) {
       "Calculated by sessionRows() from frontend display acknowledgement events using display_event_contract_version; backend generated/persisted events alone do not count as shown.",
     display_event_contract_version:
       "Extracted by sessionRows() from frontend display acknowledgement payloads when the browser confirms package feedback or activity display.",
+    answer_review_display_acknowledgement:
+      "Calculated by sessionRows() from the package_results_shown frontend acknowledgement event for the immediate initial-package answer review.",
+    answer_review_display_event_contract_version:
+      "Extracted by sessionRows() from the package_results_shown acknowledgement payload when the browser confirms that the answer review was displayed.",
     conflict_recovery_metadata:
       "Sanitized JSON summary from package-completion operation metadata and reconciliation events documenting recovery without raw student package payloads.",
     activity_type:
@@ -1521,6 +1565,16 @@ function collectionMethod(table: string, variable: string) {
       "itemResponseRows() emits this restricted scalar from response-package evidence generated by the validated interpretation workflow; it is not teacher-authored and not student-facing.",
     answer_selection_evidence_weight:
       "itemResponseRows() emits this restricted scalar from response-package evidence describing how much the selected answer should contribute to interpretation.",
+    answer_explanation_revealed:
+      "Copied from ItemResponse.answer_explanation_revealed after the initial-package answer review is made available to the student.",
+    revealed_at:
+      "Copied from ItemResponse.revealed_at when the application records that the initial-package answer explanation became available.",
+    reveal_trigger:
+      "Copied from ItemResponse.reveal_trigger to identify why the answer explanation became visible, currently initial_package_completed.",
+    explanation_version:
+      "Copied from ItemResponse.explanation_version to bind the student-facing answer explanation to its renderer/version.",
+    student_display_acknowledged_at:
+      "Copied from ItemResponse.student_display_acknowledged_at after the browser acknowledges display of the answer review for the administered item.",
     event_type: "Recorded by the frontend, backend, agent, or workflow component that emits the process event; event meanings are maintained in process_event_codebook.csv.",
     provider: "Recorded by the agent execution audit layer when an LLM or mock provider call is attempted.",
     total_token_count:
@@ -1849,6 +1903,8 @@ function allowedValues(variable: string) {
   if (variable === "confidence_rating") return "low; medium; high";
   if (variable === "actor_type") return "student; agent; system; orchestrator; teacher_researcher";
   if (variable === "event_type") return "See process_event_codebook.csv.";
+  if (variable === "reveal_trigger") return "initial_package_completed";
+  if (variable === "expected_response_mode") return "short_text; free_text";
   if (variable === "assessment_specific_understanding_category" || variable === "latest_student_safe_status") {
     return "Mostly understood; Still developing; Needs more work; or validated internal diagnostic categories when exported for research.";
   }

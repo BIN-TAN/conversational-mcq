@@ -56,6 +56,7 @@ import {
   projectStoredStudentProfileIntegration
 } from "@/lib/services/student-assessment/profile-integration";
 import {
+  ANSWER_EXPLANATION_VERSION,
   EvidenceIntegratedProfileV2Schema,
   packageResultsForStudent,
   studentSafeProjectionFromEvidenceProfile
@@ -336,6 +337,45 @@ async function getOrCreateInitialResponsePackage(conceptUnitSessionDbId: string)
     status: "created" as const,
     responsePackage: await createResponsePackage({ concept_unit_session_db_id: conceptUnitSessionDbId })
   };
+}
+
+async function markInitialAnswerExplanationsRevealed(input: {
+  concept_unit_session_db_id: string;
+  item_db_ids: string[];
+  revealed_at: Date;
+}) {
+  if (input.item_db_ids.length === 0) {
+    return;
+  }
+
+  await prisma.itemResponse.updateMany({
+    where: {
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      item_db_id: { in: input.item_db_ids },
+      item_submitted_at: { not: null },
+      answer_explanation_revealed: false
+    },
+    data: {
+      answer_explanation_revealed: true,
+      revealed_at: input.revealed_at,
+      reveal_trigger: "initial_package_completed",
+      explanation_version: ANSWER_EXPLANATION_VERSION
+    }
+  });
+
+  await prisma.itemResponse.updateMany({
+    where: {
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      item_db_id: { in: input.item_db_ids },
+      item_submitted_at: { not: null },
+      answer_explanation_revealed: true,
+      reveal_trigger: null
+    },
+    data: {
+      reveal_trigger: "initial_package_completed",
+      explanation_version: ANSWER_EXPLANATION_VERSION
+    }
+  });
 }
 
 function packageCompletionIdentity(input: {
@@ -5557,6 +5597,12 @@ export async function completeInitialConceptUnitAdministration(input: {
     });
   }
 
+  await markInitialAnswerExplanationsRevealed({
+    concept_unit_session_db_id: conceptUnitSession.id,
+    item_db_ids: items.map((item) => item.id),
+    revealed_at: new Date()
+  });
+
   const { status: responsePackageStatus, responsePackage } =
     await getOrCreateInitialResponsePackage(conceptUnitSession.id);
   const identity = packageCompletionIdentity({
@@ -5814,6 +5860,19 @@ export async function ingestFrontendProcessEvents(input: {
 
       if (existingAcknowledgement) {
         continue;
+      }
+
+      if (event.event_type === "package_results_shown" && currentConceptUnitSession) {
+        await prisma.itemResponse.updateMany({
+          where: {
+            concept_unit_session_db_id: currentConceptUnitSession.id,
+            answer_explanation_revealed: true,
+            student_display_acknowledged_at: null
+          },
+          data: {
+            student_display_acknowledged_at: new Date()
+          }
+        });
       }
     }
 

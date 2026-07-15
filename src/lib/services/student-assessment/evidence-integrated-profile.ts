@@ -16,6 +16,7 @@ export const SINGLE_ACTION_VALIDATOR_VERSION = "single-action-state-validator-v2
 export const ROUTING_COHERENCE_VALIDATOR_VERSION =
   "activity-routing-coherence-validator-v2" as const;
 export const ANSWER_REVEAL_POLICY_VERSION = "answer-reveal-policy-v1" as const;
+export const ANSWER_EXPLANATION_VERSION = "initial-package-answer-explanation-v1" as const;
 export const CHAT_NATIVE_STATE_MACHINE_VERSION = "chat-native-state-machine-v2" as const;
 
 export const AnswerRevealPolicySchema = z.enum([
@@ -145,7 +146,15 @@ const ItemOutcomeSchema = z.object({
   confidence: z.enum(["low", "medium", "high"]).nullable(),
   tempting_option_available: z.boolean(),
   answer_key_revealed: z.boolean(),
-  correct_option: z.string().nullable()
+  correct_option: z.string().nullable(),
+  student_answer: z.string().nullable(),
+  answer_explanation_revealed: z.boolean(),
+  answer_explanation: z.string().nullable(),
+  distractor_boundary: z.string().nullable(),
+  revealed_at: z.string().nullable(),
+  reveal_trigger: z.string().nullable(),
+  explanation_version: z.string().nullable(),
+  student_display_acknowledged_at: z.string().nullable()
 }).strict();
 
 export const OutcomeSummaryV2Schema = z.object({
@@ -437,6 +446,42 @@ function firstIncorrectOption(input: {
   return null;
 }
 
+function stringArrayValue(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.replace(/\s+/g, " ").trim())
+    .filter((entry) => entry.length > 0 && !/^correct answer\.?$/i.test(entry));
+}
+
+function studentSafeAnswerExplanationFromResponse(response: ResponsePackageItem | undefined) {
+  if (!response) {
+    return null;
+  }
+
+  const explicit = stringValue(response.student_safe_answer_explanation);
+  if (explicit) {
+    return explicit;
+  }
+
+  const itemSnapshot = recordValue(response.item_snapshot);
+  const correctOption = stringValue(response.correct_option_snapshot);
+  const expectedPatterns = stringArrayValue(response.expected_reasoning_patterns).slice(0, 2);
+  if (expectedPatterns.length > 0) {
+    return expectedPatterns.join(" ");
+  }
+
+  const correctOptionText = optionText(itemSnapshot.options, correctOption);
+  if (correctOption && correctOptionText) {
+    return `Option ${correctOption} fits the item because it states the relevant measurement relationship: ${correctOptionText}`;
+  }
+
+  return null;
+}
+
 function itemResponses(payload: PackagePayload): ResponsePackageItem[] {
   return Array.isArray(payload.item_responses)
     ? payload.item_responses.filter(
@@ -508,15 +553,15 @@ function studentLabelForReasoning(value: ReasoningQuality) {
 function studentLabelForConfidence(value: ConfidenceCalibration) {
   switch (value) {
     case "reasonably_calibrated":
-      return "Reasonably calibrated";
+      return "Your confidence mostly matched your answers.";
     case "underconfident":
-      return "Possibly underconfident";
+      return "You were more cautious than your strongest explanations suggested.";
     case "overconfident":
-      return "Possibly overconfident";
+      return "You sounded more certain than the evidence in your explanation supported.";
     case "mixed_calibration":
-      return "Mixed calibration";
+      return "Your confidence pattern was mixed across the three questions.";
     case "insufficient_confidence_evidence":
-      return "Not enough confidence evidence yet";
+      return "There is not enough confidence information to identify a clear pattern yet.";
   }
 }
 
@@ -760,7 +805,7 @@ export function buildEvidenceIntegratedProfileBundle(input: {
   const answerRevealPolicy =
     input.answer_reveal_policy ??
     policyValue(AnswerRevealPolicySchema, conceptRules.answer_reveal_policy) ??
-    "after_formative_activity";
+    "after_package";
   const correctnessStatusRevealPolicy =
     input.correctness_status_reveal_policy ??
     policyValue(CorrectnessStatusRevealPolicySchema, conceptRules.correctness_status_reveal_policy) ??
@@ -898,20 +943,44 @@ export function buildEvidenceIntegratedProfileBundle(input: {
     items_answered: itemsAnswered,
     items_correct: itemsCorrect,
     proportion_correct: itemEvidence.length > 0 ? itemsCorrect / itemEvidence.length : 0,
-    item_results: itemEvidence.map((item) => ({
-      item_public_id: item.item_public_id,
-      item_position: item.item_position,
-      selected_option: item.selected_option,
-      result: item.correctness,
-      response_available: Boolean(item.selected_option),
-      reasoning_available: Boolean(item.reasoning_excerpt),
-      confidence: item.confidence,
-      tempting_option_available: Boolean(item.tempting_option || item.tempting_option_reason),
-      answer_key_revealed: answersRevealed,
-      correct_option: answersRevealed
-        ? stringValue(responses.find((response) => stringValue(response.item_public_id) === item.item_public_id)?.correct_option_snapshot)
-        : null
-    })),
+    item_results: itemEvidence.map((item) => {
+      const response = responses.find(
+        (entry) => stringValue(entry.item_public_id) === item.item_public_id
+      );
+      const answerExplanationRevealed =
+        answersRevealed && (booleanValue(response?.answer_explanation_revealed) ?? true);
+
+      return {
+        item_public_id: item.item_public_id,
+        item_position: item.item_position,
+        selected_option: item.selected_option,
+        result: item.correctness,
+        response_available: Boolean(item.selected_option),
+        reasoning_available: Boolean(item.reasoning_excerpt),
+        confidence: item.confidence,
+        tempting_option_available: Boolean(item.tempting_option || item.tempting_option_reason),
+        answer_key_revealed: answersRevealed,
+        correct_option: answersRevealed
+          ? stringValue(response?.correct_option_snapshot)
+          : null,
+        student_answer: item.selected_option,
+        answer_explanation_revealed: answerExplanationRevealed,
+        answer_explanation: answerExplanationRevealed
+          ? studentSafeAnswerExplanationFromResponse(response)
+          : null,
+        distractor_boundary: answerExplanationRevealed
+          ? stringValue(response?.student_safe_distractor_boundary)
+          : null,
+        revealed_at: answerExplanationRevealed ? stringValue(response?.revealed_at) : null,
+        reveal_trigger: answerExplanationRevealed ? stringValue(response?.reveal_trigger) : null,
+        explanation_version: answerExplanationRevealed
+          ? stringValue(response?.explanation_version) ?? ANSWER_EXPLANATION_VERSION
+          : null,
+        student_display_acknowledged_at: answerExplanationRevealed
+          ? stringValue(response?.student_display_acknowledged_at)
+          : null
+      };
+    }),
     incomplete_items: itemEvidence
       .filter((item) => !item.selected_option)
       .map((item) => item.item_public_id),
@@ -961,8 +1030,8 @@ export function buildEvidenceIntegratedProfileBundle(input: {
       student_label: confidenceLabel,
       explanation:
         confidenceCalibration === "reasonably_calibrated"
-          ? "The confidence ratings are broadly aligned with the observed item outcomes and reasoning evidence."
-          : "The confidence evidence is treated as context and does not determine understanding by itself.",
+          ? "Your confidence mostly matched the answers and explanations in this first set."
+          : "Your confidence is used as context and does not determine understanding by itself.",
       evidence_refs: evidenceRefs
     },
     evidence_limitations: [...limitationCodes].map((code) => ({
@@ -1107,18 +1176,29 @@ function routeNextInteraction(input: {
   const distractorPhrase = distractor
     ? `Option ${distractor.label}`
     : "one of the incorrect options";
+  const correctOption = stringValue(responseForFirst?.correct_option_snapshot);
+  const answersRevealed =
+    input.profile.outcome_summary.restricted_answer_reveal_state.full_answer_key_revealed;
+  const knownCorrectAnswerPhrase = correctOption && answersRevealed
+    ? `You now know option ${correctOption} is correct. `
+    : "";
+  const postRevealConstraints = {
+    may_reveal_correct_option: answersRevealed,
+    may_reveal_explanation: answersRevealed,
+    policy_version: ANSWER_REVEAL_POLICY_VERSION
+  } as const;
 
   if (understanding === "strong_well_supported_understanding") {
     return {
       next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
       interaction_type: "distractor_focused_activity",
-      prompt: `${distractorPhrase} could still be attractive to a peer. Rank the flaw in that option by importance, then name the boundary a student would need to notice.`,
+      prompt: `${knownCorrectAnswerPhrase}${distractorPhrase} could still be attractive to a peer. Rank the flaw in that option by importance, then name the boundary a student would need to notice.`,
       purpose: "Use a higher-order distractor task to extend already well-supported evidence.",
       expected_response_format: "Two or three sentences ranking the flaw and naming the boundary.",
       response_constraints: [
         "Use the administered option text only.",
-        "Do not request or reveal the answer key.",
-        "Explain the boundary rather than restating the correct answer."
+        "Explain the boundary rather than copying the explanation.",
+        "Add a new comparison or rewrite."
       ],
       evaluation_criteria: [
         "Ranks or prioritizes the distractor flaw.",
@@ -1132,11 +1212,7 @@ function routeNextInteraction(input: {
       cognitive_level: "evaluating",
       distractor_refs: distractorRefs,
       next_runtime_state: "AWAIT_FORMATIVE_ACTIVITY_RESPONSE",
-      answer_reveal_constraints: {
-        may_reveal_correct_option: false,
-        may_reveal_explanation: false,
-        policy_version: ANSWER_REVEAL_POLICY_VERSION
-      },
+      answer_reveal_constraints: postRevealConstraints,
       routing_policy_version: FORMATIVE_ROUTING_POLICY_VERSION,
       activity_taxonomy_version: ACTIVITY_TAXONOMY_VERSION,
       routing_justification:
@@ -1155,16 +1231,16 @@ function routeNextInteraction(input: {
       next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
       interaction_type: scaffolded ? "scaffolded_distractor_activity" : "distractor_focused_activity",
       prompt: scaffolded
-        ? `${distractorPhrase} has one part that could sound reasonable and one part that does not fit. Name both parts without using the answer key.`
-        : `${distractorPhrase} could look plausible to another student. In two or three sentences, identify the most precise flaw in that option without using the answer key.`,
+        ? `${knownCorrectAnswerPhrase}${distractorPhrase} has one part that could sound reasonable and one part that does not fit. Name both parts, then rewrite the weak part so it becomes accurate.`
+        : `${knownCorrectAnswerPhrase}${distractorPhrase} could look plausible to another student. In two or three sentences, identify the most precise flaw in that option, then state the stronger boundary.`,
       purpose: scaffolded
-        ? "Use a brief scaffold to keep distractor work accessible while preserving answer-key protection."
-        : "Sharpen the conceptual boundary using an administered distractor while preserving answer-key protection.",
+        ? "Use a brief scaffold to keep distractor work accessible after the answer reveal."
+        : "Sharpen the conceptual boundary using an administered distractor after the answer reveal.",
       expected_response_format: "Two or three sentences that name the flaw in the distractor and connect it to the growth target.",
       response_constraints: [
         "Use only the options already shown.",
-        "Do not ask for the answer key.",
-        "Focus on the reasoning difference, not on guessing."
+        "Focus on the reasoning difference, not on guessing.",
+        "Add a new explanation rather than copying the result summary."
       ],
       evaluation_criteria: [
         "Names one precise flaw in the distractor.",
@@ -1178,11 +1254,7 @@ function routeNextInteraction(input: {
       cognitive_level: "evaluating",
       distractor_refs: distractorRefs,
       next_runtime_state: "AWAIT_FORMATIVE_ACTIVITY_RESPONSE",
-      answer_reveal_constraints: {
-        may_reveal_correct_option: false,
-        may_reveal_explanation: false,
-        policy_version: ANSWER_REVEAL_POLICY_VERSION
-      },
+      answer_reveal_constraints: postRevealConstraints,
       routing_policy_version: FORMATIVE_ROUTING_POLICY_VERSION,
       activity_taxonomy_version: ACTIVITY_TAXONOMY_VERSION,
       routing_justification:
@@ -1197,15 +1269,15 @@ function routeNextInteraction(input: {
     return {
       next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
       interaction_type: "distractor_focused_activity",
-      prompt: "Look back at the option you selected. What idea makes it tempting, and what part of that idea needs correction?",
+      prompt: `${knownCorrectAnswerPhrase}Look back at the option you selected. What idea makes it tempting, and what part of that idea needs correction?`,
       purpose: "Use the selected distractor to examine a provisional misconception.",
       expected_response_format: "Two or three sentences naming the tempting idea and the correction.",
-      response_constraints: ["Do not use the answer key.", "Use your own words."],
+      response_constraints: ["Use your own words.", "Add a correction rather than copying the explanation."],
       evaluation_criteria: ["Names the tempting idea.", "Separates the plausible part from the unsupported part."],
       linked_growth_target: growthTarget,
       linked_evidence_refs: evidenceRefs,
       activity_family: "distractor_focused_activity",
-      activity_type: "diagnose_misconception",
+      activity_type: "distractor_temptation_analysis",
       cognitive_level: "applying",
       distractor_refs: input.profile.item_evidence
         .filter((item) => item.correctness === "incorrect" && item.selected_option)
@@ -1215,11 +1287,7 @@ function routeNextInteraction(input: {
           role: "selected" as const
         })),
       next_runtime_state: "AWAIT_FORMATIVE_ACTIVITY_RESPONSE",
-      answer_reveal_constraints: {
-        may_reveal_correct_option: false,
-        may_reveal_explanation: false,
-        policy_version: ANSWER_REVEAL_POLICY_VERSION
-      },
+      answer_reveal_constraints: postRevealConstraints,
       routing_policy_version: FORMATIVE_ROUTING_POLICY_VERSION,
       activity_taxonomy_version: ACTIVITY_TAXONOMY_VERSION,
       routing_justification:
@@ -1232,23 +1300,19 @@ function routeNextInteraction(input: {
     return {
       next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
       interaction_type: "foundational_support_activity",
-      prompt: "Before using the options again, write one sentence explaining the main concept in your own words.",
+      prompt: `${knownCorrectAnswerPhrase}Reverse-engineer the item: write one sentence explaining the main concept the item was testing in your own words.`,
       purpose: "Establish an accessible starting point before distractor work.",
       expected_response_format: "One sentence in the student's own words.",
-      response_constraints: ["Keep it brief.", "Do not ask for the answer key."],
+      response_constraints: ["Keep it brief.", "Use your own words rather than copying the explanation."],
       evaluation_criteria: ["Names the main concept.", "Avoids unrelated explanation."],
       linked_growth_target: growthTarget,
       linked_evidence_refs: evidenceRefs,
       activity_family: "foundational_support_activity",
-      activity_type: "definition_building",
+      activity_type: "reverse_engineer_stem",
       cognitive_level: "foundational",
       distractor_refs: [],
       next_runtime_state: "AWAIT_FOUNDATIONAL_ACTIVITY_RESPONSE",
-      answer_reveal_constraints: {
-        may_reveal_correct_option: false,
-        may_reveal_explanation: false,
-        policy_version: ANSWER_REVEAL_POLICY_VERSION
-      },
+      answer_reveal_constraints: postRevealConstraints,
       routing_policy_version: FORMATIVE_ROUTING_POLICY_VERSION,
       activity_taxonomy_version: ACTIVITY_TAXONOMY_VERSION,
       routing_justification:
@@ -1264,23 +1328,19 @@ function routeNextInteraction(input: {
     return {
       next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
       interaction_type: "prerequisite_support_activity",
-      prompt: "Name the word, symbol, or calculation step that made the item hard to interpret.",
+      prompt: `${knownCorrectAnswerPhrase}Name the word, symbol, or calculation step that made the item hard to interpret, then say how you would restate it.`,
       purpose: "Address a possible prerequisite barrier before returning to distractor reasoning.",
       expected_response_format: "One short phrase or sentence.",
-      response_constraints: ["Do not ask for the answer key.", "Name only the barrier you noticed."],
+      response_constraints: ["Name only the barrier you noticed.", "Use your own words."],
       evaluation_criteria: ["Identifies a possible prerequisite barrier.", "Avoids unsupported claims about correctness."],
       linked_growth_target: growthTarget,
       linked_evidence_refs: evidenceRefs,
       activity_family: "prerequisite_support_activity",
-      activity_type: "definition_building",
+      activity_type: "correct_incorrect_parts",
       cognitive_level: "foundational",
       distractor_refs: [],
       next_runtime_state: "AWAIT_FOUNDATIONAL_ACTIVITY_RESPONSE",
-      answer_reveal_constraints: {
-        may_reveal_correct_option: false,
-        may_reveal_explanation: false,
-        policy_version: ANSWER_REVEAL_POLICY_VERSION
-      },
+      answer_reveal_constraints: postRevealConstraints,
       routing_policy_version: FORMATIVE_ROUTING_POLICY_VERSION,
       activity_taxonomy_version: ACTIVITY_TAXONOMY_VERSION,
       routing_justification:
@@ -1293,23 +1353,19 @@ function routeNextInteraction(input: {
     return {
       next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
       interaction_type: "diagnostic_clarification",
-      prompt: "What idea do you think the item was mainly asking about?",
+      prompt: `${knownCorrectAnswerPhrase}What idea do you think the item was mainly asking about, and how does the correct answer use that idea?`,
       purpose: "Orient to the assessed construct before assigning a distractor or foundational activity.",
       expected_response_format: "One sentence.",
-      response_constraints: ["Use your own words.", "Do not ask for the answer key."],
+      response_constraints: ["Use your own words.", "Do not copy the explanation."],
       evaluation_criteria: ["Names the likely target idea.", "Provides enough information for the next route."],
       linked_growth_target: growthTarget,
       linked_evidence_refs: evidenceRefs,
       activity_family: "diagnostic_clarification",
-      activity_type: "diagnostic_clarification",
+      activity_type: "reverse_engineer_stem",
       cognitive_level: "foundational",
       distractor_refs: [],
       next_runtime_state: "AWAIT_DIAGNOSTIC_CLARIFICATION_RESPONSE",
-      answer_reveal_constraints: {
-        may_reveal_correct_option: false,
-        may_reveal_explanation: false,
-        policy_version: ANSWER_REVEAL_POLICY_VERSION
-      },
+      answer_reveal_constraints: postRevealConstraints,
       routing_policy_version: FORMATIVE_ROUTING_POLICY_VERSION,
       activity_taxonomy_version: ACTIVITY_TAXONOMY_VERSION,
       routing_justification:
@@ -1321,7 +1377,7 @@ function routeNextInteraction(input: {
   return {
     next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
     interaction_type: "diagnostic_clarification",
-    prompt: "What information or rule did you use most when choosing your answers?",
+    prompt: `${knownCorrectAnswerPhrase}What information or rule would help explain why the correct answer fits these items?`,
     purpose: "Collect one low-burden clarification because the current evidence is not sufficient for a stronger route.",
     expected_response_format: "One or two sentences.",
     response_constraints: ["Do not worry about being complete.", "Use your own words."],
@@ -1329,15 +1385,11 @@ function routeNextInteraction(input: {
     linked_growth_target: growthTarget,
     linked_evidence_refs: evidenceRefs,
     activity_family: "diagnostic_clarification",
-    activity_type: "diagnostic_clarification",
+    activity_type: "reverse_engineer_stem",
     cognitive_level: "foundational",
     distractor_refs: [],
     next_runtime_state: "AWAIT_DIAGNOSTIC_CLARIFICATION_RESPONSE",
-    answer_reveal_constraints: {
-      may_reveal_correct_option: false,
-      may_reveal_explanation: false,
-      policy_version: ANSWER_REVEAL_POLICY_VERSION
-    },
+    answer_reveal_constraints: postRevealConstraints,
     routing_policy_version: FORMATIVE_ROUTING_POLICY_VERSION,
     activity_taxonomy_version: ACTIVITY_TAXONOMY_VERSION,
     routing_justification:
@@ -1607,7 +1659,11 @@ export function packageResultsForStudent(profile: EvidenceIntegratedProfileV2) {
               ? "Unanswered"
               : "Not scored",
       answer_revealed: item.answer_key_revealed,
-      revealed_answer: item.answer_key_revealed ? item.correct_option : null
+      revealed_answer: item.answer_key_revealed ? item.correct_option : null,
+      student_answer: item.student_answer,
+      answer_explanation_revealed: item.answer_explanation_revealed,
+      answer_explanation: item.answer_explanation,
+      distractor_boundary: item.distractor_boundary
     }))
   };
 }

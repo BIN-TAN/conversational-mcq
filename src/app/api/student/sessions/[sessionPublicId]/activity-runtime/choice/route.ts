@@ -49,10 +49,7 @@ export async function POST(
       student_user_db_id: auth.user.user_db_id,
       session_public_id: params.sessionPublicId,
       activity_attempt_public_id: body.activity_attempt_public_id ?? null,
-      choice_state:
-        body.choice_state === "choose_another_activity"
-          ? "choose_another_activity"
-          : "move_on",
+      choice_state: body.choice_state,
       selected_alternative_activity_family: body.selected_alternative_activity_family ?? null,
       client_action_id: clientActionId
     });

@@ -74,7 +74,13 @@ function fixturePackage(overrides?: {
       item_version_snapshot: 1,
       item_snapshot: {
         options
-      }
+      },
+      answer_explanation_revealed: true,
+      revealed_at: "2026-07-15T00:01:00.000Z",
+      reveal_trigger: "initial_package_completed",
+      explanation_version: "initial-package-answer-explanation-v1",
+      student_safe_answer_explanation:
+        "Reliability describes consistency, while validity concerns evidence for score interpretation."
     }))
   };
 }
@@ -175,7 +181,17 @@ function assertRoutingVariants() {
     incorrect.profile.assessment_specific_understanding.value,
     "specific_misconception"
   );
-  assert.equal(incorrect.next_interaction.activity_type, "diagnose_misconception");
+  assert.equal(incorrect.next_interaction.activity_type, "distractor_temptation_analysis");
+  assert.match(
+    incorrect.next_interaction.prompt,
+    /You now know option B is correct/i,
+    "Post-reveal misconception work should acknowledge the known correct answer."
+  );
+  assert.doesNotMatch(
+    incorrect.next_interaction.prompt,
+    /which option is correct|discover which option|find the correct/i,
+    "Post-reveal activity must not ask the student to rediscover the correct answer."
+  );
 
   const partial = buildEvidenceIntegratedProfileBundle({
     response_package_payload: fixturePackage({
@@ -223,6 +239,21 @@ function assertRoutingVariants() {
 }
 
 function assertAnswerReveal() {
+  const defaultResults = packageResultsForStudent(buildEvidenceIntegratedProfileBundle({
+    response_package_payload: fixturePackage()
+  }).profile);
+  assert.equal(defaultResults.full_answer_revealed, true);
+  assert.ok(defaultResults.items.every((item) => item.revealed_answer === "B"));
+  assert.ok(defaultResults.items.every((item) => item.student_answer));
+  assert.ok(defaultResults.items.every((item) => item.answer_explanation_revealed));
+  assert.ok(defaultResults.items.every((item) => item.answer_explanation && item.answer_explanation.length > 20));
+  assert.ok(
+    defaultResults.items.every((item) =>
+      !/This option is correct because it is the correct answer\./i.test(item.answer_explanation ?? "")
+    ),
+    "Answer explanations must not use generic correct-answer wording."
+  );
+
   const hidden = buildEvidenceIntegratedProfileBundle({
     response_package_payload: fixturePackage(),
     answer_reveal_policy: "after_formative_activity"
@@ -232,6 +263,7 @@ function assertAnswerReveal() {
   assert.equal(hiddenResults.full_answer_revealed, false);
   assert.ok(hiddenResults.items.every((item) => item.status_label === "Correct"));
   assert.ok(hiddenResults.items.every((item) => item.revealed_answer === null));
+  assert.ok(hiddenResults.items.every((item) => item.answer_explanation === null));
 
   const revealed = buildEvidenceIntegratedProfileBundle({
     response_package_payload: fixturePackage(),

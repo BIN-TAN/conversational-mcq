@@ -236,6 +236,19 @@ async function main() {
 
     const finalCounts = await counts(prepared.state.session_public_id);
     assert(finalCounts.events.package_results_shown === 1, "Exactly one frontend shown event should be stored.");
+    const acknowledgedResponses = await prisma.itemResponse.count({
+      where: {
+        concept_unit_session: {
+          assessment_session: { session_public_id: prepared.state.session_public_id }
+        },
+        answer_explanation_revealed: true,
+        student_display_acknowledged_at: { not: null }
+      }
+    });
+    assert(
+      acknowledgedResponses === 3,
+      "Package-results display acknowledgement should mark all revealed initial item explanations."
+    );
 
     const conceptUnitSession = await prisma.conceptUnitSession.findFirstOrThrow({
       where: { assessment_session: { session_public_id: prepared.state.session_public_id } },

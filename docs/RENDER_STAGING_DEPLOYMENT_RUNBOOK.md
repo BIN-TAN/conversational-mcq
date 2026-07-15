@@ -311,7 +311,7 @@ As the student:
 3. Review/edit the response package if needed.
 4. Continue to feedback/activity.
 5. Submit an activity response.
-6. Choose another activity or move on.
+6. Choose another activity and confirm a different activity appears immediately, or use End assessment and confirm the terminal dialog.
 
 Confirm the student UI remains chat-native and does not expose correctness, answer keys, distractor metadata, raw provider output, internal labels, or audit metadata.
 

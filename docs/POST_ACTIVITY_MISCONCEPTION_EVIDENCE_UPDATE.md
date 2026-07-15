@@ -571,7 +571,9 @@ Phase 30g adds the first minimal browser-facing runtime surface for the
 activity loop. The student UI may prepare an activity, show a student-safe
 focus label, show the live activity first turn, collect one activity response,
 show safe post-response feedback, and offer **Choose another activity** or
-**Move on**.
+**End assessment**. Choosing another activity must immediately show one
+different executable activity, not an abstract menu. End assessment completes
+the attempt after confirmation.
 
 The UI receives only a student-safe projection. It must not expose internal
 activity-family enum labels, diagnostic-purpose enum labels, misconception

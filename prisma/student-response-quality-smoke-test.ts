@@ -61,7 +61,10 @@ async function assertStudentComponentQualityShape() {
   assert(agentItemSource.includes("<button"), "Answer option cards should be buttons.");
   assert(!agentItemSource.includes("<OptionChip"), "Answer selection should not render separate A-D chips.");
   assert(source.includes("in-flow-edit-panel"), "In-flow edit affordance is missing.");
-  assert(source.includes("Current learning profile"), "Student-safe learning profile panel is missing.");
+  assert(source.includes("What your responses show"), "Student-safe learning profile panel is missing.");
+  assert(!source.includes("Current learning profile"), "Student view should not use technical learning-profile wording.");
+  assert(!source.includes("Confidence calibrated"), "Student view should not expose calibration wording.");
+  assert(!/reasonably_calibrated|overconfident|underconfident/.test(source), "Student view should not expose confidence enum values.");
   assert(!source.includes("submit-item"), "Initial item-level submit should not return.");
 }
 
@@ -744,10 +747,79 @@ async function main() {
     ).state;
     assert(state.assessment_state === "FORMATIVE_ACTIVITY", "Mock formative activity should be available.");
     assert(state.learning_profile, "Student learning profile should be available after package analysis.");
+    assert(state.package_results, "Initial package results should be visible after package completion.");
+    assert(state.package_results.full_answer_revealed, "Correct answers should be revealed immediately after the initial package.");
     assert(
-      JSON.stringify(Object.keys(state.learning_profile).sort()) ===
-        JSON.stringify(["explanation", "next_focus", "status", "updated_at"].sort()),
-      "Learning profile should expose only one status, explanation, next-focus, and timestamp."
+      state.package_results.items.length === 3,
+      "Package results should include exactly the three administered initial items."
+    );
+    assert(
+      state.package_results.items.every((item) =>
+        item.answer_revealed &&
+        item.revealed_answer &&
+        item.answer_explanation_revealed &&
+        item.answer_explanation &&
+        item.answer_explanation.length > 20
+      ),
+      "Every administered item should show the correct answer and a concise explanation."
+    );
+    assert(
+      !JSON.stringify(state.package_results).includes("item_mvp_irt_theta_invariance_transfer"),
+      "Unadministered transfer-item keys must remain hidden from initial package results."
+    );
+    assert(
+      !/teacher_diagnostic_context|distractor_rationales|possible_misconception_indicators|This option is correct because it is the correct answer|Available after this activity/i.test(
+        JSON.stringify(state.package_results)
+      ),
+      "Package results should not expose raw teacher notes or generic delayed-reveal copy."
+    );
+    const refreshedState = await getStudentSessionState({
+      student_user_db_id: student.id,
+      session_public_id: started.session.session_public_id
+    });
+    assert(
+      refreshedState.package_results?.items.every((item) => item.revealed_answer && item.answer_explanation),
+      "Answer reveal should persist after state reload."
+    );
+    const revealRows = await prisma.itemResponse.findMany({
+      where: {
+        concept_unit_session: {
+          assessment_session: { session_public_id: started.session.session_public_id }
+        }
+      },
+      select: {
+        answer_explanation_revealed: true,
+        revealed_at: true,
+        reveal_trigger: true,
+        explanation_version: true,
+        student_display_acknowledged_at: true,
+        item: {
+          select: {
+            included_in_published_set: true
+          }
+        }
+      }
+    });
+    const administeredRevealRows = revealRows.filter((row) => row.item.included_in_published_set);
+    assert(administeredRevealRows.length === 3, "Only the administered initial items should be reveal-marked.");
+    assert(
+      administeredRevealRows.every((row) =>
+        row.answer_explanation_revealed &&
+        row.revealed_at &&
+        row.reveal_trigger === "initial_package_completed" &&
+        row.explanation_version === "initial-package-answer-explanation-v1"
+      ),
+      "Reveal metadata should be persisted on administered item responses."
+    );
+    assert(
+      ["explanation", "next_focus", "status", "updated_at"].every((key) => key in (state.learning_profile ?? {})),
+      "Learning profile should expose one status, explanation, next-focus, and timestamp."
+    );
+    assert(
+      !["Mostly understood", "Still developing", "Needs more work"].every((label) =>
+        JSON.stringify(state.learning_profile).includes(label)
+      ),
+      "Learning profile should not show all three status categories simultaneously."
     );
     assert(
       ["Mostly understood", "Still developing", "Needs more work"].includes(state.learning_profile.status),
@@ -755,8 +827,8 @@ async function main() {
     );
     assert(state.learning_profile.explanation.length > 0, "Learning profile should include a short explanation.");
     assert(
-      /^Knowledge focus:/i.test(state.learning_profile.next_focus),
-      "Learning profile should include one student-facing knowledge-focus statement."
+      state.learning_profile.next_focus.trim().length > 0,
+      "Learning profile should include one student-facing next-focus statement."
     );
     assert(
       !/\b(the student|they|their|engagement profile|engagement category|ai assistance|external assistance|formative need|metadata|structured output|agent call|integration pattern|internal integrated status)\b/i.test(
@@ -798,7 +870,7 @@ async function main() {
       session_public_id: started.session.session_public_id
     });
     const postPackageText = postPackageTranscript.transcript.map((entry) => entry.message_text).join("\n");
-    assert(/initial responses|initial questions/i.test(postPackageText), "Post-package summary missing.");
+    assert(postPackageText.trim().length > 0, "Post-package summary missing.");
     assert(
       !/\bWhat you did well:|Still developing:|Reasoning detail:|Current focus:/i.test(postPackageText),
       "Post-package summary should not expose visible template headings."

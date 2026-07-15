@@ -2824,10 +2824,16 @@ Phase 6A.5 must not implement:
   calibration, evidence limitations, and growth target are separate dimensions.
   A concise reasoning-depth issue must not collapse an all-correct package below
   sound understanding solely because it is concise.
-- Total and item-level correct/incorrect status may be shown after the package.
-  Correct option and full answer explanation reveal remain controlled by
-  `answer_reveal_policy`; default pilot behavior keeps the answer key hidden
-  until after the formative activity.
+- Total and item-level correct/incorrect status, the correct option, and a
+  concise student-facing explanation are shown immediately after the initial
+  package for every administered initial item. This reveal is not delayed until
+  after the formative activity. Unadministered item keys, raw teacher diagnostic
+  notes, prompts, and hidden scoring metadata remain protected.
+- Post-reveal formative activities must require new reasoning rather than
+  rediscovery of the correct option. Valid post-reveal activity patterns include
+  identifying a specific distractor flaw, evaluating why an option is inaccurate,
+  correcting inaccurate parts, comparing or ranking distractors, transforming or
+  generating distractors, and reverse-engineering what the stem was testing.
 - Feedback must cite response-package evidence and must not contain the next
   actionable prompt. The single next prompt lives only in `NextInteractionV2`
   and must have a matching await-response state.

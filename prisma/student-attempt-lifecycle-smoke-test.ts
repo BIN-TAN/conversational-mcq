@@ -314,30 +314,32 @@ async function main() {
   assert(skippedAttempt.status === "move_on_recommended", "Skipped activity should use compatibility runtime status.");
   const postSkipSession = await prisma.assessmentSession.findUniqueOrThrow({
     where: { id: secondSessionRecord.id },
-    select: { current_phase: true }
+    select: { current_phase: true, status: true }
   });
-  assert(postSkipSession.current_phase === "followup_stopped", "Activity skip should route to the next deterministic step.");
+  assert(postSkipSession.current_phase === "session_completed", "End assessment should terminalize the assessment phase.");
+  assert(postSkipSession.status === "completed", "End assessment should complete the session.");
   assert(await eventCount(second.session.session_public_id, "formative_activity_skipped") === 1, "formative_activity_skipped event missing.");
-  assert(await eventCount(second.session.session_public_id, "continue_to_transfer_selected") === 1, "continue_to_transfer_selected event missing.");
-
-  const teacherClosed = await closeAttemptAndAllowAnother({
-    session_public_id: second.session.session_public_id,
-    teacher_user_db_id: teacher.id
-  });
-  assert(teacherClosed.status === "attempt_ended_by_teacher", "Teacher close should terminalize the attempt.");
-  assert(await eventCount(second.session.session_public_id, "attempt_ended_by_teacher") === 1, "attempt_ended_by_teacher event missing.");
-  assert(await eventCount(second.session.session_public_id, "new_attempt_available") === 1, "new_attempt_available event missing.");
+  assert(await eventCount(second.session.session_public_id, "finish_assessment_selected") === 1, "finish_assessment_selected event missing.");
+  assert(await eventCount(second.session.session_public_id, "session_completed") === 1, "session_completed event missing.");
 
   const third = await startOrResumeStudentAssessmentSession({
     student_user_db_id: student.id,
     assessment_public_id: assessment.assessment_public_id,
     new_attempt: true
   });
-  assert(third.session.attempt_number === 3, "Teacher-closed attempt should allow an incremented new attempt.");
+  assert(third.session.attempt_number === 3, "Completed End assessment attempt should allow an incremented new attempt.");
   assert(
     third.session.session_public_id !== second.session.session_public_id,
-    "Teacher-closed attempt should not be overwritten or reused."
+    "Completed End assessment attempt should not be overwritten or reused."
   );
+
+  const teacherClosed = await closeAttemptAndAllowAnother({
+    session_public_id: third.session.session_public_id,
+    teacher_user_db_id: teacher.id
+  });
+  assert(teacherClosed.status === "attempt_ended_by_teacher", "Teacher close should terminalize the attempt.");
+  assert(await eventCount(third.session.session_public_id, "attempt_ended_by_teacher") === 1, "attempt_ended_by_teacher event missing.");
+  assert(await eventCount(third.session.session_public_id, "new_attempt_available") === 1, "new_attempt_available event missing.");
 
   const sessionCount = await prisma.assessmentSession.count({
     where: {

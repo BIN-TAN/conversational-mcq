@@ -153,7 +153,7 @@ function makeEvaluator(input: {
         ? {
             student_safe_feedback: {
               ...basePacket.student_safe_feedback,
-              message: "The correct answer is A."
+              message: "The answer key says A is correct."
             }
           }
         : {})
@@ -403,7 +403,7 @@ async function main() {
   const reviewArtifact = JSON.parse(await readFile(review.artifact_path, "utf8")) as unknown;
   const serializedArtifact = JSON.stringify(reviewArtifact);
   assert(
-    !/answer key|correct option|correct answer|raw provider output|raw prompt|api key|authorization header|bearer token|session secret|database url|mis_[a-z0-9_]+/i.test(serializedArtifact),
+    !/answer key|correct option|raw provider output|raw prompt|api key|authorization header|bearer token|session secret|database url|mis_[a-z0-9_]+/i.test(serializedArtifact),
     "Runtime loop review artifact must remain redacted."
   );
 

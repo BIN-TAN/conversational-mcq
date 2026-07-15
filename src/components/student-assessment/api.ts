@@ -475,7 +475,8 @@ export function chooseStudentActivityRuntimeAction(input: {
     | "skip_activity_to_transfer"
     | "skip_activity_to_next_concept"
     | "finish_assessment"
-    | "return_to_summary";
+    | "return_to_summary"
+    | "move_on";
   selectedAlternativeActivityFamily?: string | null;
   clientActionId?: string;
 }): Promise<StudentActivityRuntimeProjection> {

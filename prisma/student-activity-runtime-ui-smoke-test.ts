@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { Prisma } from "@prisma/client";
 import { applyProvisionalItemDiagnosticMetadata } from "../src/lib/services/student-assessment/provisional-item-diagnostic-metadata";
 import {
@@ -70,9 +71,35 @@ function assertProjectionSafe(projection: StudentActivityRuntimeProjection, labe
   assertStudentVisibleTextIsSafe(projection);
   const serialized = JSON.stringify(projection);
   assert(
-    !/(basic_concept_grounding|distractor_contrast|reasoning_chain_repair|independent_reconstruction|confidence_evidence_audit|transfer_and_distractor_generation|conceptual_entry_grounding|distractor_misconception_probe|reasoning_boundary_repair|independent_misconception_verification|misconception_|evidence_quality|engagement category|ai assistance|agent call|structured output|raw model output|answer key|correct answer)/i.test(serialized),
+    !/(basic_concept_grounding|distractor_contrast|reasoning_chain_repair|independent_reconstruction|confidence_evidence_audit|transfer_and_distractor_generation|conceptual_entry_grounding|distractor_misconception_probe|reasoning_boundary_repair|independent_misconception_verification|misconception_|evidence_quality|engagement category|ai assistance|agent call|structured output|raw model output|answer key|available choices for a future version|recorded for this version|workflow|runtime|routing|selection rationale|diagnostic purpose|persisted|schema|fallback|Confidence calibrated|reasonably_calibrated|overconfident|underconfident)/i.test(serialized),
     `${label}: projection leaked internal labels or protected answer information.`
   );
+  assert(
+    !/which option is correct|discover which option|find the correct option|guess the correct/i.test(serialized),
+    `${label}: projection should not ask the student to rediscover the correct option after reveal.`
+  );
+}
+
+function assertStudentComponentCopyIsHardened() {
+  const source = readFileSync(
+    "src/components/student-assessment/assessment-session-client.tsx",
+    "utf8"
+  );
+  assert(source.includes("What your responses show"), "Student profile panel should use evidence-summary wording.");
+  assert(!source.includes("Current learning profile"), "Student view should not use Current learning profile.");
+  assert(!source.includes("Confidence calibrated"), "Student view should not show Confidence calibrated.");
+  assert(!/reasonably_calibrated|overconfident|underconfident/.test(source), "Student view should not expose confidence enum values.");
+  assert(source.includes("data-testid=\"activity-runtime-end-assessment\""), "End assessment action should have its own student control.");
+  assert(source.includes("data-testid=\"end-attempt\""), "Global End attempt control should remain present.");
+  assert(source.includes("End the assessment?"), "End assessment dialog title is missing.");
+  assert(
+    source.includes("This will end the assessment now. You will not complete another activity or transfer item in this attempt."),
+    "End assessment dialog message is missing."
+  );
+  assert(source.includes("Keep working"), "End assessment dialog should include Keep working.");
+  assert(!/data being saved|database|research records|system versions|your data is saved/i.test(source), "End assessment copy should not expose persistence or research language.");
+  assert(!source.includes("Available choices for a future version"), "Abstract activity menu should not be rendered.");
+  assert(!source.includes("Alternative activity selection is recorded for this version"), "Activity switching should not show audit wording.");
 }
 
 function packetByStatus(
@@ -397,6 +424,7 @@ async function assertOperationalCountsUnchanged(
 
 async function main() {
   configureNoLiveFormativeValueRuntime();
+  assertStudentComponentCopyIsHardened();
   await ensureDemoStudentAssessment(prisma);
   await applyProvisionalItemDiagnosticMetadata(prisma);
 
@@ -428,8 +456,15 @@ async function main() {
     assert(projection.first_turn_message, "Started activity should expose a first turn.");
     assert(projection.response_prompt, "Started activity should expose a response prompt.");
     assert(projection.focus_label, "Started activity should expose a safe focus label.");
+    assert(
+      !/\bOption\s+[A-E]\b/i.test(projection.first_turn_message ?? "") ||
+        /\bItem\s+\d+\b/i.test(projection.first_turn_message ?? ""),
+      "Option-specific activity prompts should include an explicit item anchor."
+    );
     assertProjectionSafe(projection, "started");
 
+    const originalActivityAttemptId = projection.activity_attempt_public_id;
+    const originalFirstTurn = projection.first_turn_message;
     projection = await submitStudentActivityRuntimeResponse({
       student_user_db_id: validContext.student_db_id,
       session_public_id: validContext.session_public_id,
@@ -455,8 +490,20 @@ async function main() {
       choice_state: "choose_another_activity",
       client_action_id: "activity-runtime-ui-choose-other"
     });
-    assert(projection.ui_state === "alternative_requested", "Choose another should record a safe state.");
-    assertProjectionSafe(projection, "alternative_requested");
+    assert(projection.ui_state === "waiting_for_your_response", "Choose another should immediately return a different activity.");
+    assert(
+      projection.activity_attempt_public_id && projection.activity_attempt_public_id !== originalActivityAttemptId,
+      "Choose another should create a replacement activity attempt."
+    );
+    assert(
+      projection.first_turn_message && projection.first_turn_message !== originalFirstTurn,
+      "Choose another should render a different activity prompt immediately."
+    );
+    assert(
+      projection.alternative_activity_labels.length === 0,
+      "Choose another should not expose an abstract activity menu."
+    );
+    assertProjectionSafe(projection, "replacement_activity_ready");
 
     const moveContext = await createCompletedSession("move");
     contexts.push(moveContext);
@@ -476,7 +523,12 @@ async function main() {
       choice_state: "move_on",
       client_action_id: "activity-runtime-ui-move-on"
     });
-    assert(projection.ui_state === "moved_on", "Move on should record a safe state.");
+    assert(projection.ui_state === "moved_on", "End assessment should record a safe terminal state.");
+    assert(projection.status_message === "Assessment ended", "End assessment should use terminal student-facing status.");
+    assert(
+      projection.feedback?.message === "The assessment has ended for this attempt.",
+      "End assessment should use clean terminal feedback."
+    );
     assertProjectionSafe(projection, "moved_on");
     await assertOperationalCountsUnchanged(moveCountsBeforeRuntime, "move-on runtime choice");
 
@@ -566,7 +618,7 @@ async function main() {
     const unsafeProjectionValidation = validateStudentActivityRuntimeProjection({
       ...projection,
       feedback: {
-        message: "The correct answer is A.",
+        message: "The answer key says A is correct.",
         next_options: ["continue"]
       }
     });

@@ -740,6 +740,11 @@ model ItemResponse {
   skipped_item                    Boolean             @default(false)
   revision_count                  Int                 @default(0)
   missing_evidence_repair_offered Boolean             @default(false)
+  answer_explanation_revealed     Boolean             @default(false)
+  revealed_at                     DateTime?           @db.Timestamptz(6)
+  reveal_trigger                  String?
+  explanation_version             String?
+  student_display_acknowledged_at DateTime?           @db.Timestamptz(6)
   item_version_snapshot           Int
   item_snapshot                   Json
   client_submission_id            String?

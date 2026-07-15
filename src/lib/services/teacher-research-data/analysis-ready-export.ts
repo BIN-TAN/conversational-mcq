@@ -666,6 +666,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       "next_interaction_shown",
       "formative_activity_shown"
     ]);
+    const answerReviewDisplayAckEvent = lastEvent(sessionEvents, ["package_results_shown"]);
     const nextInteractionTurn = [...session.conversation_turns].reverse().find((turn) => {
       const payload = asRecord(turn.structured_payload);
       return payload.message_type === "next_interaction";
@@ -776,6 +777,10 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       active_activity_id: latestActivityAttempt?.activity_attempt_public_id ?? null,
       display_acknowledgement: displayAckEvent ? "acknowledged" : "not_acknowledged",
       display_event_contract_version: payloadString(displayAckEvent?.payload, ["display_event_contract_version"]),
+      answer_review_display_acknowledgement: answerReviewDisplayAckEvent ? "acknowledged" : "not_acknowledged",
+      answer_review_display_event_contract_version: payloadString(answerReviewDisplayAckEvent?.payload, [
+        "display_event_contract_version"
+      ]),
       conflict_recovery_metadata: jsonString(conflictRecoveryMetadata),
       activity_type: profileString(nextInteraction, "activity_type"),
       routing_policy_version: profileString(nextInteraction, "routing_policy_version"),
@@ -863,6 +868,11 @@ function itemResponseRows(sessions: AnalysisSession[], includeRestricted: boolea
           skipped_reasoning: response.skipped_reasoning,
           skipped_confidence: response.skipped_confidence,
           response_finalized: Boolean(response.item_submitted_at),
+          answer_explanation_revealed: response.answer_explanation_revealed,
+          revealed_at: iso(response.revealed_at),
+          reveal_trigger: response.reveal_trigger,
+          explanation_version: response.explanation_version,
+          student_display_acknowledged_at: iso(response.student_display_acknowledged_at),
           submitted_at: iso(response.item_submitted_at),
           revised_at: response.revision_count > 0 ? iso(response.updated_at) : null,
           revision_count: response.revision_count,
@@ -1052,6 +1062,16 @@ function conversationRows(sessions: AnalysisSession[]) {
 
 function agentAndActivityRows(sessions: AnalysisSession[], supplemental: SupplementalRecords) {
   const rows: CsvRow[] = [];
+  const activitySwitchCountsBySession = new Map<string, number>();
+  for (const activity of supplemental.activityAttempts) {
+    const sourceRef = asRecord(activity.source_activity_packet_ref);
+    if (typeof sourceRef.replaced_activity_attempt_public_id === "string" && sourceRef.replaced_activity_attempt_public_id.trim()) {
+      activitySwitchCountsBySession.set(
+        activity.session_public_id,
+        (activitySwitchCountsBySession.get(activity.session_public_id) ?? 0) + 1
+      );
+    }
+  }
   for (const session of sessions) {
     for (const [index, call] of session.agent_calls.entries()) {
       rows.push({
@@ -1166,6 +1186,7 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
   }
 
   for (const activity of supplemental.activityAttempts) {
+    const sourceRef = asRecord(activity.source_activity_packet_ref);
     rows.push({
       record_type: "formative_activity",
       session_public_id: activity.session_public_id,
@@ -1177,6 +1198,18 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
       activity_type: activity.activity_family,
       diagnostic_purpose: activity.diagnostic_purpose,
       activity_target: activity.concept_unit_id,
+      activity_source_item_id: sourceRefString(sourceRef, ["target_item_id"]),
+      activity_source_option_label: sourceRefString(sourceRef, ["target_option_label"]),
+      expected_response_mode: sourceRefString(sourceRef, ["expected_response_mode"]),
+      activity_deduplication_key: sourceRefString(sourceRef, ["semantic_deduplication_key"]),
+      activity_deduplication_version: sourceRefString(sourceRef, [
+        "routing_policy_version",
+        "runtime_loop_version",
+        "next_interaction_schema_version"
+      ]),
+      activity_switch_count: activitySwitchCountsBySession.get(activity.session_public_id) ?? 0,
+      activity_switch_history_reference: sourceRefString(sourceRef, ["replaced_activity_attempt_public_id"]),
+      activity_switch_reason: sourceRefString(sourceRef, ["activity_switch_reason"]),
       activity_prompt: sourceRefString(activity.source_activity_packet_ref, ["safe_activity_prompt"]),
       attempt_number: 1,
       status: activity.status,

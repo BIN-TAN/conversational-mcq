@@ -197,9 +197,17 @@ await state is active, the UI must not show a "Prepare learning activity" button
 or generate a second activity before the student responds, chooses another activity, or selects a destination-specific skip/continue action.
 
 Correctness status is separate from answer-key reveal. The default pilot policy
-shows total and item-level correct/incorrect status after the package, while
-the correct option and full explanation remain hidden until
-`answer_reveal_policy` permits reveal.
+shows total and item-level correct/incorrect status, the correct option, and a
+concise student-facing explanation for each administered initial item
+immediately after the initial package is completed. This reveal applies only to
+administered initial items. Transfer items or other unadministered items remain
+protected.
+
+After this reveal, formative activities must not ask the student to rediscover
+which option is correct. They may reference the known correct answer when useful,
+but they should require new reasoning, such as identifying a specific distractor
+flaw, correcting the inaccurate part of an option, comparing distractors, or
+reverse-engineering what the item was testing.
 
 ## Phase 31al2 Attempt Lifecycle and Navigation
 
@@ -210,4 +218,4 @@ Student-facing controls must distinguish:
 - Pause and leave: resumable.
 - End attempt: terminal after confirmation.
 
-Teacher-facing review may close a stuck or test attempt and allow another attempt without deleting or overwriting the original attempt. Formative activity skip actions should use destination-specific labels such as "Continue to transfer item" rather than generic "Move on" wording. Skipped formative activity is recorded as skipped, not completed.
+Teacher-facing review may close a stuck or test attempt and allow another attempt without deleting or overwriting the original attempt. In the formative stage, the student-facing terminal action is **End assessment**, not generic "Move on" wording. Ending from this stage records a specific terminal reason and completes the attempt without showing another activity or transfer item.

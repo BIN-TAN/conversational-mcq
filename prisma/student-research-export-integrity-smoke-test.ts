@@ -187,6 +187,38 @@ async function main() {
     );
 
     const defaultItemHeader = new Set(csvHeader(fileData(normalized.files, "item_responses.csv")));
+    for (const revealColumn of [
+      "answer_explanation_revealed",
+      "revealed_at",
+      "reveal_trigger",
+      "explanation_version",
+      "student_display_acknowledged_at"
+    ]) {
+      assert(defaultItemHeader.has(revealColumn), `item_responses.csv missing answer-review column ${revealColumn}.`);
+      assert(dictionaryKeys.has(`item_responses.${revealColumn}`), `Dictionary missing item_responses.${revealColumn}.`);
+    }
+    const defaultSessionsHeader = new Set(csvHeader(fileData(normalized.files, "sessions.csv")));
+    for (const answerReviewColumn of [
+      "answer_review_display_acknowledgement",
+      "answer_review_display_event_contract_version"
+    ]) {
+      assert(defaultSessionsHeader.has(answerReviewColumn), `sessions.csv missing answer-review column ${answerReviewColumn}.`);
+      assert(dictionaryKeys.has(`sessions.${answerReviewColumn}`), `Dictionary missing sessions.${answerReviewColumn}.`);
+    }
+    const defaultAgentActivityHeader = new Set(csvHeader(fileData(normalized.files, "agent_activity_records.csv")));
+    for (const activitySourceColumn of [
+      "activity_source_item_id",
+      "activity_source_option_label",
+      "expected_response_mode",
+      "activity_deduplication_key",
+      "activity_deduplication_version",
+      "activity_switch_count",
+      "activity_switch_history_reference",
+      "activity_switch_reason"
+    ]) {
+      assert(defaultAgentActivityHeader.has(activitySourceColumn), `agent_activity_records.csv missing activity source column ${activitySourceColumn}.`);
+      assert(dictionaryKeys.has(`agent_activity_records.${activitySourceColumn}`), `Dictionary missing agent_activity_records.${activitySourceColumn}.`);
+    }
     const restrictedItemHeader = new Set(csvHeader(fileData(normalizedRestricted.files, "item_responses.csv")));
     for (const restrictedColumn of ["correct_option", "correctness"]) {
       assert(!defaultItemHeader.has(restrictedColumn), `Unrestricted item_responses.csv leaked ${restrictedColumn}.`);

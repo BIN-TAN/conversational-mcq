@@ -47,14 +47,11 @@ There is no general maximum-attempts field in the current schema. When no config
 
 ## Formative Navigation Labels
 
-Student-facing formative activity controls use destination-specific labels. Generic **Move on** wording should not appear as a primary action label. Internal stored compatibility values such as `move_on` may remain in audit fields, evaluator schemas, or old records, but UI projections should use labels such as:
+Student-facing formative activity controls use destination-specific labels. Generic **Move on** wording should not appear as a primary action label. Internal stored compatibility values such as `move_on` may remain in audit fields, evaluator schemas, or old records, but the formative-stage terminal UI label is **End assessment**.
 
-- Continue to transfer item
-- Continue to next concept
-- Finish assessment
-- Return to assessment summary
+The End assessment confirmation says: "This will end the assessment now. You will not complete another activity or transfer item in this attempt." It does not mention database persistence, research records, or system versions.
 
-Skipping a formative activity records `formative_activity_skipped`; it is not treated as a completed activity response.
+Ending from a formative activity records `formative_activity_skipped`, `finish_assessment_selected`, and `session_completed` with a terminal reason such as `ended_during_formative_activity`; it is not treated as a completed activity response.
 
 ## Timing Boundary
 
