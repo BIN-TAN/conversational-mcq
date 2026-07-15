@@ -297,3 +297,18 @@ Student-facing projection validation blocks answer keys, correctness labels, dis
 A later formative layer may consume this packet. That later layer must remain separate from this interpretation packet and must not infer activity selection from engagement context alone.
 
 Under the Phase 30a framing, that later layer should consume this packet as misconception diagnostic integration and select a distractor-informed diagnostic purpose. It should avoid overclaiming when evidence is mixed, low reliability, or insufficient, and it should treat conceptual entry gaps separately from distractor-linked misconceptions.
+
+## Phase 31al Evidence-Integrated Profile V2
+
+The package-completion path now persists `EvidenceIntegratedProfileV2` for new
+sessions. This v2 artifact supersedes the older single student-safe status for
+post-package display while retaining legacy fields for compatibility. It
+separates outcome, assessment-specific understanding, reasoning quality,
+confidence calibration, evidence limitations, growth target, item evidence,
+student-safe summary, validator results, artifact versions, and effective
+evidence package hash.
+
+The student projection must show the separated dimensions and must not collapse
+all-correct but concise reasoning into `Still developing`. Teacher/research
+views may inspect the full evidence chain, but student views must remain
+student-safe and answer-key protected.

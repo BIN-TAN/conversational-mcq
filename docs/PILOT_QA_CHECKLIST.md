@@ -480,3 +480,21 @@ No logs, exports, screenshots, or notes should contain API keys, cookies, auth t
 - Transfer-item feedback is not implemented in this phase.
 - Older or incomplete sessions may lack activity runtime attempts, post-activity evidence records, or diagnostic snapshots; the classroom pilot workflow review reports these as limitations.
 - Human review of usability, safety, timing, and data quality remains required before broader classroom use.
+
+## Phase 31al Package Feedback QA
+
+During browser QA after the initial three-item package, verify:
+
+- The student sees total and item-level correct/incorrect status.
+- The correct option remains hidden when `answer_reveal_policy` has not reached
+  its reveal stage.
+- The learning-profile panel shows separate fields for understanding,
+  reasoning, confidence, evidence limitation when useful, and next focus.
+- The student sees exactly one next prompt or activity and one active response
+  control.
+- No "Prepare learning activity" button appears while a prompt is awaiting a
+  response.
+- All-correct but concise reasoning routes to a distractor-focused activity,
+  not a generic foundational explanation.
+- Teacher session detail shows the v2 evidence chain, validator results,
+  routing justification, artifact versions, and effective evidence hash.

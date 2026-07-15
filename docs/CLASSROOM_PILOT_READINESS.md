@@ -318,3 +318,25 @@ No-live check:
 ```bash
 npm run student:llm-diagnostic-context-propagation-smoke
 ```
+
+## Evidence-Integrated Feedback Readiness
+
+The pilot workflow now expects the initial response package to generate a
+versioned evidence profile before feedback is shown. The student-facing view
+must show the package result and separated assessment-specific profile
+dimensions, while teacher/research views retain the detailed evidence chain.
+
+Required no-live checks:
+
+```bash
+npm run student:evidence-profile-coherence-smoke
+npm run student:evidence-linked-feedback-smoke
+npm run student:distractor-first-routing-smoke
+npm run student:single-action-state-smoke
+npm run student:package-results-and-reveal-smoke
+npm run student:incident-profile-routing-regression-smoke
+```
+
+These checks are engineering controls only. They do not establish classroom
+validity, psychometric ability estimation, motivation detection, or misconduct
+detection.

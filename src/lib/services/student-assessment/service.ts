@@ -50,6 +50,11 @@ import {
   persistProfileIntegrationSnapshotForSession,
   projectStoredStudentProfileIntegration
 } from "@/lib/services/student-assessment/profile-integration";
+import {
+  EvidenceIntegratedProfileV2Schema,
+  packageResultsForStudent,
+  studentSafeProjectionFromEvidenceProfile
+} from "@/lib/services/student-assessment/evidence-integrated-profile";
 import { getStudentActivityRuntimeState } from "@/lib/services/student-assessment/activity-runtime-ui";
 import {
   assertChatNativeActionAllowed,
@@ -362,6 +367,17 @@ function firstShortStudentFacing(values: string[], fallback: string) {
 
 type StudentLearningStatus = "Mostly understood" | "Still developing" | "Needs more work";
 
+function evidenceIntegratedProfileFromStoredProfile(input: {
+  item_level_evidence: Prisma.JsonValue;
+} | null) {
+  const record = recordValue(input?.item_level_evidence);
+  const parsed = EvidenceIntegratedProfileV2Schema.safeParse(
+    record.evidence_integrated_profile_v2
+  );
+
+  return parsed.success ? parsed.data : null;
+}
+
 function oneSentence(value: string) {
   const normalized = value.trim().replace(/\s+/g, " ");
   const first = normalized.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim();
@@ -411,6 +427,14 @@ function studentSafeLearningProfile(input: {
 }) {
   if (!input.profile) {
     return null;
+  }
+
+  const evidenceIntegratedProfile = evidenceIntegratedProfileFromStoredProfile(input.profile);
+  if (evidenceIntegratedProfile) {
+    return studentSafeProjectionFromEvidenceProfile(
+      evidenceIntegratedProfile,
+      input.profile.created_at.toISOString()
+    );
   }
 
   const profileIntegrationProjection = projectStoredStudentProfileIntegration(input.profile);
@@ -2135,9 +2159,11 @@ export async function getStudentSessionState(input: {
       })
     : [];
   const latestStudentProfile =
+    studentProfiles.find((profile) => evidenceIntegratedProfileFromStoredProfile(profile)) ??
     studentProfiles.find((profile) => projectStoredStudentProfileIntegration(profile)) ??
     studentProfiles[0] ??
     null;
+  const latestEvidenceIntegratedProfile = evidenceIntegratedProfileFromStoredProfile(latestStudentProfile);
   const latestFormativeDecision = conceptUnitSession
     ? await prisma.formativeDecision.findFirst({
         where: { concept_unit_session_db_id: conceptUnitSession.id },
@@ -2223,6 +2249,14 @@ export async function getStudentSessionState(input: {
           }
         : null,
     activity_runtime: activityRuntime,
+    package_results:
+      shouldExposeLearningProfileToStudent({
+        assessment_state: assessmentState,
+        effective_phase: effectivePhase,
+        current_item_role: transferItem ? "transfer" : currentItem ? "initial" : null
+      }) && latestEvidenceIntegratedProfile
+        ? packageResultsForStudent(latestEvidenceIntegratedProfile)
+        : null,
     progression,
     learning_profile: shouldExposeLearningProfileToStudent({
       assessment_state: assessmentState,

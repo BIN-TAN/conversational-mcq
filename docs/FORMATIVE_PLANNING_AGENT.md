@@ -173,3 +173,19 @@ only the effective result after validation, canonicalization, and fallback. If
 initial planning cannot use a valid effective result, a deterministic
 course-agnostic fallback plan keeps the workflow resumable. Updated planning
 failure preserves the previous active decision pointer.
+
+## Phase 31al NextInteraction V2
+
+For the chat-native package flow, formative planning is represented by
+`NextInteractionV2`. Feedback and the next action are separate: package
+feedback cites response-package evidence and contains no actionable question,
+while `NextInteractionV2.prompt` contains the single next student prompt with a
+matching await state.
+
+The routing policy is distractor-first. Sound or strong evidence routes to
+distractor evaluation, ranking, correction, or enrichment. Partial but relevant
+evidence routes to scaffolded distractor work. Foundational, prerequisite, or
+construct-orientation support is selected only when item evidence and
+limitations justify that exception. Invalid or unavailable model planning must
+fall back to the deterministic router rather than a generic "explain it without
+the options" activity.

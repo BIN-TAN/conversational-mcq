@@ -78,6 +78,18 @@ export const SESSIONS_COLUMNS = [
   "post_activity_evidence_count",
   "diagnostic_snapshot_count",
   "assessment_specific_understanding_category",
+  "reasoning_quality_category",
+  "confidence_calibration_category",
+  "evidence_limitation_codes",
+  "growth_target",
+  "answer_reveal_policy",
+  "correctness_status_reveal_policy",
+  "next_interaction_type",
+  "activity_type",
+  "routing_policy_version",
+  "activity_taxonomy_version",
+  "evidence_profile_schema_version",
+  "effective_evidence_package_hash",
   "engagement_review_category",
   "latest_student_safe_status",
   "evidence_sufficiency",
@@ -321,6 +333,11 @@ export const ASSESSMENT_SUMMARY_COLUMNS = [
   "formative_activity_attempt_count",
   "latest_student_safe_status",
   "assessment_specific_understanding_category",
+  "reasoning_quality_category",
+  "confidence_calibration_category",
+  "growth_target",
+  "next_interaction_type",
+  "activity_type",
   "engagement_review_category",
   "evidence_sufficiency",
   "elapsed_session_time_ms",
@@ -1380,6 +1397,30 @@ function collectionMethod(table: string, variable: string) {
     item_response_time_ms: "Read from ItemResponse.item_response_time_ms, which is finalized by the item-response service from item presentation/start through item submission.",
     assessment_specific_understanding_category:
       "Persisted output from the assessment-specific profile/evidence integration workflow using response package, item evidence, and process context.",
+    reasoning_quality_category:
+      "Extracted by sessionRows() from evidence_integrated_profile_v2.reasoning_quality.value when available; it summarizes reasoning evidence separately from scored correctness.",
+    confidence_calibration_category:
+      "Extracted by sessionRows() from evidence_integrated_profile_v2.confidence_calibration.value when available; confidence is contextual evidence and does not determine understanding by itself.",
+    evidence_limitation_codes:
+      "Extracted by sessionRows() from evidence_integrated_profile_v2.evidence_limitations as a pipe-separated list of limitation codes, not as a motivation or misconduct claim.",
+    growth_target:
+      "Extracted by sessionRows() from evidence_integrated_profile_v2.growth_target.target as the single evidence-linked next focus selected after the initial response package.",
+    answer_reveal_policy:
+      "Extracted by sessionRows() from evidence_integrated_profile_v2.outcome_summary.restricted_answer_reveal_state.answer_reveal_policy.",
+    correctness_status_reveal_policy:
+      "Extracted by sessionRows() from evidence_integrated_profile_v2.outcome_summary.restricted_answer_reveal_state.correctness_status_reveal_policy.",
+    next_interaction_type:
+      "Extracted by sessionRows() from next_interaction_v2.interaction_type to show the single next wait-state interaction selected after package feedback.",
+    activity_type:
+      "Extracted by sessionRows() from next_interaction_v2.activity_type to identify the distractor, scaffold, foundational, or clarification activity form.",
+    routing_policy_version:
+      "Extracted by sessionRows() from next_interaction_v2.routing_policy_version so analysis can distinguish distractor-first routing policy versions.",
+    activity_taxonomy_version:
+      "Extracted by sessionRows() from next_interaction_v2.activity_taxonomy_version for activity-family compatibility checks.",
+    evidence_profile_schema_version:
+      "Extracted by sessionRows() from evidence_integrated_profile_v2.profile_schema_version.",
+    effective_evidence_package_hash:
+      "Extracted by sessionRows() from the stored evidence-integrated profile artifact hash; it supports reproducibility without exposing protected raw payloads.",
     engagement_review_category:
       "Persisted evidence-quality review output from the profile integration or engagement evidence workflow; agent and prompt/schema provenance are recorded in adjacent audit fields when available; it is not a motivation or misconduct label.",
     misconception_hypothesis:

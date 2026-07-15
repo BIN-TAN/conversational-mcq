@@ -384,19 +384,13 @@ async function main() {
       student_user_db_id: responseContext.student_db_id,
       session_public_id: responseContext.session_public_id
     });
-    assert(initialProjection.ui_state === "not_started", "Activity runtime should begin as not started.");
+    assert(
+      initialProjection.ui_state === "waiting_for_your_response",
+      "Phase 31al activity runtime should expose the single next interaction without a prepare step."
+    );
     assertProjectionSafe(initialProjection, "initial runtime projection");
 
-    let projection = await startStudentActivityForSession({
-      student_user_db_id: responseContext.student_db_id,
-      session_public_id: responseContext.session_public_id,
-      activity_generation_override: makeActivityGenerationOverride({
-        context: responseContext,
-        suffix: "response"
-      })
-    });
-    assert(projection.ui_state === "waiting_for_your_response", "Activity runtime should prepare a response prompt.");
-    assertProjectionSafe(projection, "activity prepared");
+    let projection = initialProjection;
 
     projection = await submitStudentActivityRuntimeResponse({
       student_user_db_id: responseContext.student_db_id,

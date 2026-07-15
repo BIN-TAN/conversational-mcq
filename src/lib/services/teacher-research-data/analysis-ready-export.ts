@@ -465,8 +465,54 @@ function latestProfile(session: AnalysisSession) {
   return session.concept_unit_sessions.flatMap((entry) => entry.student_profiles)[0] ?? null;
 }
 
+function evidenceProfileV2(profile: ReturnType<typeof latestProfile>) {
+  const evidence = asRecord(profile?.item_level_evidence);
+  const profileV2 = asRecord(evidence.evidence_integrated_profile_v2);
+  return profileV2.profile_schema_version ? profileV2 : null;
+}
+
+function evidenceNextInteractionV2(profile: ReturnType<typeof latestProfile>) {
+  const evidence = asRecord(profile?.item_level_evidence);
+  const nextInteraction = asRecord(evidence.next_interaction_v2);
+  return nextInteraction.next_interaction_schema_version ? nextInteraction : null;
+}
+
+function profileString(record: Record<string, unknown> | null, key: string) {
+  const value = record?.[key];
+  return typeof value === "string" ? value : null;
+}
+
+function nestedProfileValue(record: Record<string, unknown> | null, key: string) {
+  const nested = asRecord(record?.[key]);
+  return typeof nested.value === "string" ? nested.value : null;
+}
+
+function evidenceLimitationCodes(record: Record<string, unknown> | null) {
+  const limitations = Array.isArray(record?.evidence_limitations)
+    ? record.evidence_limitations
+    : [];
+  return limitations
+    .map((entry) => asRecord(entry).code)
+    .filter((code): code is string => typeof code === "string" && code.length > 0)
+    .join("|") || null;
+}
+
+function growthTargetValue(record: Record<string, unknown> | null) {
+  const target = asRecord(record?.growth_target).target;
+  return typeof target === "string" ? target : null;
+}
+
+function answerRevealState(record: Record<string, unknown> | null) {
+  return asRecord(asRecord(record?.outcome_summary).restricted_answer_reveal_state);
+}
+
 function studentSafeStatus(profile: ReturnType<typeof latestProfile>) {
   if (!profile) return null;
+  const profileV2 = evidenceProfileV2(profile);
+  const summary = asRecord(profileV2?.student_safe_summary);
+  if (typeof summary.understanding_label === "string") {
+    return summary.understanding_label;
+  }
   switch (profile.integrated_diagnostic_profile) {
     case "robust_understanding_ready_for_transfer":
     case "underconfident_but_reasoning_supported":
@@ -538,6 +584,10 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
     const elapsed = diff(ms(session.started_at ?? session.created_at), ms(session.completed_at ?? session.last_activity_at ?? session.updated_at));
     const activeTime = elapsed !== null && totalIdle !== null ? Math.max(0, elapsed - totalIdle) : null;
     const profile = latestProfile(session);
+    const profileV2 = evidenceProfileV2(profile);
+    const nextInteraction = evidenceNextInteractionV2(profile);
+    const revealState = answerRevealState(profileV2);
+    const profileEvidence = asRecord(profile?.item_level_evidence);
     const unsupportedCorrectCount = responses.filter((response) => {
       const evidence = packageEvidenceByItem(session).get(response.item.item_public_id);
       return asRecord(evidence).unsupported_correct_response === true;
@@ -576,7 +626,31 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       formative_activity_attempt_count: activityCounts.get(session.session_public_id) ?? 0,
       post_activity_evidence_count: evidenceCounts.get(session.session_public_id) ?? 0,
       diagnostic_snapshot_count: snapshotCounts.get(session.session_public_id) ?? 0,
-      assessment_specific_understanding_category: profile?.integrated_diagnostic_profile ?? null,
+      assessment_specific_understanding_category:
+        nestedProfileValue(profileV2, "assessment_specific_understanding") ??
+        profile?.integrated_diagnostic_profile ??
+        null,
+      reasoning_quality_category: nestedProfileValue(profileV2, "reasoning_quality"),
+      confidence_calibration_category: nestedProfileValue(profileV2, "confidence_calibration"),
+      evidence_limitation_codes: evidenceLimitationCodes(profileV2),
+      growth_target: growthTargetValue(profileV2),
+      answer_reveal_policy:
+        typeof revealState.answer_reveal_policy === "string"
+          ? revealState.answer_reveal_policy
+          : null,
+      correctness_status_reveal_policy:
+        typeof revealState.correctness_status_reveal_policy === "string"
+          ? revealState.correctness_status_reveal_policy
+          : null,
+      next_interaction_type: profileString(nextInteraction, "interaction_type"),
+      activity_type: profileString(nextInteraction, "activity_type"),
+      routing_policy_version: profileString(nextInteraction, "routing_policy_version"),
+      activity_taxonomy_version: profileString(nextInteraction, "activity_taxonomy_version"),
+      evidence_profile_schema_version: profileString(profileV2, "profile_schema_version"),
+      effective_evidence_package_hash:
+        typeof profileEvidence.effective_evidence_package_hash === "string"
+          ? profileEvidence.effective_evidence_package_hash
+          : null,
       engagement_review_category: profile?.engagement_profile ?? null,
       latest_student_safe_status: studentSafeStatus(profile),
       evidence_sufficiency: profile?.evidence_sufficiency ?? null,
@@ -754,6 +828,11 @@ function assessmentSummaryRows(source: ExportSourceIdentity, sessions: AnalysisS
       formative_activity_attempt_count: row.formative_activity_attempt_count ?? 0,
       latest_student_safe_status: row.latest_student_safe_status ?? null,
       assessment_specific_understanding_category: row.assessment_specific_understanding_category ?? null,
+      reasoning_quality_category: row.reasoning_quality_category ?? null,
+      confidence_calibration_category: row.confidence_calibration_category ?? null,
+      growth_target: row.growth_target ?? null,
+      next_interaction_type: row.next_interaction_type ?? null,
+      activity_type: row.activity_type ?? null,
       engagement_review_category: row.engagement_review_category ?? null,
       evidence_sufficiency: row.evidence_sufficiency ?? null,
       elapsed_session_time_ms: row.elapsed_session_time_ms ?? null,

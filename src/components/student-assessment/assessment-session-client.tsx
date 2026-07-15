@@ -1227,8 +1227,7 @@ function FormativeActivityControls({
   formativeActivityDraft,
   setFormativeActivityDraft,
   onChooseActivityRuntimeAction,
-  onSendFormativeActivityResponse,
-  onStartActivityRuntime
+  onSendFormativeActivityResponse
 }: {
   activityRuntime: StudentActivityRuntimeProjection | null | undefined;
   isBusy: boolean;
@@ -1236,23 +1235,13 @@ function FormativeActivityControls({
   setFormativeActivityDraft: (value: string) => void;
   onChooseActivityRuntimeAction: (choiceState: "choose_another_activity" | "move_on") => void;
   onSendFormativeActivityResponse: () => void;
-  onStartActivityRuntime: () => void;
 }) {
   const runtime = activityRuntime ?? null;
 
   if (!runtime || runtime.ui_state === "not_started") {
     return (
       <AgentMessage>
-        <p className="font-medium text-ink">A short activity can be prepared when you are ready.</p>
-        <button
-          className="mt-4 inline-flex items-center justify-center rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
-          data-testid="start-activity-runtime"
-          disabled={isBusy}
-          onClick={onStartActivityRuntime}
-          type="button"
-        >
-          Prepare activity
-        </button>
+        <p className="font-medium text-ink">The next activity is not available yet.</p>
       </AgentMessage>
     );
   }
@@ -1438,15 +1427,17 @@ function NextChoiceControls({
 }
 
 function LearningProfilePanel({
-  profile
+  profile,
+  packageResults
 }: {
   profile: StudentSessionState["learning_profile"] | null | undefined;
+  packageResults?: StudentSessionState["package_results"] | null;
 }) {
-  if (!profile) {
+  if (!profile && !packageResults) {
     return null;
   }
 
-  if (!profile.explanation.trim() && !profile.next_focus.trim()) {
+  if (profile && !profile.explanation.trim() && !profile.next_focus.trim() && !packageResults) {
     return null;
   }
 
@@ -1460,9 +1451,62 @@ function LearningProfilePanel({
           Current learning profile
         </summary>
         <div className="mt-3 rounded-xl bg-[#f7f9f6] px-3 py-3 text-sm leading-5 text-ink">
-          <h3 className="text-sm font-semibold text-ink">{profile.status}</h3>
-          <p className="mt-2">{profile.explanation}</p>
-          <p className="mt-2">{profile.next_focus}</p>
+          {packageResults ? (
+            <div data-testid="package-results-summary">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Initial results</p>
+              <p className="mt-1 font-semibold text-ink">{packageResults.result_summary}</p>
+              <ul className="mt-2 space-y-1 text-sm text-muted">
+                {packageResults.items.map((item) => (
+                  <li key={item.item_public_id}>
+                    Item {item.item_position ?? "?"} — {item.status_label}
+                    {item.answer_revealed && item.revealed_answer
+                      ? ` (answer ${item.revealed_answer})`
+                      : ""}
+                  </li>
+                ))}
+              </ul>
+              {!packageResults.full_answer_revealed ? (
+                <p className="mt-2 text-xs text-muted">
+                  Correct answers and explanations are still protected for this step.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {profile ? (
+            <div className={packageResults ? "mt-4 border-t border-line pt-3" : ""}>
+              {profile.current_understanding ? (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Understanding</p>
+                  <p className="mt-1 font-semibold text-ink">{profile.current_understanding.label}</p>
+                </div>
+              ) : (
+                <h3 className="text-sm font-semibold text-ink">{profile.status}</h3>
+              )}
+              {profile.reasoning ? (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Reasoning</p>
+                  <p className="mt-1">{profile.reasoning.label}</p>
+                </div>
+              ) : null}
+              {profile.confidence ? (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Confidence</p>
+                  <p className="mt-1">{profile.confidence.label}</p>
+                </div>
+              ) : null}
+              {profile.evidence_limitation ? (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">Evidence note</p>
+                  <p className="mt-1">{profile.evidence_limitation}</p>
+                </div>
+              ) : null}
+              <div className="mt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Next focus</p>
+                <p className="mt-1">{profile.next_focus}</p>
+              </div>
+              {!profile.current_understanding ? <p className="mt-2">{profile.explanation}</p> : null}
+            </div>
+          ) : null}
         </div>
       </details>
     </aside>
@@ -1789,7 +1833,6 @@ function activeItemPrompt(input: {
         isBusy={isBusy}
         onChooseActivityRuntimeAction={input.onChooseActivityRuntimeAction}
         onSendFormativeActivityResponse={input.onSendFormativeActivityResponse}
-        onStartActivityRuntime={input.onStartActivityRuntime}
         setFormativeActivityDraft={input.setFormativeActivityDraft}
       />
     );
@@ -2646,7 +2689,10 @@ export function AssessmentSessionClient({
           <div ref={scrollRef} />
         </ChatTranscript>
         {shouldShowLearningProfile(state) ? (
-          <LearningProfilePanel profile={state.learning_profile} />
+          <LearningProfilePanel
+            packageResults={state.package_results}
+            profile={state.learning_profile}
+          />
         ) : null}
       </div>
       {currentItem ? (

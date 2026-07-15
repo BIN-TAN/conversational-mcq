@@ -2806,3 +2806,26 @@ Phase 6A.5 must not implement:
 - Normal tests, dry runs, and reports must make no OpenAI call. Guarded live
   candidate evaluation must be skipped unless explicitly enabled with
   `RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1` and paid-call confirmation.
+
+## Phase 31AL Evidence-Integrated Profile And Routing Lock
+
+- Post-initial-package interpretation must persist `EvidenceIntegratedProfileV2`,
+  `PackageFeedbackV2`, and `NextInteractionV2` artifacts for new sessions.
+- Outcome, assessment-specific understanding, reasoning quality, confidence
+  calibration, evidence limitations, and growth target are separate dimensions.
+  A concise reasoning-depth issue must not collapse an all-correct package below
+  sound understanding solely because it is concise.
+- Total and item-level correct/incorrect status may be shown after the package.
+  Correct option and full answer explanation reveal remain controlled by
+  `answer_reveal_policy`; default pilot behavior keeps the answer key hidden
+  until after the formative activity.
+- Feedback must cite response-package evidence and must not contain the next
+  actionable prompt. The single next prompt lives only in `NextInteractionV2`
+  and must have a matching await-response state.
+- Distractor-focused routing is preferred whenever the response package shows
+  enough conceptual footing. Foundational and prerequisite support require
+  explicit evidence and are not the default fallback.
+- Timing and process signals may qualify evidence sufficiency but must not infer
+  motivation, effort, cheating, or misconduct.
+- The Phase 31al work does not change scoring, correct keys, item content,
+  timing formulas, or historical records.

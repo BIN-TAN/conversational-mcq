@@ -1,6 +1,32 @@
 import type { AgentCall, FormativeDecision } from "@prisma/client";
 import { serializeDate } from "@/lib/services/teacher-review/serializers";
 
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function evidenceRoutingV2(decision: FormativeDecision) {
+  const targetEvidence = recordValue(decision.target_evidence);
+  const constraints = recordValue(decision.followup_prompt_constraints);
+  const nextInteraction = recordValue(constraints.next_interaction_v2);
+  if (!nextInteraction.next_interaction_schema_version) {
+    return null;
+  }
+
+  return {
+    routing_inputs: targetEvidence.routing_inputs ?? null,
+    growth_target: targetEvidence.growth_target ?? null,
+    evidence_refs: targetEvidence.evidence_refs ?? [],
+    package_feedback: constraints.package_feedback_v2 ?? null,
+    next_interaction: constraints.next_interaction_v2 ?? null,
+    answer_reveal_state: constraints.answer_reveal_state ?? null,
+    validation_results: constraints.validation_results ?? null,
+    one_action_at_a_time: constraints.one_action_at_a_time === true
+  };
+}
+
 export type FormativeDecisionWithAgentCall = FormativeDecision & {
   based_on_agent_call?: Pick<
     AgentCall,
@@ -31,6 +57,7 @@ export function serializeFormativeDecisionForTeacher(
     success_criteria: decision.success_criteria,
     followup_prompt_constraints: decision.followup_prompt_constraints,
     profile_update_triggers: decision.profile_update_triggers,
+    evidence_routing_v2: evidenceRoutingV2(decision),
     rationale: decision.rationale,
     mapping_followed: decision.mapping_followed,
     mapping_deviation_reason: decision.mapping_deviation_reason,

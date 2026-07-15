@@ -174,3 +174,27 @@ The LLM may produce language and structured interpretations, but backend validat
 ## Phase 30a Loop Policy
 
 The diagnostic loop should be described as continuing until no actionable distractor-linked misconception evidence remains, until the current misconception hypothesis is weakened or unsupported, until evidence becomes insufficient, until the student chooses to move on, or until a runtime guard stops the loop. It should not be described as looping until all misconceptions are eliminated.
+
+## Phase 31al Post-Package State Contract
+
+After the three initial items are complete, the backend constructs the response
+package, then produces and persists:
+
+1. `EvidenceIntegratedProfileV2`
+2. `PackageFeedbackV2`
+3. `NextInteractionV2`
+
+The UI may render package results, profile, feedback, and the next interaction
+together, but state ownership remains explicit:
+
+`PACKAGE_COMPLETE -> SHOW_PACKAGE_RESULTS -> SHOW_EVIDENCE_PROFILE -> SHOW_PACKAGE_FEEDBACK -> SHOW_NEXT_INTERACTION -> AWAIT_*_RESPONSE`
+
+Only `NextInteractionV2.prompt` may contain the next actionable student prompt.
+Package feedback must not contain a separate quick-check question. While an
+await state is active, the UI must not show a "Prepare learning activity" button
+or generate a second activity before the student responds, skips, or moves on.
+
+Correctness status is separate from answer-key reveal. The default pilot policy
+shows total and item-level correct/incorrect status after the package, while
+the correct option and full explanation remain hidden until
+`answer_reveal_policy` permits reveal.

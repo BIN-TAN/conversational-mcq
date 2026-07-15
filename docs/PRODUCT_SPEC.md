@@ -112,3 +112,22 @@ The main research construct is now the **misconception diagnosis profile**, not 
 - `independent_misconception_verification`
 
 Confidence calibration is a modifier. Consolidation and transfer are exit or extension paths. The product must not claim to prove complete learning gain, detect cheating, or prove that no misconceptions exist when no actionable distractor-linked evidence is visible.
+
+## Phase 31al Evidence-Integrated Profile
+
+The post-package profile is not a single global label. The current contract is
+`EvidenceIntegratedProfileV2`, which stores scored outcome, assessment-specific
+understanding, reasoning quality, confidence calibration, evidence limitations,
+item-level evidence, uncertainty, and one evidence-linked growth target as
+separate dimensions.
+
+Correctness is strong observed evidence, but not a stable ability estimate,
+course-grade prediction, motivation label, or misconduct signal. Concise but
+accurate reasoning is treated as a reasoning-depth limitation rather than an
+automatic misconception or weak-understanding label. Missing tempting-option
+evidence is normally neutral.
+
+The formative route is distractor-first whenever the student has enough
+conceptual footing to evaluate, correct, rank, transform, or reason about
+administered distractors. Foundational or prerequisite support is used only when
+the evidence shows distractor work is not yet accessible.

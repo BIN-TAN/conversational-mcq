@@ -101,9 +101,46 @@ export const StudentLearningProfileSchema = z.object({
   status: z.enum(["Mostly understood", "Still developing", "Needs more work"]),
   explanation: z.string(),
   next_focus: z.string(),
-  updated_at: z.string()
+  updated_at: z.string(),
+  initial_results: z.string().optional(),
+  current_understanding: z
+    .object({
+      label: z.string(),
+      value: z.string()
+    })
+    .optional(),
+  reasoning: z
+    .object({
+      label: z.string(),
+      value: z.string()
+    })
+    .optional(),
+  confidence: z
+    .object({
+      label: z.string(),
+      value: z.string()
+    })
+    .optional(),
+  evidence_limitation: z.string().nullable().optional(),
+  profile_schema_version: z.string().optional()
 });
 export type StudentLearningProfile = z.infer<typeof StudentLearningProfileSchema>;
+
+export const PackageResultsSchema = z.object({
+  result_summary: z.string(),
+  answer_reveal_policy: z.string(),
+  result_status_reveal_policy: z.string(),
+  full_answer_revealed: z.boolean(),
+  items: z.array(z.object({
+    item_public_id: z.string(),
+    item_position: z.number().nullable(),
+    selected_option: z.string().nullable(),
+    status_label: z.string(),
+    answer_revealed: z.boolean(),
+    revealed_answer: z.string().nullable()
+  }))
+});
+export type PackageResults = z.infer<typeof PackageResultsSchema>;
 
 export const StudentSessionStateSchema = z.object({
   session_public_id: z.string(),
@@ -179,6 +216,7 @@ export const StudentSessionStateSchema = z.object({
     .nullable()
     .optional(),
   activity_runtime: StudentActivityRuntimeProjectionSchema.nullable().optional(),
+  package_results: PackageResultsSchema.nullable().optional(),
   progression: StudentProgressionSchema.nullable().optional(),
   learning_profile: StudentLearningProfileSchema.nullable().optional(),
   session: z

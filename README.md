@@ -2326,3 +2326,28 @@ Rollback is environment-only: restore the prior `OPENAI_MODEL_*` values or
 remove candidate overrides, restore the previous
 `OPERATIONAL_APPROVED_CONFIG_HASH`, redeploy, and verify
 `npm run operational:approval-manifest:verify`.
+
+## Evidence-Integrated Package Feedback
+
+Phase 31al rebuilds the post-package interpretation around versioned
+`EvidenceIntegratedProfileV2`, `PackageFeedbackV2`, and `NextInteractionV2`
+artifacts. After the initial three-item package, the student-facing state now
+separates scored outcome, assessment-specific understanding, reasoning quality,
+confidence calibration, evidence limitations, and one growth target. Correctness
+status is shown after the package; full answer-key reveal remains controlled by
+the `answer_reveal_policy` stored in concept-unit administration rules or by the
+safe default.
+
+The next student action is always represented by a single `NextInteractionV2`
+prompt with a matching await state. Distractor-focused work is the default when
+the response package shows enough conceptual footing; foundational support is an
+exception that requires evidence. The deterministic no-live checks are:
+
+```bash
+npm run student:evidence-profile-coherence-smoke
+npm run student:evidence-linked-feedback-smoke
+npm run student:distractor-first-routing-smoke
+npm run student:single-action-state-smoke
+npm run student:package-results-and-reveal-smoke
+npm run student:incident-profile-routing-regression-smoke
+```

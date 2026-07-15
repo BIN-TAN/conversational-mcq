@@ -87,3 +87,18 @@ The heterogeneous `agent_activity_records.csv` table is retained as a
 deprecated legacy compatibility view until split logical datasets are promoted.
 
 Domain-owner wording review remains pending.
+
+## Phase 31al Evidence Profile Export Fields
+
+The evidence-integrated package profile is exported through normalized,
+readable session/summary columns rather than an unreadable wide item-evidence
+table. Current columns include assessment-specific understanding, reasoning
+quality, confidence calibration, evidence limitation codes, growth target,
+answer-reveal policy, correctness-status reveal policy, next-interaction type,
+activity type, routing-policy version, activity-taxonomy version, profile schema
+version, and effective evidence package hash.
+
+Detailed item-level evidence remains in the operational teacher/research
+session detail and stored JSON artifact. If a later analysis requires item-level
+evidence as rows, add a normalized item-evidence dataset with one row per
+administered item rather than widening `sessions.csv`.

@@ -1,6 +1,45 @@
 import type { AgentCall, StudentProfile } from "@prisma/client";
 import { serializeDate } from "@/lib/services/teacher-review/serializers";
 
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function evidenceChainV2(profile: StudentProfile) {
+  const evidence = recordValue(profile.item_level_evidence);
+  const integratedProfile = recordValue(evidence.evidence_integrated_profile_v2);
+  if (!integratedProfile.profile_schema_version) {
+    return null;
+  }
+
+  const nextInteraction = recordValue(evidence.next_interaction_v2);
+  const validators = recordValue(evidence.validation_results);
+
+  return {
+    profile_schema_version: integratedProfile.profile_schema_version,
+    item_evidence_count: Array.isArray(integratedProfile.item_evidence)
+      ? integratedProfile.item_evidence.length
+      : 0,
+    outcome_summary: integratedProfile.outcome_summary ?? null,
+    assessment_specific_understanding:
+      integratedProfile.assessment_specific_understanding ?? null,
+    reasoning_quality: integratedProfile.reasoning_quality ?? null,
+    confidence_calibration: integratedProfile.confidence_calibration ?? null,
+    evidence_limitations: integratedProfile.evidence_limitations ?? [],
+    growth_target: integratedProfile.growth_target ?? null,
+    item_evidence: integratedProfile.item_evidence ?? [],
+    package_feedback: evidence.package_feedback_v2 ?? null,
+    next_interaction: nextInteraction.next_interaction_schema_version
+      ? evidence.next_interaction_v2
+      : null,
+    validator_results: validators,
+    artifact_versions: evidence.artifact_versions ?? null,
+    effective_evidence_package_hash: evidence.effective_evidence_package_hash ?? null
+  };
+}
+
 export type StudentProfileWithAgentCall = StudentProfile & {
   based_on_agent_call?: Pick<
     AgentCall,
@@ -42,6 +81,7 @@ export function serializeStudentProfileForTeacher(profile: StudentProfileWithAge
     profile_confidence: profile.profile_confidence,
     rationale: profile.rationale,
     recommended_next_evidence: profile.recommended_next_evidence,
+    evidence_chain_v2: evidenceChainV2(profile),
     created_at: serializeDate(profile.created_at),
     based_on_agent_call: profile.based_on_agent_call
       ? {

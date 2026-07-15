@@ -73,6 +73,7 @@ export type StudentActivityChoiceState = z.infer<typeof StudentActivityChoiceSta
 export type ActivityRuntimeRecommendation = z.infer<typeof ActivityRuntimeRecommendationSchema>;
 
 type PrismaClientLike = typeof prisma;
+type PrismaWriteClientLike = typeof prisma | Prisma.TransactionClient;
 
 type SourceActivityPacketRef = {
   runtime_loop_version: typeof ACTIVITY_RUNTIME_LOOP_VERSION;
@@ -81,7 +82,7 @@ type SourceActivityPacketRef = {
   activity_family: FormativeActivityFamily;
   diagnostic_purpose: DiagnosticPurpose;
   selected_formative_value: FormativeValue;
-  generation_source: FormativeActivityPacketV1["generation_source"];
+  generation_source: FormativeActivityPacketV1["generation_source"] | "evidence_integrated_router";
   runtime_servable_to_student: boolean;
   review_only: boolean;
   safe_activity_prompt: string;
@@ -93,6 +94,10 @@ type SourceActivityPacketRef = {
   source_profile_integration_snapshot_id: string;
   source_formative_value_packet_id: string;
   source_activity_agent_name: typeof FORMATIVE_ACTIVITY_AGENT_NAME;
+  next_interaction_schema_version?: string;
+  routing_policy_version?: string;
+  activity_type?: string;
+  routing_justification?: string;
 };
 
 const SourceActivityPacketRefSchema: z.ZodType<SourceActivityPacketRef> = z.object({
@@ -113,7 +118,7 @@ const SourceActivityPacketRefSchema: z.ZodType<SourceActivityPacketRef> = z.obje
     "independent_understanding_verification",
     "consolidation_and_transfer"
   ]),
-  generation_source: z.enum(["deterministic_review", "live_llm"]),
+  generation_source: z.enum(["deterministic_review", "live_llm", "evidence_integrated_router"]),
   runtime_servable_to_student: z.boolean(),
   review_only: z.boolean(),
   safe_activity_prompt: z.string().min(1).max(2600),
@@ -124,7 +129,11 @@ const SourceActivityPacketRefSchema: z.ZodType<SourceActivityPacketRef> = z.obje
   distractor_student_safe_description: z.string().min(1).max(520),
   source_profile_integration_snapshot_id: z.string().min(1),
   source_formative_value_packet_id: z.string().min(1),
-  source_activity_agent_name: z.literal(FORMATIVE_ACTIVITY_AGENT_NAME)
+  source_activity_agent_name: z.literal(FORMATIVE_ACTIVITY_AGENT_NAME),
+  next_interaction_schema_version: z.string().optional(),
+  routing_policy_version: z.string().optional(),
+  activity_type: z.string().optional(),
+  routing_justification: z.string().optional()
 }).strict();
 
 export type CreateActivityRuntimeAttemptInput = {
@@ -133,6 +142,28 @@ export type CreateActivityRuntimeAttemptInput = {
   first_turn_agent_call_db_id: string;
   reviewer_agent_call_db_id?: string | null;
   repair_agent_call_db_id?: string | null;
+  limitations?: string[];
+};
+
+export type CreateEvidenceIntegratedActivityRuntimeAttemptInput = {
+  session_public_id: string;
+  student_public_id: string;
+  assessment_public_id: string;
+  concept_unit_id: string;
+  activity_attempt_public_id?: string;
+  activity_family: "distractor_focused_activity" | "foundational_support_activity" | "diagnostic_clarification";
+  diagnostic_purpose: DiagnosticPurpose;
+  selected_formative_value: FormativeValue;
+  safe_activity_prompt: string;
+  expected_student_action_prompt: string;
+  distractor_role: string;
+  distractor_student_safe_description: string;
+  source_profile_integration_snapshot_id: string;
+  source_formative_value_packet_id: string;
+  next_interaction_schema_version: string;
+  routing_policy_version: string;
+  activity_type: string;
+  routing_justification: string;
   limitations?: string[];
 };
 
@@ -224,6 +255,19 @@ function sourceActivityPacketRef(packet: FormativeActivityPacketV1): SourceActiv
     source_formative_value_packet_id: packet.source_formative_value_packet_id,
     source_activity_agent_name: FORMATIVE_ACTIVITY_AGENT_NAME
   };
+}
+
+function activityFamilyForRuntime(
+  family: CreateEvidenceIntegratedActivityRuntimeAttemptInput["activity_family"]
+): FormativeActivityFamily {
+  switch (family) {
+    case "distractor_focused_activity":
+      return "distractor_contrast";
+    case "foundational_support_activity":
+      return "basic_concept_grounding";
+    case "diagnostic_clarification":
+      return "independent_reconstruction";
+  }
 }
 
 function statusForRecommendation(recommendation: ActivityRuntimeRecommendation): ActivityRuntimeState {
@@ -420,6 +464,59 @@ export async function createActivityRuntimeAttemptFromLiveActivityPacket(
   });
 }
 
+export async function createActivityRuntimeAttemptFromEvidenceIntegratedRouter(
+  input: CreateEvidenceIntegratedActivityRuntimeAttemptInput,
+  client: PrismaWriteClientLike = prisma
+) {
+  const runtimeFamily = activityFamilyForRuntime(input.activity_family);
+  const ref: SourceActivityPacketRef = {
+    runtime_loop_version: ACTIVITY_RUNTIME_LOOP_VERSION,
+    schema_version: input.next_interaction_schema_version,
+    activity_packet_hash: hashValue({
+      prompt: input.safe_activity_prompt,
+      response_prompt: input.expected_student_action_prompt,
+      routing_policy_version: input.routing_policy_version,
+      activity_type: input.activity_type
+    }),
+    activity_family: runtimeFamily,
+    diagnostic_purpose: input.diagnostic_purpose,
+    selected_formative_value: input.selected_formative_value,
+    generation_source: "evidence_integrated_router",
+    runtime_servable_to_student: true,
+    review_only: false,
+    safe_activity_prompt: input.safe_activity_prompt,
+    first_turn_message_hash: hashValue(input.safe_activity_prompt),
+    expected_student_action_prompt: input.expected_student_action_prompt,
+    expected_student_action_prompt_hash: hashValue(input.expected_student_action_prompt),
+    distractor_role: input.distractor_role,
+    distractor_student_safe_description: input.distractor_student_safe_description,
+    source_profile_integration_snapshot_id: input.source_profile_integration_snapshot_id,
+    source_formative_value_packet_id: input.source_formative_value_packet_id,
+    source_activity_agent_name: FORMATIVE_ACTIVITY_AGENT_NAME,
+    next_interaction_schema_version: input.next_interaction_schema_version,
+    routing_policy_version: input.routing_policy_version,
+    activity_type: input.activity_type,
+    routing_justification: input.routing_justification
+  };
+  const attemptPublicId = input.activity_attempt_public_id ?? publicId("act_attempt");
+
+  return client.activityRuntimeAttempt.create({
+    data: {
+      activity_attempt_public_id: attemptPublicId,
+      session_public_id: input.session_public_id,
+      student_public_id: input.student_public_id,
+      assessment_public_id: input.assessment_public_id,
+      concept_unit_id: input.concept_unit_id,
+      source_activity_packet_ref: prismaJson(redactForAudit(ref)),
+      activity_family: runtimeFamily,
+      diagnostic_purpose: input.diagnostic_purpose,
+      generation_source: "evidence_integrated_router",
+      status: "awaiting_student_activity_response",
+      limitations: prismaJson(input.limitations ?? [])
+    }
+  });
+}
+
 function buildEvaluationInput(input: {
   attempt: ActivityRuntimeAttempt;
   source: SourceActivityPacketRef;
@@ -534,7 +631,7 @@ export async function submitStudentActivityResponseForEvidenceUpdate(
   }
   const source = sourceRefResult.data;
   if (
-    source.generation_source !== "live_llm" ||
+    !["live_llm", "evidence_integrated_router"].includes(source.generation_source) ||
     source.review_only ||
     !source.runtime_servable_to_student
   ) {

@@ -220,3 +220,17 @@ Under the Phase 30a framing, post-activity evidence updates should update miscon
 ## Research-Facing Rationale
 
 The Phase 30a rationale is narrower than broad formative feedback. The activity dialogue exists to recover or extend diagnostic evidence around distractor-linked misconception hypotheses. Self-explanation and dialogue are used because they ask the student to produce new evidence rather than simply read feedback. Distractors can represent plausible alternative reasoning paths; using them safely can help the student contrast assumptions, repair reasoning boundaries, and show whether a misconception hypothesis persists, weakens, or remains unsupported.
+
+## Phase 31al Distractor-First Runtime Entry
+
+`NextInteractionV2` is the runtime entry contract after package feedback. Its
+activity taxonomy includes applying, evaluating, and creating-level distractor
+tasks such as `diagnose_misconception`, `identify_specific_flaw`,
+`correct_incorrect_parts`, `rank_distractors`, and `generate_distractors`.
+
+When `generation_source=evidence_integrated_router`, the runtime attempt is
+servable only because the prompt was derived from a validated package-level
+profile and routing validator. It is not a replacement for future live activity
+dialogue generation; it is the single current prompt that the state machine is
+waiting on. The UI must not prepare or generate a second activity until this
+prompt is answered, skipped, or moved on.

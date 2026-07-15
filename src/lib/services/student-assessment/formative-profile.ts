@@ -41,6 +41,15 @@ import {
   getFormativeLoopGuardDecision,
   stopFollowupForFormativeLoopGuard
 } from "@/lib/services/student-assessment/formative-loop-guard";
+import {
+  buildEvidenceIntegratedProfileBundle,
+  type EvidenceIntegratedProfileV2,
+  type NextInteractionV2
+} from "@/lib/services/student-assessment/evidence-integrated-profile";
+import {
+  createActivityRuntimeAttemptFromEvidenceIntegratedRouter,
+  type CreateEvidenceIntegratedActivityRuntimeAttemptInput
+} from "@/lib/services/student-assessment/activity-runtime-loop";
 import { StudentAssessmentServiceError } from "./errors";
 
 export const FormativeNeedSchema = z.enum([
@@ -1918,6 +1927,132 @@ function profileEnumsFor(output: ChatNativeFormativeProfileOutput) {
   } as const;
 }
 
+function legacyEvidenceSufficiency(value: EvidenceIntegratedProfileV2["evidence_sufficiency"]) {
+  if (value === "strong") return "strong" as const;
+  if (value === "adequate") return "adequate" as const;
+  if (value === "limited") return "limited" as const;
+  return "insufficient" as const;
+}
+
+function profileEnumsForEvidenceBundle(profile: EvidenceIntegratedProfileV2) {
+  const understanding = profile.assessment_specific_understanding.value;
+  const confidence = profile.confidence_calibration.value;
+  const abilityProfile =
+    understanding === "strong_well_supported_understanding"
+      ? "mostly_correct_understanding"
+      : understanding === "sound_understanding"
+        ? "mostly_correct_understanding"
+        : understanding === "specific_misconception"
+          ? "misconception_based_understanding"
+          : understanding === "foundational_knowledge_gap"
+            ? "fragmented_or_limited_understanding"
+            : understanding === "partial_understanding"
+              ? "partial_understanding"
+              : "insufficient_evidence";
+  const integratedDiagnosticProfile =
+    understanding === "strong_well_supported_understanding"
+      ? "robust_understanding_ready_for_transfer"
+      : understanding === "sound_understanding"
+        ? "correct_but_fragile_understanding"
+        : understanding === "specific_misconception"
+          ? "misconception_with_sufficient_engagement"
+          : understanding === "foundational_knowledge_gap"
+            ? "conflicting_evidence_needs_clarification"
+            : understanding === "partial_understanding"
+              ? "developing_understanding_with_productive_engagement"
+              : "insufficient_evidence_for_formative_decision";
+  const confidenceAlignment =
+    confidence === "reasonably_calibrated"
+      ? "well_calibrated"
+      : confidence === "underconfident"
+        ? "underconfident"
+        : confidence === "overconfident"
+          ? "overconfident"
+          : confidence === "mixed_calibration"
+            ? "mixed"
+            : "insufficient_evidence";
+
+  return {
+    ability_profile: abilityProfile,
+    integrated_diagnostic_profile: integratedDiagnosticProfile,
+    confidence_alignment: confidenceAlignment
+  } as const;
+}
+
+function formativeValueForNextInteraction(interaction: NextInteractionV2) {
+  switch (interaction.interaction_type) {
+    case "diagnostic_clarification":
+    case "foundational_support_activity":
+    case "prerequisite_support_activity":
+      return "diagnostic_clarification" as const;
+    case "distractor_focused_activity":
+    case "scaffolded_distractor_activity":
+    case "revision_request":
+      return "reasoning_refinement" as const;
+    case "enrichment_activity":
+    case "transfer_item":
+    case "no_action_move_on":
+      return "consolidation_or_transfer" as const;
+  }
+}
+
+function evidenceRuntimeAttemptInput(input: {
+  session_public_id: string;
+  student_public_id: string;
+  assessment_public_id: string;
+  concept_unit_id: string;
+  profile: { id: string };
+  decision: { id: string };
+  bundle: ReturnType<typeof buildEvidenceIntegratedProfileBundle>;
+}): CreateEvidenceIntegratedActivityRuntimeAttemptInput {
+  const interaction = input.bundle.next_interaction;
+  const diagnosticPurpose =
+    interaction.interaction_type === "foundational_support_activity" ||
+    interaction.interaction_type === "prerequisite_support_activity"
+      ? "conceptual_entry_grounding"
+      : interaction.interaction_type === "diagnostic_clarification"
+        ? "independent_misconception_verification"
+        : "distractor_misconception_probe";
+  const rawValue = formativeValueForNextInteraction(interaction);
+  const selectedFormativeValue =
+    rawValue === "consolidation_or_transfer"
+      ? "consolidation_and_transfer"
+      : rawValue;
+  const firstDistractor = interaction.distractor_refs[0] ?? null;
+
+  return {
+    session_public_id: input.session_public_id,
+    student_public_id: input.student_public_id,
+    assessment_public_id: input.assessment_public_id,
+    concept_unit_id: input.concept_unit_id,
+    activity_family:
+      interaction.interaction_type === "foundational_support_activity" ||
+      interaction.interaction_type === "prerequisite_support_activity"
+        ? "foundational_support_activity"
+        : interaction.interaction_type === "diagnostic_clarification"
+          ? "diagnostic_clarification"
+          : "distractor_focused_activity",
+    diagnostic_purpose: diagnosticPurpose,
+    selected_formative_value: selectedFormativeValue,
+    safe_activity_prompt: interaction.prompt,
+    expected_student_action_prompt: interaction.expected_response_format,
+    distractor_role: firstDistractor?.role ?? "none",
+    distractor_student_safe_description: firstDistractor
+      ? `Option ${firstDistractor.option_label} from Item ${firstDistractor.item_public_id}`
+      : "No specific distractor is referenced.",
+    source_profile_integration_snapshot_id: input.profile.id,
+    source_formative_value_packet_id: input.decision.id,
+    next_interaction_schema_version: interaction.next_interaction_schema_version,
+    routing_policy_version: interaction.routing_policy_version,
+    activity_type: interaction.activity_type,
+    routing_justification: interaction.routing_justification,
+    limitations: [
+      "created_from_evidence_integrated_router",
+      `effective_evidence_package_hash:${input.bundle.effective_evidence_package_hash}`
+    ]
+  };
+}
+
 async function latestInitialResponsePackage(conceptUnitSessionDbId: string) {
   return prisma.responsePackage.findFirst({
     where: {
@@ -2767,8 +2902,19 @@ async function persistProfileDecisionAndActivity(input: {
   validation_issues: string[];
   deferred_student_concerns?: DeferredStudentConcern[];
 }) {
-  const enums = profileEnumsFor(input.output);
-  const formativeValue = formativeValueFor(input.output);
+  const responsePackage = await latestInitialResponsePackage(input.concept_unit_session_db_id);
+  const evidenceBundle = responsePackage
+    ? buildEvidenceIntegratedProfileBundle({
+        response_package_payload: responsePackage.payload,
+        source_agent_call_public_id: null
+      })
+    : null;
+  const enums = evidenceBundle
+    ? profileEnumsForEvidenceBundle(evidenceBundle.profile)
+    : profileEnumsFor(input.output);
+  const formativeValue = evidenceBundle
+    ? formativeValueForNextInteraction(evidenceBundle.next_interaction)
+    : formativeValueFor(input.output);
   const now = new Date();
 
   return prisma.$transaction(async (tx) => {
@@ -2792,40 +2938,83 @@ async function persistProfileDecisionAndActivity(input: {
         concept_unit_session_db_id: input.concept_unit_session_db_id,
         profile_type: "initial",
         ability_profile: enums.ability_profile,
-        ability_pattern_flags: prismaJson(["no_clear_pattern"]),
+        ability_pattern_flags: prismaJson(
+          evidenceBundle
+            ? {
+                source: "evidence_integrated_profile_v2",
+                assessment_specific_understanding:
+                  evidenceBundle.profile.assessment_specific_understanding,
+                outcome_summary: evidenceBundle.profile.outcome_summary
+              }
+            : ["no_clear_pattern"]
+        ),
         engagement_profile: "adequate_engagement",
         engagement_pattern_flags: prismaJson(["no_clear_pattern"]),
         integrated_diagnostic_profile: enums.integrated_diagnostic_profile,
-        integrated_profile_confidence: "medium",
-        integrated_profile_rationale: input.output.provisional_learning_state,
-        evidence_sufficiency: "adequate",
+        integrated_profile_confidence:
+          evidenceBundle?.profile.evidence_sufficiency === "strong" ? "high" : "medium",
+        integrated_profile_rationale:
+          evidenceBundle?.profile.assessment_specific_understanding.explanation ??
+          input.output.provisional_learning_state,
+        evidence_sufficiency: evidenceBundle
+          ? legacyEvidenceSufficiency(evidenceBundle.profile.evidence_sufficiency)
+          : "adequate",
         confidence_alignment: enums.confidence_alignment,
         independence_interpretability: "not_applicable",
-        misconception_indicators: prismaJson([
-          {
-            indicator: input.output.main_issue,
-            evidence_reference: "initial_three_item_package",
-            confidence: "medium",
-            rationale: input.output.answer_reasoning_alignment
-          }
-        ]),
-        item_level_evidence: prismaJson(input.output.evidence_used),
-        reasoning_quality_summary: input.output.answer_reasoning_alignment,
+        misconception_indicators: prismaJson(
+          evidenceBundle
+            ? evidenceBundle.profile.item_evidence.map((item) => item.possible_misconception)
+            : [
+                {
+                  indicator: input.output.main_issue,
+                  evidence_reference: "initial_three_item_package",
+                  confidence: "medium",
+                  rationale: input.output.answer_reasoning_alignment
+                }
+              ]
+        ),
+        item_level_evidence: prismaJson(
+          evidenceBundle
+            ? {
+                evidence_integrated_profile_v2: evidenceBundle.profile,
+                package_feedback_v2: evidenceBundle.feedback,
+                next_interaction_v2: evidenceBundle.next_interaction,
+                validation_results: evidenceBundle.validators,
+                artifact_versions: evidenceBundle.artifact_versions,
+                effective_evidence_package_hash: evidenceBundle.effective_evidence_package_hash
+              }
+            : input.output.evidence_used
+        ),
+        reasoning_quality_summary:
+          evidenceBundle?.profile.reasoning_quality.explanation ??
+          input.output.answer_reasoning_alignment,
         engagement_summary:
           "Initial chat-native package was completed with answer, reasoning, confidence, and tempting-option evidence.",
         process_interpretation_cautions: prismaJson([
           "Process data are contextual evidence, not misconduct evidence.",
-          "This Phase 5 profile is provisional and used only to select one formative activity."
+          "This package-level profile is assessment-specific current evidence, not a stable ability estimate.",
+          "Timing and process data qualify evidence sufficiency only."
         ]),
-        profile_confidence: "medium",
-        rationale: input.output.main_issue,
-        recommended_next_evidence: prismaJson([
-          {
-            evidence_type: input.output.matched_activity,
-            reason: input.output.student_facing_followup_prompt,
-            item_public_id: null
-          }
-        ]),
+        profile_confidence:
+          evidenceBundle?.profile.evidence_sufficiency === "strong" ? "high" : "medium",
+        rationale:
+          evidenceBundle?.profile.growth_target.target ??
+          input.output.main_issue,
+        recommended_next_evidence: prismaJson(
+          evidenceBundle
+            ? {
+                package_feedback_v2: evidenceBundle.feedback,
+                next_interaction_v2: evidenceBundle.next_interaction,
+                effective_evidence_package_hash: evidenceBundle.effective_evidence_package_hash
+              }
+            : [
+                {
+                  evidence_type: input.output.matched_activity,
+                  reason: input.output.student_facing_followup_prompt,
+                  item_public_id: null
+                }
+              ]
+        ),
         based_on_agent_call_db_id: input.agent_call_id
       }
     });
@@ -2834,21 +3023,50 @@ async function persistProfileDecisionAndActivity(input: {
         concept_unit_session_db_id: input.concept_unit_session_db_id,
         student_profile_db_id: profile.id,
         formative_value: formativeValue,
-        formative_action_plan: input.output.student_facing_followup_prompt,
-        target_evidence: prismaJson(input.output.evidence_used),
-        success_criteria: prismaJson([
-          "Student response addresses the distinction named in the matched formative activity.",
-          input.output.answer_reasoning_alignment
-        ]),
-        followup_prompt_constraints: prismaJson([
-          "Show only the student-facing pattern statement and one formative activity.",
-          "Do not reveal the full answer key.",
-          "Do not provide targeted feedback until the next phase."
-        ]),
+        formative_action_plan:
+          evidenceBundle?.profile.growth_target.target ??
+          input.output.student_facing_followup_prompt,
+        target_evidence: prismaJson(
+          evidenceBundle
+            ? {
+                evidence_refs: evidenceBundle.feedback.evidence_references,
+                growth_target: evidenceBundle.profile.growth_target,
+                routing_inputs: {
+                  understanding: evidenceBundle.profile.assessment_specific_understanding.value,
+                  reasoning_quality: evidenceBundle.profile.reasoning_quality.value,
+                  confidence_calibration: evidenceBundle.profile.confidence_calibration.value,
+                  evidence_sufficiency: evidenceBundle.profile.evidence_sufficiency
+                }
+              }
+            : input.output.evidence_used
+        ),
+        success_criteria: prismaJson(
+          evidenceBundle?.next_interaction.evaluation_criteria ?? [
+            "Student response addresses the distinction named in the matched formative activity.",
+            input.output.answer_reasoning_alignment
+          ]
+        ),
+        followup_prompt_constraints: prismaJson(
+          evidenceBundle
+            ? {
+                one_action_at_a_time: true,
+                package_feedback_v2: evidenceBundle.feedback,
+                next_interaction_v2: evidenceBundle.next_interaction,
+                answer_reveal_state: evidenceBundle.profile.outcome_summary.restricted_answer_reveal_state,
+                validation_results: evidenceBundle.validators
+              }
+            : [
+                "Show only the student-facing pattern statement and one formative activity.",
+                "Do not reveal the full answer key.",
+                "Do not provide targeted feedback until the next phase."
+              ]
+        ),
         profile_update_triggers: prismaJson([
           "Student responds to the Phase 5 formative activity."
         ]),
-        rationale: input.output.main_issue,
+        rationale:
+          evidenceBundle?.next_interaction.routing_justification ??
+          input.output.main_issue,
         mapping_followed: true,
         mapping_deviation_reason: null,
         based_on_agent_call_db_id: input.agent_call_id
@@ -2880,10 +3098,21 @@ async function persistProfileDecisionAndActivity(input: {
       }
     });
 
-    const postPackageSummary = studentFacingPostPackageSummary(
-      input.output,
-      input.deferred_student_concerns ?? []
-    );
+    const postPackageSummary = evidenceBundle
+      ? [
+          evidenceBundle.feedback.result_summary,
+          ...evidenceBundle.feedback.strengths,
+          evidenceBundle.feedback.cross_item_pattern,
+          evidenceBundle.feedback.confidence_comment,
+          evidenceBundle.feedback.evidence_limitation,
+          `Next focus: ${evidenceBundle.feedback.growth_target}`
+        ]
+          .filter((entry): entry is string => Boolean(entry))
+          .join("\n\n")
+      : studentFacingPostPackageSummary(
+          input.output,
+          input.deferred_student_concerns ?? []
+        );
 
     await tx.conversationTurn.create({
       data: {
@@ -2896,11 +3125,14 @@ async function persistProfileDecisionAndActivity(input: {
         message_text: postPackageSummary,
         structured_payload: prismaJson({
           source: FORMATIVE_ACTIVITY_AGENT_NAME,
-          message_type: "pattern_statement",
-          summary_version: "student-facing-post-package-summary-v1",
+          message_type: evidenceBundle ? "package_feedback" : "pattern_statement",
+          summary_version: evidenceBundle
+            ? "student-facing-post-package-feedback-v2"
+            : "student-facing-post-package-summary-v1",
           deferred_student_concerns: input.deferred_student_concerns ?? [],
           validation_status: input.validation_status,
-          validation_issues: input.validation_issues
+          validation_issues: input.validation_issues,
+          package_feedback_v2: evidenceBundle?.feedback ?? null
         }),
         created_at: now
       }
@@ -2913,16 +3145,124 @@ async function persistProfileDecisionAndActivity(input: {
         phase: "planning_completed",
         actor_type: "agent",
         agent_name: FORMATIVE_ACTIVITY_AGENT_NAME,
-        message_text: input.output.student_facing_followup_prompt,
+        message_text:
+          evidenceBundle?.next_interaction.prompt ??
+          input.output.student_facing_followup_prompt,
         structured_payload: prismaJson({
           source: FORMATIVE_ACTIVITY_AGENT_NAME,
-          message_type: "matched_formative_activity",
+          message_type: evidenceBundle ? "next_interaction" : "matched_formative_activity",
           matched_activity: input.output.matched_activity,
-          next_expected_action: input.output.next_expected_action
+          next_expected_action: input.output.next_expected_action,
+          next_interaction_v2: evidenceBundle?.next_interaction ?? null
         }),
         created_at: now
       }
     });
+
+    if (evidenceBundle) {
+      await tx.processEvent.createMany({
+        data: [
+          {
+            assessment_session_db_id: input.assessment_session_db_id,
+            concept_unit_session_db_id: input.concept_unit_session_db_id,
+            event_type: "package_results_shown",
+            event_category: "package_results",
+            event_source: "backend",
+            payload: prismaJson({
+              result_summary: evidenceBundle.feedback.result_summary,
+              answer_reveal_state:
+                evidenceBundle.profile.outcome_summary.restricted_answer_reveal_state
+            }),
+            occurred_at: now
+          },
+          {
+            assessment_session_db_id: input.assessment_session_db_id,
+            concept_unit_session_db_id: input.concept_unit_session_db_id,
+            event_type: "item_correctness_status_shown",
+            event_category: "package_results",
+            event_source: "backend",
+            payload: prismaJson({
+              item_count: evidenceBundle.profile.outcome_summary.item_results.length,
+              full_answer_key_revealed:
+                evidenceBundle.profile.outcome_summary.restricted_answer_reveal_state.full_answer_key_revealed
+            }),
+            occurred_at: now
+          },
+          {
+            assessment_session_db_id: input.assessment_session_db_id,
+            concept_unit_session_db_id: input.concept_unit_session_db_id,
+            event_type: "profile_feedback_shown",
+            event_category: "package_feedback",
+            event_source: "backend",
+            payload: prismaJson({
+              feedback_schema_version: evidenceBundle.feedback.feedback_schema_version,
+              evidence_reference_count: evidenceBundle.feedback.evidence_references.length
+            }),
+            occurred_at: now
+          },
+          {
+            assessment_session_db_id: input.assessment_session_db_id,
+            concept_unit_session_db_id: input.concept_unit_session_db_id,
+            event_type: "next_interaction_shown",
+            event_category: "formative_routing",
+            event_source: "backend",
+            payload: prismaJson({
+              interaction_type: evidenceBundle.next_interaction.interaction_type,
+              activity_type: evidenceBundle.next_interaction.activity_type,
+              next_runtime_state: evidenceBundle.next_interaction.next_runtime_state
+            }),
+            occurred_at: now
+          },
+          {
+            assessment_session_db_id: input.assessment_session_db_id,
+            concept_unit_session_db_id: input.concept_unit_session_db_id,
+            event_type:
+              evidenceBundle.next_interaction.interaction_type === "foundational_support_activity"
+                ? "foundational_activity_shown"
+                : evidenceBundle.next_interaction.interaction_type === "diagnostic_clarification"
+                  ? "diagnostic_clarification_requested"
+                  : "distractor_activity_shown",
+            event_category: "formative_routing",
+            event_source: "backend",
+            payload: prismaJson({
+              activity_type: evidenceBundle.next_interaction.activity_type,
+              routing_policy_version: evidenceBundle.next_interaction.routing_policy_version
+            }),
+            occurred_at: now
+          }
+        ]
+      });
+
+      const session = await tx.assessmentSession.findUniqueOrThrow({
+        where: { id: input.assessment_session_db_id },
+        select: {
+          session_public_id: true,
+          assessment: { select: { assessment_public_id: true } },
+          current_concept_unit: { select: { concept_unit_public_id: true } },
+          user: { select: { user_id: true } }
+        }
+      });
+      const existingAttempt = await tx.activityRuntimeAttempt.findFirst({
+        where: { session_public_id: session.session_public_id },
+        orderBy: [{ created_at: "desc" }]
+      });
+
+      if (!existingAttempt) {
+        await createActivityRuntimeAttemptFromEvidenceIntegratedRouter(
+          evidenceRuntimeAttemptInput({
+            session_public_id: session.session_public_id,
+            student_public_id: session.user.user_id,
+            assessment_public_id: session.assessment.assessment_public_id,
+            concept_unit_id:
+              session.current_concept_unit?.concept_unit_public_id ?? "unknown_concept_unit",
+            profile,
+            decision,
+            bundle: evidenceBundle
+          }),
+          tx
+        );
+      }
+    }
 
     return {
       status: "created" as const,

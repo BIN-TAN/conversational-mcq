@@ -963,3 +963,36 @@ The active teacher rename operator increments `auth_version`, which invalidates
 older signed teacher session cookies. It must not alter assessment ownership,
 student relationships, public IDs, session history, research exports, or student
 credential-reset behavior.
+
+## Phase 31al Evidence Artifacts
+
+New sessions persist versioned evidence artifacts in existing operational JSON
+fields rather than through a destructive migration:
+
+- `student_profiles.item_level_evidence.evidence_integrated_profile_v2`
+- `student_profiles.item_level_evidence.package_feedback_v2`
+- `student_profiles.item_level_evidence.next_interaction_v2`
+- `student_profiles.item_level_evidence.validation_results`
+- `student_profiles.item_level_evidence.artifact_versions`
+- `student_profiles.item_level_evidence.effective_evidence_package_hash`
+
+Each administered item must have item-level evidence when a response exists,
+including selected option, correctness, reasoning excerpt and interpretation,
+reasoning quality, confidence, tempting-option evidence when available,
+alternative explanations, evidence limitations, sufficiency, response public ID,
+and administered snapshot version.
+
+Safe process events for this phase include `package_results_shown`,
+`item_correctness_status_shown`, `profile_feedback_shown`,
+`next_interaction_shown`, `diagnostic_clarification_requested`,
+`distractor_activity_shown`, and `foundational_activity_shown`. Event payloads
+record schema/routing status and counts; protected answer content and raw
+teacher diagnostic notes must not be logged in ordinary event payloads.
+
+The analysis-ready research export exposes normalized profile and routing
+columns such as `assessment_specific_understanding_category`,
+`reasoning_quality_category`, `confidence_calibration_category`,
+`evidence_limitation_codes`, `growth_target`, `answer_reveal_policy`,
+`next_interaction_type`, `activity_type`, and `routing_policy_version`.
+Nested item evidence remains structured JSON in operational audit views rather
+than being forced into an unreadable wide table.
