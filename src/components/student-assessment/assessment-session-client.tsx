@@ -2098,7 +2098,9 @@ export function AssessmentSessionClient({
           nextState = await fetchSessionState(resolvedInitialSessionPublicId);
         } else if (assessmentPublicId) {
           const started = await startAssessmentSession(assessmentPublicId);
-          nextState = started.state;
+          nextState =
+            started.state ??
+            await fetchSessionState(started.session.session_public_id);
         } else {
           throw {
             code: "missing_session",

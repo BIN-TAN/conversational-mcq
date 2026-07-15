@@ -3,6 +3,7 @@
 import {
   AvailableAssessmentsResponseSchema,
   ApiErrorSchema,
+  StartSessionCommandResponseSchema,
   StartSessionResponseSchema,
   StudentReviewResponseSchema,
   StudentActivityRuntimeProjectionSchema,
@@ -154,15 +155,26 @@ export function fetchAvailableAssessments(): Promise<AvailableAssessmentsRespons
   );
 }
 
-export function startAssessmentSession(
+export async function startAssessmentSession(
   assessmentPublicId: string,
   options?: { newAttempt?: boolean }
 ): Promise<StartSessionResponse> {
-  return post(
+  const result = await post(
     `/api/student/assessments/${assessmentPublicId}/sessions/start`,
     options?.newAttempt ? { new_attempt: true } : {},
-    (value) => StartSessionResponseSchema.parse(value)
+    (value) => StartSessionCommandResponseSchema.parse(value)
   );
+
+  if (result.state) {
+    return StartSessionResponseSchema.parse(result);
+  }
+
+  const recoveredState = await fetchSessionState(result.session.session_public_id);
+
+  return StartSessionResponseSchema.parse({
+    ...result,
+    state: recoveredState
+  });
 }
 
 export function fetchSessionState(sessionPublicId: string): Promise<StudentSessionState> {

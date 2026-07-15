@@ -35,6 +35,12 @@ import {
   resolveCanonicalAttemptLifecycle
 } from "@/lib/services/student-assessment/attempt-lifecycle";
 import {
+  createCommittedLifecycleOperation,
+  markLifecycleOperationPostCommitWarning,
+  safePostCommitFailureCode,
+  type LifecycleCommandResult
+} from "@/lib/services/student-assessment/lifecycle-operations";
+import {
   ensureChatNativeFormativeActivity,
   DISPLAY_EVENT_CONTRACT_VERSION,
   PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE,
@@ -159,6 +165,22 @@ export const InitialAdministrationStep = z.enum([
 type InitialAdministrationStep = z.infer<typeof InitialAdministrationStep>;
 type MissingField = "answer" | "reasoning" | "confidence";
 type ItemWithMedia = Item & { media_assets?: ItemMediaAsset[] };
+type StudentSessionStateResult = Awaited<ReturnType<typeof getStudentSessionState>>;
+type StudentSessionCommandResponse = {
+  state: StudentSessionStateResult;
+  session: StudentSessionStateResult["session"];
+  command_result: LifecycleCommandResult;
+};
+type StudentSessionCommandDeliveryResponse = {
+  state: StudentSessionStateResult | null;
+  session: StudentSessionStateResult["session"];
+  command_result: LifecycleCommandResult;
+};
+type StartOrResumeStudentAssessmentSessionInput = {
+  student_user_db_id: string;
+  assessment_public_id: string;
+  new_attempt?: boolean;
+};
 type TemptingOptionEvidence = {
   no_tempting_option: boolean;
   tempting_option: string | null;
@@ -772,6 +794,65 @@ function isTerminalAssessmentSession(session: {
 
 function stableHash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+async function loadStudentSessionCommandSummary(sessionPublicId: string) {
+  const session = await prisma.assessmentSession.findUniqueOrThrow({
+    where: { session_public_id: sessionPublicId },
+    select: {
+      session_public_id: true,
+      status: true,
+      current_phase: true,
+      attempt_number: true
+    }
+  });
+
+  return serializeStudentSessionSummary(session);
+}
+
+async function buildStudentStateForCommittedLifecycleCommand(input: {
+  student_user_db_id: string;
+  session_public_id: string;
+  command_result: LifecycleCommandResult;
+  post_commit_stage: string;
+  allow_presenter_recovery?: boolean;
+}) {
+  try {
+    const state = await getStudentSessionState({
+      student_user_db_id: input.student_user_db_id,
+      session_public_id: input.session_public_id
+    });
+
+    return {
+      state,
+      session: state.session,
+      command_result: input.command_result
+    };
+  } catch (error) {
+    const warned = await markLifecycleOperationPostCommitWarning({
+      prisma,
+      operation_public_id: input.command_result.operation_public_id,
+      result: input.command_result,
+      safe_failure_stage: input.post_commit_stage,
+      safe_failure_code: safePostCommitFailureCode(error)
+    }).catch(() => ({
+      ...input.command_result,
+      presenter_ready: false,
+      recovery_required: true,
+      safe_warning: input.post_commit_stage,
+      safe_response_code: "committed_presenter_recovery_required"
+    }));
+
+    if (!input.allow_presenter_recovery) {
+      throw error;
+    }
+
+    return {
+      state: null,
+      session: await loadStudentSessionCommandSummary(input.session_public_id),
+      command_result: warned
+    };
+  }
 }
 
 function recordValue(value: unknown): Record<string, unknown> {
@@ -1882,11 +1963,19 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
   return result;
 }
 
-export async function startOrResumeStudentAssessmentSession(input: {
-  student_user_db_id: string;
-  assessment_public_id: string;
-  new_attempt?: boolean;
-}) {
+export async function startOrResumeStudentAssessmentSession(
+  input: StartOrResumeStudentAssessmentSessionInput & {
+    allow_post_commit_presenter_recovery: true;
+  }
+): Promise<StudentSessionCommandDeliveryResponse>;
+export async function startOrResumeStudentAssessmentSession(
+  input: StartOrResumeStudentAssessmentSessionInput
+): Promise<StudentSessionCommandResponse>;
+export async function startOrResumeStudentAssessmentSession(
+  input: StartOrResumeStudentAssessmentSessionInput & {
+    allow_post_commit_presenter_recovery?: boolean;
+  }
+): Promise<StudentSessionCommandResponse | StudentSessionCommandDeliveryResponse> {
   await assertActiveStudentAccount(input.student_user_db_id);
   let lastError: unknown = null;
 
@@ -2132,7 +2221,47 @@ export async function startOrResumeStudentAssessmentSession(input: {
               }
             }
 
-            return resumed;
+            const resultingSession = await tx.assessmentSession.findUniqueOrThrow({
+              where: { id: resumed.id },
+              select: {
+                id: true,
+                session_public_id: true,
+                status: true,
+                current_phase: true,
+                resume_phase: true,
+                resume_context: true,
+                completed_at: true,
+                attempt_number: true,
+                updated_at: true
+              }
+            });
+            const resultingLifecycle = resolveCanonicalAttemptLifecycle(resultingSession);
+            const commandType = input.new_attempt ? "start_attempt" : "resume_attempt";
+            const commandResult = await createCommittedLifecycleOperation(tx, {
+              command_type: commandType,
+              actor_type: "student",
+              target_assessment_public_id: assessment.assessment_public_id,
+              target_session_public_id: existing.session_public_id,
+              prior_lifecycle: lifecycle,
+              resulting_lifecycle: resultingLifecycle,
+              resulting_session_public_id: resultingSession.session_public_id,
+              resulting_attempt_number: resultingSession.attempt_number,
+              assessment_session_db_id: resultingSession.id,
+              mutation_committed: shouldUpdateSession,
+              already_satisfied: !shouldUpdateSession,
+              recovered: true,
+              canonical_destination: "session",
+              safe_response_code: input.new_attempt
+                ? "existing_resumable_attempt"
+                : alreadyActive
+                  ? "already_active"
+                  : "resumed"
+            });
+
+            return {
+              session_public_id: resultingSession.session_public_id,
+              command_result: commandResult
+            };
           }
 
           const tutorRuntimeStatus = await getAssessmentTutorRuntimeStatus().catch((error) => {
@@ -2267,7 +2396,17 @@ export async function startOrResumeStudentAssessmentSession(input: {
               started_at: now,
               last_activity_at: now
             },
-            select: { id: true, session_public_id: true }
+            select: {
+              id: true,
+              session_public_id: true,
+              status: true,
+              current_phase: true,
+              resume_phase: true,
+              resume_context: true,
+              completed_at: true,
+              attempt_number: true,
+              updated_at: true
+            }
           });
 
           await tx.conceptUnitSession.create({
@@ -2362,20 +2501,38 @@ export async function startOrResumeStudentAssessmentSession(input: {
             occurred_at: now
           });
 
-          return session;
+          const commandResult = await createCommittedLifecycleOperation(tx, {
+            command_type: "start_attempt",
+            actor_type: "student",
+            target_assessment_public_id: assessment.assessment_public_id,
+            target_session_public_id: session.session_public_id,
+            prior_lifecycle: null,
+            resulting_lifecycle: resolveCanonicalAttemptLifecycle(session),
+            resulting_session_public_id: session.session_public_id,
+            resulting_attempt_number: session.attempt_number,
+            assessment_session_db_id: session.id,
+            mutation_committed: true,
+            already_satisfied: false,
+            recovered: false,
+            canonical_destination: "session",
+            safe_response_code: "created"
+          });
+
+          return {
+            session_public_id: session.session_public_id,
+            command_result: commandResult
+          };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
       );
 
-      const state = await getStudentSessionState({
+      return buildStudentStateForCommittedLifecycleCommand({
         student_user_db_id: input.student_user_db_id,
-        session_public_id: result.session_public_id
+        session_public_id: result.session_public_id,
+        command_result: result.command_result,
+        post_commit_stage: "session_presenter_construction",
+        allow_presenter_recovery: input.allow_post_commit_presenter_recovery
       });
-
-      return {
-        session: state.session,
-        state
-      };
     } catch (error) {
       lastError = error;
 
@@ -2410,27 +2567,46 @@ export async function startOrResumeStudentAssessmentSession(input: {
     const existing = findResumableAssessmentSession(sessions);
 
     if (existing) {
-      await logProcessEvent({
-        assessment_session_db_id: existing.id,
-        event_type: "attempt_start_recovered",
-        event_category: "attempt_lifecycle",
-        event_source: "backend",
-        payload: {
-          assessment_public_id: input.assessment_public_id,
-          recovery: "existing_resumable_attempt",
-          lifecycle_version: resolveCanonicalAttemptLifecycle(existing).lifecycle_version
-        },
-        occurred_at: new Date()
-      });
-      const state = await getStudentSessionState({
-        student_user_db_id: input.student_user_db_id,
-        session_public_id: existing.session_public_id
+      const lifecycle = resolveCanonicalAttemptLifecycle(existing);
+      const commandResult = await prisma.$transaction(async (tx) => {
+        await txLogProcessEvent(tx, {
+          assessment_session_db_id: existing.id,
+          event_type: "attempt_start_recovered",
+          event_category: "attempt_lifecycle",
+          event_source: "backend",
+          payload: {
+            assessment_public_id: input.assessment_public_id,
+            recovery: "existing_resumable_attempt",
+            lifecycle_version: lifecycle.lifecycle_version
+          },
+          occurred_at: new Date()
+        });
+
+        return createCommittedLifecycleOperation(tx, {
+          command_type: "start_attempt",
+          actor_type: "student",
+          target_assessment_public_id: input.assessment_public_id,
+          target_session_public_id: existing.session_public_id,
+          prior_lifecycle: lifecycle,
+          resulting_lifecycle: lifecycle,
+          resulting_session_public_id: existing.session_public_id,
+          resulting_attempt_number: existing.attempt_number,
+          assessment_session_db_id: existing.id,
+          mutation_committed: false,
+          already_satisfied: true,
+          recovered: true,
+          canonical_destination: "session",
+          safe_response_code: "existing_resumable_attempt"
+        });
       });
 
-      return {
-        session: state.session,
-        state
-      };
+      return buildStudentStateForCommittedLifecycleCommand({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: existing.session_public_id,
+        command_result: commandResult,
+        post_commit_stage: "session_presenter_construction_after_conflict_recovery",
+        allow_presenter_recovery: input.allow_post_commit_presenter_recovery
+      });
     }
 
     throw new StudentAssessmentServiceError(
@@ -6114,6 +6290,8 @@ export async function exitStudentAssessmentSession(input: {
     where: { id: owned.id },
     select: {
       id: true,
+      session_public_id: true,
+      attempt_number: true,
       current_phase: true,
       current_concept_unit_db_id: true,
       status: true,
@@ -6126,19 +6304,58 @@ export async function exitStudentAssessmentSession(input: {
 
   const lifecycle = resolveCanonicalAttemptLifecycle(session);
   if (lifecycle.terminal) {
+    const commandResult = await prisma.$transaction((tx) =>
+      createCommittedLifecycleOperation(tx, {
+        command_type: "pause_attempt",
+        actor_type: "student",
+        target_session_public_id: session.session_public_id,
+        prior_lifecycle: lifecycle,
+        resulting_lifecycle: lifecycle,
+        resulting_session_public_id: session.session_public_id,
+        resulting_attempt_number: session.attempt_number,
+        assessment_session_db_id: session.id,
+        mutation_committed: false,
+        already_satisfied: true,
+        recovered: true,
+        canonical_destination: "assessment_list",
+        safe_response_code:
+          lifecycle.terminal_status === "completed" ? "already_completed" : "already_ended"
+      })
+    );
+
     return {
       exit_status:
         lifecycle.terminal_status === "completed" ? "already_completed" : "already_ended",
       can_resume: false,
-      terminal_status: lifecycle.terminal_status
+      terminal_status: lifecycle.terminal_status,
+      command_result: commandResult
     };
   }
 
   if (lifecycle.canonical_status === "paused") {
+    const commandResult = await prisma.$transaction((tx) =>
+      createCommittedLifecycleOperation(tx, {
+        command_type: "pause_attempt",
+        actor_type: "student",
+        target_session_public_id: session.session_public_id,
+        prior_lifecycle: lifecycle,
+        resulting_lifecycle: lifecycle,
+        resulting_session_public_id: session.session_public_id,
+        resulting_attempt_number: session.attempt_number,
+        assessment_session_db_id: session.id,
+        mutation_committed: false,
+        already_satisfied: true,
+        recovered: true,
+        canonical_destination: "session",
+        safe_response_code: "already_paused"
+      })
+    );
+
     return {
       exit_status: "already_paused",
       can_resume: true,
-      lifecycle_version: lifecycle.lifecycle_version
+      lifecycle_version: lifecycle.lifecycle_version,
+      command_result: commandResult
     };
   }
 
@@ -6161,59 +6378,89 @@ export async function exitStudentAssessmentSession(input: {
 
   const stateBeforeExit = await getStudentSessionState(input);
   const now = new Date();
-  await prisma.assessmentSession.update({
-    where: { id: session.id },
-    data: {
-      status: "paused",
-      resume_phase: session.current_phase,
-      resume_context: toPrismaJson({
+  const commandResult = await prisma.$transaction(async (tx) => {
+    const updated = await tx.assessmentSession.update({
+      where: { id: session.id },
+      data: {
+        status: "paused",
+        resume_phase: session.current_phase,
+        resume_context: toPrismaJson({
+          next_step: stateBeforeExit.next_step,
+          current_concept_unit_public_id:
+            stateBeforeExit.current_concept_unit?.concept_unit_public_id ?? null,
+          current_item_public_id: stateBeforeExit.current_item?.item_public_id ?? null
+        })
+      },
+      select: {
+        id: true,
+        session_public_id: true,
+        status: true,
+        current_phase: true,
+        resume_phase: true,
+        resume_context: true,
+        completed_at: true,
+        attempt_number: true,
+        updated_at: true
+      }
+    });
+    await txLogProcessEvent(tx, {
+      assessment_session_db_id: session.id,
+      event_type: "attempt_paused",
+      event_category: "attempt_lifecycle",
+      event_source: "backend",
+      payload: {
+        reason: "student_requested_pause",
+        preserved_phase: session.current_phase,
         next_step: stateBeforeExit.next_step,
-        current_concept_unit_public_id:
-          stateBeforeExit.current_concept_unit?.concept_unit_public_id ?? null,
-        current_item_public_id: stateBeforeExit.current_item?.item_public_id ?? null
-      })
-    }
-  });
-  await logProcessEvent({
-    assessment_session_db_id: session.id,
-    event_type: "attempt_paused",
-    event_category: "attempt_lifecycle",
-    event_source: "backend",
-    payload: {
-      reason: "student_requested_pause",
-      preserved_phase: session.current_phase,
-      next_step: stateBeforeExit.next_step,
-      operation_identity: stableHash({
-        command: "pause_attempt",
-        actor: input.student_user_db_id,
-        session_public_id: input.session_public_id,
-        lifecycle_version: lifecycle.lifecycle_version
-      })
-    },
-    occurred_at: now
-  });
-  await logProcessEvent({
-    assessment_session_db_id: session.id,
-    event_type: "session_paused",
-    event_category: "session",
-    event_source: "backend",
-    payload: {
-      reason: "student_requested_pause",
-      preserved_phase: session.current_phase,
-      operation_identity: stableHash({
-        command: "pause_attempt",
-        actor: input.student_user_db_id,
-        session_public_id: input.session_public_id,
-        lifecycle_version: lifecycle.lifecycle_version
-      })
-    },
-    occurred_at: now
+        operation_identity: stableHash({
+          command: "pause_attempt",
+          actor: input.student_user_db_id,
+          session_public_id: input.session_public_id,
+          lifecycle_version: lifecycle.lifecycle_version
+        })
+      },
+      occurred_at: now
+    });
+    await txLogProcessEvent(tx, {
+      assessment_session_db_id: session.id,
+      event_type: "session_paused",
+      event_category: "session",
+      event_source: "backend",
+      payload: {
+        reason: "student_requested_pause",
+        preserved_phase: session.current_phase,
+        operation_identity: stableHash({
+          command: "pause_attempt",
+          actor: input.student_user_db_id,
+          session_public_id: input.session_public_id,
+          lifecycle_version: lifecycle.lifecycle_version
+        })
+      },
+      occurred_at: now
+    });
+
+    return createCommittedLifecycleOperation(tx, {
+      command_type: "pause_attempt",
+      actor_type: "student",
+      target_session_public_id: session.session_public_id,
+      prior_lifecycle: lifecycle,
+      resulting_lifecycle: resolveCanonicalAttemptLifecycle(updated),
+      resulting_session_public_id: updated.session_public_id,
+      resulting_attempt_number: updated.attempt_number,
+      assessment_session_db_id: updated.id,
+      mutation_committed: true,
+      already_satisfied: false,
+      recovered: false,
+      canonical_destination: "assessment_list",
+      safe_response_code: "paused"
+    });
   });
 
   return {
     exit_status: "paused",
     can_resume: true,
-    lifecycle_version: lifecycle.lifecycle_version
+    lifecycle_version: lifecycle.lifecycle_version,
+    command_result: commandResult
   };
 }
 
@@ -6228,6 +6475,7 @@ export async function endStudentAssessmentAttempt(input: {
     select: {
       id: true,
       session_public_id: true,
+      attempt_number: true,
       current_phase: true,
       status: true,
       completed_at: true,
@@ -6239,74 +6487,112 @@ export async function endStudentAssessmentAttempt(input: {
 
   const lifecycle = resolveCanonicalAttemptLifecycle(session);
   if (lifecycle.canonical_status === "completed") {
-    const existingRecoveryEventCount = await prisma.processEvent.count({
-      where: {
-        assessment_session_db_id: session.id,
-        event_type: "attempt_end_recovered"
-      }
-    });
-
-    if (existingRecoveryEventCount === 0) {
-      await logProcessEvent({
-        assessment_session_db_id: session.id,
-        event_type: "attempt_end_recovered",
-        event_category: "attempt_lifecycle",
-        event_source: "backend",
-        payload: {
-          recovery: "already_completed",
-          lifecycle_version: lifecycle.lifecycle_version,
-          operation_identity: stableHash({
-            command: "end_attempt",
-            actor: input.student_user_db_id,
-            session_public_id: input.session_public_id,
-            lifecycle_version: lifecycle.lifecycle_version
-          })
-        },
-        occurred_at: new Date()
+    const commandResult = await prisma.$transaction(async (tx) => {
+      const existingRecoveryEventCount = await tx.processEvent.count({
+        where: {
+          assessment_session_db_id: session.id,
+          event_type: "attempt_end_recovered"
+        }
       });
-    }
+
+      if (existingRecoveryEventCount === 0) {
+        await txLogProcessEvent(tx, {
+          assessment_session_db_id: session.id,
+          event_type: "attempt_end_recovered",
+          event_category: "attempt_lifecycle",
+          event_source: "backend",
+          payload: {
+            recovery: "already_completed",
+            lifecycle_version: lifecycle.lifecycle_version,
+            operation_identity: stableHash({
+              command: "end_attempt",
+              actor: input.student_user_db_id,
+              session_public_id: input.session_public_id,
+              lifecycle_version: lifecycle.lifecycle_version
+            })
+          },
+          occurred_at: new Date()
+        });
+      }
+
+      return createCommittedLifecycleOperation(tx, {
+        command_type: "end_attempt",
+        actor_type: "student",
+        target_session_public_id: session.session_public_id,
+        prior_lifecycle: lifecycle,
+        resulting_lifecycle: lifecycle,
+        resulting_session_public_id: session.session_public_id,
+        resulting_attempt_number: session.attempt_number,
+        assessment_session_db_id: session.id,
+        mutation_committed: false,
+        already_satisfied: true,
+        recovered: true,
+        canonical_destination: "assessment_list",
+        safe_response_code: "already_completed"
+      });
+    });
 
     return {
       end_status: "already_completed",
       can_resume: false,
       terminal_status: "completed",
-      lifecycle_version: lifecycle.lifecycle_version
+      lifecycle_version: lifecycle.lifecycle_version,
+      command_result: commandResult
     };
   }
 
   if (lifecycle.canonical_status === "ended_by_student") {
-    const existingRecoveryEventCount = await prisma.processEvent.count({
-      where: {
-        assessment_session_db_id: session.id,
-        event_type: "attempt_end_recovered"
-      }
-    });
-
-    if (existingRecoveryEventCount === 0) {
-      await logProcessEvent({
-        assessment_session_db_id: session.id,
-        event_type: "attempt_end_recovered",
-        event_category: "attempt_lifecycle",
-        event_source: "backend",
-        payload: {
-          recovery: "already_ended",
-          lifecycle_version: lifecycle.lifecycle_version,
-          operation_identity: stableHash({
-            command: "end_attempt",
-            actor: input.student_user_db_id,
-            session_public_id: input.session_public_id,
-            lifecycle_version: lifecycle.lifecycle_version
-          })
-        },
-        occurred_at: new Date()
+    const commandResult = await prisma.$transaction(async (tx) => {
+      const existingRecoveryEventCount = await tx.processEvent.count({
+        where: {
+          assessment_session_db_id: session.id,
+          event_type: "attempt_end_recovered"
+        }
       });
-    }
+
+      if (existingRecoveryEventCount === 0) {
+        await txLogProcessEvent(tx, {
+          assessment_session_db_id: session.id,
+          event_type: "attempt_end_recovered",
+          event_category: "attempt_lifecycle",
+          event_source: "backend",
+          payload: {
+            recovery: "already_ended",
+            lifecycle_version: lifecycle.lifecycle_version,
+            operation_identity: stableHash({
+              command: "end_attempt",
+              actor: input.student_user_db_id,
+              session_public_id: input.session_public_id,
+              lifecycle_version: lifecycle.lifecycle_version
+            })
+          },
+          occurred_at: new Date()
+        });
+      }
+
+      return createCommittedLifecycleOperation(tx, {
+        command_type: "end_attempt",
+        actor_type: "student",
+        target_session_public_id: session.session_public_id,
+        prior_lifecycle: lifecycle,
+        resulting_lifecycle: lifecycle,
+        resulting_session_public_id: session.session_public_id,
+        resulting_attempt_number: session.attempt_number,
+        assessment_session_db_id: session.id,
+        mutation_committed: false,
+        already_satisfied: true,
+        recovered: true,
+        canonical_destination: "assessment_list",
+        safe_response_code: "already_ended"
+      });
+    });
 
     return {
       end_status: "already_ended",
       can_resume: false,
       terminal_status: "ended_by_student",
-      lifecycle_version: lifecycle.lifecycle_version
+      lifecycle_version: lifecycle.lifecycle_version,
+      command_result: commandResult
     };
   }
 
@@ -6330,79 +6616,109 @@ export async function endStudentAssessmentAttempt(input: {
   const now = new Date();
   const reason = input.reason?.trim() || "student_requested_end";
 
-  await logProcessEvent({
-    assessment_session_db_id: session.id,
-    event_type: "attempt_end_requested",
-    event_category: "attempt_lifecycle",
-    event_source: "backend",
-    payload: {
-      requested_by: "student",
-      prior_status: session.status,
-      prior_phase: session.current_phase,
-      reason,
-      operation_identity: stableHash({
-        command: "end_attempt",
-        actor: input.student_user_db_id,
-        session_public_id: input.session_public_id,
-        lifecycle_version: lifecycle.lifecycle_version
-      })
-    },
-    occurred_at: now
-  });
+  const commandResult = await prisma.$transaction(async (tx) => {
+    await txLogProcessEvent(tx, {
+      assessment_session_db_id: session.id,
+      event_type: "attempt_end_requested",
+      event_category: "attempt_lifecycle",
+      event_source: "backend",
+      payload: {
+        requested_by: "student",
+        prior_status: session.status,
+        prior_phase: session.current_phase,
+        reason,
+        operation_identity: stableHash({
+          command: "end_attempt",
+          actor: input.student_user_db_id,
+          session_public_id: input.session_public_id,
+          lifecycle_version: lifecycle.lifecycle_version
+        })
+      },
+      occurred_at: now
+    });
 
-  await prisma.assessmentSession.update({
-    where: { id: session.id },
-    data: {
-      status: "student_exited",
-      current_phase: "student_exited",
-      resume_phase: null,
-      resume_context: Prisma.JsonNull,
-      last_activity_at: now
-    }
-  });
+    const updated = await tx.assessmentSession.update({
+      where: { id: session.id },
+      data: {
+        status: "student_exited",
+        current_phase: "student_exited",
+        resume_phase: null,
+        resume_context: Prisma.JsonNull,
+        last_activity_at: now
+      },
+      select: {
+        id: true,
+        session_public_id: true,
+        status: true,
+        current_phase: true,
+        resume_phase: true,
+        resume_context: true,
+        completed_at: true,
+        attempt_number: true,
+        updated_at: true
+      }
+    });
 
-  await logProcessEvent({
-    assessment_session_db_id: session.id,
-    event_type: "attempt_ended_by_student",
-    event_category: "attempt_lifecycle",
-    event_source: "backend",
-    payload: {
-      prior_status: session.status,
-      prior_phase: session.current_phase,
-      terminal_status: "ended_by_student",
-      reason,
-      operation_identity: stableHash({
-        command: "end_attempt",
-        actor: input.student_user_db_id,
-        session_public_id: input.session_public_id,
-        lifecycle_version: lifecycle.lifecycle_version
-      })
-    },
-    occurred_at: now
-  });
-  await logProcessEvent({
-    assessment_session_db_id: session.id,
-    event_type: "session_exited",
-    event_category: "session",
-    event_source: "backend",
-    payload: {
-      reason,
-      terminal_status: "ended_by_student",
-      operation_identity: stableHash({
-        command: "end_attempt",
-        actor: input.student_user_db_id,
-        session_public_id: input.session_public_id,
-        lifecycle_version: lifecycle.lifecycle_version
-      })
-    },
-    occurred_at: now
+    await txLogProcessEvent(tx, {
+      assessment_session_db_id: session.id,
+      event_type: "attempt_ended_by_student",
+      event_category: "attempt_lifecycle",
+      event_source: "backend",
+      payload: {
+        prior_status: session.status,
+        prior_phase: session.current_phase,
+        terminal_status: "ended_by_student",
+        reason,
+        operation_identity: stableHash({
+          command: "end_attempt",
+          actor: input.student_user_db_id,
+          session_public_id: input.session_public_id,
+          lifecycle_version: lifecycle.lifecycle_version
+        })
+      },
+      occurred_at: now
+    });
+    await txLogProcessEvent(tx, {
+      assessment_session_db_id: session.id,
+      event_type: "session_exited",
+      event_category: "session",
+      event_source: "backend",
+      payload: {
+        reason,
+        terminal_status: "ended_by_student",
+        operation_identity: stableHash({
+          command: "end_attempt",
+          actor: input.student_user_db_id,
+          session_public_id: input.session_public_id,
+          lifecycle_version: lifecycle.lifecycle_version
+        })
+      },
+      occurred_at: now
+    });
+
+    return createCommittedLifecycleOperation(tx, {
+      command_type: "end_attempt",
+      actor_type: "student",
+      target_session_public_id: session.session_public_id,
+      prior_lifecycle: lifecycle,
+      resulting_lifecycle: resolveCanonicalAttemptLifecycle(updated),
+      resulting_session_public_id: updated.session_public_id,
+      resulting_attempt_number: updated.attempt_number,
+      assessment_session_db_id: updated.id,
+      mutation_committed: true,
+      already_satisfied: false,
+      recovered: false,
+      canonical_destination: "assessment_list",
+      safe_response_code: "ended_by_student"
+    });
   });
 
   return {
     end_status: "ended_by_student",
     can_resume: false,
     terminal_status: "ended_by_student",
-    lifecycle_version: lifecycle.lifecycle_version
+    lifecycle_version: lifecycle.lifecycle_version,
+    command_result: commandResult
   };
 }
 

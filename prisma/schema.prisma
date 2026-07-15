@@ -665,6 +665,7 @@ model AssessmentSession {
   concept_unit_sessions           ConceptUnitSession[]
   conversation_turns              ConversationTurn[]
   process_events                  ProcessEvent[]
+  lifecycle_operations            AssessmentLifecycleOperation[]
   agent_calls                     AgentCall[]
   student_action_idempotency_keys StudentActionIdempotencyKey[]
   workflow_jobs                   WorkflowJob[]
@@ -680,6 +681,42 @@ model AssessmentSession {
   @@index([response_collection_mode_snapshot, current_phase])
   @@index([current_concept_unit_db_id])
   @@map("assessment_sessions")
+}
+
+model AssessmentLifecycleOperation {
+  id                            String   @id @default(uuid()) @db.Uuid
+  operation_public_id           String   @unique
+  command_type                  String
+  actor_type                    String
+  target_assessment_public_id   String?
+  target_session_public_id      String?
+  request_id                    String?
+  requested_at                  DateTime @default(now()) @db.Timestamptz(6)
+  prior_canonical_status        String?
+  prior_lifecycle_version       String?
+  mutation_committed            Boolean  @default(false)
+  resulting_session_public_id   String?
+  resulting_attempt_number      Int?
+  resulting_canonical_status    String?
+  already_satisfied             Boolean  @default(false)
+  recovered                     Boolean  @default(false)
+  safe_failure_stage            String?
+  safe_failure_code             String?
+  http_status                   Int?
+  safe_response_code            String?
+  response_payload              Json?
+  completed_at                  DateTime? @db.Timestamptz(6)
+  created_at                    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime @updatedAt @db.Timestamptz(6)
+  assessment_session_db_id      String?  @db.Uuid
+
+  assessment_session AssessmentSession? @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+
+  @@index([command_type, requested_at])
+  @@index([target_assessment_public_id])
+  @@index([target_session_public_id])
+  @@index([assessment_session_db_id])
+  @@map("assessment_lifecycle_operations")
 }
 
 model ConceptUnitSession {

@@ -62,6 +62,30 @@ function statusClass(assessment: AvailableAssessment) {
   return "border-amber-200 bg-amber-50 text-amber-800";
 }
 
+function attemptCardSummary(assessment: AvailableAssessment) {
+  if (assessment.existing_attempt_number && assessment.existing_session_status) {
+    const status =
+      assessment.existing_session_status === "paused"
+        ? "paused"
+        : assessment.existing_session_status === "active"
+          ? "in progress"
+          : assessment.existing_session_status;
+    return `Attempt ${assessment.existing_attempt_number} ${status}`;
+  }
+
+  const attemptsUsed = assessment.attempt_policy?.attempts_used ?? 0;
+  if (attemptsUsed === 0) {
+    return "No attempts yet";
+  }
+
+  const previousLabel = attemptsUsed === 1 ? "previous attempt" : "previous attempts";
+  if (assessment.can_start) {
+    return `${attemptsUsed} ${previousLabel}. Next attempt: ${attemptsUsed + 1}`;
+  }
+
+  return `${attemptsUsed} ${previousLabel}`;
+}
+
 export function AvailableAssessmentsClient({ userId }: { userId: string }) {
   const router = useRouter();
   const [assessments, setAssessments] = useState<AvailableAssessment[]>([]);
@@ -304,10 +328,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                       </p>
                       {assessment.attempt_policy ? (
                         <p className="mt-1 text-xs text-muted">
-                          Attempt {assessment.existing_attempt_number ?? (assessment.latest_terminal_attempt_number ? assessment.latest_terminal_attempt_number + 1 : 1)}
-                          {assessment.attempt_policy.maximum_attempts
-                            ? ` of ${assessment.attempt_policy.maximum_attempts}`
-                            : ""}
+                          {attemptCardSummary(assessment)}
                         </p>
                       ) : null}
                     </div>

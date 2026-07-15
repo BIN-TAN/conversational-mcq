@@ -270,13 +270,47 @@ export const StudentSessionStateSchema = z.object({
 });
 export type StudentSessionState = z.infer<typeof StudentSessionStateSchema>;
 
-export const StartSessionResponseSchema = z.object({
+export const LifecycleCommandResultSchema = z.object({
+  result_version: z.literal("assessment-lifecycle-operation-result-v1"),
+  operation_public_id: z.string(),
+  command_type: z.enum([
+    "start_attempt",
+    "resume_attempt",
+    "pause_attempt",
+    "end_attempt",
+    "teacher_end_attempt"
+  ]),
+  command_succeeded: z.boolean(),
+  mutation_committed: z.boolean(),
+  already_satisfied: z.boolean(),
+  recovered: z.boolean(),
+  session_public_id: z.string().nullable(),
+  attempt_number: z.number().nullable(),
+  canonical_status: z.string().nullable(),
+  canonical_destination: z.enum(["session", "assessment_list", "none"]),
+  presenter_ready: z.boolean(),
+  recovery_required: z.boolean(),
+  safe_warning: z.string().nullable(),
+  safe_response_code: z.string()
+});
+export type LifecycleCommandResult = z.infer<typeof LifecycleCommandResultSchema>;
+
+const StartSessionBaseResponseSchema = z.object({
   session: z.object({
     session_public_id: z.string(),
     session_status: z.string(),
     current_phase: z.string(),
     attempt_number: z.number()
   }),
+  command_result: LifecycleCommandResultSchema.optional()
+});
+
+export const StartSessionCommandResponseSchema = StartSessionBaseResponseSchema.extend({
+  state: StudentSessionStateSchema.nullable()
+});
+export type StartSessionCommandResponse = z.infer<typeof StartSessionCommandResponseSchema>;
+
+export const StartSessionResponseSchema = StartSessionBaseResponseSchema.extend({
   state: StudentSessionStateSchema
 });
 export type StartSessionResponse = z.infer<typeof StartSessionResponseSchema>;

@@ -22,7 +22,8 @@ export async function POST(
     const result = await startOrResumeStudentAssessmentSession({
       student_user_db_id: auth.user.user_db_id,
       assessment_public_id: params.assessmentPublicId,
-      new_attempt: newAttempt
+      new_attempt: newAttempt,
+      allow_post_commit_presenter_recovery: true
     });
 
     return NextResponse.json(result);

@@ -103,6 +103,39 @@ async function main() {
     orderBy: { occurred_at: "desc" },
     take: 12
   });
+  const siblingSessionIds = siblingSessions.map((sibling) => sibling.session_public_id);
+  const operations = await prisma.assessmentLifecycleOperation.findMany({
+    where: {
+      OR: [
+        { target_session_public_id: { in: siblingSessionIds } },
+        { resulting_session_public_id: { in: siblingSessionIds } },
+        { target_assessment_public_id: session.assessment.assessment_public_id }
+      ]
+    },
+    select: {
+      operation_public_id: true,
+      command_type: true,
+      actor_type: true,
+      target_assessment_public_id: true,
+      target_session_public_id: true,
+      request_id: true,
+      requested_at: true,
+      prior_canonical_status: true,
+      prior_lifecycle_version: true,
+      mutation_committed: true,
+      resulting_session_public_id: true,
+      resulting_attempt_number: true,
+      resulting_canonical_status: true,
+      already_satisfied: true,
+      recovered: true,
+      safe_failure_stage: true,
+      safe_failure_code: true,
+      http_status: true,
+      safe_response_code: true,
+      completed_at: true
+    },
+    orderBy: { requested_at: "asc" }
+  });
 
   const eventCounts = lifecycleEvents.reduce<Record<string, number>>((counts, event) => {
     counts[event.event_type] = (counts[event.event_type] ?? 0) + 1;
@@ -137,7 +170,55 @@ async function main() {
           status: sibling.status,
           current_phase: sibling.current_phase,
           completed_at_present: Boolean(sibling.completed_at),
-          lifecycle_version: sibling.updated_at.toISOString()
+          lifecycle_version: sibling.updated_at.toISOString(),
+          operations: operations
+            .filter(
+              (operation) =>
+                operation.target_session_public_id === sibling.session_public_id ||
+                operation.resulting_session_public_id === sibling.session_public_id
+            )
+            .map((operation) => ({
+              operation_public_id: operation.operation_public_id,
+              command_type: operation.command_type,
+              actor_type: operation.actor_type,
+              request_id: operation.request_id,
+              requested_at: operation.requested_at,
+              prior_canonical_status: operation.prior_canonical_status,
+              prior_lifecycle_version: operation.prior_lifecycle_version,
+              mutation_committed: operation.mutation_committed,
+              resulting_canonical_status: operation.resulting_canonical_status,
+              resulting_attempt_number: operation.resulting_attempt_number,
+              already_satisfied: operation.already_satisfied,
+              recovered: operation.recovered,
+              safe_failure_stage: operation.safe_failure_stage,
+              safe_failure_code: operation.safe_failure_code,
+              http_status: operation.http_status,
+              safe_response_code: operation.safe_response_code,
+              completed_at: operation.completed_at
+            }))
+        })),
+        operation_count: operations.length,
+        operations: operations.map((operation) => ({
+          operation_public_id: operation.operation_public_id,
+          command_type: operation.command_type,
+          actor_type: operation.actor_type,
+          target_assessment_public_id: operation.target_assessment_public_id,
+          target_session_public_id: operation.target_session_public_id,
+          request_id: operation.request_id,
+          requested_at: operation.requested_at,
+          prior_canonical_status: operation.prior_canonical_status,
+          prior_lifecycle_version: operation.prior_lifecycle_version,
+          mutation_committed: operation.mutation_committed,
+          resulting_session_public_id: operation.resulting_session_public_id,
+          resulting_attempt_number: operation.resulting_attempt_number,
+          resulting_canonical_status: operation.resulting_canonical_status,
+          already_satisfied: operation.already_satisfied,
+          recovered: operation.recovered,
+          safe_failure_stage: operation.safe_failure_stage,
+          safe_failure_code: operation.safe_failure_code,
+          http_status: operation.http_status,
+          safe_response_code: operation.safe_response_code,
+          completed_at: operation.completed_at
         })),
         recent_lifecycle_event_counts: eventCounts,
         recent_lifecycle_events: lifecycleEvents.map((event) => ({

@@ -158,6 +158,9 @@ export async function cleanupFollowupSmoke(prisma: PrismaClient, prefix: string)
     await prisma.agentCall.deleteMany({
       where: { assessment_session_db_id: { in: sessionIds } }
     });
+    await prisma.assessmentLifecycleOperation.deleteMany({
+      where: { assessment_session_db_id: { in: sessionIds } }
+    });
     await prisma.followupUpdateCycle.deleteMany({
       where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
     });
