@@ -459,7 +459,7 @@ Guarded paid evaluation is opt-in only:
 
 ```bash
 RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 \
-npm run operational:model-upgrade:live-eval -- --confirm-paid-api
+npm run operational:model-upgrade:live-eval -- --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json --confirm-paid-api
 ```
 
 Rollback sequence:
@@ -471,12 +471,14 @@ Rollback sequence:
 5. Run `npm run operational:approval-manifest:verify` and
    `npm run operational:agents:preflight`.
 
-## Phase 31ao Communication and Topic Dialogue Deployment Notes
+## Phase 31AP Full GPT-5.6 Candidate Deployment Notes
 
-The student communication and topic-dialogue roles are extension roles. They
-must remain deterministic/no-live unless their candidate model configuration has
-completed no-live tests, synthetic evaluation, human review, and explicit
-operational approval with a matching approved configuration hash.
+The current full-v2 candidate moves every covered OpenAI-backed operational,
+student-facing extension, teacher-tool, and connectivity role to a GPT-5.6
+family model. It must remain inactive unless the candidate model configuration
+has completed no-live tests, fixed synthetic live evaluation, human review of
+student-facing outputs, and explicit operational approval with a matching
+approved configuration hash.
 
 Optional Render/server variables for candidate evaluation:
 
@@ -486,8 +488,27 @@ Optional Render/server variables for candidate evaluation:
 - `OPENAI_MODEL_TOPIC_DIALOGUE`
 - `OPENAI_REASONING_EFFORT_TOPIC_DIALOGUE`
 - `OPENAI_MAX_OUTPUT_TOKENS_TOPIC_DIALOGUE`
+- `OPENAI_MODEL_FORMATIVE_VALUE_DETERMINATION`
+- `OPENAI_REASONING_EFFORT_FORMATIVE_VALUE_DETERMINATION`
+- `OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_VALUE_DETERMINATION`
+- `OPENAI_MODEL_FORMATIVE_ACTIVITY_DIALOGUE`
+- `OPENAI_REASONING_EFFORT_FORMATIVE_ACTIVITY_DIALOGUE`
+- `OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_ACTIVITY_DIALOGUE`
+- `OPENAI_MODEL_FORMATIVE_ACTIVITY_QUALITY_REVIEWER`
+- `OPENAI_REASONING_EFFORT_FORMATIVE_ACTIVITY_QUALITY_REVIEWER`
+- `OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_ACTIVITY_QUALITY_REVIEWER`
+- `OPENAI_MODEL_FORMATIVE_ACTIVITY_RESPONSE_EVALUATOR`
+- `OPENAI_REASONING_EFFORT_FORMATIVE_ACTIVITY_RESPONSE_EVALUATOR`
+- `OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_ACTIVITY_RESPONSE_EVALUATOR`
+- `OPENAI_MODEL_POST_ACTIVITY_EVIDENCE_EVALUATOR`
+- `OPENAI_REASONING_EFFORT_POST_ACTIVITY_EVIDENCE_EVALUATOR`
+- `OPENAI_MAX_OUTPUT_TOKENS_POST_ACTIVITY_EVIDENCE_EVALUATOR`
 - `TOPIC_DIALOGUE_MAX_STUDENT_TURNS`
 - `TOPIC_DIALOGUE_RECENT_TURN_WINDOW`
+- `TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS`
+- `TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS`
+- `OPENAI_REQUEST_TIMEOUT_MS`
+- `OPENAI_MAX_RETRIES`
 
 Do not add these values to public or browser-visible configuration. If a
 candidate rollout must be reverted, remove the candidate variables, restore the

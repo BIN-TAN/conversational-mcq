@@ -2301,9 +2301,10 @@ new model stack by default. Allowed values are `none`, `low`, `medium`, `high`,
 
 The full GPT-5.6 mixed-stack candidate is documented in
 `config/candidate-operational-agent-config.gpt-5.6.json`. It is intentionally
-not the current rollout target.
+preserved as a historical candidate and is not overwritten by the current
+rollout work.
 
-The current minimal rollout candidate is
+The previous minimal rollout candidate is
 `config/candidate-operational-agent-config.minimal-live-student-dialogue.json`.
 It keeps every existing operational and teacher role on the approved
 `gpt-5.4-mini-2026-03-17`/`low` baseline and changes only:
@@ -2320,6 +2321,18 @@ allowed. It is not approved for student-facing runtime until the model-upgrade
 evaluation, student-facing human review, and explicit approval workflow pass. No
 normal test or build makes a paid call.
 
+The current full GPT-5.6 evaluation candidate is
+`config/candidate-operational-agent-config.gpt-5.6-full-v2.json`. It moves every
+covered OpenAI-backed operational, student-facing, teacher-tool, and connectivity
+role to a GPT-5.6 family model while preserving the approved GPT-5.4-mini
+baseline for rollback. The full-v2 candidate fingerprints every role model,
+reasoning effort, token limit, prompt/schema/validator/fallback metadata,
+student-facing live toggles, the topic-dialogue policy, provider timeout
+(`90000` ms), and provider retry limit (`2`). It is
+`candidate_not_approved`; do not set it for classroom use until no-live checks,
+paid synthetic evaluation, student-facing human review, and explicit approval
+complete.
+
 No-live commands:
 
 ```bash
@@ -2330,9 +2343,19 @@ npm run operational:model-upgrade:report
 npm run operational:per-agent-reasoning-config-smoke
 npm run operational:model-upgrade-evaluation-smoke
 npm run operational:minimal-dialogue-candidate-smoke
+npm run operational:full-gpt56-v2-candidate-smoke
 ```
 
-Run the same no-live commands against the minimal candidate with:
+Run the same no-live commands against the full-v2 candidate with:
+
+```bash
+npm run operational:model-upgrade:preflight -- --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json
+npm run operational:model-upgrade:dry-run -- --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json
+npm run operational:model-upgrade:compare -- --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json
+npm run operational:model-upgrade:report -- --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json
+```
+
+The preserved minimal candidate can still be checked with:
 
 ```bash
 npm run operational:model-upgrade:preflight -- --manifest config/candidate-operational-agent-config.minimal-live-student-dialogue.json
@@ -2345,23 +2368,87 @@ The guarded live evaluation command skips by default:
 
 ```bash
 npm run operational:model-upgrade:live-smoke
-RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --manifest config/candidate-operational-agent-config.minimal-live-student-dialogue.json --confirm-paid-api
+RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json --confirm-paid-api
 ```
 
 Approval remains explicit and evidence-gated:
 
 ```bash
 npm run operational:model-upgrade:approve -- \
-  --manifest config/candidate-operational-agent-config.minimal-live-student-dialogue.json \
+  --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
   --candidate-run <run_public_id> \
-  --expected-hash <minimal_candidate_active_configuration_hash> \
-  --confirm "approve minimal live student dialogue candidate"
+  --expected-hash <full_v2_candidate_active_configuration_hash> \
+  --confirm "approve gpt-5.6 full operational candidate v2"
 ```
 
 Rollback is environment-only: restore the prior `OPENAI_MODEL_*` values or
 remove candidate overrides, restore the previous
 `OPERATIONAL_APPROVED_CONFIG_HASH`, redeploy, and verify
 `npm run operational:approval-manifest:verify`.
+
+Candidate Render/server variables must be server-only and must match the
+approved candidate hash after approval:
+
+```text
+OPENAI_REQUEST_TIMEOUT_MS=90000
+OPENAI_MAX_RETRIES=2
+OPENAI_MODEL_ITEM_VERIFICATION=gpt-5.6-terra
+OPENAI_REASONING_EFFORT_ITEM_VERIFICATION=medium
+OPENAI_MAX_OUTPUT_TOKENS_ITEM_VERIFICATION=3000
+OPENAI_MODEL_ITEM_ADMIN=gpt-5.6-luna
+OPENAI_REASONING_EFFORT_ITEM_ADMIN=low
+OPENAI_MAX_OUTPUT_TOKENS_ITEM_ADMIN=1200
+OPENAI_MODEL_RESPONSE_COLLECTION=gpt-5.6-luna
+OPENAI_REASONING_EFFORT_RESPONSE_COLLECTION=low
+OPENAI_MAX_OUTPUT_TOKENS_RESPONSE_COLLECTION=1500
+OPENAI_MODEL_PROFILING=gpt-5.6-terra
+OPENAI_REASONING_EFFORT_PROFILING=medium
+OPENAI_MAX_OUTPUT_TOKENS_PROFILING=4000
+OPENAI_MODEL_PROFILE_INTEGRATION=gpt-5.6-terra
+OPENAI_REASONING_EFFORT_PROFILE_INTEGRATION=medium
+OPENAI_MAX_OUTPUT_TOKENS_PROFILE_INTEGRATION=3000
+OPENAI_MODEL_PLANNING=gpt-5.6-sol
+OPENAI_REASONING_EFFORT_PLANNING=medium
+OPENAI_MAX_OUTPUT_TOKENS_PLANNING=3000
+OPENAI_MODEL_FORMATIVE_VALUE_DETERMINATION=gpt-5.6-terra
+OPENAI_REASONING_EFFORT_FORMATIVE_VALUE_DETERMINATION=medium
+OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_VALUE_DETERMINATION=2500
+OPENAI_MODEL_FOLLOWUP=gpt-5.6-sol
+OPENAI_REASONING_EFFORT_FOLLOWUP=medium
+OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP=2500
+OPENAI_MODEL_FORMATIVE_ACTIVITY_DIALOGUE=gpt-5.6-sol
+OPENAI_REASONING_EFFORT_FORMATIVE_ACTIVITY_DIALOGUE=medium
+OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_ACTIVITY_DIALOGUE=3500
+OPENAI_MODEL_FORMATIVE_ACTIVITY_QUALITY_REVIEWER=gpt-5.6-sol
+OPENAI_REASONING_EFFORT_FORMATIVE_ACTIVITY_QUALITY_REVIEWER=medium
+OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_ACTIVITY_QUALITY_REVIEWER=2500
+OPENAI_MODEL_FORMATIVE_ACTIVITY_RESPONSE_EVALUATOR=gpt-5.6-sol
+OPENAI_REASONING_EFFORT_FORMATIVE_ACTIVITY_RESPONSE_EVALUATOR=medium
+OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_ACTIVITY_RESPONSE_EVALUATOR=3000
+OPENAI_MODEL_POST_ACTIVITY_EVIDENCE_EVALUATOR=gpt-5.6-sol
+OPENAI_REASONING_EFFORT_POST_ACTIVITY_EVIDENCE_EVALUATOR=medium
+OPENAI_MAX_OUTPUT_TOKENS_POST_ACTIVITY_EVIDENCE_EVALUATOR=3000
+OPENAI_MODEL_STUDENT_COMMUNICATION=gpt-5.6-terra
+OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION=medium
+OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION=2500
+OPENAI_MODEL_TOPIC_DIALOGUE=gpt-5.6-sol
+OPENAI_REASONING_EFFORT_TOPIC_DIALOGUE=medium
+OPENAI_MAX_OUTPUT_TOKENS_TOPIC_DIALOGUE=3500
+OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING=gpt-5.6-terra
+OPENAI_REASONING_EFFORT_MCQ_DIAGNOSTIC_AUTHORING=medium
+OPENAI_MAX_OUTPUT_TOKENS_MCQ_DIAGNOSTIC_AUTHORING=2500
+OPENAI_MODEL_MCQ_FORMATTING=gpt-5.6-luna
+OPENAI_REASONING_EFFORT_MCQ_FORMATTING=low
+OPENAI_MAX_OUTPUT_TOKENS_MCQ_FORMATTING=3000
+OPENAI_MODEL_CONNECTIVITY_TEST=gpt-5.6-luna
+OPENAI_REASONING_EFFORT_CONNECTIVITY_TEST=none
+TOPIC_DIALOGUE_MAX_STUDENT_TURNS=10
+TOPIC_DIALOGUE_RECENT_TURN_WINDOW=12
+TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS=5000
+TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS=true
+STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED=true
+TOPIC_DIALOGUE_LIVE_CALLS_ENABLED=true
+```
 
 ## Evidence-Integrated Package Feedback
 

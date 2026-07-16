@@ -2848,7 +2848,7 @@ Phase 6A.5 must not implement:
 - The full GPT-5.6 mixed-stack candidate profile remains a separate artifact at
   `config/candidate-operational-agent-config.gpt-5.6.json`. It is not the
   current rollout target and must not silently switch production.
-- The current minimal live student-dialogue candidate is
+- The previous minimal live student-dialogue candidate is
   `config/candidate-operational-agent-config.minimal-live-student-dialogue.json`.
   It keeps all existing operational and teacher roles on the approved
   `gpt-5.4-mini-2026-03-17`/`low` baseline and changes only
@@ -2864,6 +2864,24 @@ Phase 6A.5 must not implement:
   `specific_misconception`, `assessment_system_question`, and
   `unrelated_question`. Student-facing output requires human review before
   approval.
+- The current full GPT-5.6 v2 candidate is
+  `config/candidate-operational-agent-config.gpt-5.6-full-v2.json`. It must
+  move every covered OpenAI-backed operational, extension, teacher-tool, and
+  connectivity role to a GPT-5.6 family model; no candidate role may remain on
+  `gpt-5.4-mini`. Its active configuration fingerprint must include every role
+  model, reasoning effort, max output token limit, prompt/schema/validator/
+  fallback metadata, the student communication and topic-dialogue live toggles,
+  topic-dialogue policy, provider timeout `90000`, and provider retry limit `2`.
+  It remains `candidate_not_approved` until fixed synthetic live evaluation,
+  explicit student-facing human review, and operator approval produce a new
+  approved hash.
+- Full-v2 fixed evaluation cases must cover at minimum: schema validity,
+  repair/failure rate, diagnostic accuracy, evidence traceability, profile
+  coherence, formative activity quality, distractor-first behavior, student
+  communication naturalness, clarification handling (`what`, `about what`,
+  `which item do you mean`, example requests), assessment-system questions,
+  unrelated-question redirects, answer-key leakage, unsupported claims,
+  latency, input/output/reasoning tokens, and projected cost.
 - Candidate comparison must use identical synthetic fixtures, record model,
   reasoning effort, token limits, prompt/schema versions, validators, retries,
   usage, cost where pricing exists, and safety/quality metrics. Candidate

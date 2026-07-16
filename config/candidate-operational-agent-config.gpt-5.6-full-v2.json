@@ -1,0 +1,333 @@
+{
+  "manifest_version": "phase31ap-gpt-5.6-full-v2-candidate-v1",
+  "approval_state": "candidate_not_approved",
+  "baseline_manifest_path": "config/approved-operational-agent-config.json",
+  "candidate_profile_name": "gpt-5.6 full operational candidate v2",
+  "evaluation_required": true,
+  "human_review_required": true,
+  "student_facing_output_human_review_required": true,
+  "student_facing_operational_use_approved": false,
+  "teacher_tool_use_approved": false,
+  "roles": {
+    "item_verification_agent": {
+      "model_name": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3000
+    },
+    "item_administration_tutor_agent": {
+      "model_name": "gpt-5.6-luna",
+      "reasoning_effort": "low",
+      "max_output_tokens": 1200
+    },
+    "response_collection_agent": {
+      "model_name": "gpt-5.6-luna",
+      "reasoning_effort": "low",
+      "max_output_tokens": 1500
+    },
+    "student_profiling_agent": {
+      "model_name": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 4000
+    },
+    "profile_integration_agent": {
+      "model_name": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3000
+    },
+    "formative_value_and_planning_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3000
+    },
+    "formative_value_determination_agent": {
+      "model_name": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 2500
+    },
+    "followup_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 2500
+    },
+    "formative_activity_dialogue_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3500
+    },
+    "formative_activity_quality_reviewer_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 2500
+    },
+    "formative_activity_response_evaluator_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3000
+    },
+    "post_activity_evidence_evaluator_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3000
+    },
+    "student_communication_agent": {
+      "model_name": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 2500
+    },
+    "topic_dialogue_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3500
+    },
+    "mcq_diagnostic_authoring_assistant_agent": {
+      "model_name": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 2500
+    },
+    "mcq_import_formatting_assistant_agent": {
+      "model_name": "gpt-5.6-luna",
+      "reasoning_effort": "low",
+      "max_output_tokens": 3000
+    },
+    "connectivity_test": {
+      "model_name": "gpt-5.6-luna",
+      "reasoning_effort": "none",
+      "max_output_tokens": 200
+    }
+  },
+  "runtime_policy": {
+    "provider_timeout_ms": 90000,
+    "provider_max_retries": 2,
+    "role_live_toggles": {
+      "student_communication_agent": true,
+      "topic_dialogue_agent": true
+    },
+    "topic_dialogue_policy": {
+      "maximum_student_turns": 10,
+      "recent_raw_turn_window": 12,
+      "maximum_student_message_characters": 5000,
+      "assessment_system_questions_allowed": true
+    }
+  },
+  "configuration_fingerprint": {
+    "approved_baseline_manifest_path": "config/approved-operational-agent-config.json",
+    "approved_baseline_config_hash": "3040d13fbe5dae09cc8734dd3c638b223c5d40234b3e79132367bd173853548f",
+    "approved_baseline_active_configuration_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+    "semantic_validator_version": "eval-semantic-v3",
+    "safety_validator_version": "eval-safety-v3",
+    "effective_result_version": "effective-system-eval-v2",
+    "effective_validator_version": "effective-validator-v1",
+    "deterministic_guard_versions": {
+      "item_verification_duplicate_detection": "item-verification-deterministic-duplicates-v1",
+      "response_collection_backend_controls": "response-collection-backend-controls-v1",
+      "student_communication_fact_lock": "student-communication-fact-lock-validator-v1",
+      "topic_dialogue_boundary": "topic-dialogue-boundary-validator-v1"
+    },
+    "canonicalization_versions": {
+      "response_collection": "response-collection-canonical-v1",
+      "student_profiling": "student-profiling-canonical-v1",
+      "formative_planning": "formative-planning-canonical-v1",
+      "followup": "followup-canonical-v1",
+      "item_verification": "item-verification-effective-advisory-v1",
+      "profile_integration": "profile-integration-validation-v1",
+      "formative_value_determination": "formative-value-validation-v1",
+      "formative_activity": "formative-activity-runtime-validation-v1",
+      "post_activity_evidence": "post-activity-evidence-validation-v1",
+      "teacher_mcq_import": "mcq-import-validation-v1"
+    },
+    "fallback_versions": {
+      "response_collection": "response-collection-fallback-v1",
+      "student_profiling": "student-profiling-deterministic-fallback-v1",
+      "formative_planning": "formative-planning-deterministic-fallback-v1",
+      "followup": "followup-safe-fallback-v1",
+      "followup_move_on": "followup-move-on-fallback-v2",
+      "item_verification": "item-verification-deterministic-fallback-v1",
+      "item_administration_tutor": "item-administration-tutor-deterministic-fallback-v1",
+      "student_communication": "student-communication-deterministic-fallback-v1",
+      "topic_dialogue": "topic-dialogue-deterministic-fallback-v1",
+      "teacher_mcq_import": "teacher-mcq-import-no-live-fallback-v1"
+    },
+    "role_version_metadata": {
+      "item_verification_agent": {
+        "prompt_version": "item-verification-v4",
+        "prompt_hash": "1befb1898538f5894a564eb65e4c905a5e19e91244d2caf1b8ed3b10e5f343ab",
+        "schema_version": "item-verification-output-v2",
+        "validator_version": "eval-semantic-v3",
+        "safety_validator_version": "eval-safety-v3",
+        "deterministic_guard_version": "item-verification-deterministic-duplicates-v1",
+        "fallback_version": "item-verification-deterministic-fallback-v1"
+      },
+      "item_administration_tutor_agent": {
+        "prompt_version": "item-admin-tutor-v1",
+        "prompt_hash": "8a88c18c83ef219941daa6a32087c701524f414d1e710b01f7c066f0dbba673c",
+        "schema_version": "item-admin-tutor-output-v1",
+        "validator_version": "chat-native-response-quality-v1",
+        "fallback_version": "item-administration-tutor-deterministic-fallback-v1"
+      },
+      "response_collection_agent": {
+        "prompt_version": "response-collection-v5",
+        "prompt_hash": "dfb166feca80bb85d33302a266ba96a8fe2824a80ac308375453bc20733430e6",
+        "schema_version": "response-collection-output-v3",
+        "validator_version": "eval-semantic-v3",
+        "safety_validator_version": "eval-safety-v3",
+        "deterministic_guard_version": "response-collection-backend-controls-v1",
+        "canonicalization_version": "response-collection-canonical-v1",
+        "fallback_version": "response-collection-fallback-v1"
+      },
+      "student_profiling_agent": {
+        "prompt_version": "student-profiling-v3",
+        "prompt_hash": "9d2f95916a12c932041a02d6dec359ccf6a9881ef1d5f862f6986e2aafc5481c",
+        "schema_version": "student-profile-output-v2",
+        "validator_version": "eval-semantic-v3",
+        "safety_validator_version": "eval-safety-v3",
+        "canonicalization_version": "student-profiling-canonical-v1",
+        "fallback_version": "student-profiling-deterministic-fallback-v1"
+      },
+      "profile_integration_agent": {
+        "prompt_version": "profile-integration-prompt-v1",
+        "prompt_hash": "b9a1f0907f57e31c1e08c1cda704fa28506c3ee202fd082bfbfc316b7d721c8e",
+        "input_schema_version": "ability-evidence-v1 + engagement-evidence-v1",
+        "output_schema_version": "profile-integration-interpretation-v1",
+        "validator_version": "profile-integration-validation-v1",
+        "fallback_version": "profile-integration-deterministic-fallback-v1"
+      },
+      "formative_value_and_planning_agent": {
+        "prompt_version": "formative-planning-v2",
+        "prompt_hash": "7017e3ad803495b6ff82316e71ad91bb50a94e432baead99d2863ff230eab818",
+        "schema_version": "formative-planning-output-v1",
+        "validator_version": "eval-semantic-v3",
+        "safety_validator_version": "eval-safety-v3",
+        "canonicalization_version": "formative-planning-canonical-v1",
+        "fallback_version": "formative-planning-deterministic-fallback-v1"
+      },
+      "formative_value_determination_agent": {
+        "prompt_version": "formative-value-determination-prompt-v1",
+        "prompt_hash": "18c1074e271987f8e814b2c80a2f14b1bcbf4caa9ea092fb00fe381264a3917e",
+        "input_schema_version": "profile-integration-interpretation-v1",
+        "output_schema_version": "formative-value-determination-v1",
+        "validator_version": "formative-value-validation-v1",
+        "fallback_version": "formative-value-deterministic-fallback-v1"
+      },
+      "followup_agent": {
+        "prompt_version": "followup-v6",
+        "prompt_hash": "7cb5774c48bc03753795dae5e92d62a7face61e6f0b7dbb1f7323043c50e807d",
+        "schema_version": "followup-output-v4",
+        "validator_version": "eval-semantic-v3",
+        "safety_validator_version": "eval-safety-v3",
+        "canonicalization_version": "followup-canonical-v1",
+        "fallback_version": "followup-safe-fallback-v1"
+      },
+      "formative_activity_dialogue_agent": {
+        "prompt_version": "formative-activity-dialogue-prompt-v1",
+        "input_schema_version": "formative-activity-live-input-v1",
+        "output_schema_version": "student-formative-activity-v1",
+        "validator_version": "formative-activity-runtime-validation-v1",
+        "fallback_version": "formative-activity-fail-closed-v1"
+      },
+      "formative_activity_quality_reviewer_agent": {
+        "prompt_version": "formative-activity-quality-review-prompt-v1",
+        "output_schema_version": "formative-activity-quality-review-v1",
+        "validator_version": "formative-activity-quality-review-validation-v1",
+        "fallback_version": "formative-activity-dialogue-repair-prompt-v1"
+      },
+      "formative_activity_response_evaluator_agent": {
+        "prompt_version": "formative-activity-response-evaluator-prompt-v6",
+        "prompt_hash": "0ab42d698875044aae1ced244e32ce9778656f5a9347809f07b9d70d078d17bb",
+        "input_schema_version": "formative-activity-response-evaluator-input-v1",
+        "output_schema_version": "formative-activity-response-evaluation-v1",
+        "validator_version": "student-activity-misconception-evidence-v1",
+        "fallback_version": "formative-activity-response-evaluator-repair-prompt-v2"
+      },
+      "post_activity_evidence_evaluator_agent": {
+        "prompt_version": "formative-activity-response-evaluator-prompt-v6",
+        "prompt_hash": "0ab42d698875044aae1ced244e32ce9778656f5a9347809f07b9d70d078d17bb",
+        "input_schema_version": "formative-activity-response-evaluator-input-v1",
+        "output_schema_version": "student-activity-misconception-evidence-v1",
+        "validator_version": "post-activity-evidence-validation-v1",
+        "fallback_version": "formative-activity-response-evaluator-repair-prompt-v2"
+      },
+      "student_communication_agent": {
+        "prompt_version": "student-communication-v1",
+        "prompt_hash": "0e39a20e7f8a8cf56c4120190f4b6ed3a3145b96726a1f0731800dea03c0f337",
+        "input_schema_version": "student-communication-input-v1",
+        "output_schema_version": "student-communication-output-v1",
+        "validator_version": "student-communication-fact-lock-validator-v1",
+        "safety_validator_version": "student-communication-language-validator-v1",
+        "fallback_version": "student-communication-deterministic-fallback-v1"
+      },
+      "topic_dialogue_agent": {
+        "prompt_version": "topic-dialogue-v1",
+        "prompt_hash": "4ea205fab1019befe8ba80fd5d6db33eb669c69a4c589241011c09893d588b5d",
+        "input_schema_version": "topic-dialogue-input-v2",
+        "output_schema_version": "topic-dialogue-output-v2",
+        "validator_version": "topic-dialogue-boundary-validator-v1",
+        "fallback_version": "topic-dialogue-deterministic-fallback-v1"
+      },
+      "mcq_diagnostic_authoring_assistant_agent": {
+        "prompt_version": "mcq-diagnostic-authoring-assistant-prompt-v1",
+        "schema_version": "mcq-diagnostic-authoring-suggestion-v1",
+        "validator_version": "mcq-import-validation-v1",
+        "fallback_version": "teacher-mcq-import-no-live-fallback-v1"
+      },
+      "mcq_import_formatting_assistant_agent": {
+        "prompt_version": "mcq-import-formatting-assistant-prompt-v1",
+        "schema_version": "mcq-import-formatting-suggestion-v1",
+        "validator_version": "mcq-import-validation-v1",
+        "fallback_version": "teacher-mcq-import-no-live-fallback-v1"
+      },
+      "connectivity_test": {
+        "prompt_version": "connectivity-metadata-check-v1",
+        "schema_version": "connectivity-metadata-check-v1",
+        "validator_version": "llm-connectivity-readiness-v1",
+        "fallback_version": "none"
+      }
+    }
+  },
+  "evaluation_cases": [
+    "item_verification_duplicate_advisory",
+    "item_administration_what",
+    "item_administration_about_what",
+    "item_administration_which_item_do_you_mean",
+    "item_administration_request_for_an_example",
+    "response_collection_substantive_correct_answer",
+    "response_collection_partial_understanding",
+    "student_profiling_specific_misconception",
+    "profile_integration_mixed_correctness",
+    "formative_value_and_planning_distractor_first_selection",
+    "formative_value_determination_conceptual_need",
+    "followup_assessment_system_question",
+    "formative_activity_distractor_probe",
+    "formative_activity_quality_review",
+    "formative_activity_response_evaluation",
+    "post_activity_evidence_update",
+    "student_communication_package_feedback",
+    "topic_dialogue_unrelated_question",
+    "teacher_mcq_diagnostic_authoring",
+    "teacher_mcq_import_formatting",
+    "connectivity_metadata_check"
+  ],
+  "acceptance_criteria": {
+    "critical_student_facing_leakage": 0,
+    "answer_key_leakage": 0,
+    "unsupported_claims": 0,
+    "schema_validity_required": true,
+    "repair_failure_rate_recorded": true,
+    "diagnostic_accuracy_reviewed": true,
+    "evidence_traceability_required": true,
+    "profile_coherence_required": true,
+    "formative_activity_quality_reviewed": true,
+    "distractor_first_behavior_required": true,
+    "student_communication_naturalness_reviewed": true,
+    "clarification_what_supported": true,
+    "clarification_about_what_supported": true,
+    "topic_boundary_adherence_required": true,
+    "latency_recorded": true,
+    "input_tokens_recorded": true,
+    "output_tokens_recorded": true,
+    "reasoning_tokens_recorded": true,
+    "projected_cost_recorded": true,
+    "human_review_of_student_facing_output_required": true,
+    "all_roles_use_gpt_5_6_family": true,
+    "no_automatic_approval": true
+  }
+}

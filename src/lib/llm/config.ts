@@ -164,6 +164,12 @@ const roleEnvSources = {
   }],
   formative_value_determination_agent: [
     {
+      model: "OPENAI_MODEL_FORMATIVE_VALUE_DETERMINATION",
+      reasoning: "OPENAI_REASONING_EFFORT_FORMATIVE_VALUE_DETERMINATION",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_VALUE_DETERMINATION",
+      defaultMaxTokens: 2500
+    },
+    {
       model: "OPENAI_MODEL_PROFILE_INTEGRATION",
       reasoning: "OPENAI_REASONING_EFFORT_PROFILE_INTEGRATION",
       maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PROFILE_INTEGRATION",
@@ -190,6 +196,12 @@ const roleEnvSources = {
   }],
   formative_activity_dialogue_agent: [
     {
+      model: "OPENAI_MODEL_FORMATIVE_ACTIVITY_DIALOGUE",
+      reasoning: "OPENAI_REASONING_EFFORT_FORMATIVE_ACTIVITY_DIALOGUE",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_ACTIVITY_DIALOGUE",
+      defaultMaxTokens: 3500
+    },
+    {
       model: "OPENAI_MODEL_FOLLOWUP",
       reasoning: "OPENAI_REASONING_EFFORT_FOLLOWUP",
       maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP",
@@ -210,6 +222,12 @@ const roleEnvSources = {
   ],
   formative_activity_quality_reviewer_agent: [
     {
+      model: "OPENAI_MODEL_FORMATIVE_ACTIVITY_QUALITY_REVIEWER",
+      reasoning: "OPENAI_REASONING_EFFORT_FORMATIVE_ACTIVITY_QUALITY_REVIEWER",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_ACTIVITY_QUALITY_REVIEWER",
+      defaultMaxTokens: 2500
+    },
+    {
       model: "OPENAI_MODEL_FOLLOWUP",
       reasoning: "OPENAI_REASONING_EFFORT_FOLLOWUP",
       maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FOLLOWUP",
@@ -223,6 +241,12 @@ const roleEnvSources = {
     }
   ],
   formative_activity_response_evaluator_agent: [
+    {
+      model: "OPENAI_MODEL_FORMATIVE_ACTIVITY_RESPONSE_EVALUATOR",
+      reasoning: "OPENAI_REASONING_EFFORT_FORMATIVE_ACTIVITY_RESPONSE_EVALUATOR",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_ACTIVITY_RESPONSE_EVALUATOR",
+      defaultMaxTokens: 3000
+    },
     {
       model: "OPENAI_MODEL_FOLLOWUP",
       reasoning: "OPENAI_REASONING_EFFORT_FOLLOWUP",
@@ -243,6 +267,12 @@ const roleEnvSources = {
     }
   ],
   post_activity_evidence_evaluator_agent: [
+    {
+      model: "OPENAI_MODEL_POST_ACTIVITY_EVIDENCE_EVALUATOR",
+      reasoning: "OPENAI_REASONING_EFFORT_POST_ACTIVITY_EVIDENCE_EVALUATOR",
+      maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_POST_ACTIVITY_EVIDENCE_EVALUATOR",
+      defaultMaxTokens: 3000
+    },
     {
       model: "OPENAI_MODEL_FOLLOWUP",
       reasoning: "OPENAI_REASONING_EFFORT_FOLLOWUP",

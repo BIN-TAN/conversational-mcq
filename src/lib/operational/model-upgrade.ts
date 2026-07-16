@@ -24,14 +24,34 @@ export const MINIMAL_LIVE_STUDENT_DIALOGUE_CANDIDATE_CONFIG_PATH = path.join(
   "candidate-operational-agent-config.minimal-live-student-dialogue.json"
 );
 
+export const FULL_GPT56_V2_CANDIDATE_CONFIG_PATH = path.join(
+  process.cwd(),
+  "config",
+  "candidate-operational-agent-config.gpt-5.6-full-v2.json"
+);
+
 const CandidateRoleConfigSchema = z.object({
   model_name: z.string().min(1),
   reasoning_effort: z.enum(["none", "low", "medium", "high", "xhigh", "max"]),
   max_output_tokens: z.number().int().positive()
 }).strict();
 
+const CandidateRoleVersionMetadataSchema = z.object({
+  prompt_version: z.string().min(1).optional(),
+  prompt_hash: z.string().min(1).optional(),
+  input_schema_version: z.string().min(1).optional(),
+  output_schema_version: z.string().min(1).optional(),
+  schema_version: z.string().min(1).optional(),
+  validator_version: z.string().min(1).optional(),
+  safety_validator_version: z.string().min(1).optional(),
+  fallback_version: z.string().min(1).optional(),
+  canonicalization_version: z.string().min(1).optional(),
+  deterministic_guard_version: z.string().min(1).optional()
+}).strict();
+
 const CandidateRuntimePolicySchema = z.object({
   provider_timeout_ms: z.number().int().positive(),
+  provider_max_retries: z.number().int().nonnegative().optional(),
   role_live_toggles: z.object({
     student_communication_agent: z.literal(true),
     topic_dialogue_agent: z.literal(true)
@@ -42,6 +62,20 @@ const CandidateRuntimePolicySchema = z.object({
     maximum_student_message_characters: z.number().int().positive(),
     assessment_system_questions_allowed: z.boolean()
   }).strict()
+}).strict();
+
+const CandidateConfigurationFingerprintSchema = z.object({
+  approved_baseline_manifest_path: z.string().min(1),
+  approved_baseline_config_hash: z.string().min(1),
+  approved_baseline_active_configuration_hash: z.string().min(1),
+  semantic_validator_version: z.string().min(1),
+  safety_validator_version: z.string().min(1),
+  effective_result_version: z.string().min(1),
+  effective_validator_version: z.string().min(1),
+  deterministic_guard_versions: z.record(z.string(), z.string().min(1)),
+  canonicalization_versions: z.record(z.string(), z.string().min(1)),
+  fallback_versions: z.record(z.string(), z.string().min(1)),
+  role_version_metadata: z.record(z.string(), CandidateRoleVersionMetadataSchema)
 }).strict();
 
 const CandidateConfigSchema = z.object({
@@ -56,6 +90,7 @@ const CandidateConfigSchema = z.object({
   teacher_tool_use_approved: z.literal(false),
   roles: z.record(z.enum(liveModelRoles), CandidateRoleConfigSchema),
   runtime_policy: CandidateRuntimePolicySchema.optional(),
+  configuration_fingerprint: CandidateConfigurationFingerprintSchema.optional(),
   evaluation_cases: z.array(z.string().min(1)).optional(),
   acceptance_criteria: z.record(z.string(), z.union([z.boolean(), z.number()]))
 }).strict();
@@ -133,6 +168,30 @@ export const minimalLiveStudentDialogueEvaluationCases = [
   "unrelated_question"
 ] as const;
 
+export const fullGpt56V2EvaluationCases = [
+  "item_verification_duplicate_advisory",
+  "item_administration_what",
+  "item_administration_about_what",
+  "item_administration_which_item_do_you_mean",
+  "item_administration_request_for_an_example",
+  "response_collection_substantive_correct_answer",
+  "response_collection_partial_understanding",
+  "student_profiling_specific_misconception",
+  "profile_integration_mixed_correctness",
+  "formative_value_and_planning_distractor_first_selection",
+  "formative_value_determination_conceptual_need",
+  "followup_assessment_system_question",
+  "formative_activity_distractor_probe",
+  "formative_activity_quality_review",
+  "formative_activity_response_evaluation",
+  "post_activity_evidence_update",
+  "student_communication_package_feedback",
+  "topic_dialogue_unrelated_question",
+  "teacher_mcq_diagnostic_authoring",
+  "teacher_mcq_import_formatting",
+  "connectivity_metadata_check"
+] as const;
+
 export function resolveCandidateManifestPath(manifestPath?: string) {
   if (!manifestPath) {
     return GPT56_CANDIDATE_CONFIG_PATH;
@@ -152,7 +211,7 @@ export function candidateOperationalModelHash(candidate = readCandidateOperation
 
 export function candidateActiveOperationalConfigSnapshot(candidate = readCandidateOperationalModelConfig()) {
   const baseline = readApprovedOperationalAgentConfig();
-  return {
+  const snapshot = {
     baseline_manifest_path: candidate.baseline_manifest_path,
     baseline_model_snapshot: baseline.model_snapshot,
     baseline_reasoning_effort: baseline.reasoning_effort,
@@ -163,6 +222,9 @@ export function candidateActiveOperationalConfigSnapshot(candidate = readCandida
     student_facing_output_human_review_required:
       candidate.student_facing_output_human_review_required ?? candidate.human_review_required
   };
+  return candidate.configuration_fingerprint
+    ? { ...snapshot, configuration_fingerprint: candidate.configuration_fingerprint }
+    : snapshot;
 }
 
 export function candidateActiveOperationalConfigHash(candidate = readCandidateOperationalModelConfig()) {
@@ -243,6 +305,7 @@ export function buildOperationalModelUpgradeComparison(options: ModelUpgradeComp
       student_facing_operational_use_approved: candidate.student_facing_operational_use_approved,
       teacher_tool_use_approved: candidate.teacher_tool_use_approved,
       runtime_policy: candidate.runtime_policy ?? null,
+      configuration_fingerprint: candidate.configuration_fingerprint ?? null,
       acceptance_criteria: candidate.acceptance_criteria
     },
     fixtures: {
