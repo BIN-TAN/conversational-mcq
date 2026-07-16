@@ -2299,10 +2299,26 @@ The approved operational baseline remains `gpt-5.4-mini-2026-03-17` with
 new model stack by default. Allowed values are `none`, `low`, `medium`, `high`,
 `xhigh`, and `max`; the old `minimal` value is rejected.
 
-The GPT-5.6 candidate stack is documented in
-`config/candidate-operational-agent-config.gpt-5.6.json`. It is not approved for
-student-facing runtime until the model-upgrade evaluation and explicit approval
-workflow pass. No normal test or build makes a paid call.
+The full GPT-5.6 mixed-stack candidate is documented in
+`config/candidate-operational-agent-config.gpt-5.6.json`. It is intentionally
+not the current rollout target.
+
+The current minimal rollout candidate is
+`config/candidate-operational-agent-config.minimal-live-student-dialogue.json`.
+It keeps every existing operational and teacher role on the approved
+`gpt-5.4-mini-2026-03-17`/`low` baseline and changes only:
+
+- `student_communication_agent`: `gpt-5.6-terra`, medium effort, 2500 max
+  output tokens, live enabled.
+- `topic_dialogue_agent`: `gpt-5.6-sol`, medium effort, 3500 max output tokens,
+  live enabled.
+
+The minimal candidate fingerprints the role live toggles, provider timeout
+(`90000` ms), and topic-dialogue policy: 10 maximum student turns, 12 recent raw
+turns, 5000 maximum student-message characters, and assessment-system questions
+allowed. It is not approved for student-facing runtime until the model-upgrade
+evaluation, student-facing human review, and explicit approval workflow pass. No
+normal test or build makes a paid call.
 
 No-live commands:
 
@@ -2313,22 +2329,33 @@ npm run operational:model-upgrade:compare
 npm run operational:model-upgrade:report
 npm run operational:per-agent-reasoning-config-smoke
 npm run operational:model-upgrade-evaluation-smoke
+npm run operational:minimal-dialogue-candidate-smoke
+```
+
+Run the same no-live commands against the minimal candidate with:
+
+```bash
+npm run operational:model-upgrade:preflight -- --manifest config/candidate-operational-agent-config.minimal-live-student-dialogue.json
+npm run operational:model-upgrade:dry-run -- --manifest config/candidate-operational-agent-config.minimal-live-student-dialogue.json
+npm run operational:model-upgrade:compare -- --manifest config/candidate-operational-agent-config.minimal-live-student-dialogue.json
+npm run operational:model-upgrade:report -- --manifest config/candidate-operational-agent-config.minimal-live-student-dialogue.json
 ```
 
 The guarded live evaluation command skips by default:
 
 ```bash
 npm run operational:model-upgrade:live-smoke
-RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --confirm-paid-api
+RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --manifest config/candidate-operational-agent-config.minimal-live-student-dialogue.json --confirm-paid-api
 ```
 
 Approval remains explicit and evidence-gated:
 
 ```bash
 npm run operational:model-upgrade:approve -- \
+  --manifest config/candidate-operational-agent-config.minimal-live-student-dialogue.json \
   --candidate-run <run_public_id> \
-  --expected-hash <candidate_hash> \
-  --confirm "approve GPT-5.6 operational candidate"
+  --expected-hash <minimal_candidate_active_configuration_hash> \
+  --confirm "approve minimal live student dialogue candidate"
 ```
 
 Rollback is environment-only: restore the prior `OPENAI_MODEL_*` values or

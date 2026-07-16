@@ -2845,9 +2845,25 @@ Phase 6A.5 must not implement:
   `max`. Invalid explicit values fail closed for LLM readiness/dispatch and
   must not break authentication, logout, account management, data exports, or
   ordinary non-LLM teacher pages.
-- The GPT-5.6 candidate profile is a separate artifact at
-  `config/candidate-operational-agent-config.gpt-5.6.json`. It is not approved
-  by model name alone and must not silently switch production.
+- The full GPT-5.6 mixed-stack candidate profile remains a separate artifact at
+  `config/candidate-operational-agent-config.gpt-5.6.json`. It is not the
+  current rollout target and must not silently switch production.
+- The current minimal live student-dialogue candidate is
+  `config/candidate-operational-agent-config.minimal-live-student-dialogue.json`.
+  It keeps all existing operational and teacher roles on the approved
+  `gpt-5.4-mini-2026-03-17`/`low` baseline and changes only
+  `student_communication_agent` (`gpt-5.6-terra`, medium, 2500 tokens) and
+  `topic_dialogue_agent` (`gpt-5.6-sol`, medium, 3500 tokens).
+- The minimal candidate configuration fingerprint must include the two role
+  live toggles, the 90000 ms provider timeout, and the topic-dialogue policy:
+  maximum student turns 10, recent raw-turn window 12, maximum student-message
+  characters 5000, and assessment-system questions allowed.
+- Minimal student-dialogue evaluation cases are fixed to: `what`, `about_what`,
+  `which_item_do_you_mean`, `request_for_an_example`,
+  `substantive_correct_answer`, `partial_understanding`,
+  `specific_misconception`, `assessment_system_question`, and
+  `unrelated_question`. Student-facing output requires human review before
+  approval.
 - Candidate comparison must use identical synthetic fixtures, record model,
   reasoning effort, token limits, prompt/schema versions, validators, retries,
   usage, cost where pricing exists, and safety/quality metrics. Candidate

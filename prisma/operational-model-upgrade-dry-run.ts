@@ -1,13 +1,17 @@
 import { loadEnvConfig } from "@next/env";
 import { buildOperationalModelUpgradeComparison } from "../src/lib/operational/model-upgrade";
+import { candidateManifestArg } from "./operational-model-upgrade-cli-args";
 
 loadEnvConfig(process.cwd());
 
-const comparison = buildOperationalModelUpgradeComparison();
+const comparison = buildOperationalModelUpgradeComparison({
+  manifestPath: candidateManifestArg()
+});
 console.log(JSON.stringify({
   status: "dry_run_complete",
   no_provider_call: true,
   candidate_hash: comparison.candidate.candidate_configuration_hash,
+  candidate_active_configuration_hash: comparison.candidate.candidate_active_configuration_hash,
   baseline_hash: comparison.baseline.approved_active_configuration_hash,
   fixtures: comparison.fixtures,
   role_comparisons: comparison.role_comparisons.map((entry) => ({

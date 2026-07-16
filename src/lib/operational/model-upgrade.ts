@@ -18,10 +18,30 @@ export const GPT56_CANDIDATE_CONFIG_PATH = path.join(
   "candidate-operational-agent-config.gpt-5.6.json"
 );
 
+export const MINIMAL_LIVE_STUDENT_DIALOGUE_CANDIDATE_CONFIG_PATH = path.join(
+  process.cwd(),
+  "config",
+  "candidate-operational-agent-config.minimal-live-student-dialogue.json"
+);
+
 const CandidateRoleConfigSchema = z.object({
   model_name: z.string().min(1),
   reasoning_effort: z.enum(["none", "low", "medium", "high", "xhigh", "max"]),
   max_output_tokens: z.number().int().positive()
+}).strict();
+
+const CandidateRuntimePolicySchema = z.object({
+  provider_timeout_ms: z.number().int().positive(),
+  role_live_toggles: z.object({
+    student_communication_agent: z.literal(true),
+    topic_dialogue_agent: z.literal(true)
+  }).strict(),
+  topic_dialogue_policy: z.object({
+    maximum_student_turns: z.number().int().positive(),
+    recent_raw_turn_window: z.number().int().positive(),
+    maximum_student_message_characters: z.number().int().positive(),
+    assessment_system_questions_allowed: z.boolean()
+  }).strict()
 }).strict();
 
 const CandidateConfigSchema = z.object({
@@ -31,15 +51,22 @@ const CandidateConfigSchema = z.object({
   candidate_profile_name: z.string().min(1),
   evaluation_required: z.literal(true),
   human_review_required: z.literal(true),
+  student_facing_output_human_review_required: z.boolean().optional(),
   student_facing_operational_use_approved: z.literal(false),
   teacher_tool_use_approved: z.literal(false),
   roles: z.record(z.enum(liveModelRoles), CandidateRoleConfigSchema),
+  runtime_policy: CandidateRuntimePolicySchema.optional(),
+  evaluation_cases: z.array(z.string().min(1)).optional(),
   acceptance_criteria: z.record(z.string(), z.union([z.boolean(), z.number()]))
 }).strict();
 
 export type CandidateOperationalModelConfig = z.infer<typeof CandidateConfigSchema>;
 
 export type ModelUpgradeComparison = ReturnType<typeof buildOperationalModelUpgradeComparison>;
+
+export type ModelUpgradeComparisonOptions = {
+  manifestPath?: string;
+};
 
 const baselineDefaultMaxTokens: Partial<Record<LiveModelRole, number>> = {
   item_verification_agent: 3000,
@@ -94,14 +121,52 @@ const sharedSyntheticFixtures = [
   "teacher_mcq_import_diagnostic_authoring"
 ];
 
-export function readCandidateOperationalModelConfig() {
+export const minimalLiveStudentDialogueEvaluationCases = [
+  "what",
+  "about_what",
+  "which_item_do_you_mean",
+  "request_for_an_example",
+  "substantive_correct_answer",
+  "partial_understanding",
+  "specific_misconception",
+  "assessment_system_question",
+  "unrelated_question"
+] as const;
+
+export function resolveCandidateManifestPath(manifestPath?: string) {
+  if (!manifestPath) {
+    return GPT56_CANDIDATE_CONFIG_PATH;
+  }
+  return path.isAbsolute(manifestPath) ? manifestPath : path.join(process.cwd(), manifestPath);
+}
+
+export function readCandidateOperationalModelConfig(manifestPath?: string) {
   return CandidateConfigSchema.parse(
-    JSON.parse(readFileSync(GPT56_CANDIDATE_CONFIG_PATH, "utf8"))
+    JSON.parse(readFileSync(resolveCandidateManifestPath(manifestPath), "utf8"))
   );
 }
 
 export function candidateOperationalModelHash(candidate = readCandidateOperationalModelConfig()) {
   return stableHash(candidate);
+}
+
+export function candidateActiveOperationalConfigSnapshot(candidate = readCandidateOperationalModelConfig()) {
+  const baseline = readApprovedOperationalAgentConfig();
+  return {
+    baseline_manifest_path: candidate.baseline_manifest_path,
+    baseline_model_snapshot: baseline.model_snapshot,
+    baseline_reasoning_effort: baseline.reasoning_effort,
+    roles: Object.fromEntries(liveModelRoles.map((role) => [role, candidate.roles[role]])),
+    runtime_policy: candidate.runtime_policy ?? null,
+    evaluation_cases: candidate.evaluation_cases ?? sharedSyntheticFixtures,
+    acceptance_criteria: candidate.acceptance_criteria,
+    student_facing_output_human_review_required:
+      candidate.student_facing_output_human_review_required ?? candidate.human_review_required
+  };
+}
+
+export function candidateActiveOperationalConfigHash(candidate = readCandidateOperationalModelConfig()) {
+  return stableHash(candidateActiveOperationalConfigSnapshot(candidate));
 }
 
 function baselineRoleConfig(role: LiveModelRole) {
@@ -124,10 +189,13 @@ function changedFields(
     .filter((field) => baseline[field] !== candidate[field]);
 }
 
-export function buildOperationalModelUpgradeComparison() {
+export function buildOperationalModelUpgradeComparison(options: ModelUpgradeComparisonOptions = {}) {
   const baseline = readApprovedOperationalAgentConfig();
-  const candidate = readCandidateOperationalModelConfig();
+  const manifestPath = resolveCandidateManifestPath(options.manifestPath);
+  const candidate = readCandidateOperationalModelConfig(manifestPath);
   const candidateHash = candidateOperationalModelHash(candidate);
+  const candidateActiveHash = candidateActiveOperationalConfigHash(candidate);
+  const evaluationCases = candidate.evaluation_cases ?? sharedSyntheticFixtures;
   const roleComparisons = liveModelRoles.map((role) => {
     const baselineConfig = baselineRoleConfig(role);
     const candidateConfig = candidate.roles[role];
@@ -162,21 +230,25 @@ export function buildOperationalModelUpgradeComparison() {
       evaluation_evidence: baseline.evaluation_evidence
     },
     candidate: {
-      manifest_path: "config/candidate-operational-agent-config.gpt-5.6.json",
+      manifest_path: path.relative(process.cwd(), manifestPath),
       profile_name: candidate.candidate_profile_name,
       manifest_version: candidate.manifest_version,
       approval_state: candidate.approval_state,
       candidate_configuration_hash: candidateHash,
+      candidate_active_configuration_hash: candidateActiveHash,
       evaluation_required: candidate.evaluation_required,
       human_review_required: candidate.human_review_required,
+      student_facing_output_human_review_required:
+        candidate.student_facing_output_human_review_required ?? candidate.human_review_required,
       student_facing_operational_use_approved: candidate.student_facing_operational_use_approved,
       teacher_tool_use_approved: candidate.teacher_tool_use_approved,
+      runtime_policy: candidate.runtime_policy ?? null,
       acceptance_criteria: candidate.acceptance_criteria
     },
     fixtures: {
       identical_fixture_set_required: true,
-      fixture_count: sharedSyntheticFixtures.length,
-      fixture_ids: sharedSyntheticFixtures
+      fixture_count: evaluationCases.length,
+      fixture_ids: evaluationCases
     },
     metrics: {
       structured_output: [
@@ -212,12 +284,13 @@ export function buildOperationalModelUpgradeComparison() {
   };
 }
 
-export function summarizeModelUpgradePreflight() {
-  const comparison = buildOperationalModelUpgradeComparison();
+export function summarizeModelUpgradePreflight(options: ModelUpgradeComparisonOptions = {}) {
+  const comparison = buildOperationalModelUpgradeComparison(options);
   return {
     status: comparison.compatibility_ok ? "ready_for_no_live_evaluation" : "blocked_by_configuration",
     no_provider_call: true,
     candidate_hash: comparison.candidate.candidate_configuration_hash,
+    candidate_active_configuration_hash: comparison.candidate.candidate_active_configuration_hash,
     compatibility_ok: comparison.compatibility_ok,
     incompatible_roles: comparison.role_comparisons
       .filter((entry) => entry.compatibility_status !== "compatible")
@@ -228,9 +301,15 @@ export function summarizeModelUpgradePreflight() {
     student_operational_roles_not_in_current_manifest: comparison.role_comparisons
       .filter((entry) => entry.approval_boundary === "operational_extension_required")
       .map((entry) => entry.role),
+    changed_student_operational_extension_roles_requiring_approval: comparison.role_comparisons
+      .filter((entry) =>
+        entry.approval_boundary === "operational_extension_required" &&
+        entry.changed_fields.length > 0
+      )
+      .map((entry) => entry.role),
     live_evaluation_command:
-      "RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --confirm-paid-api",
+      `RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --manifest ${comparison.candidate.manifest_path} --confirm-paid-api`,
     approval_command:
-      "npm run operational:model-upgrade:approve -- --candidate-run <run_public_id> --expected-hash <candidate_hash> --confirm \"approve GPT-5.6 operational candidate\""
+      `npm run operational:model-upgrade:approve -- --manifest ${comparison.candidate.manifest_path} --candidate-run <run_public_id> --expected-hash ${comparison.candidate.candidate_active_configuration_hash} --confirm "approve ${comparison.candidate.profile_name}"`
   };
 }

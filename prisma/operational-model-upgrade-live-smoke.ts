@@ -1,7 +1,10 @@
 import { loadEnvConfig } from "@next/env";
 import { buildOperationalModelUpgradeComparison } from "../src/lib/operational/model-upgrade";
+import { candidateManifestArg } from "./operational-model-upgrade-cli-args";
 
 loadEnvConfig(process.cwd());
+
+const manifestPath = candidateManifestArg();
 
 if (process.env.RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_SMOKE !== "1") {
   console.log(JSON.stringify({
@@ -16,6 +19,8 @@ console.error(JSON.stringify({
   status: "blocked",
   reason: "paid_live_model_upgrade_smoke_not_run_by_codex",
   no_provider_call: true,
-  candidate_hash: buildOperationalModelUpgradeComparison().candidate.candidate_configuration_hash
+  candidate_hash: buildOperationalModelUpgradeComparison({ manifestPath }).candidate.candidate_configuration_hash,
+  candidate_active_configuration_hash:
+    buildOperationalModelUpgradeComparison({ manifestPath }).candidate.candidate_active_configuration_hash
 }, null, 2));
 process.exit(1);

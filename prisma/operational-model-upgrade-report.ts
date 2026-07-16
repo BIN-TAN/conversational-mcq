@@ -3,11 +3,13 @@ import {
   buildOperationalModelUpgradeComparison,
   summarizeModelUpgradePreflight
 } from "../src/lib/operational/model-upgrade";
+import { candidateManifestArg } from "./operational-model-upgrade-cli-args";
 
 loadEnvConfig(process.cwd());
 
-const comparison = buildOperationalModelUpgradeComparison();
-const preflight = summarizeModelUpgradePreflight();
+const manifestPath = candidateManifestArg();
+const comparison = buildOperationalModelUpgradeComparison({ manifestPath });
+const preflight = summarizeModelUpgradePreflight({ manifestPath });
 
 console.log(JSON.stringify({
   status: "candidate_report_ready",

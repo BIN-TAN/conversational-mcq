@@ -1,0 +1,135 @@
+{
+  "manifest_version": "phase31ap-minimal-live-student-dialogue-candidate-v1",
+  "approval_state": "candidate_not_approved",
+  "baseline_manifest_path": "config/approved-operational-agent-config.json",
+  "candidate_profile_name": "minimal live student dialogue candidate",
+  "evaluation_required": true,
+  "human_review_required": true,
+  "student_facing_output_human_review_required": true,
+  "student_facing_operational_use_approved": false,
+  "teacher_tool_use_approved": false,
+  "roles": {
+    "item_verification_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 3000
+    },
+    "item_administration_tutor_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 1200
+    },
+    "response_collection_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 1500
+    },
+    "student_profiling_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 4000
+    },
+    "profile_integration_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 3000
+    },
+    "formative_value_and_planning_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 3000
+    },
+    "formative_value_determination_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 2500
+    },
+    "followup_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 2500
+    },
+    "formative_activity_dialogue_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 3500
+    },
+    "formative_activity_quality_reviewer_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 2500
+    },
+    "formative_activity_response_evaluator_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 3000
+    },
+    "post_activity_evidence_evaluator_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 3000
+    },
+    "student_communication_agent": {
+      "model_name": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 2500
+    },
+    "topic_dialogue_agent": {
+      "model_name": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3500
+    },
+    "mcq_diagnostic_authoring_assistant_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 2500
+    },
+    "mcq_import_formatting_assistant_agent": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 3000
+    },
+    "connectivity_test": {
+      "model_name": "gpt-5.4-mini-2026-03-17",
+      "reasoning_effort": "low",
+      "max_output_tokens": 200
+    }
+  },
+  "runtime_policy": {
+    "provider_timeout_ms": 90000,
+    "role_live_toggles": {
+      "student_communication_agent": true,
+      "topic_dialogue_agent": true
+    },
+    "topic_dialogue_policy": {
+      "maximum_student_turns": 10,
+      "recent_raw_turn_window": 12,
+      "maximum_student_message_characters": 5000,
+      "assessment_system_questions_allowed": true
+    }
+  },
+  "evaluation_cases": [
+    "what",
+    "about_what",
+    "which_item_do_you_mean",
+    "request_for_an_example",
+    "substantive_correct_answer",
+    "partial_understanding",
+    "specific_misconception",
+    "assessment_system_question",
+    "unrelated_question"
+  ],
+  "acceptance_criteria": {
+    "critical_student_facing_leakage": 0,
+    "raw_id_leakage": 0,
+    "unsupported_answer_key_or_teacher_note_leakage": 0,
+    "short_clarification_accepted": true,
+    "assessment_system_question_supported": true,
+    "off_topic_redirected": true,
+    "human_review_of_student_facing_output_required": true,
+    "all_non_candidate_roles_match_approved_baseline": true,
+    "no_schema_validation_regression": true,
+    "latency_within_operator_approved_range": true,
+    "projected_cost_within_course_limits": true
+  }
+}
