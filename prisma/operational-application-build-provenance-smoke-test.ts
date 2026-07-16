@@ -9,6 +9,7 @@ import {
 import {
   buildModelUpgradeEvaluationPlan,
   confirmModelUpgradeHumanReview,
+  currentModelUpgradeEvaluationProtocolHash,
   executeModelUpgradeCandidateEvaluation,
   exportModelUpgradeReviewArtifact,
   loadModelUpgradeRun,
@@ -139,7 +140,8 @@ async function main() {
     const approval = writeModelUpgradeApprovalArtifact({
       manifestPath: FULL_GPT56_V2_CANDIDATE_CONFIG_PATH,
       candidateRunPublicId: run.run_public_id,
-      expectedHash: comparison.candidate.candidate_active_configuration_hash
+      expectedRuntimeCandidateHash: comparison.candidate.runtime_candidate_hash,
+      expectedEvaluationProtocolHash: currentModelUpgradeEvaluationProtocolHash()
     });
     assert(approval.status === "approval_evidence_ready", "Approved fake run should write approval evidence.");
     const approvalArtifact = readJson<{

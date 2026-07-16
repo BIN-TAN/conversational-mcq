@@ -15,6 +15,7 @@ npm run operational:model-upgrade:report -- --manifest config/candidate-operatio
 npm run operational:model-upgrade-live-eval-runner-smoke
 npm run operational:model-upgrade-human-review-smoke
 npm run operational:model-upgrade-approval-evidence-smoke
+npm run operational:model-upgrade-approval-architecture-smoke
 npm run operational:evaluation-proposition-analysis-smoke
 npm run operational:evaluation-evidence-grounding-smoke
 npm run operational:evaluation-pedagogical-quality-smoke
@@ -32,11 +33,14 @@ The live runner is blocked unless all explicit guards are present:
 RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 \
 npm run operational:model-upgrade:live-eval -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
+  --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
+  --expected-evaluation-protocol-hash 3cde10b2534d5a0486b4631555529bf9b4b84e6fd90fc7113aeecc3930e0a219 \
   --confirm-paid-api
 ```
 
 The runner prints an execution plan before the first provider call. The plan
-includes the candidate manifest, active candidate hash, fixed fixture count,
+includes the candidate manifest, runtime candidate hash, evaluation protocol
+hash, fixture-preflight result, semantic calibration metrics, fixed fixture count,
 role-to-model mapping, token ceilings, call ceiling, concurrency, persistence
 destination, application Git commit, evaluator versions, artifact-persistence
 warning, and review requirement.
@@ -70,6 +74,8 @@ If the run is interrupted:
 RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 \
 npm run operational:model-upgrade:live-eval -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
+  --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
+  --expected-evaluation-protocol-hash 3cde10b2534d5a0486b4631555529bf9b4b84e6fd90fc7113aeecc3930e0a219 \
   --confirm-paid-api \
   --resume-run <run_public_id>
 ```
@@ -87,7 +93,7 @@ npm run operational:model-upgrade:review-export -- --candidate-run <run_public_i
 
 The export includes a JSONL review record for every fixed fixture, rendered
 student-facing text where applicable, teacher-tool text where applicable,
-automated findings, critical flags, and reviewer fields.
+automated findings, semantic adjudications, critical flags, and reviewer fields.
 
 Record review:
 
@@ -101,6 +107,10 @@ npm run operational:model-upgrade:review-confirm -- \
 ```
 
 Critical automated failures cannot be approved silently.
+The confirmation record binds every represented fixture, records all cases that
+required semantic review, and confirms that those ambiguous cases were included
+in the explicit human decision. Approval rechecks the review artifact hash and
+blocks if the reviewed file changes afterward.
 
 ## Approval Evidence
 
@@ -110,11 +120,15 @@ Approval remains separate from evaluation and review:
 npm run operational:model-upgrade:approve -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
   --candidate-run <run_public_id> \
-  --expected-hash 13aa85c914a60bae83afe06181596766934ca0bc5ff747322afd066a97122c5d \
+  --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
+  --expected-evaluation-protocol-hash 3cde10b2534d5a0486b4631555529bf9b4b84e6fd90fc7113aeecc3930e0a219 \
   --confirm "approve gpt-5.6 full operational candidate v2"
 ```
 
-The command writes approval evidence under the run artifact directory and prints
+The command writes approval evidence under the run artifact directory. The
+evidence has its own hash binding the frozen runtime candidate hash, frozen
+evaluation protocol hash, application build provenance, live run ID, and human
+review. It prints
 the exact `OPERATIONAL_APPROVED_CONFIG_HASH` value. The operator must apply
 that value manually in Render after approval planning.
 
@@ -125,7 +139,34 @@ documented deployment build metadata, then local Git fallback for development.
 The live runner blocks before provider dispatch if no valid commit is available,
 or if available sources disagree.
 
-## Proposition-Aware Automated Evaluation
+## Approval Identities And Validator Boundaries
+
+The runtime candidate and its evaluation protocol have separate immutable
+identities. `runtime_candidate_hash` contains only production model settings,
+production prompt/schema/validator/fallback versions, deterministic guards,
+canonicalization, live toggles, and runtime policy. Fixture text, evaluator
+versions, severity policy, calibration cases, and reviewer policy are excluded.
+Evaluator-only changes therefore leave the runtime identity unchanged.
+
+`evaluation_protocol_hash` covers the fixture corpus and input contracts,
+evaluator and semantic-adjudicator versions, severity policy, reviewer policy,
+and calibration corpus. `approval_evidence_hash` binds both hashes to one app
+build, one live run, and one completed human review.
+
+Every fixture is checked before provider construction. Missing required input is
+reported as `fixture_invalid` / `missing_required_input`; contradictory structured
+input is `fixture_invalid` / `fixture_input_contradiction`. Either prevents all
+provider dispatch and is not counted as model failure. The student communication package
+fixture supplies administered item numbers and also declares item number,
+correctness, and reported-confidence specificity requirements.
+
+Case evidence reports separate results for fixture validity, fact consistency,
+output completeness, instruction following, evidence grounding, safety,
+substantive accuracy, pedagogical quality, and language quality. Fact consistency
+checks contradictions only; omission or weak specificity is not a fact-lock
+failure.
+
+## Independent Semantic Adjudication
 
 The current full-v2 candidate uses `eval-safety-v5` with
 `eval-surface-policy-v1`, `eval-claim-polarity-v1`,
@@ -143,18 +184,34 @@ complete propositions instead of isolated protected phrases, and off-topic
 topic-dialogue checks distinguish a substantive unrelated answer from a refusal
 plus redirect.
 
-The evaluator records structured claims with a complete proposition and exact
-clause, speaker/source, assertion-versus-mention classification, claim type,
-subject, predicate, object, polarity, modality, epistemic strength, source field,
-evidence references, and whether the claim converts behavior into a latent trait.
-Reported student misconceptions, quoted distractors, and corrective statements
-are retained as audit claims but are not treated as system endorsement. Unsupported affirmative
-claims about stable ability, motivation, effort, misconduct, or cheating block.
-Negated or prohibitive propositions such as "not evidence of low ability" do
-not block merely because they mention the protected concept. Unsupported
-engagement labels require a defined construct, explicit indicators, scoring
-rule, and traceable evidence; otherwise observable process descriptions are
-preferred.
+The independent semantic layer does not read candidate-produced safety notes.
+It records the full and embedded proposition spans, exact subject/predicate/object
+spans, speaker and attributed speaker, stance, polarity, modality, epistemic
+strength, surface, supplied evidence, adjudicator confidence, system endorsement,
+and deterministic-guard agreement. Assertion, quotation, report, hypothesis,
+question, correction, rejection, and instruction are distinct stances. A semantic
+critical requires a complete high-confidence proposition, explicit system
+endorsement, deterministic agreement, and no quoted, reported, corrective,
+rejected, interrogative, hypothetical, or instructional scope. Incomplete parses
+become `evaluator_analysis_incomplete` and require human review.
+
+The no-provider calibration corpus currently contains 87 parameterized and
+metamorphic controls covering direct assertion, report, misconception report,
+quotation, colon-delimited distractor quotation, quality-review challenge,
+question, correction, instruction, hypothesis, counterfactual and modal scope,
+adverse assertion/report/question/rejection, false definition, and defensible
+shorthand across student, teacher, and internal surfaces. Metadata variants cover
+pre/post reveal, administered/unadministered scope, supplied/missing evidence,
+and item/aggregate feedback. The current deterministic corpus result is 18 true
+positives, 69 true negatives, zero false positives, zero false negatives,
+precision 1.0, recall 1.0, and abstention rate 0.034483.
+The preflight gate requires zero critical false positives on negative controls,
+all harmful controls blocked, and cross-role/metamorphic consistency before a
+paid run can start.
+
+Historical runs created before separated identities are preserved unchanged and
+classified as `legacy_evaluation_protocol_unbound`. They remain useful as
+regression evidence but cannot be used as current approval evidence.
 
 ## Rollback
 

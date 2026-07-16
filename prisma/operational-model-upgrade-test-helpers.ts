@@ -115,7 +115,7 @@ function safeStudentText(fixtureId: string, role: string) {
     case "formative_value_determination_conceptual_need":
       return "Validity concerns evidence supporting intended interpretations and uses of scores.";
     case "student_communication_package_feedback":
-      return "You completed three items. Two explanations used reliability and validity evidence carefully; one explanation needs a clearer boundary between score consistency and evidence for intended score interpretations and uses. You reported high confidence there, so focus on explaining why consistency evidence is not enough for validity.";
+      return "You completed three items. Items 1 and 3 were correct, while Item 2 was incorrect. Your Item 2 explanation needs a clearer boundary between score consistency and evidence for intended score interpretations and uses. You reported high confidence on Item 2, so focus on explaining why consistency evidence is not enough for validity.";
     case "topic_dialogue_unrelated_question":
       return "I can help with this assessment or explain how to use it. Let’s return to reliability and validity. What would you like to clarify?";
     case "formative_activity_distractor_probe":

@@ -2357,9 +2357,29 @@ npm run operational:application-build-provenance-smoke
 npm run operational:model-upgrade-live-eval-runner-smoke
 npm run operational:model-upgrade-human-review-smoke
 npm run operational:model-upgrade-approval-evidence-smoke
+npm run operational:model-upgrade-approval-architecture-smoke
 ```
 
-The full-v2 candidate evaluation uses the proposition-aware safety policy
+The full-v2 approval architecture separates `runtime_candidate_hash` from
+`evaluation_protocol_hash`. The runtime hash contains only production-relevant
+model, prompt/schema/validator/fallback, guard, canonicalization, toggle, and
+runtime-policy settings. Fixtures, evaluator versions, severity policy,
+calibration cases, and reviewer policy belong only to the protocol hash.
+Approval evidence has a third hash binding both identities to app build
+provenance, one live run, and completed human review. Evaluator-only changes do
+not change the runtime candidate hash.
+
+Every fixture has a pre-dispatch input contract. Missing required facts produce
+`fixture_invalid` / `missing_required_input`; contradictory structured facts
+produce `fixture_invalid` / `fixture_input_contradiction`. Both make no provider
+call and do not count as model failure. Validator evidence is separated into fixture validity,
+fact consistency, output completeness, instruction following, evidence
+grounding, safety, substantive accuracy, pedagogical quality, and language
+quality. The independent semantic adjudicator does not consume candidate safety
+notes and abstains to human review when proposition scope or attribution is
+unclear.
+
+The full-v2 candidate evaluation retains the surface-aware safety policy
 `eval-safety-v5` plus `eval-surface-policy-v1`,
 `eval-claim-polarity-v1`, `eval-answer-reveal-policy-v1`,
 `eval-topic-boundary-v2`, `evaluation-finding-provenance-v1`,
@@ -2412,7 +2432,7 @@ already be approved.
 
 ```bash
 npm run operational:model-upgrade:live-smoke
-RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json --confirm-paid-api
+RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 --expected-evaluation-protocol-hash 3cde10b2534d5a0486b4631555529bf9b4b84e6fd90fc7113aeecc3930e0a219 --confirm-paid-api
 ```
 
 If a paid run is interrupted, resume it without repeating completed successful
@@ -2421,6 +2441,8 @@ cases:
 ```bash
 RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
+  --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
+  --expected-evaluation-protocol-hash 3cde10b2534d5a0486b4631555529bf9b4b84e6fd90fc7113aeecc3930e0a219 \
   --confirm-paid-api \
   --resume-run <run_public_id>
 ```
@@ -2459,7 +2481,8 @@ automated failure, completed human review, and the exact confirmation phrase:
 npm run operational:model-upgrade:approve -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
   --candidate-run <run_public_id> \
-  --expected-hash <full_v2_candidate_active_configuration_hash> \
+  --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
+  --expected-evaluation-protocol-hash 3cde10b2534d5a0486b4631555529bf9b4b84e6fd90fc7113aeecc3930e0a219 \
   --confirm "approve gpt-5.6 full operational candidate v2"
 ```
 

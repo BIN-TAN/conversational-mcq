@@ -1,13 +1,19 @@
 import { loadEnvConfig } from "@next/env";
 import {
   evaluateCandidateOutputPolicy,
+  evaluateModelUpgradeOutputLayers,
   modelUpgradeEvaluationFixtures,
   type CandidateEvaluationOutput,
   type ModelUpgradeFixture
 } from "../src/lib/operational/model-upgrade-evaluation";
+import {
+  FULL_GPT56_V2_CANDIDATE_CONFIG_PATH,
+  readCandidateOperationalModelConfig
+} from "../src/lib/operational/model-upgrade";
 import { assert } from "./operational-model-upgrade-test-helpers";
 
 loadEnvConfig(process.cwd());
+const candidate = readCandidateOperationalModelConfig(FULL_GPT56_V2_CANDIDATE_CONFIG_PATH);
 
 function fixtureById(id: string) {
   const fixture = modelUpgradeEvaluationFixtures().find((entry) => entry.fixture_id === id);
@@ -74,27 +80,25 @@ function main() {
     "Assessment-system question should use supplied deterministic state facts."
   );
 
-  const simplisticValidity = evaluateCandidateOutputPolicy(
-    output(
-      fixtureById("formative_value_determination_conceptual_need"),
-      "Validity is whether a measure assesses what it is intended to assess."
-    ),
-    fixtureById("formative_value_determination_conceptual_need")
-  );
+  const validityFixture = fixtureById("formative_value_determination_conceptual_need");
+  const simplisticValidity = evaluateModelUpgradeOutputLayers({
+    fixture: validityFixture,
+    candidate,
+    output: output(validityFixture, "Validity is whether a measure assesses what it is intended to assess.")
+  });
   assert(
-    findingCodes(simplisticValidity).includes("measurement_validity_definition_too_simplistic"),
-    "Simplistic validity definition should be blocked."
+    !simplisticValidity.validator_results.substantive_accuracy.critical &&
+      simplisticValidity.validator_results.substantive_accuracy.status === "review_required",
+    "Abbreviated but potentially defensible validity wording should require review, not automatic critical."
   );
 
-  const qualifiedValidity = evaluateCandidateOutputPolicy(
-    output(
-      fixtureById("formative_value_determination_conceptual_need"),
-      "Validity concerns evidence supporting intended interpretations and uses of scores."
-    ),
-    fixtureById("formative_value_determination_conceptual_need")
-  );
+  const qualifiedValidity = evaluateModelUpgradeOutputLayers({
+    fixture: validityFixture,
+    candidate,
+    output: output(validityFixture, "Validity concerns evidence supporting intended interpretations and uses of scores.")
+  });
   assert(
-    !findingCodes(qualifiedValidity).includes("measurement_validity_definition_too_simplistic"),
+    !qualifiedValidity.validator_results.substantive_accuracy.critical,
     "Course-appropriate validity wording should pass."
   );
 

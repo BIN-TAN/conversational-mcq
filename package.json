@@ -290,6 +290,7 @@
     "operational:model-upgrade-live-eval-runner-smoke": "tsx prisma/operational-model-upgrade-live-eval-runner-smoke-test.ts",
     "operational:model-upgrade-human-review-smoke": "tsx prisma/operational-model-upgrade-human-review-smoke-test.ts",
     "operational:model-upgrade-approval-evidence-smoke": "tsx prisma/operational-model-upgrade-approval-evidence-smoke-test.ts",
+    "operational:model-upgrade-approval-architecture-smoke": "tsx prisma/operational-model-upgrade-approval-architecture-smoke-test.ts",
     "operational:application-build-provenance-smoke": "tsx prisma/operational-application-build-provenance-smoke-test.ts",
     "operational:minimal-dialogue-candidate-smoke": "tsx prisma/operational-minimal-dialogue-candidate-smoke-test.ts",
     "operational:full-gpt56-v2-candidate-smoke": "tsx prisma/operational-full-gpt56-v2-candidate-smoke-test.ts",

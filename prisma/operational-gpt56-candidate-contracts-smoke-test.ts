@@ -1,6 +1,7 @@
 import { loadEnvConfig } from "@next/env";
 import {
   evaluateCandidateOutputPolicy,
+  evaluateModelUpgradeOutputLayers,
   modelUpgradeEvaluationFixtures,
   type CandidateEvaluationOutput,
   type ModelUpgradeFixture
@@ -200,6 +201,7 @@ function runItemAdminSuite() {
 }
 
 function runMeasurementSuite() {
+  const candidate = readCandidateOperationalModelConfig(FULL_GPT56_V2_CANDIDATE_CONFIG_PATH);
   const fixture = fixtureById("formative_value_determination_conceptual_need");
   const mentionFixture = fixtureById("student_profiling_specific_misconception");
   const activityFixture = fixtureById("formative_activity_distractor_probe");
@@ -242,12 +244,17 @@ function runMeasurementSuite() {
     }
   ] as const;
   for (const entry of mentionAssertionCases) {
-    const result = evaluateCandidateOutputPolicy(output(entry.fixture, entry.text), entry.fixture);
-    if (entry.shouldBlock) {
-      assertHas(result, "reliability_alone_establishes_validity", `${entry.label} should block.`);
-    } else {
-      assertNotHas(result, "reliability_alone_establishes_validity", `${entry.label} must not be treated as system endorsement.`);
-    }
+    const candidateOutput = output(entry.fixture, entry.text);
+    const result = evaluateCandidateOutputPolicy(candidateOutput, entry.fixture);
+    const layers = evaluateModelUpgradeOutputLayers({
+      fixture: entry.fixture,
+      candidate,
+      output: candidateOutput
+    });
+    assert(
+      layers.semantic_adjudications.some((adjudication) => adjudication.semantic_critical) === entry.shouldBlock,
+      `${entry.label} independent semantic critical classification mismatch.`
+    );
     const claim = result.claim_details.find((candidate) => candidate.exact_clause === entry.text);
     assert(claim?.assertion_mode === entry.assertionMode, `${entry.label} assertion-mode classification mismatch.`);
     assert(claim?.speaker_source === entry.speakerSource, `${entry.label} speaker/source classification mismatch.`);
@@ -283,12 +290,19 @@ function runMeasurementSuite() {
     }
   ];
   for (const entry of definitionRelationshipCases) {
-    const result = evaluateCandidateOutputPolicy(output(fixture, entry.text), fixture);
+    const candidateOutput = output(fixture, entry.text);
+    const result = evaluateCandidateOutputPolicy(candidateOutput, fixture);
+    const layers = evaluateModelUpgradeOutputLayers({ fixture, candidate, output: candidateOutput });
     if (entry.blockedCode) {
-      assertHas(result, entry.blockedCode, `${entry.label} should block.`);
+      assert(
+        layers.semantic_adjudications.some((adjudication) => adjudication.semantic_critical),
+        `${entry.label} should be blocked by independent semantic adjudication.`
+      );
     } else {
-      assertNotHas(result, "measurement_validity_definition_too_simplistic", `${entry.label} should not be treated as a false definition.`);
-      assertNotHas(result, "reliability_alone_establishes_validity", `${entry.label} should not be treated as an endorsed reliability-validity error.`);
+      assert(
+        !layers.semantic_adjudications.some((adjudication) => adjudication.semantic_critical),
+        `${entry.label} should not be treated as a semantic critical failure.`
+      );
     }
     assertClaimBasedFindingsAreStructured(result);
   }

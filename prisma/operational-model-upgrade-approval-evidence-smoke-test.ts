@@ -1,6 +1,8 @@
+import { readFileSync, writeFileSync } from "node:fs";
 import { loadEnvConfig } from "@next/env";
 import {
   confirmModelUpgradeHumanReview,
+  currentModelUpgradeEvaluationProtocolHash,
   evaluateModelUpgradeApprovalEvidence,
   executeModelUpgradeCandidateEvaluation,
   exportModelUpgradeReviewArtifact,
@@ -20,14 +22,16 @@ async function main() {
   const comparison = buildOperationalModelUpgradeComparison({
     manifestPath: FULL_GPT56_V2_CANDIDATE_CONFIG_PATH
   });
-  const expectedHash = comparison.candidate.candidate_active_configuration_hash;
+  const expectedRuntimeHash = comparison.candidate.runtime_candidate_hash;
+  const expectedProtocolHash = currentModelUpgradeEvaluationProtocolHash();
 
   let nonexistentBlocked = false;
   try {
     evaluateModelUpgradeApprovalEvidence({
       manifestPath: FULL_GPT56_V2_CANDIDATE_CONFIG_PATH,
       candidateRunPublicId: "omur_missing",
-      expectedHash
+      expectedRuntimeCandidateHash: expectedRuntimeHash,
+      expectedEvaluationProtocolHash: expectedProtocolHash
     });
   } catch {
     nonexistentBlocked = true;
@@ -43,14 +47,16 @@ async function main() {
   const wrongHash = evaluateModelUpgradeApprovalEvidence({
     manifestPath: FULL_GPT56_V2_CANDIDATE_CONFIG_PATH,
     candidateRunPublicId: run.run_public_id,
-    expectedHash: "wrong"
+    expectedRuntimeCandidateHash: "wrong",
+    expectedEvaluationProtocolHash: expectedProtocolHash
   });
-  assert(!wrongHash.eligible && wrongHash.blocking_reasons.includes("candidate_hash_mismatch"), "Wrong hash should block approval.");
+  assert(!wrongHash.eligible && wrongHash.blocking_reasons.includes("runtime_candidate_hash_mismatch"), "Wrong runtime hash should block approval.");
 
   const pending = evaluateModelUpgradeApprovalEvidence({
     manifestPath: FULL_GPT56_V2_CANDIDATE_CONFIG_PATH,
     candidateRunPublicId: run.run_public_id,
-    expectedHash
+    expectedRuntimeCandidateHash: expectedRuntimeHash,
+    expectedEvaluationProtocolHash: expectedProtocolHash
   });
   assert(!pending.eligible && pending.blocking_reasons.includes("human_review_not_approved"), "Pending human review should block approval.");
 
@@ -66,12 +72,16 @@ async function main() {
   const approved = writeModelUpgradeApprovalArtifact({
     manifestPath: FULL_GPT56_V2_CANDIDATE_CONFIG_PATH,
     candidateRunPublicId: run.run_public_id,
-    expectedHash
+    expectedRuntimeCandidateHash: expectedRuntimeHash,
+    expectedEvaluationProtocolHash: expectedProtocolHash
   });
   assert(approved.status === "approval_evidence_ready", "Accepted clean run should permit approval evidence.");
   assert(approved.artifact_path, "Approval evidence should include an artifact path.");
+  assert(approved.runtime_candidate_hash === expectedRuntimeHash, "Approval evidence must bind the frozen runtime hash.");
+  assert(approved.evaluation_protocol_hash === expectedProtocolHash, "Approval evidence must bind the frozen protocol hash.");
+  assert(approved.approval_evidence_hash.length === 64, "Approval evidence must have a deterministic SHA-256 identity.");
   assert(
-    approved.exact_operational_approved_config_hash === expectedHash,
+    approved.exact_operational_approved_config_hash === expectedRuntimeHash,
     "Approval evidence should output the exact candidate active hash."
   );
   assert(
@@ -79,11 +89,26 @@ async function main() {
     "Old approved baseline should remain available for rollback."
   );
 
+  const reviewArtifactBeforeTamper = readFileSync(exportSummary.artifact_paths.review_records_jsonl, "utf8");
+  writeFileSync(exportSummary.artifact_paths.review_records_jsonl, `${reviewArtifactBeforeTamper}\n`, "utf8");
+  const tamperedReview = evaluateModelUpgradeApprovalEvidence({
+    manifestPath: FULL_GPT56_V2_CANDIDATE_CONFIG_PATH,
+    candidateRunPublicId: run.run_public_id,
+    expectedRuntimeCandidateHash: expectedRuntimeHash,
+    expectedEvaluationProtocolHash: expectedProtocolHash
+  });
+  assert(
+    !tamperedReview.eligible && tamperedReview.blocking_reasons.includes("human_review_artifact_hash_mismatch"),
+    "Approval must fail if the reviewed artifact changes after human confirmation."
+  );
+  writeFileSync(exportSummary.artifact_paths.review_records_jsonl, reviewArtifactBeforeTamper, "utf8");
+
   console.log(JSON.stringify({
     status: "passed",
     no_openai_call: true,
     run_public_id: run.run_public_id,
     exact_operational_approved_config_hash: approved.exact_operational_approved_config_hash,
+    evaluation_protocol_hash: expectedProtocolHash,
     rollback_hash: approved.rollback_hash
   }, null, 2));
 

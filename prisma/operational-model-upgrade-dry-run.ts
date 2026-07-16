@@ -20,6 +20,8 @@ console.log(JSON.stringify({
   status: "dry_run_complete",
   no_provider_call: true,
   candidate_hash: comparison.candidate.candidate_configuration_hash,
+  runtime_candidate_hash: executionPlan.runtime_candidate_hash,
+  evaluation_protocol_hash: executionPlan.evaluation_protocol_hash,
   candidate_active_configuration_hash: comparison.candidate.candidate_active_configuration_hash,
   baseline_hash: comparison.baseline.approved_active_configuration_hash,
   fixtures: comparison.fixtures,

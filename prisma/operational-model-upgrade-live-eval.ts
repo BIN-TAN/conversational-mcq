@@ -11,6 +11,8 @@ loadEnvConfig(process.cwd());
 
 const manifestPath = candidateManifestArg();
 const resumeRun = argValue("--resume-run");
+const expectedRuntimeHash = argValue("--expected-runtime-hash");
+const expectedProtocolHash = argValue("--expected-evaluation-protocol-hash");
 
 async function main() {
   if (process.env.RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL !== "1") {
@@ -36,6 +38,19 @@ async function main() {
     console.error(JSON.stringify({
       status: "blocked",
       reason: "explicit_candidate_manifest_required",
+      no_provider_call: true
+    }, null, 2));
+    process.exit(1);
+  }
+
+  if (!expectedRuntimeHash || !expectedProtocolHash) {
+    console.error(JSON.stringify({
+      status: "blocked",
+      reason: "frozen_runtime_and_evaluation_protocol_hashes_required",
+      required: [
+        "--expected-runtime-hash <runtime_candidate_hash>",
+        "--expected-evaluation-protocol-hash <evaluation_protocol_hash>"
+      ],
       no_provider_call: true
     }, null, 2));
     process.exit(1);
@@ -78,13 +93,16 @@ async function main() {
 
     const run = await executeModelUpgradeCandidateEvaluation({
       manifestPath,
-      resumeRunPublicId: resumeRun
+      resumeRunPublicId: resumeRun,
+      expectedRuntimeCandidateHash: expectedRuntimeHash,
+      expectedEvaluationProtocolHash: expectedProtocolHash
     });
     console.log(JSON.stringify({
       status: run.status,
       run_public_id: run.run_public_id,
       candidate_manifest_hash: run.candidate_manifest_hash,
-      candidate_active_configuration_hash: run.candidate_active_configuration_hash,
+      runtime_candidate_hash: run.runtime_candidate_hash,
+      evaluation_protocol_hash: run.evaluation_protocol_hash,
       application_git_commit: run.application_git_commit,
       application_git_commit_source: run.application_git_commit_source,
       application_build_timestamp: run.application_build_timestamp,

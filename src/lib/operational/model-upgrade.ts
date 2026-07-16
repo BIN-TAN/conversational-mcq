@@ -210,6 +210,26 @@ export function candidateOperationalModelHash(candidate = readCandidateOperation
   return stableHash(candidate);
 }
 
+export function candidateRuntimeConfigurationSnapshot(candidate = readCandidateOperationalModelConfig()) {
+  const fingerprint = candidate.configuration_fingerprint;
+  return {
+    roles: Object.fromEntries(liveModelRoles.map((role) => [role, candidate.roles[role]])),
+    runtime_policy: candidate.runtime_policy ?? null,
+    production_versions: fingerprint
+      ? {
+        semantic_validator_version: fingerprint.semantic_validator_version,
+        safety_validator_version: fingerprint.safety_validator_version,
+        effective_result_version: fingerprint.effective_result_version,
+        effective_validator_version: fingerprint.effective_validator_version,
+        deterministic_guard_versions: fingerprint.deterministic_guard_versions,
+        canonicalization_versions: fingerprint.canonicalization_versions,
+        fallback_versions: fingerprint.fallback_versions,
+        role_version_metadata: fingerprint.role_version_metadata
+      }
+      : null
+  };
+}
+
 export function candidateActiveOperationalConfigSnapshot(candidate = readCandidateOperationalModelConfig()) {
   const baseline = readApprovedOperationalAgentConfig();
   const snapshot = {
@@ -226,6 +246,10 @@ export function candidateActiveOperationalConfigSnapshot(candidate = readCandida
   return candidate.configuration_fingerprint
     ? { ...snapshot, configuration_fingerprint: candidate.configuration_fingerprint }
     : snapshot;
+}
+
+export function candidateRuntimeConfigurationHash(candidate = readCandidateOperationalModelConfig()) {
+  return stableHash(candidateRuntimeConfigurationSnapshot(candidate));
 }
 
 export function candidateActiveOperationalConfigHash(candidate = readCandidateOperationalModelConfig()) {
@@ -258,6 +282,7 @@ export function buildOperationalModelUpgradeComparison(options: ModelUpgradeComp
   const candidate = readCandidateOperationalModelConfig(manifestPath);
   const candidateHash = candidateOperationalModelHash(candidate);
   const candidateActiveHash = candidateActiveOperationalConfigHash(candidate);
+  const runtimeCandidateHash = candidateRuntimeConfigurationHash(candidate);
   const evaluationCases = candidate.evaluation_cases ?? sharedSyntheticFixtures;
   const roleComparisons = liveModelRoles.map((role) => {
     const baselineConfig = baselineRoleConfig(role);
@@ -298,6 +323,7 @@ export function buildOperationalModelUpgradeComparison(options: ModelUpgradeComp
       manifest_version: candidate.manifest_version,
       approval_state: candidate.approval_state,
       candidate_configuration_hash: candidateHash,
+      runtime_candidate_hash: runtimeCandidateHash,
       candidate_active_configuration_hash: candidateActiveHash,
       evaluation_required: candidate.evaluation_required,
       human_review_required: candidate.human_review_required,
@@ -358,6 +384,7 @@ export function summarizeModelUpgradePreflight(options: ModelUpgradeComparisonOp
     status: comparison.compatibility_ok ? "ready_for_no_live_evaluation" : "blocked_by_configuration",
     no_provider_call: true,
     candidate_hash: comparison.candidate.candidate_configuration_hash,
+    runtime_candidate_hash: comparison.candidate.runtime_candidate_hash,
     candidate_active_configuration_hash: comparison.candidate.candidate_active_configuration_hash,
     compatibility_ok: comparison.compatibility_ok,
     incompatible_roles: comparison.role_comparisons
@@ -376,8 +403,8 @@ export function summarizeModelUpgradePreflight(options: ModelUpgradeComparisonOp
       )
       .map((entry) => entry.role),
     live_evaluation_command:
-      `RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --manifest ${comparison.candidate.manifest_path} --confirm-paid-api`,
+      `RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --manifest ${comparison.candidate.manifest_path} --expected-runtime-hash ${comparison.candidate.runtime_candidate_hash} --expected-evaluation-protocol-hash <evaluation_protocol_hash_from_dry_run> --confirm-paid-api`,
     approval_command:
-      `npm run operational:model-upgrade:approve -- --manifest ${comparison.candidate.manifest_path} --candidate-run <run_public_id> --expected-hash ${comparison.candidate.candidate_active_configuration_hash} --confirm "approve ${comparison.candidate.profile_name}"`
+      `npm run operational:model-upgrade:approve -- --manifest ${comparison.candidate.manifest_path} --candidate-run <run_public_id> --expected-runtime-hash ${comparison.candidate.runtime_candidate_hash} --expected-evaluation-protocol-hash <evaluation_protocol_hash_from_run> --confirm "approve ${comparison.candidate.profile_name}"`
   };
 }
