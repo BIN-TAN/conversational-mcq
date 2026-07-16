@@ -44,6 +44,10 @@ function assertBlocked(text: string) {
   assert(result.safety_finding_details[0]?.exact_text_span === text, "Blocked finding should use the complete proposition.");
   const claim = result.claim_details[0];
   assert(claim?.polarity === "affirmative", `${text} should be an affirmative adverse proposition.`);
+  assert(claim?.exact_clause === text, `${text} should preserve the exact clause.`);
+  assert(claim?.assertion_mode === "assertion", `${text} should be classified as an assertion.`);
+  assert(claim?.claim_type === "latent_trait_inference", `${text} should be classified as a latent-trait inference.`);
+  assert(result.safety_finding_details[0]?.claim_details?.exact_clause === text, "Claim-based finding should embed its structured claim details.");
 }
 
 function main() {

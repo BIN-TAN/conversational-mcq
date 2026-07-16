@@ -2363,16 +2363,18 @@ The full-v2 candidate evaluation uses the proposition-aware safety policy
 `eval-safety-v5` plus `eval-surface-policy-v1`,
 `eval-claim-polarity-v1`, `eval-answer-reveal-policy-v1`,
 `eval-topic-boundary-v2`, `evaluation-finding-provenance-v1`,
-`eval-proposition-analysis-v1`, `eval-evidence-grounding-v1`,
-`eval-pedagogical-quality-v1`, `eval-production-schema-fidelity-v1`,
+`eval-proposition-analysis-v2`, `eval-evidence-grounding-v1`,
+`eval-pedagogical-quality-v2`, `eval-production-schema-fidelity-v1`,
 `eval-run-provenance-v2`, and `eval-artifact-persistence-warning-v1`.
-Automated findings record the evaluated surface, field, exact proposition span,
-assertion polarity, fixture policy, reveal policy, blocking status, evaluator
-version, evidence support, and production-schema fidelity. Teacher-tool
+Automated claim findings record the evaluated surface, field, exact clause,
+speaker/source, assertion versus mention/report, claim type, polarity, modality,
+fixture policy, reveal policy, blocking status, evaluator version, evidence
+support, and production-schema fidelity. Teacher-tool
 answer-key references are not treated as student leakage, negated or prohibitive
 safety propositions are not unsupported-claim failures, unsupported engagement
-labels are blocked unless defined and evidenced, and unrelated-question refusals
-with redirects are not substantive off-topic answers.
+labels are blocked unless defined and evidenced, reported misconceptions and
+quoted distractors are not treated as system endorsement, and unrelated-question
+refusals with redirects are not substantive off-topic answers.
 
 The model-upgrade runner uses the same application build-provenance resolver as
 `npm run app:build-info`. Production builds write `build/application-build-info.json`

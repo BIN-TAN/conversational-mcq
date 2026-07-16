@@ -18,7 +18,7 @@ async function main() {
   assert(plan.application_git_commit && /^[a-f0-9]{40}$/u.test(plan.application_git_commit), "Plan should record the application Git commit.");
   assert(plan.application_git_commit_source, "Plan should record the application Git commit source.");
   assert(plan.evaluator_versions.run_provenance === "eval-run-provenance-v2", "Plan should record unified build-provenance evaluator version.");
-  assert(plan.evaluator_versions.proposition_analysis === "eval-proposition-analysis-v1", "Plan should record proposition evaluator version.");
+  assert(plan.evaluator_versions.proposition_analysis === "eval-proposition-analysis-v2", "Plan should record proposition evaluator version.");
   assert(plan.evaluator_versions.evidence_grounding === "eval-evidence-grounding-v1", "Plan should record grounding evaluator version.");
   assert(plan.artifact_persistence.persistence_verified === false, "Local artifact persistence should not be silently trusted.");
   assert(plan.artifact_persistence.warning, "Unverified local artifact persistence should include a warning.");

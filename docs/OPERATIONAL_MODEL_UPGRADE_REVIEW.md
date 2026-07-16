@@ -110,7 +110,7 @@ Approval remains separate from evaluation and review:
 npm run operational:model-upgrade:approve -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
   --candidate-run <run_public_id> \
-  --expected-hash cc7448289c810eb1c8be2a3d96e3a8376ad73cc361fc984cd595bbfd1d3c6872 \
+  --expected-hash 13aa85c914a60bae83afe06181596766934ca0bc5ff747322afd066a97122c5d \
   --confirm "approve gpt-5.6 full operational candidate v2"
 ```
 
@@ -130,8 +130,8 @@ or if available sources disagree.
 The current full-v2 candidate uses `eval-safety-v5` with
 `eval-surface-policy-v1`, `eval-claim-polarity-v1`,
 `eval-answer-reveal-policy-v1`, `eval-topic-boundary-v2`, and
-`evaluation-finding-provenance-v1`, plus `eval-proposition-analysis-v1`,
-`eval-evidence-grounding-v1`, `eval-pedagogical-quality-v1`,
+`evaluation-finding-provenance-v1`, plus `eval-proposition-analysis-v2`,
+`eval-evidence-grounding-v1`, `eval-pedagogical-quality-v2`,
 `eval-production-schema-fidelity-v1`, `eval-run-provenance-v2`, and
 `eval-artifact-persistence-warning-v1`. Automated findings must identify the
 evaluated surface, field, exact text span, proposition polarity, fixture policy,
@@ -143,9 +143,12 @@ complete propositions instead of isolated protected phrases, and off-topic
 topic-dialogue checks distinguish a substantive unrelated answer from a refusal
 plus redirect.
 
-The evaluator records structured claims with subject, predicate, object,
-polarity, modality, epistemic strength, source field, evidence references, and
-whether the claim converts behavior into a latent trait. Unsupported affirmative
+The evaluator records structured claims with a complete proposition and exact
+clause, speaker/source, assertion-versus-mention classification, claim type,
+subject, predicate, object, polarity, modality, epistemic strength, source field,
+evidence references, and whether the claim converts behavior into a latent trait.
+Reported student misconceptions, quoted distractors, and corrective statements
+are retained as audit claims but are not treated as system endorsement. Unsupported affirmative
 claims about stable ability, motivation, effort, misconduct, or cheating block.
 Negated or prohibitive propositions such as "not evidence of low ability" do
 not block merely because they mention the protected concept. Unsupported

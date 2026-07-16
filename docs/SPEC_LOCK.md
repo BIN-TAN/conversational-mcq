@@ -2900,16 +2900,18 @@ Phase 6A.5 must not implement:
   The current full-v2 candidate uses `eval-safety-v5`,
   `eval-surface-policy-v1`, `eval-claim-polarity-v1`,
   `eval-answer-reveal-policy-v1`, `eval-topic-boundary-v2`,
-  `evaluation-finding-provenance-v1`, `eval-proposition-analysis-v1`,
-  `eval-evidence-grounding-v1`, `eval-pedagogical-quality-v1`,
+  `evaluation-finding-provenance-v1`, `eval-proposition-analysis-v2`,
+  `eval-evidence-grounding-v1`, `eval-pedagogical-quality-v2`,
   `eval-production-schema-fidelity-v1`, `eval-run-provenance-v2`, and
   `eval-artifact-persistence-warning-v1`. Automated findings must record
-  evaluated surface, field, exact proposition span, assertion polarity, fixture
-  policy, reveal policy, blocking status, evaluator version, claim subject,
-  predicate, object, modality, evidence references, support level, and
+  evaluated surface, field, complete proposition, exact clause, speaker/source,
+  assertion-versus-mention classification, claim type, polarity, fixture policy,
+  reveal policy, blocking status, evaluator version, claim subject, predicate,
+  object, modality, evidence references, support level, and
   production-schema fidelity. Teacher-tool answer-key text, internal safety
   notes, and utility metadata must not be classified as student-facing leakage.
-  Negated/prohibitive/audit propositions must not count as affirmative
+  Reported misconceptions, quoted distractors, corrective statements, and
+  negated/prohibitive/audit propositions must not count as affirmative
   misconduct, motivation, effort, or ability claims merely because they mention
   a protected concept. Unsupported affirmative or hedged claims about stable
   ability, motivation, effort, misconduct, cheating, or undefined engagement

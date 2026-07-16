@@ -86,6 +86,35 @@ function assertNotHas(result: ReturnType<typeof evaluateCandidateOutputPolicy>, 
   assert(!codes(result).has(code), message);
 }
 
+const claimBasedFindingCodes = new Set([
+  "unsupported_misconduct_motivation_or_ability_claim_detected",
+  "unsupported_engagement_construct_claim",
+  "confidence_inferred_from_language_style",
+  "reliability_alone_establishes_validity",
+  "measurement_validity_definition_too_simplistic",
+  "measurement_validity_evidence_use_language_missing"
+]);
+
+function assertClaimBasedFindingsAreStructured(result: ReturnType<typeof evaluateCandidateOutputPolicy>) {
+  const findings = [
+    ...result.safety_finding_details,
+    ...result.evidence_grounding_details,
+    ...result.quality_finding_details
+  ].filter((entry) => claimBasedFindingCodes.has(entry.finding_code));
+  for (const entry of findings) {
+    const claim = entry.claim_details;
+    assert(claim, `${entry.finding_code} must include claim_details.`);
+    assert(Boolean(claim?.exact_claim.trim()), `${entry.finding_code} must include a complete proposition.`);
+    assert(Boolean(claim?.exact_clause.trim()), `${entry.finding_code} must include an exact clause.`);
+    assert(Boolean(claim?.speaker_source), `${entry.finding_code} must include speaker/source.`);
+    assert(Boolean(claim?.assertion_mode), `${entry.finding_code} must classify assertion versus mention/report.`);
+    assert(Boolean(claim?.claim_type), `${entry.finding_code} must include claim type.`);
+    assert(Boolean(claim?.polarity), `${entry.finding_code} must include polarity.`);
+    assert(Boolean(claim?.modality), `${entry.finding_code} must include modality.`);
+    assert(Boolean(claim?.source_field), `${entry.finding_code} must include evaluated field.`);
+  }
+}
+
 function runItemAdminSuite() {
   const full = fixtureById("item_administration_which_item_do_you_mean");
   const fullResult = evaluateCandidateOutputPolicy(
@@ -129,12 +158,33 @@ function runItemAdminSuite() {
   assertHas(leakage, "answer_key_or_correctness_phrase_detected", "Item-admin clarification must not leak correctness.");
 
   const exampleFixture = fixtureById("item_administration_request_for_an_example");
-  const responseForm = evaluateCandidateOutputPolicy(
-    output(exampleFixture, "A reasoning response can follow this form: “I chose option C because ____. The key idea I used was ____.”"),
+  const actionableCases = [
+    {
+      label: "imperative",
+      text: "Item 2 — Reasoning: You selected option C. Explain the idea you used in your own words."
+    },
+    {
+      label: "question",
+      text: "Item 2 — Reasoning: You selected option C. What idea led you to choose option C?"
+    },
+    {
+      label: "response template with completion instruction",
+      text: "Item 2 — Reasoning: You selected option C. Example: “I chose option C because ____. The key idea I used was ____.” Please complete the two blanks in your own words."
+    }
+  ];
+  for (const entry of actionableCases) {
+    const result = evaluateCandidateOutputPolicy(output(exampleFixture, entry.text), exampleFixture);
+    assertNotHas(result, "item_admin_current_task_not_stated", `${entry.label} should state the current task semantically.`);
+    assertNotHas(result, "item_admin_actionable_prompt_missing", `${entry.label} should be actionable without exact wording requirements.`);
+    assertNotHas(result, "item_admin_example_item_specific_hint", `${entry.label} should not be treated as a hint.`);
+  }
+
+  const vague = evaluateCandidateOutputPolicy(
+    output(exampleFixture, "Item 2 is the current item. Your response can be brief."),
     exampleFixture
   );
-  assertNotHas(responseForm, "item_admin_example_not_procedural_response_form", "Response-form example should pass.");
-  assertNotHas(responseForm, "item_admin_example_item_specific_hint", "Response-form example should not be treated as a hint.");
+  assertHas(vague, "item_admin_current_task_not_stated", "A vague statement must not count as the reasoning task.");
+  assertHas(vague, "item_admin_actionable_prompt_missing", "A vague statement must not count as a next action.");
 
   const genericAdvice = evaluateCandidateOutputPolicy(
     output(exampleFixture, "Read the question carefully, eliminate wrong answers, and look for keywords before choosing."),
@@ -151,30 +201,132 @@ function runItemAdminSuite() {
 
 function runMeasurementSuite() {
   const fixture = fixtureById("formative_value_determination_conceptual_need");
-  const valid = evaluateCandidateOutputPolicy(
-    output(fixture, "Validity concerns evidence supporting intended interpretations and uses of scores."),
-    fixture
-  );
-  assertNotHas(valid, "measurement_validity_definition_too_simplistic", "Course-appropriate validity definition should pass.");
-  assertNotHas(valid, "measurement_validity_evidence_use_language_missing", "Course-appropriate validity wording should include evidence/use language.");
+  const mentionFixture = fixtureById("student_profiling_specific_misconception");
+  const activityFixture = fixtureById("formative_activity_distractor_probe");
+  const mentionAssertionCases = [
+    {
+      label: "reported misconception",
+      fixture: mentionFixture,
+      text: "The student treated reliability as proof of validity.",
+      shouldBlock: false,
+      assertionMode: "mention_or_report",
+      speakerSource: "reported_student",
+      claimType: "misconception_description"
+    },
+    {
+      label: "quoted distractor",
+      fixture: activityFixture,
+      text: "For Item 2, option A claims that reliability proves validity.",
+      shouldBlock: false,
+      assertionMode: "mention_or_report",
+      speakerSource: "quoted_distractor",
+      claimType: "reported_student_statement"
+    },
+    {
+      label: "corrective relationship",
+      fixture,
+      text: "Reliability does not prove validity.",
+      shouldBlock: false,
+      assertionMode: "correction_or_rejection",
+      speakerSource: "instructional_voice",
+      claimType: "relationship_claim"
+    },
+    {
+      label: "endorsed false relationship",
+      fixture,
+      text: "Reliability proves validity.",
+      shouldBlock: true,
+      assertionMode: "assertion",
+      speakerSource: "instructional_voice",
+      claimType: "relationship_claim"
+    }
+  ] as const;
+  for (const entry of mentionAssertionCases) {
+    const result = evaluateCandidateOutputPolicy(output(entry.fixture, entry.text), entry.fixture);
+    if (entry.shouldBlock) {
+      assertHas(result, "reliability_alone_establishes_validity", `${entry.label} should block.`);
+    } else {
+      assertNotHas(result, "reliability_alone_establishes_validity", `${entry.label} must not be treated as system endorsement.`);
+    }
+    const claim = result.claim_details.find((candidate) => candidate.exact_clause === entry.text);
+    assert(claim?.assertion_mode === entry.assertionMode, `${entry.label} assertion-mode classification mismatch.`);
+    assert(claim?.speaker_source === entry.speakerSource, `${entry.label} speaker/source classification mismatch.`);
+    assert(claim?.claim_type === entry.claimType, `${entry.label} claim-type classification mismatch.`);
+    assertClaimBasedFindingsAreStructured(result);
+  }
 
-  const simplistic = evaluateCandidateOutputPolicy(
-    output(fixture, "Validity means the measure assesses what it is intended to assess."),
-    fixture
-  );
-  assertHas(simplistic, "measurement_validity_definition_too_simplistic", "Simplistic validity definition should block.");
+  const definitionRelationshipCases = [
+    {
+      label: "complete validity definition",
+      text: "Validity concerns evidence supporting intended interpretations and uses.",
+      blockedCode: null
+    },
+    {
+      label: "correct reliability relationship",
+      text: "Reliability alone does not establish validity.",
+      blockedCode: null
+    },
+    {
+      label: "reported mention",
+      text: "The response mentions validity.",
+      blockedCode: null
+    },
+    {
+      label: "false accuracy definition",
+      text: "Validity simply means accuracy.",
+      blockedCode: "measurement_validity_definition_too_simplistic"
+    },
+    {
+      label: "false test-accuracy definition",
+      text: "Validity simply means the test is accurate.",
+      blockedCode: "measurement_validity_definition_too_simplistic"
+    }
+  ];
+  for (const entry of definitionRelationshipCases) {
+    const result = evaluateCandidateOutputPolicy(output(fixture, entry.text), fixture);
+    if (entry.blockedCode) {
+      assertHas(result, entry.blockedCode, `${entry.label} should block.`);
+    } else {
+      assertNotHas(result, "measurement_validity_definition_too_simplistic", `${entry.label} should not be treated as a false definition.`);
+      assertNotHas(result, "reliability_alone_establishes_validity", `${entry.label} should not be treated as an endorsed reliability-validity error.`);
+    }
+    assertClaimBasedFindingsAreStructured(result);
+  }
 
-  const reliabilityProves = evaluateCandidateOutputPolicy(
-    output(fixture, "A high reliability coefficient proves validity."),
+  const abbreviated = evaluateCandidateOutputPolicy(
+    output(fixture, "Validity requires evidence for an interpretation."),
     fixture
   );
-  assertHas(reliabilityProves, "reliability_alone_establishes_validity", "Reliability-alone validity claim should block.");
+  assertHas(abbreviated, "measurement_validity_evidence_use_language_missing", "Abbreviated authoritative wording should receive a precision warning.");
+  const abbreviatedFinding = abbreviated.quality_finding_details.find((entry) => entry.finding_code === "measurement_validity_evidence_use_language_missing");
+  assert(abbreviatedFinding?.severity === "language_quality_warning", "Abbreviated wording must not be a substantive accuracy failure.");
+  assert(abbreviatedFinding?.blocking === false, "Abbreviated wording must not block automatically.");
+  assertClaimBasedFindingsAreStructured(abbreviated);
 
-  const reliabilityQualified = evaluateCandidateOutputPolicy(
-    output(fixture, "Reliability is score consistency or precision; by itself it does not establish validity."),
+  const qualityFixture = fixtureById("formative_activity_quality_review");
+  const qualityRelationship = evaluateCandidateOutputPolicy(
+    output(qualityFixture, "The prompt correctly targets the flaw that reliability alone does not establish validity."),
+    qualityFixture
+  );
+  assertNotHas(qualityRelationship, "measurement_validity_evidence_use_language_missing", "A quality-review relationship statement is not a validity definition.");
+  assertNotHas(qualityRelationship, "reliability_alone_establishes_validity", "A quality review that rejects the false relation must not be treated as endorsement.");
+
+  const evaluatorFixture = fixtureById("formative_activity_response_evaluation");
+  const reportedAbbreviation = evaluateCandidateOutputPolicy(
+    output(evaluatorFixture, "The response identifies validity as requiring evidence for an interpretation."),
+    evaluatorFixture
+  );
+  assertNotHas(reportedAbbreviation, "measurement_validity_evidence_use_language_missing", "Faithfully reported student wording must not be treated as an authoritative definition.");
+  assertNotHas(reportedAbbreviation, "measurement_validity_definition_too_simplistic", "Faithfully reported student wording must not be treated as a false system claim.");
+
+  const incompleteAnalysis = evaluateCandidateOutputPolicy(
+    output(fixture, "Reliability and validity."),
     fixture
   );
-  assertNotHas(reliabilityQualified, "reliability_alone_establishes_validity", "Qualified reliability language should pass.");
+  const analysisWarning = incompleteAnalysis.quality_finding_details.find((entry) => entry.finding_code === "evaluator_claim_analysis_incomplete");
+  assert(analysisWarning?.severity === "review_required", "Incomplete structured analysis should create a review warning.");
+  assert(analysisWarning?.blocking === false, "Phrase-level fallback must not create a blocking claim failure.");
+  assert(analysisWarning?.claim_details === null, "An evaluator-analysis warning must not fabricate a claim record.");
 }
 
 function runActivityContextSuite() {

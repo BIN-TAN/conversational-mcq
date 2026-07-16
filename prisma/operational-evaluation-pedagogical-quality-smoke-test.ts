@@ -98,7 +98,7 @@ function main() {
     "Course-appropriate validity wording should pass."
   );
 
-  const unqualifiedReliability = evaluateCandidateOutputPolicy(
+  const relationshipClaim = evaluateCandidateOutputPolicy(
     output(
       fixtureById("formative_activity_quality_review"),
       "Reliability is necessary for, but does not by itself establish, validity."
@@ -106,8 +106,8 @@ function main() {
     fixtureById("formative_activity_quality_review")
   );
   assert(
-    findingCodes(unqualifiedReliability).includes("reliability_validity_claim_needs_contextual_qualification"),
-    "Reliability-validity claim should require interpretation/use context."
+    !findingCodes(relationshipClaim).includes("measurement_validity_evidence_use_language_missing"),
+    "A relationship claim should not be evaluated as an attempted validity definition."
   );
 
   console.log(JSON.stringify({
@@ -116,7 +116,7 @@ function main() {
     system_like_item_admin_warning: true,
     deterministic_state_failure_detected: true,
     validity_accuracy_control_passed: true,
-    reliability_context_control_passed: true
+    reliability_relationship_classification_passed: true
   }, null, 2));
 }
 

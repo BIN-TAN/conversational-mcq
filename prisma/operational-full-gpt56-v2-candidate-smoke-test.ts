@@ -209,7 +209,7 @@ function main() {
     "Full v2 candidate should fingerprint answer-reveal evaluation policy."
   );
   assert(
-    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_proposition_analysis === "eval-proposition-analysis-v1",
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_proposition_analysis === "eval-proposition-analysis-v2",
     "Full v2 candidate should fingerprint proposition-level claim analysis."
   );
   assert(
@@ -217,8 +217,16 @@ function main() {
     "Full v2 candidate should fingerprint evidence-grounding evaluation."
   );
   assert(
-    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_pedagogical_quality === "eval-pedagogical-quality-v1",
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_pedagogical_quality === "eval-pedagogical-quality-v2",
     "Full v2 candidate should fingerprint pedagogical-quality evaluation."
+  );
+  assert(
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.item_administration_clarification_contract === "item-admin-clarification-contract-v2",
+    "Full v2 candidate should fingerprint semantic item-administration clarification evaluation."
+  );
+  assert(
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.measurement_domain_claim_policy === "measurement-domain-claim-policy-v2",
+    "Full v2 candidate should fingerprint mention-aware measurement-claim evaluation."
   );
   assert(
     fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_production_schema_fidelity === "eval-production-schema-fidelity-v1",
