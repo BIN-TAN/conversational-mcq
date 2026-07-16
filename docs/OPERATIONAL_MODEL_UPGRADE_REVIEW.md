@@ -97,13 +97,27 @@ Approval remains separate from evaluation and review:
 npm run operational:model-upgrade:approve -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
   --candidate-run <run_public_id> \
-  --expected-hash 6ed800423d93ea29b0857968e6caf803955a5de9f8ad8b7ed68e4ea6d18b907e \
+  --expected-hash e59f4c6b96c85afa9365043e5bdb0cf3fbc82f5dc94522608e6208c9ee3aa01b \
   --confirm "approve gpt-5.6 full operational candidate v2"
 ```
 
 The command writes approval evidence under the run artifact directory and prints
 the exact `OPERATIONAL_APPROVED_CONFIG_HASH` value. The operator must apply
 that value manually in Render after approval planning.
+
+## Surface-Aware Automated Evaluation
+
+The current full-v2 candidate uses `eval-safety-v4` with
+`eval-surface-policy-v1`, `eval-claim-polarity-v1`,
+`eval-answer-reveal-policy-v1`, `eval-topic-boundary-v2`, and
+`evaluation-finding-provenance-v1`. Automated findings must identify the
+evaluated surface, field, exact text span, assertion polarity, fixture policy,
+reveal policy, blocking status, and evaluator version. Teacher-tool answer-key
+text, internal safety notes, and utility metadata are not evaluated as rendered
+student content. Student answer-key checks are reveal-policy aware, unsupported
+claim checks distinguish affirmative claims from negations/prohibitions/audit
+statements, and off-topic topic-dialogue checks distinguish a substantive
+unrelated answer from a refusal plus redirect.
 
 ## Rollback
 

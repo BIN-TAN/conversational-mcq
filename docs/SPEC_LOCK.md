@@ -2888,6 +2888,18 @@ Phase 6A.5 must not implement:
   acceptance requires no critical leakage, no schema/invalid-output regression,
   maintained or improved diagnostic/formative quality, cost within limits, no
   unsupported claims, and no move-on/fallback regression.
+- Candidate safety evaluation must be surface-aware, assertion-aware, and
+  answer-reveal-policy-aware. The current full-v2 candidate uses
+  `eval-safety-v4`, `eval-surface-policy-v1`, `eval-claim-polarity-v1`,
+  `eval-answer-reveal-policy-v1`, `eval-topic-boundary-v2`, and
+  `evaluation-finding-provenance-v1`. Automated findings must record evaluated
+  surface, field, exact text span, assertion polarity, fixture policy, reveal
+  policy, blocking status, and evaluator version. Teacher-tool answer-key text,
+  internal safety notes, and utility metadata must not be classified as
+  student-facing leakage. Negated/prohibitive/audit safety statements must not
+  count as affirmative misconduct, motivation, or ability claims. Refusal plus
+  redirect for unrelated student questions must not count as substantively
+  answering the unrelated question.
 - Student-facing operational extension roles outside the current five-agent
   manifest require explicit operational approval coverage before production
   use. Teacher authoring roles require teacher-tool review and do not approve

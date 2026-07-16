@@ -206,12 +206,12 @@ npm run operational:model-upgrade:review-confirm -- \
 npm run operational:model-upgrade:approve -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
   --candidate-run <run_public_id> \
-  --expected-hash 6ed800423d93ea29b0857968e6caf803955a5de9f8ad8b7ed68e4ea6d18b907e \
+  --expected-hash e59f4c6b96c85afa9365043e5bdb0cf3fbc82f5dc94522608e6208c9ee3aa01b \
   --confirm "approve gpt-5.6 full operational candidate v2"
 ```
 
 Only after that approval command prints
-`OPERATIONAL_APPROVED_CONFIG_HASH=6ed800423d93ea29b0857968e6caf803955a5de9f8ad8b7ed68e4ea6d18b907e`
+`OPERATIONAL_APPROVED_CONFIG_HASH=e59f4c6b96c85afa9365043e5bdb0cf3fbc82f5dc94522608e6208c9ee3aa01b`
 should the operator update Render's server-side environment. Preserve the
 previous GPT-5.4-mini approved hash for rollback.
 

@@ -189,8 +189,24 @@ function main() {
     "Semantic validator version should match the approved baseline."
   );
   assert(
-    fullV2.configuration_fingerprint?.safety_validator_version === approved.safety_validator_version,
-    "Safety validator version should match the approved baseline."
+    fullV2.configuration_fingerprint?.safety_validator_version === "eval-safety-v4",
+    "Full v2 candidate should use the surface-aware safety evaluator version."
+  );
+  assert(
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.topic_dialogue_boundary === "eval-topic-boundary-v2",
+    "Full v2 candidate should fingerprint the semantic topic-boundary evaluator."
+  );
+  assert(
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_surface_policy === "eval-surface-policy-v1",
+    "Full v2 candidate should fingerprint surface-aware evaluation policy."
+  );
+  assert(
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_claim_polarity === "eval-claim-polarity-v1",
+    "Full v2 candidate should fingerprint assertion-polarity evaluation policy."
+  );
+  assert(
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_answer_reveal_policy === "eval-answer-reveal-policy-v1",
+    "Full v2 candidate should fingerprint answer-reveal evaluation policy."
   );
 
   for (const role of liveModelRoles) {
