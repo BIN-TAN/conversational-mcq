@@ -145,7 +145,7 @@ function main() {
   assert(fullV2.student_facing_operational_use_approved === false, "Student-facing use must not be auto-approved.");
   assert(fullV2.teacher_tool_use_approved === false, "Teacher-tool use must not be auto-approved.");
   assert(fullV2.student_facing_output_human_review_required === true, "Student-facing output must require human review.");
-  assert(currentActiveHash === approved.approved_active_configuration_hash, "Current active hash should remain the approved GPT-5.4-mini baseline in this no-live smoke.");
+  assert(approved.approved_active_configuration_hash === fullV2.configuration_fingerprint?.approved_baseline_active_configuration_hash, "Full v2 candidate should preserve the old approved baseline hash for rollback.");
   assert(fullV2ManifestHash !== oldFullMixedManifestHash, "Full v2 manifest hash must differ from old full mixed-stack manifest hash.");
   assert(fullV2ActiveHash !== oldFullMixedActiveHash, "Full v2 active hash must differ from old full mixed-stack active hash.");
   assert(fullV2ManifestHash !== minimalManifestHash, "Full v2 manifest hash must differ from minimal candidate manifest hash.");

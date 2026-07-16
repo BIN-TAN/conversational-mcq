@@ -182,6 +182,39 @@ TOPIC_DIALOGUE_LIVE_CALLS_ENABLED=true
 Do not set the candidate values for classroom use until the candidate
 evaluation and approval workflow outputs a new `OPERATIONAL_APPROVED_CONFIG_HASH`.
 
+Paid GPT-5.6 candidate evaluation must be run as a separate operator step, not
+as part of Render deployment. The isolated runner uses fixed synthetic fixtures
+and writes evidence under `.data/operational-model-upgrade/runs/<run_public_id>/`:
+
+```bash
+RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 \
+npm run operational:model-upgrade:live-eval -- \
+  --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
+  --confirm-paid-api
+```
+
+After completion, export and confirm human review before approval:
+
+```bash
+npm run operational:model-upgrade:review-export -- --candidate-run <run_public_id>
+npm run operational:model-upgrade:review-confirm -- \
+  --candidate-run <run_public_id> \
+  --review-artifact .data/operational-model-upgrade/runs/<run_public_id>/review/review_records.jsonl \
+  --confirm "I reviewed all required candidate outputs" \
+  --decision approve \
+  --reviewer <safe_identifier>
+npm run operational:model-upgrade:approve -- \
+  --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
+  --candidate-run <run_public_id> \
+  --expected-hash 6ed800423d93ea29b0857968e6caf803955a5de9f8ad8b7ed68e4ea6d18b907e \
+  --confirm "approve gpt-5.6 full operational candidate v2"
+```
+
+Only after that approval command prints
+`OPERATIONAL_APPROVED_CONFIG_HASH=6ed800423d93ea29b0857968e6caf803955a5de9f8ad8b7ed68e4ea6d18b907e`
+should the operator update Render's server-side environment. Preserve the
+previous GPT-5.4-mini approved hash for rollback.
+
 `DATABASE_URL` should be wired from Render Postgres by the Blueprint. If Render cannot wire it automatically, use the internal Render Postgres connection string from the database page and set it only in Render's server-side environment variable UI.
 
 Never set `OPENAI_API_KEY`, `DATABASE_URL`, `SESSION_SECRET`, or

@@ -2344,6 +2344,9 @@ npm run operational:per-agent-reasoning-config-smoke
 npm run operational:model-upgrade-evaluation-smoke
 npm run operational:minimal-dialogue-candidate-smoke
 npm run operational:full-gpt56-v2-candidate-smoke
+npm run operational:model-upgrade-live-eval-runner-smoke
+npm run operational:model-upgrade-human-review-smoke
+npm run operational:model-upgrade-approval-evidence-smoke
 ```
 
 Run the same no-live commands against the full-v2 candidate with:
@@ -2364,14 +2367,53 @@ npm run operational:model-upgrade:compare -- --manifest config/candidate-operati
 npm run operational:model-upgrade:report -- --manifest config/candidate-operational-agent-config.minimal-live-student-dialogue.json
 ```
 
-The guarded live evaluation command skips by default:
+The guarded live evaluation command skips by default. With the explicit guard
+and paid confirmation it creates an isolated synthetic run under
+`.data/operational-model-upgrade/runs/<run_public_id>/`; it does not use or
+mutate student, teacher, assessment, or production workflow records. The runner
+uses the explicit candidate manifest for model, reasoning-effort, token-limit,
+prompt/schema/validator/fallback metadata and does not require the candidate to
+already be approved.
 
 ```bash
 npm run operational:model-upgrade:live-smoke
 RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json --confirm-paid-api
 ```
 
-Approval remains explicit and evidence-gated:
+If a paid run is interrupted, resume it without repeating completed successful
+cases:
+
+```bash
+RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- \
+  --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
+  --confirm-paid-api \
+  --resume-run <run_public_id>
+```
+
+Budget ceilings are read from `OPERATIONAL_MODEL_UPGRADE_EVAL_MAX_CALLS`,
+`OPERATIONAL_MODEL_UPGRADE_EVAL_MAX_INPUT_TOKENS`,
+`OPERATIONAL_MODEL_UPGRADE_EVAL_MAX_OUTPUT_TOKENS`,
+`OPERATIONAL_MODEL_UPGRADE_EVAL_MAX_REASONING_TOKENS`,
+`OPERATIONAL_MODEL_UPGRADE_EVAL_BUDGET_USD`, and
+`OPERATIONAL_MODEL_UPGRADE_EVAL_CONCURRENCY`. The dry-run and live command print
+the execution plan before any provider call. Monetary cost is not invented when
+pricing metadata is unavailable.
+
+After the live run, export and record human review:
+
+```bash
+npm run operational:model-upgrade:review-export -- --candidate-run <run_public_id>
+npm run operational:model-upgrade:review-confirm -- \
+  --candidate-run <run_public_id> \
+  --review-artifact .data/operational-model-upgrade/runs/<run_public_id>/review/review_records.jsonl \
+  --confirm "I reviewed all required candidate outputs" \
+  --decision approve \
+  --reviewer <safe_identifier>
+```
+
+Approval remains explicit and evidence-gated. It requires the completed run,
+matching manifest and active hash, all fixed fixtures executed, no critical
+automated failure, completed human review, and the exact confirmation phrase:
 
 ```bash
 npm run operational:model-upgrade:approve -- \
@@ -2380,6 +2422,12 @@ npm run operational:model-upgrade:approve -- \
   --expected-hash <full_v2_candidate_active_configuration_hash> \
   --confirm "approve gpt-5.6 full operational candidate v2"
 ```
+
+The approval command writes approval evidence under the candidate run artifact
+directory and prints the exact `OPERATIONAL_APPROVED_CONFIG_HASH=<hash>` value
+for the operator to apply manually in Render after approval. It does not modify
+`.env`, `.env.local`, Render variables, or the approved GPT-5.4-mini baseline
+manifest.
 
 Rollback is environment-only: restore the prior `OPENAI_MODEL_*` values or
 remove candidate overrides, restore the previous

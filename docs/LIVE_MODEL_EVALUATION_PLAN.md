@@ -61,3 +61,11 @@ gate, not classroom validation.
 ## Current Limitation
 
 Synthetic development evaluation can expose schema, safety, and prompt-following risks, but it is not classroom validation. A later classroom validation plan is still required before relying on live agent behavior for research interpretation.
+
+## Operational GPT-5.6 Candidate Evaluation
+
+The operational model-upgrade path is separate from Phase 7E2A/7E2B evaluation.
+The full GPT-5.6 v2 candidate uses fixed synthetic role fixtures and writes
+isolated evidence under `.data/operational-model-upgrade/`. See
+`docs/OPERATIONAL_MODEL_UPGRADE_REVIEW.md` for the paid command, review export,
+review confirmation, approval evidence, Render rollout, and rollback sequence.

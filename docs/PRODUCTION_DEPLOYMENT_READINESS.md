@@ -462,6 +462,43 @@ RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 \
 npm run operational:model-upgrade:live-eval -- --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json --confirm-paid-api
 ```
 
+The paid candidate evaluation is isolated from classroom data. It uses the
+explicit candidate manifest, fixed synthetic fixtures, and writes durable
+evidence under `.data/operational-model-upgrade/runs/<run_public_id>/`. It must
+not be treated as candidate approval.
+
+Review and approval sequence:
+
+```bash
+npm run operational:model-upgrade:review-export -- --candidate-run <run_public_id>
+npm run operational:model-upgrade:review-confirm -- \
+  --candidate-run <run_public_id> \
+  --review-artifact .data/operational-model-upgrade/runs/<run_public_id>/review/review_records.jsonl \
+  --confirm "I reviewed all required candidate outputs" \
+  --decision approve \
+  --reviewer <safe_identifier>
+npm run operational:model-upgrade:approve -- \
+  --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
+  --candidate-run <run_public_id> \
+  --expected-hash 6ed800423d93ea29b0857968e6caf803955a5de9f8ad8b7ed68e4ea6d18b907e \
+  --confirm "approve gpt-5.6 full operational candidate v2"
+```
+
+The approval command emits the exact `OPERATIONAL_APPROVED_CONFIG_HASH` value
+only after the run is complete, all fixed cases are present, critical automated
+findings are absent, and human review is approved. Apply the printed hash in
+Render manually; the command does not mutate Render variables or `.env` files.
+
+If a paid run is interrupted, resume it with the same run public ID:
+
+```bash
+RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 \
+npm run operational:model-upgrade:live-eval -- \
+  --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
+  --confirm-paid-api \
+  --resume-run <run_public_id>
+```
+
 Rollback sequence:
 
 1. Restore prior `OPENAI_MODEL_*` values or remove candidate overrides.

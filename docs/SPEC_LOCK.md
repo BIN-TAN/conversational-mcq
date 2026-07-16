@@ -2895,6 +2895,29 @@ Phase 6A.5 must not implement:
 - Normal tests, dry runs, and reports must make no OpenAI call. Guarded live
   candidate evaluation must be skipped unless explicitly enabled with
   `RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1` and paid-call confirmation.
+- The full-v2 live candidate evaluator is an isolated synthetic evaluation
+  surface. It must use the explicit candidate manifest rather than the approved
+  baseline, Render's current active hash, browser runtime resolution, or real
+  assessment sessions. Evidence is stored under
+  `.data/operational-model-upgrade/runs/<run_public_id>/` with one case record
+  per fixed fixture, aggregate usage/latency/failure metrics, review status,
+  and approval eligibility. It must not mutate student, teacher, assessment, or
+  production workflow records.
+- Candidate evaluation is resumable with `--resume-run <run_public_id>`. A
+  resumed run must not repeat successful completed paid cases unless a future
+  explicit force path is added and documented.
+- The live-evaluation runner must enforce `RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1`,
+  `--confirm-paid-api`, an explicit candidate manifest, OpenAI live runtime,
+  configured server-side credential, fixed synthetic fixtures, and configured
+  budget ceilings before dispatching provider requests.
+- Candidate approval requires a completed candidate run, matching manifest hash,
+  matching candidate active configuration hash, all required fixtures executed,
+  no critical automated failure, exported human-review artifacts, explicit
+  human review confirmation, an approved human decision, and the exact approval
+  phrase. Approval must preserve the GPT-5.4-mini baseline and output the exact
+  `OPERATIONAL_APPROVED_CONFIG_HASH` value for manual Render rollout; it must
+  not auto-update `.env`, `.env.local`, Render variables, or the approved
+  baseline manifest.
 
 ## Phase 31AL Evidence-Integrated Profile And Routing Lock
 

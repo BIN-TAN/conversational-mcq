@@ -1,11 +1,20 @@
 import { loadEnvConfig } from "@next/env";
 import { buildOperationalModelUpgradeComparison } from "../src/lib/operational/model-upgrade";
+import {
+  buildModelUpgradeEvaluationPlan,
+  resolveModelUpgradeBudget
+} from "../src/lib/operational/model-upgrade-evaluation";
 import { candidateManifestArg } from "./operational-model-upgrade-cli-args";
 
 loadEnvConfig(process.cwd());
 
 const comparison = buildOperationalModelUpgradeComparison({
   manifestPath: candidateManifestArg()
+});
+const budget = resolveModelUpgradeBudget(process.env);
+const executionPlan = buildModelUpgradeEvaluationPlan({
+  manifestPath: candidateManifestArg(),
+  budget
 });
 console.log(JSON.stringify({
   status: "dry_run_complete",
@@ -23,5 +32,6 @@ console.log(JSON.stringify({
     compatibility_status: entry.compatibility_status,
     approval_boundary: entry.approval_boundary
   })),
+  live_evaluation_execution_plan: executionPlan,
   auto_approval_permitted: comparison.auto_approval_permitted
 }, null, 2));
