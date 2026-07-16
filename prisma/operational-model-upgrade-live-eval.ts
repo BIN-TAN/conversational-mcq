@@ -85,6 +85,10 @@ async function main() {
       run_public_id: run.run_public_id,
       candidate_manifest_hash: run.candidate_manifest_hash,
       candidate_active_configuration_hash: run.candidate_active_configuration_hash,
+      application_git_commit: run.application_git_commit,
+      artifact_persistence: run.artifact_persistence,
+      backup_command:
+        run.artifact_persistence.backup_command_template?.replaceAll("<run_public_id>", run.run_public_id) ?? null,
       review_command:
         `npm run operational:model-upgrade:review-export -- --candidate-run ${run.run_public_id}`,
       recommendation: run.recommendation,

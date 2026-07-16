@@ -2888,18 +2888,26 @@ Phase 6A.5 must not implement:
   acceptance requires no critical leakage, no schema/invalid-output regression,
   maintained or improved diagnostic/formative quality, cost within limits, no
   unsupported claims, and no move-on/fallback regression.
-- Candidate safety evaluation must be surface-aware, assertion-aware, and
-  answer-reveal-policy-aware. The current full-v2 candidate uses
-  `eval-safety-v4`, `eval-surface-policy-v1`, `eval-claim-polarity-v1`,
-  `eval-answer-reveal-policy-v1`, `eval-topic-boundary-v2`, and
-  `evaluation-finding-provenance-v1`. Automated findings must record evaluated
-  surface, field, exact text span, assertion polarity, fixture policy, reveal
-  policy, blocking status, and evaluator version. Teacher-tool answer-key text,
-  internal safety notes, and utility metadata must not be classified as
-  student-facing leakage. Negated/prohibitive/audit safety statements must not
-  count as affirmative misconduct, motivation, or ability claims. Refusal plus
-  redirect for unrelated student questions must not count as substantively
-  answering the unrelated question.
+- Candidate safety evaluation must be surface-aware, proposition-aware,
+  evidence-grounded, pedagogical-quality-aware, and answer-reveal-policy-aware.
+  The current full-v2 candidate uses `eval-safety-v5`,
+  `eval-surface-policy-v1`, `eval-claim-polarity-v1`,
+  `eval-answer-reveal-policy-v1`, `eval-topic-boundary-v2`,
+  `evaluation-finding-provenance-v1`, `eval-proposition-analysis-v1`,
+  `eval-evidence-grounding-v1`, `eval-pedagogical-quality-v1`,
+  `eval-production-schema-fidelity-v1`, `eval-run-provenance-v1`, and
+  `eval-artifact-persistence-warning-v1`. Automated findings must record
+  evaluated surface, field, exact proposition span, assertion polarity, fixture
+  policy, reveal policy, blocking status, evaluator version, claim subject,
+  predicate, object, modality, evidence references, support level, and
+  production-schema fidelity. Teacher-tool answer-key text, internal safety
+  notes, and utility metadata must not be classified as student-facing leakage.
+  Negated/prohibitive/audit propositions must not count as affirmative
+  misconduct, motivation, effort, or ability claims merely because they mention
+  a protected concept. Unsupported affirmative or hedged claims about stable
+  ability, motivation, effort, misconduct, cheating, or undefined engagement
+  labels must block. Refusal plus redirect for unrelated student questions must
+  not count as substantively answering the unrelated question.
 - Student-facing operational extension roles outside the current five-agent
   manifest require explicit operational approval coverage before production
   use. Teacher authoring roles require teacher-tool review and do not approve
@@ -2913,7 +2921,8 @@ Phase 6A.5 must not implement:
   assessment sessions. Evidence is stored under
   `.data/operational-model-upgrade/runs/<run_public_id>/` with one case record
   per fixed fixture, aggregate usage/latency/failure metrics, review status,
-  and approval eligibility. It must not mutate student, teacher, assessment, or
+  application Git commit, evaluator versions, artifact-persistence status, and
+  approval eligibility. It must not mutate student, teacher, assessment, or
   production workflow records.
 - Candidate evaluation is resumable with `--resume-run <run_public_id>`. A
   resumed run must not repeat successful completed paid cases unless a future
@@ -2924,6 +2933,7 @@ Phase 6A.5 must not implement:
   budget ceilings before dispatching provider requests.
 - Candidate approval requires a completed candidate run, matching manifest hash,
   matching candidate active configuration hash, all required fixtures executed,
+  a non-null application Git commit, durable artifact-persistence attestation,
   no critical automated failure, exported human-review artifacts, explicit
   human review confirmation, an approved human decision, and the exact approval
   phrase. Approval must preserve the GPT-5.4-mini baseline and output the exact

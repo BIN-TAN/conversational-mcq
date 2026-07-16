@@ -2348,21 +2348,30 @@ npm run operational:evaluation-surface-policy-smoke
 npm run operational:evaluation-claim-polarity-smoke
 npm run operational:evaluation-answer-reveal-smoke
 npm run operational:evaluation-topic-boundary-v2-smoke
+npm run operational:evaluation-proposition-analysis-smoke
+npm run operational:evaluation-evidence-grounding-smoke
+npm run operational:evaluation-pedagogical-quality-smoke
+npm run operational:evaluation-production-schema-fidelity-smoke
+npm run operational:evaluation-run-provenance-smoke
 npm run operational:model-upgrade-live-eval-runner-smoke
 npm run operational:model-upgrade-human-review-smoke
 npm run operational:model-upgrade-approval-evidence-smoke
 ```
 
-The full-v2 candidate evaluation uses the surface-aware safety policy
-`eval-safety-v4` plus `eval-surface-policy-v1`,
+The full-v2 candidate evaluation uses the proposition-aware safety policy
+`eval-safety-v5` plus `eval-surface-policy-v1`,
 `eval-claim-polarity-v1`, `eval-answer-reveal-policy-v1`,
-`eval-topic-boundary-v2`, and `evaluation-finding-provenance-v1`.
-Automated findings record the evaluated surface, field, exact span, assertion
-polarity, fixture policy, reveal policy, blocking status, and evaluator
-version. Teacher-tool answer-key references are not treated as student leakage,
-negated or prohibitive safety statements are not unsupported-claim failures,
-and unrelated-question refusals with redirects are not substantive off-topic
-answers.
+`eval-topic-boundary-v2`, `evaluation-finding-provenance-v1`,
+`eval-proposition-analysis-v1`, `eval-evidence-grounding-v1`,
+`eval-pedagogical-quality-v1`, `eval-production-schema-fidelity-v1`,
+`eval-run-provenance-v1`, and `eval-artifact-persistence-warning-v1`.
+Automated findings record the evaluated surface, field, exact proposition span,
+assertion polarity, fixture policy, reveal policy, blocking status, evaluator
+version, evidence support, and production-schema fidelity. Teacher-tool
+answer-key references are not treated as student leakage, negated or prohibitive
+safety propositions are not unsupported-claim failures, unsupported engagement
+labels are blocked unless defined and evidenced, and unrelated-question refusals
+with redirects are not substantive off-topic answers.
 
 Run the same no-live commands against the full-v2 candidate with:
 
@@ -2411,8 +2420,13 @@ Budget ceilings are read from `OPERATIONAL_MODEL_UPGRADE_EVAL_MAX_CALLS`,
 `OPERATIONAL_MODEL_UPGRADE_EVAL_MAX_REASONING_TOKENS`,
 `OPERATIONAL_MODEL_UPGRADE_EVAL_BUDGET_USD`, and
 `OPERATIONAL_MODEL_UPGRADE_EVAL_CONCURRENCY`. The dry-run and live command print
-the execution plan before any provider call. Monetary cost is not invented when
-pricing metadata is unavailable.
+the execution plan before any provider call, including the application Git
+commit and evaluator versions. Monetary cost is not invented when pricing
+metadata is unavailable. Set
+`OPERATIONAL_MODEL_UPGRADE_ARTIFACT_PERSISTENCE_VERIFIED=1` only when the run
+artifact destination is on a durable mount suitable for production approval
+evidence; otherwise the live runner warns and the approval command blocks with
+`artifact_persistence_not_verified`.
 
 After the live run, export and record human review:
 

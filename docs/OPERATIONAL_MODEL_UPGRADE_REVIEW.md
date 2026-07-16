@@ -15,6 +15,11 @@ npm run operational:model-upgrade:report -- --manifest config/candidate-operatio
 npm run operational:model-upgrade-live-eval-runner-smoke
 npm run operational:model-upgrade-human-review-smoke
 npm run operational:model-upgrade-approval-evidence-smoke
+npm run operational:evaluation-proposition-analysis-smoke
+npm run operational:evaluation-evidence-grounding-smoke
+npm run operational:evaluation-pedagogical-quality-smoke
+npm run operational:evaluation-production-schema-fidelity-smoke
+npm run operational:evaluation-run-provenance-smoke
 ```
 
 These commands make no OpenAI calls.
@@ -33,7 +38,8 @@ npm run operational:model-upgrade:live-eval -- \
 The runner prints an execution plan before the first provider call. The plan
 includes the candidate manifest, active candidate hash, fixed fixture count,
 role-to-model mapping, token ceilings, call ceiling, concurrency, persistence
-destination, and review requirement.
+destination, application Git commit, evaluator versions, artifact-persistence
+warning, and review requirement.
 
 Budget variables:
 
@@ -44,10 +50,17 @@ OPERATIONAL_MODEL_UPGRADE_EVAL_MAX_OUTPUT_TOKENS
 OPERATIONAL_MODEL_UPGRADE_EVAL_MAX_REASONING_TOKENS
 OPERATIONAL_MODEL_UPGRADE_EVAL_BUDGET_USD
 OPERATIONAL_MODEL_UPGRADE_EVAL_CONCURRENCY
+OPERATIONAL_MODEL_UPGRADE_ARTIFACT_PERSISTENCE_VERIFIED
 ```
 
 When pricing metadata is unavailable, the runner reports token usage and does
 not invent a dollar cost.
+
+`OPERATIONAL_MODEL_UPGRADE_ARTIFACT_PERSISTENCE_VERIFIED=1` is an operator
+attestation that the run artifact destination is on a durable mount suitable for
+production approval evidence. If it is not set, local development runs are still
+allowed, but the live runner warns before dispatch and the approval command
+blocks with `artifact_persistence_not_verified`.
 
 ## Resume
 
@@ -97,7 +110,7 @@ Approval remains separate from evaluation and review:
 npm run operational:model-upgrade:approve -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
   --candidate-run <run_public_id> \
-  --expected-hash e59f4c6b96c85afa9365043e5bdb0cf3fbc82f5dc94522608e6208c9ee3aa01b \
+  --expected-hash d3875bcf9568f25271261c46c9ab291d856efc8620c31fba12ed6adb6eb53f41 \
   --confirm "approve gpt-5.6 full operational candidate v2"
 ```
 
@@ -105,19 +118,33 @@ The command writes approval evidence under the run artifact directory and prints
 the exact `OPERATIONAL_APPROVED_CONFIG_HASH` value. The operator must apply
 that value manually in Render after approval planning.
 
-## Surface-Aware Automated Evaluation
+## Proposition-Aware Automated Evaluation
 
-The current full-v2 candidate uses `eval-safety-v4` with
+The current full-v2 candidate uses `eval-safety-v5` with
 `eval-surface-policy-v1`, `eval-claim-polarity-v1`,
 `eval-answer-reveal-policy-v1`, `eval-topic-boundary-v2`, and
-`evaluation-finding-provenance-v1`. Automated findings must identify the
-evaluated surface, field, exact text span, assertion polarity, fixture policy,
-reveal policy, blocking status, and evaluator version. Teacher-tool answer-key
-text, internal safety notes, and utility metadata are not evaluated as rendered
-student content. Student answer-key checks are reveal-policy aware, unsupported
-claim checks distinguish affirmative claims from negations/prohibitions/audit
-statements, and off-topic topic-dialogue checks distinguish a substantive
-unrelated answer from a refusal plus redirect.
+`evaluation-finding-provenance-v1`, plus `eval-proposition-analysis-v1`,
+`eval-evidence-grounding-v1`, `eval-pedagogical-quality-v1`,
+`eval-production-schema-fidelity-v1`, `eval-run-provenance-v1`, and
+`eval-artifact-persistence-warning-v1`. Automated findings must identify the
+evaluated surface, field, exact text span, proposition polarity, fixture policy,
+reveal policy, blocking status, evaluator version, evidence support level, and
+production-schema fidelity. Teacher-tool answer-key text, internal safety notes,
+and utility metadata are not evaluated as rendered student content. Student
+answer-key checks are reveal-policy aware, unsupported claim checks evaluate
+complete propositions instead of isolated protected phrases, and off-topic
+topic-dialogue checks distinguish a substantive unrelated answer from a refusal
+plus redirect.
+
+The evaluator records structured claims with subject, predicate, object,
+polarity, modality, epistemic strength, source field, evidence references, and
+whether the claim converts behavior into a latent trait. Unsupported affirmative
+claims about stable ability, motivation, effort, misconduct, or cheating block.
+Negated or prohibitive propositions such as "not evidence of low ability" do
+not block merely because they mention the protected concept. Unsupported
+engagement labels require a defined construct, explicit indicators, scoring
+rule, and traceable evidence; otherwise observable process descriptions are
+preferred.
 
 ## Rollback
 

@@ -1,5 +1,5 @@
 {
-  "manifest_version": "phase31ar-gpt-5.6-full-v2-candidate-v2",
+  "manifest_version": "phase31as-gpt-5.6-full-v2-candidate-v3",
   "approval_state": "candidate_not_approved",
   "baseline_manifest_path": "config/approved-operational-agent-config.json",
   "candidate_profile_name": "gpt-5.6 full operational candidate v2",
@@ -114,7 +114,7 @@
     "approved_baseline_config_hash": "3040d13fbe5dae09cc8734dd3c638b223c5d40234b3e79132367bd173853548f",
     "approved_baseline_active_configuration_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
     "semantic_validator_version": "eval-semantic-v3",
-    "safety_validator_version": "eval-safety-v4",
+    "safety_validator_version": "eval-safety-v5",
     "effective_result_version": "effective-system-eval-v2",
     "effective_validator_version": "effective-validator-v1",
     "deterministic_guard_versions": {
@@ -125,7 +125,13 @@
       "evaluation_surface_policy": "eval-surface-policy-v1",
       "evaluation_claim_polarity": "eval-claim-polarity-v1",
       "evaluation_answer_reveal_policy": "eval-answer-reveal-policy-v1",
-      "evaluation_finding_provenance": "evaluation-finding-provenance-v1"
+      "evaluation_finding_provenance": "evaluation-finding-provenance-v1",
+      "evaluation_proposition_analysis": "eval-proposition-analysis-v1",
+      "evaluation_evidence_grounding": "eval-evidence-grounding-v1",
+      "evaluation_pedagogical_quality": "eval-pedagogical-quality-v1",
+      "evaluation_production_schema_fidelity": "eval-production-schema-fidelity-v1",
+      "evaluation_run_provenance": "eval-run-provenance-v1",
+      "evaluation_artifact_persistence": "eval-artifact-persistence-warning-v1"
     },
     "canonicalization_versions": {
       "response_collection": "response-collection-canonical-v1",
@@ -157,7 +163,7 @@
         "prompt_hash": "1befb1898538f5894a564eb65e4c905a5e19e91244d2caf1b8ed3b10e5f343ab",
         "schema_version": "item-verification-output-v2",
         "validator_version": "eval-semantic-v3",
-        "safety_validator_version": "eval-safety-v4",
+        "safety_validator_version": "eval-safety-v5",
         "deterministic_guard_version": "item-verification-deterministic-duplicates-v1",
         "fallback_version": "item-verification-deterministic-fallback-v1"
       },
@@ -173,7 +179,7 @@
         "prompt_hash": "dfb166feca80bb85d33302a266ba96a8fe2824a80ac308375453bc20733430e6",
         "schema_version": "response-collection-output-v3",
         "validator_version": "eval-semantic-v3",
-        "safety_validator_version": "eval-safety-v4",
+        "safety_validator_version": "eval-safety-v5",
         "deterministic_guard_version": "response-collection-backend-controls-v1",
         "canonicalization_version": "response-collection-canonical-v1",
         "fallback_version": "response-collection-fallback-v1"
@@ -183,7 +189,7 @@
         "prompt_hash": "9d2f95916a12c932041a02d6dec359ccf6a9881ef1d5f862f6986e2aafc5481c",
         "schema_version": "student-profile-output-v2",
         "validator_version": "eval-semantic-v3",
-        "safety_validator_version": "eval-safety-v4",
+        "safety_validator_version": "eval-safety-v5",
         "canonicalization_version": "student-profiling-canonical-v1",
         "fallback_version": "student-profiling-deterministic-fallback-v1"
       },
@@ -200,7 +206,7 @@
         "prompt_hash": "7017e3ad803495b6ff82316e71ad91bb50a94e432baead99d2863ff230eab818",
         "schema_version": "formative-planning-output-v1",
         "validator_version": "eval-semantic-v3",
-        "safety_validator_version": "eval-safety-v4",
+        "safety_validator_version": "eval-safety-v5",
         "canonicalization_version": "formative-planning-canonical-v1",
         "fallback_version": "formative-planning-deterministic-fallback-v1"
       },
@@ -217,7 +223,7 @@
         "prompt_hash": "7cb5774c48bc03753795dae5e92d62a7face61e6f0b7dbb1f7323043c50e807d",
         "schema_version": "followup-output-v4",
         "validator_version": "eval-semantic-v3",
-        "safety_validator_version": "eval-safety-v4",
+        "safety_validator_version": "eval-safety-v5",
         "canonicalization_version": "followup-canonical-v1",
         "fallback_version": "followup-safe-fallback-v1"
       },
@@ -256,7 +262,7 @@
         "input_schema_version": "student-communication-input-v1",
         "output_schema_version": "student-communication-output-v1",
         "validator_version": "student-communication-fact-lock-validator-v1",
-        "safety_validator_version": "eval-safety-v4",
+        "safety_validator_version": "eval-safety-v5",
         "fallback_version": "student-communication-deterministic-fallback-v1"
       },
       "topic_dialogue_agent": {

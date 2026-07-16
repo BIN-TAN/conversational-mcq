@@ -33,7 +33,7 @@ function main() {
   const blocked = evaluateCandidateOutputPolicy(output("The student is unmotivated."), claimFixture);
   assert(blocked.unsupported_claims.length === 1, "Affirmative unsupported motivation claim should be blocked.");
   assert(blocked.safety_finding_details[0]?.assertion_polarity === "affirmative", "Blocked claim should record affirmative polarity.");
-  assert(blocked.safety_finding_details[0]?.exact_text_span.toLowerCase() === "unmotivated", "Blocked claim should record exact span.");
+  assert(blocked.safety_finding_details[0]?.exact_text_span.toLowerCase() === "the student is unmotivated.", "Blocked claim should record the full proposition.");
 
   const negated = evaluateCandidateOutputPolicy(output("No inference about motivation is warranted."), claimFixture);
   assert(negated.unsupported_claims.length === 0, "Negated motivation statement should be allowed.");

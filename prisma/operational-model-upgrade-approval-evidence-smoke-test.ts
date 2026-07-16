@@ -15,6 +15,8 @@ import { FakeCandidateEvaluationProvider, assert } from "./operational-model-upg
 loadEnvConfig(process.cwd());
 
 async function main() {
+  const previousPersistence = process.env.OPERATIONAL_MODEL_UPGRADE_ARTIFACT_PERSISTENCE_VERIFIED;
+  process.env.OPERATIONAL_MODEL_UPGRADE_ARTIFACT_PERSISTENCE_VERIFIED = "1";
   const comparison = buildOperationalModelUpgradeComparison({
     manifestPath: FULL_GPT56_V2_CANDIDATE_CONFIG_PATH
   });
@@ -83,9 +85,16 @@ async function main() {
     exact_operational_approved_config_hash: approved.exact_operational_approved_config_hash,
     rollback_hash: approved.rollback_hash
   }, null, 2));
+
+  if (previousPersistence === undefined) {
+    delete process.env.OPERATIONAL_MODEL_UPGRADE_ARTIFACT_PERSISTENCE_VERIFIED;
+  } else {
+    process.env.OPERATIONAL_MODEL_UPGRADE_ARTIFACT_PERSISTENCE_VERIFIED = previousPersistence;
+  }
 }
 
 main().catch((error) => {
+  delete process.env.OPERATIONAL_MODEL_UPGRADE_ARTIFACT_PERSISTENCE_VERIFIED;
   console.error(error);
   process.exit(1);
 });

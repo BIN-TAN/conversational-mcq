@@ -322,6 +322,9 @@ export function buildOperationalModelUpgradeComparison(options: ModelUpgradeComp
       ],
       diagnostic_quality: [
         "evidence_traceability",
+        "claim_to_evidence_support_level",
+        "observable_vs_latent_inference_separation",
+        "pedagogical_quality_finding_count",
         "unsupported_claim_rate",
         "distractor_use_quality",
         "uncertainty_calibration"
@@ -330,7 +333,8 @@ export function buildOperationalModelUpgradeComparison(options: ModelUpgradeComp
         "answer_key_leakage_count",
         "hidden_prompt_leakage_count",
         "teacher_note_leakage_count",
-        "unsupported_misconduct_or_ability_claim_count"
+        "unsupported_misconduct_motivation_effort_or_ability_claim_count",
+        "unsupported_engagement_construct_claim_count"
       ],
       operational: [
         "latency_ms",

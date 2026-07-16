@@ -189,8 +189,8 @@ function main() {
     "Semantic validator version should match the approved baseline."
   );
   assert(
-    fullV2.configuration_fingerprint?.safety_validator_version === "eval-safety-v4",
-    "Full v2 candidate should use the surface-aware safety evaluator version."
+    fullV2.configuration_fingerprint?.safety_validator_version === "eval-safety-v5",
+    "Full v2 candidate should use the proposition-aware safety evaluator version."
   );
   assert(
     fullV2.configuration_fingerprint?.deterministic_guard_versions.topic_dialogue_boundary === "eval-topic-boundary-v2",
@@ -207,6 +207,26 @@ function main() {
   assert(
     fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_answer_reveal_policy === "eval-answer-reveal-policy-v1",
     "Full v2 candidate should fingerprint answer-reveal evaluation policy."
+  );
+  assert(
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_proposition_analysis === "eval-proposition-analysis-v1",
+    "Full v2 candidate should fingerprint proposition-level claim analysis."
+  );
+  assert(
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_evidence_grounding === "eval-evidence-grounding-v1",
+    "Full v2 candidate should fingerprint evidence-grounding evaluation."
+  );
+  assert(
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_pedagogical_quality === "eval-pedagogical-quality-v1",
+    "Full v2 candidate should fingerprint pedagogical-quality evaluation."
+  );
+  assert(
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_production_schema_fidelity === "eval-production-schema-fidelity-v1",
+    "Full v2 candidate should fingerprint production-schema fidelity evaluation."
+  );
+  assert(
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_run_provenance === "eval-run-provenance-v1",
+    "Full v2 candidate should fingerprint run-provenance evaluation."
   );
 
   for (const role of liveModelRoles) {
