@@ -20,15 +20,19 @@ import type {
 
 function availabilityLabel(assessment: AvailableAssessment) {
   if (assessment.can_resume) {
-    return "Resume available";
+    return "Assessment in progress";
   }
 
   if (assessment.availability_status === "completed" && assessment.can_start) {
-    return "New attempt available";
+    return "Assessment completed";
   }
 
   if (assessment.availability_status === "completed") {
-    return "Completed";
+    return "Assessment completed";
+  }
+
+  if (assessment.availability_status === "ended") {
+    return "Assessment ended";
   }
 
   if (assessment.can_start) {
@@ -64,13 +68,7 @@ function statusClass(assessment: AvailableAssessment) {
 
 function attemptCardSummary(assessment: AvailableAssessment) {
   if (assessment.existing_attempt_number && assessment.existing_session_status) {
-    const status =
-      assessment.existing_session_status === "paused"
-        ? "paused"
-        : assessment.existing_session_status === "active"
-          ? "in progress"
-          : assessment.existing_session_status;
-    return `Attempt ${assessment.existing_attempt_number} ${status}`;
+    return "Assessment in progress";
   }
 
   const attemptsUsed = assessment.attempt_policy?.attempts_used ?? 0;
@@ -78,12 +76,15 @@ function attemptCardSummary(assessment: AvailableAssessment) {
     return "No attempts yet";
   }
 
-  const previousLabel = attemptsUsed === 1 ? "previous attempt" : "previous attempts";
-  if (assessment.can_start) {
-    return `${attemptsUsed} ${previousLabel}. Next attempt: ${attemptsUsed + 1}`;
+  if (assessment.availability_status === "completed") {
+    return "You finished this assessment.";
   }
 
-  return `${attemptsUsed} ${previousLabel}`;
+  if (assessment.availability_status === "ended") {
+    return "Assessment ended.";
+  }
+
+  return null;
 }
 
 export function AvailableAssessmentsClient({ userId }: { userId: string }) {
@@ -163,9 +164,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
       return;
     }
 
-    const confirmed = window.confirm(
-      "End this attempt?\n\nYour responses so far will be saved, but you will not be able to resume this attempt. You may start another attempt only if the assessment's attempt policy allows it."
-    );
+    const confirmed = window.confirm("End the assessment?\n\nThis will end the current assessment conversation.");
 
     if (!confirmed) {
       return;
@@ -289,7 +288,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
               const canStartNew = assessment.can_start && !canOpen;
               const startLabel =
                 assessment.latest_terminal_attempt_number || assessment.latest_completed_attempt_number
-                  ? "Start new attempt"
+                  ? "Start another attempt"
                   : "Start assessment";
 
               return (
@@ -312,21 +311,12 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                           {assessment.description}
                         </p>
                       ) : null}
-                      {assessment.existing_session_status ? (
-                        <p className="mt-3 text-xs uppercase tracking-wide text-muted">
-                          Current attempt {assessment.existing_attempt_number ?? ""} status:{" "}
-                          {assessment.existing_session_status}
-                        </p>
-                      ) : null}
-                      {!assessment.existing_session_status && assessment.latest_completed_attempt_number ? (
-                        <p className="mt-3 text-xs uppercase tracking-wide text-muted">
-                          Latest completed attempt: {assessment.latest_completed_attempt_number}
-                        </p>
-                      ) : null}
                       <p className="mt-3 text-sm leading-6 text-muted">
-                        {assessment.student_safe_availability_message}
+                        {assessment.availability_status === "completed"
+                          ? "You finished this assessment."
+                          : assessment.student_safe_availability_message}
                       </p>
-                      {assessment.attempt_policy ? (
+                      {assessment.attempt_policy && attemptCardSummary(assessment) ? (
                         <p className="mt-1 text-xs text-muted">
                           {attemptCardSummary(assessment)}
                         </p>
@@ -367,16 +357,16 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                             ) : (
                               <Play className="h-4 w-4" aria-hidden="true" />
                             )}
-                            Resume attempt
+                            Resume assessment
                           </button>
                           <button
                             className="inline-flex h-10 items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:cursor-not-allowed disabled:opacity-60"
                             data-testid={`end-current-attempt-${assessment.assessment_public_id}`}
                             disabled={isBusy || !assessment.attempt_policy?.student_may_end_attempt}
-                            onClick={() => void handleEndCurrentAttempt(assessment)}
-                            type="button"
-                          >
-                            End current attempt
+                          onClick={() => void handleEndCurrentAttempt(assessment)}
+                          type="button"
+                        >
+                            End current assessment
                           </button>
                         </>
                       ) : null}
@@ -387,7 +377,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                           type="button"
                         >
                           {assessment.availability_status === "completed"
-                            ? "Completed"
+                            ? "Assessment completed"
                             : "Unavailable"}
                         </button>
                       ) : null}

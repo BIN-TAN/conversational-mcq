@@ -1497,78 +1497,71 @@ function NextChoiceControls({
   );
 }
 
-function LearningProfilePanel({
-  profile,
+function PackageResultsChatCard({
   packageResults
 }: {
-  profile: StudentSessionState["learning_profile"] | null | undefined;
   packageResults?: StudentSessionState["package_results"] | null;
 }) {
-  if (!profile && !packageResults) {
-    return null;
-  }
-
   if (!packageResults) {
     return null;
   }
 
   return (
-    <aside
-      className="lg:sticky lg:top-4 lg:self-start"
-      data-testid="student-learning-profile-panel"
-    >
-      <details className="rounded-2xl border border-line bg-white/85 px-4 py-3 shadow-sm" open>
+    <AgentMessage>
+      <details
+        className="rounded-xl border border-line bg-[#fbfcfa] px-3 py-3"
+        data-testid="package-results-chat-card"
+        open
+      >
         <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-accent-soft">
-          Initial results
+          Review your answers
         </summary>
         <div className="mt-3 rounded-xl bg-[#f7f9f6] px-3 py-3 text-sm leading-5 text-ink">
-          {packageResults ? (
-            <div data-testid="package-results-summary">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Total correct</p>
-              <p className="mt-1 font-semibold text-ink">{packageResults.result_summary}</p>
-              <div className="mt-3 space-y-2" data-testid="initial-answer-review-list">
-                {packageResults.items.map((item) => (
-                  <details
-                    key={item.item_public_id}
-                    className="rounded-xl border border-line bg-white px-3 py-2"
-                    data-testid="initial-answer-review-item"
-                    open
-                  >
-                    <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-accent-soft">
-                      Item {item.item_position ?? "?"} — {item.status_label}
-                    </summary>
-                    <div className="mt-2 space-y-1 text-sm text-muted">
+          <div data-testid="package-results-summary">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Total correct</p>
+            <p className="mt-1 font-semibold text-ink">{packageResults.result_summary}</p>
+            <div className="mt-3 space-y-2" data-testid="initial-answer-review-list">
+              {packageResults.items.map((item) => (
+                <details
+                  key={item.item_public_id}
+                  className="rounded-xl border border-line bg-white px-3 py-2"
+                  data-testid="initial-answer-review-item"
+                  open
+                >
+                  <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-accent-soft">
+                    Item {item.item_position ?? "?"} — {item.status_label}
+                  </summary>
+                  <div className="mt-2 space-y-1 text-sm text-muted">
+                    <p>
+                      <span className="font-semibold text-ink">Your answer:</span>{" "}
+                      {item.student_answer ?? item.selected_option ?? "No answer recorded"}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-ink">Correct answer:</span>{" "}
+                      {item.answer_revealed && item.revealed_answer
+                        ? item.revealed_answer
+                        : "Not shown"}
+                    </p>
+                    {item.answer_explanation_revealed && item.answer_explanation ? (
                       <p>
-                        <span className="font-semibold text-ink">Your answer:</span>{" "}
-                        {item.student_answer ?? item.selected_option ?? "No answer recorded"}
+                        <span className="font-semibold text-ink">Why:</span>{" "}
+                        {item.answer_explanation}
                       </p>
+                    ) : null}
+                    {item.distractor_boundary ? (
                       <p>
-                        <span className="font-semibold text-ink">Correct answer:</span>{" "}
-                        {item.answer_revealed && item.revealed_answer
-                          ? item.revealed_answer
-                          : "Not shown"}
+                        <span className="font-semibold text-ink">Boundary to notice:</span>{" "}
+                        {item.distractor_boundary}
                       </p>
-                      {item.answer_explanation_revealed && item.answer_explanation ? (
-                        <p>
-                          <span className="font-semibold text-ink">Why:</span>{" "}
-                          {item.answer_explanation}
-                        </p>
-                      ) : null}
-                      {item.distractor_boundary ? (
-                        <p>
-                          <span className="font-semibold text-ink">Boundary to notice:</span>{" "}
-                          {item.distractor_boundary}
-                        </p>
-                      ) : null}
-                    </div>
-                  </details>
-                ))}
-              </div>
+                    ) : null}
+                  </div>
+                </details>
+              ))}
             </div>
-          ) : null}
+          </div>
         </div>
       </details>
-    </aside>
+    </AgentMessage>
   );
 }
 
@@ -2934,7 +2927,7 @@ export function AssessmentSessionClient({
       onExit={() => void handleExit()}
       state={state}
     >
-      <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <div className="flex flex-1">
         <ChatTranscript>
           <ErrorNotice error={error} />
           {failedAction ? (
@@ -2951,6 +2944,9 @@ export function AssessmentSessionClient({
           {visibleTranscript.map((entry) => (
             <ChatBubble entry={entry} key={`${entry.created_at}-${entry.actor}-${entry.message_text}`} />
           ))}
+          {shouldShowLearningProfile(state) ? (
+            <PackageResultsChatCard packageResults={state.package_results} />
+          ) : null}
           {activePrompt}
           {isBusy ? (
             <div className="flex justify-start">
@@ -2962,12 +2958,6 @@ export function AssessmentSessionClient({
           ) : null}
           <div ref={scrollRef} />
         </ChatTranscript>
-        {shouldShowLearningProfile(state) ? (
-          <LearningProfilePanel
-            packageResults={state.package_results}
-            profile={state.learning_profile}
-          />
-        ) : null}
       </div>
       {endAssessmentDialogOpen ? (
         <div
@@ -2982,7 +2972,7 @@ export function AssessmentSessionClient({
               End the assessment?
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted">
-              This will end the assessment now. You will not complete another activity or transfer item in this attempt.
+              This will end the current assessment conversation.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button

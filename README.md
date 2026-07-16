@@ -2372,14 +2372,14 @@ confidence interpretation, evidence limitations, growth target, answer-reveal
 policy, activity type, source item or option, expected response mode, or runtime
 state.
 
-Runtime remains deterministic unless the communication agent is separately
-evaluated and approved. Current output uses
-`StudentCommunicationInputV1`, `StudentCommunicationOutputV1`, fact-lock
-validators, banned-language scanning, and a deterministic fallback marked
-`fallback_used=true`, `live_generation_approved=false`. The fallback removes
-internal field names such as `selected_option`, `scored_outcome`, and
-`tempting_option_unavailable` from student-facing package feedback while
-preserving audit evidence internally.
+Phase 31ap adds a default-off live provider path for this role. When global LLM
+live calls and `STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED=true` are explicitly
+configured, the backend may call the server-side OpenAI Responses API with
+Structured Outputs and `store:false`. Output still passes fact-lock validators
+and student-language scanning before it is persisted or shown. If readiness,
+provider execution, schema validation, fact locks, or language checks fail, the
+system records a typed fallback and uses bounded deterministic wording instead
+of treating fallback output as successful live communication.
 
 Optional server-only variables for a future approved live candidate are:
 
@@ -2387,44 +2387,55 @@ Optional server-only variables for a future approved live candidate are:
 OPENAI_MODEL_STUDENT_COMMUNICATION
 OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION
 OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION
+STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED
 ```
 
 Candidate values after evaluation approval are `gpt-5.6-terra`, `low`, and
-`1600`. Setting these variables before approval changes the operational
+`2500`. Setting these variables before approval changes the operational
 extension hash/readiness state but does not by itself approve live production
 use. The no-live checks are:
 
 ```bash
 npm run student:student-communication-agent-smoke
 npm run student:student-communication-language-smoke
+npm run student:student-communication-live-smoke
 ```
 
 ## Bounded Topic-Centered Dialogue
 
-Phase 31ao keeps the package-feedback narrative in the tutor chat and removes
-duplicative profile prose from the student sidebar. The sidebar remains a
-compact reference area for Initial results, total correct, administered item
-answer reviews, and current progress.
+Phase 31ap keeps the package-feedback narrative in the tutor chat and removes
+the persistent right-side student profile/results panel. Administered item
+answer review appears once as a tutor-chat card titled `Review your answers`.
 
 After a formative activity response, the backend creates a
 `PostActivityLearningDecisionV1`. Responses that are ready to advance show only
 valid progression choices. Partial, misconception, foundational, or
 insufficient-evidence responses enter a bounded `topic_dialogue_agent` loop tied
 to the current topic, concept, administered items, growth target, and activity
-response. The default cap is three student turns with a six-turn recent context
-window. Unrelated questions are redirected, and the browser never calls OpenAI
-directly.
+response. The default cap is eight student turns with a twelve-turn recent
+context window and a 5000-character message limit. Short messages such as
+`what` or `about what` are valid clarification requests. Unrelated questions are
+redirected, and the browser never calls OpenAI directly.
 
-Current Phase 31ao runtime uses deterministic bounded dialogue output only. Live
-topic-dialogue or student-communication models require separate evaluation,
-human review, manifest/hash approval, and explicit guarded-live configuration.
+Phase 31ap adds a default-off live provider path for topic dialogue. When global
+LLM live calls and `TOPIC_DIALOGUE_LIVE_CALLS_ENABLED=true` are explicitly
+configured, each genuinely new topic-dialogue student message may dispatch one
+server-side Structured Outputs call. Refresh, resume, and idempotent replay reuse
+persisted records and do not call the provider. Deterministic bounded dialogue
+remains the provider-failure/readiness-failure fallback, not the normal live
+success path.
 No-live checks:
 
 ```bash
+npm run student:assessment-completed-card-smoke
+npm run student:chat-native-results-smoke
 npm run student:student-narrative-dedup-smoke
 npm run student:student-narrative-language-smoke
 npm run student:post-activity-adaptive-routing-smoke
 npm run student:topic-centered-dialogue-smoke
 npm run student:topic-dialogue-idempotency-smoke
 npm run student:topic-dialogue-boundary-smoke
+npm run student:topic-dialogue-clarification-smoke
+npm run student:student-visible-id-leakage-smoke
+npm run student:topic-dialogue-live-smoke
 ```

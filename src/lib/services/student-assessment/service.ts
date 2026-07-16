@@ -6833,13 +6833,18 @@ function studentTranscriptMessage(input: {
     confidence_rating: string | null;
   } | null;
 }) {
+  const sanitizeVisibleText = (value: string) =>
+    value
+      .replace(/\bItem\s+(?:item|sess|asmt|usr|run|td|olcr|evr|review|cu|pkg)_[a-z0-9][a-z0-9_-]*\b/giu, "this item")
+      .replace(/\b(?:item|sess|asmt|usr|run|td|olcr|evr|review|cu|pkg)_[a-z0-9][a-z0-9_-]*\b/giu, "this item")
+      .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/giu, "this record");
   const editedFallback = studentTranscriptEditFallbackMessage(input);
   if (editedFallback) {
-    return editedFallback;
+    return sanitizeVisibleText(editedFallback);
   }
 
   if (input.message_text) {
-    return input.message_text;
+    return sanitizeVisibleText(input.message_text);
   }
 
   if (!input.structured_payload || typeof input.structured_payload !== "object") {
@@ -6869,13 +6874,29 @@ function studentTranscriptInteractionType(input: {
   message_text: string | null;
   structured_payload: unknown;
 }) {
-  if (input.phase === "planning_completed") {
-    return input.actor_type === "agent" ? "formative_activity" : "formative_activity_response";
-  }
-
   const source = conversationPayloadSource(input.structured_payload);
   const messageType = conversationPayloadMessageType(input.structured_payload);
   const promptType = conversationPayloadPromptType(input.structured_payload);
+
+  if (messageType === "topic_dialogue_student") {
+    return "topic_dialogue_student";
+  }
+
+  if (messageType === "topic_dialogue_tutor") {
+    return "topic_dialogue_tutor";
+  }
+
+  if (messageType === "package_feedback") {
+    return "package_feedback";
+  }
+
+  if (messageType === "next_interaction") {
+    return "formative_activity";
+  }
+
+  if (input.phase === "planning_completed") {
+    return input.actor_type === "agent" ? "formative_activity" : "formative_activity_response";
+  }
 
   if (input.phase === "followup_active" && source === "chat_native_targeted_feedback") {
     return conversationPromptRequiresStudentResponse(input.structured_payload)
@@ -6986,6 +7007,8 @@ export async function getStudentSafeTranscript(input: {
         { agent_name: "deterministic_response_collection_fallback" },
         { agent_name: INITIAL_ADMIN_AGENT_NAME },
         { agent_name: "chat_native_formative_activity" },
+        { agent_name: "student_communication_agent" },
+        { agent_name: "topic_dialogue_agent" },
         {
           actor_type: "student",
           phase: "planning_completed"

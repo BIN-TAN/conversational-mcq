@@ -1411,6 +1411,60 @@ export function buildEvidenceIntegratedProfileBundle(input: {
   };
 }
 
+export function applyStudentCommunicationToEvidenceBundle(input: {
+  bundle: EvidenceIntegrationBundleV2;
+  student_communication: StudentCommunicationBundleV1;
+}): EvidenceIntegrationBundleV2 {
+  const communicationInput = input.student_communication.input;
+  const communicationOutput = input.student_communication.output;
+  const profile = {
+    ...input.bundle.profile,
+    student_safe_summary: {
+      ...input.bundle.profile.student_safe_summary,
+      understanding_label: communicationInput.validated_understanding_summary.student_label,
+      reasoning_label: communicationInput.validated_reasoning_summary.student_label,
+      confidence_label: communicationInput.validated_confidence_summary.student_label,
+      next_focus: communicationInput.validated_growth_target.student_facing_text
+    }
+  };
+  const feedback = {
+    ...input.bundle.feedback,
+    result_summary: communicationOutput.package_feedback_narrative,
+    strengths: [communicationInput.validated_reasoning_summary.student_label],
+    cross_item_pattern: communicationInput.validated_understanding_summary.student_label,
+    confidence_comment: communicationInput.validated_confidence_summary.student_label,
+    evidence_limitation: communicationInput.validated_evidence_limitations[0] ?? null
+  };
+  const nextInteraction = {
+    ...input.bundle.next_interaction,
+    prompt: [
+      communicationOutput.activity_transition,
+      communicationOutput.activity_prompt
+    ].join("\n\n")
+  };
+  const validators = {
+    ...input.bundle.validators,
+    student_communication_fact_lock:
+      communicationValidationToResult(input.student_communication.fact_validation),
+    student_communication_language:
+      communicationValidationToResult(input.student_communication.language_validation)
+  };
+
+  return {
+    ...input.bundle,
+    profile,
+    feedback,
+    next_interaction: nextInteraction,
+    student_communication: input.student_communication,
+    validators,
+    effective_evidence_package_hash: hashEvidenceIntegrationValue({
+      profile,
+      feedback,
+      next_interaction: nextInteraction
+    })
+  };
+}
+
 function routeNextInteraction(input: {
   profile: EvidenceIntegratedProfileV2;
   response_package_payload: PackagePayload;

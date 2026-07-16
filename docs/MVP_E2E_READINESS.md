@@ -192,19 +192,20 @@ If a schema-shaped live output fails only because it contains remediable directi
 After profile/routing facts are frozen, the system builds a
 `student-communication-input-v1` packet and validates a
 `student-communication-output-v1` response against fact-lock and
-student-language rules. In the current no-live MVP path, this uses the
-deterministic `student-communication-deterministic-fallback-v1`; it removes
-internal field names from student-facing summaries and makes activity prompts
-name the source item and option where relevant. The optional future live role is
-`student_communication_agent`, but production live use remains blocked until
-synthetic evaluation, explicit approval, and a matching approved configuration
-hash are completed.
+student-language rules. Phase 31ap adds a default-off live path for
+`student_communication_agent`; live use still requires explicit role/global LLM
+configuration and must pass fact-lock and language validation before output is
+shown. When live readiness is disabled or validation fails, the deterministic
+`student-communication-deterministic-fallback-v1` removes internal field names
+from student-facing summaries and makes activity prompts name the source item
+and option where relevant.
 
 No-live verification:
 
 ```bash
 npm run student:student-communication-agent-smoke
 npm run student:student-communication-language-smoke
+npm run student:student-communication-live-smoke
 ```
 
 ## Formative Value Determination Packet
@@ -931,3 +932,48 @@ Operator docs:
 
 - `docs/RENDER_STAGING_DEPLOYMENT_RUNBOOK.md`
 - `docs/POST_DEPLOYMENT_CLASSROOM_DRY_RUN.md`
+
+## Phase 31ap Live Student Dialogue Readiness
+
+Phase 31ap adds default-off live paths for the student communication and topic
+dialogue roles. The student communication role verbalizes frozen
+response-package facts, answer review, package feedback, and the selected
+activity contract. The topic dialogue role responds after formative activity
+turns, including short clarification questions, conceptual questions,
+assessment-system questions, and unrelated off-topic messages that must be
+redirected.
+
+Required server-only variables for live use include:
+
+```text
+STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED
+TOPIC_DIALOGUE_LIVE_CALLS_ENABLED
+OPENAI_MODEL_STUDENT_COMMUNICATION
+OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION
+OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION
+OPENAI_MODEL_TOPIC_DIALOGUE
+OPENAI_REASONING_EFFORT_TOPIC_DIALOGUE
+OPENAI_MAX_OUTPUT_TOKENS_TOPIC_DIALOGUE
+TOPIC_DIALOGUE_MAX_STUDENT_TURNS
+TOPIC_DIALOGUE_RECENT_TURN_WINDOW
+TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS
+TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS
+```
+
+Defaults remain safe: both role live toggles are `false`; topic dialogue uses an
+eight-turn cap, twelve-turn recent context window, and 5000-character student
+message limit. The browser never calls OpenAI directly. Refresh, resume, and
+idempotent replay reuse persisted communication/dialogue records and must not
+create new live calls. Provider failures, disabled readiness, schema failures,
+fact-lock failures, or student-language validation failures record typed
+fallbacks and use bounded deterministic fallback output.
+
+Default-skipped live entry points:
+
+```bash
+npm run student:student-communication-live-smoke
+npm run student:topic-dialogue-live-smoke
+```
+
+They make no OpenAI call unless the corresponding `RUN_LIVE_*_SMOKE=1` flag and
+server-side live configuration are explicitly set by the operator.

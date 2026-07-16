@@ -94,7 +94,8 @@ export type StudentActivityProjectionIssue = {
     | "raw_process_or_metadata_label_detected"
     | "secret_or_header_label_detected"
     | "misconduct_language_detected"
-    | "student_facing_internal_phrase_detected";
+    | "student_facing_internal_phrase_detected"
+    | "raw_identifier_detected";
   blocked_pattern_label?: string;
 };
 
@@ -158,6 +159,10 @@ export function studentActivityRecommendationLabel(value: string | null | undefi
 }
 
 function collectStrings(value: unknown, path = "projection"): Array<{ path: string; value: string }> {
+  if (/(^|\.)(activity_attempt_public_id|dialogue_public_id)$/.test(path)) {
+    return [];
+  }
+
   if (typeof value === "string") {
     return [{ path, value }];
   }
@@ -219,6 +224,11 @@ const blockedPatterns: Array<{
     rule_code: "secret_or_header_label_detected",
     blocked_pattern_label: "secret_or_header_label",
     pattern: /\b(api key|authorization header|bearer token|session secret|database url|password hash|access code hash)\b/i
+  },
+  {
+    rule_code: "raw_identifier_detected",
+    blocked_pattern_label: "raw_public_or_database_identifier",
+    pattern: /\b(?:item|sess|asmt|usr|run|td|olcr|evr|review|cu|pkg)_[a-z0-9][a-z0-9_-]*\b|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/iu
   },
   {
     rule_code: "misconduct_language_detected",

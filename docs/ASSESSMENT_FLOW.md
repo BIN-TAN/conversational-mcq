@@ -240,5 +240,23 @@ The explicit dialogue states are:
 
 Only one learning prompt may await a response at a time. Refresh and resume must
 restore the persisted prompt/response state rather than regenerate dialogue.
-The default maximum is three student dialogue turns, after which the UI offers
+The default maximum is eight student dialogue turns, after which the UI offers
 final support options and valid progression/end choices.
+
+## Phase 31ap Live Topic Dialogue Boundary
+
+For a new topic-dialogue student message, the backend owns the sequence:
+
+`persist student message -> construct bounded context -> optional live topic dialogue call -> validate output -> persist tutor turn -> return presenter`
+
+The optional live call is server-side only and is enabled by explicit role and
+global LLM configuration. Refresh, resume, and idempotent replay reuse persisted
+dialogue records and must not create a new provider call. If live output is not
+available or fails validation, deterministic fallback can clarify the current
+task, redirect off-topic messages, or offer final support options, but it is not
+reported as successful live dialogue.
+
+Short nonempty messages during `AWAIT_TOPIC_DIALOGUE_RESPONSE`, including
+"what", "why", "about what", and "which item do you mean", are valid
+conversation turns. They are classified as clarification or system-use
+questions instead of rejected as malformed assessment answers.

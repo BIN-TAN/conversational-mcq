@@ -138,10 +138,10 @@ the evidence shows distractor work is not yet accessible.
 
 Student-facing package feedback should read as one concise, evidence-linked
 tutor message, not as a technical profile report. Structured evidence remains
-available to teacher and research views, but the student sidebar should not
-duplicate the full narrative. It should retain only persistent reference
-information: Initial results, total correct, administered answer reviews, and a
-compact current-step/progress cue.
+available to teacher and research views, but the student page should not use a
+persistent duplicate profile/results sidebar. Administered answer review appears
+once in the tutor chat as "Review your answers" and the conversation continues
+from there.
 
 The `student_communication_agent` is fact-locked. It may improve tone,
 conciseness, transitions, and student-facing wording, but it must not change
@@ -153,3 +153,18 @@ It is not unrestricted chat. It may address only the current topic, current
 concept, administered items, relevant distractors, the frozen growth target, and
 the student's activity response. It must redirect unrelated questions and must
 stop at the configured turn limit or when the student is ready to advance.
+
+## Phase 31ap Live Student Dialogue
+
+Student communication and topic dialogue can use server-side live OpenAI
+Responses calls only when the global LLM live configuration and the role-specific
+toggles are explicitly enabled. The browser never calls OpenAI directly. If the
+provider path is disabled, unavailable, invalid, or unsafe, the backend records a
+typed fallback and shows bounded deterministic support rather than treating the
+fallback as successful live dialogue.
+
+Topic dialogue accepts short clarification and assessment-system questions, such
+as "what", "which item do you mean", or "what happens next". The dialogue scope
+is limited to the current assessment content and how to use the assessment
+interface. It must not expose raw IDs, teacher-only notes, hidden prompts,
+unadministered item keys, or operational implementation details.

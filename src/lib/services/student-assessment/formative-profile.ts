@@ -44,6 +44,7 @@ import {
 import {
   buildStudentCommunicationInputForEvidenceBundle,
   buildEvidenceIntegratedProfileBundle,
+  applyStudentCommunicationToEvidenceBundle,
   EvidenceIntegratedProfileV2Schema,
   NextInteractionV2Schema,
   PackageFeedbackV2Schema,
@@ -51,7 +52,10 @@ import {
   type EvidenceIntegratedProfileV2,
   type NextInteractionV2
 } from "@/lib/services/student-assessment/evidence-integrated-profile";
-import { buildValidatedStudentCommunication } from "@/lib/services/student-assessment/student-communication-agent";
+import {
+  buildRuntimeStudentCommunication,
+  buildValidatedStudentCommunication
+} from "@/lib/services/student-assessment/student-communication-agent";
 import {
   createActivityRuntimeAttemptFromEvidenceIntegratedRouter,
   type CreateEvidenceIntegratedActivityRuntimeAttemptInput
@@ -2031,6 +2035,16 @@ function evidenceRuntimeAttemptInput(input: {
       ? "consolidation_and_transfer"
       : rawValue;
   const firstDistractor = interaction.distractor_refs[0] ?? null;
+  const firstDistractorItem = firstDistractor
+    ? input.bundle.profile.item_evidence.find(
+        (item) => item.item_public_id === firstDistractor.item_public_id
+      )
+    : null;
+  const firstDistractorOptionText =
+    input.bundle.student_communication.input.validated_activity_contract.source_option_label ===
+    firstDistractor?.option_label
+      ? input.bundle.student_communication.input.validated_activity_contract.source_option_text
+      : null;
 
   return {
     session_public_id: input.session_public_id,
@@ -2050,7 +2064,11 @@ function evidenceRuntimeAttemptInput(input: {
     expected_student_action_prompt: interaction.expected_response_format,
     distractor_role: firstDistractor?.role ?? "none",
     distractor_student_safe_description: firstDistractor
-      ? `Option ${firstDistractor.option_label} from Item ${firstDistractor.item_public_id}`
+      ? [
+          `Item ${firstDistractorItem?.item_position ?? "?"}`,
+          `option ${firstDistractor.option_label}`,
+          firstDistractorOptionText ? `says: "${firstDistractorOptionText}"` : "is the focus"
+        ].join(" ")
       : "No specific distractor is referenced.",
     source_profile_integration_snapshot_id: input.profile.id,
     source_formative_value_packet_id: input.decision.id,
@@ -3238,12 +3256,39 @@ async function persistProfileDecisionAndActivity(input: {
   deferred_student_concerns?: DeferredStudentConcern[];
 }) {
   const responsePackage = await latestInitialResponsePackage(input.concept_unit_session_db_id);
-  const evidenceBundle = responsePackage
+  let evidenceBundle = responsePackage
     ? buildEvidenceIntegratedProfileBundle({
         response_package_payload: responsePackage.payload,
         source_agent_call_public_id: null
       })
     : null;
+  const existingRoundBeforeCommunication = await prisma.followupRound.findFirst({
+    where: {
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      status: { in: ["active", "completed"] }
+    },
+    orderBy: [{ round_index: "desc" }]
+  });
+
+  if (existingRoundBeforeCommunication) {
+    return {
+      status: "already_created" as const,
+      round: existingRoundBeforeCommunication
+    };
+  }
+
+  if (evidenceBundle) {
+    const runtimeCommunication = await buildRuntimeStudentCommunication({
+      communication_input: evidenceBundle.student_communication.input,
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      source_evidence_hash: evidenceBundle.effective_evidence_package_hash
+    });
+    evidenceBundle = applyStudentCommunicationToEvidenceBundle({
+      bundle: evidenceBundle,
+      student_communication: runtimeCommunication
+    });
+  }
   const enums = evidenceBundle
     ? profileEnumsForEvidenceBundle(evidenceBundle.profile)
     : profileEnumsFor(input.output);
@@ -3589,6 +3634,40 @@ async function persistProfileDecisionAndActivity(input: {
             }),
             occurred_at: now
           },
+          ...(!evidenceBundle.student_communication.metadata.fallback_used &&
+          evidenceBundle.student_communication.metadata.live_generation_approved
+            ? [
+                {
+                  assessment_session_db_id: input.assessment_session_db_id,
+                  concept_unit_session_db_id: input.concept_unit_session_db_id,
+                  event_type: "student_communication_live_call_completed",
+                  event_category: "package_feedback",
+                  event_source: "backend" as const,
+                  payload: prismaJson({
+                    agent_call_id:
+                      evidenceBundle.student_communication.metadata.agent_call_public_id,
+                    output_schema_version:
+                      evidenceBundle.student_communication.metadata.output_schema_version
+                  }),
+                  occurred_at: now
+                }
+              ]
+            : [
+                {
+                  assessment_session_db_id: input.assessment_session_db_id,
+                  concept_unit_session_db_id: input.concept_unit_session_db_id,
+                  event_type: "student_communication_fallback_used",
+                  event_category: "package_feedback",
+                  event_source: "backend" as const,
+                  payload: prismaJson({
+                    fallback_version:
+                      evidenceBundle.student_communication.metadata.fallback_version,
+                    validation_status:
+                      evidenceBundle.student_communication.metadata.validation_status
+                  }),
+                  occurred_at: now
+                }
+              ]),
           {
             assessment_session_db_id: input.assessment_session_db_id,
             concept_unit_session_db_id: input.concept_unit_session_db_id,

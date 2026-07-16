@@ -1794,7 +1794,7 @@ Phase 6A.5 must not implement:
   `OPENAI_MODEL_STUDENT_COMMUNICATION`,
   `OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION`, and
   `OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION`. Candidate values
-  `gpt-5.6-terra`, `low`, and `1600` require synthetic evaluation, explicit
+  `gpt-5.6-terra`, `low`, and `2500` require synthetic evaluation, explicit
   approval, and a matching operational approved configuration hash before live
   production use.
 - If communication generation fails in a future live path, semantic decisions
@@ -2917,9 +2917,10 @@ Phase 6A.5 must not implement:
 
 ## Phase 31AO Student Communication and Topic Dialogue Lock
 
-- The student sidebar must not duplicate the full post-package profile
-  narrative. It is limited to Initial results, total correct, administered item
-  answer reviews, and compact progress/current-step information.
+- The student assessment page must remain single-column and chat-native. The
+  post-package answer review appears once as a tutor-chat card titled
+  "Review your answers"; a persistent right-side profile/results panel must not
+  duplicate the same substantive feedback.
 - Student-facing package feedback is a natural tutor-chat narrative generated
   from frozen facts. It must not expose backend headings such as "Your
   explanations", "How sure you were", "Next focus", "Confidence calibration",
@@ -2932,12 +2933,19 @@ Phase 6A.5 must not implement:
   discuss only the current topic, current concept, administered items,
   distractors, frozen growth target, and the student's activity response. It
   must redirect unrelated questions and must not become general chat.
-- Default topic dialogue policy is three student turns and a six-turn recent
-  context window. `TOPIC_DIALOGUE_MAX_STUDENT_TURNS` and
-  `TOPIC_DIALOGUE_RECENT_TURN_WINDOW` may tune those values server-side; invalid
-  explicit values fail environment validation.
-- Phase 31ao adds configuration surfaces for `student_communication_agent` and
-  `topic_dialogue_agent`, but it does not approve live provider use for either
-  role. Production guarded-live use requires separate evaluation, human review,
-  manifest/hash approval, and matching operational approved configuration.
+- Default topic dialogue policy is eight student turns, a twelve-turn recent
+  context window, and a 5000-character maximum student message. Short messages
+  such as "what" or "about what" are valid clarification requests, not semantic
+  validation failures.
+- Phase 31ap adds default-off live provider paths for
+  `student_communication_agent` and `topic_dialogue_agent`. When the role-level
+  live toggle, global live configuration, credential/model readiness, and
+  validation gates all pass, these roles may use server-side OpenAI Responses
+  API calls with Structured Outputs and `store:false`. Otherwise they fail
+  closed to deterministic fallback and record the fallback reason. Refresh,
+  resume, and idempotent replay must reuse persisted records and must not create
+  new live calls.
+- Student-visible language must never contain raw public IDs or database UUIDs
+  such as `item_...`, `sess_...`, `asmt_...`, or UUID strings. Student item
+  references use ordinals such as "Item 1" plus option labels/text when needed.
 - Timing-contract-v2 formulas and historical timing semantics are unchanged.

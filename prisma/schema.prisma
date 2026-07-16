@@ -987,6 +987,99 @@ model AgentCall {
   @@map("agent_calls")
 }
 
+model StudentCommunication {
+  id                         String   @id @default(uuid()) @db.Uuid
+  communication_public_id    String   @unique @default(cuid())
+  assessment_session_db_id   String   @db.Uuid
+  concept_unit_session_db_id String?  @db.Uuid
+  purpose                    String
+  communication_key          String   @unique
+  generation_source          String
+  runtime_servable_to_student Boolean @default(true)
+  review_only                Boolean  @default(false)
+  provider                   String
+  model_name                 String?
+  agent_call_db_id           String?  @db.Uuid
+  prompt_version             String
+  input_schema_version       String
+  output_schema_version      String
+  validation_status          String
+  fallback_used              Boolean  @default(false)
+  fallback_reason            String?
+  source_evidence_hash       String?
+  communication_input        Json
+  communication_output       Json
+  fact_validation_result     Json?
+  language_validation_result Json?
+  warnings                   Json?
+  created_at                 DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([assessment_session_db_id, created_at])
+  @@index([concept_unit_session_db_id, created_at])
+  @@index([purpose, created_at])
+  @@index([agent_call_db_id])
+  @@index([generation_source, validation_status])
+  @@map("student_communications")
+}
+
+model TopicDialogue {
+  id                         String   @id @default(uuid()) @db.Uuid
+  dialogue_public_id         String   @unique
+  assessment_session_db_id   String   @db.Uuid
+  concept_unit_session_db_id String?  @db.Uuid
+  activity_attempt_public_id String
+  topic_anchor               Json
+  growth_target              String   @db.Text
+  initial_remaining_issue    String   @db.Text
+  current_remaining_issue    String   @db.Text
+  maximum_turns              Int
+  current_turn               Int      @default(0)
+  status                     String
+  policy_version             String
+  created_at                 DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([assessment_session_db_id, activity_attempt_public_id])
+  @@index([assessment_session_db_id, created_at])
+  @@index([concept_unit_session_db_id, created_at])
+  @@index([status, updated_at])
+  @@map("topic_dialogues")
+}
+
+model TopicDialogueTurn {
+  id                         String   @id @default(uuid()) @db.Uuid
+  turn_public_id             String   @unique @default(cuid())
+  dialogue_public_id         String
+  assessment_session_db_id   String   @db.Uuid
+  concept_unit_session_db_id String?  @db.Uuid
+  activity_attempt_public_id String
+  turn_number                Int
+  actor_type                 String
+  message_function           String?
+  topic_relation             String?
+  system_question_answered   Boolean  @default(false)
+  evidence_update            String?  @db.Text
+  remaining_issue            String?  @db.Text
+  post_turn_understanding    String?
+  next_action                String?
+  next_runtime_state         String?
+  progression_readiness      String?
+  requires_student_response  Boolean?
+  fallback_used              Boolean  @default(false)
+  agent_call_db_id           String?  @db.Uuid
+  message_text               String?  @db.Text
+  structured_payload         Json?
+  created_at                 DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([dialogue_public_id, turn_number, actor_type])
+  @@index([dialogue_public_id, turn_number])
+  @@index([assessment_session_db_id, created_at])
+  @@index([activity_attempt_public_id, created_at])
+  @@index([agent_call_db_id])
+  @@map("topic_dialogue_turns")
+}
+
 model ActivityRuntimeAttempt {
   id                                  String    @id @default(uuid()) @db.Uuid
   activity_attempt_public_id          String    @unique @default(cuid())

@@ -25,15 +25,25 @@ import {
   TOPIC_DIALOGUE_AGENT_NAME,
   TOPIC_DIALOGUE_FALLBACK_VERSION,
   TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION,
+  TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION_V2,
   TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION,
+  TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
+  TOPIC_DIALOGUE_PROMPT_HASH,
+  TOPIC_DIALOGUE_PROMPT_INSTRUCTIONS,
   TOPIC_DIALOGUE_PROMPT_VERSION,
   TOPIC_DIALOGUE_BOUNDARY_VALIDATOR_VERSION,
   TopicDialogueInputV1Schema,
+  TopicDialogueOutputV1Schema,
+  classifyTopicDialogueStudentMessage,
   topicDialoguePublicId,
   validateTopicDialogueOutput,
   type PostActivityLearningDecisionV1,
   type TopicDialogueOutputV1
 } from "@/lib/services/student-assessment/topic-dialogue-agent";
+import { getServerEnv } from "@/lib/env";
+import {
+  executeStudentRuntimeLiveAgent,
+} from "@/lib/services/student-assessment/student-runtime-live-agent";
 import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
 import { submitChatNativeNextChoice } from "@/lib/services/student-assessment/formative-profile";
 import {
@@ -660,9 +670,9 @@ async function latestTopicDialogueProjection(input: {
     state: "awaiting_response",
     turn_number: studentTurnCount,
     maximum_turns: input.decision.maximum_dialogue_turns,
-    tutor_message:
-      latestTutor?.message_text ??
-      `Let us work through the remaining part of this idea together. ${input.decision.growth_target}`,
+      tutor_message:
+        latestTutor?.message_text ??
+        `Focus on this part: ${input.decision.growth_target}`,
     response_prompt: "Write one short response or ask one question about this topic.",
     remaining_issue: input.decision.remaining_issue,
     next_action: "await_topic_dialogue_response",
@@ -1088,10 +1098,11 @@ export async function submitStudentActivityRuntimeResponse(input: {
       400
     );
   }
-  if (message.length > ACTIVITY_RUNTIME_MAX_RESPONSE_CHARS) {
+  const dialoguePolicy = getTopicDialoguePolicy();
+  if (message.length > dialoguePolicy.maximum_student_message_chars) {
     throw new StudentAssessmentServiceError(
       "validation_failed",
-      `Keep the response under ${ACTIVITY_RUNTIME_MAX_RESPONSE_CHARS} characters.`,
+      `Keep the response under ${dialoguePolicy.maximum_student_message_chars} characters.`,
       400
     );
   }
@@ -1159,6 +1170,7 @@ export async function submitTopicDialogueResponse(input: {
     client
   });
   const message = input.student_message.trim();
+  const dialoguePolicy = getTopicDialoguePolicy();
 
   if (!message) {
     throw new StudentAssessmentServiceError(
@@ -1167,10 +1179,10 @@ export async function submitTopicDialogueResponse(input: {
       400
     );
   }
-  if (message.length > ACTIVITY_RUNTIME_MAX_RESPONSE_CHARS) {
+  if (message.length > dialoguePolicy.maximum_student_message_chars) {
     throw new StudentAssessmentServiceError(
       "validation_failed",
-      `Keep the response under ${ACTIVITY_RUNTIME_MAX_RESPONSE_CHARS} characters.`,
+      `Keep the response under ${dialoguePolicy.maximum_student_message_chars} characters.`,
       400
     );
   }
@@ -1253,8 +1265,6 @@ export async function submitTopicDialogueResponse(input: {
   });
   const priorStudentTurns = priorTurns.filter((turn) => turn.actor_type === "student").length;
   const dialogueTurnNumber = priorStudentTurns + 1;
-  const dialoguePolicy = getTopicDialoguePolicy();
-
   if (!existingStudentTurn) {
     await client.conversationTurn.create({
       data: {
@@ -1303,7 +1313,7 @@ export async function submitTopicDialogueResponse(input: {
   });
 
   const dialogueInput = TopicDialogueInputV1Schema.parse({
-    dialogue_schema_version: TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION,
+    dialogue_schema_version: TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION_V2,
     dialogue_public_id: input.dialogue_public_id,
     session_public_id: input.session_public_id,
     assessment_public_id: context.session.assessment.assessment_public_id,
@@ -1344,6 +1354,8 @@ export async function submitTopicDialogueResponse(input: {
       option_text: source.distractor_student_safe_description ?? null
     }],
     latest_student_message: message,
+    latest_student_message_classification:
+      classifyTopicDialogueStudentMessage(message).student_message_function,
     recent_relevant_dialogue_turns: priorTurns.slice(-dialoguePolicy.recent_turn_window).map((turn, index) => ({
       turn_number: index + 1,
       actor_type: turn.actor_type === "student" ? "student" : "agent",
@@ -1363,9 +1375,124 @@ export async function submitTopicDialogueResponse(input: {
     ],
     source_profile_version: "evidence-integrated-profile-v2",
     source_activity_evaluation_version:
-      evidence.packet?.schema_version ?? "student-activity-misconception-evidence-v1"
+      evidence.packet?.schema_version ?? "student-activity-misconception-evidence-v1",
+    current_topic: currentConcept.title,
+    assessment_system_question_scope: [
+      "what to do next",
+      "how to answer the current prompt",
+      "how to continue",
+      "how to end the assessment"
+    ],
+    dialogue_summary: priorTurns
+      .slice(-dialoguePolicy.recent_turn_window)
+      .map((turn) => `${turn.actor_type}: ${(turn.message_text ?? "").slice(0, 160)}`)
+      .join(" | "),
+    progression_options: [
+      "continue with this topic",
+      "choose another activity",
+      "continue to transfer item when available",
+      "end assessment"
+    ],
+    source_versions: {
+      topic_dialogue_input_schema_version: TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION_V2,
+      topic_dialogue_output_schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
+      topic_dialogue_policy_version: "topic-dialogue-policy-v2"
+    }
   });
-  const output = buildDeterministicTopicDialogueResponse(dialogueInput);
+  await client.topicDialogue.upsert({
+    where: {
+      assessment_session_db_id_activity_attempt_public_id: {
+        assessment_session_db_id: context.session.id,
+        activity_attempt_public_id: attempt.activity_attempt_public_id
+      }
+    },
+    update: {
+      current_remaining_issue: evidence.decision.remaining_issue,
+      current_turn: dialogueTurnNumber,
+      status: "active"
+    },
+    create: {
+      dialogue_public_id: input.dialogue_public_id,
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      activity_attempt_public_id: attempt.activity_attempt_public_id,
+      topic_anchor: prismaJson({
+        assessment_topic: currentConcept.title,
+        concept_public_id: currentConcept.concept_unit_public_id,
+        safe_item_context: dialogueInput.safe_item_context
+      }),
+      growth_target: evidence.decision.growth_target,
+      initial_remaining_issue: evidence.decision.remaining_issue,
+      current_remaining_issue: evidence.decision.remaining_issue,
+      maximum_turns: evidence.decision.maximum_dialogue_turns,
+      current_turn: dialogueTurnNumber,
+      status: "active",
+      policy_version: "topic-dialogue-policy-v2"
+    }
+  });
+  await client.topicDialogueTurn.upsert({
+    where: {
+      dialogue_public_id_turn_number_actor_type: {
+        dialogue_public_id: input.dialogue_public_id,
+        turn_number: dialogueTurnNumber,
+        actor_type: "student"
+      }
+    },
+    update: {},
+    create: {
+      dialogue_public_id: input.dialogue_public_id,
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      activity_attempt_public_id: attempt.activity_attempt_public_id,
+      turn_number: dialogueTurnNumber,
+      actor_type: "student",
+      message_function: dialogueInput.latest_student_message_classification ?? null,
+      topic_relation: classifyTopicDialogueStudentMessage(message).topic_relation,
+      message_text: message,
+      structured_payload: prismaJson({
+        client_operation_id: input.client_operation_id,
+        input_schema_version: TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION_V2
+      })
+    }
+  });
+  if (getServerEnv().TOPIC_DIALOGUE_LIVE_CALLS_ENABLED) {
+    await logProcessEvent({
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      event_type: "topic_dialogue_live_call_started",
+      event_category: "topic_dialogue",
+      event_source: "backend",
+      payload: {
+        topic_dialogue_public_id: input.dialogue_public_id,
+        dialogue_turn_number: dialogueTurnNumber,
+        output_schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2
+      }
+    });
+  }
+  const liveResult = await executeStudentRuntimeLiveAgent({
+    client,
+    live_enabled: getServerEnv().TOPIC_DIALOGUE_LIVE_CALLS_ENABLED,
+    role: TOPIC_DIALOGUE_AGENT_NAME,
+    agent_name: TOPIC_DIALOGUE_AGENT_NAME,
+    agent_version: TOPIC_DIALOGUE_PROMPT_VERSION,
+    prompt_version: TOPIC_DIALOGUE_PROMPT_VERSION,
+    prompt_hash: TOPIC_DIALOGUE_PROMPT_HASH,
+    schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
+    schema_name: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
+    instructions: TOPIC_DIALOGUE_PROMPT_INSTRUCTIONS,
+    request_input: dialogueInput,
+    output_schema: TopicDialogueOutputV1Schema,
+    invocation_key: `topic-dialogue:${input.dialogue_public_id}:${input.client_operation_id}`,
+    assessment_session_db_id: context.session.id,
+    concept_unit_session_db_id: context.concept_unit_session.id,
+    metadata: {
+      dialogue_public_id: input.dialogue_public_id,
+      schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2
+    }
+  });
+  const output = liveResult.status === "succeeded"
+    ? liveResult.output
+    : buildDeterministicTopicDialogueResponse(dialogueInput);
   const validation = validateTopicDialogueOutput(output);
   const persistedOutput: TopicDialogueOutputV1 = validation.valid
     ? output
@@ -1373,33 +1500,52 @@ export async function submitTopicDialogueResponse(input: {
         ...dialogueInput,
         latest_student_message: "Please keep the discussion on this assessment topic."
       });
-  const agentCall = await client.agentCall.create({
-    data: {
-      assessment_session_db_id: context.session.id,
-      concept_unit_session_db_id: context.concept_unit_session.id,
-      agent_name: TOPIC_DIALOGUE_AGENT_NAME,
-      agent_version: TOPIC_DIALOGUE_PROMPT_VERSION,
-      model_name: "deterministic_topic_dialogue_fallback",
-      provider: "mock",
-      agent_invocation_key: `topic-dialogue:${input.dialogue_public_id}:${input.client_operation_id}`,
-      prompt_version: TOPIC_DIALOGUE_PROMPT_VERSION,
-      schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION,
-      input_payload: prismaJson(dialogueInput),
-      output_payload: prismaJson(persistedOutput),
-      raw_output: prismaJson(persistedOutput),
-      output_validated: validation.valid,
-      validation_error: validation.valid
-        ? null
-        : validation.issues.map((issue) => {
-            const blocked = "blocked_pattern_label" in issue ? issue.blocked_pattern_label : undefined;
-            return `${issue.field_path}:${blocked ?? issue.rule_code}`;
-          }).join("; "),
-      call_status: validation.valid ? "succeeded" : "invalid_output",
-      live_call_allowed: false,
-      started_at: new Date(),
-      completed_at: new Date()
-    }
-  });
+  const fallbackUsed = liveResult.status !== "succeeded" || !validation.valid;
+  const agentCall = liveResult.status === "succeeded"
+    ? await client.agentCall.update({
+        where: { id: liveResult.agent_call_id },
+        data: {
+          output_payload: prismaJson(persistedOutput),
+          output_validated: validation.valid,
+          validation_error: validation.valid
+            ? null
+            : validation.issues.map((issue) => {
+                const blocked = "blocked_pattern_label" in issue ? issue.blocked_pattern_label : undefined;
+                return `${issue.field_path}:${blocked ?? issue.rule_code}`;
+              }).join("; "),
+          call_status: validation.valid ? "succeeded" : "invalid_output"
+        }
+      })
+    : await client.agentCall.create({
+        data: {
+          assessment_session_db_id: context.session.id,
+          concept_unit_session_db_id: context.concept_unit_session.id,
+          agent_name: TOPIC_DIALOGUE_AGENT_NAME,
+          agent_version: TOPIC_DIALOGUE_PROMPT_VERSION,
+          model_name: "deterministic_topic_dialogue_fallback",
+          provider: "mock",
+          agent_invocation_key: `topic-dialogue:${input.dialogue_public_id}:${input.client_operation_id}`,
+          prompt_version: TOPIC_DIALOGUE_PROMPT_VERSION,
+          schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
+          prompt_hash: TOPIC_DIALOGUE_PROMPT_HASH,
+          input_payload: prismaJson(dialogueInput),
+          output_payload: prismaJson(persistedOutput),
+          raw_output: prismaJson(persistedOutput),
+          output_validated: validation.valid,
+          validation_error: validation.valid
+            ? null
+            : validation.issues.map((issue) => {
+                const blocked = "blocked_pattern_label" in issue ? issue.blocked_pattern_label : undefined;
+                return `${issue.field_path}:${blocked ?? issue.rule_code}`;
+              }).join("; "),
+          blocked_reason:
+            liveResult.status === "not_attempted" ? liveResult.blocked_reason : undefined,
+          call_status: validation.valid ? "succeeded" : "invalid_output",
+          live_call_allowed: false,
+          started_at: new Date(),
+          completed_at: new Date()
+        }
+      });
 
   await client.conversationTurn.create({
     data: {
@@ -1422,10 +1568,62 @@ export async function submitTopicDialogueResponse(input: {
         next_action: persistedOutput.next_action,
         next_runtime_state: persistedOutput.next_runtime_state,
         progression_readiness: persistedOutput.progression_readiness,
-        fallback_used: true,
+        student_message_function: persistedOutput.student_message_function ?? null,
+        topic_relation: persistedOutput.topic_relation ?? null,
+        system_question_answered: persistedOutput.system_question_answered ?? false,
+        post_turn_understanding: persistedOutput.post_turn_understanding ?? null,
+        requires_student_response: persistedOutput.requires_student_response ?? null,
+        expected_response_guidance: persistedOutput.expected_response_guidance ?? null,
+        safety_flags: persistedOutput.safety_flags ?? [],
+        schema_version: persistedOutput.schema_version ?? TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION,
+        fallback_used: fallbackUsed,
         fallback_version: TOPIC_DIALOGUE_FALLBACK_VERSION,
         boundary_validator_version: TOPIC_DIALOGUE_BOUNDARY_VALIDATOR_VERSION
       })
+    }
+  });
+  await client.topicDialogueTurn.upsert({
+    where: {
+      dialogue_public_id_turn_number_actor_type: {
+        dialogue_public_id: input.dialogue_public_id,
+        turn_number: dialogueTurnNumber,
+        actor_type: "agent"
+      }
+    },
+    update: {},
+    create: {
+      dialogue_public_id: input.dialogue_public_id,
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      activity_attempt_public_id: attempt.activity_attempt_public_id,
+      turn_number: dialogueTurnNumber,
+      actor_type: "agent",
+      message_function: persistedOutput.student_message_function ?? null,
+      topic_relation: persistedOutput.topic_relation ?? null,
+      system_question_answered: persistedOutput.system_question_answered ?? false,
+      evidence_update: persistedOutput.evidence_update,
+      remaining_issue: persistedOutput.remaining_issue,
+      post_turn_understanding: persistedOutput.post_turn_understanding ?? null,
+      next_action: persistedOutput.next_action,
+      next_runtime_state: persistedOutput.next_runtime_state,
+      progression_readiness: persistedOutput.progression_readiness,
+      requires_student_response: persistedOutput.requires_student_response ?? null,
+      fallback_used: fallbackUsed,
+      agent_call_db_id: agentCall.id,
+      message_text: persistedOutput.tutor_message,
+      structured_payload: prismaJson(persistedOutput)
+    }
+  });
+  await client.topicDialogue.update({
+    where: { dialogue_public_id: input.dialogue_public_id },
+    data: {
+      current_remaining_issue: persistedOutput.remaining_issue,
+      current_turn: dialogueTurnNumber,
+      status:
+        persistedOutput.next_action === "show_progression_choices" ||
+        persistedOutput.next_action === "show_final_support_options"
+          ? "ready_for_progression"
+          : "active"
     }
   });
 
@@ -1442,14 +1640,84 @@ export async function submitTopicDialogueResponse(input: {
       next_action: persistedOutput.next_action,
       topic_boundary: persistedOutput.topic_boundary,
       agent_call_id: agentCall.id,
-      fallback_used: true
+      fallback_used: fallbackUsed
     }
   });
+  if (liveResult.status === "succeeded" && validation.valid) {
+    await logProcessEvent({
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      event_type: "topic_dialogue_live_call_completed",
+      event_category: "topic_dialogue",
+      event_source: "backend",
+      payload: {
+        topic_dialogue_public_id: input.dialogue_public_id,
+        dialogue_turn_number: dialogueTurnNumber,
+        agent_call_id: agentCall.id
+      }
+    });
+  }
+  if (fallbackUsed) {
+    await logProcessEvent({
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      event_type: "topic_dialogue_fallback_used",
+      event_category: "topic_dialogue",
+      event_source: "backend",
+      payload: {
+        topic_dialogue_public_id: input.dialogue_public_id,
+        dialogue_turn_number: dialogueTurnNumber,
+        reason:
+          liveResult.status === "not_attempted"
+            ? liveResult.blocked_reason
+            : validation.valid
+              ? "live_call_failed"
+              : "topic_dialogue_output_validation_failed"
+      }
+    });
+  }
+  if (persistedOutput.student_message_function === "clarification_request") {
+    await logProcessEvent({
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      event_type: "topic_dialogue_clarification_requested",
+      event_category: "topic_dialogue",
+      event_source: "backend",
+      payload: {
+        topic_dialogue_public_id: input.dialogue_public_id,
+        dialogue_turn_number: dialogueTurnNumber
+      }
+    });
+  }
+  if (persistedOutput.system_question_answered) {
+    await logProcessEvent({
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      event_type: "topic_dialogue_system_question_answered",
+      event_category: "topic_dialogue",
+      event_source: "backend",
+      payload: {
+        topic_dialogue_public_id: input.dialogue_public_id,
+        dialogue_turn_number: dialogueTurnNumber
+      }
+    });
+  }
   if (persistedOutput.topic_boundary === "redirected_to_topic") {
     await logProcessEvent({
       assessment_session_db_id: context.session.id,
       concept_unit_session_db_id: context.concept_unit_session.id,
       event_type: "topic_dialogue_boundary_redirected",
+      event_category: "topic_dialogue",
+      event_source: "backend",
+      payload: {
+        topic_dialogue_public_id: input.dialogue_public_id,
+        dialogue_turn_number: dialogueTurnNumber
+      }
+    });
+    await logProcessEvent({
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      event_type: "topic_dialogue_off_topic_redirected",
       event_category: "topic_dialogue",
       event_source: "backend",
       payload: {

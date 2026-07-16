@@ -1,4 +1,13 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
+import { getServerEnv } from "@/lib/env";
+import { toPrismaJson } from "@/lib/services/json";
+import { logProcessEvent } from "@/lib/services/process-events";
+import { prisma } from "@/lib/db";
+import {
+  executeStudentRuntimeLiveAgent,
+  hashStudentRuntimeValue
+} from "@/lib/services/student-assessment/student-runtime-live-agent";
 
 export const STUDENT_COMMUNICATION_AGENT_NAME = "student_communication_agent" as const;
 export const STUDENT_COMMUNICATION_PROMPT_VERSION =
@@ -15,6 +24,33 @@ export const STUDENT_COMMUNICATION_FALLBACK_VERSION =
   "student-communication-deterministic-fallback-v1" as const;
 export const STUDENT_COMMUNICATION_RENDERED_VERSION =
   "student-communication-rendered-v1" as const;
+
+type PrismaClientLike = typeof prisma;
+
+export const STUDENT_COMMUNICATION_PROMPT_INSTRUCTIONS = `
+You are the Student Communication Agent for a chat-native formative MCQ assessment.
+
+Rewrite only the supplied validated facts into natural student-facing language.
+The application owns scoring, state transitions, activity routing, answer reveal, and persistence.
+
+Rules:
+1. Return exactly the student-communication-output-v1 JSON object.
+2. Use only facts present in the input.
+3. Keep the package feedback concise and conversational.
+4. Include exactly one activity transition and exactly one complete activity prompt.
+5. Refer to items only as Item 1, Item 2, Item 3, and to options by label and text when provided.
+6. Never expose raw item IDs, session IDs, assessment IDs, database IDs, UUIDs, public IDs, prompts, schemas, runtime, fallback, routing, agent calls, raw model output, API keys, headers, secrets, teacher notes, or unadministered answers.
+7. Do not use internal labels such as response profile, formative need, engagement profile, calibration, overconfident, underconfident, selected_option, tempting_option, metadata, or structured output.
+8. Do not accuse the student of cheating, low effort, motivation problems, misconduct, or AI use.
+9. Do not change correctness labels, selected answers, correct answers, item count, growth target, activity type, source item, source option, or source option text.
+10. Do not ask students to rediscover which option is correct after answers have been revealed. The activity must require fresh reasoning.
+
+Return only the JSON object.
+`;
+
+export const STUDENT_COMMUNICATION_PROMPT_HASH = createHash("sha256")
+  .update(STUDENT_COMMUNICATION_PROMPT_INSTRUCTIONS)
+  .digest("hex");
 
 const StudentCommunicationItemSummarySchema = z.object({
   item_number: z.number().int().positive(),
@@ -129,7 +165,8 @@ export type StudentCommunicationIssue = {
     | "activity_task_missing"
     | "unadministered_answer_reveal"
     | "unsupported_process_claim"
-    | "internal_term_detected";
+    | "internal_term_detected"
+    | "raw_identifier_detected";
   field_path: string;
   blocked_pattern_label?: string;
 };
@@ -138,6 +175,23 @@ export type StudentCommunicationValidationResult = {
   valid: boolean;
   validator_version: string;
   issues: StudentCommunicationIssue[];
+};
+
+export type StudentCommunicationMetadata = {
+  agent_name: typeof STUDENT_COMMUNICATION_AGENT_NAME;
+  agent_call_public_id: string | null;
+  model: string | null;
+  reasoning_effort: string | null;
+  prompt_version: typeof STUDENT_COMMUNICATION_PROMPT_VERSION;
+  input_schema_version: typeof STUDENT_COMMUNICATION_INPUT_SCHEMA_VERSION;
+  output_schema_version: typeof STUDENT_COMMUNICATION_OUTPUT_SCHEMA_VERSION;
+  fact_lock_validator_version: typeof STUDENT_COMMUNICATION_FACT_LOCK_VALIDATOR_VERSION;
+  language_validator_version: typeof STUDENT_COMMUNICATION_LANGUAGE_VALIDATOR_VERSION;
+  fallback_version: typeof STUDENT_COMMUNICATION_FALLBACK_VERSION | null;
+  rendered_communication_version: typeof STUDENT_COMMUNICATION_RENDERED_VERSION;
+  validation_status: "validated" | "blocked";
+  fallback_used: boolean;
+  live_generation_approved: boolean;
 };
 
 function collectStrings(value: unknown, path = "output"): Array<{ path: string; value: string }> {
@@ -183,6 +237,9 @@ const forbiddenStudentLanguagePatterns: Array<{
   { label: "provider_debug_label", pattern: /\b(agent call|raw llm output|raw model output|structured output|system prompt)\b/i },
   { label: "secret_label", pattern: /\b(api key|authorization header|bearer token|database url|session secret|password hash)\b/i }
 ];
+
+const rawIdentifierPattern =
+  /\b(?:item|sess|asmt|usr|run|td|olcr|evr|review|cu|pkg)_[a-z0-9][a-z0-9_-]*\b|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/iu;
 
 function sentence(value: string) {
   return value.trim().replace(/\s+/g, " ");
@@ -295,6 +352,13 @@ export function validateStudentCommunicationLanguage(
         rule_code: "unsupported_process_claim",
         field_path: entry.path,
         blocked_pattern_label: "unsupported_process_or_motivation_claim"
+      });
+    }
+    if (rawIdentifierPattern.test(entry.value)) {
+      issues.push({
+        rule_code: "raw_identifier_detected",
+        field_path: entry.path,
+        blocked_pattern_label: "raw_public_or_database_identifier"
       });
     }
   }
@@ -432,16 +496,213 @@ export function buildValidatedStudentCommunication(input: StudentCommunicationIn
       language_validator_version: STUDENT_COMMUNICATION_LANGUAGE_VALIDATOR_VERSION,
       fallback_version: STUDENT_COMMUNICATION_FALLBACK_VERSION,
       rendered_communication_version: STUDENT_COMMUNICATION_RENDERED_VERSION,
-      validation_status:
-        factValidation.valid && languageValidation.valid ? "validated" as const : "blocked" as const,
+      validation_status: validationStatus({ fact: factValidation, language: languageValidation }),
       fallback_used: true,
       live_generation_approved: false
-    }
+    } satisfies StudentCommunicationMetadata
   };
 }
 
-export type StudentCommunicationBundleV1 = ReturnType<
-  typeof buildValidatedStudentCommunication
-> & {
+export type StudentCommunicationBundleV1 = {
   input: StudentCommunicationInputV1;
+  output: StudentCommunicationOutputV1;
+  fact_validation: StudentCommunicationValidationResult;
+  language_validation: StudentCommunicationValidationResult;
+  metadata: StudentCommunicationMetadata;
 };
+
+function validationStatus(input: {
+  fact: StudentCommunicationValidationResult;
+  language: StudentCommunicationValidationResult;
+}) {
+  return input.fact.valid && input.language.valid ? "validated" as const : "blocked" as const;
+}
+
+function bundleFromOutput(input: {
+  communication_input: StudentCommunicationInputV1;
+  output: StudentCommunicationOutputV1;
+  fact_validation: StudentCommunicationValidationResult;
+  language_validation: StudentCommunicationValidationResult;
+  metadata: StudentCommunicationMetadata;
+}): StudentCommunicationBundleV1 {
+  return {
+    input: input.communication_input,
+    output: input.output,
+    fact_validation: input.fact_validation,
+    language_validation: input.language_validation,
+    metadata: input.metadata
+  };
+}
+
+async function persistStudentCommunicationRecord(input: {
+  client: PrismaClientLike;
+  communication_key: string;
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string | null;
+  communication: StudentCommunicationBundleV1;
+  generation_source: "live_llm" | "deterministic_fallback";
+  provider: "openai" | "mock";
+  model_name: string | null;
+  agent_call_db_id: string | null;
+  fallback_reason: string | null;
+  source_evidence_hash: string;
+}) {
+  await input.client.studentCommunication.upsert({
+    where: { communication_key: input.communication_key },
+    update: {
+      communication_output: toPrismaJson(input.communication.output)!,
+      fact_validation_result: toPrismaJson(input.communication.fact_validation)!,
+      language_validation_result: toPrismaJson(input.communication.language_validation)!,
+      validation_status: input.communication.metadata.validation_status,
+      fallback_used: input.communication.metadata.fallback_used,
+      fallback_reason: input.fallback_reason,
+      agent_call_db_id: input.agent_call_db_id,
+      provider: input.provider,
+      model_name: input.model_name,
+      generation_source: input.generation_source
+    },
+    create: {
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      purpose: input.communication.input.communication_purpose,
+      communication_key: input.communication_key,
+      generation_source: input.generation_source,
+      runtime_servable_to_student: true,
+      review_only: false,
+      provider: input.provider,
+      model_name: input.model_name,
+      agent_call_db_id: input.agent_call_db_id,
+      prompt_version: STUDENT_COMMUNICATION_PROMPT_VERSION,
+      input_schema_version: STUDENT_COMMUNICATION_INPUT_SCHEMA_VERSION,
+      output_schema_version: STUDENT_COMMUNICATION_OUTPUT_SCHEMA_VERSION,
+      validation_status: input.communication.metadata.validation_status,
+      fallback_used: input.communication.metadata.fallback_used,
+      fallback_reason: input.fallback_reason,
+      source_evidence_hash: input.source_evidence_hash,
+      communication_input: toPrismaJson(input.communication.input)!,
+      communication_output: toPrismaJson(input.communication.output)!,
+      fact_validation_result: toPrismaJson(input.communication.fact_validation)!,
+      language_validation_result: toPrismaJson(input.communication.language_validation)!
+    }
+  });
+}
+
+export async function buildRuntimeStudentCommunication(input: {
+  communication_input: StudentCommunicationInputV1;
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string | null;
+  source_evidence_hash: string;
+  client?: PrismaClientLike;
+}): Promise<StudentCommunicationBundleV1> {
+  const client = input.client ?? prisma;
+  const communicationKey = `student-communication:${hashStudentRuntimeValue({
+    session_public_id: input.communication_input.session_public_id,
+    package_public_id: input.communication_input.package_public_id,
+    purpose: input.communication_input.communication_purpose,
+    source_evidence_hash: input.source_evidence_hash
+  })}`;
+  const env = getServerEnv();
+  if (env.STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED) {
+    await logProcessEvent({
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id ?? undefined,
+      event_type: "student_communication_live_call_started",
+      event_category: "package_feedback",
+      event_source: "backend",
+      payload: {
+        purpose: input.communication_input.communication_purpose,
+        output_schema_version: STUDENT_COMMUNICATION_OUTPUT_SCHEMA_VERSION,
+        source_evidence_hash: input.source_evidence_hash
+      }
+    });
+  }
+  const liveResult = await executeStudentRuntimeLiveAgent({
+    client,
+    live_enabled: env.STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED,
+    role: STUDENT_COMMUNICATION_AGENT_NAME,
+    agent_name: STUDENT_COMMUNICATION_AGENT_NAME,
+    agent_version: STUDENT_COMMUNICATION_PROMPT_VERSION,
+    prompt_version: STUDENT_COMMUNICATION_PROMPT_VERSION,
+    prompt_hash: STUDENT_COMMUNICATION_PROMPT_HASH,
+    schema_version: STUDENT_COMMUNICATION_OUTPUT_SCHEMA_VERSION,
+    schema_name: STUDENT_COMMUNICATION_OUTPUT_SCHEMA_VERSION,
+    instructions: STUDENT_COMMUNICATION_PROMPT_INSTRUCTIONS,
+    request_input: input.communication_input,
+    output_schema: StudentCommunicationOutputV1Schema,
+    invocation_key: communicationKey,
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    metadata: {
+      purpose: input.communication_input.communication_purpose,
+      schema_version: STUDENT_COMMUNICATION_OUTPUT_SCHEMA_VERSION
+    }
+  });
+
+  if (liveResult.status === "succeeded") {
+    const factValidation = validateStudentCommunicationOutputFacts({
+      frozen_input: input.communication_input,
+      output: liveResult.output
+    });
+    const languageValidation = validateStudentCommunicationLanguage(liveResult.output);
+    if (factValidation.valid && languageValidation.valid) {
+      const communication = bundleFromOutput({
+        communication_input: input.communication_input,
+        output: liveResult.output,
+        fact_validation: factValidation,
+        language_validation: languageValidation,
+        metadata: {
+          agent_name: STUDENT_COMMUNICATION_AGENT_NAME,
+          agent_call_public_id: liveResult.agent_call_id,
+          model: liveResult.model_config.model_name,
+          reasoning_effort: liveResult.model_config.reasoning_effort ?? null,
+          prompt_version: STUDENT_COMMUNICATION_PROMPT_VERSION,
+          input_schema_version: STUDENT_COMMUNICATION_INPUT_SCHEMA_VERSION,
+          output_schema_version: STUDENT_COMMUNICATION_OUTPUT_SCHEMA_VERSION,
+          fact_lock_validator_version: STUDENT_COMMUNICATION_FACT_LOCK_VALIDATOR_VERSION,
+          language_validator_version: STUDENT_COMMUNICATION_LANGUAGE_VALIDATOR_VERSION,
+          fallback_version: null,
+          rendered_communication_version: STUDENT_COMMUNICATION_RENDERED_VERSION,
+          validation_status: "validated",
+          fallback_used: false,
+          live_generation_approved: true
+        }
+      });
+      await persistStudentCommunicationRecord({
+        client,
+        communication_key: communicationKey,
+        assessment_session_db_id: input.assessment_session_db_id,
+        concept_unit_session_db_id: input.concept_unit_session_db_id,
+        communication,
+        generation_source: "live_llm",
+        provider: "openai",
+        model_name: liveResult.model_config.model_name,
+        agent_call_db_id: liveResult.agent_call_id,
+        fallback_reason: null,
+        source_evidence_hash: input.source_evidence_hash
+      });
+      return communication;
+    }
+  }
+
+  const fallback: StudentCommunicationBundleV1 = {
+    input: input.communication_input,
+    ...buildValidatedStudentCommunication(input.communication_input)
+  };
+  await persistStudentCommunicationRecord({
+    client,
+    communication_key: communicationKey,
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    communication: fallback,
+    generation_source: "deterministic_fallback",
+    provider: "mock",
+    model_name: "deterministic_student_communication_fallback",
+    agent_call_db_id: liveResult.status === "not_attempted" ? null : liveResult.agent_call_id ?? null,
+    fallback_reason:
+      liveResult.status === "not_attempted"
+        ? liveResult.blocked_reason
+        : "live_output_failed_student_communication_validation",
+    source_evidence_hash: input.source_evidence_hash
+  });
+  return fallback;
+}

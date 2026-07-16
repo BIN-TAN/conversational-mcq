@@ -97,7 +97,7 @@ function assertStudentComponentCopyIsHardened() {
   assert(source.includes("data-testid=\"end-attempt\""), "Global End attempt control should remain present.");
   assert(source.includes("End the assessment?"), "End assessment dialog title is missing.");
   assert(
-    source.includes("This will end the assessment now. You will not complete another activity or transfer item in this attempt."),
+    source.includes("This will end the current assessment conversation."),
     "End assessment dialog message is missing."
   );
   assert(source.includes("Keep working"), "End assessment dialog should include Keep working.");
