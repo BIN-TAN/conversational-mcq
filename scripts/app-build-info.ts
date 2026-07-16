@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { LIFECYCLE_OPERATION_RESULT_VERSION } from "../src/lib/services/student-assessment/lifecycle-operations";
+import {
+  resolveApplicationBuildInfo,
+  summarizeApplicationBuildInfoResolution
+} from "../src/lib/provenance/application-build-info";
 
 function packageVersion() {
   const packageJson = JSON.parse(readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as {
@@ -28,15 +32,7 @@ console.log(
     {
       application_name: "conversational-mcq",
       application_version: packageVersion(),
-      build_commit_sha:
-        process.env.RENDER_GIT_COMMIT ??
-        process.env.BUILD_COMMIT_SHA ??
-        process.env.VERCEL_GIT_COMMIT_SHA ??
-        null,
-      build_timestamp:
-        process.env.BUILD_TIMESTAMP ??
-        process.env.RENDER_BUILD_TIMESTAMP ??
-        null,
+      ...summarizeApplicationBuildInfoResolution(resolveApplicationBuildInfo()),
       prisma_latest_migration: latestMigrationVersion(),
       prisma_schema_hash_prefix: prismaSchemaHash(),
       lifecycle_contract_version: LIFECYCLE_OPERATION_RESULT_VERSION

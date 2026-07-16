@@ -2888,6 +2888,13 @@ Phase 6A.5 must not implement:
   acceptance requires no critical leakage, no schema/invalid-output regression,
   maintained or improved diagnostic/formative quality, cost within limits, no
   unsupported claims, and no move-on/fallback regression.
+- Candidate live-evaluation provenance must use the shared application
+  build-info resolver. The resolver priority is generated build artifact,
+  documented deployment build metadata, then local Git fallback for development.
+  Run, case, review, human-review, and approval evidence must record the same
+  `application_git_commit`, `application_git_commit_source`, and optional
+  `application_build_timestamp`. Missing, malformed, placeholder, or conflicting
+  commit sources must block before provider dispatch.
 - Candidate safety evaluation must be surface-aware, proposition-aware,
   evidence-grounded, pedagogical-quality-aware, and answer-reveal-policy-aware.
   The current full-v2 candidate uses `eval-safety-v5`,
@@ -2895,7 +2902,7 @@ Phase 6A.5 must not implement:
   `eval-answer-reveal-policy-v1`, `eval-topic-boundary-v2`,
   `evaluation-finding-provenance-v1`, `eval-proposition-analysis-v1`,
   `eval-evidence-grounding-v1`, `eval-pedagogical-quality-v1`,
-  `eval-production-schema-fidelity-v1`, `eval-run-provenance-v1`, and
+  `eval-production-schema-fidelity-v1`, `eval-run-provenance-v2`, and
   `eval-artifact-persistence-warning-v1`. Automated findings must record
   evaluated surface, field, exact proposition span, assertion polarity, fixture
   policy, reveal policy, blocking status, evaluator version, claim subject,

@@ -69,6 +69,7 @@ async function main() {
     expectedHash
   });
   assert(approved.status === "approval_evidence_ready", "Accepted clean run should permit approval evidence.");
+  assert(approved.artifact_path, "Approval evidence should include an artifact path.");
   assert(
     approved.exact_operational_approved_config_hash === expectedHash,
     "Approval evidence should output the exact candidate active hash."

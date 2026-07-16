@@ -110,13 +110,20 @@ Approval remains separate from evaluation and review:
 npm run operational:model-upgrade:approve -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
   --candidate-run <run_public_id> \
-  --expected-hash d3875bcf9568f25271261c46c9ab291d856efc8620c31fba12ed6adb6eb53f41 \
+  --expected-hash cc7448289c810eb1c8be2a3d96e3a8376ad73cc361fc984cd595bbfd1d3c6872 \
   --confirm "approve gpt-5.6 full operational candidate v2"
 ```
 
 The command writes approval evidence under the run artifact directory and prints
 the exact `OPERATIONAL_APPROVED_CONFIG_HASH` value. The operator must apply
 that value manually in Render after approval planning.
+
+Application build provenance is resolved through the shared app build-info
+resolver. A live run must record one 40-character lowercase Git commit and the
+source used to resolve it. The resolver priority is: generated build artifact,
+documented deployment build metadata, then local Git fallback for development.
+The live runner blocks before provider dispatch if no valid commit is available,
+or if available sources disagree.
 
 ## Proposition-Aware Automated Evaluation
 
@@ -125,7 +132,7 @@ The current full-v2 candidate uses `eval-safety-v5` with
 `eval-answer-reveal-policy-v1`, `eval-topic-boundary-v2`, and
 `evaluation-finding-provenance-v1`, plus `eval-proposition-analysis-v1`,
 `eval-evidence-grounding-v1`, `eval-pedagogical-quality-v1`,
-`eval-production-schema-fidelity-v1`, `eval-run-provenance-v1`, and
+`eval-production-schema-fidelity-v1`, `eval-run-provenance-v2`, and
 `eval-artifact-persistence-warning-v1`. Automated findings must identify the
 evaluated surface, field, exact text span, proposition polarity, fixture policy,
 reveal policy, blocking status, evaluator version, evidence support level, and

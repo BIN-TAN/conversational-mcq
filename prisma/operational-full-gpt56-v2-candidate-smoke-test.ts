@@ -225,7 +225,7 @@ function main() {
     "Full v2 candidate should fingerprint production-schema fidelity evaluation."
   );
   assert(
-    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_run_provenance === "eval-run-provenance-v1",
+    fullV2.configuration_fingerprint?.deterministic_guard_versions.evaluation_run_provenance === "eval-run-provenance-v2",
     "Full v2 candidate should fingerprint run-provenance evaluation."
   );
 

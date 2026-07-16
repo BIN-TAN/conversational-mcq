@@ -2353,6 +2353,7 @@ npm run operational:evaluation-evidence-grounding-smoke
 npm run operational:evaluation-pedagogical-quality-smoke
 npm run operational:evaluation-production-schema-fidelity-smoke
 npm run operational:evaluation-run-provenance-smoke
+npm run operational:application-build-provenance-smoke
 npm run operational:model-upgrade-live-eval-runner-smoke
 npm run operational:model-upgrade-human-review-smoke
 npm run operational:model-upgrade-approval-evidence-smoke
@@ -2364,7 +2365,7 @@ The full-v2 candidate evaluation uses the proposition-aware safety policy
 `eval-topic-boundary-v2`, `evaluation-finding-provenance-v1`,
 `eval-proposition-analysis-v1`, `eval-evidence-grounding-v1`,
 `eval-pedagogical-quality-v1`, `eval-production-schema-fidelity-v1`,
-`eval-run-provenance-v1`, and `eval-artifact-persistence-warning-v1`.
+`eval-run-provenance-v2`, and `eval-artifact-persistence-warning-v1`.
 Automated findings record the evaluated surface, field, exact proposition span,
 assertion polarity, fixture policy, reveal policy, blocking status, evaluator
 version, evidence support, and production-schema fidelity. Teacher-tool
@@ -2372,6 +2373,14 @@ answer-key references are not treated as student leakage, negated or prohibitive
 safety propositions are not unsupported-claim failures, unsupported engagement
 labels are blocked unless defined and evidenced, and unrelated-question refusals
 with redirects are not substantive off-topic answers.
+
+The model-upgrade runner uses the same application build-provenance resolver as
+`npm run app:build-info`. Production builds write `build/application-build-info.json`
+before `next build`; runtime evidence uses that immutable artifact first,
+documented build metadata second, and local Git only as a development fallback.
+Run, case, review, human-review, and approval artifacts must all carry the same
+`application_git_commit`, `application_git_commit_source`, and
+`application_build_timestamp` values.
 
 Run the same no-live commands against the full-v2 candidate with:
 

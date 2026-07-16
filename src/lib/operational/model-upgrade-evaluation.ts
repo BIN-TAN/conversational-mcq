@@ -7,8 +7,11 @@ import {
   writeFileSync
 } from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { z } from "zod";
+import {
+  resolveApplicationBuildInfo,
+  type ApplicationBuildInfo
+} from "@/lib/provenance/application-build-info";
 import {
   activeOperationalConfigHash,
   readApprovedOperationalAgentConfig
@@ -181,6 +184,9 @@ export type ModelUpgradeBudget = {
 
 type EvaluationCaseRecord = {
   case_public_id: string;
+  application_git_commit: string;
+  application_git_commit_source: string;
+  application_build_timestamp: string | null;
   fixture_id: string;
   role: LiveModelRole;
   status: "pending" | "succeeded" | "failed" | "invalid_output" | "refused" | "incomplete";
@@ -245,6 +251,8 @@ export type ModelUpgradeRunRecord = {
   baseline_approved_hash: string;
   current_active_configuration_hash: string | null;
   application_git_commit: string;
+  application_git_commit_source: string;
+  application_build_timestamp: string | null;
   evaluator_versions: Record<string, string>;
   artifact_persistence: {
     destination: string;
@@ -292,6 +300,9 @@ export type ModelUpgradeRunRecord = {
     confirm_phrase: string;
     review_command_version: string;
     rejected_or_flagged_cases: string[];
+    application_git_commit: string;
+    application_git_commit_source: string;
+    application_build_timestamp: string | null;
   };
   recommendation:
     | "candidate_live_evaluation_pending"
@@ -315,18 +326,6 @@ function sha256(value: unknown) {
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function gitCommit() {
-  try {
-    return execFileSync("git", ["rev-parse", "HEAD"], {
-      cwd: process.cwd(),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"]
-    }).trim();
-  } catch {
-    return null;
-  }
 }
 
 function safeActiveHash() {
@@ -625,7 +624,7 @@ export const EVALUATOR_PROPOSITION_ANALYSIS_VERSION = "eval-proposition-analysis
 export const EVALUATOR_EVIDENCE_GROUNDING_VERSION = "eval-evidence-grounding-v1";
 export const EVALUATOR_PEDAGOGICAL_QUALITY_VERSION = "eval-pedagogical-quality-v1";
 export const EVALUATOR_PRODUCTION_SCHEMA_FIDELITY_VERSION = "eval-production-schema-fidelity-v1";
-export const EVALUATOR_RUN_PROVENANCE_VERSION = "eval-run-provenance-v1";
+export const EVALUATOR_RUN_PROVENANCE_VERSION = "eval-run-provenance-v2";
 export const EVALUATOR_ARTIFACT_PERSISTENCE_VERSION = "eval-artifact-persistence-warning-v1";
 const POLICY_EVALUATOR_VERSION = [
   "eval-safety-v5",
@@ -1389,6 +1388,7 @@ function rawHash(result: StructuredAgentResult<unknown>) {
 function candidateCaseRecord(input: {
   fixture: ModelUpgradeFixture;
   candidate: CandidateOperationalModelConfig;
+  applicationBuildInfo: ApplicationBuildInfo;
   result: StructuredAgentResult<unknown>;
   parsedOutput: CandidateEvaluationOutput | null;
   retryCount: number;
@@ -1440,6 +1440,9 @@ function candidateCaseRecord(input: {
   ];
   return {
     case_public_id: caseId(),
+    application_git_commit: input.applicationBuildInfo.application_git_commit,
+    application_git_commit_source: input.applicationBuildInfo.application_git_commit_source,
+    application_build_timestamp: input.applicationBuildInfo.application_build_timestamp,
     fixture_id: input.fixture.fixture_id,
     role: input.fixture.role,
     status:
@@ -1533,12 +1536,15 @@ export function resolveModelUpgradeBudget(env: NodeJS.ProcessEnv = process.env):
 export function buildModelUpgradeEvaluationPlan(input: {
   manifestPath?: string;
   budget?: ModelUpgradeBudget;
+  applicationBuildInfo?: ApplicationBuildInfo;
 }) {
   const comparison = buildOperationalModelUpgradeComparison({ manifestPath: input.manifestPath });
   const candidate = readCandidateOperationalModelConfig(input.manifestPath);
   const fixtures = modelUpgradeEvaluationFixtures();
   const budget = input.budget ?? resolveModelUpgradeBudget();
-  const applicationGitCommit = gitCommit();
+  const buildInfoResolution = input.applicationBuildInfo
+    ? { ok: true as const, info: input.applicationBuildInfo }
+    : resolveApplicationBuildInfo();
   return {
     no_provider_call: true,
     candidate_manifest_path: comparison.candidate.manifest_path,
@@ -1576,7 +1582,10 @@ export function buildModelUpgradeEvaluationPlan(input: {
     evaluation_isolation_status: "isolated_synthetic_artifact_store",
     persistence_destination: MODEL_UPGRADE_ARTIFACT_ROOT,
     review_required: comparison.candidate.human_review_required,
-    application_git_commit: applicationGitCommit,
+    application_git_commit: buildInfoResolution.ok ? buildInfoResolution.info.application_git_commit : null,
+    application_git_commit_source: buildInfoResolution.ok ? buildInfoResolution.info.application_git_commit_source : null,
+    application_build_timestamp: buildInfoResolution.ok ? buildInfoResolution.info.application_build_timestamp : null,
+    application_build_provenance_error: buildInfoResolution.ok ? null : buildInfoResolution.code,
     evaluator_versions: modelUpgradeEvaluatorVersions(),
     artifact_persistence: modelUpgradeArtifactPersistenceStatus()
   };
@@ -1638,6 +1647,7 @@ function summarizeRun(input: {
     ...(missingCases.length > 0 ? ["missing_fixture_results"] : []),
     ...(criticalReasons.length > 0 ? ["critical_automated_failure"] : []),
     ...(!input.run.application_git_commit ? ["application_git_commit_missing"] : []),
+    ...(!input.run.application_git_commit_source ? ["application_git_commit_source_missing"] : []),
     ...(input.run.artifact_persistence?.persistence_verified !== true ? ["artifact_persistence_not_verified"] : []),
     ...(input.run.human_review_status !== "approved" ? ["human_review_not_approved"] : [])
   ];
@@ -1689,7 +1699,10 @@ function newRun(input: {
   const comparison = buildOperationalModelUpgradeComparison({ manifestPath: input.manifestPath });
   const approved = readApprovedOperationalAgentConfig();
   if (!input.plan.application_git_commit) {
-    throw new Error("application_git_commit_unavailable");
+    throw new Error(input.plan.application_build_provenance_error ?? "application_git_commit_unavailable");
+  }
+  if (!input.plan.application_git_commit_source) {
+    throw new Error("application_git_commit_source_unavailable");
   }
   return {
     run_public_id: runId(),
@@ -1699,6 +1712,8 @@ function newRun(input: {
     baseline_approved_hash: approved.approved_active_configuration_hash,
     current_active_configuration_hash: safeActiveHash(),
     application_git_commit: input.plan.application_git_commit,
+    application_git_commit_source: input.plan.application_git_commit_source,
+    application_build_timestamp: input.plan.application_build_timestamp,
     evaluator_versions: input.plan.evaluator_versions,
     artifact_persistence: input.plan.artifact_persistence,
     status: "created",
@@ -1783,6 +1798,12 @@ export async function executeModelUpgradeCandidateEvaluation(input: {
   const run = input.resumeRunPublicId
     ? loadModelUpgradeRun(input.resumeRunPublicId)
     : newRun({ manifestPath, candidate, budget, plan });
+  const runBuildInfo: ApplicationBuildInfo = {
+    application_git_commit: run.application_git_commit,
+    application_git_commit_source: run.application_git_commit_source as ApplicationBuildInfo["application_git_commit_source"],
+    application_build_timestamp: run.application_build_timestamp,
+    resolver_version: "application-build-provenance-v1"
+  };
   ensureDir(path.join(runDir(run.run_public_id), "cases"));
 
   if (!input.skipLiveEnvironmentGuardsForTest) {
@@ -1857,6 +1878,7 @@ export async function executeModelUpgradeCandidateEvaluation(input: {
       const caseRecord = candidateCaseRecord({
         fixture,
         candidate,
+        applicationBuildInfo: runBuildInfo,
         result,
         parsedOutput: output,
         retryCount,
@@ -1911,6 +1933,9 @@ export function exportModelUpgradeReviewArtifact(runPublicId: string) {
   ensureDir(reviewDir);
   const records = cases.map((entry) => ({
     candidate_run_public_id: run.run_public_id,
+    application_git_commit: run.application_git_commit,
+    application_git_commit_source: run.application_git_commit_source,
+    application_build_timestamp: run.application_build_timestamp,
     fixture_id: entry.fixture_id,
     role: entry.role,
     human_review_required: entry.human_review_required,
@@ -1965,6 +1990,9 @@ export function exportModelUpgradeReviewArtifact(runPublicId: string) {
     candidate_run_public_id: run.run_public_id,
     candidate_manifest_hash: run.candidate_manifest_hash,
     candidate_active_configuration_hash: run.candidate_active_configuration_hash,
+    application_git_commit: run.application_git_commit,
+    application_git_commit_source: run.application_git_commit_source,
+    application_build_timestamp: run.application_build_timestamp,
     review_exported_at: nowIso(),
     review_record_count: records.length,
     required_case_count: run.fixture_ids.length,
@@ -2060,7 +2088,10 @@ export function confirmModelUpgradeHumanReview(input: {
         review_command_version: MODEL_UPGRADE_REVIEW_COMMAND_VERSION,
         rejected_or_flagged_cases: input.decision === "reject"
           ? run.fixture_ids
-          : cases.filter((entry) => entry.critical_failure).map((entry) => entry.fixture_id)
+          : cases.filter((entry) => entry.critical_failure).map((entry) => entry.fixture_id),
+        application_git_commit: run.application_git_commit,
+        application_git_commit_source: run.application_git_commit_source,
+        application_build_timestamp: run.application_build_timestamp
       }
     },
     cases
@@ -2090,6 +2121,7 @@ export function evaluateModelUpgradeApprovalEvidence(input: {
       ? ["candidate_run_active_hash_mismatch"]
       : []),
     ...(!run.application_git_commit ? ["application_git_commit_missing"] : []),
+    ...(!run.application_git_commit_source ? ["application_git_commit_source_missing"] : []),
     ...(run.artifact_persistence?.persistence_verified !== true
       ? ["artifact_persistence_not_verified"]
       : []),
@@ -2140,6 +2172,8 @@ export function writeModelUpgradeApprovalArtifact(input: {
       evidence.comparison.candidate.candidate_active_configuration_hash,
     rollback_hash: evidence.comparison.baseline.approved_active_configuration_hash,
     application_git_commit: evidence.run.application_git_commit,
+    application_git_commit_source: evidence.run.application_git_commit_source,
+    application_build_timestamp: evidence.run.application_build_timestamp,
     evaluator_versions: evidence.run.evaluator_versions,
     artifact_persistence: evidence.run.artifact_persistence,
     approved_role_inventory: evidence.comparison.role_comparisons.map((entry) => ({

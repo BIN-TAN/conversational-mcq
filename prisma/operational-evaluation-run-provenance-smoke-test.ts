@@ -16,6 +16,8 @@ async function main() {
     manifestPath: FULL_GPT56_V2_CANDIDATE_CONFIG_PATH
   });
   assert(plan.application_git_commit && /^[a-f0-9]{40}$/u.test(plan.application_git_commit), "Plan should record the application Git commit.");
+  assert(plan.application_git_commit_source, "Plan should record the application Git commit source.");
+  assert(plan.evaluator_versions.run_provenance === "eval-run-provenance-v2", "Plan should record unified build-provenance evaluator version.");
   assert(plan.evaluator_versions.proposition_analysis === "eval-proposition-analysis-v1", "Plan should record proposition evaluator version.");
   assert(plan.evaluator_versions.evidence_grounding === "eval-evidence-grounding-v1", "Plan should record grounding evaluator version.");
   assert(plan.artifact_persistence.persistence_verified === false, "Local artifact persistence should not be silently trusted.");
@@ -30,7 +32,9 @@ async function main() {
       skipLiveEnvironmentGuardsForTest: true
     });
     assert(run.application_git_commit === plan.application_git_commit, "Run should persist the application Git commit.");
+    assert(run.application_git_commit_source === plan.application_git_commit_source, "Run should persist the application Git commit source.");
     assert(run.evaluator_versions.pedagogical_quality === modelUpgradeEvaluatorVersions().pedagogical_quality, "Run should persist evaluator versions.");
+    assert(run.evaluator_versions.run_provenance === "eval-run-provenance-v2", "Run should persist unified build-provenance evaluator version.");
     assert(run.artifact_persistence.persistence_verified === true, "Operator-attested persistence should be persisted on the run.");
     assert(run.case_results.length === plan.fixture_count, "Run should persist all planned cases.");
   } finally {

@@ -86,6 +86,8 @@ async function main() {
       candidate_manifest_hash: run.candidate_manifest_hash,
       candidate_active_configuration_hash: run.candidate_active_configuration_hash,
       application_git_commit: run.application_git_commit,
+      application_git_commit_source: run.application_git_commit_source,
+      application_build_timestamp: run.application_build_timestamp,
       artifact_persistence: run.artifact_persistence,
       backup_command:
         run.artifact_persistence.backup_command_template?.replaceAll("<run_public_id>", run.run_public_id) ?? null,

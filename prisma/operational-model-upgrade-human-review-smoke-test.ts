@@ -18,6 +18,7 @@ async function main() {
   const exportSummary = exportModelUpgradeReviewArtifact(cleanRun.run_public_id);
   assert(exportSummary.all_required_cases_represented, "Review export should include all required cases.");
   assert(exportSummary.review_record_count === cleanRun.fixture_ids.length, "Review record count should match fixture count.");
+  assert(exportSummary.application_git_commit === cleanRun.application_git_commit, "Review summary should preserve build provenance.");
 
   let missingBlocked = false;
   try {
@@ -42,6 +43,7 @@ async function main() {
   });
   assert(rejected.human_review_status === "rejected", "Rejected review should be recorded.");
   assert(rejected.recommendation === "candidate_rejected_by_human_review", "Rejected review should block recommendation.");
+  assert(rejected.human_review?.application_git_commit === cleanRun.application_git_commit, "Human review record should preserve build provenance.");
 
   const criticalRun = await executeModelUpgradeCandidateEvaluation({
     manifestPath: FULL_GPT56_V2_CANDIDATE_CONFIG_PATH,
