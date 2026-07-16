@@ -6,15 +6,25 @@ const source = readFileSync(
   "utf8"
 );
 
-assert.match(source, /Assessment completed/);
-assert.match(source, /You finished this assessment\./);
+const completionBadgeMatches = source.match(/Assessment completed/g) ?? [];
+
+assert.equal(
+  completionBadgeMatches.length,
+  1,
+  "Completed assessment cards should have one authoritative visible completion badge source."
+);
+assert.doesNotMatch(source, /You finished this assessment\./);
 assert.match(source, /Start another attempt/);
 assert.match(source, /Assessment in progress/);
 assert.match(source, /End current assessment/);
+assert.match(source, /aria-label=\{isCompleted \? "This assessment is completed" : undefined\}/);
 assert.doesNotMatch(source, /Latest completed attempt:/);
 assert.doesNotMatch(source, /previous attempts/);
 assert.doesNotMatch(source, /Next attempt:/);
 assert.doesNotMatch(source, /Current attempt .* status/);
+assert.doesNotMatch(source, /latest completed attempt/i);
+assert.doesNotMatch(source, /next attempt/i);
+assert.match(source, /const canStartNew = assessment\.can_start && !canOpen;/);
 
 console.log(JSON.stringify({
   status: "passed",

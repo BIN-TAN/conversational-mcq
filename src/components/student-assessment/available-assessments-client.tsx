@@ -23,10 +23,6 @@ function availabilityLabel(assessment: AvailableAssessment) {
     return "Assessment in progress";
   }
 
-  if (assessment.availability_status === "completed" && assessment.can_start) {
-    return "Assessment completed";
-  }
-
   if (assessment.availability_status === "completed") {
     return "Assessment completed";
   }
@@ -51,8 +47,8 @@ function availabilityLabel(assessment: AvailableAssessment) {
 }
 
 function statusClass(assessment: AvailableAssessment) {
-  if (assessment.availability_status === "completed" && !assessment.can_start) {
-    return "border-slate-200 bg-slate-100 text-slate-700";
+  if (assessment.availability_status === "completed") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-800";
   }
 
   if (assessment.can_resume) {
@@ -67,6 +63,10 @@ function statusClass(assessment: AvailableAssessment) {
 }
 
 function attemptCardSummary(assessment: AvailableAssessment) {
+  if (assessment.availability_status === "completed") {
+    return null;
+  }
+
   if (assessment.existing_attempt_number && assessment.existing_session_status) {
     return "Assessment in progress";
   }
@@ -74,10 +74,6 @@ function attemptCardSummary(assessment: AvailableAssessment) {
   const attemptsUsed = assessment.attempt_policy?.attempts_used ?? 0;
   if (attemptsUsed === 0) {
     return "No attempts yet";
-  }
-
-  if (assessment.availability_status === "completed") {
-    return "You finished this assessment.";
   }
 
   if (assessment.availability_status === "ended") {
@@ -284,6 +280,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
             {assessments.map((assessment) => {
               const isBusy =
                 pendingAssessment === assessment.assessment_public_id || isPending;
+              const isCompleted = assessment.availability_status === "completed";
               const canOpen = Boolean(assessment.can_resume && assessment.existing_session_public_id);
               const canStartNew = assessment.can_start && !canOpen;
               const startLabel =
@@ -302,20 +299,21 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                         <h2 className="text-lg font-semibold text-ink">{assessment.title}</h2>
                         <span
                           className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${statusClass(assessment)}`}
+                          aria-label={isCompleted ? "This assessment is completed" : undefined}
                         >
                           {availabilityLabel(assessment)}
                         </span>
                       </div>
-                      {assessment.description ? (
+                      {!isCompleted && assessment.description ? (
                         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
                           {assessment.description}
                         </p>
                       ) : null}
-                      <p className="mt-3 text-sm leading-6 text-muted">
-                        {assessment.availability_status === "completed"
-                          ? "You finished this assessment."
-                          : assessment.student_safe_availability_message}
-                      </p>
+                      {!isCompleted ? (
+                        <p className="mt-3 text-sm leading-6 text-muted">
+                          {assessment.student_safe_availability_message}
+                        </p>
+                      ) : null}
                       {assessment.attempt_policy && attemptCardSummary(assessment) ? (
                         <p className="mt-1 text-xs text-muted">
                           {attemptCardSummary(assessment)}
@@ -370,15 +368,13 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                           </button>
                         </>
                       ) : null}
-                      {!assessment.can_start && !canOpen ? (
+                      {!isCompleted && !assessment.can_start && !canOpen ? (
                         <button
                           className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-slate-50 px-4 text-sm font-semibold text-muted"
                           disabled
                           type="button"
                         >
-                          {assessment.availability_status === "completed"
-                            ? "Assessment completed"
-                            : "Unavailable"}
+                          Unavailable
                         </button>
                       ) : null}
                     </div>
