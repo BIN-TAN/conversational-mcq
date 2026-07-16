@@ -1,11 +1,13 @@
 import { loadEnvConfig } from "@next/env";
 import { buildOperationalModelUpgradeComparison } from "../src/lib/operational/model-upgrade";
 import { writeModelUpgradeApprovalArtifact } from "../src/lib/operational/model-upgrade-evaluation";
+import { writeModelUpgradeDerivedApprovalArtifact } from "../src/lib/operational/model-upgrade-reevaluation";
 import { argValue, candidateManifestArg } from "./operational-model-upgrade-cli-args";
 
 loadEnvConfig(process.cwd());
 
 const candidateRun = argValue("--candidate-run");
+const derivedEvaluation = argValue("--derived-evaluation");
 const expectedRuntimeHash = argValue("--expected-runtime-hash");
 const expectedProtocolHash = argValue("--expected-evaluation-protocol-hash");
 const confirmation = argValue("--confirm");
@@ -22,6 +24,7 @@ if (!candidateRun || !expectedRuntimeHash || !expectedProtocolHash || confirmati
     required: [
       "--manifest <candidate_manifest_path>",
       "--candidate-run <run_public_id>",
+      "--derived-evaluation <derived_evaluation_id> (required for offline re-evaluation approval)",
       "--expected-runtime-hash <runtime_candidate_hash>",
       "--expected-evaluation-protocol-hash <evaluation_protocol_hash>",
       `--confirm "${requiredConfirmation}"`
@@ -44,16 +47,25 @@ if (expectedRuntimeHash !== actualRuntimeHash) {
 }
 
 try {
-  const result = writeModelUpgradeApprovalArtifact({
-    manifestPath: manifestPath!,
-    candidateRunPublicId: candidateRun,
-    expectedRuntimeCandidateHash: expectedRuntimeHash,
-    expectedEvaluationProtocolHash: expectedProtocolHash
-  });
+  const result = derivedEvaluation
+    ? writeModelUpgradeDerivedApprovalArtifact({
+        manifestPath: manifestPath!,
+        candidateRunPublicId: candidateRun,
+        derivedEvaluationId: derivedEvaluation,
+        expectedRuntimeCandidateHash: expectedRuntimeHash,
+        expectedEvaluationProtocolHash: expectedProtocolHash
+      })
+    : writeModelUpgradeApprovalArtifact({
+        manifestPath: manifestPath!,
+        candidateRunPublicId: candidateRun,
+        expectedRuntimeCandidateHash: expectedRuntimeHash,
+        expectedEvaluationProtocolHash: expectedProtocolHash
+      });
   if (result.status === "blocked") {
     console.error(JSON.stringify({
       ...result,
       candidate_run_public_id: candidateRun,
+      derived_evaluation_id: derivedEvaluation ?? null,
       candidate_manifest_path: comparison.candidate.manifest_path,
       candidate_manifest_hash: actualManifestHash,
       runtime_candidate_hash: actualRuntimeHash,
@@ -65,6 +77,7 @@ try {
   console.log(JSON.stringify({
     ...result,
     candidate_run_public_id: candidateRun,
+    derived_evaluation_id: derivedEvaluation ?? null,
     candidate_manifest_path: comparison.candidate.manifest_path,
     candidate_manifest_hash: actualManifestHash,
     runtime_candidate_hash: actualRuntimeHash,

@@ -1,7 +1,14 @@
 import { stableHash } from "@/lib/agents/operational/approved-config";
+import {
+  fixtureOutputContract,
+  validateFixtureOutputContractDeclaration,
+  type ModelUpgradeFixtureOutputContract,
+  type ModelUpgradeOutputContractId
+} from "@/lib/operational/model-upgrade-output-contracts";
+import type { LiveModelRole } from "@/lib/llm/config";
 
-export const MODEL_UPGRADE_FIXTURE_PREFLIGHT_VERSION = "model-upgrade-fixture-preflight-v1";
-export const MODEL_UPGRADE_VALIDATOR_BOUNDARY_VERSION = "model-upgrade-validator-boundaries-v1";
+export const MODEL_UPGRADE_FIXTURE_PREFLIGHT_VERSION = "model-upgrade-fixture-preflight-v2";
+export const MODEL_UPGRADE_VALIDATOR_BOUNDARY_VERSION = "model-upgrade-validator-boundaries-v2";
 export const MODEL_UPGRADE_SEMANTIC_ADJUDICATOR_VERSION =
   "independent-deterministic-semantic-adjudicator-v3";
 export const MODEL_UPGRADE_SEVERITY_POLICY_VERSION = "model-upgrade-severity-policy-v1";
@@ -17,6 +24,7 @@ export type FixtureInputContract = {
   permitted_surfaces: EvaluationSurface[];
   reveal_state: "pre_reveal" | "post_reveal_administered" | "teacher_only" | "not_applicable";
   expected_task: string;
+  output_contract: ModelUpgradeFixtureOutputContract;
   fact_requirements: {
     item_number_required: boolean;
     option_label_required: boolean;
@@ -39,6 +47,7 @@ export type FixturePreflightResult = {
 
 type FixtureLike = {
   fixture_id: string;
+  role: LiveModelRole;
   synthetic_input_context: Record<string, unknown>;
   input_contract: FixtureInputContract;
   [key: string]: unknown;
@@ -197,6 +206,8 @@ function fixtureInputConsistencyIssues(fixture: FixtureLike) {
 
 export function buildFixtureInputContract(input: {
   context: Record<string, unknown>;
+  role: LiveModelRole;
+  outputContractId: ModelUpgradeOutputContractId;
   permittedSurfaces: EvaluationSurface[];
   revealState: FixtureInputContract["reveal_state"];
   requestedOutputSpecificity?: FixtureInputContract["requested_output_specificity"];
@@ -216,6 +227,7 @@ export function buildFixtureInputContract(input: {
     permitted_surfaces: [...input.permittedSurfaces].sort(),
     reveal_state: input.revealState,
     expected_task: String(input.context.expected_behavior ?? ""),
+    output_contract: fixtureOutputContract(input.outputContractId, input.role),
     fact_requirements: {
       item_number_required: false,
       option_label_required: false,
@@ -235,6 +247,19 @@ export function preflightModelUpgradeFixture(fixture: FixtureLike): FixturePrefl
   if (inconsistentInputCodes.length > 0) reasonCodes.push("fixture_input_contradiction");
   if (!fixture.input_contract.expected_task.trim()) reasonCodes.push("expected_task_missing");
   if (fixture.input_contract.permitted_surfaces.length === 0) reasonCodes.push("permitted_surface_missing");
+  const outputContractValidation = validateFixtureOutputContractDeclaration({
+    role: fixture.role,
+    declaration: fixture.input_contract.output_contract
+  });
+  if (!outputContractValidation.valid) {
+    reasonCodes.push("fixture_output_contract_invalid", ...outputContractValidation.reason_codes);
+  }
+  if (fixture.input_contract.reveal_state !== fixture.input_contract.output_contract.reveal_state) {
+    reasonCodes.push("fixture_output_contract_reveal_state_mismatch");
+  }
+  if (!fixture.input_contract.permitted_surfaces.includes(fixture.input_contract.output_contract.output_kind)) {
+    reasonCodes.push("fixture_output_contract_surface_mismatch");
+  }
   for (const [requirement, required] of Object.entries(fixture.input_contract.fact_requirements) as Array<[
     keyof FixtureInputContract["fact_requirements"],
     boolean
@@ -657,6 +682,7 @@ export function buildModelUpgradeEvaluationProtocolSnapshot(input: {
       ],
       ambiguous_semantics_action: "semantic_review_required"
     },
+    output_contract_registry: input.fixtures.map((fixture) => fixture.input_contract.output_contract),
     reviewer_policy: {
       version: MODEL_UPGRADE_REVIEWER_POLICY_VERSION,
       human_review_required_for_student_facing_output: true,

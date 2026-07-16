@@ -57,11 +57,17 @@ import {
   type SeparatedValidatorResult,
   type SeparatedValidatorResults
 } from "@/lib/operational/model-upgrade-evaluation-protocol";
+import {
+  evaluateModelUpgradeOutputContract,
+  fixtureOutputContract,
+  MODEL_UPGRADE_OUTPUT_CONTRACT_REGISTRY_VERSION,
+  type ModelUpgradeOutputContractId
+} from "@/lib/operational/model-upgrade-output-contracts";
 
 export const MODEL_UPGRADE_EVALUATION_RUNNER_VERSION =
-  "operational-model-upgrade-live-eval-runner-v4";
+  "operational-model-upgrade-live-eval-runner-v5";
 export const MODEL_UPGRADE_FIXTURE_SET_VERSION =
-  "full-gpt56-v2-fixed-fixtures-v5";
+  "full-gpt56-v2-fixed-fixtures-v6";
 export const MODEL_UPGRADE_REVIEW_COMMAND_VERSION =
   "operational-model-upgrade-human-review-v1";
 export const MODEL_UPGRADE_APPROVAL_COMMAND_VERSION =
@@ -230,7 +236,7 @@ export type ModelUpgradeBudget = {
   large_plan_call_threshold: number;
 };
 
-type EvaluationCaseRecord = {
+export type EvaluationCaseRecord = {
   case_public_id: string;
   application_git_commit: string;
   application_git_commit_source: string;
@@ -467,18 +473,18 @@ function fixture(
   role: LiveModelRole,
   synthetic_input_context: Record<string, unknown>,
   options: Partial<Pick<ModelUpgradeFixture,
-    "student_facing_review_required" |
-    "teacher_facing_review_required" |
     "repair_allowed" |
     "allow_answer_key_reference"
   >> & {
+    output_contract_id: ModelUpgradeOutputContractId;
     requested_output_specificity?: FixtureInputContract["requested_output_specificity"];
     optional_input_facts?: string[];
     fact_requirements?: Partial<FixtureInputContract["fact_requirements"]>;
-  } = {}
+  }
 ): ModelUpgradeFixture {
-  const studentFacing = options.student_facing_review_required ?? true;
-  const teacherFacing = options.teacher_facing_review_required ?? false;
+  const outputContract = fixtureOutputContract(options.output_contract_id, role);
+  const studentFacing = outputContract.output_kind === "student_facing";
+  const teacherFacing = outputContract.output_kind === "teacher_tool";
   const allowAnswerReference = options.allow_answer_key_reference ?? false;
   return {
     fixture_id,
@@ -522,14 +528,10 @@ function fixture(
         : "not_allowed",
     input_contract: buildFixtureInputContract({
       context: synthetic_input_context,
-      permittedSurfaces: [
-        ...(studentFacing ? ["student_facing" as const] : []),
-        ...(teacherFacing ? ["teacher_tool" as const] : []),
-        ...(!studentFacing && !teacherFacing ? ["utility" as const] : [])
-      ],
-      revealState: teacherFacing
-        ? "teacher_only"
-        : allowAnswerReference ? "post_reveal_administered" : "pre_reveal",
+      role,
+      outputContractId: options.output_contract_id,
+      permittedSurfaces: [outputContract.output_kind],
+      revealState: outputContract.reveal_state,
       requestedOutputSpecificity: options.requested_output_specificity,
       optionalInputFacts: options.optional_input_facts,
       factRequirements: options.fact_requirements
@@ -545,62 +547,62 @@ export function modelUpgradeEvaluationFixtures(): ModelUpgradeFixture[] {
       item_a: "Reliability coefficient interpretation item.",
       item_b: "Internal consistency interpretation item with near-identical options.",
       expected_behavior: "Advisory only; require teacher review for duplicate risk."
-    }, { student_facing_review_required: false, teacher_facing_review_required: true }),
+    }, { output_contract_id: "teacher_advisory" }),
     fixture("item_administration_what", "item_administration_tutor_agent", {
       student_message: "what",
       current_step: "reasoning",
       current_item_number: 2,
       selected_option: "C",
       expected_behavior: "Clarify that the student is explaining why they chose C for Item 2; ask for one or two sentences about the idea they used, without content help."
-    }, { fact_requirements: { item_number_required: true, option_label_required: true } }),
+    }, { output_contract_id: "student_pre_reveal_clarification", fact_requirements: { item_number_required: true, option_label_required: true } }),
     fixture("item_administration_about_what", "item_administration_tutor_agent", {
       student_message: "about what",
       current_step: "reasoning",
       current_item_number: 2,
       selected_option: "C",
       expected_behavior: "Name Item 2 and the current task; ask why the selected option was chosen without giving hints or correctness feedback."
-    }, { fact_requirements: { item_number_required: true, option_label_required: true } }),
+    }, { output_contract_id: "student_pre_reveal_clarification", fact_requirements: { item_number_required: true, option_label_required: true } }),
     fixture("item_administration_which_item_do_you_mean", "item_administration_tutor_agent", {
       student_message: "which item do you mean",
       current_step: "reasoning",
       current_item_number: 2,
       selected_option: "C",
       expected_behavior: "Clarify the current item number and current task: the student is explaining why they chose option C."
-    }, { fact_requirements: { item_number_required: true, option_label_required: true } }),
+    }, { output_contract_id: "student_pre_reveal_clarification", fact_requirements: { item_number_required: true, option_label_required: true } }),
     fixture("item_administration_request_for_an_example", "item_administration_tutor_agent", {
       student_message: "Can you give me an example?",
       current_step: "reasoning",
       current_item_number: 2,
       selected_option: "C",
       expected_behavior: "Give an example of the response form only, such as 'I chose option C because ____. The key idea I used was ____.' Do not fill conceptual blanks, reveal correctness, or provide an item-specific hint."
-    }, { fact_requirements: { item_number_required: true, option_label_required: true } }),
+    }, { output_contract_id: "student_pre_reveal_clarification", fact_requirements: { item_number_required: true, option_label_required: true } }),
     fixture("response_collection_substantive_correct_answer", "response_collection_agent", {
       selected_option: "C",
       reasoning: "Reliability is about consistency; validity needs evidence for interpretation.",
       expected_behavior: "Capture exact reasoning and avoid correctness feedback."
-    }),
+    }, { output_contract_id: "student_response_capture" }),
     fixture("response_collection_partial_understanding", "response_collection_agent", {
       selected_option: "A",
       reasoning: "A high coefficient probably means the test proves validity.",
       expected_behavior: "Capture reasoning without teaching or selecting confidence."
-    }),
+    }, { output_contract_id: "student_response_capture" }),
     fixture("student_profiling_specific_misconception", "student_profiling_agent", {
       package_summary: "Student repeatedly treats reliability evidence as proof of validity.",
       expected_behavior: "Preserve uncertainty and identify the misconception cautiously."
-    }),
+    }, { output_contract_id: "teacher_package_analysis" }),
     fixture("profile_integration_mixed_correctness", "profile_integration_agent", {
       ability_evidence: "Two accurate explanations and one overgeneralized reliability-validity claim.",
       process_evidence: "The student completed all required response steps and provided brief reasoning. No supplied fact supports a misconduct inference.",
       expected_behavior: "Integrate evidence without overclaiming stable ability or converting process evidence into an engagement trait."
-    }),
+    }, { output_contract_id: "student_post_reveal_feedback" }),
     fixture("formative_value_and_planning_distractor_first_selection", "formative_value_and_planning_agent", {
       diagnostic_profile: "Distractor-linked validity misconception remains plausible.",
       expected_behavior: "Prefer a distractor-informed diagnostic purpose with concise plan."
-    }),
+    }, { output_contract_id: "teacher_formative_planning" }),
     fixture("formative_value_determination_conceptual_need", "formative_value_determination_agent", {
       profile_interpretation: "The main need is distinguishing reliability from validity.",
       expected_behavior: "Select a conceptual learning need over confidence calibration. Define validity as evidence supporting intended interpretations and uses of scores, not merely as whether a measure assesses what it intends."
-    }),
+    }, { output_contract_id: "student_post_reveal_feedback" }),
     fixture("followup_assessment_system_question", "followup_agent", {
       student_message: "How many questions are left?",
       assessment_state: "formative_activity",
@@ -611,7 +613,7 @@ export function modelUpgradeEvaluationFixtures(): ModelUpgradeFixture[] {
         remaining_required_initial_questions: 0
       },
       expected_behavior: "Use deterministic state facts to answer the system question briefly without advancing state."
-    }),
+    }, { output_contract_id: "student_system_question" }),
     fixture("formative_activity_distractor_probe", "formative_activity_dialogue_agent", {
       selected_activity_family: "distractor_misconception_probe",
       target_item_number: 2,
@@ -621,6 +623,7 @@ export function modelUpgradeEvaluationFixtures(): ModelUpgradeFixture[] {
       known_correct_answer: "C",
       expected_behavior: "Name Item 2, option A, and the option text when asking the student to identify the precise flaw in the reliability-proves-validity claim and rewrite it accurately. Do not say 'The answer is known.'"
     }, {
+      output_contract_id: "student_activity_elicitation",
       allow_answer_key_reference: true,
       fact_requirements: {
         item_number_required: true,
@@ -632,16 +635,16 @@ export function modelUpgradeEvaluationFixtures(): ModelUpgradeFixture[] {
     fixture("formative_activity_quality_review", "formative_activity_quality_reviewer_agent", {
       activity_first_turn: "Option A says reliability proves validity. Identify the flaw and rewrite it accurately.",
       expected_behavior: "Review quality and safety of the first turn."
-    }, { student_facing_review_required: false, teacher_facing_review_required: true }),
+    }, { output_contract_id: "teacher_package_analysis" }),
     fixture("formative_activity_response_evaluation", "formative_activity_response_evaluator_agent", {
       student_activity_response: "Reliability means consistent scores, but validity needs evidence for the interpretation.",
       expected_behavior: "Evaluate post-activity misconception evidence without deterministic final diagnosis."
-    }, { student_facing_review_required: false, teacher_facing_review_required: true }),
+    }, { output_contract_id: "teacher_post_activity_evaluation" }),
     fixture("post_activity_evidence_update", "post_activity_evidence_evaluator_agent", {
       previous_hypothesis: "Reliability-validity overgeneralization.",
       activity_response_summary: "Student now contrasts consistency with interpretation evidence.",
       expected_behavior: "Update evidence cautiously; do not claim all misconceptions are gone."
-    }, { student_facing_review_required: false, teacher_facing_review_required: true }),
+    }, { output_contract_id: "teacher_post_activity_evaluation" }),
     fixture("student_communication_package_feedback", "student_communication_agent", {
       facts: "Student completed three items. Items 1 and 3 had supported explanations; Item 2 confused reliability and validity.",
       administered_item_count: 3,
@@ -656,6 +659,7 @@ export function modelUpgradeEvaluationFixtures(): ModelUpgradeFixture[] {
       confidence_pattern: "The student reported high confidence on the overgeneralized reliability-validity explanation.",
       expected_behavior: "Natural student-facing summary using item-specific, fact-locked evidence: item numbers, correctness pattern, reasoning pattern, reported confidence pattern, and one precise improvement target. Refer to selected confidence as reported confidence, not inferred confidence."
     }, {
+      output_contract_id: "student_package_feedback_reveal",
       requested_output_specificity: "item_specific",
       fact_requirements: {
         item_number_required: true,
@@ -668,19 +672,19 @@ export function modelUpgradeEvaluationFixtures(): ModelUpgradeFixture[] {
       current_topic: "Reliability versus validity in MCQ assessment.",
       preferred_response: "I can help with this assessment or explain how to use it. Let’s return to reliability and validity. What would you like to clarify?",
       expected_behavior: "Redirect to the assessment topic without providing weather, forecast, temperature, or other unrelated content; avoid unnecessarily echoing the weather request."
-    }),
+    }, { output_contract_id: "student_topic_dialogue" }),
     fixture("teacher_mcq_diagnostic_authoring", "mcq_diagnostic_authoring_assistant_agent", {
       teacher_draft_item: "Which evidence supports score interpretation?",
       expected_behavior: "Suggest diagnostic distractor improvements for teacher review."
-    }, { student_facing_review_required: false, teacher_facing_review_required: true }),
+    }, { output_contract_id: "teacher_advisory" }),
     fixture("teacher_mcq_import_formatting", "mcq_import_formatting_assistant_agent", {
       teacher_document_excerpt: "1. Stem... A)... B)... Answer: C",
       expected_behavior: "Format into candidate MCQ structure without inventing content."
-    }, { student_facing_review_required: false, teacher_facing_review_required: true }),
+    }, { output_contract_id: "teacher_advisory" }),
     fixture("connectivity_metadata_check", "connectivity_test", {
       task: "Return metadata-only connectivity acknowledgement.",
       expected_behavior: "No student-facing content; prove model access and provider metadata."
-    }, { student_facing_review_required: false })
+    }, { output_contract_id: "utility_connectivity" })
   ];
 
   const fixtureIds = fixtures.map((entry) => entry.fixture_id);
@@ -697,6 +701,7 @@ function safeInstructions(fixture: ModelUpgradeFixture, metadata: Record<string,
     "This is not a classroom workflow and contains no real student data.",
     `Target role: ${fixture.role}.`,
     `Fixture ID: ${fixture.fixture_id}.`,
+    `Required output contract: ${JSON.stringify(fixture.input_contract.output_contract)}.`,
     `Expected invariants: ${fixture.expected_invariants.join(" ")}`,
     `Safety constraints: ${fixture.safety_constraints.join(" ")}`,
     "Return only the requested JSON structure. Do not include chain-of-thought.",
@@ -719,6 +724,7 @@ function evaluationInput(fixture: ModelUpgradeFixture) {
     expected_invariants: fixture.expected_invariants,
     safety_constraints: fixture.safety_constraints,
     acceptable_output_ranges: fixture.acceptable_output_ranges,
+    output_contract: fixture.input_contract.output_contract,
     human_review_requirement: {
       student_facing: fixture.student_facing_review_required,
       teacher_facing: fixture.teacher_facing_review_required
@@ -793,7 +799,8 @@ export function modelUpgradeEvaluatorVersions() {
     independent_semantic_adjudicator: MODEL_UPGRADE_SEMANTIC_ADJUDICATOR_VERSION,
     severity_policy: MODEL_UPGRADE_SEVERITY_POLICY_VERSION,
     reviewer_policy: MODEL_UPGRADE_REVIEWER_POLICY_VERSION,
-    semantic_calibration_corpus: MODEL_UPGRADE_CALIBRATION_CORPUS_VERSION
+    semantic_calibration_corpus: MODEL_UPGRADE_CALIBRATION_CORPUS_VERSION,
+    output_contract_registry: MODEL_UPGRADE_OUTPUT_CONTRACT_REGISTRY_VERSION
   };
 }
 
@@ -1956,38 +1963,13 @@ function separatedValidatorResults(input: {
   fact: ReturnType<typeof factConsistencyResult>;
   semantics: SemanticAdjudication[];
 }): SeparatedValidatorResults {
-  const renderedText = evaluatedTextFields(input.output).map((entry) => entry.text).join(" ");
-  const requiredFactCompletenessCodes = [
-    ...(input.fixture.student_facing_review_required && !input.output?.student_facing_text
-      ? ["required_student_facing_output_missing"]
-      : []),
-    ...(input.fixture.teacher_facing_review_required && !input.output?.teacher_facing_text
-      ? ["required_teacher_facing_output_missing"]
-      : []),
-    ...(input.fixture.input_contract.fact_requirements.item_number_required &&
-      !/\b(?:item|question)\s*\d+\b/iu.test(renderedText)
-      ? ["required_item_number_missing"]
-      : []),
-    ...(input.fixture.input_contract.fact_requirements.option_label_required &&
-      !/\boption\s*[A-D]\b/iu.test(renderedText)
-      ? ["required_option_label_missing"]
-      : []),
-    ...(input.fixture.input_contract.fact_requirements.option_text_required &&
-      typeof input.fixture.synthetic_input_context.target_option_text === "string" &&
-      !optionTextMentioned(renderedText, input.fixture.synthetic_input_context.target_option_text)
-      ? ["required_option_text_missing"]
-      : []),
-    ...(input.fixture.input_contract.fact_requirements.correctness_required &&
-      !/\b(correct|incorrect|two\s+.+one|one\s+.+two)\b/iu.test(renderedText)
-      ? ["required_correctness_summary_missing"]
-      : []),
-    ...(input.fixture.input_contract.fact_requirements.confidence_required &&
-      !/\b(?:reported|selected)?\s*(?:low|medium|high)\s+confidence\b/iu.test(renderedText)
-      ? ["required_confidence_summary_missing"]
-      : [])
-  ];
-  const completenessCodes = requiredFactCompletenessCodes;
+  const outputContract = evaluateModelUpgradeOutputContract({
+    contract: input.fixture.input_contract.output_contract,
+    output: input.output
+  });
+  const completenessCodes = outputContract.completeness_issue_codes;
   const instructionCodes = [
+    ...outputContract.instruction_issue_codes,
     ...input.topic.findings.map((entry) => entry.finding_code),
     ...input.policy.quality_finding_details
       .filter((entry) => /(?:hint|ignored_deterministic_state|problem_solving_advice|awkward_known_answer)/u.test(entry.finding_code))
@@ -2425,6 +2407,12 @@ export function modelUpgradeRunApprovalIdentityStatus(run: {
 function loadCaseIfPresent(runPublicId: string, fixtureId: string) {
   const filePath = caseJsonPath(runPublicId, fixtureId);
   return existsSync(filePath) ? readJson<EvaluationCaseRecord>(filePath) : null;
+}
+
+export function loadModelUpgradeCase(runPublicId: string, fixtureId: string) {
+  const record = loadCaseIfPresent(runPublicId, fixtureId);
+  if (!record) throw new Error(`model_upgrade_case_not_found:${fixtureId}`);
+  return record;
 }
 
 function summarizeRun(input: {

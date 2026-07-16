@@ -2909,6 +2909,14 @@ Phase 6A.5 must not implement:
   required input is `fixture_invalid` / `missing_required_input`; contradictory
   structured input is `fixture_invalid` / `fixture_input_contradiction`. Either
   blocks before all provider dispatch and is not a model failure.
+- Candidate output completeness is governed only by the typed production-output
+  contract registry. Each fixture must bind an expected role, workflow phase,
+  output kind, interaction purpose, reveal state, required fields, and forbidden
+  fields to one registry contract before dispatch. Teacher/internal analytical
+  contracts do not require student-facing text. Student-turn contracts do.
+  Elicitation contracts require an actionable prompt without inferring a
+  correctness-summary requirement from supplied facts; feedback/reveal
+  contracts require correctness only when explicitly declared.
 - Automated results must keep fixture validity, fact consistency, output
   completeness, instruction following, evidence grounding, safety, substantive
   accuracy, pedagogical quality, and language quality separate. Fact consistency
@@ -2988,6 +2996,13 @@ Phase 6A.5 must not implement:
 - Historical runs created before separated runtime/protocol identities remain
   immutable and are classified as `legacy_evaluation_protocol_unbound`. They may
   be used for regression analysis but not current approval evidence.
+- Completed provider runs with separated identities may be re-evaluated offline
+  under a newer evaluator protocol. Offline re-evaluation makes zero provider
+  calls, hashes and preserves the source run and cases, writes a separate derived
+  evaluation ID, retains original and derived findings, and binds the unchanged
+  runtime hash to both source and derived protocol hashes. Derived approval must
+  reference both IDs and recheck source immutability, provider evidence,
+  calibration, critical gates, complete human review, and hash consistency.
 
 ## Phase 31AL Evidence-Integrated Profile And Routing Lock
 

@@ -2358,6 +2358,8 @@ npm run operational:model-upgrade-live-eval-runner-smoke
 npm run operational:model-upgrade-human-review-smoke
 npm run operational:model-upgrade-approval-evidence-smoke
 npm run operational:model-upgrade-approval-architecture-smoke
+npm run operational:model-upgrade-output-contract-smoke
+npm run operational:model-upgrade-reevaluation-smoke
 ```
 
 The full-v2 approval architecture separates `runtime_candidate_hash` from
@@ -2432,7 +2434,7 @@ already be approved.
 
 ```bash
 npm run operational:model-upgrade:live-smoke
-RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 --expected-evaluation-protocol-hash 3cde10b2534d5a0486b4631555529bf9b4b84e6fd90fc7113aeecc3930e0a219 --confirm-paid-api
+RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 --expected-evaluation-protocol-hash 7378ea48473893b9ce1a04885c32af2ac93be1fd4fb5aa1ec7012a896e77a7c6 --confirm-paid-api
 ```
 
 If a paid run is interrupted, resume it without repeating completed successful
@@ -2442,7 +2444,7 @@ cases:
 RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 npm run operational:model-upgrade:live-eval -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
   --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
-  --expected-evaluation-protocol-hash 3cde10b2534d5a0486b4631555529bf9b4b84e6fd90fc7113aeecc3930e0a219 \
+  --expected-evaluation-protocol-hash 7378ea48473893b9ce1a04885c32af2ac93be1fd4fb5aa1ec7012a896e77a7c6 \
   --confirm-paid-api \
   --resume-run <run_public_id>
 ```
@@ -2482,7 +2484,7 @@ npm run operational:model-upgrade:approve -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
   --candidate-run <run_public_id> \
   --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
-  --expected-evaluation-protocol-hash 3cde10b2534d5a0486b4631555529bf9b4b84e6fd90fc7113aeecc3930e0a219 \
+  --expected-evaluation-protocol-hash 7378ea48473893b9ce1a04885c32af2ac93be1fd4fb5aa1ec7012a896e77a7c6 \
   --confirm "approve gpt-5.6 full operational candidate v2"
 ```
 
