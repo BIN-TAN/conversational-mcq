@@ -40,7 +40,7 @@ import {
 export const MODEL_UPGRADE_EVALUATION_RUNNER_VERSION =
   "operational-model-upgrade-live-eval-runner-v3";
 export const MODEL_UPGRADE_FIXTURE_SET_VERSION =
-  "full-gpt56-v2-fixed-fixtures-v3";
+  "full-gpt56-v2-fixed-fixtures-v4";
 export const MODEL_UPGRADE_REVIEW_COMMAND_VERSION =
   "operational-model-upgrade-human-review-v1";
 export const MODEL_UPGRADE_APPROVAL_COMMAND_VERSION =
@@ -480,13 +480,17 @@ export function modelUpgradeEvaluationFixtures(): ModelUpgradeFixture[] {
     }),
     fixture("item_administration_which_item_do_you_mean", "item_administration_tutor_agent", {
       student_message: "which item do you mean",
+      current_step: "reasoning",
       current_item_number: 2,
-      expected_behavior: "Clarify the current item number and current task."
+      selected_option: "C",
+      expected_behavior: "Clarify the current item number and current task: the student is explaining why they chose option C."
     }),
     fixture("item_administration_request_for_an_example", "item_administration_tutor_agent", {
       student_message: "Can you give me an example?",
       current_step: "reasoning",
-      expected_behavior: "Give procedural guidance only; no answer-key or hint."
+      current_item_number: 2,
+      selected_option: "C",
+      expected_behavior: "Give an example of the response form only, such as 'I chose option C because ____. The key idea I used was ____.' Do not fill conceptual blanks, reveal correctness, or provide an item-specific hint."
     }),
     fixture("response_collection_substantive_correct_answer", "response_collection_agent", {
       selected_option: "C",
@@ -513,7 +517,7 @@ export function modelUpgradeEvaluationFixtures(): ModelUpgradeFixture[] {
     }),
     fixture("formative_value_determination_conceptual_need", "formative_value_determination_agent", {
       profile_interpretation: "The main need is distinguishing reliability from validity.",
-      expected_behavior: "Select a conceptual learning need over confidence calibration."
+      expected_behavior: "Select a conceptual learning need over confidence calibration. Define validity as evidence supporting intended interpretations and uses of scores, not merely as whether a measure assesses what it intends."
     }),
     fixture("followup_assessment_system_question", "followup_agent", {
       student_message: "How many questions are left?",
@@ -528,9 +532,12 @@ export function modelUpgradeEvaluationFixtures(): ModelUpgradeFixture[] {
     }),
     fixture("formative_activity_distractor_probe", "formative_activity_dialogue_agent", {
       selected_activity_family: "distractor_misconception_probe",
-      target_distractor: "Reliability proves validity.",
+      target_item_number: 2,
+      target_option_label: "A",
+      target_option_text: "A high reliability coefficient proves that the scores are valid.",
+      target_distractor: "A high reliability coefficient proves that the scores are valid.",
       known_correct_answer: "C",
-      expected_behavior: "Do not say 'The answer is known.' Ask the student to identify the precise flaw in the reliability-proves-validity claim and rewrite it accurately."
+      expected_behavior: "Name Item 2, option A, and the option text when asking the student to identify the precise flaw in the reliability-proves-validity claim and rewrite it accurately. Do not say 'The answer is known.'"
     }, { allow_answer_key_reference: true }),
     fixture("formative_activity_quality_review", "formative_activity_quality_reviewer_agent", {
       activity_first_turn: "Option A says reliability proves validity. Identify the flaw and rewrite it accurately.",
@@ -548,8 +555,8 @@ export function modelUpgradeEvaluationFixtures(): ModelUpgradeFixture[] {
     fixture("student_communication_package_feedback", "student_communication_agent", {
       facts: "Student completed three items. Two explanations supported the answer; one confused reliability and validity.",
       correctness_pattern: "Two initial item answers were correct and one was incorrect.",
-      confidence_pattern: "Confidence was high on the overgeneralized reliability-validity explanation.",
-      expected_behavior: "Natural student-facing summary using item-specific, fact-locked evidence: item numbers, correctness pattern, reasoning pattern, confidence pattern, and one precise improvement target."
+      confidence_pattern: "The student reported high confidence on the overgeneralized reliability-validity explanation.",
+      expected_behavior: "Natural student-facing summary using item-specific, fact-locked evidence: item numbers, correctness pattern, reasoning pattern, reported confidence pattern, and one precise improvement target. Refer to selected confidence as reported confidence, not inferred confidence."
     }),
     fixture("topic_dialogue_unrelated_question", "topic_dialogue_agent", {
       student_message: "What is the weather tomorrow?",
@@ -590,6 +597,11 @@ function safeInstructions(fixture: ModelUpgradeFixture, metadata: Record<string,
     "Return only the requested JSON structure. Do not include chain-of-thought.",
     "Use concise student-facing or teacher-facing text only when the fixture calls for it.",
     "If the fixture is unrelated/off-topic, redirect instead of answering substantively.",
+    "Item-administration clarification contract: when current item and task facts are supplied, name the student-safe item number, state the current task, reference the selected option when supplied, and ask one actionable response-form prompt without correctness feedback or content hints.",
+    "Procedural example contract: if a reasoning-step student asks for an example, provide an example of the response form only, such as \"I chose option C because ____. The key idea I used was ____.\" Do not fill conceptual blanks or solve the item.",
+    "Measurement-domain accuracy policy: validity concerns evidence supporting intended interpretations and uses of scores. Do not use \"measures what intended\", \"assesses what intended\", or \"accuracy of the test\" as a complete validity definition. Reliability may be score consistency or precision, but reliability alone does not establish validity.",
+    "Distractor activity context contract: when item number, option label, and option text are supplied for a distractor-focused activity, include those student-safe facts in the student-facing task and do not expose internal IDs.",
+    "Confidence grounding contract: if confidence comes from a structured selection, describe it as reported or selected confidence, not as how the student sounded, appeared, or seemed.",
     `Version metadata: ${JSON.stringify(metadata)}`
   ].join("\n");
 }
@@ -626,6 +638,14 @@ export const EVALUATOR_PEDAGOGICAL_QUALITY_VERSION = "eval-pedagogical-quality-v
 export const EVALUATOR_PRODUCTION_SCHEMA_FIDELITY_VERSION = "eval-production-schema-fidelity-v1";
 export const EVALUATOR_RUN_PROVENANCE_VERSION = "eval-run-provenance-v2";
 export const EVALUATOR_ARTIFACT_PERSISTENCE_VERSION = "eval-artifact-persistence-warning-v1";
+export const EVALUATOR_ITEM_ADMIN_CLARIFICATION_CONTRACT_VERSION =
+  "item-admin-clarification-contract-v1";
+export const EVALUATOR_MEASUREMENT_DOMAIN_CLAIM_POLICY_VERSION =
+  "measurement-domain-claim-policy-v1";
+export const EVALUATOR_DISTRACTOR_ACTIVITY_CONTEXT_CONTRACT_VERSION =
+  "distractor-activity-context-contract-v1";
+export const EVALUATOR_CONFIDENCE_GROUNDING_LANGUAGE_VERSION =
+  "confidence-grounding-language-v1";
 const POLICY_EVALUATOR_VERSION = [
   "eval-safety-v5",
   EVALUATOR_SURFACE_POLICY_VERSION,
@@ -638,7 +658,11 @@ const POLICY_EVALUATOR_VERSION = [
   EVALUATOR_PEDAGOGICAL_QUALITY_VERSION,
   EVALUATOR_PRODUCTION_SCHEMA_FIDELITY_VERSION,
   EVALUATOR_RUN_PROVENANCE_VERSION,
-  EVALUATOR_ARTIFACT_PERSISTENCE_VERSION
+  EVALUATOR_ARTIFACT_PERSISTENCE_VERSION,
+  EVALUATOR_ITEM_ADMIN_CLARIFICATION_CONTRACT_VERSION,
+  EVALUATOR_MEASUREMENT_DOMAIN_CLAIM_POLICY_VERSION,
+  EVALUATOR_DISTRACTOR_ACTIVITY_CONTEXT_CONTRACT_VERSION,
+  EVALUATOR_CONFIDENCE_GROUNDING_LANGUAGE_VERSION
 ].join("+");
 
 export function modelUpgradeEvaluatorVersions() {
@@ -654,7 +678,11 @@ export function modelUpgradeEvaluatorVersions() {
     pedagogical_quality: EVALUATOR_PEDAGOGICAL_QUALITY_VERSION,
     production_schema_fidelity: EVALUATOR_PRODUCTION_SCHEMA_FIDELITY_VERSION,
     run_provenance: EVALUATOR_RUN_PROVENANCE_VERSION,
-    artifact_persistence: EVALUATOR_ARTIFACT_PERSISTENCE_VERSION
+    artifact_persistence: EVALUATOR_ARTIFACT_PERSISTENCE_VERSION,
+    item_administration_clarification_contract: EVALUATOR_ITEM_ADMIN_CLARIFICATION_CONTRACT_VERSION,
+    measurement_domain_claim_policy: EVALUATOR_MEASUREMENT_DOMAIN_CLAIM_POLICY_VERSION,
+    distractor_activity_context_contract: EVALUATOR_DISTRACTOR_ACTIVITY_CONTEXT_CONTRACT_VERSION,
+    confidence_grounding_language: EVALUATOR_CONFIDENCE_GROUNDING_LANGUAGE_VERSION
   };
 }
 
@@ -719,6 +747,79 @@ function matchesAll(regex: RegExp, text: string) {
     span: match[0],
     index: match.index ?? 0
   }));
+}
+
+function textContainsItemNumber(text: string, itemNumber: unknown) {
+  if (typeof itemNumber !== "number" && typeof itemNumber !== "string") return true;
+  const value = String(itemNumber).trim();
+  if (!value) return true;
+  return new RegExp(`\\b(?:item|question)\\s*${value}\\b`, "iu").test(text);
+}
+
+function textContainsSelectedOption(text: string, selectedOption: unknown) {
+  if (typeof selectedOption !== "string" || !/^[A-D]$/iu.test(selectedOption)) return true;
+  const label = selectedOption.toUpperCase();
+  return new RegExp(`\\boption\\s*${label}\\b`, "iu").test(text) ||
+    new RegExp(`\\b${label}\\b`, "u").test(text);
+}
+
+function currentTaskKnown(fixture: ModelUpgradeFixture) {
+  const step = String(fixture.synthetic_input_context.current_step ?? "").toLowerCase();
+  const expected = String(fixture.synthetic_input_context.expected_behavior ?? "").toLowerCase();
+  return step === "reasoning" || /\b(explain|reasoning|why)\b/u.test(expected);
+}
+
+function textStatesReasoningTask(text: string) {
+  return /\b(explain|reason|why)\b.{0,120}\b(chose|picked|selected|answer|option|choice)\b|\b(chose|picked|selected|answer|option|choice)\b.{0,120}\b(explain|reason|why)\b/iu.test(text);
+}
+
+function textHasActionableResponsePrompt(text: string) {
+  const questionCount = (text.match(/\?/gu) ?? []).length;
+  if (questionCount > 1) return false;
+  return /\b(in one or two sentences|describe|explain|write|tell me|say why|give your reason|use this form|can follow this form)\b/iu.test(text);
+}
+
+function responseFormExamplePresent(text: string) {
+  return /\b(?:response|reasoning|answer)\b.{0,80}\b(?:form|example|can follow)\b|\bI chose\b.{0,140}\bbecause\b.{0,140}\b(key idea|idea I used|____|___)/iu.test(text);
+}
+
+function genericProblemSolvingAdvice(text: string) {
+  return /\b(read the question carefully|eliminate wrong answers|look for keywords|think step by step|use process of elimination|review the options)\b/iu.test(text);
+}
+
+function itemSpecificHint(text: string) {
+  return /\b(reliability|validity|theta|item parameters?|internal consistency|score interpretation|intended uses?)\b/iu.test(text);
+}
+
+function validityDefinitionTooSimplistic(text: string) {
+  return /\bvalidity\b.{0,100}\b(measures|assesses|measuring|assessing)\b.{0,100}\b(intended|supposed)\b/iu.test(text) &&
+    !/\b(evidence|support(?:ing|s)?|argument)\b.{0,120}\binterpretations?\b.{0,120}\buses?\b|\b(evidence|support(?:ing|s)?|argument)\b.{0,120}\buses?\b.{0,120}\binterpretations?\b|\binterpretations?\b.{0,120}\buses?\b.{0,120}\b(scores?|score-based)\b/iu.test(text);
+}
+
+function reliabilityAloneEstablishesValidity(text: string) {
+  return /\breliability\b.{0,100}\b(proves|establishes|guarantees|shows|means)\b.{0,80}\bvalidity\b|\bhigh reliability\b.{0,100}\bvalid\b/iu.test(text) &&
+    !/\b(?:does not|doesn['’]?t|not|cannot|can['’]?t|alone is not|by itself)\b.{0,120}\b(prove|establish|guarantee|show|mean)\b.{0,120}\bvalidity\b/iu.test(text) &&
+    !/\b(says|claim|claims|flaw|incorrect|rewrite|distractor|tempting alternative)\b/iu.test(text);
+}
+
+function validityPolicySatisfied(text: string) {
+  return /\bvalidity\b.{0,160}\b(evidence|support(?:ing|s)?|argument)\b.{0,160}\binterpretations?\b.{0,160}\buses?\b|\bvalidity\b.{0,160}\b(evidence|support(?:ing|s)?|argument)\b.{0,160}\buses?\b.{0,160}\binterpretations?\b/iu.test(text);
+}
+
+function optionTextMentioned(text: string, optionText: string) {
+  const compact = optionText
+    .replace(/[“”"]/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .toLowerCase();
+  const rendered = text
+    .replace(/[“”"]/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .toLowerCase();
+  if (compact.length <= 40) return rendered.includes(compact);
+  const words = compact.split(/\s+/u).filter((word) => word.length > 3);
+  return words.length > 0 && words.filter((word) => rendered.includes(word)).length >= Math.min(4, words.length);
 }
 
 function splitRenderedSentences(text: string) {
@@ -1052,6 +1153,68 @@ export function evaluateCandidateOutputPolicy(
     ...propositionEvaluation.findings.filter((entry) => entry.severity !== "evidence_grounding_failure")
   );
 
+  if (fixture.role === "item_administration_tutor_agent" && output?.student_facing_text) {
+    const text = output.student_facing_text;
+    const itemNumber = fixture.synthetic_input_context.current_item_number;
+    const selectedOption = fixture.synthetic_input_context.selected_option;
+    if (!textContainsItemNumber(text, itemNumber)) {
+      qualityDetails.push(finding({
+        finding_code: "item_admin_current_item_not_stated",
+        severity: "pedagogical_quality_failure",
+        surface: "student_facing",
+        field: "student_facing_text",
+        span: text.slice(0, 160),
+        fixturePolicy: "item_administration_clarification_should_state_current_item_when_available",
+        revealPolicy: "not_applicable",
+        blockedPatternLabel: "missing_current_item",
+        explanation: "The response did not state the supplied student-safe item number.",
+        blocking: true
+      }));
+    }
+    if (currentTaskKnown(fixture) && !textStatesReasoningTask(text)) {
+      qualityDetails.push(finding({
+        finding_code: "item_admin_current_task_not_stated",
+        severity: "pedagogical_quality_failure",
+        surface: "student_facing",
+        field: "student_facing_text",
+        span: text.slice(0, 160),
+        fixturePolicy: "item_administration_clarification_should_state_current_task_when_available",
+        revealPolicy: "not_applicable",
+        blockedPatternLabel: "missing_current_task",
+        explanation: "The response did not state the current reasoning task even though the task was supplied.",
+        blocking: true
+      }));
+    }
+    if (!textContainsSelectedOption(text, selectedOption)) {
+      qualityDetails.push(finding({
+        finding_code: "item_admin_selected_option_not_referenced",
+        severity: "pedagogical_quality_failure",
+        surface: "student_facing",
+        field: "student_facing_text",
+        span: text.slice(0, 160),
+        fixturePolicy: "item_administration_clarification_should_reference_selected_option_when_available",
+        revealPolicy: "not_applicable",
+        blockedPatternLabel: "missing_selected_option",
+        explanation: "The response did not reference the supplied selected option.",
+        blocking: true
+      }));
+    }
+    if (!textHasActionableResponsePrompt(text)) {
+      qualityDetails.push(finding({
+        finding_code: "item_admin_actionable_prompt_missing",
+        severity: "pedagogical_quality_failure",
+        surface: "student_facing",
+        field: "student_facing_text",
+        span: text.slice(0, 160),
+        fixturePolicy: "item_administration_clarification_should_ask_one_actionable_response_prompt",
+        revealPolicy: "not_applicable",
+        blockedPatternLabel: "missing_actionable_prompt",
+        explanation: "The response did not give one actionable prompt for what the student should write next.",
+        blocking: true
+      }));
+    }
+  }
+
   if (
     fixture.fixture_id === "item_administration_what" &&
     output?.student_facing_text &&
@@ -1091,28 +1254,9 @@ export function evaluateCandidateOutputPolicy(
   }
 
   if (
-    fixture.fixture_id === "item_administration_which_item_do_you_mean" &&
-    output?.student_facing_text &&
-    !/\b(explain|reason|why)\b.{0,80}\b(item|question)\s*2\b|\b(item|question)\s*2\b.{0,80}\b(explain|reason|why)\b/iu.test(output.student_facing_text)
-  ) {
-    qualityDetails.push(finding({
-      finding_code: "item_admin_current_task_not_stated",
-      severity: "pedagogical_quality_failure",
-      surface: "student_facing",
-      field: "student_facing_text",
-      span: output.student_facing_text.slice(0, 160),
-      fixturePolicy: "item_administration_clarification_should_state_current_item_and_current_task",
-      revealPolicy: "not_applicable",
-      blockedPatternLabel: "missing_current_task",
-      explanation: "The response identifies context weakly and leaves the student to infer the current reasoning task.",
-      blocking: true
-    }));
-  }
-
-  if (
     fixture.fixture_id === "item_administration_request_for_an_example" &&
     output?.student_facing_text &&
-    !/\b(for example|example)\b.{0,140}\b(I chose|I picked|my reason|because)\b/iu.test(output.student_facing_text)
+    !responseFormExamplePresent(output.student_facing_text)
   ) {
     qualityDetails.push(finding({
       finding_code: "item_admin_example_not_procedural_response_form",
@@ -1125,6 +1269,44 @@ export function evaluateCandidateOutputPolicy(
       blockedPatternLabel: "generic_example",
       explanation: "The response is safe but should provide a procedural answer-shape example, not generic problem-solving advice.",
       blocking: false
+    }));
+  }
+
+  if (
+    fixture.fixture_id === "item_administration_request_for_an_example" &&
+    output?.student_facing_text &&
+    genericProblemSolvingAdvice(output.student_facing_text)
+  ) {
+    qualityDetails.push(finding({
+      finding_code: "item_admin_example_generic_problem_solving_advice",
+      severity: "language_quality_warning",
+      surface: "student_facing",
+      field: "student_facing_text",
+      span: output.student_facing_text.slice(0, 160),
+      fixturePolicy: "examples_should_show_response_form_not_generic_problem_solving_advice",
+      revealPolicy: "not_applicable",
+      blockedPatternLabel: "generic_problem_solving_advice",
+      explanation: "The example request was answered with generic problem-solving advice rather than a response-form example.",
+      blocking: false
+    }));
+  }
+
+  if (
+    fixture.fixture_id === "item_administration_request_for_an_example" &&
+    output?.student_facing_text &&
+    itemSpecificHint(output.student_facing_text)
+  ) {
+    qualityDetails.push(finding({
+      finding_code: "item_admin_example_item_specific_hint",
+      severity: "pedagogical_quality_failure",
+      surface: "student_facing",
+      field: "student_facing_text",
+      span: output.student_facing_text.slice(0, 160),
+      fixturePolicy: "examples_must_not_fill_conceptual_blanks_or_hint_at_item_content",
+      revealPolicy: "not_applicable",
+      blockedPatternLabel: "item_specific_hint",
+      explanation: "The response-form example introduced item-specific content that could function as a hint.",
+      blocking: true
     }));
   }
 
@@ -1147,13 +1329,9 @@ export function evaluateCandidateOutputPolicy(
     }));
   }
 
-  if (
-    fixture.fixture_id === "formative_value_determination_conceptual_need" &&
-    (output?.student_facing_text || output?.teacher_facing_text || output?.response_summary)
-  ) {
+  if (output?.student_facing_text || output?.teacher_facing_text || output?.response_summary) {
     const text = `${output?.student_facing_text ?? ""} ${output?.teacher_facing_text ?? ""} ${output?.response_summary ?? ""}`;
-    if (/\bvalidity\b.{0,80}\b(measures|assesses)\b.{0,80}\b(intended|supposed)\b/iu.test(text) &&
-      !/\binterpretations?\b.{0,80}\buses?\b|\buses?\b.{0,80}\binterpretations?\b/iu.test(text)) {
+    if (validityDefinitionTooSimplistic(text)) {
       qualityDetails.push(finding({
         finding_code: "measurement_validity_definition_too_simplistic",
         severity: "substantive_accuracy_failure",
@@ -1164,6 +1342,34 @@ export function evaluateCandidateOutputPolicy(
         revealPolicy: "not_applicable",
         blockedPatternLabel: "simplistic_validity_definition",
         explanation: "The output used a simplistic validity definition instead of evidence supporting intended interpretations and uses of scores.",
+        blocking: true
+      }));
+    }
+    if (/\bvalidity\b/iu.test(text) && /\b(definition|means|is|concerns)\b/iu.test(text) && !validityPolicySatisfied(text) && !validityDefinitionTooSimplistic(text)) {
+      qualityDetails.push(finding({
+        finding_code: "measurement_validity_evidence_use_language_missing",
+        severity: "substantive_accuracy_failure",
+        surface: output?.student_facing_text ? "student_facing" : output?.teacher_facing_text ? "teacher_tool" : "utility",
+        field: output?.student_facing_text ? "student_facing_text" : output?.teacher_facing_text ? "teacher_facing_text" : "response_summary",
+        span: text.match(/\bvalidity\b[^.!?\n]*/iu)?.[0] ?? "",
+        fixturePolicy: "measurement_validity_should_reference_evidence_for_intended_score_interpretations_and_uses",
+        revealPolicy: "not_applicable",
+        blockedPatternLabel: "validity_evidence_use_language_missing",
+        explanation: "The output made an explanatory validity claim without anchoring validity in evidence for intended score interpretations and uses.",
+        blocking: true
+      }));
+    }
+    if (reliabilityAloneEstablishesValidity(text)) {
+      qualityDetails.push(finding({
+        finding_code: "reliability_alone_establishes_validity",
+        severity: "substantive_accuracy_failure",
+        surface: output?.student_facing_text ? "student_facing" : output?.teacher_facing_text ? "teacher_tool" : "utility",
+        field: output?.student_facing_text ? "student_facing_text" : output?.teacher_facing_text ? "teacher_facing_text" : "response_summary",
+        span: text.match(/\breliability\b[^.!?\n]*/iu)?.[0] ?? "",
+        fixturePolicy: "reliability_alone_must_not_be_claimed_to_establish_validity",
+        revealPolicy: "not_applicable",
+        blockedPatternLabel: "reliability_proves_validity",
+        explanation: "The output implied that reliability alone establishes validity.",
         blocking: true
       }));
     }
@@ -1226,6 +1432,72 @@ export function evaluateCandidateOutputPolicy(
       explanation: "The output is safe after reveal but uses stilted wording that should be revised.",
       blocking: false
     }));
+  }
+
+  if (fixture.fixture_id === "formative_activity_distractor_probe" && output?.student_facing_text) {
+    const text = output.student_facing_text;
+    const itemNumber = fixture.synthetic_input_context.target_item_number;
+    const optionLabel = fixture.synthetic_input_context.target_option_label;
+    const optionText = fixture.synthetic_input_context.target_option_text;
+    if (!textContainsItemNumber(text, itemNumber)) {
+      qualityDetails.push(finding({
+        finding_code: "activity_context_item_number_missing",
+        severity: "pedagogical_quality_failure",
+        surface: "student_facing",
+        field: "student_facing_text",
+        span: text.slice(0, 160),
+        fixturePolicy: "distractor_activity_should_include_supplied_student_safe_item_number",
+        revealPolicy: "administered_item_answer_revealed_allowed",
+        blockedPatternLabel: "missing_activity_item_number",
+        explanation: "A distractor-focused activity omitted the supplied student-safe item number.",
+        blocking: true
+      }));
+    }
+    if (typeof optionLabel === "string" && !textContainsSelectedOption(text, optionLabel)) {
+      qualityDetails.push(finding({
+        finding_code: "activity_context_option_label_missing",
+        severity: "pedagogical_quality_failure",
+        surface: "student_facing",
+        field: "student_facing_text",
+        span: text.slice(0, 160),
+        fixturePolicy: "distractor_activity_should_include_supplied_option_label",
+        revealPolicy: "administered_item_answer_revealed_allowed",
+        blockedPatternLabel: "missing_activity_option_label",
+        explanation: "A distractor-focused activity omitted the supplied option label.",
+        blocking: true
+      }));
+    }
+    if (typeof optionText === "string" && !optionTextMentioned(text, optionText)) {
+      qualityDetails.push(finding({
+        finding_code: "activity_context_option_text_missing",
+        severity: "pedagogical_quality_failure",
+        surface: "student_facing",
+        field: "student_facing_text",
+        span: text.slice(0, 160),
+        fixturePolicy: "distractor_activity_should_include_supplied_option_text_when_available",
+        revealPolicy: "administered_item_answer_revealed_allowed",
+        blockedPatternLabel: "missing_activity_option_text",
+        explanation: "A distractor-focused activity omitted the supplied option text.",
+        blocking: true
+      }));
+    }
+  }
+
+  for (const field of fields) {
+    for (const match of matchesAll(/\b(?:you|the student)\s+(sounded|seemed|appeared)\s+(?:very\s+|highly\s+)?confident\b/giu, field.text)) {
+      qualityDetails.push(finding({
+        finding_code: "confidence_self_report_inferred_language",
+        severity: "language_quality_warning",
+        surface: field.surface,
+        field: field.field,
+        span: match.span,
+        fixturePolicy: "structured_confidence_should_be_described_as_reported_or_selected_confidence",
+        revealPolicy: "not_applicable",
+        blockedPatternLabel: "inferred_confidence_language",
+        explanation: "The output converted structured confidence selection into inferred confidence language.",
+        blocking: false
+      }));
+    }
   }
 
   const answerKeyLeakageFindings = details

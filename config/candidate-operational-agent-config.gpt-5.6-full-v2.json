@@ -1,5 +1,5 @@
 {
-  "manifest_version": "phase31at-gpt-5.6-full-v2-candidate-v4",
+  "manifest_version": "phase31at-gpt-5.6-full-v2-candidate-v5",
   "approval_state": "candidate_not_approved",
   "baseline_manifest_path": "config/approved-operational-agent-config.json",
   "candidate_profile_name": "gpt-5.6 full operational candidate v2",
@@ -131,7 +131,11 @@
       "evaluation_pedagogical_quality": "eval-pedagogical-quality-v1",
       "evaluation_production_schema_fidelity": "eval-production-schema-fidelity-v1",
       "evaluation_run_provenance": "eval-run-provenance-v2",
-      "evaluation_artifact_persistence": "eval-artifact-persistence-warning-v1"
+      "evaluation_artifact_persistence": "eval-artifact-persistence-warning-v1",
+      "item_administration_clarification_contract": "item-admin-clarification-contract-v1",
+      "measurement_domain_claim_policy": "measurement-domain-claim-policy-v1",
+      "distractor_activity_context_contract": "distractor-activity-context-contract-v1",
+      "confidence_grounding_language": "confidence-grounding-language-v1"
     },
     "canonicalization_versions": {
       "response_collection": "response-collection-canonical-v1",
@@ -229,6 +233,8 @@
       },
       "formative_activity_dialogue_agent": {
         "prompt_version": "formative-activity-dialogue-prompt-v1",
+        "prompt_hash": "d25b25a5c9946ea24e89f903935eca8512721013b1ff16069d7428cf6471a501",
+        "prompt_hash_semantics": "prompt_text",
         "input_schema_version": "formative-activity-live-input-v1",
         "output_schema_version": "student-formative-activity-v1",
         "validator_version": "formative-activity-runtime-validation-v1",
@@ -236,6 +242,8 @@
       },
       "formative_activity_quality_reviewer_agent": {
         "prompt_version": "formative-activity-quality-review-prompt-v1",
+        "prompt_hash": "8681d0cc34694c3a2789b540e6dec8ae635b40d74c039539cc0a37539f32d495",
+        "prompt_hash_semantics": "prompt_text",
         "output_schema_version": "formative-activity-quality-review-v1",
         "validator_version": "formative-activity-quality-review-validation-v1",
         "fallback_version": "formative-activity-dialogue-repair-prompt-v1"
@@ -275,18 +283,24 @@
       },
       "mcq_diagnostic_authoring_assistant_agent": {
         "prompt_version": "mcq-diagnostic-authoring-assistant-prompt-v1",
+        "prompt_hash": "baf8129811e4f2ef86f2ab92c1fd5706fc820f67572387bb90d6e92ac9d61ac0",
+        "prompt_hash_semantics": "prompt_text",
         "schema_version": "mcq-diagnostic-authoring-suggestion-v1",
         "validator_version": "mcq-import-validation-v1",
         "fallback_version": "teacher-mcq-import-no-live-fallback-v1"
       },
       "mcq_import_formatting_assistant_agent": {
         "prompt_version": "mcq-import-formatting-assistant-prompt-v1",
+        "prompt_hash": "b9f0c87a4f6d2fe6658a84f217868d831d1bf1731ab95c7bcbe2a7a47a3ddf9a",
+        "prompt_hash_semantics": "prompt_text",
         "schema_version": "mcq-import-formatting-suggestion-v1",
         "validator_version": "mcq-import-validation-v1",
         "fallback_version": "teacher-mcq-import-no-live-fallback-v1"
       },
       "connectivity_test": {
         "prompt_version": "connectivity-metadata-check-v1",
+        "prompt_hash": "8d0c719a9ca7858ea7eef1341fded45e6dcf7df1437a0f8c4adace702ade3b1e",
+        "prompt_hash_semantics": "deterministic_config_not_applicable",
         "schema_version": "connectivity-metadata-check-v1",
         "validator_version": "llm-connectivity-readiness-v1",
         "fallback_version": "none"

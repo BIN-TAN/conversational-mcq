@@ -230,11 +230,17 @@ function main() {
   );
 
   for (const role of liveModelRoles) {
+    const metadata = fullV2.configuration_fingerprint?.role_version_metadata[role];
     assert(
-      fullV2.configuration_fingerprint?.role_version_metadata[role],
+      metadata,
       `Full v2 fingerprint must include version metadata for ${role}.`
     );
+    assert(typeof metadata?.prompt_hash === "string" && /^[a-f0-9]{64}$/u.test(metadata.prompt_hash), `${role} must include a non-null 64-character prompt hash.`);
   }
+  assert(
+    fullV2.configuration_fingerprint?.role_version_metadata.connectivity_test?.prompt_hash_semantics === "deterministic_config_not_applicable",
+    "Connectivity test should explicitly mark prompt hash semantics as deterministic config/not-applicable."
+  );
 
   const expectedCases = [...fullGpt56V2EvaluationCases];
   assert(JSON.stringify(fullV2.evaluation_cases) === JSON.stringify(expectedCases), "Full v2 should use the fixed synthetic evaluation case list.");

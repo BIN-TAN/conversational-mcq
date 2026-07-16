@@ -107,19 +107,19 @@ function safeStudentText(fixtureId: string, role: string) {
     case "item_administration_about_what":
       return "For Item 2, write why you chose option C. Describe the idea in the item that guided your choice.";
     case "item_administration_which_item_do_you_mean":
-      return "I mean Item 2. Your current task is to explain why you chose your answer in one or two sentences.";
+      return "I mean Item 2. Your current task is to explain why you chose option C in one or two sentences.";
     case "item_administration_request_for_an_example":
-      return "For example, you might write: I chose this option because the key idea is... Use your own idea from the item.";
+      return "Your current task is to explain why you chose option C. A reasoning response can follow this form: “I chose option C because ____. The key idea I used was ____.” Use your own idea from Item 2.";
     case "followup_assessment_system_question":
       return "You have completed the initial three questions. After this activity, you can choose whether to continue to the transfer item.";
     case "formative_value_determination_conceptual_need":
       return "Validity concerns evidence supporting intended interpretations and uses of scores.";
     case "student_communication_package_feedback":
-      return "You completed three items. Two explanations used reliability and validity carefully; one reliability-validity explanation needs a clearer boundary. You reported high confidence there, so focus on explaining why consistency evidence is not enough for validity.";
+      return "You completed three items. Two explanations used reliability and validity evidence carefully; one explanation needs a clearer boundary between score consistency and evidence for intended score interpretations and uses. You reported high confidence there, so focus on explaining why consistency evidence is not enough for validity.";
     case "topic_dialogue_unrelated_question":
       return "I can help with this assessment or explain how to use it. Let’s return to reliability and validity. What would you like to clarify?";
     case "formative_activity_distractor_probe":
-      return "For this item, option A says reliability proves validity. You now know option C is correct. Identify the exact flaw in option A, then rewrite option A so it becomes accurate.";
+      return "For Item 2, option A says, “A high reliability coefficient proves that the scores are valid.” You now know option C is correct. Identify the exact flaw in option A, then rewrite option A so it becomes accurate.";
     default:
       return role === "student_communication_agent"
         ? "You completed the required steps and provided brief reasoning. Focus next on making the reliability-validity boundary explicit."
@@ -132,7 +132,7 @@ function safeTeacherText(fixtureId: string) {
     case "profile_integration_mixed_correctness":
       return "Evidence summary: two accurate explanations and one overgeneralized reliability-validity claim. The student completed all required response steps and provided brief reasoning. No misconduct inference is supported. Treat this as a limited, mixed snapshot rather than evidence of stable ability.";
     case "formative_activity_quality_review":
-      return "The first turn is safe for review: it targets the reliability-validity misconception and asks for a rewrite in the context of score interpretation and use.";
+      return "The first turn is safe for review: it targets the reliability-validity misconception and asks for a rewrite about evidence for intended score interpretations and uses.";
     default:
       return `Teacher review summary for ${fixtureId}.`;
   }

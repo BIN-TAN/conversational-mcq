@@ -39,6 +39,7 @@ const CandidateRoleConfigSchema = z.object({
 const CandidateRoleVersionMetadataSchema = z.object({
   prompt_version: z.string().min(1).optional(),
   prompt_hash: z.string().min(1).optional(),
+  prompt_hash_semantics: z.enum(["prompt_text", "deterministic_config_not_applicable"]).optional(),
   input_schema_version: z.string().min(1).optional(),
   output_schema_version: z.string().min(1).optional(),
   schema_version: z.string().min(1).optional(),
