@@ -14,6 +14,7 @@ FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG RENDER_GIT_COMMIT
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
@@ -36,6 +37,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app ./
+COPY --from=builder /app/build ./build
 RUN npm prune --omit=dev
 
 EXPOSE 3000
