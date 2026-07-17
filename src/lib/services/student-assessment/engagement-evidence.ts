@@ -2365,6 +2365,7 @@ export async function buildEngagementEvidencePacketForSession(
             include: { item: true }
           },
           conversation_turns: {
+            orderBy: [{ sequence_index: "asc" }],
             select: {
               item_db_id: true,
               actor_type: true,

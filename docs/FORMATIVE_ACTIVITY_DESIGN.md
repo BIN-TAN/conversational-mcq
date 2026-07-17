@@ -257,3 +257,28 @@ activity attempts and responses, the complete shown transcript, separate
 internal audit history, current runtime/transition constraints, and the latest
 student message. Activity dialogue remains distractor- and growth-target-bound;
 it cannot advance, transfer, revise, or complete the assessment by itself.
+
+### Dialogue role contract
+
+The versioned `formative-dialogue-routing-v1` contract separates generation,
+iteration, and fact-locked package communication:
+
+- `formative_activity_dialogue_agent` generates the initial activity and any
+  genuinely different replacement activity. Each replacement is a new
+  immutable runtime attempt.
+- `topic_dialogue_agent` handles the first response, repeated confusion,
+  instruction clarification, off-topic redirection, and communication about
+  revision or transfer readiness. The platform remains authoritative for every
+  transition.
+- `student_communication_agent` renders fact-locked package results and
+  feedback. It does not implement iterative activity turns.
+- Provider failure recovery persists one bounded, distinguishable
+  `topic_dialogue_safe_recovery` turn and keeps the activity resumable.
+
+Every iterative turn receives the current item/option distractor anchor,
+current learning target, complete shown transcript, separate internal evidence
+history, current profile and plan, latest student message, strategies already
+attempted, and strategies marked not to repeat. The initial runtime attempt is
+enriched from administered tempting-option evidence, or from an incorrect
+selected option when no tempting option is available, so repeated clarification
+cannot degrade into generic tutoring.

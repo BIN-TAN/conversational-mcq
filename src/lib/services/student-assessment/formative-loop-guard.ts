@@ -80,7 +80,7 @@ export async function getFormativeLoopGuardCounts(input: {
   const [turns, targetedEvaluationCount] = await Promise.all([
     prisma.conversationTurn.findMany({
       where: { followup_round_db_id: input.followup_round_db_id },
-      orderBy: [{ created_at: "asc" }],
+      orderBy: [{ sequence_index: "asc" }],
       select: {
         actor_type: true,
         phase: true,

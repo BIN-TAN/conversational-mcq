@@ -817,6 +817,7 @@ model StudentActionIdempotencyKey {
 
 model ConversationTurn {
   id                         String          @id @default(uuid()) @db.Uuid
+  sequence_index             Int             @unique @default(autoincrement())
   assessment_session_db_id   String          @db.Uuid
   concept_unit_session_db_id String?         @db.Uuid
   item_db_id                 String?         @db.Uuid
@@ -834,6 +835,7 @@ model ConversationTurn {
   followup_round                             FollowupRound?        @relation(fields: [followup_round_db_id], references: [id], onDelete: Restrict)
   evidence_cutoff_for_followup_update_cycles FollowupUpdateCycle[] @relation("FollowupUpdateEvidenceCutoff")
 
+  @@index([assessment_session_db_id, sequence_index])
   @@index([assessment_session_db_id, created_at])
   @@index([concept_unit_session_db_id, created_at])
   @@index([item_db_id])

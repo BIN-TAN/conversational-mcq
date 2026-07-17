@@ -732,7 +732,7 @@ async function buildMasterExportRows(options: MasterExportOptions) {
             orderBy: [{ item: { item_order: "asc" } }, { created_at: "asc" }]
           },
           conversation_turns: {
-            orderBy: { created_at: "asc" }
+            orderBy: { sequence_index: "asc" }
           },
           process_events: {
             orderBy: [{ occurred_at: "asc" }, { created_at: "asc" }]
@@ -787,7 +787,7 @@ async function buildMasterExportRows(options: MasterExportOptions) {
         }
       },
       conversation_turns: {
-        orderBy: { created_at: "asc" }
+        orderBy: { sequence_index: "asc" }
       },
       process_events: {
         orderBy: [{ occurred_at: "asc" }, { created_at: "asc" }]

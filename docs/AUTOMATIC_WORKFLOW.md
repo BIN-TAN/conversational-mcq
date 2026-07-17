@@ -131,3 +131,11 @@ before its message is persisted. Provider or validation failure may use the
 existing bounded fallback and recovery behavior, but an accepted message must
 never leave the student with internal records and no visible reply. Revision,
 transfer, next-concept, and completion decisions remain platform validated.
+
+Profile and planning stages are independently auditable. When a stage cannot
+produce a validated update, the prior validated pointer remains active; the
+runtime does not create a fresh-looking copy. The stage response package and
+teacher/research process event record `update_failed`, the relevant
+`stale_*_used` flag, a non-secret fallback source version, failure agent-call
+reference when available, result status, and a typed reason. These fields are
+internal audit data and are not included in the student projection.

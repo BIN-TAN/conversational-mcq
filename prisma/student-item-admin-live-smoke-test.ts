@@ -134,7 +134,7 @@ async function latestItemAdminCall(
         { actor_type: "student" }
       ]
     },
-    orderBy: [{ created_at: "desc" }],
+    orderBy: [{ sequence_index: "desc" }],
     take: 20,
     select: {
       actor_type: true,

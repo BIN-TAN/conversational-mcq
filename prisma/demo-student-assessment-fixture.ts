@@ -379,6 +379,120 @@ export async function ensureFixedIrtMvpAssessment(prisma: PrismaClient, createdB
   return assessment;
 }
 
+export async function createIsolatedFixedIrtMvpAssessmentFixture(
+  prisma: PrismaClient,
+  fixtureKey: string
+) {
+  const safeKey = fixtureKey.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  const teacherUserId = `teacher_${safeKey}`;
+  const teacher = await prisma.user.create({
+    data: {
+      user_id: teacherUserId,
+      user_id_normalized: normalizeUserId(teacherUserId),
+      role: "teacher_researcher",
+      password_hash: await hashSecret(`password_${safeKey}`)
+    }
+  });
+  const assessmentPublicId = `assessment_${safeKey}`;
+  const conceptUnitPublicId = `concept_${safeKey}`;
+  const itemPublicIds = mvpItemSeeds.map((_, index) => `item_${safeKey}_${index + 1}`);
+  const assessment = await prisma.assessment.create({
+    data: {
+      assessment_public_id: assessmentPublicId,
+      title: "IRT Theta Invariance and Item Parameters",
+      description: "Isolated fixed-IRT smoke fixture.",
+      diagnostic_focus: demoAssessmentDiagnosticFocus,
+      status: "published",
+      workflow_mode: "automatic",
+      release_at: null,
+      close_at: null,
+      created_by_user_db_id: teacher.id
+    }
+  });
+  const conceptUnit = await prisma.conceptUnit.create({
+    data: {
+      concept_unit_public_id: conceptUnitPublicId,
+      assessment_db_id: assessment.id,
+      title: "Theta invariance across calibrated IRT forms",
+      learning_objective:
+        "Explain why theta is comparable across linked forms while item parameters affect response probabilities and precision.",
+      related_concept_description:
+        "Person ability theta is distinct from item difficulty and discrimination on a linked IRT scale.",
+      administration_rules: {
+        fixture: "isolated_fixed_irt_smoke",
+        initial_item_count: 3,
+        transfer_item_count: 1
+      },
+      order_index: 1,
+      status: "published",
+      version: 1
+    }
+  });
+
+  for (const [index, seed] of mvpItemSeeds.entries()) {
+    const itemPublicId = itemPublicIds[index]!;
+    await prisma.item.create({
+      data: {
+        item_public_id: itemPublicId,
+        concept_unit_db_id: conceptUnit.id,
+        item_order: seed.item_order,
+        item_stem: seed.item_stem,
+        options: seed.options,
+        correct_option: seed.correct_option,
+        distractor_rationales: seed.distractor_rationales,
+        expected_reasoning_patterns: seed.expected_reasoning_patterns,
+        possible_misconception_indicators: seed.possible_misconception_indicators,
+        administration_rules: mergeProvisionalDiagnosticMetadata({
+          item_public_id: itemPublicId,
+          administration_rules: {
+            fixture: "isolated_fixed_irt_smoke",
+            item_role: seed.item_role,
+            cognitive_demand: seed.cognitive_demand,
+            difficulty: seed.difficulty,
+            knowledge_component:
+              "Person ability theta remains distinct from item difficulty and discrimination on a linked scale.",
+            misconception_cluster:
+              "Conflation of person ability with item difficulty or discrimination.",
+            no_feedback_during_initial_administration: true
+          }
+        }),
+        included_in_published_set: seed.included_in_published_set,
+        status: "published",
+        version: 1
+      }
+    });
+  }
+
+  return {
+    teacher_user_db_id: teacher.id,
+    assessment_db_id: assessment.id,
+    assessment_public_id: assessmentPublicId,
+    concept_unit_public_id: conceptUnitPublicId,
+    item_public_ids: itemPublicIds
+  };
+}
+
+export async function cleanupIsolatedFixedIrtMvpAssessmentFixture(
+  prisma: PrismaClient,
+  fixture: {
+    teacher_user_db_id: string;
+    assessment_db_id: string;
+  }
+) {
+  const sessionCount = await prisma.assessmentSession.count({
+    where: { assessment_db_id: fixture.assessment_db_id }
+  });
+  if (sessionCount > 0) {
+    throw new Error("Isolated fixed-IRT fixture still has assessment sessions.");
+  }
+  await prisma.item.deleteMany({
+    where: { concept_unit: { assessment_db_id: fixture.assessment_db_id } }
+  });
+  await prisma.conceptUnit.deleteMany({ where: { assessment_db_id: fixture.assessment_db_id } });
+  await prisma.assessment.delete({ where: { id: fixture.assessment_db_id } });
+  await prisma.user.delete({ where: { id: fixture.teacher_user_db_id } });
+}
+
 export async function cleanupDemoStudentAssessment(prisma: PrismaClient) {
   const assessment = await prisma.assessment.findUnique({
     where: { assessment_public_id: demoAssessmentPublicId },

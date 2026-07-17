@@ -209,7 +209,7 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
         }
       },
       conversation_turns: {
-        orderBy: { created_at: "asc" },
+        orderBy: { sequence_index: "asc" },
         select: {
           id: true,
           item_db_id: true,

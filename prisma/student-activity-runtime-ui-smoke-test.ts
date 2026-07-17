@@ -161,6 +161,14 @@ async function assertCompleteDialogueContext(input: {
   assert(jsonArray(plans.versions).length > 0, "Dialogue context should include planning history.");
   assert(plans.staged_candidate_for_this_turn, "Dialogue context should include this turn's staged plan.");
   const activityHistory = jsonRecord(turnContext.complete_activity_runtime_history);
+  assert(
+    jsonArray(activityHistory.strategies_already_attempted).length > 0,
+    "Dialogue context should list strategies already shown to the student."
+  );
+  assert(
+    Array.isArray(activityHistory.strategies_not_to_repeat),
+    "Dialogue context should explicitly separate strategies that should not be repeated."
+  );
   const attempts = jsonArray(activityHistory.attempts).map(jsonRecord);
   const currentAttempt = attempts.find(
     (attempt) => attempt.activity_attempt_public_id === input.activity_attempt_public_id
@@ -540,16 +548,61 @@ async function assertOperationalTurnCycleCreated(
   label: string
 ) {
   const after = await operationalCounts();
-  assert(after.profiles === before.profiles + 1, `${label}: one new profile version is required.`);
-  assert(after.decisions === before.decisions + 1, `${label}: one new planning version is required.`);
+  assert(after.profiles === before.profiles, `${label}: a failed update must preserve the prior profile row.`);
+  assert(after.decisions === before.decisions, `${label}: a failed update must preserve the prior plan row.`);
   assert(
     after.responsePackages === before.responsePackages + 2,
     `${label}: profile and planning context packages are required.`
   );
 }
 
+async function currentStagePointers(conceptUnitSessionDbId: string) {
+  return prisma.conceptUnitSession.findUniqueOrThrow({
+    where: { id: conceptUnitSessionDbId },
+    select: {
+      latest_student_profile_db_id: true,
+      latest_formative_decision_db_id: true
+    }
+  });
+}
+
+async function assertStaleStageAuditPersisted(input: {
+  concept_unit_session_db_id: string;
+  assessment_session_db_id: string;
+  client_operation_id: string;
+}) {
+  const packages = await prisma.responsePackage.findMany({
+    where: {
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      package_type: "followup_evidence_update_package",
+      payload: { path: ["formative_turn", "client_operation_id"], equals: input.client_operation_id }
+    }
+  });
+  assert(packages.length === 2, "Profile and planning fallback packages should both be persisted.");
+  const audits = packages.map((entry) => jsonRecord(jsonRecord(entry.payload).orchestration_result));
+  const profile = audits.find((audit) => audit.stage === "profile");
+  const planning = audits.find((audit) => audit.stage === "planning");
+  assert(profile?.profile_update_failed === undefined, "Package audit should use the normalized update_failed field.");
+  assert(profile?.update_failed === true && profile.stale_version_used === true, "Stale profile use must be explicit.");
+  assert(planning?.update_failed === true && planning.stale_version_used === true, "Stale plan use must be explicit.");
+  assert(typeof profile.fallback_source_version === "string", "Profile fallback source version is required.");
+  assert(typeof planning.fallback_source_version === "string", "Planning fallback source version is required.");
+  assert("failure_agent_call_id" in profile, "Profile failure agent-call metadata key is required.");
+  assert("failure_agent_call_id" in planning, "Planning failure agent-call metadata key is required.");
+
+  const failureEvents = await prisma.processEvent.findMany({
+    where: {
+      assessment_session_db_id: input.assessment_session_db_id,
+      event_type: { in: ["followup_profile_update_failed", "followup_planning_update_failed"] },
+      payload: { path: ["client_operation_id"], equals: input.client_operation_id }
+    }
+  });
+  assert(failureEvents.length === 2, "Teacher/research audit should expose both stale-stage events.");
+}
+
 async function main() {
   configureNoLiveFormativeValueRuntime();
+  process.env.OPERATIONAL_AGENT_MODE = "disabled";
   assertStudentComponentCopyIsHardened();
   await ensureDemoStudentAssessment(prisma);
   await applyProvisionalItemDiagnosticMetadata(prisma);
@@ -654,6 +707,11 @@ async function main() {
       replacementTranscript.transcript.some((turn) => turn.message_text.includes(projection.first_turn_message ?? "__missing__")),
       "The replacement activity should be a new visible transcript turn."
     );
+    assert(
+      /Item\s+\d+/i.test(projection.first_turn_message ?? "") &&
+        /option\s+[A-D]/i.test(projection.first_turn_message ?? ""),
+      "The replacement activity must retain the persisted item and distractor anchor."
+    );
 
     const repeatedContext = await createCompletedSession("repeated_confusion");
     contexts.push(repeatedContext);
@@ -703,6 +761,7 @@ async function main() {
     ];
     for (const turn of confusionTurns) {
       const before = await operationalCounts();
+      const pointersBefore = await currentStagePointers(repeatedContext.concept_unit_session_db_id);
       repeatedProjection = await submitStudentActivityRuntimeResponse({
         student_user_db_id: repeatedContext.student_db_id,
         session_public_id: repeatedContext.session_public_id,
@@ -717,6 +776,17 @@ async function main() {
         })
       });
       await assertOperationalTurnCycleCreated(before, turn.id);
+      const pointersAfter = await currentStagePointers(repeatedContext.concept_unit_session_db_id);
+      assert(
+        pointersAfter.latest_student_profile_db_id === pointersBefore.latest_student_profile_db_id &&
+          pointersAfter.latest_formative_decision_db_id === pointersBefore.latest_formative_decision_db_id,
+        `${turn.id}: failed profile and planning updates must keep prior validated pointers.`
+      );
+      await assertStaleStageAuditPersisted({
+        concept_unit_session_db_id: repeatedContext.concept_unit_session_db_id,
+        assessment_session_db_id: repeatedContext.assessment_session_db_id,
+        client_operation_id: turn.id
+      });
       assert(
         repeatedProjection.latest_reply_visible_in_transcript,
         `${turn.id}: every accepted response should persist a visible assistant reply.`
@@ -734,12 +804,44 @@ async function main() {
           assessment_session_db_id: repeatedContext.assessment_session_db_id,
           structured_payload: { path: ["client_operation_id"], equals: turn.id }
         },
-        orderBy: [{ created_at: "asc" }, { id: "asc" }],
-        select: { actor_type: true, message_text: true }
+        orderBy: [{ sequence_index: "asc" }],
+        select: { id: true, sequence_index: true, actor_type: true, message_text: true }
       });
       assert(turnsForOperation.length === 2, `${turn.id}: one student and one assistant turn are required.`);
       assert(turnsForOperation[0]?.actor_type === "student", `${turn.id}: student turn must be first.`);
       assert(turnsForOperation[1]?.actor_type === "agent", `${turn.id}: assistant turn must follow.`);
+      assert(
+        (turnsForOperation[0]?.sequence_index ?? 0) < (turnsForOperation[1]?.sequence_index ?? 0),
+        `${turn.id}: persisted sequence must preserve student-before-assistant causality.`
+      );
+      assert(
+        /Item\s+\d+|Option\s+[A-D]|theta|item difficulty|item discrimination/i.test(
+          turnsForOperation[1]?.message_text ?? ""
+        ),
+        `${turn.id}: repeated confusion support must remain tied to the active distractor or concept boundary: ${turnsForOperation[1]?.message_text ?? "<missing>"}`
+      );
+      if (turn.id === confusionTurns[0]?.id) {
+        const tiedTimestamp = new Date("2026-07-17T09:00:00.000Z");
+        await prisma.conversationTurn.updateMany({
+          where: { id: { in: turnsForOperation.map((entry) => entry.id) } },
+          data: { created_at: tiedTimestamp }
+        });
+        const sameTimestampTurns = await prisma.conversationTurn.findMany({
+          where: { id: { in: turnsForOperation.map((entry) => entry.id) } },
+          orderBy: [{ sequence_index: "asc" }],
+          select: { actor_type: true, created_at: true, sequence_index: true }
+        });
+        assert(
+          sameTimestampTurns[0]?.created_at.getTime() === sameTimestampTurns[1]?.created_at.getTime(),
+          "Timeline regression fixture should force equal timestamps."
+        );
+        assert(
+          sameTimestampTurns[0]?.actor_type === "student" &&
+            sameTimestampTurns[1]?.actor_type === "agent" &&
+            sameTimestampTurns[0].sequence_index < sameTimestampTurns[1].sequence_index,
+          "Monotonic sequence must preserve causal order when timestamps tie."
+        );
+      }
       expectedVisibleMessages.push(turn.message, turnsForOperation[1]?.message_text ?? "");
     }
     const countsBeforeReplay = await operationalCounts();
@@ -817,7 +919,7 @@ async function main() {
           structured_payload: { path: ["client_operation_id"], equals: turn.id }
         }))
       },
-      orderBy: [{ created_at: "asc" }, { id: "asc" }],
+      orderBy: [{ sequence_index: "asc" }],
       select: { actor_type: true, structured_payload: true }
     });
     assert(
@@ -983,6 +1085,25 @@ async function main() {
     assert(
       projection.latest_reply_visible_in_transcript,
       "Evaluator failure should persist a neutral visible recovery reply."
+    );
+    const evaluatorRecoveryTurn = await prisma.conversationTurn.findFirstOrThrow({
+      where: {
+        assessment_session_db_id: evaluatorFailureContext.assessment_session_db_id,
+        actor_type: "agent",
+        structured_payload: {
+          path: ["client_operation_id"],
+          equals: "activity-runtime-ui-evaluator-failure"
+        }
+      },
+      select: { message_text: true, structured_payload: true }
+    });
+    assert(
+      /Item\s+\d+|Option\s+[A-D]/i.test(evaluatorRecoveryTurn.message_text ?? ""),
+      "Evaluator failure recovery must retain the persisted item or distractor anchor."
+    );
+    assert(
+      jsonRecord(evaluatorRecoveryTurn.structured_payload).distractor_anchor_preserved === true,
+      "Evaluator failure recovery must identify that its distractor anchor was preserved."
     );
     assertProjectionSafe(projection, "evaluator_failure");
     await assertOperationalCountsUnchanged(

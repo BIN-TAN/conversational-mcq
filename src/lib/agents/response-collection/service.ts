@@ -231,7 +231,7 @@ async function getInitialMessageContext(input: {
       assessment_session_db_id: session.id,
       concept_unit_session_db_id: conceptUnitSession.id
     },
-    orderBy: [{ created_at: "asc" }],
+    orderBy: [{ sequence_index: "asc" }],
     include: {
       item: {
         select: { item_public_id: true }

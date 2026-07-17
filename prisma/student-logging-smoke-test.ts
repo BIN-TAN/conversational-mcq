@@ -43,6 +43,9 @@ async function cleanup(userDbId: string, sessionPublicIds: string[]) {
 
   await prisma.workflowJob.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.workflowOverride.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
+  await prisma.assessmentLifecycleOperation.deleteMany({
+    where: { assessment_session_db_id: { in: sessionIds } }
+  });
   await prisma.studentActionIdempotencyKey.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.responsePackage.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
   await prisma.processEvent.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
@@ -286,7 +289,7 @@ async function main() {
         }),
         prisma.conversationTurn.findMany({
           where: { assessment_session_db_id: session.id },
-          orderBy: { created_at: "asc" },
+          orderBy: { sequence_index: "asc" },
           select: {
             actor_type: true,
             agent_name: true,

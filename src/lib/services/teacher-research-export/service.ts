@@ -605,7 +605,7 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
         }
       },
       conversation_turns: {
-        orderBy: [{ created_at: "asc" }],
+        orderBy: [{ sequence_index: "asc" }],
         include: {
           item: { select: { item_public_id: true, item_order: true } },
           concept_unit_session: {

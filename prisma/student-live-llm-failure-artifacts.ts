@@ -515,7 +515,7 @@ export async function buildLiveLlmSmokeFailureArtifact(input: {
         }),
         input.prisma.conversationTurn.findMany({
           where: { assessment_session_db_id: sessionDbId },
-          orderBy: [{ created_at: "asc" }],
+          orderBy: [{ sequence_index: "asc" }],
           select: {
             actor_type: true,
             agent_name: true,

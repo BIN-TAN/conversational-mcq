@@ -377,7 +377,7 @@ async function latestStudentTurn(roundDbId: string) {
       followup_round_db_id: roundDbId,
       actor_type: "student"
     },
-    orderBy: [{ created_at: "desc" }]
+    orderBy: [{ sequence_index: "desc" }]
   });
 }
 
@@ -465,7 +465,7 @@ async function buildFollowupEvidencePackagePayload(input: {
       followup_round_db_id: sourceRound.id,
       created_at: { lte: cutoffAt }
     },
-    orderBy: [{ created_at: "asc" }]
+    orderBy: [{ sequence_index: "asc" }]
   });
   const processWindowStart = sourceRound.started_at ?? conceptUnitSession.followup_started_at;
   const processEvents = await prisma.processEvent.findMany({
@@ -1337,7 +1337,7 @@ async function executeFollowupOpeningCandidate(input: {
       source_followup_round: {
         include: {
           conversation_turns: {
-            orderBy: [{ created_at: "asc" }],
+            orderBy: [{ sequence_index: "asc" }],
             select: {
               actor_type: true,
               agent_name: true,

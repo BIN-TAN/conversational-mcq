@@ -16,9 +16,8 @@ import {
 } from "../src/lib/services/student-assessment/service";
 import { StudentAssessmentServiceError } from "../src/lib/services/student-assessment/errors";
 import {
-  demoAssessmentPublicId,
-  demoItemPublicIds,
-  ensureDemoStudentAssessment
+  cleanupIsolatedFixedIrtMvpAssessmentFixture,
+  createIsolatedFixedIrtMvpAssessmentFixture
 } from "./demo-student-assessment-fixture";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
@@ -67,6 +66,9 @@ async function cleanupTempStudent(userDbId: string, sessionPublicIds: string[]) 
     where: { assessment_session_db_id: { in: sessionIds } }
   });
   await prisma.workflowJob.deleteMany({
+    where: { assessment_session_db_id: { in: sessionIds } }
+  });
+  await prisma.assessmentLifecycleOperation.deleteMany({
     where: { assessment_session_db_id: { in: sessionIds } }
   });
   await prisma.studentActionIdempotencyKey.deleteMany({
@@ -131,9 +133,10 @@ function itemRole(value: unknown) {
 async function main() {
   process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "true";
 
-  await ensureDemoStudentAssessment(prisma);
+  const fixtureKey = `ui_smoke_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const fixture = await createIsolatedFixedIrtMvpAssessmentFixture(prisma, fixtureKey);
   const fixedAssessment = await prisma.assessment.findUniqueOrThrow({
-    where: { assessment_public_id: demoAssessmentPublicId },
+    where: { assessment_public_id: fixture.assessment_public_id },
     include: {
       concept_units: {
         include: {
@@ -160,7 +163,7 @@ async function main() {
   assert(initialItems.length === 3, "Fixed IRT MVP should include 3 initial items.");
   assert(transferItems.length === 1, "Fixed IRT MVP should include 1 transfer item.");
   assert(
-    transferItems[0]?.item_public_id === demoItemPublicIds[3] &&
+    transferItems[0]?.item_public_id === fixture.item_public_ids[3] &&
       transferItems[0].included_in_published_set === false,
     "Transfer item should be stored but excluded from the initial package."
   );
@@ -190,14 +193,14 @@ async function main() {
     assertNoForbiddenFields(available);
     assert(
       available.assessments.some(
-        (assessment) => assessment.assessment_public_id === demoAssessmentPublicId && assessment.can_start
+        (assessment) => assessment.assessment_public_id === fixture.assessment_public_id && assessment.can_start
       ),
       "Demo assessment was not available to the temporary student."
     );
 
     const started = await startOrResumeStudentAssessmentSession({
       student_user_db_id: student.id,
-      assessment_public_id: demoAssessmentPublicId
+      assessment_public_id: fixture.assessment_public_id
     });
     sessionPublicIds.push(started.session.session_public_id);
     assertNoForbiddenFields(started);
@@ -219,7 +222,7 @@ async function main() {
     const item1 = state.current_item;
     assert(item1, "Item 1 was missing.");
     assert(
-      item1.item_public_id === demoItemPublicIds[0] &&
+      item1.item_public_id === fixture.item_public_ids[0] &&
         item1.item_stem.includes("two item sets to measure the same mathematics ability"),
       "First fixed IRT item was not presented first."
     );
@@ -274,7 +277,7 @@ async function main() {
 
     const item2 = state.current_item;
     assert(item2, "Item 2 was missing.");
-    assert(item2.item_public_id === demoItemPublicIds[1], "Second fixed IRT item was not presented second.");
+    assert(item2.item_public_id === fixture.item_public_ids[1], "Second fixed IRT item was not presented second.");
     await recordSelectedOption({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
@@ -307,7 +310,7 @@ async function main() {
 
     const item3 = state.current_item;
     assert(item3, "Item 3 was missing.");
-    assert(item3.item_public_id === demoItemPublicIds[2], "Third fixed IRT item was not presented third.");
+    assert(item3.item_public_id === fixture.item_public_ids[2], "Third fixed IRT item was not presented third.");
     await recordSelectedOption({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id,
@@ -377,7 +380,7 @@ async function main() {
     assert(review.locked, "Review should be read-only after completion.");
     assert(review.items.length === 3, "Package review should include only the 3 initial items.");
     assert(
-      !review.items.some((item) => item.item_public_id === demoItemPublicIds[3]),
+      !review.items.some((item) => item.item_public_id === fixture.item_public_ids[3]),
       "Package review should not include the transfer item."
     );
     assert(review.items[0]?.no_tempting_option === true, "Review should show no tempting option for item 1.");
@@ -413,6 +416,7 @@ async function main() {
     console.log("Phase 4B student UI smoke test passed. No OpenAI calls are made by this script.");
   } finally {
     await cleanupTempStudent(student.id, sessionPublicIds);
+    await cleanupIsolatedFixedIrtMvpAssessmentFixture(prisma, fixture);
   }
 }
 

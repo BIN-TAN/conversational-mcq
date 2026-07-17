@@ -546,7 +546,7 @@ async function main() {
           equals: "student_response_in_flow_edit"
         }
       },
-      orderBy: { created_at: "desc" },
+      orderBy: { sequence_index: "desc" },
       select: { message_text: true, structured_payload: true }
     });
     assert(reasoningEditTurn, "In-flow reasoning edit transcript turn missing.");

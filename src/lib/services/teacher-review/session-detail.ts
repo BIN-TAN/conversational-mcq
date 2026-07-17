@@ -129,7 +129,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
                 }
               },
               conversation_turns: {
-                orderBy: [{ created_at: "asc" }],
+                orderBy: [{ sequence_index: "asc" }],
                 select: {
                   actor_type: true,
                   agent_name: true,

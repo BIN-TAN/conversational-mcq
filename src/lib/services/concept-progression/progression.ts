@@ -280,7 +280,7 @@ async function latestMoveOnSignal(
       actor_type: "agent",
       phase: "followup_active"
     },
-    orderBy: [{ created_at: "desc" }],
+    orderBy: [{ sequence_index: "desc" }],
     take: 10,
     select: { structured_payload: true }
   });

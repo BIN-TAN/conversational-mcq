@@ -768,9 +768,10 @@ export async function buildAuthoritativeFormativeTurnContext(input: {
       }),
       client.conversationTurn.findMany({
         where: { assessment_session: { session_public_id: input.session_public_id } },
-        orderBy: [{ created_at: "asc" }, { id: "asc" }],
+        orderBy: [{ sequence_index: "asc" }],
         select: {
           id: true,
+          sequence_index: true,
           actor_type: true,
           agent_name: true,
           phase: true,
@@ -949,6 +950,35 @@ export async function buildAuthoritativeFormativeTurnContext(input: {
     },
     complete_activity_runtime_history: {
       current_activity_attempt_public_id: input.activity_attempt_public_id,
+      strategies_already_attempted: attempts.flatMap((attempt) => {
+        const shownTurn = visibleTurns.find((turn) => {
+          const payload = record(turn.structured_payload);
+          return payload.activity_attempt_public_id === attempt.activity_attempt_public_id &&
+            turn.actor_type === "agent";
+        });
+        return shownTurn
+          ? [{
+              activity_attempt_public_id: attempt.activity_attempt_public_id,
+              activity_family: attempt.activity_family,
+              diagnostic_purpose: attempt.diagnostic_purpose,
+              shown_message: shownTurn.message_text ?? ""
+            }]
+          : [];
+      }),
+      strategies_not_to_repeat: attempts.flatMap((attempt) => {
+        const limitations = Array.isArray(attempt.limitations) ? attempt.limitations : [];
+        const shouldAvoid = attempt.status === "choose_alternative_recommended" ||
+          limitations.some((limitation) =>
+            typeof limitation === "string" && /failed|invalid|alternative/i.test(limitation)
+          );
+        return shouldAvoid
+          ? [{
+              activity_attempt_public_id: attempt.activity_attempt_public_id,
+              activity_family: attempt.activity_family,
+              reason: attempt.status
+            }]
+          : [];
+      }),
       attempts: attempts.map((attempt, index) => {
         const source = record(attempt.source_activity_packet_ref);
         const shownTurn = visibleTurns.find((turn) => {
@@ -1008,13 +1038,13 @@ export async function buildAuthoritativeFormativeTurnContext(input: {
         };
       })
     },
-    complete_visible_transcript: visibleTurns.map((turn, index) => {
+    complete_visible_transcript: visibleTurns.map((turn) => {
       const payload = record(turn.structured_payload);
       const agentCallId =
         stringValue(payload.agent_call_id) ?? stringValue(payload.source_agent_call_id);
       return {
         turn_public_id: publicReference("turn", turn.id),
-        sequence_index: index + 1,
+        sequence_index: turn.sequence_index,
         created_at: turn.created_at.toISOString(),
         role: turn.actor_type === "student" ? "student" : "agent",
         visibility_status: "shown",

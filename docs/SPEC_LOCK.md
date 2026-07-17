@@ -3129,3 +3129,18 @@ Phase 6A.5 must not implement:
 - A claim such as "I understand" is not misconception-resolution evidence.
   Revision, transfer, or substantive reasoning must be evaluated by the
   existing evidence/profile chain before routing can change.
+- `formative-dialogue-routing-v1` assigns initial/replacement generation to
+  `formative_activity_dialogue_agent`, iterative bounded support to
+  `topic_dialogue_agent`, and fact-locked package wording to
+  `student_communication_agent`. Agents do not own state transitions.
+- Iterative context must retain the active administered distractor anchor,
+  current learning target, shown transcript, separate internal evidence,
+  current profile/plan, latest message, attempted strategies, and strategies
+  not to repeat. Repeated confusion must remain item/option focused.
+- `conversation_turns.sequence_index`, not timestamp plus UUID, is the
+  authoritative causal transcript order. Equal timestamps must reconstruct the
+  student turn before its assistant reply.
+- Failed profile or plan updates preserve the prior validated pointer and emit
+  explicit stale-version audit metadata. Student projections remain safe and
+  resumable; teacher/research records distinguish stage failure and bounded
+  recovery from normal dialogue.

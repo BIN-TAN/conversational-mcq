@@ -1127,8 +1127,10 @@ For each accepted active formative message:
   the evaluator judgment;
 - two versioned `followup_evidence_update_package` rows bind the authoritative
   context used for profile and planning stages to the client operation;
-- new `student_profiles` and `formative_decisions` rows are activated with the
-  assistant turn and current pointers in one transaction;
+- validated new `student_profiles` and `formative_decisions` rows are activated
+  with the assistant turn and current pointers in one transaction; a failed
+  stage preserves the prior validated row and pointer instead of creating a
+  fresh-looking carry-forward copy;
 - `student_action_idempotency_keys` prevents duplicate cycles and replies;
 - `agent_calls` retains internal provider, validation, rejection, and fallback
   audit separately from the student-visible transcript; and
@@ -1139,3 +1141,24 @@ For each accepted active formative message:
 hashed turn references and sequence indexes. Draft/internal/not-shown turns are
 excluded. Internal database IDs, raw credentials, headers, and secret values
 are not included in the student projection.
+
+`conversation_turns.sequence_index` is the authoritative persisted causal
+ordering field. It is globally monotonic and is the primary order for student,
+teacher/research, agent-input, package, and export transcript reconstruction.
+`created_at` remains the wall-clock persistence timestamp, but equal timestamps
+and random UUIDs are not used to infer causal order.
+The migration gives historical rows a stable backfilled sequence. If two
+pre-migration rows had the same timestamp, their original causal order cannot
+be recovered with certainty; authoritative causal ordering applies to turns
+created after the sequence field is installed.
+
+Failed formative profile/planning stages add `orchestration_result` to their
+existing `followup_evidence_update_package` and emit the existing
+`followup_profile_update_failed` or `followup_planning_update_failed` event.
+The payload records `profile_update_failed`/`planning_update_failed`,
+`stale_profile_used`/`stale_plan_used`, `fallback_source_version`,
+`failure_agent_call_id`, `result_status`, and `failure_reason_code`. The shown
+assistant turn references the same stage audit internally; student-safe
+serialization excludes it. A recovery turn uses
+`message_type=topic_dialogue_safe_recovery` and `recovery_message=true` so
+research records can distinguish it from normal pedagogical dialogue.

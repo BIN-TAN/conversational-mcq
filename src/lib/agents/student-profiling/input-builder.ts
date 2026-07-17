@@ -139,7 +139,7 @@ export async function buildInitialStudentProfilingInput(
         }
       },
       conversation_turns: {
-        orderBy: [{ created_at: "asc" }],
+        orderBy: [{ sequence_index: "asc" }],
         include: {
           item: {
             select: {

@@ -205,7 +205,7 @@ const sessionSelect = {
         }
       }
     },
-    orderBy: { created_at: "asc" }
+    orderBy: { sequence_index: "asc" }
   },
   process_events: {
     select: {

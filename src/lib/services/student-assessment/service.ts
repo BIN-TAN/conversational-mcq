@@ -639,7 +639,7 @@ async function buildPackageCompletionOutcome(input: {
         actor_type: "agent",
         structured_payload: { path: ["message_type"], equals: "package_feedback" }
       },
-      orderBy: [{ created_at: "desc" }],
+      orderBy: [{ sequence_index: "desc" }],
       select: { id: true }
     }),
     prisma.conversationTurn.findFirst({
@@ -648,7 +648,7 @@ async function buildPackageCompletionOutcome(input: {
         actor_type: "agent",
         structured_payload: { path: ["message_type"], equals: "next_interaction" }
       },
-      orderBy: [{ created_at: "desc" }],
+      orderBy: [{ sequence_index: "desc" }],
       select: { id: true }
     }),
     prisma.activityRuntimeAttempt.findFirst({
@@ -1583,7 +1583,7 @@ async function getLatestTemptingOptionEvidence(input: {
       item_db_id: input.item_db_id,
       actor_type: "student"
     },
-    orderBy: [{ created_at: "desc" }],
+    orderBy: [{ sequence_index: "desc" }],
     select: { structured_payload: true },
     take: 10
   });
@@ -2672,7 +2672,7 @@ async function getChatNativeRoundState(followupRoundDbId: string) {
       structured_payload: true,
       created_at: true
     },
-    orderBy: [{ created_at: "asc" }]
+    orderBy: [{ sequence_index: "asc" }]
   });
   const promptTurns = turns.filter(
     (turn) =>
@@ -7017,7 +7017,7 @@ export async function getStudentSafeTranscript(input: {
         }
       ]
     },
-    orderBy: [{ created_at: "asc" }, { id: "asc" }],
+    orderBy: [{ sequence_index: "asc" }],
     select: {
       id: true,
       concept_unit_session_db_id: true,

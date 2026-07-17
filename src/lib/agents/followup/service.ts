@@ -207,7 +207,7 @@ async function activeRoundForConceptUnitSession(conceptUnitSessionDbId: string) 
         }
       },
       conversation_turns: {
-        orderBy: [{ created_at: "asc" }],
+        orderBy: [{ sequence_index: "asc" }],
         select: {
           actor_type: true,
           agent_name: true,
@@ -260,7 +260,7 @@ async function serializeStudentFollowupStateByRound(roundDbId: string) {
         }
       },
       conversation_turns: {
-        orderBy: [{ created_at: "asc" }],
+        orderBy: [{ sequence_index: "asc" }],
         where: {
           phase: {
             in: ["followup_active", "followup_stopped"]
@@ -1230,7 +1230,7 @@ async function serializeStudentFollowupStateForStopped(
     where: { id: roundDbId },
     include: {
       conversation_turns: {
-        orderBy: [{ created_at: "asc" }],
+        orderBy: [{ sequence_index: "asc" }],
         select: {
           actor_type: true,
           message_text: true,

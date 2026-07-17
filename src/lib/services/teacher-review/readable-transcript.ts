@@ -213,7 +213,7 @@ export async function getTeacherReadableTranscript(
   const [turns, processEvents, responses] = await Promise.all([
     prisma.conversationTurn.findMany({
       where: { assessment_session_db_id: session.id },
-      orderBy: [{ created_at: "asc" }],
+      orderBy: [{ sequence_index: "asc" }],
       select: {
         phase: true,
         actor_type: true,

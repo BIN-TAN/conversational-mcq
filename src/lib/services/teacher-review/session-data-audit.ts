@@ -304,7 +304,7 @@ export async function buildTeacherSessionDataAudit(input: {
             }
           },
           conversation_turns: {
-            orderBy: [{ created_at: "asc" }],
+            orderBy: [{ sequence_index: "asc" }],
             select: {
               actor_type: true,
               phase: true,
