@@ -3007,6 +3007,14 @@ Phase 6A.5 must not implement:
   runtime hash to both source and derived protocol hashes. Derived approval must
   reference both IDs and recheck source immutability, provider evidence,
   calibration, critical gates, complete human review, and hash consistency.
+- Production promotion of an approved derived evaluation requires an explicit,
+  no-provider activation command. The active persistent-disk approval bundle is
+  the sole authority for operational verification, guarded readiness, all role
+  model resolution, and derived evaluation evidence. A configured but invalid
+  bundle fails closed and must not fall back to the tracked Phase 8A manifest.
+- The active bundle preserves an immutable GPT-5.4 rollback copy and historical
+  GPT-5.6 manifest/evidence copies. Rollback changes the active pointer only;
+  it never deletes approval or evaluation evidence.
 
 ## Phase 31AL Evidence-Integrated Profile And Routing Lock
 

@@ -1,5 +1,4 @@
 import OpenAI from "openai";
-import { getServerEnv } from "@/lib/env";
 import {
   isApprovedOpenAIBaseUrl,
   resolveOpenAIBaseUrl
@@ -9,7 +8,7 @@ import {
   resolveOpenAICredentialFromEnv,
   type ResolvedOpenAICredential
 } from "@/lib/llm/openai-credential-resolver";
-import { LlmConfigurationError } from "./config";
+import { getLlmRuntimeConfig, LlmConfigurationError } from "./config";
 
 export type OpenAIClientTransportInstrumentation = {
   credential?: ResolvedOpenAICredential;
@@ -35,7 +34,7 @@ function retryAfterMs(headers: Headers) {
 }
 
 export function createOpenAIClient(instrumentation?: OpenAIClientTransportInstrumentation) {
-  const env = getServerEnv();
+  const runtime = getLlmRuntimeConfig();
   const credential =
     instrumentation?.credential ??
     currentResolvedOpenAICredential() ??
@@ -76,7 +75,7 @@ export function createOpenAIClient(instrumentation?: OpenAIClientTransportInstru
   return new OpenAI({
     apiKey: credential.credential,
     ...(isApprovedOpenAIBaseUrl(baseURL) ? {} : { baseURL }),
-    timeout: env.OPENAI_REQUEST_TIMEOUT_MS,
+    timeout: runtime.request_timeout_ms,
     maxRetries: 0,
     ...(instrumentation ? { fetch: fetchWithTelemetry } : {})
   });

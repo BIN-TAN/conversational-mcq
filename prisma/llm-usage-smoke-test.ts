@@ -48,7 +48,7 @@ function setOpenAiEnv(values: Partial<Record<(typeof llmEnvKeys)[number], string
   setEnv({
     LLM_PROVIDER: "openai",
     LLM_LIVE_CALLS_ENABLED: "true",
-    OPENAI_API_KEY: "placeholder-not-a-real-secret",
+    OPENAI_API_KEY: "sk-synthetic-usage-smoke-not-a-real-secret",
     OPENAI_MODEL_RESPONSE_COLLECTION: "synthetic-usage-smoke-model",
     LLM_DAILY_CLASS_CALL_LIMIT: "1000",
     LLM_DAILY_CLASS_TOKEN_LIMIT: "1000000",

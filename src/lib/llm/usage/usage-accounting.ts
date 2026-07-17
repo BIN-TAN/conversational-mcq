@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
+import { LiveModelRole, type LiveModelRole as LiveModelRoleType } from "@/lib/llm/config";
 import { getLlmUsageLimitConfig } from "./usage-limits";
 
 type TokenRow = {
@@ -25,7 +25,7 @@ export type LlmUsageSnapshot = {
   window_start: string;
   window_end: string;
   provider: "openai";
-  requested_agent_name: AgentNameType;
+  requested_agent_name: LiveModelRoleType;
   assessment_session_db_id: string | null;
   student_user_id: string | null;
   session_public_id: string | null;
@@ -37,7 +37,7 @@ export type LlmUsageSnapshot = {
 };
 
 export type LlmUsageSnapshotInput = {
-  agent_name: AgentNameType;
+  agent_name: LiveModelRoleType;
   assessment_session_db_id?: string | null;
   now?: Date;
 };
@@ -125,7 +125,7 @@ function emptySummary(): LlmUsageSummary {
 
 function perAgentSummary(rows: TokenRow[]) {
   return Object.fromEntries(
-    AgentName.options.map((agentName) => [
+    LiveModelRole.options.map((agentName) => [
       agentName,
       summarize(rows.filter((row) => row.agent_name === agentName))
     ])
@@ -146,7 +146,7 @@ async function usageRows(where: Prisma.AgentCallWhereInput) {
 }
 
 export async function getLlmUsageSnapshot(input: LlmUsageSnapshotInput): Promise<LlmUsageSnapshot> {
-  const agentName = AgentName.parse(input.agent_name);
+  const agentName = LiveModelRole.parse(input.agent_name);
   const limits = getLlmUsageLimitConfig();
   const window = getUsageWindow(input.now ?? new Date(), limits.usage_timezone);
   const assessmentSessionId = input.assessment_session_db_id ?? null;

@@ -2499,15 +2499,13 @@ npm run operational:model-upgrade:approve -- \
 ```
 
 The approval command writes approval evidence under the candidate run artifact
-directory and prints the exact `OPERATIONAL_APPROVED_CONFIG_HASH=<hash>` value
-for the operator to apply manually in Render after approval. It does not modify
-`.env`, `.env.local`, Render variables, or the approved GPT-5.4-mini baseline
-manifest.
-
-Rollback is environment-only: restore the prior `OPENAI_MODEL_*` values or
-remove candidate overrides, restore the previous
-`OPERATIONAL_APPROVED_CONFIG_HASH`, redeploy, and verify
-`npm run operational:approval-manifest:verify`.
+directory. Approval and production activation are separate explicit steps. The
+canonical persistent-disk activation and rollback procedure is documented in
+`docs/OPERATIONAL_APPROVAL_BUNDLE_ACTIVATION.md`. Activation makes no provider
+call, preserves the approved GPT-5.4-mini baseline, and prints the exact Render
+bundle paths and hash assertions. Runtime role configuration comes from the
+active approved manifest; any supplied role environment values are exact
+assertions and cannot override or silently inherit another role's settings.
 
 Candidate Render/server variables must be server-only and must match the
 approved candidate hash after approval:

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { getServerEnv } from "@/lib/env";
+import { resolveTopicDialogueRuntimePolicy } from "@/lib/llm/config";
 import type {
   ActivityMisconceptionEvidencePacketV1,
   MisconceptionUpdateStatus
@@ -50,15 +50,15 @@ export const TOPIC_DIALOGUE_PROMPT_HASH = createHash("sha256")
   .digest("hex");
 
 export function getTopicDialoguePolicy() {
-  const env = getServerEnv();
+  const approved = resolveTopicDialogueRuntimePolicy();
   return {
     maximum_student_turns:
-      env.TOPIC_DIALOGUE_MAX_STUDENT_TURNS ?? TOPIC_DIALOGUE_MAX_STUDENT_TURNS_DEFAULT,
+      approved.maximum_student_turns ?? TOPIC_DIALOGUE_MAX_STUDENT_TURNS_DEFAULT,
     recent_turn_window:
-      env.TOPIC_DIALOGUE_RECENT_TURN_WINDOW ?? TOPIC_DIALOGUE_RECENT_TURN_WINDOW_DEFAULT,
+      approved.recent_turn_window ?? TOPIC_DIALOGUE_RECENT_TURN_WINDOW_DEFAULT,
     maximum_student_message_chars:
-      env.TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS ?? TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS_DEFAULT,
-    allow_assessment_system_questions: env.TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS
+      approved.maximum_student_message_chars ?? TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS_DEFAULT,
+    allow_assessment_system_questions: approved.allow_assessment_system_questions
   };
 }
 

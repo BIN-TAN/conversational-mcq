@@ -1,12 +1,13 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
-import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
+import { AgentName } from "@/lib/agents/names";
 import {
   activeOperationalConfigHash,
   activeOperationalAgentConfigSnapshot,
-  approvedModelConfigForAgent,
-  readApprovedOperationalAgentConfig,
+  approvedModelConfigForRole,
+  readActiveApprovedOperationalRuntimeConfig,
   verifyApprovedOperationalAgentConfig
 } from "@/lib/agents/operational/approved-config";
+import type { LiveModelRole } from "@/lib/llm/config";
 import { checkLlmLiveCallReadiness, type LlmUsageGuardBlockedReason } from "@/lib/llm/usage/usage-guard";
 import { prisma } from "@/lib/db";
 import { safeParseServerEnv, type EnvConfigurationIssue } from "@/lib/env";
@@ -87,7 +88,7 @@ type OperationalConfigurationErrorSummary = {
 };
 
 export type SanitizedReadinessSnapshot = CanaryContextDiagnostics & {
-  agent_name: AgentNameType | null;
+  agent_name: LiveModelRole | null;
   operational_mode: OperationalAgentMode;
   legacy_alias_value: boolean | null;
   legacy_alias_explicit: boolean;
@@ -140,7 +141,19 @@ export type OperationalAgentIntegrationReadiness = {
   sanitized_warnings: string[];
   evidence_status: "manifest_verified" | "not_checked" | "not_required_for_disabled";
   config: ReturnType<typeof guardedOperationalAgentIntegrationConfig>;
-  approved_evaluation: typeof PHASE_8A_GUARDED_OPERATIONAL_INTEGRATION;
+  approved_evaluation: {
+    source: "phase8a_manifest" | "derived_approval_bundle" | "invalid_active_approval_bundle";
+    model_snapshot: string;
+    reasoning_effort: string;
+    semantic_validator_version: string;
+    safety_validator_version: string;
+    followup_move_on_fallback_version: string;
+    source_provider_run_id: string | null;
+    derived_evaluation_id: string | null;
+    evaluation_protocol_hash: string | null;
+    approval_evidence_hash: string | null;
+    classroom_validity: false;
+  };
   approved_manifest: {
     manifest_version: string;
     manifest_hash: string;
@@ -317,12 +330,24 @@ export function guardedOperationalAgentIntegrationConfig(): GuardedOperationalAg
 
 export function activeAgentVersionSnapshot() {
   const snapshot = activeOperationalAgentConfigSnapshot();
-  const approvedConfig = readApprovedOperationalAgentConfig();
+  const approvedConfig = readActiveApprovedOperationalRuntimeConfig();
+
+  if (approvedConfig.kind === "derived_approval") {
+    return Object.fromEntries(Object.entries(snapshot.agents).map(([agentName, agent]) => [
+      agentName,
+      {
+        ...agent,
+        prompt_matches_evaluated: true,
+        schema_matches_evaluated: true,
+        prompt_hash_matches_evaluated: true
+      }
+    ]));
+  }
 
   return Object.fromEntries(
     AgentName.options.map((agentName) => {
       const agent = snapshot.agents[agentName];
-      const approvedAgent = approvedConfig.agents[agentName];
+      const approvedAgent = approvedConfig.legacy_manifest.agents[agentName];
 
       if (!agent || !approvedAgent) {
         throw new Error(`Operational agent registry is missing ${agentName}.`);
@@ -388,7 +413,7 @@ function manifestIssueToTypedReason(code: string | null): OperationalExecutionBl
 
 function evidenceFromApprovedManifest(input: {
   config: ReturnType<typeof guardedOperationalAgentIntegrationConfig>;
-  manifest: ReturnType<typeof readApprovedOperationalAgentConfig>;
+  manifest: ReturnType<typeof readActiveApprovedOperationalRuntimeConfig>;
   manifestVerificationValid: boolean;
   canaryContextRecognized: boolean;
   canaryContextValid: boolean;
@@ -410,14 +435,24 @@ function evidenceFromApprovedManifest(input: {
     };
   }
 
+  if (input.manifest.kind === "derived_approval") {
+    return {
+      required: true,
+      found: input.manifestVerificationValid && input.manifest.evaluation_evidence.found,
+      source: input.manifestVerificationValid
+        ? input.manifest.evaluation_evidence.source
+        : null
+    };
+  }
+
   const manifestEvidenceMatches =
-    input.manifest.evaluation_evidence.targeted_run_public_id ===
+    input.manifest.legacy_manifest.evaluation_evidence.targeted_run_public_id ===
       PHASE_8A_GUARDED_OPERATIONAL_INTEGRATION.approved_targeted_run_public_id &&
-    input.manifest.evaluation_evidence.review_artifact_version ===
+    input.manifest.legacy_manifest.evaluation_evidence.review_artifact_version ===
       PHASE_8A_GUARDED_OPERATIONAL_INTEGRATION.effective_artifact_version &&
-    input.manifest.evaluation_evidence.recommendation ===
+    input.manifest.legacy_manifest.evaluation_evidence.recommendation ===
       PHASE_8A_GUARDED_OPERATIONAL_INTEGRATION.final_recommendation &&
-    input.manifest.evaluation_evidence.classroom_validity === false;
+    input.manifest.legacy_manifest.evaluation_evidence.classroom_validity === false;
 
   if (!input.manifestVerificationValid || !manifestEvidenceMatches) {
     return {
@@ -443,7 +478,7 @@ function evidenceFromApprovedManifest(input: {
 }
 
 export async function evaluateOperationalExecutionReadiness(input: {
-  agentName?: AgentNameType | null;
+  agentName?: LiveModelRole | null;
   operationalContext?: {
     assessment_session_db_id?: string | null;
     metadata?: Record<string, string | undefined>;
@@ -465,10 +500,39 @@ export async function evaluateOperationalExecutionReadiness(input: {
   };
 } = {}): Promise<OperationalExecutionReadiness> {
   const config = guardedOperationalAgentIntegrationConfig();
-  const manifest = readApprovedOperationalAgentConfig();
+  let manifest: ReturnType<typeof readActiveApprovedOperationalRuntimeConfig>;
+  try {
+    manifest = readActiveApprovedOperationalRuntimeConfig();
+  } catch {
+    const verification = verifyApprovedOperationalAgentConfig();
+    const baseline = verification.manifest;
+    manifest = {
+      kind: "phase8a_legacy",
+      manifest_version: baseline.manifest_version,
+      approved_active_configuration_hash: verification.runtime_candidate_hash,
+      config_hash: baseline.config_hash,
+      semantic_validator_version: baseline.semantic_validator_version,
+      safety_validator_version: baseline.safety_validator_version,
+      effective_result_version: baseline.effective_result_version,
+      effective_validator_version: baseline.effective_validator_version,
+      roles: {},
+      runtime_policy: null,
+      evaluation_evidence: {
+        source: "phase8a_manifest",
+        found: false,
+        source_provider_run_id: null,
+        derived_evaluation_id: null,
+        evaluation_protocol_hash: null,
+        approval_evidence_hash: null
+      },
+      legacy_manifest: baseline,
+      active_bundle: null
+    };
+  }
   const manifestVerification = config.configuration_valid
     ? verifyApprovedOperationalAgentConfig()
     : {
+        approval_kind: manifest.kind,
         valid: false,
         manifest_hash: manifest.config_hash,
         approved_hash: manifest.approved_active_configuration_hash,
@@ -482,11 +546,23 @@ export async function evaluateOperationalExecutionReadiness(input: {
         active_configuration_hash: "unavailable_due_to_invalid_environment",
         active_agents: {},
         runtime_model_resolution: {},
-        manifest
+        manifest: manifest.legacy_manifest,
+        runtime_candidate_hash: manifest.approved_active_configuration_hash,
+        evaluation_protocol_hash: manifest.evaluation_evidence.evaluation_protocol_hash,
+        approval_evidence_hash: manifest.evaluation_evidence.approval_evidence_hash,
+        role_inventory: [],
+        runtime_policy: manifest.runtime_policy,
+        approval_bundle_path: null,
+        semantic_validator_version: manifest.semantic_validator_version,
+        safety_validator_version: manifest.safety_validator_version,
+        effective_result_version: manifest.effective_result_version,
+        effective_validator_version: manifest.effective_validator_version
       };
-  const activeHash = config.configuration_valid
+  const activeHash = config.configuration_valid && manifestVerification.valid
     ? activeOperationalConfigHash()
-    : "unavailable_due_to_invalid_environment";
+    : config.configuration_valid
+      ? "unavailable_due_to_invalid_approval"
+      : "unavailable_due_to_invalid_environment";
   const blockingReasons: OperationalExecutionBlockReason[] = [];
   const warnings = [
     ...(config.configuration_error
@@ -535,7 +611,9 @@ export async function evaluateOperationalExecutionReadiness(input: {
         }
       : await validateOperationalLiveCanaryContext({
           context: operationalLiveCanaryContext,
-          agentName: input.agentName,
+          agentName: input.agentName && AgentName.safeParse(input.agentName).success
+            ? AgentName.parse(input.agentName)
+            : null,
           prisma: input.evidenceContext?.canaryPrisma ?? prisma
         })
     : {
@@ -708,8 +786,14 @@ export async function getGuardedOperationalAgentIntegrationReadiness(
     checkUsageGuard: false
   });
   const config = guardedOperationalAgentIntegrationConfig();
-  const manifest = readApprovedOperationalAgentConfig();
-  const activeHash = activeOperationalConfigHash();
+  const verification = verifyApprovedOperationalAgentConfig();
+  let manifest: ReturnType<typeof readActiveApprovedOperationalRuntimeConfig> | null = null;
+  try {
+    manifest = readActiveApprovedOperationalRuntimeConfig();
+  } catch {
+    manifest = null;
+  }
+  const activeHash = verification.valid ? activeOperationalConfigHash() : verification.active_configuration_hash;
   const snapshot = readiness.readinessSnapshot;
 
   return {
@@ -724,26 +808,69 @@ export async function getGuardedOperationalAgentIntegrationReadiness(
     sanitized_warnings: snapshot.sanitized_warnings,
     evidence_status: config.mode === "disabled" ? "not_required_for_disabled" : "manifest_verified",
     config,
-    approved_evaluation: PHASE_8A_GUARDED_OPERATIONAL_INTEGRATION,
+    approved_evaluation: manifest === null
+      ? {
+          source: "invalid_active_approval_bundle",
+          model_snapshot: "unavailable",
+          reasoning_effort: "unavailable",
+          semantic_validator_version: "unavailable",
+          safety_validator_version: "unavailable",
+          followup_move_on_fallback_version: "unavailable",
+          source_provider_run_id: null,
+          derived_evaluation_id: null,
+          evaluation_protocol_hash: null,
+          approval_evidence_hash: null,
+          classroom_validity: false
+        }
+      : manifest.kind === "derived_approval"
+      ? {
+          source: "derived_approval_bundle",
+          model_snapshot: "role_specific_gpt-5.6",
+          reasoning_effort: "role_specific",
+          semantic_validator_version: manifest.semantic_validator_version,
+          safety_validator_version: manifest.safety_validator_version,
+          followup_move_on_fallback_version:
+            manifest.active_bundle.manifest.configuration_fingerprint.fallback_versions.followup_move_on,
+          source_provider_run_id: manifest.evaluation_evidence.source_provider_run_id,
+          derived_evaluation_id: manifest.evaluation_evidence.derived_evaluation_id,
+          evaluation_protocol_hash: manifest.evaluation_evidence.evaluation_protocol_hash,
+          approval_evidence_hash: manifest.evaluation_evidence.approval_evidence_hash,
+          classroom_validity: false
+        }
+        : {
+          source: "phase8a_manifest",
+          model_snapshot: PHASE_8A_GUARDED_OPERATIONAL_INTEGRATION.model_snapshot,
+          reasoning_effort: PHASE_8A_GUARDED_OPERATIONAL_INTEGRATION.reasoning_effort,
+          semantic_validator_version: PHASE_8A_GUARDED_OPERATIONAL_INTEGRATION.semantic_validator_version,
+          safety_validator_version: PHASE_8A_GUARDED_OPERATIONAL_INTEGRATION.safety_validator_version,
+          followup_move_on_fallback_version: PHASE_8A_GUARDED_OPERATIONAL_INTEGRATION.followup_move_on_fallback_version,
+          source_provider_run_id: null,
+          derived_evaluation_id: null,
+          evaluation_protocol_hash: null,
+          approval_evidence_hash: null,
+          classroom_validity: false
+        },
     approved_manifest: {
-      manifest_version: manifest.manifest_version,
-      manifest_hash: manifest.config_hash,
-      approved_active_configuration_hash: manifest.approved_active_configuration_hash
+      manifest_version: manifest?.manifest_version ?? "invalid_active_approval_bundle",
+      manifest_hash: manifest?.config_hash ?? "unavailable",
+      approved_active_configuration_hash:
+        manifest?.approved_active_configuration_hash ?? verification.runtime_candidate_hash
     },
     active_configuration_hash: activeHash,
-    approved_configuration_hash: manifest.approved_active_configuration_hash,
-    active_agent_versions: config.configuration_valid ? activeAgentVersionSnapshot() : {},
+    approved_configuration_hash:
+      manifest?.approved_active_configuration_hash ?? verification.runtime_candidate_hash,
+    active_agent_versions: config.configuration_valid && verification.valid ? activeAgentVersionSnapshot() : {},
     live_call_permitted: readiness.allowed && config.mode === "guarded_live",
     details: config.configuration_error
       ? { configuration_error: config.configuration_error }
       : snapshot.approved_manifest_valid
         ? undefined
-        : { manifest_issues: verifyApprovedOperationalAgentConfig().issues }
+        : { manifest_issues: verification.issues }
   };
 }
 
-export function approvedOperationalModelConfigForAgent(agentName: AgentNameType) {
-  return approvedModelConfigForAgent(agentName);
+export function approvedOperationalModelConfigForAgent(agentName: LiveModelRole) {
+  return approvedModelConfigForRole(agentName);
 }
 
 export function guardedOperationalAgentIntegrationDisabledFallbackReason(

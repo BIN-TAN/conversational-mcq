@@ -3,8 +3,12 @@ import path from "node:path";
 import { z } from "zod";
 import {
   readApprovedOperationalAgentConfig,
-  stableHash
 } from "@/lib/agents/operational/approved-config";
+import {
+  modelUpgradeCandidateRuntimeHash,
+  modelUpgradeCandidateRuntimeSnapshot
+} from "@/lib/operational/model-upgrade-candidate-identity";
+import { stableHash } from "@/lib/operational/stable-hash";
 import {
   liveModelRoles,
   modelConfigCompatibilityIssues,
@@ -211,23 +215,7 @@ export function candidateOperationalModelHash(candidate = readCandidateOperation
 }
 
 export function candidateRuntimeConfigurationSnapshot(candidate = readCandidateOperationalModelConfig()) {
-  const fingerprint = candidate.configuration_fingerprint;
-  return {
-    roles: Object.fromEntries(liveModelRoles.map((role) => [role, candidate.roles[role]])),
-    runtime_policy: candidate.runtime_policy ?? null,
-    production_versions: fingerprint
-      ? {
-        semantic_validator_version: fingerprint.semantic_validator_version,
-        safety_validator_version: fingerprint.safety_validator_version,
-        effective_result_version: fingerprint.effective_result_version,
-        effective_validator_version: fingerprint.effective_validator_version,
-        deterministic_guard_versions: fingerprint.deterministic_guard_versions,
-        canonicalization_versions: fingerprint.canonicalization_versions,
-        fallback_versions: fingerprint.fallback_versions,
-        role_version_metadata: fingerprint.role_version_metadata
-      }
-      : null
-  };
+  return modelUpgradeCandidateRuntimeSnapshot(candidate, liveModelRoles);
 }
 
 export function candidateActiveOperationalConfigSnapshot(candidate = readCandidateOperationalModelConfig()) {
@@ -249,7 +237,7 @@ export function candidateActiveOperationalConfigSnapshot(candidate = readCandida
 }
 
 export function candidateRuntimeConfigurationHash(candidate = readCandidateOperationalModelConfig()) {
-  return stableHash(candidateRuntimeConfigurationSnapshot(candidate));
+  return modelUpgradeCandidateRuntimeHash(candidate, liveModelRoles);
 }
 
 export function candidateActiveOperationalConfigHash(candidate = readCandidateOperationalModelConfig()) {

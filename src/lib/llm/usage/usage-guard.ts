@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
+import type { LiveModelRole } from "@/lib/llm/config";
 import { getServerEnv } from "@/lib/env";
 import { getLlmUsageLimitConfig } from "./usage-limits";
 import { getLlmUsageSnapshot, type LlmUsageSnapshot } from "./usage-accounting";
@@ -34,7 +34,7 @@ export type LlmUsageGuardResult =
     };
 
 export type LlmUsageGuardInput = {
-  agent_name: AgentNameType;
+  agent_name: LiveModelRole;
   assessment_session_db_id?: string | null;
   model_configured?: boolean;
   now?: Date;
@@ -58,7 +58,7 @@ function withBlock(
 }
 
 export async function checkLlmLiveCallReadiness(input: LlmUsageGuardInput): Promise<LlmUsageGuardResult> {
-  const agentName = AgentName.parse(input.agent_name);
+  const agentName = input.agent_name;
   const env = getServerEnv();
   const limits = getLlmUsageLimitConfig();
   const usageSnapshot = await getLlmUsageSnapshot({

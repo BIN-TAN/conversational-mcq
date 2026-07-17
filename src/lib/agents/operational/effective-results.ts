@@ -2,7 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
-import { stableHash, readApprovedOperationalAgentConfig } from "./approved-config";
+import { stableHash, readActiveApprovedOperationalRuntimeConfig } from "./approved-config";
 
 export type OperationalEffectiveStatus =
   | "not_run"
@@ -47,7 +47,7 @@ export async function persistOperationalEffectiveResult(
   input: PersistOperationalEffectiveResultInput
 ) {
   const db = input.prismaClient ?? prisma;
-  const manifest = readApprovedOperationalAgentConfig();
+  const manifest = readActiveApprovedOperationalRuntimeConfig();
   const effectiveResultHash = stableHash({
     agent_name: input.agent_name,
     operational_context_type: input.operational_context_type,

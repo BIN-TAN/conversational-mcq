@@ -40,7 +40,7 @@ import {
   type PostActivityLearningDecisionV1,
   type TopicDialogueOutputV1
 } from "@/lib/services/student-assessment/topic-dialogue-agent";
-import { getServerEnv } from "@/lib/env";
+import { resolveOperationalRoleLiveCallsEnabled } from "@/lib/llm/config";
 import {
   executeStudentRuntimeLiveAgent,
 } from "@/lib/services/student-assessment/student-runtime-live-agent";
@@ -1455,7 +1455,8 @@ export async function submitTopicDialogueResponse(input: {
       })
     }
   });
-  if (getServerEnv().TOPIC_DIALOGUE_LIVE_CALLS_ENABLED) {
+  const topicDialogueLiveEnabled = resolveOperationalRoleLiveCallsEnabled("topic_dialogue_agent");
+  if (topicDialogueLiveEnabled) {
     await logProcessEvent({
       assessment_session_db_id: context.session.id,
       concept_unit_session_db_id: context.concept_unit_session.id,
@@ -1471,7 +1472,7 @@ export async function submitTopicDialogueResponse(input: {
   }
   const liveResult = await executeStudentRuntimeLiveAgent({
     client,
-    live_enabled: getServerEnv().TOPIC_DIALOGUE_LIVE_CALLS_ENABLED,
+    live_enabled: topicDialogueLiveEnabled,
     role: TOPIC_DIALOGUE_AGENT_NAME,
     agent_name: TOPIC_DIALOGUE_AGENT_NAME,
     agent_version: TOPIC_DIALOGUE_PROMPT_VERSION,

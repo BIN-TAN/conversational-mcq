@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { getServerEnv } from "@/lib/env";
+import { resolveOperationalRoleLiveCallsEnabled } from "@/lib/llm/config";
 import { toPrismaJson } from "@/lib/services/json";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { prisma } from "@/lib/db";
@@ -601,8 +601,8 @@ export async function buildRuntimeStudentCommunication(input: {
     purpose: input.communication_input.communication_purpose,
     source_evidence_hash: input.source_evidence_hash
   })}`;
-  const env = getServerEnv();
-  if (env.STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED) {
+  const liveCallsEnabled = resolveOperationalRoleLiveCallsEnabled("student_communication_agent");
+  if (liveCallsEnabled) {
     await logProcessEvent({
       assessment_session_db_id: input.assessment_session_db_id,
       concept_unit_session_db_id: input.concept_unit_session_db_id ?? undefined,
@@ -618,7 +618,7 @@ export async function buildRuntimeStudentCommunication(input: {
   }
   const liveResult = await executeStudentRuntimeLiveAgent({
     client,
-    live_enabled: env.STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED,
+    live_enabled: liveCallsEnabled,
     role: STUDENT_COMMUNICATION_AGENT_NAME,
     agent_name: STUDENT_COMMUNICATION_AGENT_NAME,
     agent_version: STUDENT_COMMUNICATION_PROMPT_VERSION,

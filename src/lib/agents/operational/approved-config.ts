@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
@@ -6,10 +5,21 @@ import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
 import { listAgentPrompts } from "@/lib/agents/prompts/registry";
 import {
   liveModelRoleEnvSources,
+  modelConfigCompatibilityIssues,
   type AgentModelConfig,
   type LiveModelRole
 } from "@/lib/llm/config";
 import { getServerEnv } from "@/lib/env";
+import { stableHash } from "@/lib/operational/stable-hash";
+import {
+  type ActiveDerivedOperationalApproval,
+  type ApprovedCandidateManifest,
+  type ApprovedOperationalRoleName,
+  APPROVED_OPERATIONAL_ROLE_NAMES,
+  approvedCandidateRoleConfig,
+  OperationalApprovalBundleError,
+  resolveActiveOperationalApproval
+} from "@/lib/operational/active-approval-bundle";
 
 export const APPROVED_OPERATIONAL_CONFIG_PATH = path.join(
   process.cwd(),
@@ -60,6 +70,7 @@ const approvedConfigSchema = z.object({
 export type ApprovedOperationalAgentConfig = z.infer<typeof approvedConfigSchema>;
 
 export type ApprovedOperationalConfigVerification = {
+  approval_kind: "phase8a_legacy" | "derived_approval";
   valid: boolean;
   manifest_hash: string;
   approved_hash: string;
@@ -82,6 +93,16 @@ export type ApprovedOperationalConfigVerification = {
     source: string;
   }>;
   manifest: ApprovedOperationalAgentConfig;
+  runtime_candidate_hash: string;
+  evaluation_protocol_hash: string | null;
+  approval_evidence_hash: string | null;
+  role_inventory: string[];
+  runtime_policy: ApprovedCandidateManifest["runtime_policy"] | null;
+  approval_bundle_path: string | null;
+  semantic_validator_version: string;
+  safety_validator_version: string;
+  effective_result_version: string;
+  effective_validator_version: string;
 };
 
 type ActiveAgentConfig = ApprovedOperationalConfigVerification["active_agents"][string];
@@ -93,8 +114,8 @@ type RuntimeModelResolution = {
 };
 
 type ApprovedOperationalConfigVerificationOptions = {
-  activeAgentConfigOverridesForTest?: Partial<Record<AgentNameType, Partial<ActiveAgentConfig>>>;
-  runtimeModelConfigOverridesForTest?: Partial<Record<AgentNameType, Partial<RuntimeModelResolution>>>;
+  activeAgentConfigOverridesForTest?: Partial<Record<LiveModelRole, Partial<ActiveAgentConfig>>>;
+  runtimeModelConfigOverridesForTest?: Partial<Record<LiveModelRole, Partial<RuntimeModelResolution>>>;
 };
 
 const agentMaxTokenEnvKeys: Record<AgentNameType, keyof ReturnType<typeof getServerEnv>> = {
@@ -168,30 +189,129 @@ function explicitOperationalRuntimeModelOverrides(
   return overrides;
 }
 
-function stable(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(stable);
-  }
-
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.keys(value)
-        .sort()
-        .map((key) => [key, stable((value as Record<string, unknown>)[key])])
-    );
-  }
-
-  return value;
-}
-
-export function stableHash(value: unknown) {
-  return createHash("sha256").update(JSON.stringify(stable(value))).digest("hex");
-}
+export { stableHash } from "@/lib/operational/stable-hash";
 
 export function readApprovedOperationalAgentConfig() {
   return approvedConfigSchema.parse(
     JSON.parse(readFileSync(APPROVED_OPERATIONAL_CONFIG_PATH, "utf8"))
   );
+}
+
+function readLegacyApprovedOperationalAgentConfig(filePath: string) {
+  return approvedConfigSchema.parse(JSON.parse(readFileSync(filePath, "utf8")));
+}
+
+export type ActiveApprovedOperationalRuntimeConfig =
+  | {
+      kind: "phase8a_legacy";
+      manifest_version: string;
+      approved_active_configuration_hash: string;
+      config_hash: string;
+      semantic_validator_version: string;
+      safety_validator_version: string;
+      effective_result_version: string;
+      effective_validator_version: string;
+      roles: Partial<Record<LiveModelRole, AgentModelConfig>>;
+      runtime_policy: null;
+      evaluation_evidence: {
+        source: "phase8a_manifest";
+        found: boolean;
+        source_provider_run_id: null;
+        derived_evaluation_id: null;
+        evaluation_protocol_hash: null;
+        approval_evidence_hash: null;
+      };
+      legacy_manifest: ApprovedOperationalAgentConfig;
+      active_bundle: null;
+    }
+  | {
+      kind: "derived_approval";
+      manifest_version: string;
+      approved_active_configuration_hash: string;
+      config_hash: string;
+      semantic_validator_version: string;
+      safety_validator_version: string;
+      effective_result_version: string;
+      effective_validator_version: string;
+      roles: Record<ApprovedOperationalRoleName, AgentModelConfig>;
+      runtime_policy: ApprovedCandidateManifest["runtime_policy"];
+      evaluation_evidence: {
+        source: "derived_approval_bundle";
+        found: boolean;
+        source_provider_run_id: string;
+        derived_evaluation_id: string;
+        evaluation_protocol_hash: string;
+        approval_evidence_hash: string;
+      };
+      legacy_manifest: ApprovedOperationalAgentConfig;
+      active_bundle: ActiveDerivedOperationalApproval;
+    };
+
+export function readActiveApprovedOperationalRuntimeConfig(): ActiveApprovedOperationalRuntimeConfig {
+  const activeApproval = resolveActiveOperationalApproval();
+  if (activeApproval?.kind === "derived_approval") {
+    const fingerprint = activeApproval.manifest.configuration_fingerprint;
+    const roles = Object.fromEntries(APPROVED_OPERATIONAL_ROLE_NAMES.map((role) => [
+      role,
+      approvedCandidateRoleConfig(activeApproval.manifest, role)
+    ])) as Record<ApprovedOperationalRoleName, AgentModelConfig>;
+    return {
+      kind: "derived_approval",
+      manifest_version: activeApproval.manifest.manifest_version,
+      approved_active_configuration_hash: activeApproval.record.runtime_candidate_hash,
+      config_hash: activeApproval.record.approval_evidence_hash,
+      semantic_validator_version: fingerprint.semantic_validator_version,
+      safety_validator_version: fingerprint.safety_validator_version,
+      effective_result_version: fingerprint.effective_result_version,
+      effective_validator_version: fingerprint.effective_validator_version,
+      roles,
+      runtime_policy: activeApproval.manifest.runtime_policy,
+      evaluation_evidence: {
+        source: "derived_approval_bundle",
+        found: true,
+        source_provider_run_id: activeApproval.record.source_provider_run_id,
+        derived_evaluation_id: activeApproval.record.derived_evaluation_id,
+        evaluation_protocol_hash: activeApproval.record.evaluation_protocol_hash,
+        approval_evidence_hash: activeApproval.record.approval_evidence_hash
+      },
+      legacy_manifest: readApprovedOperationalAgentConfig(),
+      active_bundle: activeApproval
+    };
+  }
+
+  const legacy = activeApproval?.kind === "legacy_gpt54_baseline"
+    ? readLegacyApprovedOperationalAgentConfig(activeApproval.manifest_path)
+    : readApprovedOperationalAgentConfig();
+  return {
+    kind: "phase8a_legacy",
+    manifest_version: legacy.manifest_version,
+    approved_active_configuration_hash: legacy.approved_active_configuration_hash,
+    config_hash: legacy.config_hash,
+    semantic_validator_version: legacy.semantic_validator_version,
+    safety_validator_version: legacy.safety_validator_version,
+    effective_result_version: legacy.effective_result_version,
+    effective_validator_version: legacy.effective_validator_version,
+    roles: Object.fromEntries(AgentName.options.map((agentName) => {
+      const agent = legacy.agents[agentName];
+      if (!agent) throw new Error(`Approved operational manifest is missing ${agentName}.`);
+      return [agentName, {
+        model_name: legacy.model_snapshot,
+        reasoning_effort: legacy.reasoning_effort,
+        max_output_tokens: agent.max_output_tokens
+      }];
+    })),
+    runtime_policy: null,
+    evaluation_evidence: {
+      source: "phase8a_manifest",
+      found: true,
+      source_provider_run_id: null,
+      derived_evaluation_id: null,
+      evaluation_protocol_hash: null,
+      approval_evidence_hash: null
+    },
+    legacy_manifest: legacy,
+    active_bundle: null
+  };
 }
 
 export function approvedOperationalConfigHash(config: ApprovedOperationalAgentConfig) {
@@ -200,7 +320,43 @@ export function approvedOperationalConfigHash(config: ApprovedOperationalAgentCo
   return stableHash(copy);
 }
 
+function activeAgentsFromDerivedManifest(manifest: ApprovedCandidateManifest) {
+  return Object.fromEntries(APPROVED_OPERATIONAL_ROLE_NAMES.map((role) => {
+    const metadata = manifest.configuration_fingerprint.role_version_metadata[role] ?? {};
+    const promptVersion = typeof metadata.prompt_version === "string"
+      ? metadata.prompt_version
+      : "deterministic-config";
+    const schemaVersion = [
+      metadata.schema_version,
+      metadata.output_schema_version,
+      metadata.input_schema_version
+    ].find((value): value is string => typeof value === "string") ?? "not-applicable";
+    return [role, {
+      agent_version: promptVersion,
+      prompt_version: promptVersion,
+      prompt_hash: typeof metadata.prompt_hash === "string"
+        ? metadata.prompt_hash
+        : "deterministic-config-not-applicable",
+      schema_version: schemaVersion,
+      max_output_tokens: approvedCandidateRoleConfig(manifest, role).max_output_tokens
+    }];
+  })) as ApprovedOperationalConfigVerification["active_agents"];
+}
+
 export function activeOperationalAgentConfigSnapshot() {
+  const activeRuntime = readActiveApprovedOperationalRuntimeConfig();
+  if (activeRuntime.kind === "derived_approval") {
+    return {
+      model_snapshot: "role_specific",
+      reasoning_effort: "role_specific",
+      agents: activeAgentsFromDerivedManifest(activeRuntime.active_bundle.manifest),
+      semantic_validator_version: activeRuntime.semantic_validator_version,
+      safety_validator_version: activeRuntime.safety_validator_version,
+      effective_result_version: activeRuntime.effective_result_version,
+      effective_validator_version: activeRuntime.effective_validator_version,
+      runtime_model_overrides: undefined
+    };
+  }
   const env = getServerEnv();
   const prompts = Object.fromEntries(listAgentPrompts().map((prompt) => [prompt.agent_name, prompt]));
   const approvedConfig = readApprovedOperationalAgentConfig();
@@ -257,6 +413,10 @@ export function activeOperationalAgentConfigSnapshot() {
 }
 
 export function activeOperationalConfigHash() {
+  const activeRuntime = readActiveApprovedOperationalRuntimeConfig();
+  if (activeRuntime.kind === "derived_approval") {
+    return activeRuntime.approved_active_configuration_hash;
+  }
   return stableHash(activeOperationalAgentConfigSnapshot());
 }
 
@@ -293,9 +453,217 @@ function applyActiveAgentOverrides(
   ) as ApprovedOperationalConfigVerification["active_agents"];
 }
 
+function explicitlyConfigured(name: string) {
+  const value = process.env[name];
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function verifyDerivedApprovedOperationalConfig(
+  activeRuntime: Extract<ActiveApprovedOperationalRuntimeConfig, { kind: "derived_approval" }>,
+  options: ApprovedOperationalConfigVerificationOptions
+): ApprovedOperationalConfigVerification {
+  const env = getServerEnv();
+  const manifest = activeRuntime.active_bundle.manifest;
+  const issues: ApprovedOperationalConfigVerification["issues"] = [];
+  const sources = liveModelRoleEnvSources();
+  const activeAgents = applyActiveAgentOverrides(
+    activeAgentsFromDerivedManifest(manifest),
+    options.activeAgentConfigOverridesForTest
+  );
+  const runtimeModelResolution = Object.fromEntries(APPROVED_OPERATIONAL_ROLE_NAMES.map((role) => {
+    const approved = approvedCandidateRoleConfig(manifest, role);
+    const roleSource = sources[role][0];
+    const configuredModel = explicitlyConfigured(roleSource.model)
+      ? String(process.env[roleSource.model] ?? "")
+      : null;
+    const configuredReasoning = explicitlyConfigured(roleSource.reasoning)
+      ? String(process.env[roleSource.reasoning] ?? "")
+      : null;
+    const configuredMaxTokens = "maxTokens" in roleSource && roleSource.maxTokens && explicitlyConfigured(roleSource.maxTokens)
+      ? Number(process.env[roleSource.maxTokens])
+      : null;
+    const override = options.runtimeModelConfigOverridesForTest?.[role];
+    const resolved = {
+      model_name: override?.model_name === undefined ? approved.model_name : override.model_name,
+      reasoning_effort: override?.reasoning_effort === undefined
+        ? approved.reasoning_effort
+        : override.reasoning_effort,
+      max_output_tokens: override?.max_output_tokens === undefined
+        ? approved.max_output_tokens
+        : override.max_output_tokens,
+      source: override?.source ?? "active_approval_bundle"
+    };
+
+    if (configuredModel !== null && configuredModel !== approved.model_name) {
+      issues.push({
+        code: "model_snapshot_mismatch",
+        message: `${role} environment model assertion does not match the active approval bundle.`,
+        details: { agent_name: role, model_env_key: roleSource.model }
+      });
+    }
+    if (configuredReasoning !== null && configuredReasoning !== approved.reasoning_effort) {
+      issues.push({
+        code: "reasoning_effort_mismatch",
+        message: `${role} environment reasoning assertion does not match the active approval bundle.`,
+        details: { agent_name: role, reasoning_env_key: roleSource.reasoning }
+      });
+    }
+    if (configuredMaxTokens !== null && configuredMaxTokens !== approved.max_output_tokens) {
+      issues.push({
+        code: "runtime_token_limit_mismatch",
+        message: `${role} environment token assertion does not match the active approval bundle.`,
+        details: { agent_name: role, max_output_tokens_env_key: "maxTokens" in roleSource ? roleSource.maxTokens : null }
+      });
+    }
+
+    const compatibilityIssues = modelConfigCompatibilityIssues(role, approved);
+    if (compatibilityIssues.length > 0) {
+      issues.push({
+        code: "approved_role_configuration_incompatible",
+        message: `${role} is incompatible with the approved role policy.`,
+        details: { agent_name: role, compatibility_issues: compatibilityIssues }
+      });
+    }
+    if (resolved.model_name !== approved.model_name) {
+      issues.push({ code: "model_snapshot_mismatch", message: `${role} resolved model is not approved.`, details: { agent_name: role } });
+    }
+    if (resolved.reasoning_effort !== approved.reasoning_effort) {
+      issues.push({ code: "reasoning_effort_mismatch", message: `${role} resolved reasoning effort is not approved.`, details: { agent_name: role } });
+    }
+    if (resolved.max_output_tokens !== approved.max_output_tokens) {
+      issues.push({ code: "runtime_token_limit_mismatch", message: `${role} resolved token limit is not approved.`, details: { agent_name: role } });
+    }
+
+    return [role, {
+      approved_model_snapshot: approved.model_name,
+      resolved_model_snapshot: resolved.model_name ?? null,
+      approved_reasoning_effort: approved.reasoning_effort,
+      resolved_reasoning_effort: resolved.reasoning_effort ?? null,
+      approved_max_output_tokens: approved.max_output_tokens,
+      resolved_max_output_tokens: resolved.max_output_tokens ?? null,
+      source: resolved.source
+    }];
+  })) as ApprovedOperationalConfigVerification["runtime_model_resolution"];
+
+  for (const role of AgentName.options) {
+    const prompt = listAgentPrompts().find((entry) => entry.agent_name === role);
+    const metadata = manifest.configuration_fingerprint.role_version_metadata[role];
+    if (prompt && metadata) {
+      for (const [field, actual, approved] of [
+        ["prompt_version", prompt.prompt_version, metadata.prompt_version],
+        ["prompt_hash", prompt.prompt_hash, metadata.prompt_hash],
+        ["schema_version", prompt.schema_version, metadata.schema_version]
+      ] as const) {
+        if (typeof approved === "string" && actual !== approved) {
+          issues.push({
+            code: "active_agent_config_mismatch",
+            message: `${role} ${field} does not match the approved operational bundle.`,
+            details: { agent_name: role, field }
+          });
+        }
+      }
+    }
+  }
+
+  const policyAssertions: Array<[string, unknown, unknown]> = [
+    ["OPENAI_REQUEST_TIMEOUT_MS", env.OPENAI_REQUEST_TIMEOUT_MS, manifest.runtime_policy.provider_timeout_ms],
+    ["OPENAI_MAX_RETRIES", env.OPENAI_MAX_RETRIES, manifest.runtime_policy.provider_max_retries],
+    ["STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED", env.STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED, manifest.runtime_policy.role_live_toggles.student_communication_agent],
+    ["TOPIC_DIALOGUE_LIVE_CALLS_ENABLED", env.TOPIC_DIALOGUE_LIVE_CALLS_ENABLED, manifest.runtime_policy.role_live_toggles.topic_dialogue_agent],
+    ["TOPIC_DIALOGUE_MAX_STUDENT_TURNS", env.TOPIC_DIALOGUE_MAX_STUDENT_TURNS, manifest.runtime_policy.topic_dialogue_policy.maximum_student_turns],
+    ["TOPIC_DIALOGUE_RECENT_TURN_WINDOW", env.TOPIC_DIALOGUE_RECENT_TURN_WINDOW, manifest.runtime_policy.topic_dialogue_policy.recent_raw_turn_window],
+    ["TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS", env.TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS, manifest.runtime_policy.topic_dialogue_policy.maximum_student_message_characters],
+    ["TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS", env.TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS, manifest.runtime_policy.topic_dialogue_policy.assessment_system_questions_allowed]
+  ];
+  for (const [name, actual, approved] of policyAssertions) {
+    if (explicitlyConfigured(name) && actual !== approved) {
+      issues.push({
+        code: "runtime_policy_env_mismatch",
+        message: `${name} does not match the active approval bundle.`,
+        details: { environment_variable: name }
+      });
+    }
+  }
+
+  if (env.OPERATIONAL_EFFECTIVE_RESULT_VERSION !== activeRuntime.effective_result_version) {
+    issues.push({ code: "effective_result_version_mismatch", message: "Effective result version does not match the active approval bundle." });
+  }
+  if (env.OPERATIONAL_EFFECTIVE_VALIDATOR_VERSION !== activeRuntime.effective_validator_version) {
+    issues.push({ code: "effective_validator_version_mismatch", message: "Effective validator version does not match the active approval bundle." });
+  }
+  if (env.OPERATIONAL_APPROVED_CONFIG_HASH !== activeRuntime.approved_active_configuration_hash) {
+    issues.push({
+      code: env.OPERATIONAL_APPROVED_CONFIG_HASH ? "approved_config_hash_env_mismatch" : "approved_config_hash_missing",
+      message: "OPERATIONAL_APPROVED_CONFIG_HASH must exactly match the active approval bundle."
+    });
+  }
+
+  return {
+    approval_kind: "derived_approval",
+    valid: issues.length === 0,
+    manifest_hash: activeRuntime.active_bundle.record.approved_manifest.sha256,
+    approved_hash: activeRuntime.active_bundle.record.approval_evidence_hash,
+    issues,
+    active_configuration_hash: activeRuntime.approved_active_configuration_hash,
+    active_agents: activeAgents,
+    runtime_model_resolution: runtimeModelResolution,
+    manifest: activeRuntime.legacy_manifest,
+    runtime_candidate_hash: activeRuntime.approved_active_configuration_hash,
+    evaluation_protocol_hash: activeRuntime.evaluation_evidence.evaluation_protocol_hash,
+    approval_evidence_hash: activeRuntime.evaluation_evidence.approval_evidence_hash,
+    role_inventory: [...APPROVED_OPERATIONAL_ROLE_NAMES],
+    runtime_policy: manifest.runtime_policy,
+    approval_bundle_path: activeRuntime.active_bundle.bundle_path,
+    semantic_validator_version: activeRuntime.semantic_validator_version,
+    safety_validator_version: activeRuntime.safety_validator_version,
+    effective_result_version: activeRuntime.effective_result_version,
+    effective_validator_version: activeRuntime.effective_validator_version
+  };
+}
+
 export function verifyApprovedOperationalAgentConfig(
   options: ApprovedOperationalConfigVerificationOptions = {}
 ): ApprovedOperationalConfigVerification {
+  let activeRuntime: ActiveApprovedOperationalRuntimeConfig;
+  try {
+    activeRuntime = readActiveApprovedOperationalRuntimeConfig();
+  } catch (error) {
+    if (!(error instanceof OperationalApprovalBundleError || error instanceof z.ZodError)) {
+      throw error;
+    }
+    const manifest = readApprovedOperationalAgentConfig();
+    const code = error instanceof OperationalApprovalBundleError
+      ? error.code
+      : "active_approval_bundle_schema_invalid";
+    return {
+      approval_kind: "derived_approval",
+      valid: false,
+      manifest_hash: "unavailable",
+      approved_hash: process.env.OPERATIONAL_APPROVED_CONFIG_HASH ?? "unavailable",
+      issues: [{
+        code,
+        message: "Configured active operational approval bundle is invalid.",
+        details: error instanceof OperationalApprovalBundleError ? error.details : undefined
+      }],
+      active_configuration_hash: "unavailable",
+      active_agents: {},
+      runtime_model_resolution: {},
+      manifest,
+      runtime_candidate_hash: "unavailable",
+      evaluation_protocol_hash: null,
+      approval_evidence_hash: null,
+      role_inventory: [],
+      runtime_policy: null,
+      approval_bundle_path: process.env.OPERATIONAL_APPROVAL_BUNDLE_PATH ?? null,
+      semantic_validator_version: manifest.semantic_validator_version,
+      safety_validator_version: manifest.safety_validator_version,
+      effective_result_version: manifest.effective_result_version,
+      effective_validator_version: manifest.effective_validator_version
+    };
+  }
+  if (activeRuntime.kind === "derived_approval") {
+    return verifyDerivedApprovedOperationalConfig(activeRuntime, options);
+  }
   const env = getServerEnv();
   const manifest = readApprovedOperationalAgentConfig();
   const issues: ApprovedOperationalConfigVerification["issues"] = [];
@@ -437,6 +805,7 @@ export function verifyApprovedOperationalAgentConfig(
   }
 
   return {
+    approval_kind: "phase8a_legacy",
     valid: issues.length === 0,
     manifest_hash: manifestHash,
     approved_hash: manifest.config_hash,
@@ -444,21 +813,33 @@ export function verifyApprovedOperationalAgentConfig(
     active_configuration_hash: activeHash,
     active_agents: activeSnapshot.agents,
     runtime_model_resolution: runtimeModelResolution,
-    manifest
+    manifest,
+    runtime_candidate_hash: manifest.approved_active_configuration_hash,
+    evaluation_protocol_hash: null,
+    approval_evidence_hash: null,
+    role_inventory: [...AgentName.options],
+    runtime_policy: null,
+    approval_bundle_path: null,
+    semantic_validator_version: manifest.semantic_validator_version,
+    safety_validator_version: manifest.safety_validator_version,
+    effective_result_version: manifest.effective_result_version,
+    effective_validator_version: manifest.effective_validator_version
   };
 }
 
 export function approvedModelConfigForAgent(agentName: AgentNameType): AgentModelConfig {
-  const manifest = readApprovedOperationalAgentConfig();
-  const agent = manifest.agents[agentName];
+  return approvedModelConfigForRole(agentName);
+}
 
-  if (!agent) {
-    throw new Error(`Approved operational manifest is missing ${agentName}.`);
+export function approvedModelConfigForRole(role: LiveModelRole): AgentModelConfig {
+  const activeRuntime = readActiveApprovedOperationalRuntimeConfig();
+  const approved = activeRuntime.roles[role];
+
+  if (!approved) {
+    throw new OperationalApprovalBundleError(
+      "approved_role_missing",
+      `Active approved operational configuration is missing ${role}.`
+    );
   }
-
-  return {
-    model_name: manifest.model_snapshot,
-    reasoning_effort: manifest.reasoning_effort,
-    max_output_tokens: agent.max_output_tokens
-  };
+  return { ...approved };
 }

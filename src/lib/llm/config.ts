@@ -2,6 +2,13 @@ import { z } from "zod";
 import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
 import { getServerEnv } from "@/lib/env";
 import { resolveOpenAICredentialFromEnv } from "@/lib/llm/openai-credential-resolver";
+import {
+  type ApprovedCandidateManifest,
+  LEGACY_GPT54_APPROVED_RUNTIME_HASH,
+  approvedCandidateRoleConfig,
+  OperationalApprovalBundleError,
+  resolveActiveOperationalApproval
+} from "@/lib/operational/active-approval-bundle";
 
 export const ReasoningEffort = z.enum(["none", "low", "medium", "high", "xhigh", "max"]);
 export const Verbosity = z.enum(["low", "medium", "high"]);
@@ -330,6 +337,7 @@ export type RoleModelReadiness = {
   approval_boundary: "operational_manifest" | "operational_extension_required" | "teacher_tool" | "utility";
   compatibility_status: "compatible" | "incompatible" | "not_configured";
   compatibility_issues: string[];
+  resolution_source?: "environment" | "active_approval_bundle";
 };
 
 function approvalBoundary(role: LiveModelRole): RoleModelReadiness["approval_boundary"] {
@@ -449,13 +457,120 @@ export function getLlmRuntimeConfig(): LlmRuntimeConfig {
     );
   }
 
+  const activeApproval = resolveOperationalApprovalForModelResolution();
+  const approvedRuntimePolicy = activeApproval?.manifest.runtime_policy;
+  assertRuntimePolicyEnvironmentMatches(activeApproval);
+
   return {
     provider,
     live_calls_enabled: liveCallsEnabled,
     openai_key_configured: openaiKeyConfigured,
-    request_timeout_ms: env.OPENAI_REQUEST_TIMEOUT_MS,
-    max_retries: env.OPENAI_MAX_RETRIES
+    request_timeout_ms: approvedRuntimePolicy?.provider_timeout_ms ?? env.OPENAI_REQUEST_TIMEOUT_MS,
+    max_retries: approvedRuntimePolicy?.provider_max_retries ?? env.OPENAI_MAX_RETRIES
   };
+}
+
+function configuredProcessEnv(name: string) {
+  const value = process.env[name];
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function resolveOperationalApprovalForModelResolution() {
+  try {
+    const active = resolveActiveOperationalApproval();
+    if (active?.kind === "derived_approval") {
+      if (process.env.OPERATIONAL_APPROVED_CONFIG_HASH !== active.record.runtime_candidate_hash) {
+        throw new LlmConfigurationError(
+          "approved_config_hash_mismatch",
+          "OPERATIONAL_APPROVED_CONFIG_HASH does not match the active operational approval bundle."
+        );
+      }
+      return active;
+    }
+    if (
+      configuredProcessEnv("OPERATIONAL_APPROVED_CONFIG_HASH") &&
+      process.env.OPERATIONAL_APPROVED_CONFIG_HASH !== LEGACY_GPT54_APPROVED_RUNTIME_HASH
+    ) {
+      throw new LlmConfigurationError(
+        "active_approval_bundle_missing",
+        "A non-legacy approved configuration hash requires an active operational approval bundle."
+      );
+    }
+    return null;
+  } catch (error) {
+    if (error instanceof LlmConfigurationError) throw error;
+    if (error instanceof OperationalApprovalBundleError) {
+      throw new LlmConfigurationError(error.code, error.message, error.details);
+    }
+    throw error;
+  }
+}
+
+function assertExplicitPolicyValue(name: string, actual: unknown, approved: unknown) {
+  if (configuredProcessEnv(name) && actual !== approved) {
+    throw new LlmConfigurationError(
+      "runtime_policy_env_mismatch",
+      `${name} does not match the active operational approval bundle.`,
+      { environment_variable: name }
+    );
+  }
+}
+
+function assertRuntimePolicyEnvironmentMatches(
+  active: ReturnType<typeof resolveOperationalApprovalForModelResolution>
+) {
+  if (!active) return;
+  const env = getServerEnv();
+  const policy = active.manifest.runtime_policy;
+  assertExplicitPolicyValue("OPENAI_REQUEST_TIMEOUT_MS", env.OPENAI_REQUEST_TIMEOUT_MS, policy.provider_timeout_ms);
+  assertExplicitPolicyValue("OPENAI_MAX_RETRIES", env.OPENAI_MAX_RETRIES, policy.provider_max_retries);
+  assertExplicitPolicyValue(
+    "STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED",
+    env.STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED,
+    policy.role_live_toggles.student_communication_agent
+  );
+  assertExplicitPolicyValue(
+    "TOPIC_DIALOGUE_LIVE_CALLS_ENABLED",
+    env.TOPIC_DIALOGUE_LIVE_CALLS_ENABLED,
+    policy.role_live_toggles.topic_dialogue_agent
+  );
+  assertExplicitPolicyValue(
+    "TOPIC_DIALOGUE_MAX_STUDENT_TURNS",
+    env.TOPIC_DIALOGUE_MAX_STUDENT_TURNS,
+    policy.topic_dialogue_policy.maximum_student_turns
+  );
+  assertExplicitPolicyValue(
+    "TOPIC_DIALOGUE_RECENT_TURN_WINDOW",
+    env.TOPIC_DIALOGUE_RECENT_TURN_WINDOW,
+    policy.topic_dialogue_policy.recent_raw_turn_window
+  );
+  assertExplicitPolicyValue(
+    "TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS",
+    env.TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS,
+    policy.topic_dialogue_policy.maximum_student_message_characters
+  );
+  assertExplicitPolicyValue(
+    "TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS",
+    env.TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS,
+    policy.topic_dialogue_policy.assessment_system_questions_allowed
+  );
+}
+
+function assertRoleEnvironmentMatchesApproved(role: LiveModelRole, approved: AgentModelConfig) {
+  const env = getServerEnv();
+  const source = roleEnvSources[role][0];
+  const model = sourceModelValue(env, source);
+  const reasoning = reasoningValue(env, source.reasoning);
+  const tokens = numberValue(env, maxTokensKey(source));
+  if (model !== null && model !== approved.model_name) {
+    throw new LlmConfigurationError("model_snapshot_mismatch", `${role} model assertion does not match the active approval bundle.`);
+  }
+  if (reasoning !== undefined && reasoning !== approved.reasoning_effort) {
+    throw new LlmConfigurationError("reasoning_effort_mismatch", `${role} reasoning assertion does not match the active approval bundle.`);
+  }
+  if (tokens !== undefined && tokens !== approved.max_output_tokens) {
+    throw new LlmConfigurationError("runtime_token_limit_mismatch", `${role} token assertion does not match the active approval bundle.`);
+  }
 }
 
 function sourceModelValue(env: ReturnType<typeof getServerEnv>, source: RoleSource) {
@@ -487,6 +602,13 @@ function resolveRoleSource(env: ReturnType<typeof getServerEnv>, role: LiveModel
 
 export function resolveOpenAIModelConfigForRole(role: LiveModelRole): AgentModelConfig {
   const parsedRole = LiveModelRole.parse(role);
+  const activeApproval = resolveOperationalApprovalForModelResolution();
+  if (activeApproval) {
+    const approved = approvedCandidateRoleConfig(activeApproval.manifest, parsedRole);
+    assertRoleEnvironmentMatchesApproved(parsedRole, approved);
+    assertModelConfigCompatible(parsedRole, approved);
+    return { ...approved };
+  }
   const env = getServerEnv();
   const source = resolveRoleSource(env, parsedRole);
 
@@ -531,6 +653,11 @@ export function resolveConnectivityModelConfig(): AgentModelConfig {
     );
   }
 
+  const activeApproval = resolveOperationalApprovalForModelResolution();
+  if (activeApproval) {
+    return resolveOpenAIModelConfigForRole("connectivity_test");
+  }
+
   if (!configured(env.OPENAI_MODEL_CONNECTIVITY_TEST)) {
     throw new LlmConfigurationError(
       "connectivity_model_missing",
@@ -548,6 +675,26 @@ export function resolveConnectivityModelConfig(): AgentModelConfig {
 }
 
 export function agentModelReadiness() {
+  const activeApproval = resolveOperationalApprovalForModelResolution();
+  if (activeApproval) {
+    return Object.fromEntries(LiveModelRole.options.map((role) => {
+      const config = approvedCandidateRoleConfig(activeApproval.manifest, role);
+      const issues = modelConfigCompatibilityIssues(role, config);
+      return [role, {
+        role,
+        model_configured: true,
+        effective_model: config.model_name,
+        reasoning_effort: config.reasoning_effort,
+        max_output_tokens: config.max_output_tokens,
+        model_env_key: roleEnvSources[role][0].model,
+        reasoning_env_key: roleEnvSources[role][0].reasoning,
+        approval_boundary: approvalBoundary(role),
+        compatibility_status: issues.length === 0 ? "compatible" : "incompatible",
+        compatibility_issues: issues,
+        resolution_source: "active_approval_bundle"
+      }];
+    })) as Record<LiveModelRole, RoleModelReadiness>;
+  }
   return Object.fromEntries(
     LiveModelRole.options.map((role) => {
       const env = getServerEnv();
@@ -577,11 +724,47 @@ export function agentModelReadiness() {
           compatibility_status: configuredModel
             ? compatibilityIssues.length === 0 ? "compatible" : "incompatible"
             : "not_configured",
-          compatibility_issues: compatibilityIssues
+          compatibility_issues: compatibilityIssues,
+          resolution_source: "environment"
         }
       ];
     })
   ) as Record<LiveModelRole, RoleModelReadiness>;
+}
+
+export function resolveOperationalRoleLiveCallsEnabled(
+  role: "student_communication_agent" | "topic_dialogue_agent"
+) {
+  const activeApproval = resolveOperationalApprovalForModelResolution();
+  if (activeApproval) {
+    assertRuntimePolicyEnvironmentMatches(activeApproval);
+    return activeApproval.manifest.runtime_policy.role_live_toggles[role];
+  }
+  const env = getServerEnv();
+  return role === "student_communication_agent"
+    ? env.STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED
+    : env.TOPIC_DIALOGUE_LIVE_CALLS_ENABLED;
+}
+
+export function resolveTopicDialogueRuntimePolicy() {
+  const activeApproval = resolveOperationalApprovalForModelResolution();
+  if (activeApproval) {
+    assertRuntimePolicyEnvironmentMatches(activeApproval);
+    const policy = activeApproval.manifest.runtime_policy.topic_dialogue_policy;
+    return {
+      maximum_student_turns: policy.maximum_student_turns,
+      recent_turn_window: policy.recent_raw_turn_window,
+      maximum_student_message_chars: policy.maximum_student_message_characters,
+      allow_assessment_system_questions: policy.assessment_system_questions_allowed
+    };
+  }
+  const env = getServerEnv();
+  return {
+    maximum_student_turns: env.TOPIC_DIALOGUE_MAX_STUDENT_TURNS,
+    recent_turn_window: env.TOPIC_DIALOGUE_RECENT_TURN_WINDOW,
+    maximum_student_message_chars: env.TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS,
+    allow_assessment_system_questions: env.TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS
+  };
 }
 
 export function legacyAgentEnvKeys() {
@@ -590,4 +773,29 @@ export function legacyAgentEnvKeys() {
 
 export function liveModelRoleEnvSources() {
   return roleEnvSources;
+}
+
+export function approvedRoleEnvironmentAssertions(manifest: ApprovedCandidateManifest) {
+  const assertions: Record<string, string> = {};
+  for (const role of LiveModelRole.options) {
+    const source = roleEnvSources[role][0];
+    const config = approvedCandidateRoleConfig(manifest, role);
+    assertions[source.model] = config.model_name;
+    assertions[source.reasoning] = config.reasoning_effort;
+    if ("maxTokens" in source) assertions[source.maxTokens] = String(config.max_output_tokens);
+  }
+  const policy = manifest.runtime_policy;
+  return {
+    ...assertions,
+    OPENAI_REQUEST_TIMEOUT_MS: String(policy.provider_timeout_ms),
+    OPENAI_MAX_RETRIES: String(policy.provider_max_retries),
+    STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED: String(policy.role_live_toggles.student_communication_agent),
+    TOPIC_DIALOGUE_LIVE_CALLS_ENABLED: String(policy.role_live_toggles.topic_dialogue_agent),
+    TOPIC_DIALOGUE_MAX_STUDENT_TURNS: String(policy.topic_dialogue_policy.maximum_student_turns),
+    TOPIC_DIALOGUE_RECENT_TURN_WINDOW: String(policy.topic_dialogue_policy.recent_raw_turn_window),
+    TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS: String(policy.topic_dialogue_policy.maximum_student_message_characters),
+    TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS: String(
+      policy.topic_dialogue_policy.assessment_system_questions_allowed
+    )
+  };
 }

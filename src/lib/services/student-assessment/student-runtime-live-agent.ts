@@ -13,6 +13,8 @@ import {
 import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { StructuredAgentResult } from "@/lib/llm/providers/types";
+import { resolveActiveOperationalApproval } from "@/lib/operational/active-approval-bundle";
+import { evaluateOperationalExecutionReadiness } from "@/lib/operational/guarded-agent-integration";
 import { toPrismaJson } from "@/lib/services/json";
 
 type PrismaClientLike = typeof prisma;
@@ -154,6 +156,22 @@ export async function executeStudentRuntimeLiveAgent<TInput, TOutput>(input: {
 }): Promise<StudentRuntimeLiveAgentResult<TOutput>> {
   if (!input.live_enabled) {
     return { status: "not_attempted", blocked_reason: "role_live_calls_disabled" };
+  }
+
+  const activeApproval = resolveActiveOperationalApproval();
+  if (activeApproval?.kind === "derived_approval") {
+    const readiness = await evaluateOperationalExecutionReadiness({
+      agentName: input.role,
+      operationalContext: {
+        assessment_session_db_id: input.assessment_session_db_id ?? null,
+        metadata: input.metadata
+      },
+      checkDatabase: true,
+      checkUsageGuard: true
+    });
+    if (!readiness.allowed) {
+      return { status: "not_attempted", blocked_reason: readiness.reason };
+    }
   }
 
   let modelConfig: AgentModelConfig;
