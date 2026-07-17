@@ -293,6 +293,7 @@
     "operational:model-upgrade-approval-evidence-smoke": "tsx prisma/operational-model-upgrade-approval-evidence-smoke-test.ts",
     "operational:model-upgrade-approval-architecture-smoke": "tsx prisma/operational-model-upgrade-approval-architecture-smoke-test.ts",
     "operational:model-upgrade-output-contract-smoke": "tsx prisma/operational-model-upgrade-output-contract-smoke-test.ts",
+    "operational:model-upgrade-action-affordance-smoke": "tsx prisma/operational-model-upgrade-action-affordance-smoke-test.ts",
     "operational:model-upgrade-reevaluation-smoke": "tsx prisma/operational-model-upgrade-reevaluation-smoke-test.ts",
     "operational:application-build-provenance-smoke": "tsx prisma/operational-application-build-provenance-smoke-test.ts",
     "operational:minimal-dialogue-candidate-smoke": "tsx prisma/operational-minimal-dialogue-candidate-smoke-test.ts",

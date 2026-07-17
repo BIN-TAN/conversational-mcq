@@ -7,6 +7,7 @@ loadEnvConfig(process.cwd());
 const candidateRun = argValue("--candidate-run");
 const expectedRuntimeHash = argValue("--expected-runtime-hash");
 const expectedSourceProtocolHash = argValue("--expected-source-evaluation-protocol-hash");
+const priorDerivedEvaluation = argValue("--prior-derived-evaluation");
 
 if (!candidateRun || !expectedRuntimeHash || !expectedSourceProtocolHash) {
   console.error(JSON.stringify({
@@ -26,7 +27,8 @@ try {
   const result = reevaluateModelUpgradeRunOffline({
     candidateRunPublicId: candidateRun,
     expectedRuntimeCandidateHash: expectedRuntimeHash,
-    expectedSourceEvaluationProtocolHash: expectedSourceProtocolHash
+    expectedSourceEvaluationProtocolHash: expectedSourceProtocolHash,
+    priorDerivedEvaluationId: priorDerivedEvaluation ?? undefined
   });
   console.log(JSON.stringify({
     status: result.status,
@@ -38,6 +40,7 @@ try {
     evaluation_protocol_hash: result.evaluation_protocol_hash,
     source_artifact_sha256: result.source_artifact_sha256,
     source_artifacts_immutable: result.source_artifacts_immutable,
+    prior_derived_evaluation: result.prior_derived_evaluation,
     provider_evidence_intact: result.provider_evidence_intact,
     original_failure_count: result.case_results.filter((entry) => entry.original_critical_failure).length,
     derived_failure_count: result.case_results.filter((entry) => entry.critical_failure).length,

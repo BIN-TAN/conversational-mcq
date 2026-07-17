@@ -1,7 +1,7 @@
 import type { LiveModelRole } from "@/lib/llm/config";
 
 export const MODEL_UPGRADE_OUTPUT_CONTRACT_REGISTRY_VERSION =
-  "model-upgrade-production-output-contracts-v1";
+  "model-upgrade-production-output-contracts-v2";
 
 export type ModelUpgradeOutputKind = "student_facing" | "teacher_tool" | "internal" | "utility";
 export type ModelUpgradeWorkflowPhase =
@@ -16,6 +16,7 @@ export type ModelUpgradeWorkflowPhase =
   | "connectivity";
 export type ModelUpgradeInteractionPurpose =
   | "student_clarification"
+  | "procedural_response_example"
   | "response_capture"
   | "analysis"
   | "planning"
@@ -40,8 +41,16 @@ export type ModelUpgradeOutputField =
   | "evidence_used"
   | "next_action";
 export type ModelUpgradeContentRequirement =
-  | "actionable_student_prompt"
-  | "correctness_summary";
+  "correctness_summary";
+export type ModelUpgradeExpectedActionType =
+  | "explain_reasoning"
+  | "complete_response_template"
+  | "select_option"
+  | "revise_response"
+  | "answer_probe"
+  | "confirm_choice"
+  | "ask_topic_question"
+  | "no_student_action_required";
 
 export type ModelUpgradeOutputContract = {
   contract_id: string;
@@ -51,6 +60,7 @@ export type ModelUpgradeOutputContract = {
   output_kind: ModelUpgradeOutputKind;
   interaction_purpose: ModelUpgradeInteractionPurpose;
   reveal_state: ModelUpgradeRevealState;
+  expected_action_type: ModelUpgradeExpectedActionType;
   required_fields: ModelUpgradeOutputField[];
   optional_fields: ModelUpgradeOutputField[];
   forbidden_fields: ModelUpgradeOutputField[];
@@ -89,6 +99,7 @@ export const MODEL_UPGRADE_OUTPUT_CONTRACTS = [
     output_kind: "teacher_tool",
     interaction_purpose: "teacher_advisory",
     reveal_state: "teacher_only",
+    expected_action_type: "no_student_action_required",
     required_fields: [...commonFields, "teacher_facing_text"],
     optional_fields: ["next_action"],
     forbidden_fields: ["student_facing_text"],
@@ -102,10 +113,25 @@ export const MODEL_UPGRADE_OUTPUT_CONTRACTS = [
     output_kind: "student_facing",
     interaction_purpose: "student_clarification",
     reveal_state: "pre_reveal",
-    required_fields: [...commonFields, "student_facing_text"],
-    optional_fields: ["next_action"],
+    expected_action_type: "explain_reasoning",
+    required_fields: [...commonFields, "student_facing_text", "next_action"],
+    optional_fields: [],
     forbidden_fields: ["teacher_facing_text"],
-    required_content: ["actionable_student_prompt"],
+    required_content: [],
+    forbidden_content: ["correctness_summary"]
+  }),
+  contract({
+    contract_id: "student_pre_reveal_response_example",
+    roles: ["item_administration_tutor_agent"],
+    workflow_phase: "pre_reveal_item_administration",
+    output_kind: "student_facing",
+    interaction_purpose: "procedural_response_example",
+    reveal_state: "pre_reveal",
+    expected_action_type: "complete_response_template",
+    required_fields: [...commonFields, "student_facing_text", "next_action"],
+    optional_fields: [],
+    forbidden_fields: ["teacher_facing_text"],
+    required_content: [],
     forbidden_content: ["correctness_summary"]
   }),
   contract({
@@ -115,6 +141,7 @@ export const MODEL_UPGRADE_OUTPUT_CONTRACTS = [
     output_kind: "student_facing",
     interaction_purpose: "response_capture",
     reveal_state: "pre_reveal",
+    expected_action_type: "no_student_action_required",
     required_fields: [...commonFields, "student_facing_text"],
     optional_fields: ["next_action"],
     forbidden_fields: ["teacher_facing_text"],
@@ -131,6 +158,7 @@ export const MODEL_UPGRADE_OUTPUT_CONTRACTS = [
     output_kind: "teacher_tool",
     interaction_purpose: "analysis",
     reveal_state: "teacher_only",
+    expected_action_type: "no_student_action_required",
     required_fields: [...commonFields, "teacher_facing_text"],
     optional_fields: ["next_action"],
     forbidden_fields: ["student_facing_text"],
@@ -147,6 +175,7 @@ export const MODEL_UPGRADE_OUTPUT_CONTRACTS = [
     output_kind: "teacher_tool",
     interaction_purpose: "evaluation",
     reveal_state: "teacher_only",
+    expected_action_type: "no_student_action_required",
     required_fields: [...commonFields, "teacher_facing_text"],
     optional_fields: ["next_action"],
     forbidden_fields: ["student_facing_text"],
@@ -166,6 +195,7 @@ export const MODEL_UPGRADE_OUTPUT_CONTRACTS = [
     output_kind: "internal",
     interaction_purpose: "evaluation",
     reveal_state: "teacher_only",
+    expected_action_type: "no_student_action_required",
     required_fields: [...commonFields],
     optional_fields: ["next_action"],
     forbidden_fields: ["student_facing_text", "teacher_facing_text"],
@@ -179,6 +209,7 @@ export const MODEL_UPGRADE_OUTPUT_CONTRACTS = [
     output_kind: "teacher_tool",
     interaction_purpose: "planning",
     reveal_state: "teacher_only",
+    expected_action_type: "no_student_action_required",
     required_fields: [...commonFields, "teacher_facing_text"],
     optional_fields: ["next_action"],
     forbidden_fields: ["student_facing_text"],
@@ -192,6 +223,7 @@ export const MODEL_UPGRADE_OUTPUT_CONTRACTS = [
     output_kind: "student_facing",
     interaction_purpose: "student_feedback",
     reveal_state: "post_reveal_administered",
+    expected_action_type: "no_student_action_required",
     required_fields: [...commonFields, "student_facing_text"],
     optional_fields: ["next_action"],
     forbidden_fields: ["teacher_facing_text"],
@@ -205,6 +237,7 @@ export const MODEL_UPGRADE_OUTPUT_CONTRACTS = [
     output_kind: "student_facing",
     interaction_purpose: "system_question",
     reveal_state: "post_reveal_administered",
+    expected_action_type: "no_student_action_required",
     required_fields: [...commonFields, "student_facing_text"],
     optional_fields: ["next_action"],
     forbidden_fields: ["teacher_facing_text"],
@@ -218,10 +251,11 @@ export const MODEL_UPGRADE_OUTPUT_CONTRACTS = [
     output_kind: "student_facing",
     interaction_purpose: "elicitation_probe",
     reveal_state: "post_reveal_administered",
-    required_fields: [...commonFields, "student_facing_text"],
-    optional_fields: ["next_action"],
+    expected_action_type: "revise_response",
+    required_fields: [...commonFields, "student_facing_text", "next_action"],
+    optional_fields: [],
     forbidden_fields: ["teacher_facing_text"],
-    required_content: ["actionable_student_prompt"],
+    required_content: [],
     forbidden_content: ["correctness_summary"]
   }),
   contract({
@@ -231,6 +265,7 @@ export const MODEL_UPGRADE_OUTPUT_CONTRACTS = [
     output_kind: "student_facing",
     interaction_purpose: "feedback_reveal",
     reveal_state: "post_reveal_administered",
+    expected_action_type: "no_student_action_required",
     required_fields: [...commonFields, "student_facing_text"],
     optional_fields: ["next_action"],
     forbidden_fields: ["teacher_facing_text"],
@@ -244,8 +279,9 @@ export const MODEL_UPGRADE_OUTPUT_CONTRACTS = [
     output_kind: "student_facing",
     interaction_purpose: "topic_dialogue",
     reveal_state: "post_reveal_administered",
-    required_fields: [...commonFields, "student_facing_text"],
-    optional_fields: ["next_action"],
+    expected_action_type: "ask_topic_question",
+    required_fields: [...commonFields, "student_facing_text", "next_action"],
+    optional_fields: [],
     forbidden_fields: ["teacher_facing_text"],
     required_content: [],
     forbidden_content: []
@@ -257,6 +293,7 @@ export const MODEL_UPGRADE_OUTPUT_CONTRACTS = [
     output_kind: "utility",
     interaction_purpose: "utility",
     reveal_state: "not_applicable",
+    expected_action_type: "no_student_action_required",
     required_fields: [...commonFields],
     optional_fields: ["next_action"],
     forbidden_fields: ["student_facing_text", "teacher_facing_text"],
@@ -288,6 +325,7 @@ export function fixtureOutputContract(
     output_kind: source.output_kind,
     interaction_purpose: source.interaction_purpose,
     reveal_state: source.reveal_state,
+    expected_action_type: source.expected_action_type,
     required_fields: [...source.required_fields],
     optional_fields: [...source.optional_fields],
     forbidden_fields: [...source.forbidden_fields],
@@ -304,11 +342,6 @@ function hasOutputField(output: Record<string, unknown> | null, field: ModelUpgr
     (!Array.isArray(value) || value.length > 0);
 }
 
-function hasActionablePrompt(text: string) {
-  return /\?/u.test(text) ||
-    /\b(?:explain|identify|write|describe|compare|rewrite|choose|tell me|what would|what do you)\b/iu.test(text);
-}
-
 // A package-level correctness summary is distinct from a reference to a known
 // correct option inside an already-revealed activity prompt.
 function hasCorrectnessSummary(text: string) {
@@ -318,9 +351,7 @@ function hasCorrectnessSummary(text: string) {
 }
 
 function hasContentRequirement(text: string, requirement: ModelUpgradeContentRequirement) {
-  return requirement === "actionable_student_prompt"
-    ? hasActionablePrompt(text)
-    : hasCorrectnessSummary(text);
+  return requirement === "correctness_summary" && hasCorrectnessSummary(text);
 }
 
 export function evaluateModelUpgradeOutputContract(input: {
@@ -346,8 +377,7 @@ export function evaluateModelUpgradeOutputContract(input: {
     .filter((requirement) => hasContentRequirement(studentText || allText, requirement));
   const outputKind = input.output?.output_kind;
   return {
-    status: missingRequiredFields.length === 0 && missingRequiredContent.length === 0 &&
-      forbiddenFieldsPresent.length === 0 && forbiddenContentPresent.length === 0 &&
+    status: missingRequiredFields.length === 0 && forbiddenFieldsPresent.length === 0 &&
       outputKind === input.contract.output_kind
       ? "passed" as const
       : "failed" as const,
@@ -359,10 +389,10 @@ export function evaluateModelUpgradeOutputContract(input: {
     completeness_issue_codes: [
       ...(outputKind === input.contract.output_kind ? [] : ["expected_output_kind_mismatch"]),
       ...missingRequiredFields.map((field) => `required_${field}_missing`),
-      ...missingRequiredContent.map((requirement) => `required_${requirement}_missing`)
+      ...forbiddenFieldsPresent.map((field) => `forbidden_${field}_present`)
     ],
     instruction_issue_codes: [
-      ...forbiddenFieldsPresent.map((field) => `forbidden_${field}_present`),
+      ...missingRequiredContent.map((requirement) => `required_${requirement}_missing`),
       ...forbiddenContentPresent.map((requirement) => `forbidden_${requirement}_present`)
     ]
   };

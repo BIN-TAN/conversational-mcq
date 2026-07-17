@@ -75,14 +75,16 @@ const activity = fixture("formative_activity_distractor_probe");
 const activityPass = completeness(activity, output({
   role: activity.role,
   output_kind: "student_facing",
-  student_facing_text: "For Item 2, identify the exact flaw in option A, then rewrite it accurately."
+  student_facing_text: "For Item 2, identify the exact flaw in option A, then rewrite it accurately.",
+  next_action: "Student rewrites the inaccurate response."
 }));
 assert(activityPass.output_completeness.status === "passed", "An elicitation turn must not require a correctness summary.");
 
 const activityPremature = completeness(activity, output({
   role: activity.role,
   output_kind: "student_facing",
-  student_facing_text: "Items 1 and 3 were correct and Item 2 was incorrect. Identify the flaw in option A."
+  student_facing_text: "Items 1 and 3 were correct and Item 2 was incorrect. Identify the flaw in option A.",
+  next_action: "Student rewrites the inaccurate response."
 }));
 assert(
   activityPremature.instruction_following.issue_codes.includes("forbidden_correctness_summary_present"),
@@ -95,8 +97,9 @@ const feedbackMissingCorrectness = completeness(communication, output({
   student_facing_text: "Focus next on separating consistency from evidence for score interpretation."
 }));
 assert(
-  feedbackMissingCorrectness.output_completeness.issue_codes.includes("required_correctness_summary_missing"),
-  "A feedback/reveal contract must require correctness when explicitly declared."
+  feedbackMissingCorrectness.output_completeness.status === "passed" &&
+    feedbackMissingCorrectness.instruction_following.issue_codes.includes("required_correctness_summary_missing"),
+  "Required semantic content belongs to instruction following, not structural completeness."
 );
 
 const internalSource = fixture("formative_activity_response_evaluation");

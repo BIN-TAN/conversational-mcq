@@ -21,7 +21,7 @@ import {
 } from "@/lib/operational/model-upgrade-evaluation";
 import { evaluateModelUpgradeSemanticCalibration } from "@/lib/operational/model-upgrade-evaluation-protocol";
 
-export const MODEL_UPGRADE_REEVALUATION_VERSION = "model-upgrade-offline-reevaluation-v1";
+export const MODEL_UPGRADE_REEVALUATION_VERSION = "model-upgrade-offline-reevaluation-v2";
 export const MODEL_UPGRADE_DERIVED_REVIEW_VERSION = "model-upgrade-derived-human-review-v1";
 export const MODEL_UPGRADE_DERIVED_APPROVAL_VERSION = "model-upgrade-derived-approval-v1";
 
@@ -50,6 +50,11 @@ export type ModelUpgradeDerivedCaseRecord = {
     critical_failure: boolean;
     critical_failure_reasons: string[];
   };
+  prior_derived_findings: Array<{
+    derived_evaluation_id: string;
+    evaluation_protocol_hash: string;
+    derived_findings: ModelUpgradeDerivedCaseRecord["derived_findings"];
+  }>;
   derived_findings: {
     fixture_preflight: ReturnType<typeof evaluateModelUpgradeOutputLayers>["fixture_preflight"];
     validator_results: ReturnType<typeof evaluateModelUpgradeOutputLayers>["validator_results"];
@@ -58,6 +63,7 @@ export type ModelUpgradeDerivedCaseRecord = {
     critical_failure: boolean;
     critical_failure_reasons: string[];
     semantic_review_required: boolean;
+    action_adjudication: ReturnType<typeof evaluateModelUpgradeOutputLayers>["action_adjudication"];
   };
 };
 
@@ -72,6 +78,13 @@ export type ModelUpgradeDerivedEvaluationRecord = {
   source_artifact_sha256: string;
   source_artifact_file_count: number;
   source_artifacts_immutable: boolean;
+  prior_derived_evaluation: null | {
+    derived_evaluation_id: string;
+    evaluation_protocol_hash: string;
+    artifact_sha256: string;
+    artifact_file_count: number;
+    artifacts_immutable: boolean;
+  };
   provider_calls_made: 0;
   provider_evidence_intact: boolean;
   provider_evidence_issue_codes: string[];
@@ -175,6 +188,28 @@ export function hashModelUpgradeSourceArtifacts(runPublicId: string, fixtureIds?
   };
 }
 
+export function hashModelUpgradeDerivedArtifacts(derivedEvaluationId: string, fixtureIds?: string[]) {
+  const record = loadModelUpgradeDerivedEvaluation(derivedEvaluationId);
+  const ids = fixtureIds ?? record.fixture_ids;
+  const root = modelUpgradeDerivedEvaluationDir(derivedEvaluationId);
+  const paths = [
+    derivedRecordPath(derivedEvaluationId),
+    ...ids.map((fixtureId) => derivedCasePath(derivedEvaluationId, fixtureId))
+  ];
+  const files = paths.map((filePath) => {
+    if (!existsSync(filePath)) throw new Error(`prior_derived_artifact_missing:${path.basename(filePath)}`);
+    return {
+      relative_path: path.relative(root, filePath),
+      sha256: sha256(readFileSync(filePath, "utf8"))
+    };
+  });
+  return {
+    artifact_sha256: stableHash(files),
+    file_count: files.length,
+    files
+  };
+}
+
 function sourceProviderEvidenceStatus(run: ModelUpgradeRunRecord, cases: EvaluationCaseRecord[]) {
   const issues = [
     ...(!run.completed_at || !["completed_pending_review", "completed_failed", "completed_reviewed"].includes(run.status)
@@ -241,6 +276,7 @@ function writeReviewArtifacts(record: ModelUpgradeDerivedEvaluationRecord, cases
     output_contract: modelUpgradeEvaluationFixtures().find((fixture) => fixture.fixture_id === entry.fixture_id)?.input_contract.output_contract,
     effective_output: entry.effective_output,
     original_findings: entry.original_findings,
+    prior_derived_findings: entry.prior_derived_findings,
     derived_findings: entry.derived_findings,
     reviewer_decision: "",
     reviewer_notes: "",
@@ -271,6 +307,9 @@ function writeReviewArtifacts(record: ModelUpgradeDerivedEvaluationRecord, cases
     required_case_count: record.fixture_ids.length,
     all_required_cases_represented: records.length === record.fixture_ids.length,
     original_failure_count: cases.filter((entry) => entry.original_findings.critical_failure).length,
+    prior_derived_failure_count: cases.filter((entry) =>
+      entry.prior_derived_findings.some((finding) => finding.derived_findings.critical_failure)
+    ).length,
     derived_failure_count: cases.filter((entry) => entry.derived_findings.critical_failure).length,
     no_provider_call: true
   });
@@ -285,6 +324,7 @@ export function reevaluateModelUpgradeRunOffline(input: {
   candidateRunPublicId: string;
   expectedRuntimeCandidateHash: string;
   expectedSourceEvaluationProtocolHash: string;
+  priorDerivedEvaluationId?: string;
 }) {
   const sourceRunPath = path.join(runDir(input.candidateRunPublicId), "run.json");
   if (!existsSync(sourceRunPath)) throw new Error("source_candidate_run_not_found");
@@ -305,6 +345,27 @@ export function reevaluateModelUpgradeRunOffline(input: {
   const evidence = sourceProviderEvidenceStatus(sourceRun, sourceCases);
   if (!evidence.intact) throw new Error(`source_provider_evidence_not_intact:${evidence.issue_codes.join(",")}`);
   const sourceHashBefore = hashModelUpgradeSourceArtifacts(sourceRun.run_public_id);
+  const priorRecord = input.priorDerivedEvaluationId
+    ? loadModelUpgradeDerivedEvaluation(input.priorDerivedEvaluationId)
+    : null;
+  if (priorRecord && priorRecord.source_provider_run_id !== sourceRun.run_public_id) {
+    throw new Error("prior_derived_source_run_mismatch");
+  }
+  if (priorRecord && priorRecord.runtime_candidate_hash !== sourceRun.runtime_candidate_hash) {
+    throw new Error("prior_derived_runtime_hash_mismatch");
+  }
+  if (priorRecord && priorRecord.fixture_ids.some((fixtureId) => !sourceRun.fixture_ids.includes(fixtureId))) {
+    throw new Error("prior_derived_fixture_set_mismatch");
+  }
+  const priorHashBefore = priorRecord
+    ? hashModelUpgradeDerivedArtifacts(priorRecord.derived_evaluation_id)
+    : null;
+  const priorCases = priorRecord
+    ? new Map(priorRecord.fixture_ids.map((fixtureId) => [
+        fixtureId,
+        loadModelUpgradeDerivedCase(priorRecord.derived_evaluation_id, fixtureId)
+      ]))
+    : new Map<string, ModelUpgradeDerivedCaseRecord>();
   const protocolHash = currentModelUpgradeEvaluationProtocolHash();
   const id = derivedId();
   const cases = fixtures.map((fixture) => {
@@ -341,6 +402,15 @@ export function reevaluateModelUpgradeRunOffline(input: {
         critical_failure: source.critical_failure,
         critical_failure_reasons: source.critical_failure_reasons
       },
+      prior_derived_findings: priorRecord
+        ? [{
+            derived_evaluation_id: priorRecord.derived_evaluation_id,
+            evaluation_protocol_hash: priorRecord.evaluation_protocol_hash,
+            derived_findings: priorCases.get(fixture.fixture_id)?.derived_findings ?? (() => {
+              throw new Error(`prior_derived_case_missing:${fixture.fixture_id}`);
+            })()
+          }]
+        : [],
       derived_findings: {
         fixture_preflight: layers.fixture_preflight,
         validator_results: layers.validator_results,
@@ -348,7 +418,8 @@ export function reevaluateModelUpgradeRunOffline(input: {
         production_schema_fidelity: layers.production_schema_fidelity,
         critical_failure: criticalReasons.length > 0,
         critical_failure_reasons: criticalReasons,
-        semantic_review_required: layers.semantic_adjudications.some((entry) => entry.semantic_review_required)
+        semantic_review_required: layers.semantic_adjudications.some((entry) => entry.semantic_review_required),
+        action_adjudication: layers.action_adjudication
       }
     };
     writeJson(derivedCasePath(id, fixture.fixture_id), derived);
@@ -368,6 +439,15 @@ export function reevaluateModelUpgradeRunOffline(input: {
     source_artifact_sha256: sourceHashBefore.artifact_sha256,
     source_artifact_file_count: sourceHashBefore.file_count,
     source_artifacts_immutable: true,
+    prior_derived_evaluation: priorRecord && priorHashBefore
+      ? {
+          derived_evaluation_id: priorRecord.derived_evaluation_id,
+          evaluation_protocol_hash: priorRecord.evaluation_protocol_hash,
+          artifact_sha256: priorHashBefore.artifact_sha256,
+          artifact_file_count: priorHashBefore.file_count,
+          artifacts_immutable: true
+        }
+      : null,
     provider_calls_made: 0,
     provider_evidence_intact: evidence.intact,
     provider_evidence_issue_codes: evidence.issue_codes,
@@ -399,6 +479,12 @@ export function reevaluateModelUpgradeRunOffline(input: {
   const sourceHashAfter = hashModelUpgradeSourceArtifacts(sourceRun.run_public_id);
   if (sourceHashAfter.artifact_sha256 !== sourceHashBefore.artifact_sha256) {
     throw new Error("source_artifacts_changed_during_reevaluation");
+  }
+  if (priorRecord && priorHashBefore) {
+    const priorHashAfter = hashModelUpgradeDerivedArtifacts(priorRecord.derived_evaluation_id);
+    if (priorHashAfter.artifact_sha256 !== priorHashBefore.artifact_sha256) {
+      throw new Error("prior_derived_artifacts_changed_during_reevaluation");
+    }
   }
   return record;
 }
@@ -471,6 +557,11 @@ export function evaluateModelUpgradeDerivedApprovalEvidence(input: {
   const sourceCases = sourceRun.fixture_ids.map((fixtureId) => loadModelUpgradeCase(sourceRun.run_public_id, fixtureId));
   const sourceEvidence = sourceProviderEvidenceStatus(sourceRun, sourceCases);
   const sourceHash = hashModelUpgradeSourceArtifacts(sourceRun.run_public_id);
+  const priorDerivedHashMatches = !record.prior_derived_evaluation || (
+    existsSync(derivedRecordPath(record.prior_derived_evaluation.derived_evaluation_id)) &&
+    hashModelUpgradeDerivedArtifacts(record.prior_derived_evaluation.derived_evaluation_id).artifact_sha256 ===
+      record.prior_derived_evaluation.artifact_sha256
+  );
   const reviewArtifactHashMatches = Boolean(
     record.human_review?.artifact_path &&
     existsSync(record.human_review.artifact_path) &&
@@ -488,6 +579,7 @@ export function evaluateModelUpgradeDerivedApprovalEvidence(input: {
     ...(record.evaluation_protocol_hash !== currentModelUpgradeEvaluationProtocolHash() ? ["derived_protocol_not_current"] : []),
     ...(record.source_evaluation_protocol_hash !== sourceRun.evaluation_protocol_hash ? ["source_protocol_linkage_mismatch"] : []),
     ...(sourceHash.artifact_sha256 !== record.source_artifact_sha256 ? ["source_artifacts_not_immutable"] : []),
+    ...(!priorDerivedHashMatches ? ["prior_derived_artifacts_not_immutable"] : []),
     ...(!record.source_artifacts_immutable ? ["derived_source_immutability_attestation_missing"] : []),
     ...(sourceRun.artifact_persistence?.persistence_verified !== true ? ["artifact_persistence_not_verified"] : []),
     ...(sourceRun.candidate_manifest_hash !== comparison.candidate.candidate_configuration_hash

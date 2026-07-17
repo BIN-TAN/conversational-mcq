@@ -2914,9 +2914,13 @@ Phase 6A.5 must not implement:
   output kind, interaction purpose, reveal state, required fields, and forbidden
   fields to one registry contract before dispatch. Teacher/internal analytical
   contracts do not require student-facing text. Student-turn contracts do.
-  Elicitation contracts require an actionable prompt without inferring a
-  correctness-summary requirement from supplied facts; feedback/reveal
-  contracts require correctness only when explicitly declared.
+  Completeness is structural only and must not classify free-text actionability.
+  Required semantic content belongs to instruction following. Student-action
+  compatibility is evaluated through one action-affordance registry using the
+  canonical interaction purpose, expected action type, structured `next_action`,
+  and rendered student text. Ambiguous action language is
+  `action_request_review_required`, never an automatic critical completeness
+  failure.
 - Automated results must keep fixture validity, fact consistency, output
   completeness, instruction following, evidence grounding, safety, substantive
   accuracy, pedagogical quality, and language quality separate. Fact consistency

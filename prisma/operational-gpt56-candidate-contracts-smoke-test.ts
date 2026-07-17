@@ -47,6 +47,17 @@ function fixtureById(id: string) {
 
 function output(fixture: ModelUpgradeFixture, text: string, overrides: Partial<CandidateEvaluationOutput> = {}): CandidateEvaluationOutput {
   const teacher = fixture.teacher_facing_review_required;
+  const expectedAction = fixture.input_contract.output_contract.expected_action_type;
+  const nextAction = {
+    explain_reasoning: "Student explains their reasoning.",
+    complete_response_template: "Student completes the response template blanks.",
+    select_option: "Student selects one option.",
+    revise_response: "Student revises the response.",
+    answer_probe: "Student answers the probe.",
+    confirm_choice: "Student confirms the final answer.",
+    ask_topic_question: "Student asks a topic question.",
+    no_student_action_required: null
+  }[expectedAction];
   return {
     fixture_id: fixture.fixture_id,
     role: fixture.role,
@@ -58,7 +69,7 @@ function output(fixture: ModelUpgradeFixture, text: string, overrides: Partial<C
     decision_summary: "Contract smoke decision.",
     evidence_used: ["synthetic fixture"],
     safety_notes: [],
-    next_action: null,
+    next_action: nextAction,
     confidence: "medium",
     ...overrides
   };
@@ -162,19 +173,22 @@ function runItemAdminSuite() {
   const actionableCases = [
     {
       label: "imperative",
+      fixture: full,
       text: "Item 2 — Reasoning: You selected option C. Explain the idea you used in your own words."
     },
     {
       label: "question",
+      fixture: full,
       text: "Item 2 — Reasoning: You selected option C. What idea led you to choose option C?"
     },
     {
       label: "response template with completion instruction",
+      fixture: exampleFixture,
       text: "Item 2 — Reasoning: You selected option C. Example: “I chose option C because ____. The key idea I used was ____.” Please complete the two blanks in your own words."
     }
   ];
   for (const entry of actionableCases) {
-    const result = evaluateCandidateOutputPolicy(output(exampleFixture, entry.text), exampleFixture);
+    const result = evaluateCandidateOutputPolicy(output(entry.fixture, entry.text), entry.fixture);
     assertNotHas(result, "item_admin_current_task_not_stated", `${entry.label} should state the current task semantically.`);
     assertNotHas(result, "item_admin_actionable_prompt_missing", `${entry.label} should be actionable without exact wording requirements.`);
     assertNotHas(result, "item_admin_example_item_specific_hint", `${entry.label} should not be treated as a hint.`);
@@ -185,7 +199,7 @@ function runItemAdminSuite() {
     exampleFixture
   );
   assertHas(vague, "item_admin_current_task_not_stated", "A vague statement must not count as the reasoning task.");
-  assertHas(vague, "item_admin_actionable_prompt_missing", "A vague statement must not count as a next action.");
+  assertHas(vague, "item_admin_actionable_prompt_missing", "A descriptive statement must not count as a next action.");
 
   const genericAdvice = evaluateCandidateOutputPolicy(
     output(exampleFixture, "Read the question carefully, eliminate wrong answers, and look for keywords before choosing."),

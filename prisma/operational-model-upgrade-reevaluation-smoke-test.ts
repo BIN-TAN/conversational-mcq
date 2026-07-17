@@ -12,6 +12,7 @@ import {
 import {
   confirmModelUpgradeDerivedHumanReview,
   evaluateModelUpgradeDerivedApprovalEvidence,
+  hashModelUpgradeDerivedArtifacts,
   hashModelUpgradeSourceArtifacts,
   loadModelUpgradeDerivedCase,
   reevaluateModelUpgradeRunOffline,
@@ -79,26 +80,42 @@ async function main() {
 
   const sourceHashBefore = hashModelUpgradeSourceArtifacts(source.run_public_id);
   const comparison = buildOperationalModelUpgradeComparison({ manifestPath: FULL_GPT56_V2_CANDIDATE_CONFIG_PATH });
-  const derived = reevaluateModelUpgradeRunOffline({
+  const firstDerived = reevaluateModelUpgradeRunOffline({
     candidateRunPublicId: source.run_public_id,
     expectedRuntimeCandidateHash: comparison.candidate.runtime_candidate_hash,
     expectedSourceEvaluationProtocolHash: sourceProtocolHash
   });
+  const priorHashBefore = hashModelUpgradeDerivedArtifacts(firstDerived.derived_evaluation_id);
+  const derived = reevaluateModelUpgradeRunOffline({
+    candidateRunPublicId: source.run_public_id,
+    expectedRuntimeCandidateHash: comparison.candidate.runtime_candidate_hash,
+    expectedSourceEvaluationProtocolHash: sourceProtocolHash,
+    priorDerivedEvaluationId: firstDerived.derived_evaluation_id
+  });
   const sourceHashAfter = hashModelUpgradeSourceArtifacts(source.run_public_id);
+  const priorHashAfter = hashModelUpgradeDerivedArtifacts(firstDerived.derived_evaluation_id);
 
   assert(provider.calls === callsAfterSource, "Offline re-evaluation must make zero provider calls.");
   assert(sourceHashAfter.artifact_sha256 === sourceHashBefore.artifact_sha256, "Source run artifacts must remain byte-stable.");
+  assert(priorHashAfter.artifact_sha256 === priorHashBefore.artifact_sha256, "Prior derived artifacts must remain byte-stable.");
   assert(derived.source_artifact_sha256 === sourceHashBefore.artifact_sha256, "Derived evaluation must bind source artifacts.");
   assert(derived.source_provider_run_id === source.run_public_id, "Derived evaluation must preserve source linkage.");
   assert(derived.runtime_candidate_hash === source.runtime_candidate_hash, "Re-evaluation must not alter the runtime hash.");
   assert(derived.evaluation_protocol_hash === currentModelUpgradeEvaluationProtocolHash(), "Derived evaluation must use the current protocol.");
   assert(derived.evaluation_protocol_hash !== sourceProtocolHash, "Evaluator correction must produce a separate protocol hash.");
   assert(derived.provider_calls_made === 0, "Derived record must record zero provider calls.");
+  assert(derived.prior_derived_evaluation?.derived_evaluation_id === firstDerived.derived_evaluation_id, "Derived evaluation must preserve prior-derived linkage.");
+  assert(derived.prior_derived_evaluation?.artifact_sha256 === priorHashBefore.artifact_sha256, "Derived evaluation must bind prior-derived artifacts.");
   assert(derived.case_results.filter((entry) => entry.original_critical_failure).length === 3, "Original false failures must remain visible.");
   assert(derived.case_results.every((entry) => !entry.critical_failure), "Corrected contracts should remove the synthetic false failures.");
   for (const fixtureId of legacyFailures) {
     const derivedCase = loadModelUpgradeDerivedCase(derived.derived_evaluation_id, fixtureId);
     assert(derivedCase.original_findings.critical_failure, `Original findings must remain visible for ${fixtureId}.`);
+    assert(derivedCase.prior_derived_findings.length === 1, `Prior-derived findings must remain visible for ${fixtureId}.`);
+    assert(
+      derivedCase.prior_derived_findings[0]?.derived_evaluation_id === firstDerived.derived_evaluation_id,
+      `Prior-derived identity must remain visible for ${fixtureId}.`
+    );
     assert(!derivedCase.derived_findings.critical_failure, `Derived findings should be clean for ${fixtureId}.`);
   }
 
@@ -145,6 +162,7 @@ async function main() {
     status: "passed",
     source_provider_run_id: source.run_public_id,
     derived_evaluation_id: derived.derived_evaluation_id,
+    prior_derived_evaluation_id: firstDerived.derived_evaluation_id,
     runtime_candidate_hash: derived.runtime_candidate_hash,
     source_evaluation_protocol_hash: derived.source_evaluation_protocol_hash,
     evaluation_protocol_hash: derived.evaluation_protocol_hash,

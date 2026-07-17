@@ -17,6 +17,7 @@ npm run operational:model-upgrade-human-review-smoke
 npm run operational:model-upgrade-approval-evidence-smoke
 npm run operational:model-upgrade-approval-architecture-smoke
 npm run operational:model-upgrade-output-contract-smoke
+npm run operational:model-upgrade-action-affordance-smoke
 npm run operational:model-upgrade-reevaluation-smoke
 npm run operational:evaluation-proposition-analysis-smoke
 npm run operational:evaluation-evidence-grounding-smoke
@@ -36,7 +37,7 @@ RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 \
 npm run operational:model-upgrade:live-eval -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
   --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
-  --expected-evaluation-protocol-hash 7378ea48473893b9ce1a04885c32af2ac93be1fd4fb5aa1ec7012a896e77a7c6 \
+  --expected-evaluation-protocol-hash c2f4ae7cf46cb592dd29ef8bb406de52c2dc7cdf86eddeae476bbf4d8dfecc2d \
   --confirm-paid-api
 ```
 
@@ -77,7 +78,7 @@ RUN_LIVE_OPERATIONAL_MODEL_UPGRADE_EVAL=1 \
 npm run operational:model-upgrade:live-eval -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
   --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
-  --expected-evaluation-protocol-hash 7378ea48473893b9ce1a04885c32af2ac93be1fd4fb5aa1ec7012a896e77a7c6 \
+  --expected-evaluation-protocol-hash c2f4ae7cf46cb592dd29ef8bb406de52c2dc7cdf86eddeae476bbf4d8dfecc2d \
   --confirm-paid-api \
   --resume-run <run_public_id>
 ```
@@ -123,7 +124,7 @@ npm run operational:model-upgrade:approve -- \
   --manifest config/candidate-operational-agent-config.gpt-5.6-full-v2.json \
   --candidate-run <run_public_id> \
   --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
-  --expected-evaluation-protocol-hash 7378ea48473893b9ce1a04885c32af2ac93be1fd4fb5aa1ec7012a896e77a7c6 \
+  --expected-evaluation-protocol-hash c2f4ae7cf46cb592dd29ef8bb406de52c2dc7cdf86eddeae476bbf4d8dfecc2d \
   --confirm "approve gpt-5.6 full operational candidate v2"
 ```
 
@@ -174,15 +175,24 @@ The typed registry in `src/lib/operational/model-upgrade-output-contracts.ts`
 is the single source for candidate output completeness. Every fixture declares
 one registry contract before dispatch. The contract binds role, workflow phase,
 output kind, interaction purpose, reveal state, required/optional/forbidden
-fields, and required/forbidden content capabilities.
+fields, required/forbidden content capabilities, and one canonical expected
+student-action type.
 
 Teacher analysis and planning contracts require teacher-facing or internal
 structured interpretation and never infer a student-text requirement from a
-review flag. Student-turn contracts require student-facing text. Activity
-elicitation requires one actionable response request but not a package
-correctness summary; feedback/reveal requires correctness only when its contract
-explicitly declares that requirement. Input fact presence, surface labels, and
-human-review flags do not create output-completeness requirements.
+review flag. Student-turn contracts require student-facing text. Structural
+completeness checks output kind and required or forbidden fields only. Semantic
+content and student-action compatibility belong to instruction following,
+pedagogical quality, and language quality.
+
+The action-affordance registry evaluates the contract interaction purpose,
+expected action type, structured `next_action`, and rendered student text. It
+recognizes questions, imperatives, option selection, confirmation, revision,
+explanation, cloze, and response-template completion. A compatible structured
+action and rendered request is `action_present`; a missing or contradictory
+request is `action_absent`; ambiguous language is `action_uncertain` and routes
+to human review as `action_request_review_required`. Action uncertainty is not
+a critical completeness failure.
 
 ### Offline immutable re-evaluation
 
@@ -193,15 +203,18 @@ provider request:
 npm run operational:model-upgrade:reevaluate -- \
   --candidate-run omur_20260716_cc847973 \
   --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
-  --expected-source-evaluation-protocol-hash 3cde10b2534d5a0486b4631555529bf9b4b84e6fd90fc7113aeecc3930e0a219
+  --expected-source-evaluation-protocol-hash 3cde10b2534d5a0486b4631555529bf9b4b84e6fd90fc7113aeecc3930e0a219 \
+  --prior-derived-evaluation omude_20260717_530fb41d
 ```
 
 The command reads persisted effective outputs and provider evidence, hashes the
 source run and case files before and after evaluation, writes a new
 `omude_...` record under `.data/operational-model-upgrade/derived-evaluations/`,
 and creates a separate review export. It records the unchanged runtime hash,
-the source protocol hash, the current protocol hash, original findings, derived
-findings, and zero provider calls. It never writes in the source run directory.
+the source protocol hash, the current protocol hash, original findings,
+prior-derived findings, current derived findings, and zero provider calls. It
+hashes the prior-derived evaluation before and after the run and never writes in
+either earlier artifact directory.
 
 Review the derived export with:
 
@@ -222,7 +235,7 @@ npm run operational:model-upgrade:approve -- \
   --candidate-run omur_20260716_cc847973 \
   --derived-evaluation <derived_evaluation_id> \
   --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
-  --expected-evaluation-protocol-hash 7378ea48473893b9ce1a04885c32af2ac93be1fd4fb5aa1ec7012a896e77a7c6 \
+  --expected-evaluation-protocol-hash c2f4ae7cf46cb592dd29ef8bb406de52c2dc7cdf86eddeae476bbf4d8dfecc2d \
   --confirm "approve gpt-5.6 full operational candidate v2"
 ```
 

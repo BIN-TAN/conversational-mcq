@@ -115,7 +115,11 @@ function main() {
     output: incompleteOutput
   });
   assert(incompleteLayers.fact_consistency.result === "passed", "Omission must not be mislabeled as fact inconsistency.");
-  assert(incompleteLayers.validator_results.output_completeness.status === "failed", "Missing required detail belongs to output completeness.");
+  assert(incompleteLayers.validator_results.output_completeness.status === "passed", "Semantic detail must not fail structural completeness.");
+  assert(
+    incompleteLayers.validator_results.instruction_following.issue_codes.includes("required_correctness_summary_missing"),
+    "Missing required semantic detail belongs to instruction following."
+  );
 
   const contradictionOutput = outputForStudentCommunication(
     "You completed 4 items. Items 1 and 3 were correct and Item 2 was incorrect. You reported high confidence on Item 2."

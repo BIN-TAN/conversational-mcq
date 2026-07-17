@@ -58,6 +58,11 @@ import {
   type SeparatedValidatorResults
 } from "@/lib/operational/model-upgrade-evaluation-protocol";
 import {
+  adjudicateModelUpgradeActionRequest,
+  MODEL_UPGRADE_ACTION_AFFORDANCE_REGISTRY_VERSION,
+  type ModelUpgradeActionAdjudication
+} from "@/lib/operational/model-upgrade-action-affordances";
+import {
   evaluateModelUpgradeOutputContract,
   fixtureOutputContract,
   MODEL_UPGRADE_OUTPUT_CONTRACT_REGISTRY_VERSION,
@@ -274,6 +279,7 @@ export type EvaluationCaseRecord = {
   topic_boundary_diagnostics: TopicBoundaryDiagnostics;
   fact_lock_result: "passed" | "failed" | "not_applicable";
   validator_results: SeparatedValidatorResults;
+  action_adjudication: ModelUpgradeActionAdjudication;
   semantic_adjudications: SemanticAdjudication[];
   semantic_adjudication_complete: boolean;
   automated_review_status:
@@ -575,7 +581,7 @@ export function modelUpgradeEvaluationFixtures(): ModelUpgradeFixture[] {
       current_item_number: 2,
       selected_option: "C",
       expected_behavior: "Give an example of the response form only, such as 'I chose option C because ____. The key idea I used was ____.' Do not fill conceptual blanks, reveal correctness, or provide an item-specific hint."
-    }, { output_contract_id: "student_pre_reveal_clarification", fact_requirements: { item_number_required: true, option_label_required: true } }),
+    }, { output_contract_id: "student_pre_reveal_response_example", fact_requirements: { item_number_required: true, option_label_required: true } }),
     fixture("response_collection_substantive_correct_answer", "response_collection_agent", {
       selected_option: "C",
       reasoning: "Reliability is about consistency; validity needs evidence for interpretation.",
@@ -800,7 +806,8 @@ export function modelUpgradeEvaluatorVersions() {
     severity_policy: MODEL_UPGRADE_SEVERITY_POLICY_VERSION,
     reviewer_policy: MODEL_UPGRADE_REVIEWER_POLICY_VERSION,
     semantic_calibration_corpus: MODEL_UPGRADE_CALIBRATION_CORPUS_VERSION,
-    output_contract_registry: MODEL_UPGRADE_OUTPUT_CONTRACT_REGISTRY_VERSION
+    output_contract_registry: MODEL_UPGRADE_OUTPUT_CONTRACT_REGISTRY_VERSION,
+    action_affordance_registry: MODEL_UPGRADE_ACTION_AFFORDANCE_REGISTRY_VERSION
   };
 }
 
@@ -929,15 +936,6 @@ function currentTaskKnown(fixture: ModelUpgradeFixture) {
 function textStatesReasoningTask(text: string) {
   return /\b(explain|reason|why)\b.{0,120}\b(choose|chose|choosing|picked|selected|answer|option|choice)\b|\b(choose|chose|choosing|picked|selected|answer|option|choice)\b.{0,120}\b(explain|reason|why|idea)\b/iu.test(text) ||
     (/\breasoning\b\s*(?::|[-\u2013\u2014])/iu.test(text) && responseFormExamplePresent(text));
-}
-
-function textHasActionableResponsePrompt(text: string) {
-  const questionCount = (text.match(/\?/gu) ?? []).length;
-  if (questionCount > 1) return false;
-  const imperative = /(?:^|[.!?]\s+|:\s*|[-\u2013\u2014]\s*)\b(?:please\s+)?(?:complete|fill|finish|respond|reply|describe|explain|write|tell me|say|give|use)\b/iu.test(text);
-  const responseQuestion = /\b(?:why|what)\b.{0,120}\b(?:reason|idea|choose|chose|choosing|picked|selected|answer|option|choice|write|say)\b|\b(?:reason|idea)\b.{0,120}\?/iu.test(text);
-  const boundedInstruction = /\b(?:in one or two sentences|complete (?:the|these) (?:two )?blanks?|fill (?:in )?(?:the|these) blanks?|use this form|can follow this form)\b/iu.test(text);
-  return imperative || responseQuestion || boundedInstruction;
 }
 
 function responseFormExamplePresent(text: string) {
@@ -1581,7 +1579,11 @@ export function evaluateCandidateOutputPolicy(
         blocking: true
       }));
     }
-    if (!textHasActionableResponsePrompt(text)) {
+    const actionAdjudication = adjudicateModelUpgradeActionRequest({
+      contract: fixture.input_contract.output_contract,
+      output
+    });
+    if (actionAdjudication.status === "action_absent") {
       qualityDetails.push(finding({
         finding_code: "item_admin_actionable_prompt_missing",
         severity: "pedagogical_quality_failure",
@@ -1591,8 +1593,21 @@ export function evaluateCandidateOutputPolicy(
         fixturePolicy: "item_administration_clarification_should_ask_one_actionable_response_prompt",
         revealPolicy: "not_applicable",
         blockedPatternLabel: "missing_actionable_prompt",
-        explanation: "The response did not give one actionable prompt for what the student should write next.",
+        explanation: "The canonical action contract found no compatible student-visible request.",
         blocking: true
+      }));
+    } else if (actionAdjudication.status === "action_uncertain") {
+      qualityDetails.push(finding({
+        finding_code: "action_request_review_required",
+        severity: "language_quality_warning",
+        surface: "student_facing",
+        field: "student_facing_text",
+        span: text.slice(0, 160),
+        fixturePolicy: "student_action_request_must_be_compatible_with_the_canonical_action_contract",
+        revealPolicy: "not_applicable",
+        blockedPatternLabel: "ambiguous_action_request",
+        explanation: "The canonical action contract could not confidently align the rendered request with the structured action.",
+        blocking: false
       }));
     }
   }
@@ -1967,9 +1982,18 @@ function separatedValidatorResults(input: {
     contract: input.fixture.input_contract.output_contract,
     output: input.output
   });
+  const actionAdjudication = adjudicateModelUpgradeActionRequest({
+    contract: input.fixture.input_contract.output_contract,
+    output: input.output
+  });
   const completenessCodes = outputContract.completeness_issue_codes;
   const instructionCodes = [
     ...outputContract.instruction_issue_codes,
+    ...(actionAdjudication.status === "action_absent"
+      ? actionAdjudication.reason_codes
+      : actionAdjudication.status === "action_uncertain"
+        ? ["action_request_review_required"]
+        : []),
     ...input.topic.findings.map((entry) => entry.finding_code),
     ...input.policy.quality_finding_details
       .filter((entry) => /(?:hint|ignored_deterministic_state|problem_solving_advice|awkward_known_answer)/u.test(entry.finding_code))
@@ -1994,9 +2018,15 @@ function separatedValidatorResults(input: {
   const pedagogicalCodes = input.policy.quality_finding_details
     .filter((entry) => entry.severity === "pedagogical_quality_failure" && !completenessCodes.includes(entry.finding_code))
     .map((entry) => entry.finding_code);
+  if (actionAdjudication.status === "action_uncertain") {
+    pedagogicalCodes.push("action_request_usability_review_required");
+  }
   const languageCodes = input.policy.quality_finding_details
     .filter((entry) => entry.severity === "language_quality_warning")
     .map((entry) => entry.finding_code);
+  if (actionAdjudication.status === "action_uncertain") {
+    languageCodes.push("action_request_clarity_review_required");
+  }
   return {
     fixture_validity: input.preflight.status === "passed"
       ? validatorResult("passed")
@@ -2011,7 +2041,10 @@ function separatedValidatorResults(input: {
       : validatorResult("failed", completenessCodes, input.preflight.status === "passed"),
     instruction_following: instructionCodes.length === 0
       ? validatorResult("passed")
-      : validatorResult("failed", instructionCodes),
+      : validatorResult(
+          actionAdjudication.status === "action_uncertain" ? "review_required" : "failed",
+          instructionCodes
+        ),
     evidence_grounding: input.policy.evidence_grounding_findings.length === 0
       ? validatorResult("passed")
       : validatorResult("review_required", input.policy.evidence_grounding_findings),
@@ -2042,10 +2075,15 @@ export function evaluateModelUpgradeOutputLayers(input: {
   const topic = evaluateTopicBoundary(input.output, input.fixture);
   const fact = factConsistencyResult(input.output, input.fixture);
   const semantics = semanticAdjudications(input.output, input.fixture);
+  const actionAdjudication = adjudicateModelUpgradeActionRequest({
+    contract: input.fixture.input_contract.output_contract,
+    output: input.output
+  });
   return {
     fixture_preflight: fixturePreflight,
     fact_consistency: fact,
     semantic_adjudications: semantics,
+    action_adjudication: actionAdjudication,
     validator_results: separatedValidatorResults({
       fixture: input.fixture,
       output: input.output,
@@ -2156,7 +2194,8 @@ function candidateCaseRecord(input: {
         ? "substantive_accuracy_failure"
         : validators.evidence_grounding.status === "review_required"
           ? "evidence_grounding_failure"
-          : validators.pedagogical_quality.status === "review_required" || validators.output_completeness.status === "failed"
+        : validators.instruction_following.status === "failed" ||
+            validators.pedagogical_quality.status === "review_required" || validators.output_completeness.status === "failed"
               ? "pedagogical_quality_failure"
               : validators.language_quality.status === "review_required"
                 ? "language_quality_warning"
@@ -2227,6 +2266,10 @@ function candidateCaseRecord(input: {
     topic_boundary_diagnostics: topicEvaluation.diagnostics,
     fact_lock_result: factEvaluation.result,
     validator_results: validators,
+    action_adjudication: adjudicateModelUpgradeActionRequest({
+      contract: input.fixture.input_contract.output_contract,
+      output: input.parsedOutput
+    }),
     semantic_adjudications: semantics,
     semantic_adjudication_complete:
       semantics.every((entry) => entry.adjudication_status !== "evaluator_analysis_incomplete"),
