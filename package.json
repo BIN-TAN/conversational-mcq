@@ -182,6 +182,7 @@
     "eval:formative:artifact-smoke": "tsx prisma/formative-evaluation-artifact-smoke-test.ts",
     "eval:formative:smoke": "tsx prisma/formative-evaluation-smoke-test.ts",
     "eval:formative:e1.1-smoke": "npm run student:activity-runtime-ui-smoke && tsx prisma/formative-evaluation-e1-1-smoke-test.ts",
+    "student:formative-privacy-smoke": "tsx prisma/student-formative-privacy-smoke-test.ts",
     "eval:formative:compare": "tsx prisma/formative-evaluation-compare.ts",
     "student:response-quality-smoke": "tsx prisma/student-response-quality-smoke-test.ts",
     "student:script-review-smoke": "tsx prisma/student-script-review-smoke-test.ts",

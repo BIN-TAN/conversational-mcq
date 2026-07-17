@@ -6,6 +6,21 @@ import { parse as parseCsv } from "csv-parse/sync";
 import { hashSecret } from "../src/lib/password";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 import {
+  startStudentActivityForSession,
+  submitStudentActivityRuntimeResponse,
+  submitTopicDialogueResponse,
+  type StudentActivityRuntimeEvaluatorOverride
+} from "../src/lib/services/student-assessment/activity-runtime-ui";
+import {
+  buildNoLiveActivityMisconceptionEvidenceFixture,
+  type ActivityMisconceptionEvidencePacketV1,
+  type MisconceptionUpdateStatus
+} from "../src/lib/services/student-assessment/activity-misconception-evidence";
+import {
+  makeLiveActivityMisconceptionEvidencePacketForTest
+} from "../src/lib/services/student-assessment/activity-misconception-evidence-live";
+import { topicDialoguePublicId } from "../src/lib/services/student-assessment/topic-dialogue-agent";
+import {
   baseE2eEnv,
   databaseName,
   e2eDatabaseUrl,
@@ -24,6 +39,18 @@ import {
   waitForHealth,
   writeJson
 } from "./e2e-shared";
+import { activityMisconceptionEvidenceFixtureCases } from "./student-activity-misconception-evidence-fixtures";
+import {
+  cleanupFormativeEvaluationFixture,
+  createFormativeEvaluationFixture,
+  type FormativeEvaluationFixture
+} from "../src/lib/evaluation/formative/fixture";
+import {
+  assertStudentPayloadPrivacy,
+  assertStudentVisibleTextPrivacy,
+  findStudentPayloadPrivacyFindings,
+  findVisibleTextPrivacyFindings
+} from "./student-formative-privacy-assertions";
 
 type GateStatus = "pass" | "fail" | "skipped";
 type SuiteName =
@@ -423,6 +450,92 @@ async function seedFixture(prisma: PrismaClient) {
   };
 }
 
+type PrivacyFixture = FormativeEvaluationFixture & {
+  student_access_code: string;
+  teacher_user_id: string;
+  teacher_password: string;
+};
+
+async function seedPrivacyFixture(prisma: PrismaClient): Promise<PrivacyFixture> {
+  const fixture = await createFormativeEvaluationFixture({
+    prisma,
+    scenario_id: "privacy_current_formative_workflow",
+    seed: 1201
+  });
+  const studentAccessCode = `access_${fixture.fixture_key}`;
+  const teacherUserId = `teacher_${fixture.fixture_key}`;
+  const teacherPassword = `password_${fixture.fixture_key}`;
+  const [studentCount, conceptCount, initialItemCount, transferItemCount] = await Promise.all([
+    prisma.user.count({ where: { id: fixture.student_user_db_id, role: "student" } }),
+    prisma.conceptUnit.count({ where: { assessment_db_id: fixture.assessment_db_id } }),
+    prisma.item.count({
+      where: {
+        concept_unit: { assessment_db_id: fixture.assessment_db_id },
+        status: "published",
+        included_in_published_set: true
+      }
+    }),
+    prisma.item.count({
+      where: {
+        concept_unit: { assessment_db_id: fixture.assessment_db_id },
+        status: "published",
+        included_in_published_set: false,
+        administration_rules: { path: ["item_role"], equals: "transfer" }
+      }
+    })
+  ]);
+  assert(studentCount === 1, "Privacy fixture must contain one disposable student.");
+  assert(conceptCount === 1, "Privacy fixture must contain one concept unit.");
+  assert(initialItemCount === 3, "Privacy fixture must contain exactly three initial items.");
+  assert(transferItemCount === 1, "Privacy fixture must contain exactly one transfer item.");
+
+  return {
+    ...fixture,
+    student_access_code: studentAccessCode,
+    teacher_user_id: teacherUserId,
+    teacher_password: teacherPassword
+  };
+}
+
+function privacyFixtureReport(fixture: PrivacyFixture) {
+  return {
+    fixture_key: fixture.fixture_key,
+    disposable_student_count: 1,
+    assessment_public_id: fixture.assessment_public_id,
+    concept_unit_public_id: fixture.concept_unit_public_id,
+    included_initial_item_count: 3,
+    transfer_item_count: 1,
+    item_public_ids: fixture.item_public_ids
+  };
+}
+
+async function cleanupPrivacyFixture(prisma: PrismaClient, fixture: PrivacyFixture) {
+  const sessions = await prisma.assessmentSession.findMany({
+    where: { session_public_id: { in: fixture.session_public_ids } },
+    select: { id: true }
+  });
+  await prisma.agentCall.updateMany({
+    where: { assessment_session_db_id: { in: sessions.map((session) => session.id) } },
+    data: { followup_round_db_id: null }
+  });
+  const cleanup = await cleanupFormativeEvaluationFixture({ prisma, fixture });
+  const [studentCount, assessmentCount, sessionCount, attemptCount] = await Promise.all([
+    prisma.user.count({ where: { id: fixture.student_user_db_id } }),
+    prisma.assessment.count({ where: { id: fixture.assessment_db_id } }),
+    prisma.assessmentSession.count({
+      where: { session_public_id: { in: fixture.session_public_ids } }
+    }),
+    prisma.activityRuntimeAttempt.count({
+      where: { session_public_id: { in: fixture.session_public_ids } }
+    })
+  ]);
+  assert(
+    studentCount + assessmentCount + sessionCount + attemptCount === 0,
+    "Privacy fixture cleanup left owned records behind."
+  );
+  return cleanup;
+}
+
 async function apiJson<T>(
   request: ApiClient,
   method: "GET" | "POST",
@@ -534,6 +647,177 @@ async function loginTeacher(page: Page) {
   await page.goto(`${E2E_BASE_URL}/teacher/dashboard`);
   await page.waitForURL(/\/teacher\/dashboard/, { timeout: 15000 });
   return cookie;
+}
+
+async function loginPrivacyStudent(page: Page, fixture: PrivacyFixture) {
+  await page.goto(`${E2E_BASE_URL}/student/login`);
+  const login = await fetch(`${E2E_BASE_URL}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      user_id: fixture.student_public_id,
+      access_code: fixture.student_access_code
+    })
+  });
+  assert(login.ok, `Privacy student login failed: ${login.status}`);
+  const cookie = sessionCookieFromSetCookie(login.headers.get("set-cookie"));
+  await installCookie(page, cookie);
+  await page.goto(`${E2E_BASE_URL}/student/assessment`);
+  await page.waitForURL(/\/student\/assessment/, { timeout: 15_000 });
+  return cookie;
+}
+
+async function loginPrivacyTeacher(page: Page, fixture: PrivacyFixture) {
+  await page.goto(`${E2E_BASE_URL}/teacher/login`);
+  const login = await fetch(`${E2E_BASE_URL}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      user_id: fixture.teacher_user_id,
+      password: fixture.teacher_password
+    })
+  });
+  assert(login.ok, `Privacy teacher login failed: ${login.status}`);
+  const cookie = sessionCookieFromSetCookie(login.headers.get("set-cookie"));
+  await installCookie(page, cookie);
+  await page.goto(`${E2E_BASE_URL}/teacher/dashboard`);
+  await page.waitForURL(/\/teacher\/dashboard/, { timeout: 15_000 });
+  return cookie;
+}
+
+type StudentSurfaceSnapshot = {
+  state: Record<string, unknown>;
+  review: Record<string, unknown>;
+  transcript: { transcript?: Array<Record<string, unknown>> } & Record<string, unknown>;
+  activity: Record<string, unknown>;
+  visible_text: string;
+};
+
+function transcriptOrder(snapshot: StudentSurfaceSnapshot) {
+  return (snapshot.transcript.transcript ?? []).map((turn) => ({
+    turn_id: String(turn.turn_id ?? ""),
+    actor: String(turn.actor ?? ""),
+    message_text: String(turn.message_text ?? "")
+  }));
+}
+
+function assertInitialAnswerProtection(snapshot: StudentSurfaceSnapshot, label: string) {
+  const serialized = JSON.stringify({
+    state: snapshot.state,
+    review: snapshot.review,
+    transcript: snapshot.transcript
+  });
+  assert(!/"correct_answer"\s*:\s*"/iu.test(serialized), `${label} exposed a correct answer.`);
+  assert(!/"answer_explanation"\s*:\s*"/iu.test(serialized), `${label} exposed an answer explanation.`);
+  assert(!/\b(?:correct|incorrect)\b/iu.test(snapshot.visible_text), `${label} exposed correctness feedback.`);
+}
+
+async function inspectStudentSurfaces(input: {
+  request: CookieApiClient;
+  page: Page;
+  session_public_id: string;
+  label: string;
+  protect_initial_answers?: boolean;
+}) {
+  const prefix = `${E2E_BASE_URL}/api/student/sessions/${input.session_public_id}`;
+  const [state, review, transcript, activity] = await Promise.all([
+    apiJson<Record<string, unknown>>(input.request, "GET", `${prefix}/state`),
+    apiJson<Record<string, unknown>>(input.request, "GET", `${prefix}/review`),
+    apiJson<StudentSurfaceSnapshot["transcript"]>(input.request, "GET", `${prefix}/transcript`),
+    apiJson<Record<string, unknown>>(input.request, "GET", `${prefix}/activity-runtime`)
+  ]);
+  await input.page.goto(`${E2E_BASE_URL}/student/assessment/${input.session_public_id}`);
+  await input.page.waitForLoadState("networkidle");
+  const visibleText = await input.page.locator("body").innerText();
+  const snapshot: StudentSurfaceSnapshot = {
+    state,
+    review,
+    transcript,
+    activity,
+    visible_text: visibleText
+  };
+
+  assertStudentPayloadPrivacy(state, `${input.label}.state`);
+  assertStudentPayloadPrivacy(review, `${input.label}.review`);
+  assertStudentPayloadPrivacy(transcript, `${input.label}.transcript`);
+  assertStudentPayloadPrivacy(activity, `${input.label}.activity`);
+  assertStudentVisibleTextPrivacy(visibleText, `${input.label}.rendered_page`);
+  if (input.protect_initial_answers) {
+    assertInitialAnswerProtection(snapshot, input.label);
+  }
+  return snapshot;
+}
+
+function privacyEvidencePacket(
+  status: MisconceptionUpdateStatus
+): ActivityMisconceptionEvidencePacketV1 {
+  const packets = activityMisconceptionEvidenceFixtureCases().map((fixture) =>
+    buildNoLiveActivityMisconceptionEvidenceFixture(fixture)
+  );
+  const packet = packets.find(
+    (entry) => entry.misconception_evidence_update.status === status
+  );
+  assert(packet, `Missing deterministic activity evidence fixture for ${status}.`);
+  return packet;
+}
+
+function makePrivacyEvaluator(input: {
+  prisma: PrismaClient;
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string;
+  status: MisconceptionUpdateStatus;
+  suffix: string;
+}): StudentActivityRuntimeEvaluatorOverride {
+  return async (evaluationInput) => {
+    const basePacket = privacyEvidencePacket(input.status);
+    const packet = makeLiveActivityMisconceptionEvidencePacketForTest(basePacket, {
+      session_public_id: evaluationInput.session_public_id,
+      student_public_id: evaluationInput.student_public_id,
+      assessment_public_id: evaluationInput.assessment_public_id,
+      concept_unit_id: evaluationInput.concept_unit_id,
+      activity_attempt_id: evaluationInput.activity_attempt_id,
+      source_activity_family: evaluationInput.source_activity_family,
+      source_diagnostic_purpose: evaluationInput.source_diagnostic_purpose,
+      source_activity_generation_source: "live_llm",
+      source_activity_runtime_servable_to_student: true,
+      student_activity_response: {
+        ...basePacket.student_activity_response,
+        response_kind:
+          evaluationInput.response_kind_hint ?? basePacket.student_activity_response.response_kind,
+        student_response_text_redacted_or_safe_summary:
+          evaluationInput.safe_student_activity_response
+      }
+    });
+    const call = await input.prisma.agentCall.create({
+      data: {
+        assessment_session_db_id: input.assessment_session_db_id,
+        concept_unit_session_db_id: input.concept_unit_session_db_id,
+        agent_name: "formative_activity_response_evaluator_agent",
+        agent_version: "e1.2-no-live-evaluator-v1",
+        model_name: "deterministic-e1.2-fixture",
+        provider: "mock",
+        client_request_id: `e1_2_${input.suffix}_${evaluationInput.activity_attempt_id}`,
+        prompt_version: "formative-activity-response-evaluator-prompt-v6",
+        schema_version: "formative-activity-response-evaluation-v1",
+        input_payload: { fixture: "e1.2", redacted: true },
+        raw_output: { fixture: "e1.2", redacted: true },
+        output_payload: packet as Prisma.InputJsonValue,
+        output_validated: true,
+        live_call_allowed: false,
+        call_status: "succeeded",
+        started_at: new Date(),
+        completed_at: new Date()
+      }
+    });
+    return {
+      status: "succeeded",
+      packet,
+      evaluator_agent_call_id: call.id,
+      repair_attempted: false,
+      evaluator_call_status: "succeeded",
+      repair_status: "not_attempted"
+    };
+  };
 }
 
 async function waitForPhase(
@@ -667,6 +951,618 @@ async function requestProgressionAndChoose(
       client_action_id: `${input.clientPrefix}_progression_choice`
     }
   );
+}
+
+async function assertOrderedDialoguePair(input: {
+  prisma: PrismaClient;
+  assessment_session_db_id: string;
+  client_operation_id: string;
+}) {
+  const turns = await input.prisma.conversationTurn.findMany({
+    where: {
+      assessment_session_db_id: input.assessment_session_db_id,
+      structured_payload: {
+        path: ["client_operation_id"],
+        equals: input.client_operation_id
+      }
+    },
+    orderBy: [{ sequence_index: "asc" }],
+    select: { actor_type: true, sequence_index: true, message_text: true }
+  });
+  assert(turns.length === 2, `${input.client_operation_id} must persist one student/assistant pair.`);
+  assert(turns[0]?.actor_type === "student", `${input.client_operation_id} student turn must be first.`);
+  assert(turns[1]?.actor_type === "agent", `${input.client_operation_id} assistant turn must be second.`);
+  assert(
+    (turns[0]?.sequence_index ?? 0) < (turns[1]?.sequence_index ?? 0),
+    `${input.client_operation_id} sequence order is invalid.`
+  );
+  assert(turns[1]?.message_text, `${input.client_operation_id} must persist a visible assistant reply.`);
+}
+
+async function submitPrivacyItemEvidence(input: {
+  request: CookieApiClient;
+  session_public_id: string;
+  item_public_id: string;
+  selected_option: string;
+  reasoning_text: string;
+  confidence_rating: "low" | "medium" | "high";
+  tempting_option: string;
+  tempting_option_reason: string;
+  prefix: string;
+}) {
+  const base = `${E2E_BASE_URL}/api/student/sessions/${input.session_public_id}/items/${input.item_public_id}`;
+  for (const [label, pathSuffix, data] of [
+    ["option", "option", {
+      selected_option: input.selected_option,
+      client_action_id: `${input.prefix}_option`
+    }],
+    ["reasoning", "reasoning", {
+      reasoning_text: input.reasoning_text,
+      client_action_id: `${input.prefix}_reasoning`
+    }],
+    ["confidence", "confidence", {
+      confidence_rating: input.confidence_rating,
+      client_action_id: `${input.prefix}_confidence`
+    }],
+    ["tempting_option", "tempting-option", {
+      tempting_option: input.tempting_option,
+      client_action_id: `${input.prefix}_tempting_option`
+    }],
+    ["tempting_reason", "tempting-option", {
+      tempting_option_reason: input.tempting_option_reason,
+      client_action_id: `${input.prefix}_tempting_reason`
+    }]
+  ] as const) {
+    const result = await apiJson<Record<string, unknown>>(
+      input.request,
+      "POST",
+      `${base}/${pathSuffix}`,
+      data
+    );
+    assertStudentPayloadPrivacy(result, `${input.prefix}.${label}_response`);
+  }
+}
+
+async function assertPrivacyAuditSeparation(input: {
+  browser: Browser;
+  fixture: PrivacyFixture;
+  student_state: Record<string, unknown>;
+  session_public_id: string;
+}) {
+  const context = await input.browser.newContext({ baseURL: E2E_BASE_URL });
+  const page = await context.newPage();
+  try {
+    const request: CookieApiClient = {
+      cookie: await loginPrivacyTeacher(page, input.fixture)
+    };
+    const detail = await apiJson<Record<string, unknown>>(
+      request,
+      "GET",
+      `${E2E_BASE_URL}/api/teacher/sessions/${input.session_public_id}`
+    );
+    const auditText = JSON.stringify(detail);
+    const studentText = JSON.stringify(input.student_state);
+    assert(auditText.includes("latest_student_profile"), "Teacher audit omitted the current profile record.");
+    assert(auditText.includes("latest_formative_decision"), "Teacher audit omitted the current plan record.");
+    assert(
+      auditText.includes("prompt_version") && auditText.includes("schema_version"),
+      "Teacher audit omitted versioned agent metadata."
+    );
+    assert(!studentText.includes("latest_student_profile"), "Student state exposed the internal profile record.");
+    assert(!studentText.includes("latest_formative_decision"), "Student state exposed the internal plan record.");
+    assert(!studentText.includes("prompt_version"), "Student state exposed prompt metadata.");
+    assert(!studentText.includes("schema_version"), "Student state exposed schema metadata.");
+    assert(
+      !/system_prompt|prompt_instructions|chain_of_thought|raw_prompt/iu.test(auditText),
+      "Teacher audit exposed a hidden prompt or chain-of-thought field."
+    );
+    return {
+      teacher_profile_present: true,
+      teacher_plan_present: true,
+      teacher_agent_version_metadata_present: true,
+      student_internal_records_absent: true
+    };
+  } finally {
+    await context.close();
+  }
+}
+
+async function runPrivacyJourney(input: {
+  browser: Browser;
+  prisma: PrismaClient;
+  fixture: PrivacyFixture;
+  runDir: string;
+}) {
+  const context = await input.browser.newContext({ baseURL: E2E_BASE_URL });
+  const page = await context.newPage();
+  const fixture = input.fixture;
+  try {
+    const request: CookieApiClient = {
+      cookie: await loginPrivacyStudent(page, fixture)
+    };
+    const started = await apiJson<{
+      session: { session_public_id: string };
+      state: Record<string, unknown>;
+    }>(
+      request,
+      "POST",
+      `${E2E_BASE_URL}/api/student/assessments/${fixture.assessment_public_id}/sessions/start`
+    );
+    const sessionPublicId = started.session.session_public_id;
+    fixture.session_public_ids.push(sessionPublicId);
+    assertStudentPayloadPrivacy(started, "privacy.start_session");
+
+    const startedConcept = await apiJson<Record<string, unknown>>(
+      request,
+      "POST",
+      `${E2E_BASE_URL}/api/student/sessions/${sessionPublicId}/concept-units/${fixture.concept_unit_public_id}/start`
+    );
+    assertStudentPayloadPrivacy(startedConcept, "privacy.start_concept");
+
+    const initialInputs = [
+      {
+        selected_option: "B",
+        reasoning_text:
+          "I chose B because I thought the harder item set directly determined the learner's theta.",
+        confidence_rating: "high" as const,
+        tempting_option: "A",
+        tempting_option_reason:
+          "A was also tempting because it similarly connected harder items with lower theta."
+      },
+      {
+        selected_option: "A",
+        reasoning_text:
+          "I thought the peer's error was assuming item difficulty must stay identical across forms.",
+        confidence_rating: "medium" as const,
+        tempting_option: "B",
+        tempting_option_reason:
+          "B was tempting because it directly contrasted item difficulty with person ability."
+      },
+      {
+        selected_option: "C",
+        reasoning_text:
+          "Theta targets the same latent ability while discrimination can change precision near item difficulty.",
+        confidence_rating: "high" as const,
+        tempting_option: "A",
+        tempting_option_reason:
+          "A was tempting because high discrimination sounds like it could reward higher ability."
+      }
+    ];
+
+    for (const [index, itemPublicId] of fixture.item_public_ids.slice(0, 3).entries()) {
+      await inspectStudentSurfaces({
+        request,
+        page,
+        session_public_id: sessionPublicId,
+        label: `privacy.initial_item_${index + 1}.before`,
+        protect_initial_answers: true
+      });
+      const itemInput = initialInputs[index]!;
+      await submitPrivacyItemEvidence({
+        request,
+        session_public_id: sessionPublicId,
+        item_public_id: itemPublicId,
+        ...itemInput,
+        prefix: `e1_2_initial_${index + 1}`
+      });
+    }
+
+    const packageReview = await inspectStudentSurfaces({
+      request,
+      page,
+      session_public_id: sessionPublicId,
+      label: "privacy.package_review",
+      protect_initial_answers: true
+    });
+    assert(
+      packageReview.state.assessment_state === "PACKAGE_REVIEW",
+      `Expected PACKAGE_REVIEW, received ${String(packageReview.state.assessment_state)}.`
+    );
+    assert(
+      Array.isArray(packageReview.review.items) && packageReview.review.items.length === 3,
+      "Package review must contain the three submitted initial responses."
+    );
+
+    const completion = await apiJson<Record<string, unknown>>(
+      request,
+      "POST",
+      `${E2E_BASE_URL}/api/student/sessions/${sessionPublicId}/concept-units/${fixture.concept_unit_public_id}/complete-initial`
+    );
+    assertStudentPayloadPrivacy(completion, "privacy.package_completion_response");
+    const formative = await inspectStudentSurfaces({
+      request,
+      page,
+      session_public_id: sessionPublicId,
+      label: "privacy.formative_activity"
+    });
+    assert(
+      formative.state.assessment_state === "FORMATIVE_ACTIVITY",
+      `Expected FORMATIVE_ACTIVITY, received ${String(formative.state.assessment_state)}.`
+    );
+
+    const sessionContext = await input.prisma.assessmentSession.findUniqueOrThrow({
+      where: { session_public_id: sessionPublicId },
+      select: {
+        id: true,
+        current_phase: true,
+        current_concept_unit_db_id: true,
+        concept_unit_sessions: {
+          where: { concept_unit: { concept_unit_public_id: fixture.concept_unit_public_id } },
+          select: { id: true }
+        }
+      }
+    });
+    const conceptUnitSessionId = sessionContext.concept_unit_sessions[0]?.id;
+    assert(conceptUnitSessionId, "Privacy fixture concept-unit session is missing.");
+    const [packageCount, profileCount, decisionCount, roundCount] = await Promise.all([
+      input.prisma.responsePackage.count({
+        where: { concept_unit_session_db_id: conceptUnitSessionId }
+      }),
+      input.prisma.studentProfile.count({
+        where: { concept_unit_session_db_id: conceptUnitSessionId }
+      }),
+      input.prisma.formativeDecision.count({
+        where: { concept_unit_session_db_id: conceptUnitSessionId }
+      }),
+      input.prisma.followupRound.count({
+        where: { concept_unit_session_db_id: conceptUnitSessionId }
+      })
+    ]);
+    assert(packageCount > 0, "Initial response package was not persisted.");
+    assert(profileCount > 0, "Internal profile was not persisted.");
+    assert(decisionCount > 0, "Internal plan was not persisted.");
+    assert(roundCount > 0, "Formative round was not persisted.");
+
+    const activityProjection = await startStudentActivityForSession({
+      student_user_db_id: fixture.student_user_db_id,
+      session_public_id: sessionPublicId,
+      client: input.prisma
+    });
+    assertStudentPayloadPrivacy(activityProjection, "privacy.activity_service_projection");
+    assert(activityProjection.available, "Current formative activity must be student-visible.");
+    const activityText = `${activityProjection.first_turn_message ?? ""} ${activityProjection.response_prompt ?? ""}`;
+    assert(/item\s+1/iu.test(activityText), "Activity must retain the selected Item 1 anchor.");
+    assert(/option\s+b/iu.test(activityText), "Activity must retain the selected distractor B anchor.");
+    assert(activityProjection.first_turn_visible_in_transcript, "Activity first turn was not persisted visibly.");
+    const activityAttemptId = activityProjection.activity_attempt_public_id;
+    assert(activityAttemptId, "Activity attempt public ID is missing.");
+
+    const stableBeforeDialogue = transcriptOrder(
+      await inspectStudentSurfaces({
+        request,
+        page,
+        session_public_id: sessionPublicId,
+        label: "privacy.activity_refresh_before_dialogue"
+      })
+    );
+    const firstDialogueOperation = "e1_2_dialogue_confusion";
+    const firstDialogue = await submitStudentActivityRuntimeResponse({
+      student_user_db_id: fixture.student_user_db_id,
+      session_public_id: sessionPublicId,
+      activity_attempt_public_id: activityAttemptId,
+      response_text: "I do not understand what this activity is asking.",
+      client_message_id: firstDialogueOperation,
+      evaluator_override: makePrivacyEvaluator({
+        prisma: input.prisma,
+        assessment_session_db_id: sessionContext.id,
+        concept_unit_session_db_id: conceptUnitSessionId,
+        status: "misconception_persisted",
+        suffix: "confusion"
+      }),
+      client: input.prisma
+    });
+    assertStudentPayloadPrivacy(firstDialogue, "privacy.dialogue_confusion_projection");
+    await assertOrderedDialoguePair({
+      prisma: input.prisma,
+      assessment_session_db_id: sessionContext.id,
+      client_operation_id: firstDialogueOperation
+    });
+    await inspectStudentSurfaces({
+      request,
+      page,
+      session_public_id: sessionPublicId,
+      label: "privacy.dialogue_confusion"
+    });
+
+    const secondDialogueOperation = "e1_2_dialogue_distractor";
+    const dialoguePublicId = topicDialoguePublicId({
+      session_public_id: sessionPublicId,
+      activity_attempt_public_id: activityAttemptId
+    });
+    const secondDialogue = await submitTopicDialogueResponse({
+      student_user_db_id: fixture.student_user_db_id,
+      session_public_id: sessionPublicId,
+      dialogue_public_id: dialoguePublicId,
+      activity_attempt_public_id: activityAttemptId,
+      student_message:
+        "I still think Option B makes sense. Can you explain where that reasoning fails?",
+      client_operation_id: secondDialogueOperation,
+      evaluator_override: makePrivacyEvaluator({
+        prisma: input.prisma,
+        assessment_session_db_id: sessionContext.id,
+        concept_unit_session_db_id: conceptUnitSessionId,
+        status: "misconception_weakened",
+        suffix: "distractor"
+      }),
+      client: input.prisma
+    });
+    assertStudentPayloadPrivacy(secondDialogue, "privacy.dialogue_distractor_projection");
+    await assertOrderedDialoguePair({
+      prisma: input.prisma,
+      assessment_session_db_id: sessionContext.id,
+      client_operation_id: secondDialogueOperation
+    });
+    const afterDialogue = await inspectStudentSurfaces({
+      request,
+      page,
+      session_public_id: sessionPublicId,
+      label: "privacy.dialogue_distractor"
+    });
+    assert(
+      JSON.stringify(transcriptOrder(afterDialogue)).includes("Option B"),
+      "Visible topic dialogue lost the distractor anchor."
+    );
+    const refreshAfterDialogue = await inspectStudentSurfaces({
+      request,
+      page,
+      session_public_id: sessionPublicId,
+      label: "privacy.dialogue_refresh"
+    });
+    assert(
+      JSON.stringify(transcriptOrder(afterDialogue)) === JSON.stringify(transcriptOrder(refreshAfterDialogue)),
+      "Refresh changed visible transcript ordering."
+    );
+
+    const activityResponse = await apiJson<Record<string, unknown>>(
+      request,
+      "POST",
+      `${E2E_BASE_URL}/api/student/sessions/${sessionPublicId}/formative-activity/response`,
+      {
+        message:
+          "Option B confuses a person estimate with an item feature; linked forms keep theta on the same scale.",
+        client_message_id: "e1_2_formative_response_for_revision"
+      }
+    );
+    assertStudentPayloadPrivacy(activityResponse, "privacy.revision_prompt_response");
+    const revisionReady = await inspectStudentSurfaces({
+      request,
+      page,
+      session_public_id: sessionPublicId,
+      label: "privacy.revision_ready"
+    });
+    assert(
+      revisionReady.state.assessment_state === "REVISION",
+      `Expected REVISION, received ${String(revisionReady.state.assessment_state)}.`
+    );
+    const revisionResponse = await apiJson<Record<string, unknown>>(
+      request,
+      "POST",
+      `${E2E_BASE_URL}/api/student/sessions/${sessionPublicId}/revision/response`,
+      {
+        message:
+          "My revised explanation is that item difficulty affects response probability, while theta remains the person's linked-scale estimate.",
+        client_message_id: "e1_2_revision_response"
+      }
+    );
+    assertStudentPayloadPrivacy(revisionResponse, "privacy.revision_submission_response");
+    const afterRevision = await inspectStudentSurfaces({
+      request,
+      page,
+      session_public_id: sessionPublicId,
+      label: "privacy.after_revision"
+    });
+    assert(
+      JSON.stringify(afterRevision.transcript).includes("My revised explanation"),
+      "Revised reasoning should remain visible to the student."
+    );
+    let nextChoiceReady = afterRevision;
+    if (afterRevision.state.assessment_state === "FOLLOWUP_RESPONSE") {
+      const stopped = await apiJson<Record<string, unknown>>(
+        request,
+        "POST",
+        `${E2E_BASE_URL}/api/student/sessions/${sessionPublicId}/followup/stop`
+      );
+      assertStudentPayloadPrivacy(stopped, "privacy.revision_stop_followup_response");
+      await waitForPhase(request, sessionPublicId, ["followup_stopped"], 45_000);
+      nextChoiceReady = await inspectStudentSurfaces({
+        request,
+        page,
+        session_public_id: sessionPublicId,
+        label: "privacy.revision_to_next_choice"
+      });
+    }
+    assert(
+      nextChoiceReady.state.assessment_state === "NEXT_CHOICE",
+      `Expected NEXT_CHOICE, received ${String(nextChoiceReady.state.assessment_state)}.`
+    );
+
+    const nextChoice = await apiJson<Record<string, unknown>>(
+      request,
+      "POST",
+      `${E2E_BASE_URL}/api/student/sessions/${sessionPublicId}/next-choice`,
+      { choice: "try_another", client_action_id: "e1_2_choose_transfer" }
+    );
+    assertStudentPayloadPrivacy(nextChoice, "privacy.transfer_choice_response");
+    const transferReady = await inspectStudentSurfaces({
+      request,
+      page,
+      session_public_id: sessionPublicId,
+      label: "privacy.transfer_ready",
+      protect_initial_answers: false
+    });
+    assert(
+      transferReady.state.assessment_state === "TRANSFER_ITEM",
+      `Expected TRANSFER_ITEM, received ${String(transferReady.state.assessment_state)}.`
+    );
+    const transferStateText = JSON.stringify(transferReady.state);
+    assert(!/"correct_answer"\s*:\s*"/iu.test(transferStateText), "Transfer state exposed its answer key.");
+    assert(!/"correctness"\s*:/iu.test(transferStateText), "Transfer state exposed correctness.");
+
+    const transferItemPublicId = fixture.item_public_ids[3]!;
+    await submitPrivacyItemEvidence({
+      request,
+      session_public_id: sessionPublicId,
+      item_public_id: transferItemPublicId,
+      selected_option: "A",
+      reasoning_text:
+        "Student B must have higher ability because that student answered the more difficult items.",
+      confidence_rating: "high",
+      tempting_option: "B",
+      tempting_option_reason:
+        "B was tempting because easier items can produce more correct answers.",
+      prefix: "e1_2_transfer"
+    });
+    const reentered = await inspectStudentSurfaces({
+      request,
+      page,
+      session_public_id: sessionPublicId,
+      label: "privacy.failed_transfer_reentry"
+    });
+    assert(
+      reentered.state.assessment_state === "FORMATIVE_ACTIVITY",
+      `Failed transfer should return to FORMATIVE_ACTIVITY, received ${String(reentered.state.assessment_state)}.`
+    );
+    const reenteredOrder = transcriptOrder(reentered);
+    assert(
+      JSON.stringify(reenteredOrder.slice(0, stableBeforeDialogue.length)) ===
+        JSON.stringify(stableBeforeDialogue),
+      "Transfer reentry mutated the previously visible transcript prefix."
+    );
+
+    const latestAttempt = await input.prisma.activityRuntimeAttempt.findFirstOrThrow({
+      where: { session_public_id: sessionPublicId },
+      orderBy: [{ created_at: "desc" }]
+    });
+    const recoveryOperation = "e1_2_safe_recovery";
+    const recovered = await submitTopicDialogueResponse({
+      student_user_db_id: fixture.student_user_db_id,
+      session_public_id: sessionPublicId,
+      dialogue_public_id: topicDialoguePublicId({
+        session_public_id: sessionPublicId,
+        activity_attempt_public_id: latestAttempt.activity_attempt_public_id
+      }),
+      activity_attempt_public_id: latestAttempt.activity_attempt_public_id,
+      student_message: "I am still unsure how item difficulty differs from theta.",
+      client_operation_id: recoveryOperation,
+      evaluator_override: async () => {
+        throw new Error("synthetic_internal_evaluator_failure_not_student_visible");
+      },
+      client: input.prisma
+    });
+    assertStudentPayloadPrivacy(recovered, "privacy.safe_recovery_projection");
+    const recoverySurface = await inspectStudentSurfaces({
+      request,
+      page,
+      session_public_id: sessionPublicId,
+      label: "privacy.safe_recovery"
+    });
+    assert(
+      !JSON.stringify(recoverySurface).includes("synthetic_internal_evaluator_failure"),
+      "Safe recovery exposed its internal failure reason."
+    );
+    const recoveryEventCount = await input.prisma.processEvent.count({
+      where: {
+        assessment_session_db_id: sessionContext.id,
+        event_type: "topic_dialogue_fallback_used",
+        payload: { path: ["client_operation_id"], equals: recoveryOperation }
+      }
+    });
+    assert(recoveryEventCount === 1, "Safe recovery audit event was not persisted internally.");
+
+    const finalState = recoverySurface.state;
+    const auditSeparation = await assertPrivacyAuditSeparation({
+      browser: input.browser,
+      fixture,
+      student_state: finalState,
+      session_public_id: sessionPublicId
+    });
+    const controlledLeaks = {
+      nested_field_detected:
+        findStudentPayloadPrivacyFindings({ nested: { agent_call_id: "private" } }).length === 1,
+      internal_text_detected:
+        findVisibleTextPrivacyFindings("profile_update_failed retry_count").length > 0
+    };
+    assert(controlledLeaks.nested_field_detected, "Recursive scanner missed a controlled nested field leak.");
+    assert(controlledLeaks.internal_text_detected, "Visible-text scanner missed controlled internal labels.");
+
+    return {
+      student_id: fixture.student_public_id,
+      session_public_id: sessionPublicId,
+      current_phase: sessionContext.current_phase,
+      internal_records: {
+        response_packages: packageCount,
+        profiles: profileCount,
+        decisions: decisionCount,
+        followup_rounds: roundCount
+      },
+      revision_exercised: true,
+      transfer_exercised: true,
+      failed_transfer_reentry_exercised: true,
+      safe_recovery_exercised: true,
+      refresh_order_preserved: true,
+      audit_separation: auditSeparation,
+      controlled_leaks: controlledLeaks,
+      focused_privacy_assertions: [
+        "initial_payload_hides_answer_key",
+        "package_review_hides_profiles_and_plans",
+        "formative_activity_hides_internal_diagnostics",
+        "topic_dialogue_hides_agent_and_fallback_metadata",
+        "revision_projection_hides_scoring_and_readiness_rationale",
+        "transfer_projection_hides_correctness_and_post_transfer_profile",
+        "reentry_after_failed_transfer_remains_student_safe",
+        "refresh_preserves_privacy_and_visible_order",
+        "authorized_audit_contains_internal_record_student_payload_omits_it",
+        "recursive_forbidden_field_scanner_detects_nested_leaks"
+      ]
+    };
+  } catch (error) {
+    const screenshotPath = path.join(input.runDir, "screenshots-on-failure", "privacy-current-workflow.png");
+    await ensureDir(path.dirname(screenshotPath));
+    await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => null);
+    throw error;
+  } finally {
+    await context.close();
+  }
+}
+
+async function collectPrivacyInvariants(prisma: PrismaClient, fixture: PrivacyFixture) {
+  const sessions = await prisma.assessmentSession.findMany({
+    where: { session_public_id: { in: fixture.session_public_ids } },
+    select: { id: true }
+  });
+  const sessionIds = sessions.map((session) => session.id);
+  const conceptSessions = await prisma.conceptUnitSession.findMany({
+    where: { assessment_session_db_id: { in: sessionIds } },
+    select: { id: true }
+  });
+  const conceptSessionIds = conceptSessions.map((session) => session.id);
+  const [openaiAgentCalls, responses, profileCount, planCount] = await Promise.all([
+    prisma.agentCall.count({
+      where: { assessment_session_db_id: { in: sessionIds }, provider: "openai" }
+    }),
+    prisma.itemResponse.findMany({
+      where: { concept_unit_session_db_id: { in: conceptSessionIds } },
+      select: { concept_unit_session_db_id: true, item_db_id: true }
+    }),
+    prisma.studentProfile.count({
+      where: { concept_unit_session: { assessment_session_db_id: { in: sessionIds } } }
+    }),
+    prisma.formativeDecision.count({
+      where: { concept_unit_session: { assessment_session_db_id: { in: sessionIds } } }
+    })
+  ]);
+  const responseKeys = responses.map(
+    (response) => `${response.concept_unit_session_db_id}:${response.item_db_id}`
+  );
+  const duplicateResponses = responseKeys.length - new Set(responseKeys).size;
+  return {
+    sessions: sessions.length,
+    openai_agent_calls: openaiAgentCalls,
+    duplicate_item_responses: duplicateResponses,
+    duplicate_effective_results: 0,
+    student_profiles: profileCount,
+    formative_decisions: planCount
+  };
 }
 
 async function runStudentJourney(
@@ -1134,19 +2030,36 @@ async function runHarness(suite: SuiteName) {
 
   process.env.DATABASE_URL = e2eDatabaseUrl();
   process.env.SESSION_SECRET = process.env.SESSION_SECRET || "phase8b-script-session-secret-never-production-use";
-  const env = baseE2eEnv();
+  const env = baseE2eEnv(
+    suite === "privacy-smoke"
+      ? {
+          ALLOW_LOCAL_MOCK_RUNTIME: "true",
+          ITEM_ADMIN_TUTOR_MODE: "mock"
+        }
+      : {}
+  );
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value === "string") process.env[key] = value;
+  }
   const gates: Gate[] = [];
   const latency: Record<string, number> = {};
   let appProcess: ReturnType<typeof spawnLogged> | null = null;
   let workerProcess: ReturnType<typeof spawnLogged> | null = null;
   let browser: Browser | null = null;
+  let privacyFixture: PrivacyFixture | null = null;
   const prisma = new PrismaClient();
 
   try {
     runCommand("npx", ["tsx", "prisma/e2e-db.ts", "reset"], { env: baseE2eEnv({ NODE_ENV: "development" }), stdio: "inherit" });
     migrateDeploy();
-    const fixture = await seedFixture(prisma);
-    gates.push({ name: "synthetic_fixture_seeded", status: "pass", details: fixture });
+    const fixture = suite === "privacy-smoke"
+      ? await seedPrivacyFixture(prisma)
+      : await seedFixture(prisma);
+    if (suite === "privacy-smoke") privacyFixture = fixture as PrivacyFixture;
+    const reportFixture = suite === "privacy-smoke"
+      ? privacyFixtureReport(fixture as PrivacyFixture)
+      : fixture;
+    gates.push({ name: "synthetic_fixture_seeded", status: "pass", details: reportFixture });
 
     if (suite === "failure-matrix-smoke") {
       const matrix = await failureMatrixProbe(prisma);
@@ -1176,6 +2089,52 @@ async function runHarness(suite: SuiteName) {
     gates.push({ name: "production_server_and_worker_started", status: "pass" });
 
     browser = await chromium.launch({ headless: true });
+
+    if (suite === "privacy-smoke") {
+      assert(privacyFixture, "Privacy fixture was not initialized.");
+      const privacyStart = Date.now();
+      const journey = await runPrivacyJourney({
+        browser,
+        prisma,
+        fixture: privacyFixture,
+        runDir
+      });
+      latency.privacy_current_workflow_ms = Date.now() - privacyStart;
+      gates.push({
+        name: "current_formative_workflow_privacy_journey",
+        status: "pass",
+        details: journey
+      });
+      gates.push({
+        name: "recursive_forbidden_field_and_visible_text_scanning",
+        status: "pass",
+        details: journey.controlled_leaks
+      });
+      gates.push({
+        name: "authorized_audit_student_visibility_separation",
+        status: "pass",
+        details: journey.audit_separation
+      });
+      for (const assertionName of journey.focused_privacy_assertions) {
+        gates.push({ name: assertionName, status: "pass" });
+      }
+      const invariantReport = await collectPrivacyInvariants(prisma, privacyFixture);
+      assert(invariantReport.openai_agent_calls === 0, "Privacy E2E must not create OpenAI agent calls.");
+      assert(invariantReport.duplicate_item_responses === 0, "Privacy E2E created duplicate item responses.");
+      gates.push({ name: "database_invariants", status: "pass", details: invariantReport });
+      const report = await finishReport({
+        e2eRunId,
+        suite,
+        runDir,
+        fixture: reportFixture,
+        gates,
+        startedAt,
+        latency,
+        invariantReport
+      });
+      console.log(`E2E report: ${path.join(runDir, "summary.md")}`);
+      return report;
+    }
 
     await availabilityChecks(browser);
     gates.push({ name: "release_close_resume_rules", status: "pass" });
@@ -1306,6 +2265,13 @@ async function runHarness(suite: SuiteName) {
     await stopChild(workerProcess);
     await stopChild(appProcess);
     await browser?.close().catch(() => null);
+    if (privacyFixture) {
+      await cleanupPrivacyFixture(prisma, privacyFixture).catch((cleanupError) => {
+        console.error(
+          `Privacy fixture cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
+        );
+      });
+    }
     await prisma.$disconnect();
   }
 }

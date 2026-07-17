@@ -510,6 +510,9 @@ async function main() {
       await prisma.workflowJob.deleteMany({
         where: { assessment_session_db_id: { in: sessionIds } }
       });
+      await prisma.assessmentLifecycleOperation.deleteMany({
+        where: { assessment_session_db_id: { in: sessionIds } }
+      });
       await prisma.studentActionIdempotencyKey.deleteMany({
         where: { assessment_session_db_id: { in: sessionIds } }
       });

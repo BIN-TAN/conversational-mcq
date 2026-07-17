@@ -3177,3 +3177,32 @@ Phase 6A.5 must not implement:
   classroom records.
 - Passing E1 demonstrates workflow reliability under deterministic simulation,
   not effectiveness or validity with real students.
+
+## Phase E1.2 Privacy Alignment Lock
+
+- `e2e:privacy-smoke` follows the current package-review, profile, plan,
+  `FORMATIVE_ACTIVITY`, iterative topic-dialogue, revision, transfer, and
+  failed-transfer re-entry workflow. It must not restore the retired
+  package-to-`followup_active` assumption.
+- The privacy fixture is isolated and contains one disposable student, one
+  published assessment and concept, exactly three included initial items, and
+  one explicitly classified transfer item. Cleanup is namespace-scoped and
+  required on success and failure.
+- Student state, review, transcript, activity-runtime/action payloads, and
+  rendered text are recursively scanned for answer keys, scoring data,
+  internal profile/plan state, operational provenance, and recovery metadata.
+  Controlled leak fixtures must be rejected.
+- Student-safe evidence summaries must not expose schema versions or raw
+  profile ontology enum values. Student-facing labels are projections; the
+  full versioned records remain available through authorized audit services.
+- Initial and transfer correctness remain hidden at the tested administration
+  boundaries. Activity dialogue may explain concepts and selected distractors,
+  but it must not serialize raw teacher diagnostics or operational metadata.
+- Authorized teacher/research audit may expose versioned profile, plan, agent,
+  validator, and operational provenance, but never hidden prompts,
+  chain-of-thought, secrets, or credentials.
+- Safe recovery may be shown to the student; provider errors, retries, stale
+  pointers, failed call IDs, and fallback versions remain internal.
+- E1.2 makes no provider call and does not modify the approved runtime hash,
+  prompts, schemas, validators, manifests, approval evidence, activation
+  history, prior evaluation evidence, `.env`, or `.env.local`.

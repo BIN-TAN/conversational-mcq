@@ -1962,18 +1962,17 @@ export function studentSafeProjectionFromEvidenceProfile(
     initial_results: profile.student_safe_summary.initial_results,
     current_understanding: {
       label: profile.student_safe_summary.understanding_label,
-      value: profile.assessment_specific_understanding.value
+      value: profile.student_safe_summary.understanding_label
     },
     reasoning: {
       label: profile.student_safe_summary.reasoning_label,
-      value: profile.reasoning_quality.value
+      value: profile.student_safe_summary.reasoning_label
     },
     confidence: {
       label: profile.student_safe_summary.confidence_label,
-      value: profile.confidence_calibration.value
+      value: profile.student_safe_summary.confidence_label
     },
-    evidence_limitation: profile.student_safe_summary.evidence_limitation_label,
-    profile_schema_version: profile.profile_schema_version
+    evidence_limitation: profile.student_safe_summary.evidence_limitation_label
   };
 }
 

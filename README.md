@@ -2694,3 +2694,21 @@ See [Formative Evaluation Harness](docs/FORMATIVE_EVALUATION_HARNESS.md) for
 scenario authoring, invariant, rubric, artifact, isolation, and E2 boundary
 details. Passing E1 demonstrates deterministic workflow reliability; it does
 not establish effectiveness with real students.
+
+### E1.2 current-workflow privacy regression
+
+The production-like privacy smoke uses an isolated one-student fixture with
+three initial items and one transfer item. It follows package review through
+profile/planning persistence, `FORMATIVE_ACTIVITY`, iterative topic dialogue,
+revision, transfer, failed-transfer re-entry, recovery, and refresh. Recursive
+payload scanning and rendered-text scanning protect answer/scoring data,
+internal profile and plan state, agent provenance, and fallback details, while
+an authorized teacher audit assertion proves the internal records still exist.
+
+```bash
+npm run student:formative-privacy-smoke
+npm run e2e:privacy-smoke
+```
+
+Both commands are no-provider checks. E1.2 does not implement an LLM student,
+an LLM evaluator, or any E2 activation.

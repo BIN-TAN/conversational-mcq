@@ -175,3 +175,23 @@ made artificially successful. Validation or provider-boundary failures retain
 typed stale-pointer/recovery audit, while the harness reads the persisted
 strategy metadata instead of treating every no-live fallback as a recovery
 strategy.
+
+### E1.2 current-workflow privacy journey
+
+The production-like privacy smoke follows the authoritative workflow rather
+than the retired direct transition from package completion to
+`followup_active`. Its isolated fixture completes three initial items and the
+package review, waits for profile and plan persistence, enters
+`FORMATIVE_ACTIVITY`, accepts iterative topic-dialogue turns, collects revision
+evidence, presents the one transfer item, and returns to formative dialogue
+after an insufficient transfer response.
+
+At each boundary, the smoke scans the student state, review, transcript,
+activity-runtime projection, command response, and rendered student page. A
+schema-aware recursive scanner rejects protected nested keys and a separate
+visible-text scanner rejects serialized internal enums, agent metadata, and
+failure/fallback details. Refresh must reproduce the same visible turn order.
+The inverse boundary is also tested: authorized teacher audit data contains
+versioned profile, plan, and agent provenance while those records are absent
+from every student projection. Safe recovery remains student-visible, but its
+provider failure and stale-pointer audit remain internal.

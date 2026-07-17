@@ -1162,3 +1162,22 @@ assistant turn references the same stage audit internally; student-safe
 serialization excludes it. A recovery turn uses
 `message_type=topic_dialogue_safe_recovery` and `recovery_message=true` so
 research records can distinguish it from normal pedagogical dialogue.
+
+## E1.2 Student Projection and Audit Separation
+
+The production-like privacy regression verifies the same persisted records
+through two different authorization boundaries. Student state, package review,
+transcript, activity-runtime, revision, and transfer projections contain only
+student-visible content and public identifiers. They do not serialize answer
+keys, correctness, raw diagnostic metadata, profile/plan objects, agent-call
+provenance, validator/configuration versions, or typed fallback/failure audit.
+
+The authorized teacher/research audit retains versioned profiles and plans,
+activity attempts, agent-call status and prompt/schema versions, and safe
+fallback/failure provenance. Hidden prompts, chain-of-thought, credentials,
+headers, and secrets are not part of either projection. A recursive key and
+visible-text scanner checks student payloads after initial administration,
+package completion, formative dialogue, revision, transfer, failed-transfer
+re-entry, recovery, and refresh. Transcript reconstruction uses persisted
+`sequence_index`; refresh must not reorder, duplicate, or enrich visible turns
+with internal fields.

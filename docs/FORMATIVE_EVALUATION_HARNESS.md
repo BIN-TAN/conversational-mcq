@@ -186,6 +186,55 @@ contracts. `npm run eval:formative:compare -- --before <old-root> --after
 <new-root> --output <path>` writes a read-only before/after comparison from the
 emitted run summaries.
 
+## E1.2 production-like privacy alignment
+
+E1.2 aligns `npm run e2e:privacy-smoke` with the current production workflow.
+It uses one uniquely namespaced disposable student, one published assessment,
+one published concept, exactly three included initial items, and exactly one
+transfer item. The fixture owns deterministic keys, distractor rationales,
+reasoning expectations, and misconception indicators, and cleanup removes only
+that namespace in both success and failure paths.
+
+The smoke exercises initial administration, package review, internal profile
+and plan creation, a distractor-anchored `FORMATIVE_ACTIVITY`, two iterative
+topic-dialogue turns, revision, transfer, failed-transfer re-entry, refresh,
+transcript reconstruction, and safe recovery. All provider boundaries are
+injected mock-safe boundaries and the run asserts zero OpenAI calls.
+
+Student privacy is checked across serialized state, review, transcript,
+activity-runtime and action responses, plus rendered page text. The recursive
+scanner rejects protected fields at any depth, including answer/scoring data,
+internal profile and plan objects, agent provenance, and fallback/failure
+metadata. A visible-text scanner separately rejects internal enums and obvious
+serialized labels. Controlled leaking fixtures prove both scanners can fail.
+Authorized teacher audit output must contain the corresponding profile, plan,
+prompt/schema version, and agent-call provenance while the student payload
+omits them; hidden prompts and chain-of-thought are not exported to either
+surface.
+
+### Legacy-to-current assertion mapping
+
+| Legacy assertion | Current replacement assertion | Reason for change |
+| --- | --- | --- |
+| Package completion immediately reaches `followup_active` | Package completion persists profile and plan records, then exposes `FORMATIVE_ACTIVITY` and an active runtime attempt | `followup_active` is not the authoritative post-package student phase. |
+| One follow-up message proves the interaction path | Two accepted activity/topic-dialogue messages each persist a later assistant turn with a greater `sequence_index` | Current instruction is iterative and ordering is persistence-backed. |
+| One flat serialized payload contains no forbidden tokens | Recursive key/value scanning covers state, review, transcript, runtime, command responses, and rendered text | Protected data may be nested or transformed into visible enum labels. |
+| A generic seeded classroom fixture is sufficient | A unique one-student, one-concept, three-initial-plus-one-transfer fixture is created and removed per run | Isolation prevents mutable demo progress and unrelated records from affecting privacy evidence. |
+| Follow-up completion is the terminal privacy boundary | Revision and transfer are distinct; an insufficient transfer re-enters formative dialogue and preserves prior transcript order | Current platform progression separates evidence revision, transfer, and re-planning. |
+| Student omission alone proves access separation | The same versioned profile/plan/agent provenance is present in authorized teacher audit and absent from student surfaces | The inverse assertion proves intentional boundary separation rather than missing persistence. |
+| Generic fallback output is accepted when student-safe | Recovery text is scanned while typed provider, retry, stale-profile, stale-plan, and failed-call details remain audit-only | Current recovery is resumable but must not expose operational failure internals. |
+
+Focused scanner diagnostics are available through:
+
+```bash
+npm run student:formative-privacy-smoke
+npm run e2e:privacy-smoke
+```
+
+E1.2 changes no prompt, provider schema, validator, manifest, approval evidence,
+activation history, or approved runtime hash. It does not add E2 simulation or
+rubric judging.
+
 ## Commands
 
 ```bash
