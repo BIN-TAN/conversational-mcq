@@ -3144,3 +3144,29 @@ Phase 6A.5 must not implement:
   explicit stale-version audit metadata. Student projections remain safe and
   resumable; teacher/research records distinguish stage failure and bounded
   recovery from normal dialogue.
+
+## Phase E1 Deterministic Evaluation Lock
+
+- E1 runs the existing initial-package, profile, plan, activity, topic-dialogue,
+  persistence, transcript, refresh, idempotency, and transfer services. It must
+  not introduce a parallel formative workflow.
+- The simulated student's hidden truth state is evaluation-only and must never
+  be passed to an operational agent or student projection.
+- Scripted and rule-based branching students are deterministic for scenario ID,
+  seed, source commit, and approved runtime hash. Wording variants cannot alter
+  misconception identity or expected state constraints.
+- Hard engineering invariants and pedagogical rubric judgments are separate.
+  Unsupported qualitative judgments remain `manual_review_required`.
+- E1 provider access, live student simulation, and live rubric judging are
+  disabled. A detected provider request aborts the run before an artifact can
+  claim zero calls.
+- The approved operational runtime hash remains
+  `8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993`.
+- Fixtures are uniquely namespaced, contain exactly three initial and one
+  transfer item, never use demo-student progress, and are cleaned on success or
+  failure.
+- E1 artifacts and aggregate reports are redacted, ignored runtime output.
+  They do not modify approved configuration, activation, evaluation, or
+  classroom records.
+- Passing E1 demonstrates workflow reliability under deterministic simulation,
+  not effectiveness or validity with real students.

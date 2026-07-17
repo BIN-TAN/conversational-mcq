@@ -29,6 +29,7 @@ test-results
 
 # local generated data
 .data/
+artifacts/formative-evaluation/
 
 # operator-provided local brand inputs
 _operator_assets/

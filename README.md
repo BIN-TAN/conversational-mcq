@@ -2674,3 +2674,23 @@ npm run student:topic-dialogue-clarification-smoke
 npm run student:student-visible-id-leakage-smoke
 npm run student:topic-dialogue-live-smoke
 ```
+
+## Deterministic Formative Evaluation (E1)
+
+Phase E1 evaluates the existing formative workflow with twelve isolated,
+deterministic scripted or branching student scenarios. Engineering invariants,
+pedagogical rubric records, redacted run artifacts, aggregate reports, and a
+human-review queue are separate outputs. E1 is mock-safe and fails closed if a
+live evaluation path is requested; every manifest records zero provider calls.
+
+```bash
+npm run eval:formative:scenario -- --scenario repeated_conceptual_confusion --seed 1001
+npm run eval:formative:all -- --artifact-dir artifacts/formative-evaluation
+npm run eval:formative:report -- --artifact-dir artifacts/formative-evaluation
+npm run eval:formative:smoke
+```
+
+See [Formative Evaluation Harness](docs/FORMATIVE_EVALUATION_HARNESS.md) for
+scenario authoring, invariant, rubric, artifact, isolation, and E2 boundary
+details. Passing E1 demonstrates deterministic workflow reliability; it does
+not establish effectiveness with real students.

@@ -139,3 +139,18 @@ teacher/research process event record `update_failed`, the relevant
 `stale_*_used` flag, a non-secret fallback source version, failure agent-call
 reference when available, result status, and a typed reason. These fields are
 internal audit data and are not included in the student projection.
+
+## Deterministic Formative Evaluation
+
+The Phase E1 harness exercises this same automatic formative turn cycle with
+isolated three-initial-item plus one-transfer-item fixtures. It uses existing
+mock-safe boundaries for agent output while preserving production persistence,
+profile/plan versioning, topic dialogue, transcript projection, fallback audit,
+idempotency, and platform-owned transitions. A hidden deterministic student
+state drives scripted or explicit branching responses but is never supplied to
+the workflow.
+
+Engineering invariants report whether the cycle executed correctly. A separate
+pedagogical rubric records structured checks and human-review requirements.
+Run artifacts live under the ignored `artifacts/formative-evaluation/`
+directory. See `docs/FORMATIVE_EVALUATION_HARNESS.md` for commands and limits.
