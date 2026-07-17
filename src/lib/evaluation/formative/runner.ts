@@ -416,7 +416,13 @@ async function collectVisibleTurns(prisma: PrismaClient, context: EvaluationCont
       phase: row.phase,
       client_operation_id: typeof payload.client_operation_id === "string" ? payload.client_operation_id : null,
       message_type: typeof payload.message_type === "string" ? payload.message_type : null,
-      agent_name: row.agent_name
+      agent_name: row.agent_name,
+      response_function: typeof payload.response_function === "string" ? payload.response_function : null,
+      progression_readiness: typeof payload.progression_readiness === "string" ? payload.progression_readiness : null,
+      readiness_gate_reason:
+        typeof jsonRecord(payload.readiness_gate).reason_code === "string"
+          ? String(jsonRecord(payload.readiness_gate).reason_code)
+          : null
     };
   });
 }
@@ -511,7 +517,16 @@ async function collectHistories(prisma: PrismaClient, context: EvaluationContext
   const stageAudits = [...packageStageAudits, ...eventStageAudits];
   const strategies = [
     ...activityAttempts.map((attempt) => classifyInstructionalStrategy({ activity_family: attempt.activity_family })),
-    ...dialogueTurns.map((turn) => classifyInstructionalStrategy({ response_function: turn.message_function, recovery_used: turn.fallback_used }))
+    ...dialogueTurns.map((turn) => {
+      const payload = jsonRecord(turn.structured_payload);
+      return classifyInstructionalStrategy({
+        response_function:
+          typeof payload.response_function === "string"
+            ? payload.response_function
+            : turn.message_function,
+        recovery_used: payload.recovery_message === true
+      });
+    })
   ];
   return { profileHistory, planHistory, activityAttempts, internalEvaluations, stateTransitions, stageAudits, events, strategies };
 }
@@ -550,6 +565,7 @@ async function completeTransferFailure(input: {
   context: EvaluationContext;
   state: StudentSessionState;
   run_id: string;
+  reasoning_text?: string;
 }) {
   const item = input.state.current_item;
   if (!item) throw new Error("e1_transfer_item_missing");
@@ -563,7 +579,10 @@ async function completeTransferFailure(input: {
     student_user_db_id: input.context.student_db_id,
     session_public_id: input.context.session_public_id,
     item_public_id: item.item_public_id,
-    data: { reasoning_text: "The student with harder items must have higher ability.", client_action_id: `${input.run_id}_transfer_reason` }
+    data: {
+      reasoning_text: input.reasoning_text ?? "The student with harder items must have higher ability.",
+      client_action_id: `${input.run_id}_transfer_reason`
+    }
   })).state;
   if (state.assessment_state === "AWAIT_REASON") {
     state = (await recordReasoning({
@@ -709,7 +728,12 @@ export async function runFormativeEvaluationScenario(
         duplicateCycleExtraCount = (after.turns - before.turns) + (after.packages - before.packages) + (after.evidence - before.evidence);
         idempotencyChecked = true;
       }
-      if (!projection.can_submit_response) break;
+      const recurrenceEvidencePending = Boolean(
+        branching &&
+        options.scenario.branching_policy?.recur_on_final_turn &&
+        lastAcceptedState.turn_index < options.scenario.branching_policy.max_turns
+      );
+      if (!projection.can_submit_response && !recurrenceEvidencePending) break;
     }
 
     let finalState = lastAcceptedState;
@@ -743,6 +767,9 @@ export async function runFormativeEvaluationScenario(
         }
       }
       if (projection.can_continue && projection.allowed_actions.includes("skip_activity_to_transfer")) {
+        const transferEvidenceTurn = scripted.slice(scriptedIndex).find((turn) =>
+          turn.intent === "transfer_failure"
+        ) ?? null;
         await recordStudentActivityRuntimeChoice({
           student_user_db_id: context.student_db_id,
           session_public_id: context.session_public_id,
@@ -753,8 +780,18 @@ export async function runFormativeEvaluationScenario(
         let transferState = await getStudentSessionState({ student_user_db_id: context.student_db_id, session_public_id: context.session_public_id });
         platformState = transferState.assessment_state;
         if (transferState.assessment_state === "TRANSFER_ITEM") {
-          transferState = await completeTransferFailure({ context, state: transferState, run_id: runId });
+          transferState = await completeTransferFailure({
+            context,
+            state: transferState,
+            run_id: runId,
+            reasoning_text: transferEvidenceTurn?.message
+          });
           platformState = transferState.assessment_state;
+          if (transferEvidenceTurn) {
+            studentTurns.push(transferEvidenceTurn);
+            finalState = structuredClone(transferEvidenceTurn.resulting_state);
+            scriptedIndex = scripted.indexOf(transferEvidenceTurn) + 1;
+          }
         }
       }
     }
@@ -799,13 +836,24 @@ export async function runFormativeEvaluationScenario(
     const answerKeyLeakCount = findings.filter((finding) => finding.finding_id === "raw_answer_key_structure" && !finding.passed).length;
     pedagogicalRubric = evaluatePedagogicalRubric({
       scenario: options.scenario,
-      artifacts: { visible_turns: visibleAfter, final_student_state: finalState, profile_history: histories.profileHistory, plan_history: histories.planHistory },
+      artifacts: {
+        visible_turns: visibleAfter,
+        final_student_state: finalState,
+        profile_history: histories.profileHistory,
+        plan_history: histories.planHistory
+      },
       strategies: histories.strategies,
       answer_key_leak_count: answerKeyLeakCount
     });
     const expectation = evaluateScenarioExpectations({
       scenario: options.scenario,
-      artifacts: { visible_turns: visibleAfter, final_student_state: finalState, profile_history: histories.profileHistory, plan_history: histories.planHistory },
+      artifacts: {
+        visible_turns: visibleAfter,
+        final_student_state: finalState,
+        profile_history: histories.profileHistory,
+        plan_history: histories.planHistory,
+        state_transitions: histories.stateTransitions
+      },
       strategies: histories.strategies,
       final_platform_state: platformState.toLowerCase()
     });
@@ -867,8 +915,13 @@ export async function runFormativeEvaluationScenario(
       answer_key_leak_count: answerKeyLeakCount,
       internal_metadata_leak_count: findings.filter((finding) => !finding.passed && finding.finding_id !== "raw_answer_key_structure").length,
       premature_resolution_flag_count: prematureCount,
-      revision_readiness_count: options.scenario.expected_behavior.revision_expected ? 1 : 0,
-      transfer_readiness_count: options.scenario.expected_behavior.transfer_expected && platformState === "SESSION_COMPLETE" ? 1 : 0,
+      revision_readiness_count: histories.strategies.filter(
+        (strategy) => strategy === "revision_request"
+      ).length,
+      transfer_readiness_count:
+        options.scenario.expected_behavior.transfer_expected && expectation.transfer_was_presented
+          ? 1
+          : 0,
       manual_review_required_count: pedagogicalRubric.filter((entry) => entry.status === "manual_review_required").length,
       failed_expectations: failedExpectations,
       failed_hard_invariants: failedHardInvariants,

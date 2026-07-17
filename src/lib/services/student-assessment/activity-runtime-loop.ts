@@ -681,7 +681,7 @@ export async function submitStudentActivityResponseForEvidenceUpdate(
     currentStatus.data === "choose_alternative_recommended" ||
     currentStatus.data === "move_on_recommended"
   ) {
-    if (input.allow_additional_turn && currentStatus.data !== "move_on_recommended") {
+    if (input.allow_additional_turn) {
       await client.activityRuntimeAttempt.update({
         where: { id: attempt.id },
         data: {

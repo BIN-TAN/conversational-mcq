@@ -15,6 +15,7 @@ import { logProcessEvent } from "@/lib/services/process-events";
 import { toPrismaJson } from "@/lib/services/json";
 import {
   ACTIVITY_RUNTIME_MAX_RESPONSE_CHARS,
+  StudentActivityRuntimeProjectionSchema,
   assertStudentActivityRuntimeProjectionIsSafe,
   studentActivityFocusLabel,
   studentActivityRecommendationLabel,
@@ -43,6 +44,7 @@ import {
   TOPIC_DIALOGUE_BOUNDARY_VALIDATOR_VERSION,
   TopicDialogueInputV1Schema,
   TopicDialogueOutputV1Schema,
+  applyTopicDialogueReadinessGate,
   classifyTopicDialogueStudentMessage,
   topicDialoguePublicId,
   validateTopicDialogueOutput,
@@ -1182,20 +1184,6 @@ async function latestTopicDialogueProjection(input: {
   const latestPayload = latestTutor ? dialogueTurnPayload(latestTutor.structured_payload) : null;
   const studentTurnCount = turns.filter((turn) => turn.actor_type === "student").length;
 
-  if (input.decision.post_activity_status === "ready_to_advance") {
-    return {
-      dialogue_public_id: dialoguePublicId,
-      state: "ready_to_advance",
-      turn_number: studentTurnCount,
-      maximum_turns: input.decision.maximum_dialogue_turns,
-      tutor_message: null,
-      response_prompt: null,
-      remaining_issue: null,
-      next_action: "show_progression_choices",
-      topic_boundary: "inside_scope"
-    };
-  }
-
   if (
     latestPayload?.next_action === "show_progression_choices" ||
     latestPayload?.next_action === "continue_to_transfer" ||
@@ -1213,6 +1201,20 @@ async function latestTopicDialogueProjection(input: {
       topic_boundary: latestPayload.topic_boundary === "redirected_to_topic"
         ? "redirected_to_topic"
         : "inside_scope"
+    };
+  }
+
+  if (!latestPayload && input.decision.post_activity_status === "ready_to_advance") {
+    return {
+      dialogue_public_id: dialoguePublicId,
+      state: "ready_to_advance",
+      turn_number: studentTurnCount,
+      maximum_turns: input.decision.maximum_dialogue_turns,
+      tutor_message: null,
+      response_prompt: null,
+      remaining_issue: null,
+      next_action: "show_progression_choices",
+      topic_boundary: "inside_scope"
     };
   }
 
@@ -1810,6 +1812,198 @@ export async function submitStudentActivityRuntimeResponse(input: {
   });
 }
 
+export async function reopenFormativeEpisodeAfterTransferFailure(input: {
+  student_user_db_id: string;
+  session_public_id: string;
+  transfer_item_public_id: string;
+  client_operation_id: string;
+  client?: PrismaClientLike;
+}) {
+  const client = input.client ?? prisma;
+  const context = await ownedSessionContext({
+    student_user_db_id: input.student_user_db_id,
+    session_public_id: input.session_public_id,
+    client
+  });
+  const transferResponse = await client.itemResponse.findFirst({
+    where: {
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      item: { item_public_id: input.transfer_item_public_id }
+    },
+    select: {
+      selected_option: true,
+      correct_option_snapshot: true,
+      reasoning_text: true
+    }
+  });
+  if (
+    !transferResponse?.selected_option ||
+    transferResponse.selected_option === transferResponse.correct_option_snapshot
+  ) {
+    return { reopened: false as const, reason: "transfer_evidence_did_not_fail" };
+  }
+
+  const attempt = await latestAttemptForSession(input.session_public_id, client);
+  const source = attempt ? sourceFromAttempt(attempt) : null;
+  if (!attempt || !source) {
+    return { reopened: false as const, reason: "formative_activity_attempt_missing" };
+  }
+  const message = transferResponse.reasoning_text?.trim() ||
+    "The transfer response did not yet apply the current distinction.";
+  const staged = await runFormativeTurnProfileAndPlan({
+    session_public_id: input.session_public_id,
+    concept_unit_session_db_id: context.concept_unit_session.id,
+    activity_attempt_public_id: attempt.activity_attempt_public_id,
+    latest_student_message: message,
+    client_operation_id: input.client_operation_id,
+    evidence_record_public_id: attempt.latest_evidence_record_public_id,
+    client
+  });
+  const explicitTarget = [
+    source.target_item_index ? `Item ${source.target_item_index}` : null,
+    source.target_option_label ? `option ${source.target_option_label}` : null
+  ].filter(Boolean).join(", ");
+  const embeddedTarget = source.distractor_student_safe_description.match(
+    /^(Item\s+\d+)\s+option\s+([A-D])/iu
+  );
+  const target = explicitTarget || (embeddedTarget
+    ? `${embeddedTarget[1]}, option ${embeddedTarget[2]}`
+    : "the current item and distractor");
+  const tutorMessage =
+    `The transfer response shows that the distinction behind ${target} still needs work. ` +
+    "Explain how the item feature differs from the person attribute in this new case.";
+
+  await client.$transaction(async (tx) => {
+    const profile = staged.profile_audit.stale_version_used
+      ? { id: staged.profile_source_db_id }
+      : await tx.studentProfile.create({
+          data: studentProfileCreateData({
+            concept_unit_session_db_id: context.concept_unit_session.id,
+            based_on_agent_call_db_id: staged.profile_agent_call_id,
+            output: staged.profile_output
+          })
+        });
+    const decision = staged.planning_audit.stale_version_used
+      ? { id: staged.planning_source_db_id }
+      : await tx.formativeDecision.create({
+          data: formativeDecisionCreateData({
+            concept_unit_session_db_id: context.concept_unit_session.id,
+            student_profile_db_id: profile.id,
+            based_on_agent_call_db_id: staged.planning_agent_call_id,
+            output: staged.planning_output
+          })
+        });
+    await tx.conceptUnitSession.update({
+      where: { id: context.concept_unit_session.id },
+      data: {
+        status: "followup_active",
+        latest_student_profile_db_id: profile.id,
+        latest_formative_decision_db_id: decision.id
+      }
+    });
+    const latestRound = await tx.followupRound.findFirst({
+      where: { concept_unit_session_db_id: context.concept_unit_session.id },
+      orderBy: [{ round_index: "desc" }],
+      select: { id: true, started_at: true }
+    });
+    if (latestRound) {
+      await tx.followupRound.update({
+        where: { id: latestRound.id },
+        data: {
+          status: "active",
+          formative_decision_db_id: decision.id,
+          updated_student_profile_db_id: profile.id,
+          started_at: latestRound.started_at ?? new Date(),
+          completed_at: null,
+          evidence_trigger_type: "transfer_failure"
+        }
+      });
+    }
+    await tx.activityRuntimeAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: "awaiting_student_activity_response",
+        completed_at: null,
+        limitations: prismaJson([
+          ...jsonArray(attempt.limitations),
+          "transfer_failure_reopened_formative_episode"
+        ])
+      }
+    });
+    await tx.topicDialogue.updateMany({
+      where: {
+        assessment_session_db_id: context.session.id,
+        activity_attempt_public_id: attempt.activity_attempt_public_id
+      },
+      data: {
+        status: "active",
+        current_remaining_issue: "Transfer evidence did not yet apply the current distinction."
+      }
+    });
+    await tx.conversationTurn.create({
+      data: {
+        assessment_session_db_id: context.session.id,
+        concept_unit_session_db_id: context.concept_unit_session.id,
+        phase: "planning_completed",
+        actor_type: "agent",
+        agent_name: TOPIC_DIALOGUE_AGENT_NAME,
+        message_text: tutorMessage,
+        structured_payload: prismaJson({
+          message_type: "topic_dialogue_tutor",
+          topic_dialogue_public_id: topicDialoguePublicId({
+            session_public_id: attempt.session_public_id,
+            activity_attempt_public_id: attempt.activity_attempt_public_id
+          }),
+          activity_attempt_public_id: attempt.activity_attempt_public_id,
+          client_operation_id: input.client_operation_id,
+          visibility_status: "shown",
+          response_function: "misconception_contrast",
+          next_action: "await_topic_dialogue_response",
+          next_runtime_state: "AWAIT_TOPIC_DIALOGUE_RESPONSE",
+          progression_readiness: "not_ready",
+          readiness_gate: {
+            ready: false,
+            reason_code: "transfer_evidence_failed"
+          },
+          turn_orchestration_audit: {
+            profile: staged.profile_audit,
+            planning: staged.planning_audit
+          }
+        })
+      }
+    });
+  });
+  const phase = await updateAssessmentSessionPhase({
+    assessment_session_db_id: context.session.id,
+    to_phase: "planning_completed",
+    reason: "transfer_failure_reopened_formative_episode",
+    payload: { transfer_item_public_id: input.transfer_item_public_id }
+  });
+  if (!phase.transition.allowed) {
+    throw new Error("transfer_failure_formative_reentry_transition_rejected");
+  }
+  await logProcessEvent({
+    assessment_session_db_id: context.session.id,
+    concept_unit_session_db_id: context.concept_unit_session.id,
+    event_type: "transfer_failure_returned_to_formative_dialogue",
+    event_category: "formative_activity_runtime",
+    event_source: "backend",
+    payload: {
+      activity_attempt_public_id: attempt.activity_attempt_public_id,
+      transfer_item_public_id: input.transfer_item_public_id,
+      client_operation_id: input.client_operation_id,
+      profile_update_failed: staged.profile_audit.update_failed,
+      planning_update_failed: staged.planning_audit.update_failed
+    }
+  });
+  return {
+    reopened: true as const,
+    activity_attempt_public_id: attempt.activity_attempt_public_id,
+    profile_updated: !staged.profile_audit.update_failed,
+    planning_updated: !staged.planning_audit.update_failed
+  };
+}
+
 async function claimFormativeTurn(input: {
   assessment_session_db_id: string;
   client_operation_id: string;
@@ -1876,6 +2070,46 @@ async function claimFormativeTurn(input: {
   }
 }
 
+async function completedFormativeTurnReplay(input: {
+  assessment_session_db_id: string;
+  client_operation_id: string;
+  activity_attempt_public_id: string;
+  message: string;
+  client: PrismaClientLike;
+}) {
+  const requestHash = hashStudentRuntimeValue({
+    activity_attempt_public_id: input.activity_attempt_public_id,
+    message: input.message
+  });
+  const existing = await input.client.studentActionIdempotencyKey.findUnique({
+    where: {
+      assessment_session_db_id_client_action_id: {
+        assessment_session_db_id: input.assessment_session_db_id,
+        client_action_id: input.client_operation_id
+      }
+    }
+  });
+  if (!existing) return { completed: false as const, projection: null };
+  if (existing.request_hash !== requestHash) {
+    throw new StudentAssessmentServiceError(
+      "idempotency_conflict",
+      "This message identifier was already used for a different response.",
+      409
+    );
+  }
+  const payload = recordFromJson(existing.response_payload);
+  if (payload.status !== "completed") {
+    return { completed: false as const, projection: null };
+  }
+  const cachedProjection = StudentActivityRuntimeProjectionSchema.safeParse(
+    payload.completed_projection
+  );
+  return {
+    completed: true as const,
+    projection: cachedProjection.success ? cachedProjection.data : null
+  };
+}
+
 async function claimActivityAttemptForTurn(input: {
   attempt: ActivityRuntimeAttempt;
   claim: Awaited<ReturnType<typeof claimFormativeTurn>>;
@@ -1893,12 +2127,14 @@ async function claimActivityAttemptForTurn(input: {
         "post_activity_snapshot_created",
         "continue_recommended",
         "choose_alternative_recommended",
+        "move_on_recommended",
         "failed_closed"
       ]
     : [
         "awaiting_student_activity_response",
         "continue_recommended",
-        "choose_alternative_recommended"
+        "choose_alternative_recommended",
+        "move_on_recommended"
       ];
   const claimed = await input.client.activityRuntimeAttempt.updateMany({
     where: {
@@ -1989,7 +2225,17 @@ async function processTopicDialogueResponse(input: {
     );
   }
 
-  if (attempt.status === "move_on_recommended" || context.session.current_phase === "session_completed") {
+  const completedReplay = await completedFormativeTurnReplay({
+    assessment_session_db_id: context.session.id,
+    client_operation_id: input.client_operation_id,
+    activity_attempt_public_id: attempt.activity_attempt_public_id,
+    message,
+    client
+  });
+  if (completedReplay.completed) {
+    return completedReplay.projection ?? projectionForAttempt(attempt, client);
+  }
+  if (context.session.current_phase === "session_completed") {
     throw new StudentAssessmentServiceError(
       "conflict",
       "This formative episode has already ended.",
@@ -2333,12 +2579,17 @@ async function processTopicDialogueResponse(input: {
     ? liveResult.output
     : buildDeterministicTopicDialogueResponse(dialogueInput);
   const validation = validateTopicDialogueOutput(output);
-  const persistedOutput: TopicDialogueOutputV1 = validation.valid
+  const validatedOutput: TopicDialogueOutputV1 = validation.valid
     ? output
     : buildDeterministicTopicDialogueResponse({
         ...dialogueInput,
         latest_student_message: "Please keep the discussion on this assessment topic."
       });
+  const readinessResult = applyTopicDialogueReadinessGate({
+    dialogue_input: dialogueInput,
+    candidate_output: validatedOutput
+  });
+  const persistedOutput = readinessResult.output;
   const fallbackUsed = liveResult.status !== "succeeded" || !validation.valid;
   const agentCall = liveResult.status === "succeeded"
     ? await client.agentCall.update({
@@ -2524,6 +2775,8 @@ async function processTopicDialogueResponse(input: {
           fallback_used: fallbackUsed,
           fallback_version: TOPIC_DIALOGUE_FALLBACK_VERSION,
           boundary_validator_version: TOPIC_DIALOGUE_BOUNDARY_VALIDATOR_VERSION,
+          readiness_gate: readinessResult.gate,
+          readiness_gate_overrode_candidate: readinessResult.overridden,
           turn_orchestration_audit: {
             profile: staged.profile_audit,
             planning: staged.planning_audit
@@ -2560,7 +2813,11 @@ async function processTopicDialogueResponse(input: {
         fallback_used: fallbackUsed,
         agent_call_db_id: agentCall.id,
         message_text: persistedOutput.tutor_message,
-        structured_payload: prismaJson(persistedOutput)
+        structured_payload: prismaJson({
+          ...persistedOutput,
+          readiness_gate: readinessResult.gate,
+          readiness_gate_overrode_candidate: readinessResult.overridden
+        })
       }
     });
     await tx.conceptUnitSession.update({
@@ -2573,7 +2830,9 @@ async function processTopicDialogueResponse(input: {
     await tx.activityRuntimeAttempt.update({
       where: { id: attempt.id },
       data: {
-        status: loopResult.runtime_state,
+        status: loopResult.runtime_state === "move_on_recommended"
+          ? "continue_recommended"
+          : loopResult.runtime_state,
         completed_at: new Date()
       }
     });
@@ -2609,7 +2868,9 @@ async function processTopicDialogueResponse(input: {
       next_action: persistedOutput.next_action,
       topic_boundary: persistedOutput.topic_boundary,
       agent_call_id: agentCall.id,
-      fallback_used: fallbackUsed
+      fallback_used: fallbackUsed,
+      readiness_gate: readinessResult.gate,
+      readiness_gate_overrode_candidate: readinessResult.overridden
     }
   });
   if (liveResult.status === "succeeded" && validation.valid) {
@@ -2726,7 +2987,26 @@ async function processTopicDialogueResponse(input: {
   const committedAttempt = await client.activityRuntimeAttempt.findUniqueOrThrow({
     where: { id: attempt.id }
   });
-  return projectionForAttempt(committedAttempt, client);
+  const completedProjection = await projectionForAttempt(committedAttempt, client);
+  await client.studentActionIdempotencyKey.update({
+    where: {
+      assessment_session_db_id_client_action_id: {
+        assessment_session_db_id: context.session.id,
+        client_action_id: input.client_operation_id
+      }
+    },
+    data: {
+      response_payload: prismaJson({
+        status: "completed",
+        activity_attempt_public_id: attempt.activity_attempt_public_id,
+        dialogue_turn_number: dialogueTurnNumber,
+        visible_reply_persisted: true,
+        completed_projection: completedProjection,
+        completed_at: new Date().toISOString()
+      })
+    }
+  });
+  return completedProjection;
 }
 
 export async function submitTopicDialogueResponse(input: {

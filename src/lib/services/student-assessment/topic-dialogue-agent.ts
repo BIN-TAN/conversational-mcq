@@ -392,6 +392,133 @@ export function classifyTopicDialogueStudentMessage(message: string): {
   };
 }
 
+const UNDERSTANDING_CLAIM_ONLY = /^(?:i\s+)?(?:now\s+)?(?:understand|understand\s+now|get\s+it|see)(?:\s+(?:it|now))?[.!]?$/iu;
+const CONTINUED_CONFUSION = /\b(?:do\s+not|don't|still\s+do\s+not|still\s+don't)\s+(?:understand|know)|\bstill\s+(?:think|believe)|\bconfus(?:ed|ing)\b/iu;
+const READINESS_ACTIONS = new Set<TopicDialogueOutputV1["next_action"]>([
+  "show_progression_choices",
+  "continue_to_transfer",
+  "continue_to_next_topic",
+  "end_assessment"
+]);
+const ANCHOR_STOP_WORDS = new Set([
+  "about", "after", "again", "also", "because", "before", "being", "between",
+  "could", "current", "does", "from", "have", "into", "itself", "more", "option",
+  "other", "same", "says", "should", "student", "than", "that", "their", "them",
+  "then", "there", "these", "they", "this", "those", "through", "under", "what",
+  "when", "where", "which", "while", "with", "would"
+]);
+
+function normalizedConceptTerms(value: string) {
+  return new Set(
+    value
+      .toLowerCase()
+      .match(/[a-z][a-z0-9-]{3,}/g)
+      ?.filter((term) => !ANCHOR_STOP_WORDS.has(term)) ?? []
+  );
+}
+
+function itemAnchor(input: TopicDialogueInputV1) {
+  const context = input.safe_item_context.find((entry) =>
+    entry.item_number !== null || entry.option_label !== null || entry.option_text !== null
+  );
+  const suppliedOptionText = context?.option_text?.trim() ?? "";
+  const embeddedAnchor = suppliedOptionText.match(
+    /^Item\s+(\d+)\s+option\s+([A-D])\s+says:\s*["“]?(.+?)["”]?\.?$/iu
+  );
+  const reference = [
+    context?.item_number ? `Item ${context.item_number}` : null,
+    context?.option_label ? `option ${context.option_label}` : null
+  ].filter(Boolean).join(", ") || (embeddedAnchor
+    ? `Item ${embeddedAnchor[1]}, option ${embeddedAnchor[2]}`
+    : "");
+  const optionText = embeddedAnchor?.[3]?.trim() ?? suppliedOptionText;
+  return {
+    reference: reference || "the current item",
+    statement: optionText
+      ? `${reference || "The current option"}: ${optionText}`
+      : `Return to ${reference || "the current item"}.`,
+    option_text: optionText
+  };
+}
+
+export type TopicDialogueReadinessGateResult = {
+  ready: boolean;
+  substantive_evidence_present: boolean;
+  distractor_specific_evidence_present: boolean;
+  unsupported_understanding_claim: boolean;
+  continued_confusion_present: boolean;
+  evaluator_status_supports_progression: boolean;
+  reason_code:
+    | "ready"
+    | "unsupported_understanding_claim"
+    | "continued_confusion"
+    | "substantive_evidence_missing"
+    | "distractor_specific_evidence_missing"
+    | "evaluator_status_not_ready";
+};
+
+export function evaluateTopicDialogueReadinessGate(
+  input: TopicDialogueInputV1
+): TopicDialogueReadinessGateResult {
+  const message = input.latest_student_message.trim();
+  const unsupportedUnderstandingClaim = UNDERSTANDING_CLAIM_ONLY.test(message);
+  const continuedConfusion = CONTINUED_CONFUSION.test(message);
+  const classification = classifyTopicDialogueStudentMessage(message);
+  const substantiveEvidence =
+    classification.student_message_function === "substantive_answer" &&
+    message.length >= 28 &&
+    !unsupportedUnderstandingClaim &&
+    !continuedConfusion;
+  const anchor = itemAnchor(input);
+  const anchorTerms = normalizedConceptTerms([
+    input.frozen_growth_target,
+    input.remaining_issue,
+    anchor.option_text
+  ].join(" "));
+  const messageTerms = normalizedConceptTerms(message);
+  const overlapCount = [...messageTerms].filter((term) => anchorTerms.has(term)).length;
+  const distractorSpecificEvidence = substantiveEvidence && overlapCount >= 1;
+  const evaluatorSupportsProgression = input.post_activity_status === "ready_to_advance";
+
+  const reasonCode: TopicDialogueReadinessGateResult["reason_code"] =
+    unsupportedUnderstandingClaim
+      ? "unsupported_understanding_claim"
+      : continuedConfusion
+        ? "continued_confusion"
+        : !substantiveEvidence
+          ? "substantive_evidence_missing"
+          : !distractorSpecificEvidence
+            ? "distractor_specific_evidence_missing"
+            : !evaluatorSupportsProgression
+              ? "evaluator_status_not_ready"
+              : "ready";
+
+  return {
+    ready: reasonCode === "ready",
+    substantive_evidence_present: substantiveEvidence,
+    distractor_specific_evidence_present: distractorSpecificEvidence,
+    unsupported_understanding_claim: unsupportedUnderstandingClaim,
+    continued_confusion_present: continuedConfusion,
+    evaluator_status_supports_progression: evaluatorSupportsProgression,
+    reason_code: reasonCode
+  };
+}
+
+export function applyTopicDialogueReadinessGate(input: {
+  dialogue_input: TopicDialogueInputV1;
+  candidate_output: TopicDialogueOutputV1;
+}) {
+  const gate = evaluateTopicDialogueReadinessGate(input.dialogue_input);
+  if (!READINESS_ACTIONS.has(input.candidate_output.next_action) || gate.ready) {
+    return { output: input.candidate_output, gate, overridden: false };
+  }
+  return {
+    output: buildDeterministicTopicDialogueResponse(input.dialogue_input),
+    gate,
+    overridden: true
+  };
+}
+
 export function validateTopicDialogueOutput(value: unknown) {
   const parsed = TopicDialogueOutputV1Schema.safeParse(value);
   const issues: TopicDialogueValidationIssue[] = [];
@@ -471,8 +598,13 @@ export function buildDeterministicTopicDialogueResponse(
   const offTopic = classification.topic_relation === "off_topic";
   const clarification = classification.student_message_function === "clarification_request";
   const systemQuestion = classification.student_message_function === "assessment_system_question";
-  const readySignal = /\b(now i understand|i understand|validity needs evidence|consistency alone is not enough|reliability.*not.*validity)\b/i
-    .test(input.latest_student_message);
+  const requestForExample = classification.student_message_function === "request_for_example";
+  const readiness = evaluateTopicDialogueReadinessGate(input);
+  const readySignal = readiness.ready;
+  const anchor = itemAnchor(input);
+  const readyAnchor = anchor.option_text
+    ? `${anchor.reference}, which says "${anchor.option_text}"`
+    : anchor.reference;
   const nextAction: z.infer<typeof TopicDialogueNextActionSchema> = offTopic
     ? "await_topic_dialogue_response"
     : readySignal
@@ -480,36 +612,45 @@ export function buildDeterministicTopicDialogueResponse(
       : atLimit
         ? "show_final_support_options"
         : "await_topic_dialogue_response";
+  const responseFunction: TopicDialogueOutputV1["response_function"] = offTopic
+    ? "topic_redirect"
+    : clarification
+      ? "clarification"
+      : systemQuestion
+        ? "answer_student_question"
+        : readySignal
+          ? "readiness_confirmation"
+          : requestForExample || input.dialogue_turn_number === 2
+            ? "worked_example"
+            : input.post_activity_status === "foundational_support_needed"
+              ? "foundational_scaffold"
+              : input.dialogue_turn_number >= 3
+                ? "focused_question"
+                : "misconception_contrast";
   const tutorMessage = offTopic
     ? `I can help with questions about ${input.assessment_topic} in this activity. Which part of ${input.frozen_growth_target} would you like to work through?`
     : clarification
-      ? `I mean this part of the activity: ${input.frozen_growth_target}. Try one short explanation of that idea, or ask one specific question about it.`
+      ? `${anchor.statement} The question is asking you to explain this boundary: ${input.frozen_growth_target}. State one difference between the option's claim and that boundary.`
       : systemQuestion
         ? "You can answer the current prompt, ask a question about this idea, choose a different activity when that option is available, or end the assessment from the controls."
     : readySignal
-      ? "That response addresses the key distinction more clearly. You can continue when you are ready."
+      ? `Your explanation now addresses the key distinction in ${readyAnchor}. You can continue when you are ready.`
       : atLimit
         ? `The main issue to keep working on is ${input.frozen_growth_target}. You can continue to the next available step, or end the assessment now.`
-        : `Focus on this boundary: ${input.frozen_growth_target}. In one or two sentences, explain why consistency by itself is not enough for the intended interpretation.`;
+        : responseFunction === "worked_example"
+          ? `Use this concrete contrast: ${anchor.statement} Compare it with this boundary: ${input.frozen_growth_target}. Which feature belongs to the item, and which claim is about the person?`
+          : responseFunction === "foundational_scaffold"
+            ? `${anchor.statement} Start from this boundary: ${input.frozen_growth_target}. In one sentence, state what the option treats as equivalent.`
+            : responseFunction === "focused_question"
+              ? `${anchor.statement} Complete this contrast in your own words: "The option is tempting because ..., but it fails because ...".`
+              : `${anchor.statement} Compare it with this boundary: ${input.frozen_growth_target}. What exact step in the option's reasoning crosses that boundary?`;
 
   return TopicDialogueOutputV1Schema.parse({
     dialogue_schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION,
     schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
     tutor_message: tutorMessage,
     student_message_function: classification.student_message_function,
-    response_function: offTopic
-      ? "topic_redirect"
-      : clarification
-        ? "clarification"
-        : systemQuestion
-          ? "answer_student_question"
-      : readySignal
-        ? "readiness_confirmation"
-        : input.post_activity_status === "foundational_support_needed"
-          ? "foundational_scaffold"
-          : input.post_activity_status === "specific_misconception_remaining"
-            ? "misconception_contrast"
-            : "focused_question",
+    response_function: responseFunction,
     evidence_update: readySignal
       ? "Student gave a clearer statement of the target boundary."
       : clarification
@@ -518,7 +659,7 @@ export function buildDeterministicTopicDialogueResponse(
           ? "Student asked how to use the assessment system during the current activity."
       : offTopic
         ? "Student message was outside the activity topic and was redirected."
-        : "Student still needs one bounded response tied to the current growth target.",
+        : `Student still needs anchor-specific evidence for ${anchor.reference}.`,
     remaining_issue: readySignal ? "No bounded issue remains for this turn." : input.remaining_issue,
     post_turn_understanding: readySignal
       ? "sound_or_strong"
@@ -539,7 +680,11 @@ export function buildDeterministicTopicDialogueResponse(
       : nextAction === "show_final_support_options"
         ? "SHOW_FINAL_SUPPORT_OPTIONS"
         : "AWAIT_TOPIC_DIALOGUE_RESPONSE",
-    progression_readiness: nextAction === "show_progression_choices" ? "ready" : "student_choice",
+    progression_readiness: nextAction === "show_progression_choices"
+      ? "ready"
+      : nextAction === "show_final_support_options"
+        ? "student_choice"
+        : "not_ready",
     requires_student_response: nextAction === "await_topic_dialogue_response",
     expected_response_guidance: "Write one short response or ask one question about this topic.",
     safety_flags: offTopic ? ["off_topic_redirected"] : [],

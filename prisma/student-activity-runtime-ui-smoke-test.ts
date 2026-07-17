@@ -754,6 +754,7 @@ async function main() {
       }
     });
     const expectedVisibleMessages = [promptTurn.message_text ?? ""];
+    let completedReplayExpected: StudentActivityRuntimeProjection | null = null;
     const confusionTurns = [
       { id: "activity-runtime-confusion-1", message: "I don't understand." },
       { id: "activity-runtime-confusion-2", message: "I still don't know what you mean." },
@@ -775,6 +776,9 @@ async function main() {
           suffix: turn.id
         })
       });
+      if (turn.id === confusionTurns[2]?.id) {
+        completedReplayExpected = structuredClone(repeatedProjection);
+      }
       await assertOperationalTurnCycleCreated(before, turn.id);
       const pointersAfter = await currentStagePointers(repeatedContext.concept_unit_session_db_id);
       assert(
@@ -974,6 +978,65 @@ async function main() {
       "Active formative dialogue should remain compatible with the orthogonal planning_completed phase."
     );
 
+    await recordStudentActivityRuntimeChoice({
+      student_user_db_id: repeatedContext.student_db_id,
+      session_public_id: repeatedContext.session_public_id,
+      activity_attempt_public_id: repeatedAttemptId,
+      choice_state: "finish_assessment",
+      client_action_id: "activity-runtime-terminal-choice"
+    });
+    const countsBeforeTerminalReplay = await operationalCounts();
+    const terminalReplay = await submitStudentActivityRuntimeResponse({
+      student_user_db_id: repeatedContext.student_db_id,
+      session_public_id: repeatedContext.session_public_id,
+      activity_attempt_public_id: repeatedAttemptId,
+      response_text: confusionTurns[2]!.message,
+      client_message_id: confusionTurns[2]!.id,
+      evaluator_override: makeEvaluator({
+        context: repeatedContext,
+        base_packets: noLivePackets,
+        status: "conceptual_entry_gap_remains",
+        suffix: "terminal-replay"
+      })
+    });
+    assert(completedReplayExpected, "The completed replay fixture must capture the accepted result.");
+    assert(
+      JSON.stringify(terminalReplay) === JSON.stringify(completedReplayExpected),
+      "completed_idempotency_key_replays_cached_result: terminal replay must return the exact accepted result."
+    );
+    await assertOperationalCountsUnchanged(
+      countsBeforeTerminalReplay,
+      "completed same-key replay after terminal completion"
+    );
+
+    let newTerminalKeyRejected = false;
+    try {
+      await submitStudentActivityRuntimeResponse({
+        student_user_db_id: repeatedContext.student_db_id,
+        session_public_id: repeatedContext.session_public_id,
+        activity_attempt_public_id: repeatedAttemptId,
+        response_text: "I have a new response after completion.",
+        client_message_id: "activity-runtime-new-key-after-terminal",
+        evaluator_override: makeEvaluator({
+          context: repeatedContext,
+          base_packets: noLivePackets,
+          status: "conceptual_entry_gap_remains",
+          suffix: "new-terminal-key"
+        })
+      });
+    } catch (error) {
+      newTerminalKeyRejected =
+        error instanceof Error && error.message === "This formative episode has already ended.";
+    }
+    assert(
+      newTerminalKeyRejected,
+      "new_key_after_terminal_is_rejected: a new key must not create a post-terminal cycle."
+    );
+    await assertOperationalCountsUnchanged(
+      countsBeforeTerminalReplay,
+      "new key rejected after terminal completion"
+    );
+
     const moveContext = await createCompletedSession("move");
     contexts.push(moveContext);
     const moveCountsBeforeRuntime = await operationalCounts();
@@ -1131,6 +1194,8 @@ async function main() {
       complete_context_propagation_verified: true,
       invisible_draft_isolation_verified: true,
       idempotent_replay_verified: true,
+      completed_idempotency_key_replays_cached_result: true,
+      new_key_after_terminal_is_rejected: true,
       distinct_concurrent_submission_serialized: true,
       unsupported_resolution_claim_rejected: true,
       refresh_timeline_verified: true,

@@ -33,6 +33,9 @@ export type VisibleTurnRecord = {
   client_operation_id: string | null;
   message_type: string | null;
   agent_name: string | null;
+  response_function?: string | null;
+  progression_readiness?: string | null;
+  readiness_gate_reason?: string | null;
 };
 
 export type ProfileHistoryRecord = {

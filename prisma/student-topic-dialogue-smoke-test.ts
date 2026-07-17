@@ -126,9 +126,16 @@ assert.equal(focused.next_action, "await_topic_dialogue_response");
 assert.equal(focused.topic_boundary, "inside_scope");
 assert.equal(validateTopicDialogueOutput(focused).valid, true);
 
-const resolved = buildDeterministicTopicDialogueResponse(dialogueInput({
+const substantiveButNotReady = buildDeterministicTopicDialogueResponse(dialogueInput({
   status: "misconception_weakened",
   latestMessage: "Now I understand that reliability is consistency, but validity needs evidence for interpretation."
+}));
+assert.equal(substantiveButNotReady.next_action, "await_topic_dialogue_response");
+assert.equal(substantiveButNotReady.progression_readiness, "not_ready");
+
+const resolved = buildDeterministicTopicDialogueResponse(dialogueInput({
+  status: "independent_evidence_supported",
+  latestMessage: "Reliability describes consistency, while validity requires evidence for the intended interpretation."
 }));
 assert.equal(resolved.next_action, "show_progression_choices");
 assert.equal(resolved.progression_readiness, "ready");
@@ -160,7 +167,7 @@ assert.equal(
   "dialogue public ID should be stable for idempotent recovery"
 );
 
-for (const output of [focused, resolved, offTopic, atLimit]) {
+for (const output of [focused, substantiveButNotReady, resolved, offTopic, atLimit]) {
   const text = JSON.stringify(output);
   assert.doesNotMatch(text, /\b(answer key|system prompt|raw model output|api key|cheating|misconduct)\b/i);
 }

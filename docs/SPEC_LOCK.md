@@ -394,6 +394,13 @@ The diagnostic loop policy is: loop until no actionable distractor-linked miscon
 - Evaluation outputs are isolated in eval tables. They must not create or update operational `student_profiles`, `formative_decisions`, `followup_rounds`, `item_verification_runs`, assessment sessions, item responses, or workflow jobs.
 - Phase 7E1 mock evaluation must not create `agent_calls` rows.
 - Phase 7E1 must not call OpenAI and must not require an OpenAI API key.
+- Phase E1.1 keeps the approved operational runtime hash at `8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993`; it does not change prompts, provider schemas, validators, manifests, approval evidence, or activation history.
+- Repeated valid confusion turns remain active and each runs evaluation, profiling, planning, and one visible reply. Strategy adaptation must change instructional operation, retain the current item/distractor/growth-target anchor, and avoid unsupported completion.
+- A bare understanding claim, one improved response, planner recommendation, or apparent resolution is insufficient for progression. Platform readiness requires substantive, distractor-specific evidence plus a compatible validated evaluator status and no continued-confusion signal.
+- Apparent resolution remains reversible before an explicit platform terminal transition. Contradictory evidence must be accepted, re-profiled, re-planned, and answered while the session remains active.
+- Revision evidence and transfer evidence are distinct. When the active plan requires transfer, revision success presents the transfer item; failed transfer evidence must not resolve the misconception and may return the episode to formative dialogue.
+- Exact replay of a previously completed formative-turn key is resolved before terminal-state validation and returns the persisted completed result without new records. A new key after terminal completion is rejected without creating a cycle.
+- E1.1 deterministic/mock-safe behavior must preserve orchestration semantics, strategy metadata, anchor continuity, recurrence, revision/transfer separation, and typed recovery. It must not simulate provider perfection.
 - Future live evaluation target metadata is `EVAL_TARGET_MODEL=gpt-5.4-mini`, with `EVAL_LIVE_CALLS_ENABLED=false` by default.
 - GPT-5.5 comparison and nano comparison are outside the current plan.
 - Blind expert annotation hides provider/model by default and hides gold labels until explicitly shown.

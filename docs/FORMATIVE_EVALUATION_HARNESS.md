@@ -163,6 +163,29 @@ The review queue always includes failures, critical/major findings, resolution,
 transfer, recovery, privacy findings, and manual rubric work, then uses a stable
 deterministic sample for otherwise unselected passing runs.
 
+## E1.1 failure classification and correction record
+
+E1.1 reproduced the four original failures independently with seeds 1001-1004
+before changing runtime behavior. The following classifications are part of the
+completion record; no hard invariant, required turn, severity, or scenario risk
+was removed.
+
+| Finding | Classification | Divergence evidence | Responsible correction |
+| --- | --- | --- | --- |
+| `repeated_conceptual_confusion` | dialogue-routing defect; scenario-runner observation defect | The first branch message said it understood the task but retained the item-difficulty misconception. A broad substring readiness check ended the exchange after one reply. The runner also labelled ordinary deterministic fallback as safe recovery and therefore obscured actual strategy changes. | Platform readiness now rejects continued-confusion evidence, deterministic dialogue changes instructional operation by turn, and runner strategy extraction reads persisted `response_function` metadata. |
+| `unsupported_understanding_claim` | dialogue-routing defect | `I understand now.` produced readiness language despite supplying no substantive, distractor-specific evidence. | A code-level readiness gate keeps the misconception unresolved and requests evidence tied to the current item/option anchor. |
+| `misconception_recurs_after_improvement` | state-transition defect | The second turn produced apparent resolution and the persisted evaluator recommendation became terminal before the third contradictory turn could be accepted. | Evaluator progression is advisory; only a platform/student progression action is terminal. Contradictory evidence can run a new profile, plan, and visible dialogue cycle. |
+| `revision_succeeds_transfer_fails` | state-transition defect; scenario-runner defect | Revision readiness was treated as episode completion, and the scripted transfer-failure evidence was submitted as ordinary activity chat instead of through the transfer-item administration path. | Revision and transfer readiness remain separate. The runner completes the actual transfer item, and an incorrect transfer response reprofiles, replans, and reopens formative dialogue. |
+| exact replay after terminal completion | idempotency-semantics defect | Terminal-state validation ran before a completed-key lookup, and completion rows did not retain the exact returned projection. | The completed-key lookup runs first and returns the stored completed projection without new records; a new key is still rejected as terminal. |
+
+There was no invalid scenario expectation and no deterministic mock-adapter
+contract change. The runner changes correct scenario sequencing and structured
+strategy observation; the production runtime changes correct the application
+behavior. `npm run eval:formative:e1.1-smoke` asserts the nine focused E1.1
+contracts. `npm run eval:formative:compare -- --before <old-root> --after
+<new-root> --output <path>` writes a read-only before/after comparison from the
+emitted run summaries.
+
 ## Commands
 
 ```bash
@@ -172,6 +195,8 @@ npm run eval:formative:scenario -- --scenario task_language_confusion --seed 100
 npm run eval:formative:all -- --artifact-dir artifacts/formative-evaluation
 npm run eval:formative:report -- --artifact-dir artifacts/formative-evaluation
 npm run eval:formative:smoke
+npm run eval:formative:e1.1-smoke
+npm run eval:formative:compare -- --before artifacts/formative-evaluation --after .data/formative-evaluation-e1-1-final
 ```
 
 All execution commands support `--scenario`, `--seed`, `--runs`,

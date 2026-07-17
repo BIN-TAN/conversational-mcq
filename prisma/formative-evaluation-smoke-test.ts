@@ -1,4 +1,4 @@
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { loadEnvConfig } from "@next/env";
@@ -18,7 +18,9 @@ async function main() {
   assertAndConfigureE1NoLiveGuard();
   const { prisma } = await import("../src/lib/db");
   const { runFormativeEvaluationScenario } = await import("../src/lib/evaluation/formative/runner");
-  const artifactRoot = path.resolve(".data/formative-evaluation-smoke/full");
+  const smokeArtifactParent = path.resolve(".data/formative-evaluation-smoke");
+  await mkdir(smokeArtifactParent, { recursive: true });
+  const artifactRoot = await mkdtemp(path.join(smokeArtifactParent, "full-"));
   const scenarios = listFormativeEvaluationScenarios();
   assert(scenarios.length === 12, "Full E1 smoke requires all 12 scenarios.");
   const failureRoot = await mkdtemp(path.join(tmpdir(), "formative-e1-failure-"));

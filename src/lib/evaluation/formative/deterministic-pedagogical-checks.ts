@@ -44,7 +44,7 @@ export function assistantRepliesForDialogue(turns: VisibleTurnRecord[]) {
 
 export function evaluateScenarioExpectations(input: {
   scenario: FormativeEvaluationScenario;
-  artifacts: Pick<FormativeEvaluationRunArtifacts, "visible_turns" | "final_student_state" | "profile_history" | "plan_history">;
+  artifacts: Pick<FormativeEvaluationRunArtifacts, "visible_turns" | "final_student_state" | "profile_history" | "plan_history" | "state_transitions">;
   strategies: FormativeEvaluationStrategy[];
   final_platform_state: string;
 }) {
@@ -74,7 +74,12 @@ export function evaluateScenarioExpectations(input: {
     input.artifacts.final_student_state.evidence_history.some((change) =>
       change.evidence_type === "conceptual_state" || change.evidence_type === "misconception_status"
     );
+  const transferWasPresented = input.artifacts.state_transitions.some((transition) =>
+    transition.to_state === "continue_to_transfer_selected" ||
+    transition.to_state === "transfer_item_presented"
+  );
   const transferExpectationPassed = !input.scenario.expected_behavior.transfer_expected ||
+    transferWasPresented ||
     input.final_platform_state === "transfer_item" ||
     input.final_platform_state === "session_complete";
   return {
@@ -85,6 +90,7 @@ export function evaluateScenarioExpectations(input: {
     premature_resolution: prematureResolution,
     revision_expectation_passed: revisionExpectationPassed,
     transfer_expectation_passed: transferExpectationPassed,
+    transfer_was_presented: transferWasPresented,
     strategy_change_count: strategyChanges
   };
 }

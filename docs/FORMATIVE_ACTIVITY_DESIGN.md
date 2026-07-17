@@ -282,3 +282,24 @@ attempted, and strategies marked not to repeat. The initial runtime attempt is
 enriched from administered tempting-option evidence, or from an incorrect
 selected option when no tempting option is available, so repeated clarification
 cannot degrade into generic tutoring.
+
+Repeated conceptual confusion remains an active formative episode. Each valid
+turn runs evaluation, profiling, planning, and one later visible dialogue reply.
+When the prior operation did not work, deterministic/mock-safe dialogue moves
+between genuine operations such as misconception contrast, worked example, and
+focused question while retaining the current item, option, misconception, and
+growth-target anchor. A wording-only paraphrase is not a strategy change.
+
+A bare understanding claim is not evidence of resolution. Progression requires
+substantive evidence that overlaps the active conceptual/distractor anchor and a
+supporting evaluator status. Continued confusion, profile uncertainty, missing
+anchor evidence, or an unresolved misconception keeps progression not ready.
+An apparently resolved judgment is reversible until the platform commits an
+explicit terminal transition; contradictory later evidence reopens the profile,
+plan, and dialogue cycle.
+
+Revision and transfer are separate evidence stages. A successful revision can
+permit the required transfer item to be presented, but it does not establish
+transfer success. An incorrect transfer response is retained as transfer
+evidence, triggers re-profiling and re-planning, and returns the student to an
+anchored formative dialogue instead of marking the misconception resolved.

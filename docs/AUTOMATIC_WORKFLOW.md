@@ -132,6 +132,19 @@ existing bounded fallback and recovery behavior, but an accepted message must
 never leave the student with internal records and no visible reply. Revision,
 transfer, next-concept, and completion decisions remain platform validated.
 
+The completion check is downstream of completed-key lookup. Replaying the exact
+accepted formative request with the same key returns its persisted projection,
+even if a later student action completed the assessment, and creates no new
+turn, profile, plan, or reply. A request with a new key after terminal completion
+is rejected before persistence.
+
+Agent/evaluator readiness is advisory. The platform readiness gate requires a
+substantive response, distractor-specific conceptual evidence, a compatible
+post-activity status, and no continued-confusion or unsupported-understanding
+signal. One improved answer, `I understand`, or an apparent-resolution label
+cannot complete the episode. Revision readiness may route to transfer; transfer
+failure reactivates the formative profile/plan/dialogue path.
+
 Profile and planning stages are independently auditable. When a stage cannot
 produce a validated update, the prior validated pointer remains active; the
 runtime does not create a fresh-looking copy. The stage response package and
@@ -154,3 +167,11 @@ Engineering invariants report whether the cycle executed correctly. A separate
 pedagogical rubric records structured checks and human-review requirements.
 Run artifacts live under the ignored `artifacts/formative-evaluation/`
 directory. See `docs/FORMATIVE_EVALUATION_HARNESS.md` for commands and limits.
+
+The E1.1 mock-safe boundary preserves the same orchestration contract as live
+execution: each accepted turn stages profile and plan updates, persists one
+anchored reply, and keeps platform transitions authoritative. The adapter is not
+made artificially successful. Validation or provider-boundary failures retain
+typed stale-pointer/recovery audit, while the harness reads the persisted
+strategy metadata instead of treating every no-live fallback as a recovery
+strategy.

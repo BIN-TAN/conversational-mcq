@@ -282,6 +282,7 @@ export const processEventTypes = [
   "transfer_tempting_option_submitted",
   "transfer_tempting_option_reason_submitted",
   "transfer_item_completed",
+  "transfer_failure_returned_to_formative_dialogue",
   "agent_retry_scheduled",
   "schema_repair_attempted",
   "formative_planning_started",

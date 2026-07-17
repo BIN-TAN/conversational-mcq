@@ -76,7 +76,10 @@ import {
   packageResultsForStudent,
   studentSafeProjectionFromEvidenceProfile
 } from "@/lib/services/student-assessment/evidence-integrated-profile";
-import { getStudentActivityRuntimeState } from "@/lib/services/student-assessment/activity-runtime-ui";
+import {
+  getStudentActivityRuntimeState,
+  reopenFormativeEpisodeAfterTransferFailure
+} from "@/lib/services/student-assessment/activity-runtime-ui";
 import {
   assertChatNativeActionAllowed,
   type ChatNativeAssessmentAction,
@@ -4767,7 +4770,10 @@ export async function recordTemptingOption(input: {
         item_admin_model_name: temptingReasonTutorResult?.model_name ?? null,
         item_admin_validation_status: temptingReasonTutorResult?.validation_status ?? null,
         item_admin_fallback_reason: temptingReasonTutorResult?.fallback_reason ?? null,
-        detected_response_language: temptingReasonTutorResult?.detected_response_language ?? null
+        detected_response_language: temptingReasonTutorResult?.detected_response_language ?? null,
+        ...(context.isTransferItem && data.client_action_id
+          ? { client_operation_id: data.client_action_id }
+          : {})
       };
       const messageText = noTemptingOption
         ? "No other option was tempting."
@@ -4867,19 +4873,24 @@ export async function recordTemptingOption(input: {
           },
           occurred_at: now
         });
-        await logProcessEvent({
-          assessment_session_db_id: context.session.id,
-          concept_unit_session_db_id: context.conceptUnitSession.id,
-          item_db_id: context.item.id,
-          event_type: "assessment_completion_summary_shown",
-          event_category: "assessment_completion",
-          event_source: "backend",
-          payload: {
-            reason: "transfer_item_completed",
-            item_public_id: context.item.item_public_id
-          },
-          occurred_at: now
-        });
+        if (
+          !context.isTransferItem ||
+          response.selected_option === response.correct_option_snapshot
+        ) {
+          await logProcessEvent({
+            assessment_session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id,
+            event_type: "assessment_completion_summary_shown",
+            event_category: "assessment_completion",
+            event_source: "backend",
+            payload: {
+              reason: "transfer_item_completed",
+              item_public_id: context.item.item_public_id
+            },
+            occurred_at: now
+          });
+        }
       }
 
       await prisma.assessmentSession.update({
@@ -4888,48 +4899,58 @@ export async function recordTemptingOption(input: {
       });
 
       if (context.isTransferItem && itemComplete) {
-        await logConversationTurn({
-          assessment_session_db_id: context.session.id,
-          concept_unit_session_db_id: context.conceptUnitSession.id,
-          item_db_id: context.item.id,
-          phase: "followup_stopped",
-          actor_type: "agent",
-          agent_name: TRANSFER_ITEM_AGENT_NAME,
-          message_text: TRANSFER_COMPLETION_MESSAGE,
-          structured_payload: {
-            source: TRANSFER_ITEM_AGENT_NAME,
-            message_type: "transfer_item_completion",
-            item_public_id: context.item.item_public_id
-          },
-          created_at: now
-        });
-        await prisma.conceptUnitSession.update({
-          where: { id: context.conceptUnitSession.id },
-          data: { status: "completed" }
-        });
-        await updateAssessmentSessionPhase({
-          assessment_session_db_id: context.session.id,
-          to_phase: "between_concept_units",
-          reason: "chat_native_transfer_item_completed"
-        });
-        await updateAssessmentSessionPhase({
-          assessment_session_db_id: context.session.id,
-          to_phase: "session_completed",
-          reason: "chat_native_phase7_transfer_completion"
-        });
-        await logProcessEvent({
-          assessment_session_db_id: context.session.id,
-          concept_unit_session_db_id: context.conceptUnitSession.id,
-          item_db_id: context.item.id,
-          event_type: "session_completed",
-          event_category: "session",
-          event_source: "backend",
-          payload: {
-            reason: "transfer_item_completed",
-            item_public_id: context.item.item_public_id
-          },
-          occurred_at: now
-        });
+        if (response.selected_option !== response.correct_option_snapshot) {
+          await reopenFormativeEpisodeAfterTransferFailure({
+            student_user_db_id: input.student_user_db_id,
+            session_public_id: input.session_public_id,
+            transfer_item_public_id: context.item.item_public_id,
+            client_operation_id:
+              data.client_action_id ?? `transfer_failure_${response.id}`
+          });
+        } else {
+          await logConversationTurn({
+            assessment_session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id,
+            phase: "followup_stopped",
+            actor_type: "agent",
+            agent_name: TRANSFER_ITEM_AGENT_NAME,
+            message_text: TRANSFER_COMPLETION_MESSAGE,
+            structured_payload: {
+              source: TRANSFER_ITEM_AGENT_NAME,
+              message_type: "transfer_item_completion",
+              item_public_id: context.item.item_public_id
+            },
+            created_at: now
+          });
+          await prisma.conceptUnitSession.update({
+            where: { id: context.conceptUnitSession.id },
+            data: { status: "completed" }
+          });
+          await updateAssessmentSessionPhase({
+            assessment_session_db_id: context.session.id,
+            to_phase: "between_concept_units",
+            reason: "chat_native_transfer_item_completed"
+          });
+          await updateAssessmentSessionPhase({
+            assessment_session_db_id: context.session.id,
+            to_phase: "session_completed",
+            reason: "chat_native_phase7_transfer_completion"
+          });
+          await logProcessEvent({
+            assessment_session_db_id: context.session.id,
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            item_db_id: context.item.id,
+            event_type: "session_completed",
+            event_category: "session",
+            event_source: "backend",
+            payload: {
+              reason: "transfer_item_completed",
+              item_public_id: context.item.item_public_id
+            },
+            occurred_at: now
+          });
+        }
       }
 
       const nextState = await getStudentSessionState({
