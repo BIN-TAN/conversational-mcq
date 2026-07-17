@@ -30,6 +30,7 @@ import {
   type FormativeActivityPacketV1
 } from "@/lib/services/student-assessment/formative-activity-design";
 import type { FormativeValue } from "@/lib/services/student-assessment/formative-value-determination";
+import type { AuthoritativeFormativeTurnContext } from "@/lib/services/student-assessment/assessment-interpretation-context";
 
 export const ACTIVITY_RUNTIME_LOOP_VERSION = "activity-runtime-loop-v1" as const;
 export const ACTIVITY_RUNTIME_REVIEW_ARTIFACT_VERSION =
@@ -205,6 +206,10 @@ export type SubmitStudentActivityResponseForEvidenceUpdateInput = {
   selected_alternative_activity_family?: FormativeActivityFamily | null;
   process_context_summary?: Record<string, unknown> | null;
   pre_activity_diagnostic_state?: string | null;
+  formative_turn_context?: AuthoritativeFormativeTurnContext;
+  allow_additional_turn?: boolean;
+  attempt_already_claimed?: boolean;
+  defer_final_attempt_activation?: boolean;
   evaluator_override?: (
     input: ActivityMisconceptionEvidenceLiveEvaluationInput
   ) => Promise<ActivityMisconceptionEvidenceLiveExecutionResult>;
@@ -596,6 +601,7 @@ function buildEvaluationInput(input: {
   source: SourceActivityPacketRef;
   response_summary: string;
   response_kind_hint: ActivityResponseKind;
+  formative_turn_context?: AuthoritativeFormativeTurnContext;
 }) {
   return {
     session_public_id: input.attempt.session_public_id,
@@ -612,7 +618,8 @@ function buildEvaluationInput(input: {
     safe_student_activity_response: input.response_summary,
     response_kind_hint: input.response_kind_hint,
     expected_evidence_focus:
-      "Evaluate only the redacted activity prompt and student activity response summary for post-activity misconception evidence."
+      "Evaluate the latest activity response using the complete authoritative formative-turn context.",
+    formative_turn_context: input.formative_turn_context
   } satisfies ActivityMisconceptionEvidenceLiveEvaluationInput;
 }
 
@@ -663,31 +670,47 @@ export async function submitStudentActivityResponseForEvidenceUpdate(
       reason: "activity_runtime_attempt_invalid_status"
     });
   }
+  let effectiveCurrentStatus: ActivityRuntimeState = currentStatus.data;
+
+  if (currentStatus.data === "student_activity_response_received" && input.attempt_already_claimed) {
+    effectiveCurrentStatus = "awaiting_student_activity_response";
+  }
 
   if (
     currentStatus.data === "continue_recommended" ||
     currentStatus.data === "choose_alternative_recommended" ||
     currentStatus.data === "move_on_recommended"
   ) {
-    const recommendation =
-      currentStatus.data === "move_on_recommended"
-        ? "move_on"
-        : currentStatus.data === "choose_alternative_recommended"
-          ? "choose_alternative_activity"
-          : "continue_distractor_misconception_probe";
-    return {
-      status: "ok",
-      activity_attempt_public_id: attempt.activity_attempt_public_id,
-      evidence_record_public_id: attempt.latest_evidence_record_public_id,
-      post_activity_snapshot_public_id: attempt.latest_snapshot_public_id,
-      student_safe_feedback: defaultFailedFeedback(),
-      next_runtime_recommendation: recommendation,
-      runtime_state: currentStatus.data,
-      limitations: ["activity_attempt_already_processed"]
-    };
+    if (input.allow_additional_turn && currentStatus.data !== "move_on_recommended") {
+      await client.activityRuntimeAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          status: "awaiting_student_activity_response",
+          completed_at: null
+        }
+      });
+      effectiveCurrentStatus = "awaiting_student_activity_response";
+    } else {
+      const recommendation =
+        currentStatus.data === "move_on_recommended"
+          ? "move_on"
+          : currentStatus.data === "choose_alternative_recommended"
+            ? "choose_alternative_activity"
+            : "continue_distractor_misconception_probe";
+      return {
+        status: "ok",
+        activity_attempt_public_id: attempt.activity_attempt_public_id,
+        evidence_record_public_id: attempt.latest_evidence_record_public_id,
+        post_activity_snapshot_public_id: attempt.latest_snapshot_public_id,
+        student_safe_feedback: defaultFailedFeedback(),
+        next_runtime_recommendation: recommendation,
+        runtime_state: currentStatus.data,
+        limitations: ["activity_attempt_already_processed"]
+      };
+    }
   }
 
-  if (currentStatus.data !== "awaiting_student_activity_response") {
+  if (effectiveCurrentStatus !== "awaiting_student_activity_response") {
     return failClosed({
       client,
       attempt,
@@ -741,7 +764,7 @@ export async function submitStudentActivityResponseForEvidenceUpdate(
     process_context_summary: input.process_context_summary
       ? redactForAudit(input.process_context_summary)
       : null,
-    raw_response_stored_elsewhere: false,
+    raw_response_stored_elsewhere: true,
     submitted_at: new Date().toISOString()
   };
 
@@ -762,7 +785,8 @@ export async function submitStudentActivityResponseForEvidenceUpdate(
     attempt: receivedAttempt,
     source,
     response_summary: responseSummary,
-    response_kind_hint: responseKind
+    response_kind_hint: responseKind,
+    formative_turn_context: input.formative_turn_context
   });
 
   const evaluator =
@@ -834,8 +858,12 @@ export async function submitStudentActivityResponseForEvidenceUpdate(
   await client.activityRuntimeAttempt.update({
     where: { id: attempt.id },
     data: {
-      status: finalState,
-      completed_at: new Date(),
+      status: input.defer_final_attempt_activation
+        ? persisted.snapshot
+          ? "post_activity_snapshot_created"
+          : "evidence_persisted"
+        : finalState,
+      completed_at: input.defer_final_attempt_activation ? null : new Date(),
       latest_evidence_record_public_id: persisted.record.evidence_public_id,
       latest_snapshot_public_id: persisted.snapshot?.snapshot_public_id ?? undefined,
       limitations: prismaJson(evaluation.packet.misconception_evidence_update.limitations)

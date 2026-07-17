@@ -22,6 +22,7 @@ import { logProcessEvent } from "@/lib/services/process-events";
 import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { buildAssessmentInterpretationContextForItemAdministration } from "@/lib/services/student-assessment/assessment-interpretation-context";
+import { FORMATIVE_ACTIVITY_AGENT_NAME } from "@/lib/services/student-assessment/formative-activity-design";
 import {
   llmMediaContextForAssets,
   serializeItemMediaAsset
@@ -7007,6 +7008,7 @@ export async function getStudentSafeTranscript(input: {
         { agent_name: "deterministic_response_collection_fallback" },
         { agent_name: INITIAL_ADMIN_AGENT_NAME },
         { agent_name: "chat_native_formative_activity" },
+        { agent_name: FORMATIVE_ACTIVITY_AGENT_NAME },
         { agent_name: "student_communication_agent" },
         { agent_name: "topic_dialogue_agent" },
         {
@@ -7015,8 +7017,9 @@ export async function getStudentSafeTranscript(input: {
         }
       ]
     },
-    orderBy: [{ created_at: "asc" }],
+    orderBy: [{ created_at: "asc" }, { id: "asc" }],
     select: {
+      id: true,
       concept_unit_session_db_id: true,
       item_db_id: true,
       actor_type: true,
@@ -7071,13 +7074,24 @@ export async function getStudentSafeTranscript(input: {
   );
   const result = {
     session_public_id: input.session_public_id,
-    transcript: turns.map((turn) => {
+    transcript: turns.filter((turn) => {
+      const payload = turn.structured_payload && typeof turn.structured_payload === "object" &&
+        !Array.isArray(turn.structured_payload)
+        ? turn.structured_payload as Record<string, unknown>
+        : {};
+      return !(
+        payload.student_visible === false ||
+        payload.shown_to_student === false ||
+        ["draft", "internal", "not_shown"].includes(String(payload.visibility_status ?? ""))
+      );
+    }).map((turn) => {
       const responseKey = turn.concept_unit_session_db_id && turn.item_db_id
         ? `${turn.concept_unit_session_db_id}:${turn.item_db_id}`
         : null;
       const currentResponse = responseKey ? responseByTurnKey.get(responseKey) ?? null : null;
 
       return {
+        turn_id: `turn_${createHash("sha256").update(turn.id).digest("hex").slice(0, 20)}`,
         actor: turn.actor_type === "student" ? "student" : "assistant",
         message_text: studentTranscriptMessage({
           ...turn,

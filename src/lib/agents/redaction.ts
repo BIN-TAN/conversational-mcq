@@ -63,6 +63,21 @@ export function assertNoProhibitedProviderInput(value: unknown) {
   }
 }
 
+export function omitProhibitedProviderInputFields<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((entry) => omitProhibitedProviderInputFields(entry)) as T;
+  }
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, entry]) =>
+      isProhibitedKey(key)
+        ? []
+        : [[key, omitProhibitedProviderInputFields(entry)]]
+    )
+  ) as T;
+}
+
 export function redactForAudit(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(redactForAudit);

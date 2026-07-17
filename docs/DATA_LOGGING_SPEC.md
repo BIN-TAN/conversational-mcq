@@ -1114,3 +1114,28 @@ evidence update, remaining issue, evidence sufficiency, topic-boundary redirect,
 next action, progression selection, and model/prompt/schema/fallback metadata.
 They must not duplicate the full student-facing narrative across multiple
 tables and must keep `timing-contract-v2` fields unchanged.
+
+## Formative Turn Orchestration Records
+
+For each accepted active formative message:
+
+- `conversation_turns` stores the exact immutable student message before
+  context construction and one later immutable shown assistant reply;
+- `activity_runtime_attempts` acts as the processing lease and records the
+  current evidence/runtime state without replacing prior attempts;
+- `activity_misconception_evidence_records` and post-activity snapshots retain
+  the evaluator judgment;
+- two versioned `followup_evidence_update_package` rows bind the authoritative
+  context used for profile and planning stages to the client operation;
+- new `student_profiles` and `formative_decisions` rows are activated with the
+  assistant turn and current pointers in one transaction;
+- `student_action_idempotency_keys` prevents duplicate cycles and replies;
+- `agent_calls` retains internal provider, validation, rejection, and fallback
+  audit separately from the student-visible transcript; and
+- process events include `student_activity_response_submitted`, topic-dialogue
+  submission/generation events, post-activity routing, and safe fallback use.
+
+`formative-turn-context-v1` contains a complete visible transcript with stable
+hashed turn references and sequence indexes. Draft/internal/not-shown turns are
+excluded. Internal database IDs, raw credentials, headers, and secret values
+are not included in the student projection.

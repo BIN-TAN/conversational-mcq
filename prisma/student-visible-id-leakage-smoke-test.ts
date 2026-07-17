@@ -33,6 +33,8 @@ function projectionWith(message: string): StudentActivityRuntimeProjection {
     can_continue: false,
     message_max_chars: 5000,
     feedback: null,
+    first_turn_visible_in_transcript: true,
+    latest_reply_visible_in_transcript: false,
     topic_dialogue: null,
     next_recommendation_label: null,
     alternative_activity_labels: []

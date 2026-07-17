@@ -56,6 +56,8 @@ export const StudentActivityRuntimeProjectionSchema = z.object({
   can_continue: z.boolean(),
   message_max_chars: z.number().int().positive().max(ACTIVITY_RUNTIME_MAX_RESPONSE_CHARS),
   feedback: StudentActivityRuntimeFeedbackSchema.nullable(),
+  first_turn_visible_in_transcript: z.boolean(),
+  latest_reply_visible_in_transcript: z.boolean(),
   topic_dialogue: z.object({
     dialogue_public_id: z.string().min(1),
     state: z.enum([

@@ -663,3 +663,22 @@ estimates, or final misconception evaluations.
 - Chi, M. T. H., & Wylie, R. The ICAP framework.
 - Shute, V. J. Focus on formative feedback.
 - Hattie, J., & Timperley, H. The power of feedback.
+
+## Current Per-Turn Runtime Correction
+
+The earlier Phase 30g one-response note is superseded for the active formative
+episode. A validated activity response still creates immutable misconception
+evidence and a post-activity snapshot, and it now also feeds the existing
+profile-update and planning-update roles before the next topic-dialogue reply is
+generated. Those candidate records do not become active independently:
+profile, plan, active pointers, visible assistant turn, and final activity state
+commit together.
+
+Visible transcript entries contain only messages actually shown to the student.
+Evaluator outputs, rejected candidates, routing recommendations, validation
+issues, and fallback metadata remain in a separate internal history. If
+evaluation or later orchestration cannot complete safely, the attempt returns
+to an awaiting state with an immutable neutral recovery reply. A self-report of
+understanding alone cannot set misconception evidence to resolved; substantive
+reasoning, revision, transfer, or consistent later evidence is required, and
+contradictory evidence may weaken or reopen a prior judgment.

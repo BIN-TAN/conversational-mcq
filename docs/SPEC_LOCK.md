@@ -3103,3 +3103,29 @@ Phase 6A.5 must not implement:
   such as `item_...`, `sess_...`, `asmt_...`, or UUID strings. Student item
   references use ordinals such as "Item 1" plus option labels/text when needed.
 - Timing-contract-v2 formulas and historical timing semantics are unchanged.
+
+## Formative Turn Orchestration Hardening
+
+- Once a formative activity is shown, each accepted student message runs the
+  existing interpretation, student-profile update, formative-plan update, and
+  topic-dialogue implementation path. Brief confusion, uncertainty, and
+  off-topic messages are evidence to handle, not reasons to stop after an
+  internal classification.
+- The exact student message is persisted before any agent context is built.
+  `formative-turn-context-v1` is reconstructed from durable assessment,
+  response-package, profile, plan, activity-attempt, conversation-turn,
+  evaluator, and routing records for every stage.
+- Visible conversation history and internal evaluator/routing history are
+  separate context sections. Invisible drafts are never represented as shown
+  dialogue. Every displayed activity or tutor reply is a new immutable
+  conversation turn.
+- New profile and plan versions, their active pointers, the assistant reply,
+  the activity status, and idempotency completion activate in one transaction.
+  A failed internal cycle produces one persisted neutral recovery reply and
+  leaves the activity resumable; it must not end with evaluator records only.
+- `planning_completed` remains the orthogonal global phase while an activity
+  attempt carries the active formative-dialogue state. The platform, not an
+  agent, remains authoritative for revision, transfer, and completion.
+- A claim such as "I understand" is not misconception-resolution evidence.
+  Revision, transfer, or substantive reasoning must be evaluated by the
+  existing evidence/profile chain before routing can change.

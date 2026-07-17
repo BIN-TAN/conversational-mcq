@@ -9,6 +9,28 @@ function json(value: unknown): Prisma.InputJsonValue {
   return (toPrismaJson(value) ?? []) as Prisma.InputJsonValue;
 }
 
+export function formativeDecisionCreateData(input: {
+  concept_unit_session_db_id: string;
+  student_profile_db_id: string;
+  based_on_agent_call_db_id: string | null;
+  output: FormativePlanningOutput;
+}) {
+  return {
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    student_profile_db_id: input.student_profile_db_id,
+    formative_value: input.output.formative_value,
+    formative_action_plan: input.output.formative_action_plan,
+    target_evidence: json(input.output.target_evidence),
+    success_criteria: json(input.output.success_criteria),
+    followup_prompt_constraints: json(input.output.followup_prompt_constraints),
+    profile_update_triggers: json(input.output.profile_update_triggers),
+    rationale: input.output.rationale,
+    mapping_followed: input.output.mapping_followed,
+    mapping_deviation_reason: input.output.mapping_deviation_reason,
+    based_on_agent_call_db_id: input.based_on_agent_call_db_id
+  } satisfies Prisma.FormativeDecisionUncheckedCreateInput;
+}
+
 export async function persistInitialFormativeDecision(input: {
   concept_unit_session_db_id: string;
   student_profile_db_id: string;
@@ -17,20 +39,7 @@ export async function persistInitialFormativeDecision(input: {
 }) {
   return prisma.$transaction(async (tx) => {
     const decision = await tx.formativeDecision.create({
-      data: {
-        concept_unit_session_db_id: input.concept_unit_session_db_id,
-        student_profile_db_id: input.student_profile_db_id,
-        formative_value: input.output.formative_value,
-        formative_action_plan: input.output.formative_action_plan,
-        target_evidence: json(input.output.target_evidence),
-        success_criteria: json(input.output.success_criteria),
-        followup_prompt_constraints: json(input.output.followup_prompt_constraints),
-        profile_update_triggers: json(input.output.profile_update_triggers),
-        rationale: input.output.rationale,
-        mapping_followed: input.output.mapping_followed,
-        mapping_deviation_reason: input.output.mapping_deviation_reason,
-        based_on_agent_call_db_id: input.based_on_agent_call_db_id
-      },
+      data: formativeDecisionCreateData(input),
       include: {
         based_on_agent_call: {
           select: {

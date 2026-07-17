@@ -5,7 +5,8 @@ import { applyProvisionalItemDiagnosticMetadata } from "../src/lib/services/stud
 import {
   startConceptUnitInitialAdministration,
   startOrResumeStudentAssessmentSession,
-  completeInitialConceptUnitAdministration
+  completeInitialConceptUnitAdministration,
+  getStudentSafeTranscript
 } from "../src/lib/services/student-assessment/service";
 import {
   getStudentActivityRuntimeState,
@@ -15,6 +16,9 @@ import {
   type StudentActivityRuntimeEvaluatorOverride,
   type StudentActivityRuntimeGenerationOverride
 } from "../src/lib/services/student-assessment/activity-runtime-ui";
+import {
+  topicDialoguePublicId
+} from "../src/lib/services/student-assessment/topic-dialogue-agent";
 import {
   validateStudentActivityRuntimeProjection,
   type StudentActivityRuntimeProjection
@@ -37,6 +41,7 @@ import {
   type MisconceptionUpdateStatus
 } from "../src/lib/services/student-assessment/activity-misconception-evidence";
 import {
+  buildActivityMisconceptionEvidenceLiveAgentInput,
   makeLiveActivityMisconceptionEvidencePacketForTest,
   type ActivityMisconceptionEvidenceLiveEvaluationInput,
   type ActivityMisconceptionEvidenceLiveExecutionResult
@@ -104,6 +109,97 @@ function assertStudentComponentCopyIsHardened() {
   assert(!/data being saved|database|research records|system versions|your data is saved/i.test(source), "End assessment copy should not expose persistence or research language.");
   assert(!source.includes("Available choices for a future version"), "Abstract activity menu should not be rendered.");
   assert(!source.includes("Alternative activity selection is recorded for this version"), "Activity switching should not show audit wording.");
+}
+
+function jsonRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function jsonArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+async function assertCompleteDialogueContext(input: {
+  context: CompletedSession;
+  activity_attempt_public_id: string;
+  client_operation_id: string;
+  latest_student_message: string;
+  expected_visible_messages: string[];
+  invisible_message: string;
+}) {
+  const call = await prisma.agentCall.findUniqueOrThrow({
+    where: {
+      agent_invocation_key:
+        `topic-dialogue:${topicDialoguePublicId({
+          session_public_id: input.context.session_public_id,
+          activity_attempt_public_id: input.activity_attempt_public_id
+        })}:${input.client_operation_id}`
+    },
+    select: { input_payload: true }
+  });
+  const request = jsonRecord(call.input_payload);
+  const turnContext = jsonRecord(request.formative_turn_context);
+  const purpose = jsonRecord(turnContext.assessment_purpose_and_workflow);
+  assert(
+    jsonArray(purpose.complete_workflow).length === 6,
+    "Dialogue context should include the complete formative assessment workflow."
+  );
+  const initialPackage = jsonRecord(turnContext.complete_initial_response_package);
+  const interpretation = jsonRecord(initialPackage.assessment_interpretation_context);
+  const observed = jsonRecord(interpretation.observed_student_evidence);
+  assert(jsonArray(interpretation.items).length === 3, "Dialogue context should include all three initial items.");
+  assert(
+    jsonArray(observed.item_responses).length === 3,
+    "Dialogue context should include all three initial item responses."
+  );
+  const profiles = jsonRecord(turnContext.complete_profile_history);
+  const plans = jsonRecord(turnContext.complete_formative_plan_history);
+  assert(jsonArray(profiles.versions).length > 0, "Dialogue context should include profile history.");
+  assert(profiles.staged_candidate_for_this_turn, "Dialogue context should include this turn's staged profile.");
+  assert(jsonArray(plans.versions).length > 0, "Dialogue context should include planning history.");
+  assert(plans.staged_candidate_for_this_turn, "Dialogue context should include this turn's staged plan.");
+  const activityHistory = jsonRecord(turnContext.complete_activity_runtime_history);
+  const attempts = jsonArray(activityHistory.attempts).map(jsonRecord);
+  const currentAttempt = attempts.find(
+    (attempt) => attempt.activity_attempt_public_id === input.activity_attempt_public_id
+  );
+  assert(currentAttempt?.was_actually_shown === true, "Current activity should be recorded as actually shown.");
+  assert(
+    Object.keys(jsonRecord(currentAttempt?.distractor_anchor)).length > 0,
+    "Activity context should expose the current distractor anchor."
+  );
+  assert(
+    jsonArray(currentAttempt?.student_responses).length > 0,
+    "Activity context should include the persisted student responses."
+  );
+  const visibleTranscript = jsonArray(turnContext.complete_visible_transcript).map(jsonRecord);
+  const visibleMessages = visibleTranscript.map((turn) => String(turn.message_text ?? ""));
+  for (const message of input.expected_visible_messages) {
+    assert(visibleMessages.includes(message), `Dialogue context omitted a shown message: ${message}`);
+  }
+  assert(
+    !visibleMessages.includes(input.invisible_message),
+    "Dialogue context must exclude an unshown draft."
+  );
+  const internalHistory = jsonRecord(turnContext.internal_evaluation_and_routing_history);
+  assert(
+    internalHistory.never_assume_shown_to_student === true,
+    "Internal history should be explicitly separated from visible dialogue."
+  );
+  assert(jsonArray(internalHistory.agent_calls).length > 0, "Internal agent-call history should be present.");
+  assert(jsonArray(internalHistory.routing_events).length > 0, "Internal routing history should be present.");
+  const platformState = jsonRecord(turnContext.current_platform_and_runtime_state);
+  assert(
+    platformState.global_assessment_phase === "planning_completed",
+    "The orthogonal formative runtime should work while the global phase remains planning_completed."
+  );
+  assert(platformState.current_activity_attempt_public_id === input.activity_attempt_public_id, "Current attempt is missing.");
+  const roleTask = jsonRecord(turnContext.current_agent_role_and_turn_task);
+  assert(roleTask.role === "student_facing_dialogue", "Dialogue call should receive its exact role and task.");
+  const latest = jsonRecord(turnContext.latest_student_message);
+  assert(latest.message_text === input.latest_student_message, "Latest student message should be repeated exactly.");
 }
 
 function packetByStatus(
@@ -253,6 +349,17 @@ function makeEvaluator(input: {
   return async (
     evaluationInput: ActivityMisconceptionEvidenceLiveEvaluationInput
   ): Promise<ActivityMisconceptionEvidenceLiveExecutionResult> => {
+    let providerInput;
+    try {
+      providerInput = buildActivityMisconceptionEvidenceLiveAgentInput(evaluationInput);
+    } catch (error) {
+      const paths = (error as { paths?: string[] }).paths ?? [];
+      throw new Error(`provider_input_rejected:${paths.join("|")}`);
+    }
+    assert(
+      providerInput.formative_turn_context === evaluationInput.formative_turn_context,
+      "The real evaluator provider-input serializer should retain the authoritative formative context."
+    );
     const basePacket = packetByStatus(input.base_packets, input.status);
     const commonOverrides = {
       session_public_id: evaluationInput.session_public_id,
@@ -410,6 +517,7 @@ async function cleanupCompletedSessions(contexts: CompletedSession[]) {
 async function operationalCounts() {
   return {
     profiles: await prisma.studentProfile.count(),
+    decisions: await prisma.formativeDecision.count(),
     responsePackages: await prisma.responsePackage.count()
   };
 }
@@ -420,9 +528,23 @@ async function assertOperationalCountsUnchanged(
 ) {
   const after = await operationalCounts();
   assert(after.profiles === before.profiles, `${label}: activity runtime UI must not overwrite profiles.`);
+  assert(after.decisions === before.decisions, `${label}: activity runtime UI must not overwrite plans.`);
   assert(
     after.responsePackages === before.responsePackages,
     `${label}: activity runtime UI must not mutate response packages.`
+  );
+}
+
+async function assertOperationalTurnCycleCreated(
+  before: Awaited<ReturnType<typeof operationalCounts>>,
+  label: string
+) {
+  const after = await operationalCounts();
+  assert(after.profiles === before.profiles + 1, `${label}: one new profile version is required.`);
+  assert(after.decisions === before.decisions + 1, `${label}: one new planning version is required.`);
+  assert(
+    after.responsePackages === before.responsePackages + 2,
+    `${label}: profile and planning context packages are required.`
   );
 }
 
@@ -482,10 +604,22 @@ async function main() {
         suffix: "valid"
       })
     });
-    assert(projection.ui_state === "feedback_ready", "Response should return safe feedback.");
+    const completedAttempt = await prisma.activityRuntimeAttempt.findUniqueOrThrow({
+      where: { activity_attempt_public_id: projection.activity_attempt_public_id ?? "" },
+      select: { limitations: true }
+    });
+    assert(
+      projection.topic_dialogue?.state === "awaiting_response" ||
+        projection.topic_dialogue?.state === "final_support",
+      `Response should return an active student-facing dialogue reply: ${JSON.stringify(completedAttempt.limitations)}`
+    );
     assert(projection.feedback?.message, "Feedback message should be present.");
+    assert(
+      !JSON.stringify(completedAttempt.limitations).includes("formative_turn_cycle_recovery_used"),
+      `Valid runtime response unexpectedly used recovery: ${JSON.stringify(completedAttempt.limitations)}`
+    );
     assertProjectionSafe(projection, "feedback_ready");
-    await assertOperationalCountsUnchanged(validCountsBeforeRuntime, "valid runtime response");
+    await assertOperationalTurnCycleCreated(validCountsBeforeRuntime, "valid runtime response");
 
     projection = await recordStudentActivityRuntimeChoice({
       student_user_db_id: validContext.student_db_id,
@@ -508,6 +642,235 @@ async function main() {
       "Choose another should not expose an abstract activity menu."
     );
     assertProjectionSafe(projection, "replacement_activity_ready");
+    const replacementTranscript = await getStudentSafeTranscript({
+      student_user_db_id: validContext.student_db_id,
+      session_public_id: validContext.session_public_id
+    });
+    assert(
+      replacementTranscript.transcript.some((turn) => turn.message_text.includes(originalFirstTurn ?? "__missing__")),
+      "The original shown activity should remain in the visible transcript."
+    );
+    assert(
+      replacementTranscript.transcript.some((turn) => turn.message_text.includes(projection.first_turn_message ?? "__missing__")),
+      "The replacement activity should be a new visible transcript turn."
+    );
+
+    const repeatedContext = await createCompletedSession("repeated_confusion");
+    contexts.push(repeatedContext);
+    let repeatedProjection = await startStudentActivityForSession({
+      student_user_db_id: repeatedContext.student_db_id,
+      session_public_id: repeatedContext.session_public_id,
+      activity_generation_override: makeActivityGenerationOverride({
+        context: repeatedContext,
+        suffix: "repeated_confusion"
+      })
+    });
+    const repeatedAttemptId = repeatedProjection.activity_attempt_public_id ?? "";
+    const promptTurn = await prisma.conversationTurn.findFirstOrThrow({
+      where: {
+        assessment_session_db_id: repeatedContext.assessment_session_db_id,
+        actor_type: "agent",
+        agent_name: FORMATIVE_ACTIVITY_AGENT_NAME,
+        structured_payload: {
+          path: ["activity_attempt_public_id"],
+          equals: repeatedAttemptId
+        }
+      },
+      select: { message_text: true }
+    });
+    const invisibleMessage = "This unshown strategy draft must not enter the visible context.";
+    await prisma.conversationTurn.create({
+      data: {
+        assessment_session_db_id: repeatedContext.assessment_session_db_id,
+        concept_unit_session_db_id: repeatedContext.concept_unit_session_db_id,
+        phase: "planning_completed",
+        actor_type: "agent",
+        agent_name: FORMATIVE_ACTIVITY_AGENT_NAME,
+        message_text: invisibleMessage,
+        structured_payload: {
+          message_type: "formative_activity_draft",
+          activity_attempt_public_id: repeatedAttemptId,
+          visibility_status: "not_shown",
+          shown_to_student: false
+        }
+      }
+    });
+    const expectedVisibleMessages = [promptTurn.message_text ?? ""];
+    const confusionTurns = [
+      { id: "activity-runtime-confusion-1", message: "I don't understand." },
+      { id: "activity-runtime-confusion-2", message: "I still don't know what you mean." },
+      { id: "activity-runtime-confusion-3", message: "Can you explain the question?" }
+    ];
+    for (const turn of confusionTurns) {
+      const before = await operationalCounts();
+      repeatedProjection = await submitStudentActivityRuntimeResponse({
+        student_user_db_id: repeatedContext.student_db_id,
+        session_public_id: repeatedContext.session_public_id,
+        activity_attempt_public_id: repeatedAttemptId,
+        response_text: turn.message,
+        client_message_id: turn.id,
+        evaluator_override: makeEvaluator({
+          context: repeatedContext,
+          base_packets: noLivePackets,
+          status: "conceptual_entry_gap_remains",
+          suffix: turn.id
+        })
+      });
+      await assertOperationalTurnCycleCreated(before, turn.id);
+      assert(
+        repeatedProjection.latest_reply_visible_in_transcript,
+        `${turn.id}: every accepted response should persist a visible assistant reply.`
+      );
+      await assertCompleteDialogueContext({
+        context: repeatedContext,
+        activity_attempt_public_id: repeatedAttemptId,
+        client_operation_id: turn.id,
+        latest_student_message: turn.message,
+        expected_visible_messages: [...expectedVisibleMessages, turn.message],
+        invisible_message: invisibleMessage
+      });
+      const turnsForOperation = await prisma.conversationTurn.findMany({
+        where: {
+          assessment_session_db_id: repeatedContext.assessment_session_db_id,
+          structured_payload: { path: ["client_operation_id"], equals: turn.id }
+        },
+        orderBy: [{ created_at: "asc" }, { id: "asc" }],
+        select: { actor_type: true, message_text: true }
+      });
+      assert(turnsForOperation.length === 2, `${turn.id}: one student and one assistant turn are required.`);
+      assert(turnsForOperation[0]?.actor_type === "student", `${turn.id}: student turn must be first.`);
+      assert(turnsForOperation[1]?.actor_type === "agent", `${turn.id}: assistant turn must follow.`);
+      expectedVisibleMessages.push(turn.message, turnsForOperation[1]?.message_text ?? "");
+    }
+    const countsBeforeReplay = await operationalCounts();
+    const replayTurnCount = await prisma.conversationTurn.count({
+      where: { assessment_session_db_id: repeatedContext.assessment_session_db_id }
+    });
+    await Promise.all([
+      submitStudentActivityRuntimeResponse({
+        student_user_db_id: repeatedContext.student_db_id,
+        session_public_id: repeatedContext.session_public_id,
+        activity_attempt_public_id: repeatedAttemptId,
+        response_text: confusionTurns[2]!.message,
+        client_message_id: confusionTurns[2]!.id,
+        evaluator_override: makeEvaluator({
+          context: repeatedContext,
+          base_packets: noLivePackets,
+          status: "conceptual_entry_gap_remains",
+          suffix: "duplicate-a"
+        })
+      }),
+      submitStudentActivityRuntimeResponse({
+        student_user_db_id: repeatedContext.student_db_id,
+        session_public_id: repeatedContext.session_public_id,
+        activity_attempt_public_id: repeatedAttemptId,
+        response_text: confusionTurns[2]!.message,
+        client_message_id: confusionTurns[2]!.id,
+        evaluator_override: makeEvaluator({
+          context: repeatedContext,
+          base_packets: noLivePackets,
+          status: "conceptual_entry_gap_remains",
+          suffix: "duplicate-b"
+        })
+      })
+    ]);
+    await assertOperationalCountsUnchanged(countsBeforeReplay, "concurrent idempotent replay");
+    assert(
+      await prisma.conversationTurn.count({
+        where: { assessment_session_db_id: repeatedContext.assessment_session_db_id }
+      }) === replayTurnCount,
+      "Concurrent idempotent replay must not duplicate visible turns."
+    );
+    const concurrentCountsBefore = await operationalCounts();
+    const concurrentTurns = [
+      { id: "activity-runtime-concurrent-a", message: "I understand." },
+      { id: "activity-runtime-concurrent-b", message: "I have another question about this idea." }
+    ];
+    const concurrentResults = await Promise.allSettled(
+      concurrentTurns.map((turn) => submitStudentActivityRuntimeResponse({
+        student_user_db_id: repeatedContext.student_db_id,
+        session_public_id: repeatedContext.session_public_id,
+        activity_attempt_public_id: repeatedAttemptId,
+        response_text: turn.message,
+        client_message_id: turn.id,
+        evaluator_override: makeEvaluator({
+          context: repeatedContext,
+          base_packets: noLivePackets,
+          status: "conceptual_entry_gap_remains",
+          suffix: turn.id
+        })
+      }))
+    );
+    assert(
+      concurrentResults.filter((result) => result.status === "fulfilled").length === 1,
+      "Only one of two distinct concurrent formative submissions may be accepted."
+    );
+    assert(
+      concurrentResults.filter((result) => result.status === "rejected").length === 1,
+      "The competing formative submission should be rejected before persistence."
+    );
+    await assertOperationalTurnCycleCreated(concurrentCountsBefore, "distinct concurrent submission");
+    const concurrentConversationTurns = await prisma.conversationTurn.findMany({
+      where: {
+        assessment_session_db_id: repeatedContext.assessment_session_db_id,
+        OR: concurrentTurns.map((turn) => ({
+          structured_payload: { path: ["client_operation_id"], equals: turn.id }
+        }))
+      },
+      orderBy: [{ created_at: "asc" }, { id: "asc" }],
+      select: { actor_type: true, structured_payload: true }
+    });
+    assert(
+      concurrentConversationTurns.length === 2 &&
+        concurrentConversationTurns[0]?.actor_type === "student" &&
+        concurrentConversationTurns[1]?.actor_type === "agent",
+      "The accepted concurrent turn should have exactly one ordered student/assistant pair."
+    );
+    const acceptedConcurrentPayload = jsonRecord(concurrentConversationTurns[0]?.structured_payload);
+    const acceptedConcurrentId = String(acceptedConcurrentPayload.client_operation_id ?? "");
+    const acceptedConcurrent = concurrentTurns.find((turn) => turn.id === acceptedConcurrentId);
+    assert(acceptedConcurrent, "The accepted concurrent operation should be identifiable.");
+    await assertCompleteDialogueContext({
+      context: repeatedContext,
+      activity_attempt_public_id: repeatedAttemptId,
+      client_operation_id: acceptedConcurrentId,
+      latest_student_message: acceptedConcurrent!.message,
+      expected_visible_messages: [...expectedVisibleMessages, acceptedConcurrent!.message],
+      invisible_message: invisibleMessage
+    });
+    const latestEvidence = await prisma.activityMisconceptionEvidenceRecord.findFirstOrThrow({
+      where: { activity_attempt_id: repeatedAttemptId },
+      orderBy: [{ created_at: "desc" }, { id: "desc" }],
+      select: { misconception_update_status: true }
+    });
+    assert(
+      latestEvidence.misconception_update_status === "conceptual_entry_gap_remains",
+      "A bare claim of understanding must not resolve the misconception without evaluator evidence."
+    );
+    const firstRefresh = await getStudentSafeTranscript({
+      student_user_db_id: repeatedContext.student_db_id,
+      session_public_id: repeatedContext.session_public_id
+    });
+    const secondRefresh = await getStudentSafeTranscript({
+      student_user_db_id: repeatedContext.student_db_id,
+      session_public_id: repeatedContext.session_public_id
+    });
+    assert(
+      JSON.stringify(firstRefresh) === JSON.stringify(secondRefresh),
+      "Refresh should reconstruct the same stable transcript order and identifiers."
+    );
+    assert(
+      !firstRefresh.transcript.some((turn) => turn.message_text === invisibleMessage),
+      "Refresh must not expose the invisible activity draft."
+    );
+    const repeatedSession = await prisma.assessmentSession.findUniqueOrThrow({
+      where: { session_public_id: repeatedContext.session_public_id },
+      select: { current_phase: true }
+    });
+    assert(
+      repeatedSession.current_phase === "planning_completed",
+      "Active formative dialogue should remain compatible with the orthogonal planning_completed phase."
+    );
 
     const moveContext = await createCompletedSession("move");
     contexts.push(moveContext);
@@ -584,8 +947,12 @@ async function main() {
       })
     });
     assert(
-      projection.ui_state === "could_not_review_response_safely",
-      "No-live fixture evaluator output must fail closed for production diagnosis."
+      projection.ui_state === "waiting_for_your_response",
+      "No-live fixture evaluator output must fail closed internally while keeping the student conversation resumable."
+    );
+    assert(
+      projection.latest_reply_visible_in_transcript,
+      "No-live fixture rejection should persist a neutral visible recovery reply."
     );
     assertProjectionSafe(projection, "no_live_fixture_rejected");
     await assertOperationalCountsUnchanged(noLiveCountsBeforeRuntime, "no-live fixture rejection");
@@ -610,8 +977,12 @@ async function main() {
       evaluator_override: failingEvaluator()
     });
     assert(
-      projection.ui_state === "could_not_review_response_safely",
-      "Evaluator failure must fail closed for the student UI."
+      projection.ui_state === "waiting_for_your_response",
+      "Evaluator failure must fail closed internally while keeping the student conversation resumable."
+    );
+    assert(
+      projection.latest_reply_visible_in_transcript,
+      "Evaluator failure should persist a neutral visible recovery reply."
     );
     assertProjectionSafe(projection, "evaluator_failure");
     await assertOperationalCountsUnchanged(
@@ -635,6 +1006,13 @@ async function main() {
       status: "passed",
       no_openai_call_made: true,
       sessions_exercised: contexts.length,
+      repeated_confusion_turns: confusionTurns.length,
+      complete_context_propagation_verified: true,
+      invisible_draft_isolation_verified: true,
+      idempotent_replay_verified: true,
+      distinct_concurrent_submission_serialized: true,
+      unsupported_resolution_claim_rejected: true,
+      refresh_timeline_verified: true,
       activity_runtime_projection_safe: true,
       deterministic_review_packet_rejected: true,
       no_live_fixture_evidence_rejected: true,

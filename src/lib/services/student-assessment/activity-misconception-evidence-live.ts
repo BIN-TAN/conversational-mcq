@@ -18,7 +18,8 @@ import {
   assessmentInterpretationContextAuditMetadata,
   buildAssessmentInterpretationContextFromResponsePackage,
   type AssessmentInterpretationContextAuditMetadata,
-  type AssessmentInterpretationContextV1
+  type AssessmentInterpretationContextV1,
+  type AuthoritativeFormativeTurnContext
 } from "@/lib/services/student-assessment/assessment-interpretation-context";
 import {
   ACTIVITY_MISCONCEPTION_EVIDENCE_SCHEMA_VERSION,
@@ -145,6 +146,7 @@ export type ActivityMisconceptionEvidenceLiveEvaluationInput = {
   response_kind_hint?: ActivityResponseKind;
   expected_evidence_focus: string;
   assessment_interpretation_context?: AssessmentInterpretationContextV1;
+  formative_turn_context?: AuthoritativeFormativeTurnContext;
 };
 
 export type ActivityMisconceptionEvidenceLiveAgentInput =
@@ -297,7 +299,10 @@ export function buildActivityMisconceptionEvidenceLiveAgentInput(
         assessment_context_audit: assessmentInterpretationContextAuditMetadata(
           input.assessment_interpretation_context
         ) satisfies AssessmentInterpretationContextAuditMetadata
-      }
+    }
+    : {};
+  const formativeTurnContextFields = input.formative_turn_context
+    ? { formative_turn_context: input.formative_turn_context }
     : {};
   const liveInput = {
     schema_version: ACTIVITY_RESPONSE_EVALUATOR_INPUT_SCHEMA_VERSION,
@@ -348,7 +353,8 @@ export function buildActivityMisconceptionEvidenceLiveAgentInput(
       no_secrets_or_headers: true,
       no_misconduct_or_genai_accusation: true
     },
-    ...contextFields
+    ...contextFields,
+    ...formativeTurnContextFields
   } as const;
 
   assertNoProhibitedProviderInput(liveInput);

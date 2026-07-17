@@ -372,6 +372,7 @@ export const StudentReviewResponseSchema = z.object({
 export type StudentReviewResponse = z.infer<typeof StudentReviewResponseSchema>;
 
 export const StudentTranscriptEntrySchema = z.object({
+  turn_id: z.string(),
   actor: z.enum(["student", "assistant"]),
   message_text: z.string(),
   created_at: z.string(),

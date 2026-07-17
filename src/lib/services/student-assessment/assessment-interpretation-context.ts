@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { prisma } from "@/lib/db";
+import { omitProhibitedProviderInputFields } from "@/lib/agents/redaction";
 import { teacherDiagnosticContextForProvider } from "@/lib/services/content/teacher-diagnostic-context";
 
 export const ASSESSMENT_INTERPRETATION_CONTEXT_SCHEMA_VERSION =
@@ -615,4 +617,470 @@ export function attachAssessmentInterpretationContext<T extends JsonRecord>(
     assessment_interpretation_context: context,
     assessment_context_audit: assessmentInterpretationContextAuditMetadata(context)
   };
+}
+
+export const FORMATIVE_TURN_CONTEXT_VERSION = "formative-turn-context-v1" as const;
+
+export type FormativeTurnAgentRole =
+  | "response_interpretation"
+  | "student_profile_update"
+  | "formative_plan_update"
+  | "student_facing_dialogue";
+
+export type AuthoritativeFormativeTurnContext = Awaited<
+  ReturnType<typeof buildAuthoritativeFormativeTurnContext>
+>;
+
+function publicReference(prefix: string, value: string) {
+  return `${prefix}_${createHash("sha256").update(value).digest("hex").slice(0, 20)}`;
+}
+
+function visibleTurn(payloadValue: unknown) {
+  const payload = record(payloadValue);
+  return !(
+    payload.student_visible === false ||
+    payload.shown_to_student === false ||
+    ["draft", "internal", "not_shown"].includes(String(payload.visibility_status ?? ""))
+  );
+}
+
+function safeInternalIssue(value: string | null) {
+  if (!value) return null;
+  return value
+    .replace(/[\r\n]+/g, " ")
+    .replace(/(api[_ -]?key|authorization|cookie|password|secret)\s*[:=]\s*\S+/gi, "$1=[redacted]")
+    .slice(0, 500);
+}
+
+function safeRoutingEventPayload(value: unknown) {
+  const payload = record(value);
+  const allowedKeys = [
+    "post_activity_status",
+    "recommended_route",
+    "next_runtime_state",
+    "response_function",
+    "next_action",
+    "topic_boundary",
+    "fallback_used",
+    "reason",
+    "blocked_reason"
+  ];
+  const result: Record<string, string | number | boolean> = {};
+  for (const key of allowedKeys) {
+    const entry = payload[key];
+    if (typeof entry === "boolean" || typeof entry === "number") result[key] = entry;
+    if (typeof entry === "string") result[key] = safeInternalIssue(entry) ?? "";
+  }
+  return result;
+}
+
+/**
+ * Rebuilds the short assessment's complete formative-turn context from durable
+ * records after the latest student message has been persisted. Visible turns
+ * and internal evaluation/routing records are deliberately separate.
+ */
+export async function buildAuthoritativeFormativeTurnContext(input: {
+  session_public_id: string;
+  concept_unit_session_db_id: string;
+  activity_attempt_public_id: string;
+  latest_student_message: string;
+  client_operation_id: string;
+  agent_role: FormativeTurnAgentRole;
+  staged_profile_output?: unknown;
+  staged_planning_output?: unknown;
+  client?: typeof prisma;
+}) {
+  const client = input.client ?? prisma;
+  const [
+    session,
+    conceptUnitSession,
+    initialPackage,
+    profiles,
+    decisions,
+    attempts,
+    turns,
+    agentCalls,
+    processEvents
+  ] =
+    await Promise.all([
+      client.assessmentSession.findUniqueOrThrow({
+        where: { session_public_id: input.session_public_id },
+        select: {
+          session_public_id: true,
+          current_phase: true,
+          status: true,
+          assessment: {
+            select: {
+              assessment_public_id: true,
+              title: true,
+              description: true,
+              diagnostic_focus: true
+            }
+          }
+        }
+      }),
+      client.conceptUnitSession.findUniqueOrThrow({
+        where: { id: input.concept_unit_session_db_id },
+        select: {
+          status: true,
+          followup_status: true,
+          latest_student_profile_db_id: true,
+          latest_formative_decision_db_id: true,
+          concept_unit: {
+            select: {
+              concept_unit_public_id: true,
+              title: true,
+              learning_objective: true,
+              related_concept_description: true
+            }
+          },
+          followup_rounds: {
+            orderBy: [{ round_index: "asc" }],
+            select: {
+              round_index: true,
+              status: true,
+              evidence_trigger_type: true,
+              started_at: true,
+              completed_at: true
+            }
+          }
+        }
+      }),
+      client.responsePackage.findFirst({
+        where: {
+          concept_unit_session_db_id: input.concept_unit_session_db_id,
+          package_type: "initial_concept_unit_response_package"
+        },
+        orderBy: [{ created_at: "desc" }],
+        select: { payload: true, created_at: true }
+      }),
+      client.studentProfile.findMany({
+        where: { concept_unit_session_db_id: input.concept_unit_session_db_id },
+        orderBy: [{ created_at: "asc" }, { id: "asc" }]
+      }),
+      client.formativeDecision.findMany({
+        where: { concept_unit_session_db_id: input.concept_unit_session_db_id },
+        orderBy: [{ created_at: "asc" }, { id: "asc" }]
+      }),
+      client.activityRuntimeAttempt.findMany({
+        where: { session_public_id: input.session_public_id },
+        orderBy: [{ created_at: "asc" }, { id: "asc" }]
+      }),
+      client.conversationTurn.findMany({
+        where: { assessment_session: { session_public_id: input.session_public_id } },
+        orderBy: [{ created_at: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          actor_type: true,
+          agent_name: true,
+          phase: true,
+          message_text: true,
+          structured_payload: true,
+          created_at: true
+        }
+      }),
+      client.agentCall.findMany({
+        where: { concept_unit_session_db_id: input.concept_unit_session_db_id },
+        orderBy: [{ created_at: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          agent_name: true,
+          call_status: true,
+          output_validated: true,
+          error_category: true,
+          blocked_reason: true,
+          validation_error: true,
+          retry_count: true,
+          created_at: true,
+          completed_at: true
+        }
+      }),
+      client.processEvent.findMany({
+        where: {
+          assessment_session: { session_public_id: input.session_public_id },
+          event_category: {
+            in: ["formative_activity_runtime", "topic_dialogue", "workflow"]
+          }
+        },
+        orderBy: [{ occurred_at: "asc" }, { id: "asc" }],
+        select: {
+          event_type: true,
+          event_category: true,
+          event_source: true,
+          payload: true,
+          occurred_at: true
+        }
+      })
+    ]);
+
+  if (!initialPackage) {
+    throw new Error("formative_turn_initial_response_package_missing");
+  }
+
+  const assessmentInterpretationContext = buildAssessmentInterpretationContextFromResponsePackage({
+    response_package_payload: initialPackage.payload,
+    phase: "post_activity_evaluation",
+    prior_activity_evidence_summary:
+      "The complete formative activity and dialogue history is supplied in formative_turn_context."
+  });
+  const visibleTurns = turns.filter((turn) => visibleTurn(turn.structured_payload));
+  const latestAttempt = attempts.find(
+    (attempt) => attempt.activity_attempt_public_id === input.activity_attempt_public_id
+  );
+  if (!latestAttempt) {
+    throw new Error("formative_turn_activity_attempt_missing");
+  }
+  const activityAttemptPublicIds = attempts.map((attempt) => attempt.activity_attempt_public_id);
+  const evidenceRecords = activityAttemptPublicIds.length > 0
+    ? await client.activityMisconceptionEvidenceRecord.findMany({
+        where: { activity_attempt_id: { in: activityAttemptPublicIds } },
+        orderBy: [{ created_at: "asc" }, { id: "asc" }],
+        select: {
+          activity_attempt_id: true,
+          schema_version: true,
+          misconception_update_status: true,
+          evidence_quality: true,
+          recommended_next_diagnostic_purpose: true,
+          limitations: true,
+          created_at: true
+        }
+      })
+    : [];
+
+  const roleTasks: Record<FormativeTurnAgentRole, Record<string, unknown>> = {
+    response_interpretation: {
+      stage: "observe_and_interpret_latest_student_response",
+      output_visibility: "internal",
+      must_produce: "A conservative evidence update grounded in the latest response and full history.",
+      must_not_produce: "A student-facing reply or platform transition."
+    },
+    student_profile_update: {
+      stage: "re_profile",
+      output_visibility: "internal",
+      must_produce: "One updated learning and engagement profile version.",
+      must_not_produce: "A student-facing reply or unsupported resolution claim."
+    },
+    formative_plan_update: {
+      stage: "re_plan",
+      output_visibility: "internal",
+      must_produce: "One updated plan tied to the distractor anchor and remaining evidence need.",
+      must_not_produce: "A student-facing reply or authoritative platform transition."
+    },
+    student_facing_dialogue: {
+      stage: "implement_next_dialogue_turn",
+      output_visibility: "student_facing",
+      must_produce: "Exactly one direct, natural reply to the latest student message.",
+      must_not_produce:
+        "Protected answers, teacher-only guidance, internal labels, or an unvalidated state transition."
+    }
+  };
+
+  return omitProhibitedProviderInputFields({
+    context_version: FORMATIVE_TURN_CONTEXT_VERSION,
+    built_after_student_message_persisted: true as const,
+    assessment_purpose_and_workflow: {
+      purpose: "Formative diagnostic assessment, not unrestricted tutoring.",
+      complete_workflow: [
+        "three_initial_mcqs",
+        "learning_and_engagement_profiling",
+        "distractor_focused_formative_activity",
+        "iterative_formative_dialogue",
+        "revision_or_transfer",
+        "subsequent_evidence_based_profiling_judgment"
+      ]
+    },
+    current_agent_role_and_turn_task: {
+      role: input.agent_role,
+      ...roleTasks[input.agent_role]
+    },
+    complete_initial_response_package: {
+      created_at: initialPackage.created_at.toISOString(),
+      assessment_interpretation_context: assessmentInterpretationContext
+    },
+    complete_profile_history: {
+      current_profile_reference: conceptUnitSession.latest_student_profile_db_id
+        ? publicReference("profile", conceptUnitSession.latest_student_profile_db_id)
+        : null,
+      versions: profiles.map((profile, index) => ({
+        profile_reference: publicReference("profile", profile.id),
+        version_index: index + 1,
+        is_current: profile.id === conceptUnitSession.latest_student_profile_db_id,
+        profile_type: profile.profile_type,
+        ability_profile: profile.ability_profile,
+        ability_pattern_flags: profile.ability_pattern_flags,
+        engagement_profile: profile.engagement_profile,
+        engagement_pattern_flags: profile.engagement_pattern_flags,
+        integrated_diagnostic_profile: profile.integrated_diagnostic_profile,
+        integrated_profile_confidence: profile.integrated_profile_confidence,
+        integrated_profile_rationale: profile.integrated_profile_rationale,
+        evidence_sufficiency: profile.evidence_sufficiency,
+        confidence_alignment: profile.confidence_alignment,
+        independence_interpretability: profile.independence_interpretability,
+        misconception_indicators: profile.misconception_indicators,
+        item_level_evidence: profile.item_level_evidence,
+        reasoning_quality_summary: profile.reasoning_quality_summary,
+        engagement_summary: profile.engagement_summary,
+        rationale: profile.rationale,
+        recommended_next_evidence: profile.recommended_next_evidence,
+        created_at: profile.created_at.toISOString()
+      })),
+      staged_candidate_for_this_turn: input.staged_profile_output ?? null
+    },
+    complete_formative_plan_history: {
+      current_plan_reference: conceptUnitSession.latest_formative_decision_db_id
+        ? publicReference("plan", conceptUnitSession.latest_formative_decision_db_id)
+        : null,
+      versions: decisions.map((decision, index) => ({
+        plan_reference: publicReference("plan", decision.id),
+        version_index: index + 1,
+        is_current: decision.id === conceptUnitSession.latest_formative_decision_db_id,
+        formative_value: decision.formative_value,
+        formative_action_plan: decision.formative_action_plan,
+        target_evidence: decision.target_evidence,
+        success_criteria: decision.success_criteria,
+        followup_prompt_constraints: decision.followup_prompt_constraints,
+        profile_update_triggers: decision.profile_update_triggers,
+        rationale: decision.rationale,
+        mapping_followed: decision.mapping_followed,
+        mapping_deviation_reason: decision.mapping_deviation_reason,
+        created_at: decision.created_at.toISOString()
+      })),
+      staged_candidate_for_this_turn: input.staged_planning_output ?? null
+    },
+    complete_activity_runtime_history: {
+      current_activity_attempt_public_id: input.activity_attempt_public_id,
+      attempts: attempts.map((attempt, index) => {
+        const source = record(attempt.source_activity_packet_ref);
+        const shownTurn = visibleTurns.find((turn) => {
+          const payload = record(turn.structured_payload);
+          return payload.activity_attempt_public_id === attempt.activity_attempt_public_id &&
+            turn.actor_type === "agent";
+        });
+        return {
+          activity_attempt_public_id: attempt.activity_attempt_public_id,
+          version_index: index + 1,
+          is_current: attempt.id === latestAttempt.id,
+          activity_family: attempt.activity_family,
+          diagnostic_purpose: attempt.diagnostic_purpose,
+          generation_source: attempt.generation_source,
+          status: attempt.status,
+          was_actually_shown: Boolean(shownTurn),
+          shown_at: shownTurn?.created_at.toISOString() ?? null,
+          safe_activity_prompt: shownTurn?.message_text ?? null,
+          distractor_anchor: {
+            target_item_index: numberValue(source.target_item_index),
+            target_item_id: stringValue(source.target_item_id),
+            target_option_label: stringValue(source.target_option_label),
+            distractor_role: stringValue(source.distractor_role),
+            distractor_student_safe_description:
+              stringValue(source.distractor_student_safe_description),
+            target_construct_or_boundary: stringValue(source.target_construct_or_boundary)
+          },
+          replacement_of_activity_attempt_public_id:
+            stringValue(source.replaced_activity_attempt_public_id),
+          student_responses: visibleTurns.flatMap((turn) => {
+            const payload = record(turn.structured_payload);
+            if (
+              turn.actor_type !== "student" ||
+              payload.activity_attempt_public_id !== attempt.activity_attempt_public_id
+            ) {
+              return [];
+            }
+            return [{
+              turn_public_id: publicReference("turn", turn.id),
+              message_text: turn.message_text ?? "",
+              created_at: turn.created_at.toISOString()
+            }];
+          }),
+          evaluator_results: evidenceRecords
+            .filter((evidence) => evidence.activity_attempt_id === attempt.activity_attempt_public_id)
+            .map((evidence) => ({
+              schema_version: evidence.schema_version,
+              misconception_update_status: evidence.misconception_update_status,
+              evidence_quality: evidence.evidence_quality,
+              recommended_next_diagnostic_purpose:
+                evidence.recommended_next_diagnostic_purpose,
+              limitations: evidence.limitations,
+              created_at: evidence.created_at.toISOString()
+            })),
+          created_at: attempt.created_at.toISOString(),
+          completed_at: attempt.completed_at?.toISOString() ?? null
+        };
+      })
+    },
+    complete_visible_transcript: visibleTurns.map((turn, index) => {
+      const payload = record(turn.structured_payload);
+      const agentCallId =
+        stringValue(payload.agent_call_id) ?? stringValue(payload.source_agent_call_id);
+      return {
+        turn_public_id: publicReference("turn", turn.id),
+        sequence_index: index + 1,
+        created_at: turn.created_at.toISOString(),
+        role: turn.actor_type === "student" ? "student" : "agent",
+        visibility_status: "shown",
+        source_agent: turn.agent_name,
+        source_agent_call_reference: agentCallId
+          ? publicReference("agent_call", agentCallId)
+          : null,
+        message_text: turn.message_text ?? ""
+      };
+    }),
+    internal_evaluation_and_routing_history: {
+      never_assume_shown_to_student: true as const,
+      agent_calls: agentCalls.map((call) => ({
+        agent_call_reference: publicReference("agent_call", call.id),
+        agent_name: call.agent_name,
+        call_status: call.call_status,
+        output_validated: call.output_validated,
+        error_category: call.error_category,
+        blocked_reason: call.blocked_reason,
+        validation_issue: safeInternalIssue(call.validation_error),
+        retry_count: call.retry_count,
+        created_at: call.created_at.toISOString(),
+        completed_at: call.completed_at?.toISOString() ?? null
+      })),
+      routing_events: processEvents.map((event) => ({
+        event_type: event.event_type,
+        event_category: event.event_category,
+        event_source: event.event_source,
+        safe_routing_fields: safeRoutingEventPayload(event.payload),
+        occurred_at: event.occurred_at.toISOString()
+      }))
+    },
+    current_platform_and_runtime_state: {
+      global_assessment_phase: session.current_phase,
+      assessment_status: session.status,
+      concept_unit_session_status: conceptUnitSession.status,
+      followup_status: conceptUnitSession.followup_status,
+      current_activity_attempt_public_id: latestAttempt.activity_attempt_public_id,
+      current_activity_runtime_status: latestAttempt.status,
+      current_rounds: conceptUnitSession.followup_rounds.map((round) => ({
+        round_index: round.round_index,
+        status: round.status,
+        evidence_trigger_type: round.evidence_trigger_type,
+        started_at: round.started_at?.toISOString() ?? null,
+        completed_at: round.completed_at?.toISOString() ?? null
+      })),
+      allowed_transitions: [
+        "continue_formative_dialogue",
+        "platform_validated_revision",
+        "platform_validated_transfer",
+        "student_selected_completion",
+        "save_and_exit"
+      ],
+      prohibited_transitions: [
+        "agent_advances_assessment",
+        "agent_completes_assessment",
+        "agent_selects_next_concept"
+      ],
+      revision_available: true,
+      transfer_requires_platform_validation: true,
+      completion_requires_platform_or_student_action: true
+    },
+    latest_student_message: {
+      client_operation_id: input.client_operation_id,
+      message_text: input.latest_student_message,
+      instruction: "Respond directly to this message."
+    }
+  });
 }

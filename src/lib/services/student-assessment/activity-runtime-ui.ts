@@ -1,6 +1,15 @@
 import { createHash } from "node:crypto";
 import { Prisma, type ActivityRuntimeAttempt } from "@prisma/client";
 import { z } from "zod";
+import {
+  FormativePlanningOutput,
+  StudentProfileOutput,
+  type AgentOutputByName
+} from "@/lib/agents/contracts";
+import { executeStudentProfilingCandidate } from "@/lib/agents/student-profiling/service";
+import { executeFormativePlanningCandidate } from "@/lib/agents/formative-planning/service";
+import { studentProfileCreateData } from "@/lib/agents/student-profiling/persistence";
+import { formativeDecisionCreateData } from "@/lib/agents/formative-planning/persistence";
 import { prisma } from "@/lib/db";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { toPrismaJson } from "@/lib/services/json";
@@ -74,6 +83,10 @@ import {
   type ActivityMisconceptionEvidencePacketV1
 } from "@/lib/services/student-assessment/activity-misconception-evidence";
 import { StudentAssessmentServiceError } from "./errors";
+import {
+  buildAuthoritativeFormativeTurnContext,
+  type AuthoritativeFormativeTurnContext
+} from "./assessment-interpretation-context";
 
 type PrismaClientLike = typeof prisma;
 
@@ -167,12 +180,293 @@ export type StudentActivityRuntimeEvaluatorOverride = (
   input: ActivityMisconceptionEvidenceLiveEvaluationInput
 ) => Promise<ActivityMisconceptionEvidenceLiveExecutionResult>;
 
+type StudentProfileAgentOutput = AgentOutputByName["student_profiling_agent"];
+type FormativePlanningAgentOutput = AgentOutputByName["formative_value_and_planning_agent"];
+
+export type StudentActivityTurnOrchestrationOverride = (input: {
+  context: AuthoritativeFormativeTurnContext;
+  stage: "profile" | "planning";
+  staged_profile_output?: StudentProfileAgentOutput;
+}) => Promise<
+  | { stage: "profile"; output: StudentProfileAgentOutput; agent_call_id: string | null }
+  | { stage: "planning"; output: FormativePlanningAgentOutput; agent_call_id: string | null }
+>;
+
 function prismaJson(value: unknown) {
   return toPrismaJson(value) ?? Prisma.JsonNull;
 }
 
 function hashStudentRuntimeValue(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function jsonArray(value: Prisma.JsonValue): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function stringJsonArray(value: Prisma.JsonValue): string[] {
+  return jsonArray(value).filter((entry): entry is string => typeof entry === "string");
+}
+
+function carryForwardProfileOutput(
+  profile: Awaited<ReturnType<typeof currentProfileAndPlan>>["profile"]
+): StudentProfileAgentOutput {
+  const priorOutput = StudentProfileOutput.safeParse(
+    profile.based_on_agent_call?.output_payload
+  );
+  if (priorOutput.success) {
+    return {
+      ...priorOutput.data,
+      profile_type: "updated",
+      output_status: "needs_review",
+      warnings: [
+        ...priorOutput.data.warnings,
+        "provider_update_unavailable_previous_profile_preserved"
+      ]
+    };
+  }
+  return StudentProfileOutput.parse({
+    agent_name: "student_profiling_agent",
+    agent_version: "formative-turn-safe-carry-forward-v1",
+    prompt_version: "student-profiling-v3",
+    schema_version: "student-profile-output-v2",
+    output_status: "needs_review",
+    warnings: ["provider_update_unavailable_previous_profile_preserved"],
+    profile_type: "updated",
+    ability_profile: profile.ability_profile,
+    ability_pattern_flags: jsonArray(profile.ability_pattern_flags),
+    engagement_profile: profile.engagement_profile,
+    engagement_pattern_flags: jsonArray(profile.engagement_pattern_flags),
+    integrated_diagnostic_profile: profile.integrated_diagnostic_profile,
+    integrated_profile_confidence: profile.integrated_profile_confidence,
+    integrated_profile_rationale: profile.integrated_profile_rationale,
+    evidence_sufficiency: profile.evidence_sufficiency,
+    confidence_alignment: profile.confidence_alignment,
+    independence_interpretability: profile.independence_interpretability,
+    misconception_indicators: [],
+    item_level_evidence: [],
+    reasoning_quality_summary: profile.reasoning_quality_summary,
+    engagement_summary: profile.engagement_summary,
+    process_interpretation_cautions: [
+      ...stringJsonArray(profile.process_interpretation_cautions),
+      "The latest turn could not be re-profiled; the previous evidence-based profile was preserved."
+    ],
+    profile_confidence: profile.profile_confidence,
+    rationale: `${profile.rationale} The latest turn remains available for a later validated update.`,
+    recommended_next_evidence: []
+  });
+}
+
+function carryForwardPlanningOutput(
+  decision: Awaited<ReturnType<typeof currentProfileAndPlan>>["decision"]
+): FormativePlanningAgentOutput {
+  const priorOutput = FormativePlanningOutput.safeParse(
+    decision.based_on_agent_call?.output_payload
+  );
+  if (priorOutput.success) {
+    return {
+      ...priorOutput.data,
+      output_status: "needs_review",
+      warnings: [
+        ...priorOutput.data.warnings,
+        "provider_update_unavailable_previous_plan_preserved"
+      ]
+    };
+  }
+  return FormativePlanningOutput.parse({
+    agent_name: "formative_value_and_planning_agent",
+    agent_version: "formative-turn-safe-carry-forward-v1",
+    prompt_version: "formative-planning-v2",
+    schema_version: "formative-planning-output-v1",
+    output_status: "needs_review",
+    warnings: ["provider_update_unavailable_previous_plan_preserved"],
+    formative_value: decision.formative_value,
+    formative_action_plan: decision.formative_action_plan,
+    target_evidence: stringJsonArray(decision.target_evidence),
+    success_criteria: stringJsonArray(decision.success_criteria),
+    followup_prompt_constraints: stringJsonArray(decision.followup_prompt_constraints),
+    profile_update_triggers: stringJsonArray(decision.profile_update_triggers),
+    rationale: `${decision.rationale} The prior plan remains active until a later validated update.`,
+    mapping_followed: decision.mapping_followed,
+    mapping_deviation_reason: decision.mapping_deviation_reason
+  });
+}
+
+async function currentProfileAndPlan(conceptUnitSessionDbId: string, client: PrismaClientLike) {
+  const concept = await client.conceptUnitSession.findUniqueOrThrow({
+    where: { id: conceptUnitSessionDbId },
+    include: {
+      latest_student_profile: {
+        include: {
+          based_on_agent_call: { select: { output_payload: true } }
+        }
+      },
+      latest_formative_decision: {
+        include: {
+          based_on_agent_call: { select: { output_payload: true } }
+        }
+      }
+    }
+  });
+  if (!concept.latest_student_profile || !concept.latest_formative_decision) {
+    throw new Error("formative_turn_current_profile_or_plan_missing");
+  }
+  return {
+    profile: concept.latest_student_profile,
+    decision: concept.latest_formative_decision
+  };
+}
+
+async function contextResponsePackage(input: {
+  concept_unit_session_db_id: string;
+  client_operation_id: string;
+  stage: "profile" | "planning";
+  context: AuthoritativeFormativeTurnContext;
+  evidence_record_public_id: string | null;
+  client: PrismaClientLike;
+}) {
+  const existing = await input.client.responsePackage.findFirst({
+    where: {
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      package_type: "followup_evidence_update_package",
+      AND: [
+        { payload: { path: ["formative_turn", "client_operation_id"], equals: input.client_operation_id } },
+        { payload: { path: ["formative_turn", "stage"], equals: input.stage } }
+      ]
+    },
+    orderBy: [{ created_at: "desc" }]
+  });
+  if (existing) return existing;
+
+  return input.client.responsePackage.create({
+    data: {
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      package_type: "followup_evidence_update_package",
+      payload: prismaJson({
+        package_type: "followup_evidence_update_package",
+        package_version: "formative-turn-orchestration-v1",
+        formative_turn: {
+          client_operation_id: input.client_operation_id,
+          stage: input.stage,
+          evidence_record_public_id: input.evidence_record_public_id
+        },
+        authoritative_formative_turn_context: input.context
+      })
+    }
+  });
+}
+
+async function runFormativeTurnProfileAndPlan(input: {
+  session_public_id: string;
+  concept_unit_session_db_id: string;
+  activity_attempt_public_id: string;
+  latest_student_message: string;
+  client_operation_id: string;
+  evidence_record_public_id: string | null;
+  orchestration_override?: StudentActivityTurnOrchestrationOverride;
+  client: PrismaClientLike;
+}) {
+  const current = await currentProfileAndPlan(input.concept_unit_session_db_id, input.client);
+  const profileContext = await buildAuthoritativeFormativeTurnContext({
+    ...input,
+    agent_role: "student_profile_update",
+    client: input.client
+  });
+  const profilePackage = await contextResponsePackage({
+    ...input,
+    stage: "profile",
+    context: profileContext
+  });
+  const profileCyclePublicId = `formative_turn_${hashStudentRuntimeValue({
+    client_operation_id: input.client_operation_id,
+    stage: "profile"
+  }).slice(0, 24)}`;
+  const profileOverride = input.orchestration_override
+    ? await input.orchestration_override({ context: profileContext, stage: "profile" })
+    : null;
+  let profileResult: Awaited<ReturnType<typeof executeStudentProfilingCandidate>> | null = null;
+  if (!profileOverride) {
+    try {
+      profileResult = await executeStudentProfilingCandidate({
+        concept_unit_session_db_id: input.concept_unit_session_db_id,
+        followup_evidence_package_db_id: profilePackage.id,
+        previous_student_profile_db_id: current.profile.id,
+        cycle_public_id: profileCyclePublicId,
+        invocation_reason: "formative_activity_turn_profile_update"
+      });
+    } catch {
+      profileResult = null;
+    }
+  }
+  const profileOutput = profileOverride?.stage === "profile"
+    ? profileOverride.output
+    : profileResult?.status === "succeeded" && profileResult.output
+      ? profileResult.output
+      : carryForwardProfileOutput(current.profile);
+  const profileAgentCallId = profileOverride?.stage === "profile"
+    ? profileOverride.agent_call_id
+    : profileResult?.agent_call_id ?? null;
+
+  const planningContext = await buildAuthoritativeFormativeTurnContext({
+    ...input,
+    agent_role: "formative_plan_update",
+    staged_profile_output: profileOutput,
+    client: input.client
+  });
+  const planningPackage = await contextResponsePackage({
+    ...input,
+    stage: "planning",
+    context: planningContext
+  });
+  const planningCyclePublicId = `formative_turn_${hashStudentRuntimeValue({
+    client_operation_id: input.client_operation_id,
+    stage: "planning"
+  }).slice(0, 24)}`;
+  const planningOverride = input.orchestration_override
+    ? await input.orchestration_override({
+        context: planningContext,
+        stage: "planning",
+        staged_profile_output: profileOutput
+      })
+    : null;
+  let planningResult: Awaited<ReturnType<typeof executeFormativePlanningCandidate>> | null = null;
+  if (!planningOverride) {
+    try {
+      planningResult = await executeFormativePlanningCandidate({
+        concept_unit_session_db_id: input.concept_unit_session_db_id,
+        followup_evidence_package_db_id: planningPackage.id,
+        staged_student_profile_output: profileOutput,
+        previous_student_profile_db_id: current.profile.id,
+        cycle_public_id: planningCyclePublicId,
+        invocation_reason: "formative_activity_turn_plan_update"
+      });
+    } catch {
+      planningResult = null;
+    }
+  }
+  const planningOutput = planningOverride?.stage === "planning"
+    ? planningOverride.output
+    : planningResult?.status === "succeeded" && planningResult.output
+      ? planningResult.output
+      : carryForwardPlanningOutput(current.decision);
+  const planningAgentCallId = planningOverride?.stage === "planning"
+    ? planningOverride.agent_call_id
+    : planningResult?.agent_call_id ?? null;
+
+  const dialogueContext = await buildAuthoritativeFormativeTurnContext({
+    ...input,
+    agent_role: "student_facing_dialogue",
+    staged_profile_output: profileOutput,
+    staged_planning_output: planningOutput,
+    client: input.client
+  });
+  return {
+    profile_output: profileOutput,
+    profile_agent_call_id: profileAgentCallId,
+    planning_output: planningOutput,
+    planning_agent_call_id: planningAgentCallId,
+    dialogue_context: dialogueContext
+  };
 }
 
 function itemRoleFromRules(value: unknown) {
@@ -348,6 +642,8 @@ function feedbackOptionsForDestinations(input: {
 async function createAlternativeActivityAttempt(input: {
   source: z.infer<typeof SourceActivityPacketRefSchema>;
   attempt: ActivityRuntimeAttempt;
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string;
   client: PrismaClientLike;
 }) {
   const family = nextAlternativeFamily(input.source.activity_family);
@@ -365,7 +661,18 @@ async function createAlternativeActivityAttempt(input: {
     targetOptionLabel
   });
 
-  return createActivityRuntimeAttemptFromEvidenceIntegratedRouter({
+  const earlierActivityWasShown = Boolean(await input.client.conversationTurn.findFirst({
+    where: {
+      assessment_session_db_id: input.assessment_session_db_id,
+      actor_type: "agent",
+      structured_payload: {
+        path: ["activity_attempt_public_id"],
+        equals: input.attempt.activity_attempt_public_id
+      }
+    },
+    select: { id: true }
+  }));
+  const nextAttempt = await createActivityRuntimeAttemptFromEvidenceIntegratedRouter({
     session_public_id: input.attempt.session_public_id,
     student_public_id: input.attempt.student_public_id,
     assessment_public_id: input.attempt.assessment_public_id,
@@ -385,7 +692,9 @@ async function createAlternativeActivityAttempt(input: {
             ? "conceptual_entry_grounding"
             : "independent_misconception_verification",
     selected_formative_value: input.source.selected_formative_value,
-    safe_activity_prompt: `Here is a different way to work on the same idea.\n\n${alternative.prompt}`,
+    safe_activity_prompt: earlierActivityWasShown
+      ? `Here is a different way to work on the same idea.\n\n${alternative.prompt}`
+      : alternative.prompt,
     expected_student_action_prompt: alternative.expected,
     distractor_role: input.source.distractor_role,
     distractor_student_safe_description: input.source.distractor_student_safe_description,
@@ -416,6 +725,13 @@ async function createAlternativeActivityAttempt(input: {
     activity_switch_reason: "student_requested_different_activity",
     limitations: []
   }, input.client);
+  await ensureActivityPromptVisible({
+    attempt: nextAttempt,
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    client: input.client
+  });
+  return nextAttempt;
 }
 
 async function assertActiveStudentAccount(studentUserDbId: string, client: PrismaClientLike) {
@@ -700,6 +1016,8 @@ function projectionForNoAttempt(): StudentActivityRuntimeProjection {
     can_continue: false,
     message_max_chars: ACTIVITY_RUNTIME_MAX_RESPONSE_CHARS,
     feedback: null,
+    first_turn_visible_in_transcript: false,
+    latest_reply_visible_in_transcript: false,
     topic_dialogue: null,
     next_recommendation_label: null,
     alternative_activity_labels: alternativeActivityLabels
@@ -729,6 +1047,8 @@ function projectionForStartFailure(): StudentActivityRuntimeProjection {
       message: "I could not safely prepare this activity right now. You can try again, choose another activity, or end the assessment.",
       next_options: ["continue", "choose another activity", "finish assessment"]
     },
+    first_turn_visible_in_transcript: false,
+    latest_reply_visible_in_transcript: false,
     topic_dialogue: null,
     next_recommendation_label: null,
     alternative_activity_labels: alternativeActivityLabels
@@ -740,6 +1060,51 @@ function projectionForStartFailure(): StudentActivityRuntimeProjection {
 function sourceFromAttempt(attempt: ActivityRuntimeAttempt) {
   const parsed = SourceActivityPacketRefSchema.safeParse(attempt.source_activity_packet_ref);
   return parsed.success ? parsed.data : null;
+}
+
+async function ensureActivityPromptVisible(input: {
+  attempt: ActivityRuntimeAttempt;
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string;
+  client: PrismaClientLike;
+}) {
+  const source = sourceFromAttempt(input.attempt);
+  if (!source) return false;
+  const existing = await input.client.conversationTurn.findFirst({
+    where: {
+      assessment_session_db_id: input.assessment_session_db_id,
+      actor_type: "agent",
+      structured_payload: {
+        path: ["activity_attempt_public_id"],
+        equals: input.attempt.activity_attempt_public_id
+      }
+    },
+    select: { id: true }
+  });
+  if (existing) return true;
+  const message = [source.safe_activity_prompt, source.expected_student_action_prompt]
+    .filter(Boolean)
+    .join("\n\n");
+  await input.client.conversationTurn.create({
+    data: {
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      phase: "planning_completed",
+      actor_type: "agent",
+      agent_name: FORMATIVE_ACTIVITY_AGENT_NAME,
+      message_text: message,
+      structured_payload: prismaJson({
+        message_type: "formative_activity_prompt",
+        activity_attempt_public_id: input.attempt.activity_attempt_public_id,
+        source_agent_call_id: input.attempt.first_turn_agent_call_db_id,
+        visibility_status: "shown",
+        activity_family: input.attempt.activity_family,
+        replaced_activity_attempt_public_id:
+          source.replaced_activity_attempt_public_id ?? null
+      })
+    }
+  });
+  return true;
 }
 
 function uiStateForAttempt(attempt: ActivityRuntimeAttempt):
@@ -824,6 +1189,33 @@ async function projectionForAttempt(
         : attempt.status === "failed_closed"
           ? "failed_closed"
           : null);
+  const [firstTurnVisible, latestReplyVisible] = await Promise.all([
+    client.conversationTurn.findFirst({
+      where: {
+        assessment_session: { session_public_id: attempt.session_public_id },
+        actor_type: "agent",
+        structured_payload: {
+          path: ["activity_attempt_public_id"],
+          equals: attempt.activity_attempt_public_id
+        },
+        agent_name: FORMATIVE_ACTIVITY_AGENT_NAME
+      },
+      select: { id: true }
+    }),
+    client.conversationTurn.findFirst({
+      where: {
+        assessment_session: { session_public_id: attempt.session_public_id },
+        actor_type: "agent",
+        agent_name: TOPIC_DIALOGUE_AGENT_NAME,
+        structured_payload: {
+          path: ["activity_attempt_public_id"],
+          equals: attempt.activity_attempt_public_id
+        }
+      },
+      orderBy: [{ created_at: "desc" }, { id: "desc" }],
+      select: { id: true }
+    })
+  ]);
 
   const projection: StudentActivityRuntimeProjection = {
     available: Boolean(source) && attempt.status !== "failed_closed",
@@ -902,6 +1294,8 @@ async function projectionForAttempt(
                 next_options: ["continue", "choose another activity", "skip this activity and continue"]
               }
             : null),
+    first_turn_visible_in_transcript: Boolean(firstTurnVisible),
+    latest_reply_visible_in_transcript: Boolean(latestReplyVisible),
     topic_dialogue: topicDialogue,
     next_recommendation_label: studentActivityRecommendationLabel(recommendation),
     alternative_activity_labels: alternativeActivityLabels
@@ -948,12 +1342,21 @@ export async function getStudentActivityRuntimeState(input: {
   client?: PrismaClientLike;
 }) {
   const client = input.client ?? prisma;
-  await ownedSessionContext({
+  const context = await ownedSessionContext({
     student_user_db_id: input.student_user_db_id,
     session_public_id: input.session_public_id,
     client
   });
   const attempt = await latestAttemptForSession(input.session_public_id, client);
+
+  if (attempt) {
+    await ensureActivityPromptVisible({
+      attempt,
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      client
+    });
+  }
 
   return attempt ? projectionForAttempt(attempt, client) : projectionForNoAttempt();
 }
@@ -981,6 +1384,12 @@ export async function startStudentActivityForSession(input: {
 
   const existingAttempt = await latestAttemptForSession(input.session_public_id, client);
   if (existingAttempt) {
+    await ensureActivityPromptVisible({
+      attempt: existingAttempt,
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      client
+    });
     return projectionForAttempt(existingAttempt, client);
   }
 
@@ -1045,6 +1454,12 @@ export async function startStudentActivityForSession(input: {
       repair_agent_call_db_id: repairAgentCallId,
       limitations: []
     }, client);
+    await ensureActivityPromptVisible({
+      attempt,
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      client
+    });
 
     await logProcessEvent({
       assessment_session_db_id: context.session.id,
@@ -1081,10 +1496,11 @@ export async function submitStudentActivityRuntimeResponse(input: {
   response_text: string;
   client_message_id: string;
   evaluator_override?: StudentActivityRuntimeEvaluatorOverride;
+  orchestration_override?: StudentActivityTurnOrchestrationOverride;
   client?: PrismaClientLike;
 }) {
   const client = input.client ?? prisma;
-  const context = await ownedSessionContext({
+  await ownedSessionContext({
     student_user_db_id: input.student_user_db_id,
     session_public_id: input.session_public_id,
     client
@@ -1107,60 +1523,160 @@ export async function submitStudentActivityRuntimeResponse(input: {
     );
   }
 
-  const result = await submitStudentActivityResponseForEvidenceUpdate({
-    activity_attempt_public_id: input.activity_attempt_public_id,
-    session_public_id: input.session_public_id,
-    student_response_text: message,
-    student_choice_state: "continue",
-    evaluator_override: input.evaluator_override
-  }, client);
-
-  await logProcessEvent({
-    assessment_session_db_id: context.session.id,
-    concept_unit_session_db_id: context.concept_unit_session.id,
-    event_type: "student_activity_response_submitted",
-    event_category: "formative_activity_runtime",
-    event_source: "frontend",
-    payload: {
-      activity_attempt_public_id: input.activity_attempt_public_id,
-      client_message_id: input.client_message_id,
-      result_status: result.status,
-      runtime_state: result.runtime_state
-    }
-  });
-
   const attempt = await client.activityRuntimeAttempt.findUniqueOrThrow({
     where: { activity_attempt_public_id: input.activity_attempt_public_id }
   });
-  const source = sourceFromAttempt(attempt);
-  const evidence = await latestEvidenceContext(attempt, source, client);
-  if (evidence.decision) {
-    await logProcessEvent({
-      assessment_session_db_id: context.session.id,
-      concept_unit_session_db_id: context.concept_unit_session.id,
-      event_type: "post_activity_decision_created",
-      event_category: "topic_dialogue",
-      event_source: "backend",
-      payload: {
-        activity_attempt_public_id: input.activity_attempt_public_id,
-        decision_version: POST_ACTIVITY_LEARNING_DECISION_VERSION,
-        post_activity_status: evidence.decision.post_activity_status,
-        recommended_route: evidence.decision.recommended_route,
-        next_runtime_state: evidence.decision.next_runtime_state
+  if (attempt.session_public_id !== input.session_public_id) {
+    throw new StudentAssessmentServiceError(
+      "validation_failed",
+      "This activity is no longer current.",
+      409
+    );
+  }
+  return submitTopicDialogueResponse({
+    student_user_db_id: input.student_user_db_id,
+    session_public_id: input.session_public_id,
+    dialogue_public_id: topicDialoguePublicId({
+      session_public_id: attempt.session_public_id,
+      activity_attempt_public_id: attempt.activity_attempt_public_id
+    }),
+    activity_attempt_public_id: attempt.activity_attempt_public_id,
+    student_message: message,
+    client_operation_id: input.client_message_id,
+    evaluator_override: input.evaluator_override,
+    orchestration_override: input.orchestration_override,
+    client
+  });
+}
+
+async function claimFormativeTurn(input: {
+  assessment_session_db_id: string;
+  client_operation_id: string;
+  activity_attempt_public_id: string;
+  message: string;
+  client: PrismaClientLike;
+}) {
+  const requestHash = hashStudentRuntimeValue({
+    activity_attempt_public_id: input.activity_attempt_public_id,
+    message: input.message
+  });
+  const where = {
+    assessment_session_db_id_client_action_id: {
+      assessment_session_db_id: input.assessment_session_db_id,
+      client_action_id: input.client_operation_id
+    }
+  };
+  const existing = await input.client.studentActionIdempotencyKey.findUnique({ where });
+  if (existing) {
+    if (existing.request_hash !== requestHash) {
+      throw new StudentAssessmentServiceError(
+        "idempotency_conflict",
+        "This message identifier was already used for a different response.",
+        409
+      );
+    }
+    const payload = recordFromJson(existing.response_payload);
+    return {
+      already_seen: true,
+      completed: payload.status === "completed",
+      resume_allowed:
+        payload.status !== "completed" &&
+        Date.now() - existing.updated_at.getTime() >= 120_000
+    };
+  }
+  try {
+    await input.client.studentActionIdempotencyKey.create({
+      data: {
+        assessment_session_db_id: input.assessment_session_db_id,
+        client_action_id: input.client_operation_id,
+        action_type: "formative_activity_turn",
+        request_hash: requestHash,
+        response_payload: prismaJson({
+          status: "processing",
+          activity_attempt_public_id: input.activity_attempt_public_id,
+          started_at: new Date().toISOString()
+        })
+      }
+    });
+    return { already_seen: false, completed: false, resume_allowed: true };
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+      throw error;
+    }
+    const raced = await input.client.studentActionIdempotencyKey.findUniqueOrThrow({ where });
+    if (raced.request_hash !== requestHash) {
+      throw new StudentAssessmentServiceError(
+        "idempotency_conflict",
+        "This message identifier was already used for a different response.",
+        409
+      );
+    }
+    return { already_seen: true, completed: false, resume_allowed: false };
+  }
+}
+
+async function claimActivityAttemptForTurn(input: {
+  attempt: ActivityRuntimeAttempt;
+  claim: Awaited<ReturnType<typeof claimFormativeTurn>>;
+  assessment_session_db_id: string;
+  client_operation_id: string;
+  client: PrismaClientLike;
+}) {
+  const claimableStatuses = input.claim.already_seen && input.claim.resume_allowed
+    ? [
+        "awaiting_student_activity_response",
+        "student_activity_response_received",
+        "evidence_evaluation_pending",
+        "evidence_evaluated",
+        "evidence_persisted",
+        "post_activity_snapshot_created",
+        "continue_recommended",
+        "choose_alternative_recommended",
+        "failed_closed"
+      ]
+    : [
+        "awaiting_student_activity_response",
+        "continue_recommended",
+        "choose_alternative_recommended"
+      ];
+  const claimed = await input.client.activityRuntimeAttempt.updateMany({
+    where: {
+      id: input.attempt.id,
+      status: { in: claimableStatuses }
+    },
+    data: {
+      status: "student_activity_response_received",
+      completed_at: null
+    }
+  });
+  if (claimed.count === 1) return;
+
+  if (!input.claim.already_seen) {
+    await input.client.studentActionIdempotencyKey.deleteMany({
+      where: {
+        assessment_session_db_id: input.assessment_session_db_id,
+        client_action_id: input.client_operation_id,
+        action_type: "formative_activity_turn"
       }
     });
   }
-
-  return projectionForAttempt(attempt, client, result);
+  throw new StudentAssessmentServiceError(
+    "conflict",
+    "Please wait for the current response before sending another message.",
+    409
+  );
 }
 
-export async function submitTopicDialogueResponse(input: {
+async function processTopicDialogueResponse(input: {
   student_user_db_id: string;
   session_public_id: string;
   dialogue_public_id: string;
+  activity_attempt_public_id?: string;
   student_message: string;
   client_operation_id: string;
   expected_dialogue_version?: string | null;
+  evaluator_override?: StudentActivityRuntimeEvaluatorOverride;
+  orchestration_override?: StudentActivityTurnOrchestrationOverride;
   client?: PrismaClientLike;
 }) {
   const client = input.client ?? prisma;
@@ -1187,7 +1703,11 @@ export async function submitTopicDialogueResponse(input: {
     );
   }
 
-  const attempt = await latestAttemptForSession(input.session_public_id, client);
+  const attempt = input.activity_attempt_public_id
+    ? await client.activityRuntimeAttempt.findUnique({
+        where: { activity_attempt_public_id: input.activity_attempt_public_id }
+      })
+    : await latestAttemptForSession(input.session_public_id, client);
   const source = attempt ? sourceFromAttempt(attempt) : null;
   if (!attempt || !source) {
     throw new StudentAssessmentServiceError(
@@ -1208,17 +1728,10 @@ export async function submitTopicDialogueResponse(input: {
     );
   }
 
-  const evidence = await latestEvidenceContext(attempt, source, client);
-  const topicProjection = await latestTopicDialogueProjection({
-    attempt,
-    source,
-    decision: evidence.decision,
-    client
-  });
-  if (!evidence.decision || topicProjection?.state !== "awaiting_response") {
+  if (attempt.status === "move_on_recommended" || context.session.current_phase === "session_completed") {
     throw new StudentAssessmentServiceError(
       "conflict",
-      "This topic dialogue is not waiting for a response.",
+      "This formative episode has already ended.",
       409
     );
   }
@@ -1231,14 +1744,23 @@ export async function submitTopicDialogueResponse(input: {
     );
   }
 
-  const existingAgentCall = await client.agentCall.findUnique({
-    where: {
-      agent_invocation_key: `topic-dialogue:${input.dialogue_public_id}:${input.client_operation_id}`
-    }
+  const claim = await claimFormativeTurn({
+    assessment_session_db_id: context.session.id,
+    client_operation_id: input.client_operation_id,
+    activity_attempt_public_id: attempt.activity_attempt_public_id,
+    message,
+    client
   });
-  if (existingAgentCall) {
+  if (claim.completed) {
     return projectionForAttempt(attempt, client);
   }
+  await claimActivityAttemptForTurn({
+    attempt,
+    claim,
+    assessment_session_db_id: context.session.id,
+    client_operation_id: input.client_operation_id,
+    client
+  });
 
   const existingStudentTurn = await client.conversationTurn.findFirst({
     where: {
@@ -1248,7 +1770,7 @@ export async function submitTopicDialogueResponse(input: {
         equals: input.client_operation_id
       }
     },
-    select: { id: true }
+    select: { id: true, structured_payload: true }
   });
 
   const priorTurns = await client.conversationTurn.findMany({
@@ -1256,15 +1778,24 @@ export async function submitTopicDialogueResponse(input: {
       assessment_session_db_id: context.session.id,
       structured_payload: { path: ["topic_dialogue_public_id"], equals: input.dialogue_public_id }
     },
-    orderBy: [{ created_at: "asc" }],
+    orderBy: [{ created_at: "asc" }, { id: "asc" }],
     select: {
+      id: true,
       actor_type: true,
       message_text: true,
       structured_payload: true
     }
   });
-  const priorStudentTurns = priorTurns.filter((turn) => turn.actor_type === "student").length;
-  const dialogueTurnNumber = priorStudentTurns + 1;
+  if (claim.already_seen && !claim.resume_allowed) {
+    return projectionForAttempt(attempt, client);
+  }
+  const existingTurnPayload = recordFromJson(existingStudentTurn?.structured_payload);
+  const priorStudentTurns = priorTurns.filter((turn) =>
+    turn.actor_type === "student" && turn.id !== existingStudentTurn?.id
+  ).length;
+  const dialogueTurnNumber = typeof existingTurnPayload.dialogue_turn_number === "number"
+    ? existingTurnPayload.dialogue_turn_number
+    : priorStudentTurns + 1;
   if (!existingStudentTurn) {
     await client.conversationTurn.create({
       data: {
@@ -1278,13 +1809,15 @@ export async function submitTopicDialogueResponse(input: {
           topic_dialogue_public_id: input.dialogue_public_id,
           dialogue_turn_number: dialogueTurnNumber,
           client_operation_id: input.client_operation_id,
+          activity_attempt_public_id: attempt.activity_attempt_public_id,
+          visibility_status: "shown",
           dialogue_schema_version: input.expected_dialogue_version ?? TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION
         })
       }
     });
   }
 
-  if (priorStudentTurns === 0) {
+  if (priorStudentTurns === 0 && !existingStudentTurn) {
     await logProcessEvent({
       assessment_session_db_id: context.session.id,
       concept_unit_session_db_id: context.concept_unit_session.id,
@@ -1310,6 +1843,74 @@ export async function submitTopicDialogueResponse(input: {
       dialogue_turn_number: dialogueTurnNumber,
       client_operation_id: input.client_operation_id
     }
+  });
+  await logProcessEvent({
+    assessment_session_db_id: context.session.id,
+    concept_unit_session_db_id: context.concept_unit_session.id,
+    event_type: "student_activity_response_submitted",
+    event_category: "formative_activity_runtime",
+    event_source: "frontend",
+    payload: {
+      activity_attempt_public_id: attempt.activity_attempt_public_id,
+      client_operation_id: input.client_operation_id
+    }
+  });
+
+  const interpretationContext = await buildAuthoritativeFormativeTurnContext({
+    session_public_id: input.session_public_id,
+    concept_unit_session_db_id: context.concept_unit_session.id,
+    activity_attempt_public_id: attempt.activity_attempt_public_id,
+    latest_student_message: message,
+    client_operation_id: input.client_operation_id,
+    agent_role: "response_interpretation",
+    client
+  });
+  const loopResult = await submitStudentActivityResponseForEvidenceUpdate({
+    activity_attempt_public_id: attempt.activity_attempt_public_id,
+    session_public_id: input.session_public_id,
+    student_response_text: message,
+    student_choice_state: "continue",
+    formative_turn_context: interpretationContext,
+    allow_additional_turn: true,
+    attempt_already_claimed: true,
+    defer_final_attempt_activation: true,
+    evaluator_override: input.evaluator_override
+  }, client);
+  if (loopResult.status !== "ok") {
+    throw new Error(`formative_turn_evaluation_failed:${loopResult.limitations.join("|")}`);
+  }
+  const refreshedAttempt = await client.activityRuntimeAttempt.findUniqueOrThrow({
+    where: { id: attempt.id }
+  });
+  const evidence = await latestEvidenceContext(refreshedAttempt, source, client);
+  if (!evidence.decision) {
+    throw new Error("formative_turn_post_activity_decision_missing");
+  }
+  const learningDecision = evidence.decision;
+  await logProcessEvent({
+    assessment_session_db_id: context.session.id,
+    concept_unit_session_db_id: context.concept_unit_session.id,
+    event_type: "post_activity_decision_created",
+    event_category: "topic_dialogue",
+    event_source: "backend",
+    payload: {
+      activity_attempt_public_id: attempt.activity_attempt_public_id,
+      decision_version: POST_ACTIVITY_LEARNING_DECISION_VERSION,
+      post_activity_status: learningDecision.post_activity_status,
+      recommended_route: learningDecision.recommended_route,
+      next_runtime_state: learningDecision.next_runtime_state,
+      client_operation_id: input.client_operation_id
+    }
+  });
+  const staged = await runFormativeTurnProfileAndPlan({
+    session_public_id: input.session_public_id,
+    concept_unit_session_db_id: context.concept_unit_session.id,
+    activity_attempt_public_id: attempt.activity_attempt_public_id,
+    latest_student_message: message,
+    client_operation_id: input.client_operation_id,
+    evidence_record_public_id: loopResult.evidence_record_public_id,
+    orchestration_override: input.orchestration_override,
+    client
   });
 
   const dialogueInput = TopicDialogueInputV1Schema.parse({
@@ -1386,7 +1987,7 @@ export async function submitTopicDialogueResponse(input: {
     dialogue_summary: priorTurns
       .slice(-dialoguePolicy.recent_turn_window)
       .map((turn) => `${turn.actor_type}: ${(turn.message_text ?? "").slice(0, 160)}`)
-      .join(" | "),
+      .join(" | ") || "This is the first topic-dialogue response for the current activity.",
     progression_options: [
       "continue with this topic",
       "choose another activity",
@@ -1397,62 +1998,6 @@ export async function submitTopicDialogueResponse(input: {
       topic_dialogue_input_schema_version: TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION_V2,
       topic_dialogue_output_schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
       topic_dialogue_policy_version: "topic-dialogue-policy-v2"
-    }
-  });
-  await client.topicDialogue.upsert({
-    where: {
-      assessment_session_db_id_activity_attempt_public_id: {
-        assessment_session_db_id: context.session.id,
-        activity_attempt_public_id: attempt.activity_attempt_public_id
-      }
-    },
-    update: {
-      current_remaining_issue: evidence.decision.remaining_issue,
-      current_turn: dialogueTurnNumber,
-      status: "active"
-    },
-    create: {
-      dialogue_public_id: input.dialogue_public_id,
-      assessment_session_db_id: context.session.id,
-      concept_unit_session_db_id: context.concept_unit_session.id,
-      activity_attempt_public_id: attempt.activity_attempt_public_id,
-      topic_anchor: prismaJson({
-        assessment_topic: currentConcept.title,
-        concept_public_id: currentConcept.concept_unit_public_id,
-        safe_item_context: dialogueInput.safe_item_context
-      }),
-      growth_target: evidence.decision.growth_target,
-      initial_remaining_issue: evidence.decision.remaining_issue,
-      current_remaining_issue: evidence.decision.remaining_issue,
-      maximum_turns: evidence.decision.maximum_dialogue_turns,
-      current_turn: dialogueTurnNumber,
-      status: "active",
-      policy_version: "topic-dialogue-policy-v2"
-    }
-  });
-  await client.topicDialogueTurn.upsert({
-    where: {
-      dialogue_public_id_turn_number_actor_type: {
-        dialogue_public_id: input.dialogue_public_id,
-        turn_number: dialogueTurnNumber,
-        actor_type: "student"
-      }
-    },
-    update: {},
-    create: {
-      dialogue_public_id: input.dialogue_public_id,
-      assessment_session_db_id: context.session.id,
-      concept_unit_session_db_id: context.concept_unit_session.id,
-      activity_attempt_public_id: attempt.activity_attempt_public_id,
-      turn_number: dialogueTurnNumber,
-      actor_type: "student",
-      message_function: dialogueInput.latest_student_message_classification ?? null,
-      topic_relation: classifyTopicDialogueStudentMessage(message).topic_relation,
-      message_text: message,
-      structured_payload: prismaJson({
-        client_operation_id: input.client_operation_id,
-        input_schema_version: TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION_V2
-      })
     }
   });
   const topicDialogueLiveEnabled = resolveOperationalRoleLiveCallsEnabled("topic_dialogue_agent");
@@ -1470,27 +2015,54 @@ export async function submitTopicDialogueResponse(input: {
       }
     });
   }
-  const liveResult = await executeStudentRuntimeLiveAgent({
-    client,
-    live_enabled: topicDialogueLiveEnabled,
-    role: TOPIC_DIALOGUE_AGENT_NAME,
-    agent_name: TOPIC_DIALOGUE_AGENT_NAME,
-    agent_version: TOPIC_DIALOGUE_PROMPT_VERSION,
-    prompt_version: TOPIC_DIALOGUE_PROMPT_VERSION,
-    prompt_hash: TOPIC_DIALOGUE_PROMPT_HASH,
-    schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
-    schema_name: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
-    instructions: TOPIC_DIALOGUE_PROMPT_INSTRUCTIONS,
-    request_input: dialogueInput,
-    output_schema: TopicDialogueOutputV1Schema,
-    invocation_key: `topic-dialogue:${input.dialogue_public_id}:${input.client_operation_id}`,
-    assessment_session_db_id: context.session.id,
-    concept_unit_session_db_id: context.concept_unit_session.id,
-    metadata: {
-      dialogue_public_id: input.dialogue_public_id,
-      schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2
-    }
+  const dialogueRequestInput = {
+    ...dialogueInput,
+    formative_turn_context: staged.dialogue_context
+  };
+  const dialogueInvocationKey =
+    `topic-dialogue:${input.dialogue_public_id}:${input.client_operation_id}`;
+  const existingDialogueCall = await client.agentCall.findUnique({
+    where: { agent_invocation_key: dialogueInvocationKey },
+    select: { id: true, call_status: true, output_validated: true, output_payload: true }
   });
+  const reusableDialogueOutput = existingDialogueCall?.call_status === "succeeded" &&
+    existingDialogueCall.output_validated
+    ? TopicDialogueOutputV1Schema.safeParse(existingDialogueCall.output_payload)
+    : null;
+  const liveResult = reusableDialogueOutput?.success
+    ? {
+        status: "succeeded" as const,
+        output: reusableDialogueOutput.data,
+        agent_call_id: existingDialogueCall!.id,
+        provider: "openai" as const,
+        model_config: null
+      }
+    : existingDialogueCall
+      ? {
+          status: "not_attempted" as const,
+          blocked_reason: "existing_dialogue_call_not_reusable"
+        }
+    : await executeStudentRuntimeLiveAgent({
+        client,
+        live_enabled: topicDialogueLiveEnabled,
+        role: TOPIC_DIALOGUE_AGENT_NAME,
+        agent_name: TOPIC_DIALOGUE_AGENT_NAME,
+        agent_version: TOPIC_DIALOGUE_PROMPT_VERSION,
+        prompt_version: TOPIC_DIALOGUE_PROMPT_VERSION,
+        prompt_hash: TOPIC_DIALOGUE_PROMPT_HASH,
+        schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
+        schema_name: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
+        instructions: TOPIC_DIALOGUE_PROMPT_INSTRUCTIONS,
+        request_input: dialogueRequestInput,
+        output_schema: TopicDialogueOutputV1Schema,
+        invocation_key: dialogueInvocationKey,
+        assessment_session_db_id: context.session.id,
+        concept_unit_session_db_id: context.concept_unit_session.id,
+        metadata: {
+          dialogue_public_id: input.dialogue_public_id,
+          schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2
+        }
+      });
   const output = liveResult.status === "succeeded"
     ? liveResult.output
     : buildDeterministicTopicDialogueResponse(dialogueInput);
@@ -1517,7 +2089,27 @@ export async function submitTopicDialogueResponse(input: {
           call_status: validation.valid ? "succeeded" : "invalid_output"
         }
       })
-    : await client.agentCall.create({
+    : existingDialogueCall
+      ? await client.agentCall.update({
+          where: { id: existingDialogueCall.id },
+          data: {
+            output_payload: prismaJson(persistedOutput),
+            raw_output: prismaJson(persistedOutput),
+            output_validated: validation.valid,
+            validation_error: validation.valid
+              ? null
+              : validation.issues.map((issue) => {
+                  const blocked = "blocked_pattern_label" in issue
+                    ? issue.blocked_pattern_label
+                    : undefined;
+                  return `${issue.field_path}:${blocked ?? issue.rule_code}`;
+                }).join("; "),
+            blocked_reason: "existing_dialogue_call_not_reusable",
+            call_status: validation.valid ? "succeeded" : "invalid_output",
+            completed_at: new Date()
+          }
+        })
+      : await client.agentCall.create({
         data: {
           assessment_session_db_id: context.session.id,
           concept_unit_session_db_id: context.concept_unit_session.id,
@@ -1529,7 +2121,7 @@ export async function submitTopicDialogueResponse(input: {
           prompt_version: TOPIC_DIALOGUE_PROMPT_VERSION,
           schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
           prompt_hash: TOPIC_DIALOGUE_PROMPT_HASH,
-          input_payload: prismaJson(dialogueInput),
+          input_payload: prismaJson(dialogueRequestInput),
           output_payload: prismaJson(persistedOutput),
           raw_output: prismaJson(persistedOutput),
           output_validated: validation.valid,
@@ -1548,84 +2140,186 @@ export async function submitTopicDialogueResponse(input: {
         }
       });
 
-  await client.conversationTurn.create({
-    data: {
-      assessment_session_db_id: context.session.id,
-      concept_unit_session_db_id: context.concept_unit_session.id,
-      phase: "planning_completed",
-      actor_type: "agent",
-      agent_name: TOPIC_DIALOGUE_AGENT_NAME,
-      message_text: persistedOutput.tutor_message,
-      structured_payload: prismaJson({
-        message_type: "topic_dialogue_tutor",
-        topic_dialogue_public_id: input.dialogue_public_id,
-        dialogue_turn_number: dialogueTurnNumber,
-        client_operation_id: input.client_operation_id,
-        agent_call_id: agentCall.id,
-        response_function: persistedOutput.response_function,
+  await client.$transaction(async (tx) => {
+    const profile = await tx.studentProfile.create({
+      data: studentProfileCreateData({
+        concept_unit_session_db_id: context.concept_unit_session.id,
+        based_on_agent_call_db_id: staged.profile_agent_call_id,
+        output: staged.profile_output
+      })
+    });
+    const decision = await tx.formativeDecision.create({
+      data: formativeDecisionCreateData({
+        concept_unit_session_db_id: context.concept_unit_session.id,
+        student_profile_db_id: profile.id,
+        based_on_agent_call_db_id: staged.planning_agent_call_id,
+        output: staged.planning_output
+      })
+    });
+    await tx.topicDialogue.upsert({
+      where: {
+        assessment_session_db_id_activity_attempt_public_id: {
+          assessment_session_db_id: context.session.id,
+          activity_attempt_public_id: attempt.activity_attempt_public_id
+        }
+      },
+      update: {
+        current_remaining_issue: persistedOutput.remaining_issue,
+        current_turn: dialogueTurnNumber,
+        status:
+          persistedOutput.next_action === "show_progression_choices" ||
+          persistedOutput.next_action === "show_final_support_options"
+            ? "ready_for_progression"
+            : "active"
+      },
+      create: {
+        dialogue_public_id: input.dialogue_public_id,
+        assessment_session_db_id: context.session.id,
+        concept_unit_session_db_id: context.concept_unit_session.id,
+        activity_attempt_public_id: attempt.activity_attempt_public_id,
+        topic_anchor: prismaJson({
+          assessment_topic: currentConcept.title,
+          concept_public_id: currentConcept.concept_unit_public_id,
+          safe_item_context: dialogueInput.safe_item_context
+        }),
+        growth_target: learningDecision.growth_target,
+        initial_remaining_issue: learningDecision.remaining_issue,
+        current_remaining_issue: persistedOutput.remaining_issue,
+        maximum_turns: learningDecision.maximum_dialogue_turns,
+        current_turn: dialogueTurnNumber,
+        status:
+          persistedOutput.next_action === "show_progression_choices" ||
+          persistedOutput.next_action === "show_final_support_options"
+            ? "ready_for_progression"
+            : "active",
+        policy_version: "topic-dialogue-policy-v2"
+      }
+    });
+    await tx.topicDialogueTurn.upsert({
+      where: {
+        dialogue_public_id_turn_number_actor_type: {
+          dialogue_public_id: input.dialogue_public_id,
+          turn_number: dialogueTurnNumber,
+          actor_type: "student"
+        }
+      },
+      update: {},
+      create: {
+        dialogue_public_id: input.dialogue_public_id,
+        assessment_session_db_id: context.session.id,
+        concept_unit_session_db_id: context.concept_unit_session.id,
+        activity_attempt_public_id: attempt.activity_attempt_public_id,
+        turn_number: dialogueTurnNumber,
+        actor_type: "student",
+        message_function: dialogueInput.latest_student_message_classification ?? null,
+        topic_relation: classifyTopicDialogueStudentMessage(message).topic_relation,
+        message_text: message,
+        structured_payload: prismaJson({
+          client_operation_id: input.client_operation_id,
+          input_schema_version: TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION_V2
+        })
+      }
+    });
+    await tx.conversationTurn.create({
+      data: {
+        assessment_session_db_id: context.session.id,
+        concept_unit_session_db_id: context.concept_unit_session.id,
+        phase: "planning_completed",
+        actor_type: "agent",
+        agent_name: TOPIC_DIALOGUE_AGENT_NAME,
+        message_text: persistedOutput.tutor_message,
+        structured_payload: prismaJson({
+          message_type: "topic_dialogue_tutor",
+          topic_dialogue_public_id: input.dialogue_public_id,
+          activity_attempt_public_id: attempt.activity_attempt_public_id,
+          dialogue_turn_number: dialogueTurnNumber,
+          client_operation_id: input.client_operation_id,
+          agent_call_id: agentCall.id,
+          visibility_status: "shown",
+          response_function: persistedOutput.response_function,
+          evidence_update: persistedOutput.evidence_update,
+          evidence_sufficiency: persistedOutput.evidence_sufficiency,
+          topic_boundary: persistedOutput.topic_boundary,
+          next_action: persistedOutput.next_action,
+          next_runtime_state: persistedOutput.next_runtime_state,
+          progression_readiness: persistedOutput.progression_readiness,
+          student_message_function: persistedOutput.student_message_function ?? null,
+          topic_relation: persistedOutput.topic_relation ?? null,
+          system_question_answered: persistedOutput.system_question_answered ?? false,
+          post_turn_understanding: persistedOutput.post_turn_understanding ?? null,
+          requires_student_response: persistedOutput.requires_student_response ?? null,
+          expected_response_guidance: persistedOutput.expected_response_guidance ?? null,
+          safety_flags: persistedOutput.safety_flags ?? [],
+          schema_version: persistedOutput.schema_version ?? TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION,
+          fallback_used: fallbackUsed,
+          fallback_version: TOPIC_DIALOGUE_FALLBACK_VERSION,
+          boundary_validator_version: TOPIC_DIALOGUE_BOUNDARY_VALIDATOR_VERSION
+        })
+      }
+    });
+    await tx.topicDialogueTurn.upsert({
+      where: {
+        dialogue_public_id_turn_number_actor_type: {
+          dialogue_public_id: input.dialogue_public_id,
+          turn_number: dialogueTurnNumber,
+          actor_type: "agent"
+        }
+      },
+      update: {},
+      create: {
+        dialogue_public_id: input.dialogue_public_id,
+        assessment_session_db_id: context.session.id,
+        concept_unit_session_db_id: context.concept_unit_session.id,
+        activity_attempt_public_id: attempt.activity_attempt_public_id,
+        turn_number: dialogueTurnNumber,
+        actor_type: "agent",
+        message_function: persistedOutput.student_message_function ?? null,
+        topic_relation: persistedOutput.topic_relation ?? null,
+        system_question_answered: persistedOutput.system_question_answered ?? false,
         evidence_update: persistedOutput.evidence_update,
-        evidence_sufficiency: persistedOutput.evidence_sufficiency,
-        topic_boundary: persistedOutput.topic_boundary,
+        remaining_issue: persistedOutput.remaining_issue,
+        post_turn_understanding: persistedOutput.post_turn_understanding ?? null,
         next_action: persistedOutput.next_action,
         next_runtime_state: persistedOutput.next_runtime_state,
         progression_readiness: persistedOutput.progression_readiness,
-        student_message_function: persistedOutput.student_message_function ?? null,
-        topic_relation: persistedOutput.topic_relation ?? null,
-        system_question_answered: persistedOutput.system_question_answered ?? false,
-        post_turn_understanding: persistedOutput.post_turn_understanding ?? null,
         requires_student_response: persistedOutput.requires_student_response ?? null,
-        expected_response_guidance: persistedOutput.expected_response_guidance ?? null,
-        safety_flags: persistedOutput.safety_flags ?? [],
-        schema_version: persistedOutput.schema_version ?? TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION,
         fallback_used: fallbackUsed,
-        fallback_version: TOPIC_DIALOGUE_FALLBACK_VERSION,
-        boundary_validator_version: TOPIC_DIALOGUE_BOUNDARY_VALIDATOR_VERSION
-      })
-    }
-  });
-  await client.topicDialogueTurn.upsert({
-    where: {
-      dialogue_public_id_turn_number_actor_type: {
-        dialogue_public_id: input.dialogue_public_id,
-        turn_number: dialogueTurnNumber,
-        actor_type: "agent"
+        agent_call_db_id: agentCall.id,
+        message_text: persistedOutput.tutor_message,
+        structured_payload: prismaJson(persistedOutput)
       }
-    },
-    update: {},
-    create: {
-      dialogue_public_id: input.dialogue_public_id,
-      assessment_session_db_id: context.session.id,
-      concept_unit_session_db_id: context.concept_unit_session.id,
-      activity_attempt_public_id: attempt.activity_attempt_public_id,
-      turn_number: dialogueTurnNumber,
-      actor_type: "agent",
-      message_function: persistedOutput.student_message_function ?? null,
-      topic_relation: persistedOutput.topic_relation ?? null,
-      system_question_answered: persistedOutput.system_question_answered ?? false,
-      evidence_update: persistedOutput.evidence_update,
-      remaining_issue: persistedOutput.remaining_issue,
-      post_turn_understanding: persistedOutput.post_turn_understanding ?? null,
-      next_action: persistedOutput.next_action,
-      next_runtime_state: persistedOutput.next_runtime_state,
-      progression_readiness: persistedOutput.progression_readiness,
-      requires_student_response: persistedOutput.requires_student_response ?? null,
-      fallback_used: fallbackUsed,
-      agent_call_db_id: agentCall.id,
-      message_text: persistedOutput.tutor_message,
-      structured_payload: prismaJson(persistedOutput)
-    }
-  });
-  await client.topicDialogue.update({
-    where: { dialogue_public_id: input.dialogue_public_id },
-    data: {
-      current_remaining_issue: persistedOutput.remaining_issue,
-      current_turn: dialogueTurnNumber,
-      status:
-        persistedOutput.next_action === "show_progression_choices" ||
-        persistedOutput.next_action === "show_final_support_options"
-          ? "ready_for_progression"
-          : "active"
-    }
+    });
+    await tx.conceptUnitSession.update({
+      where: { id: context.concept_unit_session.id },
+      data: {
+        latest_student_profile_db_id: profile.id,
+        latest_formative_decision_db_id: decision.id
+      }
+    });
+    await tx.activityRuntimeAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: loopResult.runtime_state,
+        completed_at: new Date()
+      }
+    });
+    await tx.studentActionIdempotencyKey.update({
+      where: {
+        assessment_session_db_id_client_action_id: {
+          assessment_session_db_id: context.session.id,
+          client_action_id: input.client_operation_id
+        }
+      },
+      data: {
+        response_payload: prismaJson({
+          status: "completed",
+          activity_attempt_public_id: attempt.activity_attempt_public_id,
+          dialogue_turn_number: dialogueTurnNumber,
+          visible_reply_persisted: true,
+          completed_at: new Date().toISOString()
+        })
+      }
+    });
   });
 
   await logProcessEvent({
@@ -1755,7 +2449,124 @@ export async function submitTopicDialogueResponse(input: {
     });
   }
 
-  return projectionForAttempt(attempt, client);
+  const committedAttempt = await client.activityRuntimeAttempt.findUniqueOrThrow({
+    where: { id: attempt.id }
+  });
+  return projectionForAttempt(committedAttempt, client);
+}
+
+export async function submitTopicDialogueResponse(input: {
+  student_user_db_id: string;
+  session_public_id: string;
+  dialogue_public_id: string;
+  activity_attempt_public_id?: string;
+  student_message: string;
+  client_operation_id: string;
+  expected_dialogue_version?: string | null;
+  evaluator_override?: StudentActivityRuntimeEvaluatorOverride;
+  orchestration_override?: StudentActivityTurnOrchestrationOverride;
+  client?: PrismaClientLike;
+}) {
+  try {
+    return await processTopicDialogueResponse(input);
+  } catch (error) {
+    if (error instanceof StudentAssessmentServiceError) {
+      throw error;
+    }
+    const client = input.client ?? prisma;
+    const context = await ownedSessionContext({
+      student_user_db_id: input.student_user_db_id,
+      session_public_id: input.session_public_id,
+      client
+    });
+    const attempt = input.activity_attempt_public_id
+      ? await client.activityRuntimeAttempt.findUnique({
+          where: { activity_attempt_public_id: input.activity_attempt_public_id }
+        })
+      : await latestAttemptForSession(input.session_public_id, client);
+    if (!attempt) throw error;
+    const existingStudent = await client.conversationTurn.findFirst({
+      where: {
+        assessment_session_db_id: context.session.id,
+        actor_type: "student",
+        structured_payload: { path: ["client_operation_id"], equals: input.client_operation_id }
+      }
+    });
+    if (!existingStudent) throw error;
+    await client.$transaction(async (tx) => {
+      const existingReply = await tx.conversationTurn.findFirst({
+        where: {
+          assessment_session_db_id: context.session.id,
+          actor_type: "agent",
+          structured_payload: { path: ["client_operation_id"], equals: input.client_operation_id }
+        }
+      });
+      if (!existingReply) {
+        await tx.conversationTurn.create({
+          data: {
+            assessment_session_db_id: context.session.id,
+            concept_unit_session_db_id: context.concept_unit_session.id,
+            phase: "planning_completed",
+            actor_type: "agent",
+            agent_name: TOPIC_DIALOGUE_AGENT_NAME,
+            message_text:
+              "I could not complete that review just now. Please try your response again, or ask about one specific part of the activity.",
+            structured_payload: prismaJson({
+              message_type: "topic_dialogue_safe_recovery",
+              topic_dialogue_public_id: input.dialogue_public_id,
+              activity_attempt_public_id: attempt.activity_attempt_public_id,
+              client_operation_id: input.client_operation_id,
+              visibility_status: "shown",
+              fallback_used: true,
+              fallback_version: "formative-turn-safe-recovery-v1"
+            })
+          }
+        });
+      }
+      await tx.activityRuntimeAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          status: "awaiting_student_activity_response",
+          completed_at: null,
+          limitations: prismaJson([
+            "formative_turn_cycle_recovery_used",
+            error instanceof Error ? error.message.slice(0, 300) : "unknown_turn_cycle_failure"
+          ])
+        }
+      });
+      await tx.studentActionIdempotencyKey.updateMany({
+        where: {
+          assessment_session_db_id: context.session.id,
+          client_action_id: input.client_operation_id
+        },
+        data: {
+          response_payload: prismaJson({
+            status: "completed",
+            activity_attempt_public_id: attempt.activity_attempt_public_id,
+            visible_reply_persisted: true,
+            recovery_used: true,
+            completed_at: new Date().toISOString()
+          })
+        }
+      });
+    });
+    await logProcessEvent({
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
+      event_type: "topic_dialogue_fallback_used",
+      event_category: "topic_dialogue",
+      event_source: "backend",
+      payload: {
+        topic_dialogue_public_id: input.dialogue_public_id,
+        client_operation_id: input.client_operation_id,
+        reason: "formative_turn_cycle_failed"
+      }
+    });
+    const recoveredAttempt = await client.activityRuntimeAttempt.findUniqueOrThrow({
+      where: { id: attempt.id }
+    });
+    return projectionForAttempt(recoveredAttempt, client);
+  }
 }
 
 export async function recordStudentActivityRuntimeChoice(input: {
@@ -1979,6 +2790,8 @@ export async function recordStudentActivityRuntimeChoice(input: {
     const nextAttempt = await createAlternativeActivityAttempt({
       source,
       attempt,
+      assessment_session_db_id: context.session.id,
+      concept_unit_session_db_id: context.concept_unit_session.id,
       client
     });
     await logProcessEvent({

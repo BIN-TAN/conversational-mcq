@@ -234,3 +234,26 @@ profile and routing validator. It is not a replacement for future live activity
 dialogue generation; it is the single current prompt that the state machine is
 waiting on. The UI must not prepare or generate a second activity until this
 prompt is answered, skipped, or moved on.
+
+## Iterative Runtime Conversation
+
+The first activity prompt and every replacement prompt are persisted as shown
+agent conversation turns. A replacement is a new attempt/version and never
+overwrites an earlier shown activity. Transition wording such as "Here is a
+different way" is used only when the earlier prompt has a durable shown turn.
+
+Each accepted activity response runs the recurrent existing-role cycle:
+
+```text
+formative activity response evaluator
+-> student profiling
+-> formative value and planning
+-> topic dialogue implementation
+```
+
+The dialogue agent receives the full `formative-turn-context-v1`, including the
+three initial responses, distractor anchor, profile and plan histories, all
+activity attempts and responses, the complete shown transcript, separate
+internal audit history, current runtime/transition constraints, and the latest
+student message. Activity dialogue remains distractor- and growth-target-bound;
+it cannot advance, transfer, revise, or complete the assessment by itself.

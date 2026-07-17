@@ -1342,20 +1342,26 @@ function FormativeActivityControls({
   ) {
     return (
       <>
-        <AgentMessage>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-            Topic support
-          </p>
-          <p className="mt-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-ink">
-            {runtime.topic_dialogue.tutor_message ?? runtime.feedback?.message ?? runtime.status_message}
-          </p>
-          {runtime.topic_dialogue.response_prompt ? (
-            <p className="mt-3 text-sm font-medium text-ink">
-              {runtime.topic_dialogue.response_prompt}
+        {!runtime.latest_reply_visible_in_transcript ? (
+          <AgentMessage>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+              Topic support
             </p>
-          ) : null}
-          {runtime.topic_dialogue.state === "final_support" ? destinationButtons : choiceButtons}
-        </AgentMessage>
+            <p className="mt-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-ink">
+              {runtime.topic_dialogue.tutor_message ?? runtime.feedback?.message ?? runtime.status_message}
+            </p>
+            {runtime.topic_dialogue.response_prompt ? (
+              <p className="mt-3 text-sm font-medium text-ink">
+                {runtime.topic_dialogue.response_prompt}
+              </p>
+            ) : null}
+            {runtime.topic_dialogue.state === "final_support" ? destinationButtons : choiceButtons}
+          </AgentMessage>
+        ) : runtime.topic_dialogue.state === "final_support" ? (
+          destinationButtons
+        ) : (
+          choiceButtons
+        )}
         {runtime.topic_dialogue.state === "awaiting_response" ? (
           <TextComposer
             disabled={isBusy || !runtime.can_submit_response}
@@ -1387,6 +1393,9 @@ function FormativeActivityControls({
     runtime.ui_state === "alternative_requested" ||
     runtime.ui_state === "moved_on"
   ) {
+    if (runtime.latest_reply_visible_in_transcript) {
+      return destinationButtons;
+    }
     return (
       <AgentMessage>
         {runtime.focus_label ? (
@@ -1405,18 +1414,22 @@ function FormativeActivityControls({
 
   return (
     <>
-      <AgentMessage>
-        {runtime.focus_label ? (
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{runtime.focus_label}</p>
-        ) : null}
-        <p className="mt-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-ink">
-          {runtime.first_turn_message ?? runtime.status_message}
-        </p>
-        {runtime.response_prompt ? (
-          <p className="mt-3 text-sm font-medium text-ink">{runtime.response_prompt}</p>
-        ) : null}
-        {choiceButtons}
-      </AgentMessage>
+      {!runtime.first_turn_visible_in_transcript ? (
+        <AgentMessage>
+          {runtime.focus_label ? (
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{runtime.focus_label}</p>
+          ) : null}
+          <p className="mt-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-ink">
+            {runtime.first_turn_message ?? runtime.status_message}
+          </p>
+          {runtime.response_prompt ? (
+            <p className="mt-3 text-sm font-medium text-ink">{runtime.response_prompt}</p>
+          ) : null}
+          {choiceButtons}
+        </AgentMessage>
+      ) : (
+        choiceButtons
+      )}
       <TextComposer
         disabled={isBusy || !runtime.can_submit_response}
         label="Activity response"
@@ -2942,7 +2955,7 @@ export function AssessmentSessionClient({
             </button>
           ) : null}
           {visibleTranscript.map((entry) => (
-            <ChatBubble entry={entry} key={`${entry.created_at}-${entry.actor}-${entry.message_text}`} />
+            <ChatBubble entry={entry} key={entry.turn_id} />
           ))}
           {shouldShowLearningProfile(state) ? (
             <PackageResultsChatCard packageResults={state.package_results} />

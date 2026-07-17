@@ -110,3 +110,24 @@ npm run agent:followup-final-update-smoke
 ```
 
 The workflow smoke test verifies manual sessions do not enqueue initial workflow jobs, automatic sessions complete the profiling/planning/follow-up startup chain with guarded operational fallback/mock paths, repeated triggers are idempotent, pause/resume works in development-control mode, retry preserves failed-job audit, only approved job types are used, and no OpenAI calls occur. Phase 6D2B follow-up update smokes verify staged evidence packages, atomic activation, and final stop updates. Phase 6D3 smokes verify concept progression, completion, non-intervention defaults, and student-safe progression UI.
+
+## Active Formative Turn Cycle
+
+The active formative activity uses the existing runtime attempt as an
+orthogonal state boundary. A valid student message is persisted first, then the
+server reconstructs the complete authoritative context and runs:
+
+```text
+interpret latest response
+-> stage updated profile
+-> stage updated plan
+-> generate and validate one topic-dialogue reply
+-> atomically activate profile, plan, pointers, reply, and attempt state
+```
+
+The current attempt status is also the concurrency lease. Exact idempotent
+replays reuse the committed result; a competing distinct submission is rejected
+before its message is persisted. Provider or validation failure may use the
+existing bounded fallback and recovery behavior, but an accepted message must
+never leave the student with internal records and no visible reply. Revision,
+transfer, next-concept, and completion decisions remain platform validated.
