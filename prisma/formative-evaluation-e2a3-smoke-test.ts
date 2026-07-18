@@ -75,6 +75,41 @@ class E2A3InjectedProvider implements LlmProvider {
   }
 }
 
+class E2A3PreDispatchFailureProvider implements LlmProvider {
+  calls = 0;
+
+  async executeStructured<TInput, TOutput>(
+    request: StructuredAgentRequest<TInput, TOutput>
+  ): Promise<StructuredAgentResult<TOutput>> {
+    this.calls += 1;
+    return {
+      provider: "openai",
+      client_request_id: request.client_request_id,
+      status: "failed",
+      latency_ms: 1,
+      error: {
+        category: "structured_output_schema_incompatible",
+        message: "The provider-facing structured-output schema is incompatible.",
+        retryable: false
+      },
+      transport_telemetry: {
+        provider: "openai",
+        transport: "openai_responses",
+        adapter_version: "injected-test-provider",
+        client_request_id: request.client_request_id,
+        model_name: request.model_config.model_name,
+        base_url_host: "api.openai.com",
+        base_url_approved: true,
+        transport_adapter_entered: true,
+        request_serialization_completed: false,
+        fetch_invoked: false,
+        response_headers_received: false,
+        response_body_received: false
+      }
+    };
+  }
+}
+
 async function main() {
   const cases = e2a3TopicDialogueCases();
   assert(cases.length === 30, "E2A.3 must contain exactly 30 bounded cases.");
@@ -156,6 +191,8 @@ async function main() {
     assert(run.summary.approval_evidence_ready === false, "No-live smoke must not create approval evidence.");
     assert(run.summary.candidate_approved === false, "Candidate must remain unapproved.");
     assert(run.summary.candidate_activated === false, "Candidate must remain inactive.");
+    assert(run.summary.provider_usage.provider_adapter_attempts === 30, "No-live cases must record adapter attempts.");
+    assert(run.summary.provider_usage.generation_provider_calls === 0, "Injected no-live calls are not network dispatches.");
     for (const filePath of Object.values(run.paths)) {
       assert(readFileSync(filePath, "utf8").length > 0, `Required artifact is empty: ${filePath}`);
     }
@@ -171,6 +208,31 @@ async function main() {
     if (priorLive === undefined) delete process.env.LLM_LIVE_CALLS_ENABLED;
     else process.env.LLM_LIVE_CALLS_ENABLED = priorLive;
   }
+
+  const preDispatchProvider = new E2A3PreDispatchFailureProvider();
+  const preDispatchRun = await executeE2A3TopicDialogueEvaluation({
+    provider: preDispatchProvider,
+    artifactRoot: temporaryE2A3ArtifactRoot(),
+    live: false,
+    skipProtectedSnapshotForTest: true
+  });
+  assert(preDispatchProvider.calls === 30, "Permanent pre-dispatch failures must not be retried.");
+  assert(
+    preDispatchRun.summary.provider_usage.provider_adapter_attempts === 30,
+    "Pre-dispatch adapter attempts must be reported separately."
+  );
+  assert(
+    preDispatchRun.summary.provider_usage.generation_provider_calls === 0,
+    "Pre-dispatch failures must not be counted as provider generation calls."
+  );
+  assert(preDispatchRun.summary.provider_usage.retries === 0, "Permanent pre-dispatch failures must have zero retries.");
+  assert(
+    preDispatchRun.results.every((result) =>
+      result.provider_error?.category === "structured_output_schema_incompatible" &&
+      result.network_dispatch_count === 0
+    ),
+    "Sanitized pre-dispatch causes and zero network dispatches must be retained."
+  );
 
   console.log(JSON.stringify({
     status: "passed",

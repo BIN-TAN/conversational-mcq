@@ -149,9 +149,19 @@ type E2A3CaseResult = {
   status: "passed_automated" | "failed" | "skipped_budget" | "provider_failed";
   attempts: number;
   retries: number;
+  network_dispatch_count: number;
   provider_request_status: string;
   provider_request_id: string | null;
   provider_response_id: string | null;
+  provider_error: {
+    category: string;
+    message: string;
+    retryable: boolean;
+    typed_failure_reason: string | null;
+    http_status: number | null;
+    fetch_invoked: boolean;
+    response_headers_received: boolean;
+  } | null;
   parsed_output: TopicDialogueOutputV1 | null;
   schema_valid: boolean;
   validator_issues: Array<{ field_path: string; rule_code: string; blocked_pattern_label?: string }>;
@@ -659,7 +669,8 @@ function resultUsage(result: StructuredAgentResult<TopicDialogueOutputV1>) {
 
 function aggregateUsage(results: E2A3CaseResult[]) {
   return results.reduce((usage, result) => ({
-    generation_provider_calls: usage.generation_provider_calls + result.attempts,
+    provider_adapter_attempts: usage.provider_adapter_attempts + result.attempts,
+    generation_provider_calls: usage.generation_provider_calls + result.network_dispatch_count,
     metadata_only_requests: 0,
     input_tokens: usage.input_tokens + result.usage.input_tokens,
     output_tokens: usage.output_tokens + result.usage.output_tokens,
@@ -675,6 +686,7 @@ function aggregateUsage(results: E2A3CaseResult[]) {
     complete_pricing_available:
       usage.complete_pricing_available && result.usage.pricing_available
   }), {
+    provider_adapter_attempts: 0,
     generation_provider_calls: 0,
     metadata_only_requests: 0,
     input_tokens: 0,
@@ -698,13 +710,14 @@ function requestInputEstimate(testCase: E2A3TopicDialogueCase) {
 function assertBudgetBeforeCall(input: {
   budget: E2A3Budget;
   completed: E2A3CaseResult[];
+  currentCaseAttempts: number;
   testCase: E2A3TopicDialogueCase;
   modelConfig: AgentModelConfig;
 }) {
   const usage = aggregateUsage(input.completed);
   const inputReserve = requestInputEstimate(input.testCase);
   const outputReserve = input.modelConfig.max_output_tokens ?? 3500;
-  if (usage.generation_provider_calls + 1 > input.budget.maximum_generation_provider_calls) {
+  if (usage.generation_provider_calls + input.currentCaseAttempts + 1 > input.budget.maximum_generation_provider_calls) {
     throw new Error("e2a3_generation_call_budget_exceeded");
   }
   if (usage.input_tokens + inputReserve > input.budget.maximum_input_tokens) {
@@ -766,12 +779,31 @@ function makeCaseResult(input: {
   testCase: E2A3TopicDialogueCase;
   result: StructuredAgentResult<TopicDialogueOutputV1>;
   attempts: number;
+  networkDispatchCount: number;
   context: E2A3ContextCoverage;
 }): E2A3CaseResult {
   const output = input.result.parsed_output ?? null;
+  const transportError = input.result.transport_telemetry?.normalized_error;
+  const providerError = input.result.error
+    ? {
+        category: input.result.error.category,
+        message: input.result.error.message,
+        retryable: input.result.error.retryable,
+        typed_failure_reason: transportError?.typed_failure_reason ?? null,
+        http_status: transportError?.http_status ?? null,
+        fetch_invoked: input.result.transport_telemetry?.fetch_invoked ?? false,
+        response_headers_received: input.result.transport_telemetry?.response_headers_received ?? false
+      }
+    : null;
   const validation = output
     ? validateTopicDialogueOutput(output)
-    : { valid: false as const, issues: [{ field_path: "output", rule_code: "schema_invalid" as const }] };
+    : {
+        valid: false as const,
+        issues: [{
+          field_path: "output",
+          rule_code: providerError?.category ?? "schema_invalid"
+        }]
+      };
   const privacyFindings = output
     ? [
         ...findVisibleTextPrivacyFindings(output.tutor_message, "tutor_message"),
@@ -814,6 +846,7 @@ function makeCaseResult(input: {
         : "provider_failed",
     attempts: input.attempts,
     retries: Math.max(0, input.attempts - 1),
+    network_dispatch_count: input.networkDispatchCount,
     provider_request_status: input.result.status,
     provider_request_id:
       input.result.provider_request_id ??
@@ -823,6 +856,7 @@ function makeCaseResult(input: {
       input.result.provider_response_id ??
       input.result.transport_telemetry?.provider_response_id ??
       null,
+    provider_error: providerError,
     parsed_output: output,
     schema_valid: validation.valid,
     validator_issues: validation.issues,
@@ -851,9 +885,11 @@ function skippedBudgetResult(
     status: "skipped_budget",
     attempts: 0,
     retries: 0,
+    network_dispatch_count: 0,
     provider_request_status: "not_dispatched",
     provider_request_id: null,
     provider_response_id: null,
+    provider_error: null,
     parsed_output: null,
     schema_valid: false,
     validator_issues: [{ field_path: "request", rule_code: reason }],
@@ -900,6 +936,8 @@ function writeIncrementalArtifacts(
     provider_request_status: result.provider_request_status,
     provider_request_id: result.provider_request_id,
     provider_response_id: result.provider_response_id,
+    provider_error: result.provider_error,
+    network_dispatch_count: result.network_dispatch_count,
     parsed_validated_output: result.parsed_output,
     raw_provider_response_persisted: false,
     hidden_prompt_persisted: false,
@@ -914,6 +952,7 @@ function writeIncrementalArtifacts(
     provider_status: result.provider_request_status,
     schema_valid: result.schema_valid,
     issues: result.validator_issues,
+    provider_error: result.provider_error,
     attempts: result.attempts,
     retries: result.retries
   });
@@ -1218,10 +1257,17 @@ export async function executeE2A3TopicDialogueEvaluation(input: {
   for (const testCase of cases) {
     const context = buildContextCoverage(testCase);
     let attempts = 0;
+    let networkDispatchCount = 0;
     let finalResult: StructuredAgentResult<TopicDialogueOutputV1> | null = null;
     try {
       for (let retry = 0; retry <= budget.maximum_retries_per_generation; retry += 1) {
-        assertBudgetBeforeCall({ budget, completed: results, testCase, modelConfig });
+        assertBudgetBeforeCall({
+          budget,
+          completed: results,
+          currentCaseAttempts: attempts,
+          testCase,
+          modelConfig
+        });
         attempts += 1;
         finalResult = await provider.executeStructured({
           agent_name: "topic_dialogue_agent",
@@ -1238,10 +1284,12 @@ export async function executeE2A3TopicDialogueEvaluation(input: {
             candidate_hash_prefix: E2A3_CANDIDATE_HASH.slice(0, 12)
           }
         });
+        if (finalResult.transport_telemetry?.fetch_invoked) networkDispatchCount += 1;
         const validation = finalResult.parsed_output
           ? validateTopicDialogueOutput(finalResult.parsed_output)
           : { valid: false };
         if (finalResult.status === "completed" && validation.valid) break;
+        if (finalResult.status === "failed" && finalResult.error?.retryable !== true) break;
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : "e2a3_budget_or_dispatch_block";
@@ -1251,7 +1299,13 @@ export async function executeE2A3TopicDialogueEvaluation(input: {
       continue;
     }
     if (!finalResult) throw new Error("e2a3_provider_result_missing");
-    const caseResult = makeCaseResult({ testCase, result: finalResult, attempts, context });
+    const caseResult = makeCaseResult({
+      testCase,
+      result: finalResult,
+      attempts,
+      networkDispatchCount,
+      context
+    });
     results.push(caseResult);
     writeIncrementalArtifacts(paths, testCase, caseResult);
     writeJson(paths.manifest, {
