@@ -2,10 +2,15 @@ import { loadEnvConfig } from "@next/env";
 import { PrismaClient } from "@prisma/client";
 import { FORMATIVE_EVALUATION_SCENARIOS } from "../src/lib/evaluation/formative/scenario-catalog";
 import { runFormativeEvaluationScenario } from "../src/lib/evaluation/formative/runner";
+import { resolveActiveOperationalApproval } from "../src/lib/operational/active-approval-bundle";
 
 loadEnvConfig(process.cwd());
 
 async function main() {
+  const activeApproval = resolveActiveOperationalApproval();
+  if (activeApproval?.kind === "derived_approval") {
+    process.env.OPERATIONAL_APPROVED_CONFIG_HASH = activeApproval.record.runtime_candidate_hash;
+  }
   const scenario = FORMATIVE_EVALUATION_SCENARIOS.find((entry) => entry.scenario_id === "repeated_conceptual_confusion");
   if (!scenario) throw new Error("e2a_integration_scenario_missing");
   const prisma = new PrismaClient();

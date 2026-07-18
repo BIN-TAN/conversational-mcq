@@ -866,7 +866,10 @@ export async function runFormativeEvaluationScenario(
           client_message_id: operationId,
           ...(liveOperationalExecution
             ? {}
-            : { evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: turn.intent, suffix: turn.turn_id }) })
+            : {
+                evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: turn.intent, suffix: turn.turn_id }),
+                disable_topic_dialogue_live_calls_for_evaluation: true as const
+              })
         });
       } catch (error) {
         if (error instanceof Error && error.message === "This formative episode has already ended.") {
@@ -898,7 +901,10 @@ export async function runFormativeEvaluationScenario(
             client_message_id: operationId,
             ...(liveOperationalExecution
               ? {}
-              : { evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: turn.intent, suffix: `${turn.turn_id}_replay` }) })
+              : {
+                  evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: turn.intent, suffix: `${turn.turn_id}_replay` }),
+                  disable_topic_dialogue_live_calls_for_evaluation: true as const
+                })
           });
         } catch (error) {
           if (error instanceof Error && error.message === "This formative episode has already ended.") {
@@ -953,7 +959,10 @@ export async function runFormativeEvaluationScenario(
             client_message_id: clientOperationId(navigationTurn.turn_id, runId),
             ...(liveOperationalExecution
               ? {}
-              : { evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: navigationTurn.intent, suffix: navigationTurn.turn_id }) })
+              : {
+                  evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: navigationTurn.intent, suffix: navigationTurn.turn_id }),
+                  disable_topic_dialogue_live_calls_for_evaluation: true as const
+                })
           });
           finalState = navigationTurn.resulting_state;
           latestAssistant = projection.topic_dialogue?.response_prompt ?? projection.feedback?.message ?? latestAssistant;

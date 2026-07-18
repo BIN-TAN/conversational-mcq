@@ -1760,6 +1760,7 @@ export async function submitStudentActivityRuntimeResponse(input: {
   client_message_id: string;
   evaluator_override?: StudentActivityRuntimeEvaluatorOverride;
   orchestration_override?: StudentActivityTurnOrchestrationOverride;
+  disable_topic_dialogue_live_calls_for_evaluation?: true;
   client?: PrismaClientLike;
 }) {
   const client = input.client ?? prisma;
@@ -1808,6 +1809,8 @@ export async function submitStudentActivityRuntimeResponse(input: {
     client_operation_id: input.client_message_id,
     evaluator_override: input.evaluator_override,
     orchestration_override: input.orchestration_override,
+    disable_topic_dialogue_live_calls_for_evaluation:
+      input.disable_topic_dialogue_live_calls_for_evaluation,
     client
   });
 }
@@ -2174,6 +2177,7 @@ async function processTopicDialogueResponse(input: {
   expected_dialogue_version?: string | null;
   evaluator_override?: StudentActivityRuntimeEvaluatorOverride;
   orchestration_override?: StudentActivityTurnOrchestrationOverride;
+  disable_topic_dialogue_live_calls_for_evaluation?: true;
   client?: PrismaClientLike;
 }) {
   const client = input.client ?? prisma;
@@ -2512,7 +2516,9 @@ async function processTopicDialogueResponse(input: {
     }
   });
   const iterativeDialogueRole = formativeDialogueRoute("first_activity_response").role;
-  const topicDialogueLiveEnabled = resolveOperationalRoleLiveCallsEnabled(iterativeDialogueRole);
+  const topicDialogueLiveEnabled = input.disable_topic_dialogue_live_calls_for_evaluation
+    ? false
+    : resolveOperationalRoleLiveCallsEnabled(iterativeDialogueRole);
   if (topicDialogueLiveEnabled) {
     await logProcessEvent({
       assessment_session_db_id: context.session.id,
@@ -3019,6 +3025,7 @@ export async function submitTopicDialogueResponse(input: {
   expected_dialogue_version?: string | null;
   evaluator_override?: StudentActivityRuntimeEvaluatorOverride;
   orchestration_override?: StudentActivityTurnOrchestrationOverride;
+  disable_topic_dialogue_live_calls_for_evaluation?: true;
   client?: PrismaClientLike;
 }) {
   try {

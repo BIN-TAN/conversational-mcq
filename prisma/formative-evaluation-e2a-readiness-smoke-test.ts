@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   assertE2AReadinessAttestation,
+  evaluateE2AE1PrerequisiteSummary,
   E2A_READINESS_REPORT_VERSION,
   E2AReadinessReportSchema
 } from "../src/lib/evaluation/formative/e2a-readiness";
@@ -43,6 +44,25 @@ function report(now: Date, ready = true) {
       maximum_total_input_tokens: 500000,
       maximum_total_output_tokens: 100000,
       maximum_cost_usd: 15
+    },
+    runtime_compatibility: {
+      topic_dialogue_maximum_student_turns: {
+        approved_value: 8,
+        input_contract_maximum: 8,
+        compatible: true
+      }
+    },
+    prerequisites: {
+      e1_matrix: evaluateE2AE1PrerequisiteSummary({
+        command_completed: true,
+        result: {
+          executed_run_count: 12,
+          pass_count: 12,
+          fail_count: 0,
+          provider_call_count: 0
+        }
+      }),
+      e1_2_privacy_smoke: { command_completed: true, passed: true }
     },
     checks: { controlled_no_live_test: ready },
     blocking_reasons: ready ? [] : ["controlled_no_live_test"],
@@ -91,6 +111,18 @@ function main() {
     });
     assert(accepted.report.ready, "A complete fresh readiness report should be accepted.");
     assert(
+      !evaluateE2AE1PrerequisiteSummary({
+        command_completed: true,
+        result: {
+          executed_run_count: 12,
+          pass_count: 8,
+          fail_count: 4,
+          provider_call_count: 0
+        }
+      }).passed,
+      "A zero-exit E1 command with failed scenarios must not satisfy readiness."
+    );
+    assert(
       errorCode(() => assertE2AReadinessAttestation({
         artifactPath,
         applicationGitCommit: commit,
@@ -118,6 +150,7 @@ function main() {
       simulator_config_mismatch_blocks_canary: true,
       expired_readiness_blocks_canary: true,
       successful_readiness_generation_provider_calls: 0,
+      partial_e1_result_blocks_readiness: true,
       openai_calls: 0
     }, null, 2));
   } finally {

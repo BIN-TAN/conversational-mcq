@@ -10,6 +10,7 @@ import {
 import { resolveE2ABudgetLimits, resolveE2ASimulatorConfiguration } from "../src/lib/evaluation/formative/e2a-config";
 import {
   defaultE2AReadinessPath,
+  evaluateE2AE1PrerequisiteSummary,
   E2A_READINESS_REPORT_VERSION,
   E2AReadinessReportSchema
 } from "../src/lib/evaluation/formative/e2a-readiness";
@@ -17,6 +18,7 @@ import { APPROVED_OPERATIONAL_RUNTIME_HASH } from "../src/lib/evaluation/formati
 import { resolveOpenAICredentialFromEnv } from "../src/lib/llm/openai-credential-resolver";
 import { resolveApprovedOperationalRuntimeRequirement } from "../src/lib/operational/active-approval-bundle";
 import { resolveApplicationBuildInfo } from "../src/lib/provenance/application-build-info";
+import { TOPIC_DIALOGUE_MAX_STUDENT_TURNS_DEFAULT } from "../src/lib/services/student-assessment/topic-dialogue-agent";
 
 loadEnvConfig(process.cwd());
 
@@ -39,8 +41,8 @@ function protectedArtifactsUnchanged() {
   return true;
 }
 
-function runNoLivePrerequisite(script: string) {
-  const env = {
+function noLivePrerequisiteEnvironment() {
+  return {
     ...process.env,
     OPERATIONAL_AGENT_MODE: "disabled",
     OPERATIONAL_AGENT_INTEGRATION_ENABLED: "false",
@@ -51,10 +53,55 @@ function runNoLivePrerequisite(script: string) {
     RUN_LIVE_ITEM_ADMIN_SMOKE: "0",
     RUN_LIVE_PROFILE_INTEGRATION_SMOKE: "0"
   };
+}
+
+function parseLastJsonObject(output: string) {
+  const candidates = [...output.matchAll(/(?:^|\n)(\{)/gu)];
+  for (const candidate of candidates.reverse()) {
+    const start = (candidate.index ?? 0) + (candidate[0].startsWith("\n") ? 1 : 0);
+    try {
+      return JSON.parse(output.slice(start).trim()) as unknown;
+    } catch {
+      // Continue to an earlier object boundary.
+    }
+  }
+  return null;
+}
+
+function runE1MatrixPrerequisite() {
+  const resultSchema = E2AReadinessReportSchema.shape.prerequisites.shape.e1_matrix;
+  try {
+    const output = execFileSync("npm", ["run", "eval:formative:all"], {
+      cwd: process.cwd(),
+      env: noLivePrerequisiteEnvironment(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 20 * 1024 * 1024
+    });
+    const parsed = parseLastJsonObject(output);
+    const result = parsed && typeof parsed === "object"
+      ? {
+          executed_run_count: Number((parsed as Record<string, unknown>).executed_run_count),
+          pass_count: Number((parsed as Record<string, unknown>).pass_count),
+          fail_count: Number((parsed as Record<string, unknown>).fail_count),
+          provider_call_count: Number((parsed as Record<string, unknown>).provider_call_count)
+        }
+      : null;
+    const finiteResult = result && Object.values(result).every(Number.isFinite) ? result : null;
+    return resultSchema.parse(evaluateE2AE1PrerequisiteSummary({
+      command_completed: true,
+      result: finiteResult
+    }));
+  } catch {
+    return resultSchema.parse(evaluateE2AE1PrerequisiteSummary({ command_completed: false }));
+  }
+}
+
+function runNoLivePrerequisite(script: string) {
   try {
     execFileSync("npm", ["run", script], {
       cwd: process.cwd(),
-      env,
+      env: noLivePrerequisiteEnvironment(),
       stdio: "pipe",
       maxBuffer: 20 * 1024 * 1024
     });
@@ -90,10 +137,14 @@ async function main() {
   const credential = resolveOpenAICredentialFromEnv(process.env);
   let manifestValid = false;
   let activeKindIsDerived = false;
+  let approvedTopicDialogueMaximumTurns: number | null = null;
   try {
     const active = readActiveApprovedOperationalRuntimeConfig();
     const verification = verifyApprovedOperationalAgentConfig();
     activeKindIsDerived = active.kind === "derived_approval";
+    approvedTopicDialogueMaximumTurns = active.kind === "derived_approval"
+      ? active.runtime_policy.topic_dialogue_policy.maximum_student_turns
+      : null;
     manifestValid = verification.valid &&
       verification.approval_kind === "derived_approval" &&
       verification.role_inventory.length === 17;
@@ -112,8 +163,11 @@ async function main() {
     await prisma.$disconnect();
   }
 
-  const e1MatrixPassed = runNoLivePrerequisite("eval:formative:all");
+  const e1Matrix = runE1MatrixPrerequisite();
   const privacySmokePassed = runNoLivePrerequisite("e2e:privacy-smoke");
+  const topicDialoguePolicyContractCompatible =
+    approvedTopicDialogueMaximumTurns !== null &&
+    approvedTopicDialogueMaximumTurns <= TOPIC_DIALOGUE_MAX_STUDENT_TURNS_DEFAULT;
   const checks = {
     requested_hash_is_approved_hash: requestedRuntimeHash === APPROVED_OPERATIONAL_RUNTIME_HASH,
     resolved_hash_matches_requested: resolution.resolved_hash === requestedRuntimeHash,
@@ -123,6 +177,7 @@ async function main() {
     exact_seventeen_roles_present: resolution.role_count === 17 && resolution.missing_roles.length === 0,
     no_duplicate_roles: resolution.duplicate_roles.length === 0,
     manifest_schema_validator_compatibility_valid: manifestValid,
+    topic_dialogue_policy_input_contract_compatible: topicDialoguePolicyContractCompatible,
     active_runtime_is_derived_approval: activeKindIsDerived,
     approved_hash_environment_matches:
       process.env.OPERATIONAL_APPROVED_CONFIG_HASH === requestedRuntimeHash,
@@ -136,7 +191,7 @@ async function main() {
     privacy_scanner_enabled: true,
     fixture_isolation_enabled: true,
     protected_operational_artifacts_unchanged: protectedArtifactsUnchanged(),
-    e1_matrix_passed: e1MatrixPassed,
+    e1_matrix_passed: e1Matrix.passed,
     e1_2_privacy_smoke_passed: privacySmokePassed,
     database_ready: databaseReady,
     llm_rubric_evaluator_disabled: true
@@ -156,6 +211,20 @@ async function main() {
     simulator_configuration_hash: simulatorConfiguration?.configuration_hash ?? null,
     simulator_model: simulatorConfiguration?.model_name ?? null,
     budget_limits: budgetLimits,
+    runtime_compatibility: {
+      topic_dialogue_maximum_student_turns: {
+        approved_value: approvedTopicDialogueMaximumTurns,
+        input_contract_maximum: TOPIC_DIALOGUE_MAX_STUDENT_TURNS_DEFAULT,
+        compatible: topicDialoguePolicyContractCompatible
+      }
+    },
+    prerequisites: {
+      e1_matrix: e1Matrix,
+      e1_2_privacy_smoke: {
+        command_completed: privacySmokePassed,
+        passed: privacySmokePassed
+      }
+    },
     checks,
     blocking_reasons: blockingReasons,
     ready: blockingReasons.length === 0,

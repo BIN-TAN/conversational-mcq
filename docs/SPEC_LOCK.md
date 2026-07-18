@@ -3234,3 +3234,8 @@ Phase 6A.5 must not implement:
   hash, simulator configuration, no-live E1 matrix, E1.2 privacy smoke, and
   zero readiness generation calls. E2A.1 stops after the four-session canary;
   the 36-session matrix remains gated.
+- E2A readiness must parse the no-live E1 result and require 12 executed runs,
+  12 passes, zero failures, and zero provider calls; command exit status alone
+  is not proof of an E1 pass. Approved topic-dialogue policy limits must fit the
+  current topic-dialogue input contract or readiness fails closed before paid
+  execution.

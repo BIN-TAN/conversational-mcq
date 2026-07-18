@@ -2,8 +2,50 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 
-export const E2A_READINESS_REPORT_VERSION = "formative-evaluation-e2a-readiness-v1";
+export const E2A_READINESS_REPORT_VERSION = "formative-evaluation-e2a-readiness-v2";
 export const E2A_READINESS_MAX_AGE_MS = 4 * 60 * 60 * 1000;
+export const E2A_E1_EXPECTED_RUN_COUNT = 12;
+
+export const E2AE1PrerequisiteSummarySchema = z.object({
+  command_completed: z.boolean(),
+  result_parsed: z.boolean(),
+  expected_run_count: z.literal(E2A_E1_EXPECTED_RUN_COUNT),
+  executed_run_count: z.number().int().nonnegative().nullable(),
+  pass_count: z.number().int().nonnegative().nullable(),
+  fail_count: z.number().int().nonnegative().nullable(),
+  provider_call_count: z.number().int().nonnegative().nullable(),
+  passed: z.boolean()
+}).strict();
+
+export type E2AE1PrerequisiteSummary = z.infer<typeof E2AE1PrerequisiteSummarySchema>;
+
+export function evaluateE2AE1PrerequisiteSummary(input: {
+  command_completed: boolean;
+  result?: {
+    executed_run_count: number;
+    pass_count: number;
+    fail_count: number;
+    provider_call_count: number;
+  } | null;
+}): E2AE1PrerequisiteSummary {
+  const result = input.result ?? null;
+  const passed = input.command_completed &&
+    result !== null &&
+    result.executed_run_count === E2A_E1_EXPECTED_RUN_COUNT &&
+    result.pass_count === E2A_E1_EXPECTED_RUN_COUNT &&
+    result.fail_count === 0 &&
+    result.provider_call_count === 0;
+  return E2AE1PrerequisiteSummarySchema.parse({
+    command_completed: input.command_completed,
+    result_parsed: result !== null,
+    expected_run_count: E2A_E1_EXPECTED_RUN_COUNT,
+    executed_run_count: result?.executed_run_count ?? null,
+    pass_count: result?.pass_count ?? null,
+    fail_count: result?.fail_count ?? null,
+    provider_call_count: result?.provider_call_count ?? null,
+    passed
+  });
+}
 
 export const E2AReadinessReportSchema = z.object({
   readiness_report_version: z.literal(E2A_READINESS_REPORT_VERSION),
@@ -17,6 +59,20 @@ export const E2AReadinessReportSchema = z.object({
   simulator_configuration_hash: z.string().length(64).nullable(),
   simulator_model: z.string().min(1).nullable(),
   budget_limits: z.record(z.string(), z.number()).nullable(),
+  runtime_compatibility: z.object({
+    topic_dialogue_maximum_student_turns: z.object({
+      approved_value: z.number().int().positive().nullable(),
+      input_contract_maximum: z.number().int().positive(),
+      compatible: z.boolean()
+    }).strict()
+  }).strict(),
+  prerequisites: z.object({
+    e1_matrix: E2AE1PrerequisiteSummarySchema,
+    e1_2_privacy_smoke: z.object({
+      command_completed: z.boolean(),
+      passed: z.boolean()
+    }).strict()
+  }).strict(),
   checks: z.record(z.string(), z.boolean()),
   blocking_reasons: z.array(z.string()),
   ready: z.boolean(),

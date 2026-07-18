@@ -103,6 +103,11 @@ access, exact guarded-live selection, simulator/budget configuration, protected
 files, and the complete 17-role bundle. It writes a short-lived, commit- and
 simulator-bound attestation below `.data/formative-evaluation-e2a/`. Readiness
 makes zero generation requests and currently makes zero metadata requests.
+The E1 prerequisite is accepted only when its emitted result reports all 12
+scenarios executed, 12 passes, zero failures, and zero provider calls; a zero
+process exit alone is insufficient. Readiness also compares the approved topic
+dialogue turn limit with the current input-contract maximum and fails closed on
+an incompatible value.
 
 ## Contracts and validation
 

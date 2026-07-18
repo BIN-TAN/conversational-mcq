@@ -25,8 +25,10 @@ export function assertAndConfigureE1NoLiveGuard(
   env.LLM_LIVE_CALLS_ENABLED = "false";
   env.ITEM_ADMIN_TUTOR_MODE = "mock";
   env.ALLOW_LOCAL_MOCK_RUNTIME = "true";
-  env.STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED = "false";
-  env.TOPIC_DIALOGUE_LIVE_CALLS_ENABLED = "false";
+
+  // Role toggles are approved configuration assertions. Global disabled/mock
+  // gates are sufficient to prevent dispatch and must not rewrite those
+  // assertions while a derived approval bundle is active.
 
   if (
     env.OPERATIONAL_AGENT_MODE !== "disabled" ||

@@ -272,3 +272,7 @@ ignored `.data` with `operational:approved-runtime:materialize-local`; this is
 not production activation or reapproval. Missing state and explicit legacy
 fallback remain fail-closed for E2A. The E2A.1 scope ends after the four-session
 canary and does not run the 36-session matrix.
+Readiness parses the E1 result counts rather than trusting only the command exit
+status. It also rejects an approved dialogue-policy turn limit that exceeds the
+current topic-dialogue input contract; this mismatch must be resolved through a
+separately reviewed configuration or contract change before paid execution.

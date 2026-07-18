@@ -2748,5 +2748,7 @@ npm run operational:approved-runtime:materialize-local -- \
 Then run `eval:formative:e2a:readiness` with the exact approved hash,
 guarded-live provider selection, live E2A opt-in, and simulator configuration.
 Readiness performs no generation call and writes a short-lived local
-attestation required by the canary. E2A.1 stops after four canary sessions; it
-does not authorize `eval:formative:e2a:full`.
+attestation required by the canary. It requires the emitted no-live E1 summary
+to report 12/12 passes with zero provider calls and verifies that approved
+dialogue-policy limits fit the current input contract. E2A.1 stops after four
+canary sessions; it does not authorize `eval:formative:e2a:full`.
