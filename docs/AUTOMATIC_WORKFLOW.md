@@ -204,3 +204,10 @@ opted-in LLM surface realization. The E1 branching policy still owns hidden
 truth and permitted intent; operational services still own profile, planning,
 activity, dialogue, revision, and transfer. Simulator output cannot transition
 workflow state. See `docs/FORMATIVE_EVALUATION_E2A.md`.
+
+For guarded E2A execution, the requested approved hash must resolve through an
+integrity-checked derived approval bundle containing all 17 operational roles.
+An absent local pointer or a legacy fallback cannot authorize the workflow.
+The local materializer writes only ignored control-plane state; the readiness
+command reruns E1 and privacy prerequisites without provider generation before
+issuing a short-lived canary attestation.

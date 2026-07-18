@@ -2725,6 +2725,7 @@ an LLM evaluator or E2B behavior.
 ```bash
 npm run eval:formative:e2a:contract-smoke
 npm run eval:formative:e2a:no-live-smoke
+npm run eval:formative:e2a:readiness-smoke
 npm run eval:formative:e2a:report
 ```
 
@@ -2732,3 +2733,20 @@ Live canary and conditional full-matrix commands are documented in
 [Formative Evaluation E2A](docs/FORMATIVE_EVALUATION_E2A.md). Passing E2A is
 engineering evidence under controlled synthetic language variation, not a
 claim of classroom validity or effectiveness.
+
+Guarded E2A never accepts the tracked GPT-5.4 baseline as a substitute for the
+approved derived GPT-5.6 runtime. When an already-approved local evidence pair
+exists but the ignored active pointer does not, materialize it without provider
+access or reapproval:
+
+```bash
+npm run operational:approved-runtime:materialize-local -- \
+  --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
+  --confirm-local-materialization "materialize approved operational runtime locally"
+```
+
+Then run `eval:formative:e2a:readiness` with the exact approved hash,
+guarded-live provider selection, live E2A opt-in, and simulator configuration.
+Readiness performs no generation call and writes a short-lived local
+attestation required by the canary. E2A.1 stops after four canary sessions; it
+does not authorize `eval:formative:e2a:full`.

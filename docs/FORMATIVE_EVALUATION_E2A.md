@@ -57,6 +57,53 @@ requires the active approved operational runtime hash to remain:
 It also refuses execution when tracked files under `config/` or
 `src/lib/agents/` differ from `HEAD`.
 
+## Approved runtime resolution
+
+Approval, activation, local materialization, and runtime resolution are
+separate operations:
+
+```text
+requested approved hash
+-> immutable approval evidence
+-> byte-identical approved candidate manifest
+-> verified 17-role derived configuration
+-> ignored local active-bundle pointer
+-> approved-runtime resolver
+-> exact effective role configuration
+```
+
+Approval authorizes a candidate. Production activation creates the persistent
+production pointer. Local materialization copies an already-approved manifest
+and evidence pair into ignored `.data` runtime state; it does not approve,
+reapprove, regenerate, or edit either artifact. Runtime resolution verifies the
+pointer and copied hashes on every read.
+
+The local materializer deterministically selects the newest complete local
+approval record for the requested runtime hash, unless `--derived-evaluation`
+or explicit evidence/manifest paths narrow the selection. It revalidates source
+evaluation immutability, human review, protocol identity, source-manifest byte
+identity, exact role inventory, role version metadata, runtime hash, and
+rollback binding. It is idempotent, disabled in production, writes only below
+ignored `.data`, stores no secret, and makes no provider request.
+
+```bash
+npm run operational:approved-runtime:materialize-local -- \
+  --expected-runtime-hash 8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
+  --confirm-local-materialization "materialize approved operational runtime locally"
+```
+
+If the requested derived bundle is missing, incomplete, corrupt, or bound to a
+different hash, E2A reports `none` or the explicit mismatch and stops. A legacy
+GPT-5.4 fallback is reported as `legacy_fallback`; it can never satisfy E2A's
+approved-runtime requirement.
+
+Before canary execution, readiness reruns the no-live E1 matrix and E1.2 privacy
+smoke, verifies the local credential shape without exposing it, checks database
+access, exact guarded-live selection, simulator/budget configuration, protected
+files, and the complete 17-role bundle. It writes a short-lived, commit- and
+simulator-bound attestation below `.data/formative-evaluation-e2a/`. Readiness
+makes zero generation requests and currently makes zero metadata requests.
+
 ## Contracts and validation
 
 The simulator receives the scenario/version and expression variant, controlled
@@ -148,13 +195,28 @@ must review student-facing quality; E2A does not use an LLM judge.
 ```bash
 npm run eval:formative:e2a:contract-smoke
 npm run eval:formative:e2a:no-live-smoke
+npm run eval:formative:e2a:readiness-smoke
 
+OPERATIONAL_APPROVED_CONFIG_HASH=8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
+OPERATIONAL_AGENT_MODE=guarded_live \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
+EVAL_E2A_LIVE_PROVIDER=1 \
+EVAL_LLM_STUDENT_SIMULATOR_ENABLED=true \
+EVAL_LLM_STUDENT_SIMULATOR_MODEL=<evaluation-model> \
+npm run eval:formative:e2a:readiness
+
+# Use the same variables and simulator settings after readiness passes:
+OPERATIONAL_APPROVED_CONFIG_HASH=8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
+OPERATIONAL_AGENT_MODE=guarded_live \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
 EVAL_E2A_LIVE_PROVIDER=1 \
 EVAL_LLM_STUDENT_SIMULATOR_ENABLED=true \
 EVAL_LLM_STUDENT_SIMULATOR_MODEL=<evaluation-model> \
 npm run eval:formative:e2a:canary
 
-# Only after a matching canary passes, using the same simulator settings:
+# E2A.1 stops after the canary. Only a later, separately authorized phase may run:
 npm run eval:formative:e2a:full
 
 npm run eval:formative:e2a:report

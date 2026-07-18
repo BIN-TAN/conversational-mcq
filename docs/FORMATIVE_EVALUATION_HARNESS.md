@@ -264,3 +264,11 @@ adapter documented in `docs/FORMATIVE_EVALUATION_E2A.md`. It preserves the same
 scenario truth, branching authority, workflow, invariants, fixture cleanup, and
 privacy scanner. It does not implement an LLM rubric judge. E2B remains outside
 the implemented scope and requires a separate specification and approval.
+
+E2A live execution additionally requires a fresh readiness attestation for the
+exact source commit, simulator configuration, and approved derived runtime.
+Local development may materialize an existing immutable approval record into
+ignored `.data` with `operational:approved-runtime:materialize-local`; this is
+not production activation or reapproval. Missing state and explicit legacy
+fallback remain fail-closed for E2A. The E2A.1 scope ends after the four-session
+canary and does not run the 36-session matrix.

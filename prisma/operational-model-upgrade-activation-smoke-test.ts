@@ -6,7 +6,9 @@ import {
   activateOperationalApprovalBundle,
   APPROVED_OPERATIONAL_ROLE_NAMES,
   LEGACY_GPT54_APPROVED_RUNTIME_HASH,
+  materializeApprovedOperationalRuntimeLocally,
   resolveActiveOperationalApproval,
+  resolveApprovedOperationalRuntimeRequirement,
   rollbackOperationalApprovalBundle
 } from "../src/lib/operational/active-approval-bundle";
 import { stableHash } from "../src/lib/operational/stable-hash";
@@ -205,6 +207,110 @@ async function main() {
     assert(rollback?.kind === "legacy_gpt54_baseline", "Rollback must activate the preserved GPT-5.4 bundle.");
     assert(rolledBack.gpt56_approval_evidence_preserved, "Rollback must preserve GPT-5.6 evidence.");
     assert(readFileSync(rollback.record.previous_derived_approval.approval_evidence.path, "utf8").length > 0, "GPT-5.6 evidence copy must remain readable.");
+    const legacyResolution = resolveApprovedOperationalRuntimeRequirement({
+      requestedHash: EXPECTED_RUNTIME_HASH,
+      bundlePath: activated.bundle_path,
+      env: {}
+    });
+    assert(legacyResolution.resolution_source === "legacy_fallback", "Legacy source must remain explicit.");
+    assert(!legacyResolution.approved_bundle_complete, "Legacy fallback must not satisfy an approved requirement.");
+
+    const missingResolution = resolveApprovedOperationalRuntimeRequirement({
+      requestedHash: EXPECTED_RUNTIME_HASH,
+      bundlePath: path.join(root, "missing", "active-approval-bundle.json"),
+      env: {}
+    });
+    assert(missingResolution.resolution_source === "none", "Missing local materialization must resolve to none.");
+    assert(!missingResolution.approved_bundle_complete, "Missing local materialization must fail closed.");
+
+    const localOutput = path.join(root, "local-materialization");
+    const materialized = materializeApprovedOperationalRuntimeLocally({
+      approvalEvidencePath: evidencePath,
+      approvedManifestPath: manifestPath,
+      sourceCandidateManifestPath: manifestSource,
+      expectedRuntimeHash: EXPECTED_RUNTIME_HASH,
+      expectedEvaluationProtocolHash: EXPECTED_PROTOCOL_HASH,
+      expectedApprovalEvidenceHash: approvalEvidenceHash,
+      expectedSourceProviderRunId: SOURCE_RUN,
+      expectedDerivedEvaluationId: DERIVED_RUN,
+      confirmation: "materialize approved operational runtime locally",
+      outputDirectory: localOutput,
+      allowNonDefaultOutputDirectoryForTest: true
+    });
+    assert(materialized.status === "materialized_local", "Local materialization should create a verified pointer.");
+    assert(materialized.resolution.approved_bundle_complete, "Materialized bundle must be complete.");
+    assert(materialized.resolution.role_count === 17, "Materialized bundle must contain all roles.");
+    const materializedAgain = materializeApprovedOperationalRuntimeLocally({
+      approvalEvidencePath: evidencePath,
+      approvedManifestPath: manifestPath,
+      sourceCandidateManifestPath: manifestSource,
+      expectedRuntimeHash: EXPECTED_RUNTIME_HASH,
+      expectedEvaluationProtocolHash: EXPECTED_PROTOCOL_HASH,
+      expectedApprovalEvidenceHash: approvalEvidenceHash,
+      expectedSourceProviderRunId: SOURCE_RUN,
+      expectedDerivedEvaluationId: DERIVED_RUN,
+      confirmation: "materialize approved operational runtime locally",
+      outputDirectory: localOutput,
+      allowNonDefaultOutputDirectoryForTest: true
+    });
+    assert(materializedAgain.status === "already_materialized", "Repeated local materialization must be idempotent.");
+    assert(!materializedAgain.local_state_mutated, "Idempotent materialization must not rewrite local state.");
+
+    const mismatchedSource = path.join(root, "mismatched-source-manifest.json");
+    writeFileSync(mismatchedSource, `${readFileSync(manifestSource, "utf8")}\n`, "utf8");
+    let mismatchBlocked = false;
+    try {
+      materializeApprovedOperationalRuntimeLocally({
+        approvalEvidencePath: evidencePath,
+        approvedManifestPath: manifestPath,
+        sourceCandidateManifestPath: mismatchedSource,
+        expectedRuntimeHash: EXPECTED_RUNTIME_HASH,
+        expectedEvaluationProtocolHash: EXPECTED_PROTOCOL_HASH,
+        expectedApprovalEvidenceHash: approvalEvidenceHash,
+        expectedSourceProviderRunId: SOURCE_RUN,
+        expectedDerivedEvaluationId: DERIVED_RUN,
+        confirmation: "materialize approved operational runtime locally",
+        outputDirectory: path.join(root, "mismatch-materialization"),
+        allowNonDefaultOutputDirectoryForTest: true
+      });
+    } catch (error) {
+      mismatchBlocked = error instanceof Error &&
+        "code" in error && error.code === "local_materialization_source_manifest_hash_mismatch";
+    }
+    assert(mismatchBlocked, "Local materialization must reject a source-manifest hash mismatch.");
+
+    const incompleteManifestPath = path.join(root, "incomplete-approved-manifest.json");
+    const incompleteManifest = JSON.parse(readFileSync(manifestSource, "utf8")) as {
+      roles: Record<string, unknown>;
+      configuration_fingerprint: { role_version_metadata: Record<string, unknown> };
+    };
+    delete incompleteManifest.roles.topic_dialogue_agent;
+    delete incompleteManifest.configuration_fingerprint.role_version_metadata.topic_dialogue_agent;
+    writeFileSync(incompleteManifestPath, `${JSON.stringify(incompleteManifest, null, 2)}\n`, "utf8");
+    const incompleteEvidencePath = path.join(root, "incomplete-approval-evidence.json");
+    const incompleteEvidence = JSON.parse(readFileSync(evidencePath, "utf8")) as Record<string, unknown>;
+    incompleteEvidence.approved_manifest_artifact_path = incompleteManifestPath;
+    writeFileSync(incompleteEvidencePath, `${JSON.stringify(incompleteEvidence, null, 2)}\n`, "utf8");
+    let missingRoleBlocked = false;
+    try {
+      materializeApprovedOperationalRuntimeLocally({
+        approvalEvidencePath: incompleteEvidencePath,
+        approvedManifestPath: incompleteManifestPath,
+        sourceCandidateManifestPath: incompleteManifestPath,
+        expectedRuntimeHash: EXPECTED_RUNTIME_HASH,
+        expectedEvaluationProtocolHash: EXPECTED_PROTOCOL_HASH,
+        expectedApprovalEvidenceHash: approvalEvidenceHash,
+        expectedSourceProviderRunId: SOURCE_RUN,
+        expectedDerivedEvaluationId: DERIVED_RUN,
+        confirmation: "materialize approved operational runtime locally",
+        outputDirectory: path.join(root, "missing-role-materialization"),
+        allowNonDefaultOutputDirectoryForTest: true
+      });
+    } catch (error) {
+      missingRoleBlocked = error instanceof Error &&
+        "code" in error && error.code === "approved_role_inventory_mismatch";
+    }
+    assert(missingRoleBlocked, "Local materialization must reject a missing approved role.");
 
     console.log(JSON.stringify({
       status: "passed",
@@ -217,6 +323,12 @@ async function main() {
       incompatible_role_resolution_blocked: true,
       invalid_bundle_did_not_fall_back: true,
       environment_mismatch_blocked: true,
+      missing_materialization_failed_closed: true,
+      legacy_fallback_rejected_for_approved_requirement: true,
+      exact_seventeen_role_materialization_verified: true,
+      local_materialization_idempotent: true,
+      local_manifest_mismatch_blocked: true,
+      local_missing_role_blocked: true,
       rollback_hash: rolledBack.active_approved_hash,
       no_openai_call: true
     }, null, 2));

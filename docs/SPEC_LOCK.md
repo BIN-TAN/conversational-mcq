@@ -3222,3 +3222,15 @@ Phase 6A.5 must not implement:
   provider output, and chain-of-thought.
 - E2A contains no LLM evaluator. Human review remains required and E2B remains
   unimplemented.
+- E2A approved-runtime readiness is fail-closed. The requested runtime hash
+  must resolve from a complete, integrity-verified derived approval bundle with
+  all 17 roles; a missing pointer or explicit legacy fallback cannot satisfy
+  this requirement.
+- Local materialization may copy an already-approved manifest and approval
+  evidence into ignored `.data` state after source/runtime/protocol/review/role
+  verification. It is not approval, reapproval, production activation, or an
+  environment-file mutation.
+- A fresh readiness attestation is bound to the source commit, approved runtime
+  hash, simulator configuration, no-live E1 matrix, E1.2 privacy smoke, and
+  zero readiness generation calls. E2A.1 stops after the four-session canary;
+  the 36-session matrix remains gated.

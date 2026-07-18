@@ -18,6 +18,8 @@ import { stableHash } from "./stable-hash";
 export const ACTIVE_APPROVAL_BUNDLE_VERSION = "operational-active-approval-bundle-v1";
 export const ACTIVE_APPROVAL_RESOLVER_VERSION = "operational-active-approval-resolver-v1";
 export const OPERATIONAL_MODEL_UPGRADE_ACTIVATION_VERSION = "operational-model-upgrade-activation-v1";
+export const LOCAL_APPROVED_RUNTIME_MATERIALIZATION_VERSION =
+  "operational-approved-runtime-local-materialization-v1";
 export const LEGACY_GPT54_APPROVED_RUNTIME_HASH =
   "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2";
 
@@ -153,7 +155,11 @@ const DerivedBundleRecordSchema = z.object({
   rollback: z.object({
     approved_runtime_hash: z.string().length(64),
     manifest: FileReferenceSchema
-  }).strict()
+  }).strict(),
+  materialization_context: z.enum([
+    "production_activation",
+    "local_runtime_materialization"
+  ]).optional()
 }).strict();
 
 const LegacyBundleRecordSchema = z.object({
@@ -177,6 +183,18 @@ const LegacyBundleRecordSchema = z.object({
 
 const ActiveBundleRecordSchema = z.union([DerivedBundleRecordSchema, LegacyBundleRecordSchema]);
 export type ActiveOperationalApprovalRecord = z.infer<typeof ActiveBundleRecordSchema>;
+
+export type ApprovedOperationalRuntimeResolution = {
+  requested_hash: string;
+  resolved_hash: string | null;
+  resolution_source: "approved_derived_bundle" | "legacy_fallback" | "none";
+  approved_bundle_complete: boolean;
+  role_count: number;
+  missing_roles: string[];
+  duplicate_roles: string[];
+  mismatch_reasons: string[];
+  bundle_path: string | null;
+};
 
 export class OperationalApprovalBundleError extends Error {
   code: string;
@@ -426,6 +444,127 @@ export function resolveActiveOperationalApproval(input: {
   };
 }
 
+function requiredRoleMetadataIssues(manifest: ApprovedCandidateManifest) {
+  const issues: string[] = [];
+  for (const role of APPROVED_OPERATIONAL_ROLE_NAMES) {
+    const metadata = manifest.configuration_fingerprint.role_version_metadata[role];
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+      issues.push(`role_version_metadata_missing:${role}`);
+      continue;
+    }
+    const values = metadata as Record<string, unknown>;
+    if (typeof values.prompt_version !== "string" || values.prompt_version.length === 0) {
+      issues.push(`prompt_version_missing:${role}`);
+    }
+    if (typeof values.prompt_hash !== "string" || values.prompt_hash.length === 0) {
+      issues.push(`prompt_hash_missing:${role}`);
+    }
+    if (![values.schema_version, values.output_schema_version, values.input_schema_version]
+      .some((value) => typeof value === "string" && value.length > 0)) {
+      issues.push(`schema_version_missing:${role}`);
+    }
+    if (typeof values.validator_version !== "string" || values.validator_version.length === 0) {
+      issues.push(`validator_version_missing:${role}`);
+    }
+    if (typeof values.fallback_version !== "string" || values.fallback_version.length === 0) {
+      issues.push(`fallback_version_missing:${role}`);
+    }
+  }
+  return issues;
+}
+
+export function resolveApprovedOperationalRuntimeRequirement(input: {
+  requestedHash: string;
+  env?: Record<string, string | undefined>;
+  bundlePath?: string;
+}): ApprovedOperationalRuntimeResolution {
+  let active: ReturnType<typeof resolveActiveOperationalApproval>;
+  try {
+    active = resolveActiveOperationalApproval({
+      ...(input.env ? { env: input.env } : {}),
+      ...(input.bundlePath ? { bundlePath: input.bundlePath } : {})
+    });
+  } catch (error) {
+    return {
+      requested_hash: input.requestedHash,
+      resolved_hash: null,
+      resolution_source: "none",
+      approved_bundle_complete: false,
+      role_count: 0,
+      missing_roles: [...APPROVED_OPERATIONAL_ROLE_NAMES],
+      duplicate_roles: [],
+      mismatch_reasons: [
+        error instanceof OperationalApprovalBundleError ? error.code : "approved_runtime_resolution_failed"
+      ],
+      bundle_path: input.bundlePath ?? null
+    };
+  }
+
+  if (!active) {
+    return {
+      requested_hash: input.requestedHash,
+      resolved_hash: null,
+      resolution_source: "none",
+      approved_bundle_complete: false,
+      role_count: 0,
+      missing_roles: [...APPROVED_OPERATIONAL_ROLE_NAMES],
+      duplicate_roles: [],
+      mismatch_reasons: ["approved_derived_bundle_missing"],
+      bundle_path: input.bundlePath ?? null
+    };
+  }
+
+  if (active.kind === "legacy_gpt54_baseline") {
+    return {
+      requested_hash: input.requestedHash,
+      resolved_hash: active.record.approved_runtime_hash,
+      resolution_source: "legacy_fallback",
+      approved_bundle_complete: false,
+      role_count: 0,
+      missing_roles: [...APPROVED_OPERATIONAL_ROLE_NAMES],
+      duplicate_roles: [],
+      mismatch_reasons: [
+        ...(input.requestedHash !== active.record.approved_runtime_hash
+          ? ["requested_hash_not_resolved"]
+          : []),
+        "legacy_bundle_cannot_satisfy_approved_runtime_requirement"
+      ],
+      bundle_path: active.bundle_path
+    };
+  }
+
+  const actualRoles = Object.keys(active.manifest.roles);
+  const seen = new Set<string>();
+  const duplicateRoles = actualRoles.filter((role) => {
+    if (seen.has(role)) return true;
+    seen.add(role);
+    return false;
+  });
+  const missingRoles = APPROVED_OPERATIONAL_ROLE_NAMES.filter((role) => !seen.has(role));
+  const metadataIssues = requiredRoleMetadataIssues(active.manifest);
+  const mismatchReasons = [
+    ...(active.record.runtime_candidate_hash !== input.requestedHash
+      ? ["requested_hash_not_resolved"]
+      : []),
+    ...missingRoles.map((role) => `approved_role_missing:${role}`),
+    ...duplicateRoles.map((role) => `approved_role_duplicate:${role}`),
+    ...metadataIssues
+  ];
+
+  return {
+    requested_hash: input.requestedHash,
+    resolved_hash: active.record.runtime_candidate_hash,
+    resolution_source: "approved_derived_bundle",
+    approved_bundle_complete: mismatchReasons.length === 0 &&
+      actualRoles.length === APPROVED_OPERATIONAL_ROLE_NAMES.length,
+    role_count: actualRoles.length,
+    missing_roles: missingRoles,
+    duplicate_roles: duplicateRoles,
+    mismatch_reasons: mismatchReasons,
+    bundle_path: active.bundle_path
+  };
+}
+
 function archiveExistingPointer(bundlePath: string) {
   if (!existsSync(bundlePath)) return null;
   const historyDir = path.join(path.dirname(bundlePath), "history");
@@ -516,7 +655,8 @@ export function activateOperationalApprovalBundle(input: {
     rollback: {
       approved_runtime_hash: LEGACY_GPT54_APPROVED_RUNTIME_HASH,
       manifest: { path: rollbackManifestCopy, sha256: sha256File(rollbackManifestCopy) }
-    }
+    },
+    materialization_context: "production_activation"
   };
   writeJsonAtomically(bundlePath, record);
   resolveActiveOperationalApproval({ bundlePath, env: {} });
@@ -540,6 +680,147 @@ export function activateOperationalApprovalBundle(input: {
       OPERATIONAL_APPROVED_MANIFEST_PATH: approvedManifestCopy,
       OPERATIONAL_APPROVAL_EVIDENCE_PATH: approvalEvidenceCopy
     }
+  };
+}
+
+export function materializeApprovedOperationalRuntimeLocally(input: {
+  approvalEvidencePath: string;
+  approvedManifestPath: string;
+  sourceCandidateManifestPath: string;
+  expectedRuntimeHash: string;
+  expectedEvaluationProtocolHash: string;
+  expectedApprovalEvidenceHash: string;
+  expectedSourceProviderRunId: string;
+  expectedDerivedEvaluationId: string;
+  confirmation: string;
+  outputDirectory?: string;
+  legacyManifestPath?: string;
+  nodeEnv?: string;
+  allowNonDefaultOutputDirectoryForTest?: boolean;
+}) {
+  const requiredConfirmation = "materialize approved operational runtime locally";
+  if (input.confirmation !== requiredConfirmation) {
+    throw new OperationalApprovalBundleError(
+      "local_materialization_confirmation_mismatch",
+      `Local materialization requires --confirm-local-materialization "${requiredConfirmation}".`
+    );
+  }
+  if ((input.nodeEnv ?? process.env.NODE_ENV) === "production") {
+    throw new OperationalApprovalBundleError(
+      "local_materialization_forbidden_in_production",
+      "The local approved-runtime materializer is disabled in production."
+    );
+  }
+
+  const outputDirectory = path.resolve(input.outputDirectory ?? defaultActiveApprovalDirectory());
+  const defaultDataRoot = path.resolve(process.cwd(), ".data");
+  if (
+    !input.allowNonDefaultOutputDirectoryForTest &&
+    outputDirectory !== defaultDataRoot &&
+    !outputDirectory.startsWith(`${defaultDataRoot}${path.sep}`)
+  ) {
+    throw new OperationalApprovalBundleError(
+      "local_materialization_output_outside_ignored_data",
+      "Local approved-runtime state must remain under ignored .data storage."
+    );
+  }
+
+  const approvedManifestPath = path.resolve(input.approvedManifestPath);
+  const sourceCandidateManifestPath = path.resolve(input.sourceCandidateManifestPath);
+  if (
+    !existsSync(sourceCandidateManifestPath) ||
+    sha256File(sourceCandidateManifestPath) !== sha256File(approvedManifestPath)
+  ) {
+    throw new OperationalApprovalBundleError(
+      "local_materialization_source_manifest_hash_mismatch",
+      "The approved manifest copy does not match the current source candidate manifest byte-for-byte."
+    );
+  }
+
+  const verified = verifyApprovedCandidateArtifacts({
+    approvedManifestPath,
+    approvalEvidencePath: path.resolve(input.approvalEvidencePath),
+    expectedRuntimeHash: input.expectedRuntimeHash,
+    expectedEvaluationProtocolHash: input.expectedEvaluationProtocolHash,
+    expectedApprovalEvidenceHash: input.expectedApprovalEvidenceHash,
+    expectedSourceProviderRunId: input.expectedSourceProviderRunId,
+    expectedDerivedEvaluationId: input.expectedDerivedEvaluationId,
+    requireEvidenceManifestPathMatch: true
+  });
+
+  const bundlePath = path.join(outputDirectory, "active-approval-bundle.json");
+  if (existsSync(bundlePath)) {
+    const current = resolveActiveOperationalApproval({ bundlePath, env: {} });
+    if (
+      current?.kind === "derived_approval" &&
+      current.record.runtime_candidate_hash === input.expectedRuntimeHash &&
+      current.manifest_path &&
+      sha256File(current.manifest_path) === verified.manifest_sha256
+    ) {
+      const resolution = resolveApprovedOperationalRuntimeRequirement({
+        requestedHash: input.expectedRuntimeHash,
+        bundlePath,
+        env: {}
+      });
+      if (resolution.approved_bundle_complete) {
+        return {
+          status: "already_materialized" as const,
+          materialization_version: LOCAL_APPROVED_RUNTIME_MATERIALIZATION_VERSION,
+          materialization_context: "local_runtime_materialization" as const,
+          no_provider_call: true,
+          local_state_mutated: false,
+          bundle_path: bundlePath,
+          approved_manifest_path: current.manifest_path,
+          approval_evidence_path: current.approval_evidence_path,
+          runtime_candidate_hash: current.record.runtime_candidate_hash,
+          evaluation_protocol_hash: current.record.evaluation_protocol_hash,
+          approval_evidence_hash: current.record.approval_evidence_hash,
+          source_provider_run_id: current.record.source_provider_run_id,
+          derived_evaluation_id: current.record.derived_evaluation_id,
+          resolution
+        };
+      }
+    }
+  }
+
+  const activated = activateOperationalApprovalBundle({
+    approvalEvidencePath: path.resolve(input.approvalEvidencePath),
+    approvedManifestPath,
+    expectedRuntimeHash: input.expectedRuntimeHash,
+    expectedEvaluationProtocolHash: input.expectedEvaluationProtocolHash,
+    expectedApprovalEvidenceHash: input.expectedApprovalEvidenceHash,
+    expectedSourceProviderRunId: input.expectedSourceProviderRunId,
+    expectedDerivedEvaluationId: input.expectedDerivedEvaluationId,
+    confirmation: "activate approved gpt-5.6 operational candidate v2",
+    outputDirectory,
+    ...(input.legacyManifestPath ? { legacyManifestPath: input.legacyManifestPath } : {})
+  });
+  const record = DerivedBundleRecordSchema.parse(JSON.parse(readFileSync(activated.bundle_path, "utf8")));
+  writeJsonAtomically(activated.bundle_path, {
+    ...record,
+    materialization_context: "local_runtime_materialization"
+  });
+  const resolution = resolveApprovedOperationalRuntimeRequirement({
+    requestedHash: input.expectedRuntimeHash,
+    bundlePath: activated.bundle_path,
+    env: {}
+  });
+  if (!resolution.approved_bundle_complete) {
+    throw new OperationalApprovalBundleError(
+      "local_materialization_incomplete",
+      "The materialized local approved runtime did not pass complete resolution.",
+      { mismatch_reasons: resolution.mismatch_reasons }
+    );
+  }
+
+  return {
+    ...activated,
+    status: "materialized_local" as const,
+    materialization_version: LOCAL_APPROVED_RUNTIME_MATERIALIZATION_VERSION,
+    materialization_context: "local_runtime_materialization" as const,
+    no_provider_call: true,
+    local_state_mutated: true,
+    resolution
   };
 }
 

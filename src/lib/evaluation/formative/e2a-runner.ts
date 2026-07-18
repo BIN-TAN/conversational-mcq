@@ -11,6 +11,7 @@ import {
   resolveE2ABudgetLimits,
   type E2AStage
 } from "./e2a-config";
+import { assertE2AReadinessAttestation } from "./e2a-readiness";
 import {
   E2A_ARTIFACT_SCHEMA_VERSION,
   E2ASimulatorTurnRecordSchema,
@@ -427,6 +428,12 @@ export async function runE2AStage(input: {
   const gitCommit = applicationGitCommit();
   const activeApproval = assertApprovedOperationalRuntime();
   assertProtectedOperationalArtifactsUnchanged();
+  assertE2AReadinessAttestation({
+    artifactRoot: root,
+    applicationGitCommit: gitCommit,
+    runtimeHash: APPROVED_OPERATIONAL_RUNTIME_HASH,
+    simulatorConfigurationHash: configuration.configuration_hash
+  });
   if (input.stage === "full") {
     await assertMatchingCanaryPassed({
       root,
