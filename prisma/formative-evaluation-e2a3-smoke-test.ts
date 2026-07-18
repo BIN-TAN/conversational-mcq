@@ -104,6 +104,37 @@ async function main() {
   assert(preflight.active_evidence_inheritance.inherited_role_count === 16, "Exactly 16 roles should inherit evidence.");
   assert(preflight.active_evidence_inheritance.approval_cli_supports_role_scoped_inheritance === false, "Role-scoped inheritance must not be presented as approval support.");
 
+  const livePreflightEnvironment = {
+    EVAL_E2A3_LIVE_PROVIDER: process.env.EVAL_E2A3_LIVE_PROVIDER,
+    LLM_PROVIDER: process.env.LLM_PROVIDER,
+    LLM_LIVE_CALLS_ENABLED: process.env.LLM_LIVE_CALLS_ENABLED,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENAI_API_KEY_FILE: process.env.OPENAI_API_KEY_FILE,
+    OPERATIONAL_APPROVED_CONFIG_HASH: process.env.OPERATIONAL_APPROVED_CONFIG_HASH
+  };
+  process.env.EVAL_E2A3_LIVE_PROVIDER = "1";
+  process.env.LLM_PROVIDER = "openai";
+  process.env.LLM_LIVE_CALLS_ENABLED = "true";
+  process.env.OPENAI_API_KEY = "sk-e2a3-synthetic-no-provider-key";
+  delete process.env.OPENAI_API_KEY_FILE;
+  process.env.OPERATIONAL_APPROVED_CONFIG_HASH = "0".repeat(64);
+  try {
+    const blockedLivePreflight = inspectE2A3CandidatePreflight({
+      requireLiveEnvironment: true,
+      scanExistingEvidence: false
+    });
+    assert(!blockedLivePreflight.passed, "A mismatched active approval hash must block live E2A.3 preflight.");
+    assert(
+      blockedLivePreflight.blockers.includes("approved_config_hash_mismatch"),
+      "Live E2A.3 preflight must identify the approved hash mismatch before run creation."
+    );
+  } finally {
+    for (const [key, value] of Object.entries(livePreflightEnvironment)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+
   const provider = new E2A3InjectedProvider();
   const artifactRoot = temporaryE2A3ArtifactRoot();
   const priorOptIn = process.env.EVAL_E2A3_LIVE_PROVIDER;
@@ -157,4 +188,3 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
-

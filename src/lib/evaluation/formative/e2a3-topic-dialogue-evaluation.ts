@@ -419,6 +419,9 @@ export function inspectE2A3CandidatePreflight(input: {
     if (process.env.EVAL_E2A3_LIVE_PROVIDER !== "1") blockers.push("live_e2a3_opt_in_missing");
     if (process.env.LLM_PROVIDER !== "openai") blockers.push("provider_not_openai");
     if (process.env.LLM_LIVE_CALLS_ENABLED !== "true") blockers.push("live_calls_not_enabled");
+    if (process.env.OPERATIONAL_APPROVED_CONFIG_HASH !== active.runtime_candidate_hash) {
+      blockers.push("approved_config_hash_mismatch");
+    }
     if (!baseline.runtime_policy.role_live_toggles.topic_dialogue_agent) blockers.push("topic_dialogue_role_toggle_disabled");
     if (!isApprovedOpenAIBaseUrl(baseUrl)) blockers.push("openai_base_url_not_approved");
     if (!credential?.ok) blockers.push(credential?.code ?? "credential_missing");
