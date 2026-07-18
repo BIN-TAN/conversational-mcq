@@ -43,6 +43,8 @@ import { classifyInstructionalStrategy, evaluateScenarioExpectations } from "./d
 import { createFormativeEvaluationFixture, cleanupFormativeEvaluationFixture, type FormativeEvaluationFixture } from "./fixture";
 import { evaluateHardInvariants, stableEvaluationHash } from "./hard-invariants";
 import { assertAndConfigureE1NoLiveGuard } from "./no-live-guard";
+import { formativeExecutionModeForEvaluation } from "@/lib/services/student-assessment/formative-execution-mode";
+import type { FormativeExecutionMode } from "@/lib/services/student-assessment/formative-execution-mode";
 import { evaluatePedagogicalRubric } from "./pedagogical-rubric";
 import {
   APPROVED_OPERATIONAL_RUNTIME_HASH,
@@ -311,6 +313,7 @@ async function submitInitialItem(input: {
   state: StudentSessionState;
   response: FormativeEvaluationScenario["initial_responses"][number];
   operation_prefix: string;
+  execution_mode: FormativeExecutionMode;
 }) {
   const item = input.state.current_item;
   if (!item) throw new Error("e1_initial_item_missing");
@@ -331,6 +334,7 @@ async function submitInitialItem(input: {
       student_user_db_id: input.context.student_db_id,
       session_public_id: input.context.session_public_id,
       item_public_id: item.item_public_id,
+      execution_mode: input.execution_mode,
       data: { reasoning_text: reasoning, client_action_id: `${input.operation_prefix}_reason_${index + 1}` }
     })).state;
   }
@@ -348,6 +352,7 @@ async function submitInitialItem(input: {
       student_user_db_id: input.context.student_db_id,
       session_public_id: input.context.session_public_id,
       item_public_id: item.item_public_id,
+      execution_mode: input.execution_mode,
       data: { no_tempting_option: true, client_action_id: `${input.operation_prefix}_tempting_none` }
     })).state;
   }
@@ -355,6 +360,7 @@ async function submitInitialItem(input: {
     student_user_db_id: input.context.student_db_id,
     session_public_id: input.context.session_public_id,
     item_public_id: item.item_public_id,
+    execution_mode: input.execution_mode,
     data: { tempting_option: input.response.tempting_option ?? undefined, client_action_id: `${input.operation_prefix}_tempting` }
   })).state;
   const temptingCandidates = [
@@ -368,6 +374,7 @@ async function submitInitialItem(input: {
       student_user_db_id: input.context.student_db_id,
       session_public_id: input.context.session_public_id,
       item_public_id: item.item_public_id,
+      execution_mode: input.execution_mode,
       data: { tempting_option_reason: reason, client_action_id: `${input.operation_prefix}_tempting_reason_${index + 1}` }
     })).state;
   }
@@ -378,11 +385,13 @@ async function createCompletedInitialPackage(input: {
   prisma: PrismaClient;
   fixture: FormativeEvaluationFixture;
   scenario: FormativeEvaluationScenario;
+  execution_mode: FormativeExecutionMode;
 }) {
   const started = await startOrResumeStudentAssessmentSession({
     student_user_db_id: input.fixture.student_user_db_id,
     assessment_public_id: input.fixture.assessment_public_id,
-    new_attempt: true
+    new_attempt: true,
+    execution_mode: input.execution_mode
   });
   input.fixture.session_public_ids.push(started.session.session_public_id);
   const conceptUnitPublicId = started.state.current_concept_unit?.concept_unit_public_id;
@@ -412,7 +421,8 @@ async function createCompletedInitialPackage(input: {
       context,
       state,
       response,
-      operation_prefix: `e1_${input.scenario.scenario_id}_initial_${index + 1}`
+      operation_prefix: `e1_${input.scenario.scenario_id}_initial_${index + 1}`,
+      execution_mode: input.execution_mode
     });
   }
   if (state.assessment_state !== "PACKAGE_REVIEW") {
@@ -421,7 +431,8 @@ async function createCompletedInitialPackage(input: {
   const completed = await completeInitialConceptUnitAdministration({
     student_user_db_id: context.student_db_id,
     session_public_id: context.session_public_id,
-    concept_unit_public_id: context.concept_unit_public_id
+    concept_unit_public_id: context.concept_unit_public_id,
+    execution_mode: input.execution_mode
   });
   if (completed.state.assessment_state !== "FORMATIVE_ACTIVITY") {
     throw new Error(`e1_formative_activity_not_reached:${completed.state.assessment_state}`);
@@ -677,6 +688,7 @@ async function completeTransferFailure(input: {
   state: StudentSessionState;
   run_id: string;
   reasoning_text?: string;
+  execution_mode: FormativeExecutionMode;
 }) {
   const item = input.state.current_item;
   if (!item) throw new Error("e1_transfer_item_missing");
@@ -690,6 +702,7 @@ async function completeTransferFailure(input: {
     student_user_db_id: input.context.student_db_id,
     session_public_id: input.context.session_public_id,
     item_public_id: item.item_public_id,
+    execution_mode: input.execution_mode,
     data: {
       reasoning_text: input.reasoning_text ?? "The student with harder items must have higher ability.",
       client_action_id: `${input.run_id}_transfer_reason`
@@ -700,6 +713,7 @@ async function completeTransferFailure(input: {
       student_user_db_id: input.context.student_db_id,
       session_public_id: input.context.session_public_id,
       item_public_id: item.item_public_id,
+      execution_mode: input.execution_mode,
       data: { reasoning_text: "I still think harder items directly indicate higher person ability.", client_action_id: `${input.run_id}_transfer_reason_retry` }
     })).state;
   }
@@ -713,6 +727,7 @@ async function completeTransferFailure(input: {
     student_user_db_id: input.context.student_db_id,
     session_public_id: input.context.session_public_id,
     item_public_id: item.item_public_id,
+    execution_mode: input.execution_mode,
     data: { no_tempting_option: true, client_action_id: `${input.run_id}_transfer_tempting_none` }
   })).state;
   return state;
@@ -779,6 +794,9 @@ export async function runFormativeEvaluationScenario(
 ): Promise<FormativeEvaluationE1RunResult | FormativeEvaluationE2ACoreRunResult> {
   const e2aExecution = options.e2a_execution;
   const liveOperationalExecution = e2aExecution?.mode === "e2a_live_operational";
+  const executionMode = formativeExecutionModeForEvaluation({
+    e2a_mode: e2aExecution?.mode
+  });
   const noLive = liveOperationalExecution ? null : assertAndConfigureE1NoLiveGuard();
   // E1 runs from the checked-out source tree. A previously generated local build
   // artifact may legitimately describe an older commit, so use the shared
@@ -807,10 +825,19 @@ export async function runFormativeEvaluationScenario(
 
   try {
     fixture = await createFormativeEvaluationFixture({ prisma: options.prisma, scenario_id: options.scenario.scenario_id, seed: options.seed });
-    context = await createCompletedInitialPackage({ prisma: options.prisma, fixture, scenario: options.scenario });
+    context = await createCompletedInitialPackage({
+      prisma: options.prisma,
+      fixture,
+      scenario: options.scenario,
+      execution_mode: executionMode
+    });
     if (e2aExecution) {
       assertStudentPayloadPrivacy(
-        await getStudentSessionState({ student_user_db_id: context.student_db_id, session_public_id: context.session_public_id }),
+        await getStudentSessionState({
+          student_user_db_id: context.student_db_id,
+          session_public_id: context.session_public_id,
+          execution_mode: executionMode
+        }),
         "e2a.initial_package_state"
       );
     }
@@ -864,11 +891,11 @@ export async function runFormativeEvaluationScenario(
           activity_attempt_public_id: submittedActivityAttemptPublicId,
           response_text: turn.message,
           client_message_id: operationId,
+          execution_mode: executionMode,
           ...(liveOperationalExecution
             ? {}
             : {
-                evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: turn.intent, suffix: turn.turn_id }),
-                disable_topic_dialogue_live_calls_for_evaluation: true as const
+                evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: turn.intent, suffix: turn.turn_id })
               })
         });
       } catch (error) {
@@ -899,11 +926,11 @@ export async function runFormativeEvaluationScenario(
             activity_attempt_public_id: submittedActivityAttemptPublicId,
             response_text: turn.message,
             client_message_id: operationId,
+            execution_mode: executionMode,
             ...(liveOperationalExecution
               ? {}
               : {
-                  evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: turn.intent, suffix: `${turn.turn_id}_replay` }),
-                  disable_topic_dialogue_live_calls_for_evaluation: true as const
+                  evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: turn.intent, suffix: `${turn.turn_id}_replay` })
                 })
           });
         } catch (error) {
@@ -930,7 +957,11 @@ export async function runFormativeEvaluationScenario(
     }
 
     let finalState = lastAcceptedState;
-    let platformState = (await getStudentSessionState({ student_user_db_id: context.student_db_id, session_public_id: context.session_public_id })).assessment_state;
+    let platformState = (await getStudentSessionState({
+      student_user_db_id: context.student_db_id,
+      session_public_id: context.session_public_id,
+      execution_mode: executionMode
+    })).assessment_state;
     if (options.scenario.expected_behavior.transfer_expected) {
       if (!projection.can_continue) {
         const deterministicNavigationTurn: SeededStudentTurn = {
@@ -957,11 +988,11 @@ export async function runFormativeEvaluationScenario(
             activity_attempt_public_id: projection.activity_attempt_public_id ?? "",
             response_text: navigationTurn.message,
             client_message_id: clientOperationId(navigationTurn.turn_id, runId),
+            execution_mode: executionMode,
             ...(liveOperationalExecution
               ? {}
               : {
-                  evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: navigationTurn.intent, suffix: navigationTurn.turn_id }),
-                  disable_topic_dialogue_live_calls_for_evaluation: true as const
+                  evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: navigationTurn.intent, suffix: navigationTurn.turn_id })
                 })
           });
           finalState = navigationTurn.resulting_state;
@@ -998,16 +1029,22 @@ export async function runFormativeEvaluationScenario(
           session_public_id: context.session_public_id,
           activity_attempt_public_id: projection.activity_attempt_public_id,
           choice_state: "skip_activity_to_transfer",
-          client_action_id: `${runId}_continue_transfer`
+          client_action_id: `${runId}_continue_transfer`,
+          execution_mode: executionMode
         });
-        let transferState = await getStudentSessionState({ student_user_db_id: context.student_db_id, session_public_id: context.session_public_id });
+        let transferState = await getStudentSessionState({
+          student_user_db_id: context.student_db_id,
+          session_public_id: context.session_public_id,
+          execution_mode: executionMode
+        });
         platformState = transferState.assessment_state;
         if (transferState.assessment_state === "TRANSFER_ITEM") {
           transferState = await completeTransferFailure({
             context,
             state: transferState,
             run_id: runId,
-            reasoning_text: transferEvidenceTurn?.message
+            reasoning_text: transferEvidenceTurn?.message,
+            execution_mode: executionMode
           });
           platformState = transferState.assessment_state;
           if (transferEvidenceTurn) {

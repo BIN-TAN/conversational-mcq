@@ -548,8 +548,8 @@ async function assertOperationalTurnCycleCreated(
   label: string
 ) {
   const after = await operationalCounts();
-  assert(after.profiles === before.profiles, `${label}: a failed update must preserve the prior profile row.`);
-  assert(after.decisions === before.decisions, `${label}: a failed update must preserve the prior plan row.`);
+  assert(after.profiles === before.profiles + 1, `${label}: deterministic profile projection is required.`);
+  assert(after.decisions === before.decisions + 1, `${label}: deterministic plan projection is required.`);
   assert(
     after.responsePackages === before.responsePackages + 2,
     `${label}: profile and planning context packages are required.`
@@ -566,7 +566,7 @@ async function currentStagePointers(conceptUnitSessionDbId: string) {
   });
 }
 
-async function assertStaleStageAuditPersisted(input: {
+async function assertDeterministicStageAuditPersisted(input: {
   concept_unit_session_db_id: string;
   assessment_session_db_id: string;
   client_operation_id: string;
@@ -578,17 +578,17 @@ async function assertStaleStageAuditPersisted(input: {
       payload: { path: ["formative_turn", "client_operation_id"], equals: input.client_operation_id }
     }
   });
-  assert(packages.length === 2, "Profile and planning fallback packages should both be persisted.");
+  assert(packages.length === 2, "Profile and planning context packages should both be persisted.");
   const audits = packages.map((entry) => jsonRecord(jsonRecord(entry.payload).orchestration_result));
   const profile = audits.find((audit) => audit.stage === "profile");
   const planning = audits.find((audit) => audit.stage === "planning");
   assert(profile?.profile_update_failed === undefined, "Package audit should use the normalized update_failed field.");
-  assert(profile?.update_failed === true && profile.stale_version_used === true, "Stale profile use must be explicit.");
-  assert(planning?.update_failed === true && planning.stale_version_used === true, "Stale plan use must be explicit.");
-  assert(typeof profile.fallback_source_version === "string", "Profile fallback source version is required.");
-  assert(typeof planning.fallback_source_version === "string", "Planning fallback source version is required.");
-  assert("failure_agent_call_id" in profile, "Profile failure agent-call metadata key is required.");
-  assert("failure_agent_call_id" in planning, "Planning failure agent-call metadata key is required.");
+  assert(profile?.update_failed === false && profile.stale_version_used === false, "Deterministic profile projection must not be labelled stale recovery.");
+  assert(planning?.update_failed === false && planning.stale_version_used === false, "Deterministic plan projection must not be labelled stale recovery.");
+  assert(profile?.result_status === "deterministic_mock_safe", "Profile audit must identify the deterministic adapter.");
+  assert(planning?.result_status === "deterministic_mock_safe", "Planning audit must identify the deterministic adapter.");
+  assert(profile?.fallback_source_version === null, "Deterministic profile projection must not claim fallback provenance.");
+  assert(planning?.fallback_source_version === null, "Deterministic plan projection must not claim fallback provenance.");
 
   const failureEvents = await prisma.processEvent.findMany({
     where: {
@@ -597,7 +597,7 @@ async function assertStaleStageAuditPersisted(input: {
       payload: { path: ["client_operation_id"], equals: input.client_operation_id }
     }
   });
-  assert(failureEvents.length === 2, "Teacher/research audit should expose both stale-stage events.");
+  assert(failureEvents.length === 0, "Deterministic stage execution must not emit failure events.");
 }
 
 async function main() {
@@ -617,7 +617,8 @@ async function main() {
     const validCountsBeforeRuntime = await operationalCounts();
     let projection = await getStudentActivityRuntimeState({
       student_user_db_id: validContext.student_db_id,
-      session_public_id: validContext.session_public_id
+      session_public_id: validContext.session_public_id,
+      execution_mode: "no_live_e2a_contract"
     });
     assert(projection.ui_state === "not_started", "Initial projection should be not_started.");
     assertProjectionSafe(projection, "not_started");
@@ -650,6 +651,7 @@ async function main() {
       activity_attempt_public_id: projection.activity_attempt_public_id ?? "",
       response_text: "Theta is the learner estimate, and the item features describe the question rather than the learner.",
       client_message_id: "activity-runtime-ui-response-valid",
+      execution_mode: "no_live_e2a_contract",
       evaluator_override: makeEvaluator({
         context: validContext,
         base_packets: noLivePackets,
@@ -769,6 +771,7 @@ async function main() {
         activity_attempt_public_id: repeatedAttemptId,
         response_text: turn.message,
         client_message_id: turn.id,
+        execution_mode: "no_live_e2a_contract",
         evaluator_override: makeEvaluator({
           context: repeatedContext,
           base_packets: noLivePackets,
@@ -782,11 +785,11 @@ async function main() {
       await assertOperationalTurnCycleCreated(before, turn.id);
       const pointersAfter = await currentStagePointers(repeatedContext.concept_unit_session_db_id);
       assert(
-        pointersAfter.latest_student_profile_db_id === pointersBefore.latest_student_profile_db_id &&
-          pointersAfter.latest_formative_decision_db_id === pointersBefore.latest_formative_decision_db_id,
-        `${turn.id}: failed profile and planning updates must keep prior validated pointers.`
+        pointersAfter.latest_student_profile_db_id !== pointersBefore.latest_student_profile_db_id &&
+          pointersAfter.latest_formative_decision_db_id !== pointersBefore.latest_formative_decision_db_id,
+        `${turn.id}: deterministic profile and planning projections must advance validated pointers.`
       );
-      await assertStaleStageAuditPersisted({
+      await assertDeterministicStageAuditPersisted({
         concept_unit_session_db_id: repeatedContext.concept_unit_session_db_id,
         assessment_session_db_id: repeatedContext.assessment_session_db_id,
         client_operation_id: turn.id
@@ -859,6 +862,7 @@ async function main() {
         activity_attempt_public_id: repeatedAttemptId,
         response_text: confusionTurns[2]!.message,
         client_message_id: confusionTurns[2]!.id,
+        execution_mode: "no_live_e2a_contract",
         evaluator_override: makeEvaluator({
           context: repeatedContext,
           base_packets: noLivePackets,
@@ -872,6 +876,7 @@ async function main() {
         activity_attempt_public_id: repeatedAttemptId,
         response_text: confusionTurns[2]!.message,
         client_message_id: confusionTurns[2]!.id,
+        execution_mode: "no_live_e2a_contract",
         evaluator_override: makeEvaluator({
           context: repeatedContext,
           base_packets: noLivePackets,
@@ -899,6 +904,7 @@ async function main() {
         activity_attempt_public_id: repeatedAttemptId,
         response_text: turn.message,
         client_message_id: turn.id,
+        execution_mode: "no_live_e2a_contract",
         evaluator_override: makeEvaluator({
           context: repeatedContext,
           base_packets: noLivePackets,
@@ -992,6 +998,7 @@ async function main() {
       activity_attempt_public_id: repeatedAttemptId,
       response_text: confusionTurns[2]!.message,
       client_message_id: confusionTurns[2]!.id,
+      execution_mode: "no_live_e2a_contract",
       evaluator_override: makeEvaluator({
         context: repeatedContext,
         base_packets: noLivePackets,
@@ -1017,6 +1024,7 @@ async function main() {
         activity_attempt_public_id: repeatedAttemptId,
         response_text: "I have a new response after completion.",
         client_message_id: "activity-runtime-new-key-after-terminal",
+        execution_mode: "no_live_e2a_contract",
         evaluator_override: makeEvaluator({
           context: repeatedContext,
           base_packets: noLivePackets,

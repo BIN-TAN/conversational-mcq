@@ -61,6 +61,10 @@ import {
   type CreateEvidenceIntegratedActivityRuntimeAttemptInput
 } from "@/lib/services/student-assessment/activity-runtime-loop";
 import { StudentAssessmentServiceError } from "./errors";
+import {
+  resolveTopicDialogueExecutionPlan,
+  type FormativeExecutionMode
+} from "./formative-execution-mode";
 
 export const PACKAGE_FEEDBACK_PRESENTER_VERSION = "package-feedback-presenter-v1" as const;
 export const PACKAGE_COMPLETION_OPERATION_VERSION = "package-completion-operation-v1" as const;
@@ -2422,6 +2426,7 @@ async function callProviderOrMock(input: {
   agent_invocation_key: string;
   provider_input: unknown;
   correct_options: string[];
+  execution_mode: FormativeExecutionMode;
 }) {
   const startedAt = new Date();
   let runtimeProvider: "mock" | "openai" = "mock";
@@ -2429,7 +2434,11 @@ async function callProviderOrMock(input: {
   let liveCallAllowed = false;
   let modelConfig: AgentModelConfig | null = null;
 
+  const executionPlan = resolveTopicDialogueExecutionPlan(input.execution_mode);
   try {
+    if (executionPlan.adapter !== "configured_live_runtime") {
+      throw new Error("deterministic_evaluation_adapter_selected");
+    }
     const runtime = getLlmRuntimeConfig();
     runtimeProvider = runtime.provider;
     liveCallAllowed = runtime.provider === "openai" && runtime.live_calls_enabled;
@@ -3254,6 +3263,7 @@ async function persistProfileDecisionAndActivity(input: {
   validation_status: string;
   validation_issues: string[];
   deferred_student_concerns?: DeferredStudentConcern[];
+  execution_mode: FormativeExecutionMode;
 }) {
   const responsePackage = await latestInitialResponsePackage(input.concept_unit_session_db_id);
   let evidenceBundle = responsePackage
@@ -3282,7 +3292,8 @@ async function persistProfileDecisionAndActivity(input: {
       communication_input: evidenceBundle.student_communication.input,
       assessment_session_db_id: input.assessment_session_db_id,
       concept_unit_session_db_id: input.concept_unit_session_db_id,
-      source_evidence_hash: evidenceBundle.effective_evidence_package_hash
+      source_evidence_hash: evidenceBundle.effective_evidence_package_hash,
+      execution_mode: input.execution_mode
     });
     evidenceBundle = applyStudentCommunicationToEvidenceBundle({
       bundle: evidenceBundle,
@@ -3771,7 +3782,9 @@ async function persistProfileDecisionAndActivity(input: {
 export async function ensureChatNativeFormativeActivity(input: {
   concept_unit_session_db_id: string;
   invocation_reason: string;
+  execution_mode?: FormativeExecutionMode;
 }) {
+  const executionMode = input.execution_mode ?? "production";
   const conceptUnitSession = await prisma.conceptUnitSession.findUniqueOrThrow({
     where: { id: input.concept_unit_session_db_id },
     select: {
@@ -3860,7 +3873,8 @@ export async function ensureChatNativeFormativeActivity(input: {
         output: parsed.data,
         validation_status: "validated_idempotent_replay",
         validation_issues: [],
-        deferred_student_concerns: deferredStudentConcerns
+        deferred_student_concerns: deferredStudentConcerns,
+        execution_mode: executionMode
       });
 
       if (conceptUnitSession.assessment_session.current_phase === "profiling_pending") {
@@ -3912,7 +3926,8 @@ export async function ensureChatNativeFormativeActivity(input: {
     concept_unit_session_db_id: conceptUnitSession.id,
     agent_invocation_key: invocationKey,
     provider_input: providerInput,
-    correct_options: correctOptionsFromPackage(responsePackage.payload)
+    correct_options: correctOptionsFromPackage(responsePackage.payload),
+    execution_mode: executionMode
   });
 
   await logProcessEvent({
@@ -3981,7 +3996,8 @@ export async function ensureChatNativeFormativeActivity(input: {
     output: providerResult.output,
     validation_status: providerResult.validation_status,
     validation_issues: providerResult.validation_issues,
-    deferred_student_concerns: deferredStudentConcerns
+    deferred_student_concerns: deferredStudentConcerns,
+    execution_mode: executionMode
   });
 
   const currentAfterPersist = await prisma.assessmentSession.findUniqueOrThrow({

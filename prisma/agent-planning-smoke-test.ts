@@ -31,7 +31,8 @@ const llmEnvKeys = [
   "LLM_SESSION_TOKEN_LIMIT",
   "LLM_AGENT_CALL_LIMIT_PER_SESSION",
   "LLM_USAGE_TIMEZONE",
-  "OPERATIONAL_AGENT_MODE"
+  "OPERATIONAL_AGENT_MODE",
+  "ALLOW_LOCAL_MOCK_RUNTIME"
 ] as const;
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -586,7 +587,8 @@ async function main() {
       LLM_PROVIDER: "mock",
       LLM_LIVE_CALLS_ENABLED: "false",
       LLM_USAGE_TIMEZONE: "UTC",
-      OPERATIONAL_AGENT_MODE: "mock"
+      OPERATIONAL_AGENT_MODE: "mock",
+      ALLOW_LOCAL_MOCK_RUNTIME: "true"
     });
 
     const fixture = await createPlanningFixture({ prefix, suffix: "service", withProfile: true });
@@ -803,7 +805,8 @@ async function main() {
       LLM_PROVIDER: "mock",
       LLM_LIVE_CALLS_ENABLED: "false",
       LLM_USAGE_TIMEZONE: "UTC",
-      OPERATIONAL_AGENT_MODE: "mock"
+      OPERATIONAL_AGENT_MODE: "mock",
+      ALLOW_LOCAL_MOCK_RUNTIME: "true"
     });
     await runApiSmoke(prefix);
 

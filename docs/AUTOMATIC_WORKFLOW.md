@@ -211,3 +211,16 @@ An absent local pointer or a legacy fallback cannot authorize the workflow.
 The local materializer writes only ignored control-plane state; the readiness
 command reruns E1 and privacy prerequisites without provider generation before
 issuing a short-lived canary attestation.
+
+E2A.2 scopes formative execution mode to each runner invocation. Deterministic
+E1 and no-live contract checks call deterministic/mock-safe role adapters even
+when a derived runtime is locally materialized. Readiness resolves policy and
+provenance but does not administer a session. Live canary and production alone
+use configured live dispatch, and their safe recovery is reserved for genuine
+bounded failures rather than missing no-live opt-in.
+
+The approved ten-student-message policy is not compatible with approved topic
+dialogue input V2: V2 caps `maximum_dialogue_turns` at eight and carries only
+recent summaries. A separate inactive V3 candidate carries 18 exact prior
+visible messages plus the latest student message. Until that candidate is
+evaluated and explicitly approved, the approved E2A canary remains blocked.

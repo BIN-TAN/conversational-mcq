@@ -109,6 +109,55 @@ process exit alone is insufficient. Readiness also compares the approved topic
 dialogue turn limit with the current input-contract maximum and fails closed on
 an incompatible value.
 
+## E2A.2 contract reconciliation
+
+The approved policy value `10` means ten accepted student messages within one
+bounded topic dialogue. It is not ten total transcript rows or ten formative
+rounds. On the tenth call, complete visible history therefore consists of nine
+prior student/assistant pairs plus the tenth student message identified
+separately.
+
+The approved `topic-dialogue-input-v2` contract has a different boundary. Its
+`maximum_dialogue_turns` field is capped at eight, and
+`recent_relevant_dialogue_turns` carries at most twelve message summaries.
+`latest_student_message` is separate. Earlier visible turns are not carried
+exactly in another approved field, so V2 cannot satisfy the ten-message policy.
+This is classified as `approved candidate inconsistency`, not a readiness false
+positive. Readiness for the currently approved runtime remains fail-closed.
+
+The separate, unapproved candidate
+`config/candidate-operational-agent-config.e2a2-topic-dialogue-contract-v1.json`
+introduces `topic-dialogue-input-v3` and raises only the topic-dialogue recent
+window from 12 to 18. V3 carries the 18 prior visible turns exactly, carries the
+tenth student message separately, excludes hidden turns, and keeps protected
+formative context separate. Its no-live candidate configuration hash is
+`681ab5f96c9c18dfdd9aa17f335d3594a37cd7696bee6cbfe7c2e010c6943404`.
+It is neither approved nor activated and cannot authorize E2A execution.
+
+The focused reconciliation smoke emits expected and serialized visible turn
+IDs, missing and duplicated IDs, order and exact-content checks, and the
+context sections used. It proves that V2 remains incompatible while V3 is
+semantically compatible.
+
+## Execution isolation
+
+Formative evaluation scopes execution mode to each command or service call:
+
+| Mode | Provider behavior | Safe recovery |
+| --- | --- | --- |
+| `deterministic_e1` | deterministic/mock-safe adapters | not eligible because live access is absent |
+| `no_live_e2a_contract` | deterministic injected behavior | not eligible because live opt-in is absent |
+| `e2a_readiness` | configuration and provenance validation only | no generation |
+| `live_e2a_canary` | approved configured live runtime after explicit opt-in | eligible for genuine bounded failures |
+| `production` | existing configured runtime | eligible for genuine bounded failures |
+
+The mode is not stored in mutable process-global state. Read-only projection
+prefers the dialogue limit persisted with the workflow, and bounded recovery
+may read approved policy without treating that read as dispatch authorization.
+Actual live dispatch and readiness still enforce approved-hash, environment,
+credential, and provider checks. Deterministic E1 therefore does not become a
+provider-unavailable recovery run when an approved runtime is materialized.
+
 ## Contracts and validation
 
 The simulator receives the scenario/version and expression variant, controlled
@@ -199,6 +248,7 @@ must review student-facing quality; E2A does not use an LLM judge.
 
 ```bash
 npm run eval:formative:e2a:contract-smoke
+npm run eval:formative:e2a:contract-reconciliation-smoke
 npm run eval:formative:e2a:no-live-smoke
 npm run eval:formative:e2a:readiness-smoke
 

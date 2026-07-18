@@ -42,6 +42,9 @@ import {
   TOPIC_DIALOGUE_PROMPT_INSTRUCTIONS,
   TOPIC_DIALOGUE_PROMPT_VERSION,
   TOPIC_DIALOGUE_BOUNDARY_VALIDATOR_VERSION,
+  TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS_DEFAULT,
+  TOPIC_DIALOGUE_MAX_STUDENT_TURNS_DEFAULT,
+  TOPIC_DIALOGUE_RECENT_TURN_WINDOW_DEFAULT,
   TopicDialogueInputV1Schema,
   TopicDialogueOutputV1Schema,
   applyTopicDialogueReadinessGate,
@@ -51,7 +54,15 @@ import {
   type PostActivityLearningDecisionV1,
   type TopicDialogueOutputV1
 } from "@/lib/services/student-assessment/topic-dialogue-agent";
-import { resolveOperationalRoleLiveCallsEnabled } from "@/lib/llm/config";
+import {
+  resolveTopicDialogueExecutionPlan,
+  type FormativeExecutionMode
+} from "@/lib/services/student-assessment/formative-execution-mode";
+import { operationalModeStatus } from "@/lib/operational/guarded-agent-integration";
+import {
+  resolveOperationalRoleLiveCallsEnabled,
+  resolveTopicDialogueRuntimePolicy
+} from "@/lib/llm/config";
 import {
   executeStudentRuntimeLiveAgent,
 } from "@/lib/services/student-assessment/student-runtime-live-agent";
@@ -92,6 +103,41 @@ import {
 import { formativeDialogueRoute } from "./dialogue-routing-contract";
 
 type PrismaClientLike = typeof prisma;
+
+function topicDialoguePolicyForExecutionMode(mode: FormativeExecutionMode) {
+  const plan = resolveTopicDialogueExecutionPlan(mode);
+  if (plan.configured_runtime_policy_used) {
+    const liveEnvironmentAssertionsRequired =
+      mode === "live_e2a_canary" ||
+      (mode === "production" && operationalModeStatus().mode === "guarded_live");
+    const approved = liveEnvironmentAssertionsRequired
+      ? getTopicDialoguePolicy()
+      : resolveTopicDialogueRuntimePolicy({ require_environment_match: false });
+    return {
+      plan,
+      policy: {
+        maximum_student_turns:
+          approved.maximum_student_turns ?? TOPIC_DIALOGUE_MAX_STUDENT_TURNS_DEFAULT,
+        recent_turn_window:
+          approved.recent_turn_window ?? TOPIC_DIALOGUE_RECENT_TURN_WINDOW_DEFAULT,
+        maximum_student_message_chars:
+          approved.maximum_student_message_chars ??
+          TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS_DEFAULT,
+        allow_assessment_system_questions:
+          approved.allow_assessment_system_questions ?? true
+      }
+    };
+  }
+  return {
+    plan,
+    policy: {
+      maximum_student_turns: TOPIC_DIALOGUE_MAX_STUDENT_TURNS_DEFAULT,
+      recent_turn_window: TOPIC_DIALOGUE_RECENT_TURN_WINDOW_DEFAULT,
+      maximum_student_message_chars: TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS_DEFAULT,
+      allow_assessment_system_questions: true
+    }
+  };
+}
 
 const alternativeActivityLabels: string[] = [];
 
@@ -424,8 +470,13 @@ async function runFormativeTurnProfileAndPlan(input: {
   client_operation_id: string;
   evidence_record_public_id: string | null;
   orchestration_override?: StudentActivityTurnOrchestrationOverride;
+  execution_mode?: FormativeExecutionMode;
   client: PrismaClientLike;
 }) {
+  const executionPlan = resolveTopicDialogueExecutionPlan(
+    input.execution_mode ?? "production"
+  );
+  const deterministicAdapter = executionPlan.adapter === "deterministic_mock_safe";
   const current = await currentProfileAndPlan(input.concept_unit_session_db_id, input.client);
   const profileContext = await buildAuthoritativeFormativeTurnContext({
     ...input,
@@ -446,7 +497,7 @@ async function runFormativeTurnProfileAndPlan(input: {
     : null;
   let profileResult: Awaited<ReturnType<typeof executeStudentProfilingCandidate>> | null = null;
   let profileFailureReasonCode: string | null = null;
-  if (!profileOverride) {
+  if (!profileOverride && !deterministicAdapter) {
     try {
       profileResult = await executeStudentProfilingCandidate({
         concept_unit_session_db_id: input.concept_unit_session_db_id,
@@ -460,10 +511,18 @@ async function runFormativeTurnProfileAndPlan(input: {
       profileFailureReasonCode = "profile_candidate_execution_failed";
     }
   }
-  const profileSucceeded = profileOverride?.stage === "profile" ||
+  const deterministicProfileOutput = deterministicAdapter
+    ? carryForwardProfileOutput(current.profile)
+    : null;
+  const profileSucceeded = profileOverride?.stage === "profile" || deterministicAdapter ||
     (profileResult?.status === "succeeded" && Boolean(profileResult.output));
   const profileOutput = profileOverride?.stage === "profile"
     ? profileOverride.output
+    : deterministicProfileOutput
+      ? {
+          ...deterministicProfileOutput,
+          warnings: ["deterministic_evaluation_profile_projection"]
+        }
     : profileResult?.status === "succeeded" && profileResult.output
       ? profileResult.output
       : carryForwardProfileOutput(current.profile);
@@ -478,7 +537,9 @@ async function runFormativeTurnProfileAndPlan(input: {
       ? null
       : fallbackSourceVersion("profile", current.profile.id, current.profile.created_at),
     failure_agent_call_id: profileSucceeded ? null : profileAgentCallId,
-    result_status: profileSucceeded ? "succeeded" : profileResult?.status ?? "execution_failed",
+    result_status: deterministicAdapter
+      ? "deterministic_mock_safe"
+      : profileSucceeded ? "succeeded" : profileResult?.status ?? "execution_failed",
     failure_reason_code: profileSucceeded
       ? null
       : profileFailureReasonCode ?? `profile_${profileResult?.status ?? "execution_failed"}`
@@ -516,7 +577,7 @@ async function runFormativeTurnProfileAndPlan(input: {
     : null;
   let planningResult: Awaited<ReturnType<typeof executeFormativePlanningCandidate>> | null = null;
   let planningFailureReasonCode: string | null = null;
-  if (!planningOverride) {
+  if (!planningOverride && !deterministicAdapter) {
     try {
       planningResult = await executeFormativePlanningCandidate({
         concept_unit_session_db_id: input.concept_unit_session_db_id,
@@ -531,10 +592,18 @@ async function runFormativeTurnProfileAndPlan(input: {
       planningFailureReasonCode = "planning_candidate_execution_failed";
     }
   }
-  const planningSucceeded = planningOverride?.stage === "planning" ||
+  const deterministicPlanningOutput = deterministicAdapter
+    ? carryForwardPlanningOutput(current.decision)
+    : null;
+  const planningSucceeded = planningOverride?.stage === "planning" || deterministicAdapter ||
     (planningResult?.status === "succeeded" && Boolean(planningResult.output));
   const planningOutput = planningOverride?.stage === "planning"
     ? planningOverride.output
+    : deterministicPlanningOutput
+      ? {
+          ...deterministicPlanningOutput,
+          warnings: ["deterministic_evaluation_plan_projection"]
+        }
     : planningResult?.status === "succeeded" && planningResult.output
       ? planningResult.output
       : carryForwardPlanningOutput(current.decision);
@@ -549,7 +618,9 @@ async function runFormativeTurnProfileAndPlan(input: {
       ? null
       : fallbackSourceVersion("plan", current.decision.id, current.decision.created_at),
     failure_agent_call_id: planningSucceeded ? null : planningAgentCallId,
-    result_status: planningSucceeded ? "succeeded" : planningResult?.status ?? "execution_failed",
+    result_status: deterministicAdapter
+      ? "deterministic_mock_safe"
+      : planningSucceeded ? "succeeded" : planningResult?.status ?? "execution_failed",
     failure_reason_code: planningSucceeded
       ? null
       : planningFailureReasonCode ?? `planning_${planningResult?.status ?? "execution_failed"}`
@@ -1094,7 +1165,8 @@ type LatestEvidenceContext = {
 async function latestEvidenceContext(
   attempt: ActivityRuntimeAttempt,
   source: z.infer<typeof SourceActivityPacketRefSchema> | null,
-  client: PrismaClientLike
+  client: PrismaClientLike,
+  options: { maximum_dialogue_turns?: number } = {}
 ): Promise<LatestEvidenceContext> {
   if (!attempt.latest_evidence_record_public_id) {
     return { feedback: null, decision: null, packet: null };
@@ -1110,7 +1182,15 @@ async function latestEvidenceContext(
   const feedbackParsed = FeedbackSchema.safeParse(record?.student_safe_feedback);
   const packetParsed = ActivityMisconceptionEvidencePacketV1Schema.safeParse(record?.evidence_packet);
   const packet = packetParsed.success ? packetParsed.data : null;
-  const dialoguePolicy = getTopicDialoguePolicy();
+  const persistedDialogue = options.maximum_dialogue_turns === undefined
+    ? await client.topicDialogue.findFirst({
+        where: { activity_attempt_public_id: attempt.activity_attempt_public_id },
+        select: { maximum_turns: true }
+      })
+    : null;
+  const maximumDialogueTurns = options.maximum_dialogue_turns ??
+    persistedDialogue?.maximum_turns ??
+    getTopicDialoguePolicy().maximum_student_turns;
   const decision = packet && source
     ? buildPostActivityLearningDecision({
         activity_public_id: attempt.activity_attempt_public_id,
@@ -1118,7 +1198,8 @@ async function latestEvidenceContext(
           source.target_construct_or_boundary ??
           source.distractor_student_safe_description,
         evidence_packet: packet,
-        maximum_dialogue_turns: dialoguePolicy.maximum_student_turns
+        maximum_dialogue_turns:
+          maximumDialogueTurns
       })
     : null;
 
@@ -1392,10 +1473,11 @@ function uiStateForAttempt(attempt: ActivityRuntimeAttempt):
 async function projectionForAttempt(
   attempt: ActivityRuntimeAttempt,
   client: PrismaClientLike,
-  loopResult?: ActivityRuntimeLoopResult
+  loopResult?: ActivityRuntimeLoopResult,
+  options: { maximum_dialogue_turns?: number } = {}
 ): Promise<StudentActivityRuntimeProjection> {
   const source = sourceFromAttempt(attempt);
-  const evidence = await latestEvidenceContext(attempt, source, client);
+  const evidence = await latestEvidenceContext(attempt, source, client, options);
   const feedback = loopResult?.student_safe_feedback ?? evidence.feedback;
   const uiState = uiStateForAttempt(attempt);
   const topicDialogue = await latestTopicDialogueProjection({
@@ -1597,6 +1679,7 @@ async function latestValidatedLiveActivityPacket(input: {
 export async function getStudentActivityRuntimeState(input: {
   student_user_db_id: string;
   session_public_id: string;
+  execution_mode?: FormativeExecutionMode;
   client?: PrismaClientLike;
 }) {
   const client = input.client ?? prisma;
@@ -1616,7 +1699,12 @@ export async function getStudentActivityRuntimeState(input: {
     });
   }
 
-  return attempt ? projectionForAttempt(attempt, client) : projectionForNoAttempt();
+  if (!attempt) return projectionForNoAttempt();
+  if (!input.execution_mode) return projectionForAttempt(attempt, client);
+  const { policy } = topicDialoguePolicyForExecutionMode(input.execution_mode);
+  return projectionForAttempt(attempt, client, undefined, {
+    maximum_dialogue_turns: policy.maximum_student_turns
+  });
 }
 
 export async function startStudentActivityForSession(input: {
@@ -1760,7 +1848,7 @@ export async function submitStudentActivityRuntimeResponse(input: {
   client_message_id: string;
   evaluator_override?: StudentActivityRuntimeEvaluatorOverride;
   orchestration_override?: StudentActivityTurnOrchestrationOverride;
-  disable_topic_dialogue_live_calls_for_evaluation?: true;
+  execution_mode?: FormativeExecutionMode;
   client?: PrismaClientLike;
 }) {
   const client = input.client ?? prisma;
@@ -1778,7 +1866,9 @@ export async function submitStudentActivityRuntimeResponse(input: {
       400
     );
   }
-  const dialoguePolicy = getTopicDialoguePolicy();
+  const { policy: dialoguePolicy } = topicDialoguePolicyForExecutionMode(
+    input.execution_mode ?? "production"
+  );
   if (message.length > dialoguePolicy.maximum_student_message_chars) {
     throw new StudentAssessmentServiceError(
       "validation_failed",
@@ -1809,8 +1899,7 @@ export async function submitStudentActivityRuntimeResponse(input: {
     client_operation_id: input.client_message_id,
     evaluator_override: input.evaluator_override,
     orchestration_override: input.orchestration_override,
-    disable_topic_dialogue_live_calls_for_evaluation:
-      input.disable_topic_dialogue_live_calls_for_evaluation,
+    execution_mode: input.execution_mode,
     client
   });
 }
@@ -2177,7 +2266,7 @@ async function processTopicDialogueResponse(input: {
   expected_dialogue_version?: string | null;
   evaluator_override?: StudentActivityRuntimeEvaluatorOverride;
   orchestration_override?: StudentActivityTurnOrchestrationOverride;
-  disable_topic_dialogue_live_calls_for_evaluation?: true;
+  execution_mode?: FormativeExecutionMode;
   client?: PrismaClientLike;
 }) {
   const client = input.client ?? prisma;
@@ -2187,7 +2276,8 @@ async function processTopicDialogueResponse(input: {
     client
   });
   const message = input.student_message.trim();
-  const dialoguePolicy = getTopicDialoguePolicy();
+  const { plan: executionPlan, policy: dialoguePolicy } =
+    topicDialoguePolicyForExecutionMode(input.execution_mode ?? "production");
 
   if (!message) {
     throw new StudentAssessmentServiceError(
@@ -2237,7 +2327,9 @@ async function processTopicDialogueResponse(input: {
     client
   });
   if (completedReplay.completed) {
-    return completedReplay.projection ?? projectionForAttempt(attempt, client);
+    return completedReplay.projection ?? projectionForAttempt(attempt, client, undefined, {
+      maximum_dialogue_turns: dialoguePolicy.maximum_student_turns
+    });
   }
   if (context.session.current_phase === "session_completed") {
     throw new StudentAssessmentServiceError(
@@ -2263,7 +2355,9 @@ async function processTopicDialogueResponse(input: {
     client
   });
   if (claim.completed) {
-    return projectionForAttempt(attempt, client);
+    return projectionForAttempt(attempt, client, undefined, {
+      maximum_dialogue_turns: dialoguePolicy.maximum_student_turns
+    });
   }
   await claimActivityAttemptForTurn({
     attempt,
@@ -2298,7 +2392,9 @@ async function processTopicDialogueResponse(input: {
     }
   });
   if (claim.already_seen && !claim.resume_allowed) {
-    return projectionForAttempt(attempt, client);
+    return projectionForAttempt(attempt, client, undefined, {
+      maximum_dialogue_turns: dialoguePolicy.maximum_student_turns
+    });
   }
   const existingTurnPayload = recordFromJson(existingStudentTurn?.structured_payload);
   const priorStudentTurns = priorTurns.filter((turn) =>
@@ -2393,7 +2489,9 @@ async function processTopicDialogueResponse(input: {
   const refreshedAttempt = await client.activityRuntimeAttempt.findUniqueOrThrow({
     where: { id: attempt.id }
   });
-  const evidence = await latestEvidenceContext(refreshedAttempt, source, client);
+  const evidence = await latestEvidenceContext(refreshedAttempt, source, client, {
+    maximum_dialogue_turns: dialoguePolicy.maximum_student_turns
+  });
   if (!evidence.decision) {
     throw new Error("formative_turn_post_activity_decision_missing");
   }
@@ -2421,6 +2519,7 @@ async function processTopicDialogueResponse(input: {
     client_operation_id: input.client_operation_id,
     evidence_record_public_id: loopResult.evidence_record_public_id,
     orchestration_override: input.orchestration_override,
+    execution_mode: input.execution_mode,
     client
   });
   const boundedGrowthTarget = distractorFocusedGrowthTarget({
@@ -2516,9 +2615,10 @@ async function processTopicDialogueResponse(input: {
     }
   });
   const iterativeDialogueRole = formativeDialogueRoute("first_activity_response").role;
-  const topicDialogueLiveEnabled = input.disable_topic_dialogue_live_calls_for_evaluation
-    ? false
-    : resolveOperationalRoleLiveCallsEnabled(iterativeDialogueRole);
+  const deterministicDialogueAdapter =
+    executionPlan.adapter === "deterministic_mock_safe";
+  const topicDialogueLiveEnabled = executionPlan.adapter === "configured_live_runtime" &&
+    resolveOperationalRoleLiveCallsEnabled(iterativeDialogueRole);
   if (topicDialogueLiveEnabled) {
     await logProcessEvent({
       assessment_session_db_id: context.session.id,
@@ -2543,11 +2643,17 @@ async function processTopicDialogueResponse(input: {
     where: { agent_invocation_key: dialogueInvocationKey },
     select: { id: true, call_status: true, output_validated: true, output_payload: true }
   });
-  const reusableDialogueOutput = existingDialogueCall?.call_status === "succeeded" &&
+  const reusableDialogueOutput = !deterministicDialogueAdapter &&
+    existingDialogueCall?.call_status === "succeeded" &&
     existingDialogueCall.output_validated
     ? TopicDialogueOutputV1Schema.safeParse(existingDialogueCall.output_payload)
     : null;
-  const liveResult = reusableDialogueOutput?.success
+  const liveResult = deterministicDialogueAdapter
+    ? {
+        status: "not_attempted" as const,
+        blocked_reason: "deterministic_mock_safe_adapter_selected"
+      }
+    : reusableDialogueOutput?.success
     ? {
         status: "succeeded" as const,
         output: reusableDialogueOutput.data,
@@ -2596,7 +2702,8 @@ async function processTopicDialogueResponse(input: {
     candidate_output: validatedOutput
   });
   const persistedOutput = readinessResult.output;
-  const fallbackUsed = liveResult.status !== "succeeded" || !validation.valid;
+  const fallbackUsed = !deterministicDialogueAdapter &&
+    (liveResult.status !== "succeeded" || !validation.valid);
   const agentCall = liveResult.status === "succeeded"
     ? await client.agentCall.update({
         where: { id: liveResult.agent_call_id },
@@ -2638,7 +2745,9 @@ async function processTopicDialogueResponse(input: {
           concept_unit_session_db_id: context.concept_unit_session.id,
           agent_name: iterativeDialogueRole,
           agent_version: TOPIC_DIALOGUE_PROMPT_VERSION,
-          model_name: "deterministic_topic_dialogue_fallback",
+          model_name: deterministicDialogueAdapter
+            ? "deterministic_topic_dialogue_adapter"
+            : "deterministic_topic_dialogue_fallback",
           provider: "mock",
           agent_invocation_key: `topic-dialogue:${input.dialogue_public_id}:${input.client_operation_id}`,
           prompt_version: TOPIC_DIALOGUE_PROMPT_VERSION,
@@ -2654,8 +2763,9 @@ async function processTopicDialogueResponse(input: {
                 const blocked = "blocked_pattern_label" in issue ? issue.blocked_pattern_label : undefined;
                 return `${issue.field_path}:${blocked ?? issue.rule_code}`;
               }).join("; "),
-          blocked_reason:
-            liveResult.status === "not_attempted" ? liveResult.blocked_reason : undefined,
+          blocked_reason: !deterministicDialogueAdapter && liveResult.status === "not_attempted"
+            ? liveResult.blocked_reason
+            : undefined,
           call_status: validation.valid ? "succeeded" : "invalid_output",
           live_call_allowed: false,
           started_at: new Date(),
@@ -2778,6 +2888,8 @@ async function processTopicDialogueResponse(input: {
           expected_response_guidance: persistedOutput.expected_response_guidance ?? null,
           safety_flags: persistedOutput.safety_flags ?? [],
           schema_version: persistedOutput.schema_version ?? TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION,
+          execution_mode: executionPlan.mode,
+          dialogue_adapter: executionPlan.adapter,
           fallback_used: fallbackUsed,
           fallback_version: TOPIC_DIALOGUE_FALLBACK_VERSION,
           boundary_validator_version: TOPIC_DIALOGUE_BOUNDARY_VALIDATOR_VERSION,
@@ -2875,6 +2987,8 @@ async function processTopicDialogueResponse(input: {
       topic_boundary: persistedOutput.topic_boundary,
       agent_call_id: agentCall.id,
       fallback_used: fallbackUsed,
+      execution_mode: executionPlan.mode,
+      dialogue_adapter: executionPlan.adapter,
       readiness_gate: readinessResult.gate,
       readiness_gate_overrode_candidate: readinessResult.overridden
     }
@@ -2993,7 +3107,9 @@ async function processTopicDialogueResponse(input: {
   const committedAttempt = await client.activityRuntimeAttempt.findUniqueOrThrow({
     where: { id: attempt.id }
   });
-  const completedProjection = await projectionForAttempt(committedAttempt, client);
+  const completedProjection = await projectionForAttempt(committedAttempt, client, undefined, {
+    maximum_dialogue_turns: dialoguePolicy.maximum_student_turns
+  });
   await client.studentActionIdempotencyKey.update({
     where: {
       assessment_session_db_id_client_action_id: {
@@ -3025,7 +3141,7 @@ export async function submitTopicDialogueResponse(input: {
   expected_dialogue_version?: string | null;
   evaluator_override?: StudentActivityRuntimeEvaluatorOverride;
   orchestration_override?: StudentActivityTurnOrchestrationOverride;
-  disable_topic_dialogue_live_calls_for_evaluation?: true;
+  execution_mode?: FormativeExecutionMode;
   client?: PrismaClientLike;
 }) {
   try {
@@ -3034,6 +3150,15 @@ export async function submitTopicDialogueResponse(input: {
     if (error instanceof StudentAssessmentServiceError) {
       throw error;
     }
+    const executionPlan = resolveTopicDialogueExecutionPlan(
+      input.execution_mode ?? "production"
+    );
+    if (!executionPlan.safe_recovery_eligible) {
+      throw error;
+    }
+    const { policy: dialoguePolicy } = topicDialoguePolicyForExecutionMode(
+      executionPlan.mode
+    );
     const client = input.client ?? prisma;
     const context = await ownedSessionContext({
       student_user_db_id: input.student_user_db_id,
@@ -3127,7 +3252,9 @@ export async function submitTopicDialogueResponse(input: {
     const recoveredAttempt = await client.activityRuntimeAttempt.findUniqueOrThrow({
       where: { id: attempt.id }
     });
-    return projectionForAttempt(recoveredAttempt, client);
+    return projectionForAttempt(recoveredAttempt, client, undefined, {
+      maximum_dialogue_turns: dialoguePolicy.maximum_student_turns
+    });
   }
 }
 
@@ -3138,9 +3265,19 @@ export async function recordStudentActivityRuntimeChoice(input: {
   choice_state: StudentActivityRuntimeChoiceAction;
   selected_alternative_activity_family?: FormativeActivityFamily | null;
   client_action_id: string;
+  execution_mode?: FormativeExecutionMode;
   client?: PrismaClientLike;
 }) {
   const client = input.client ?? prisma;
+  const dialoguePolicy = input.execution_mode
+    ? topicDialoguePolicyForExecutionMode(input.execution_mode).policy
+    : null;
+  const projectAttempt = (value: ActivityRuntimeAttempt) =>
+    dialoguePolicy
+      ? projectionForAttempt(value, client, undefined, {
+          maximum_dialogue_turns: dialoguePolicy.maximum_student_turns
+        })
+      : projectionForAttempt(value, client);
   const context = await ownedSessionContext({
     student_user_db_id: input.student_user_db_id,
     session_public_id: input.session_public_id,
@@ -3174,10 +3311,10 @@ export async function recordStudentActivityRuntimeChoice(input: {
     if (input.choice_state === "choose_another_activity") {
       const latestAttempt = await latestAttemptForSession(input.session_public_id, client);
       if (latestAttempt && latestAttempt.id !== attempt.id) {
-        return projectionForAttempt(latestAttempt, client);
+        return projectAttempt(latestAttempt);
       }
     }
-    return projectionForAttempt(attempt, client);
+    return projectAttempt(attempt);
   }
 
   const source = sourceFromAttempt(attempt);
@@ -3245,7 +3382,7 @@ export async function recordStudentActivityRuntimeChoice(input: {
       client_action_id: input.client_action_id
     });
 
-    return projectionForAttempt(attempt, client);
+    return projectAttempt(attempt);
   }
 
   const responseReference = attempt.latest_activity_response_reference
@@ -3370,8 +3507,8 @@ export async function recordStudentActivityRuntimeChoice(input: {
         activity_switch_reason: "student_requested_different_activity"
       }
     });
-    return projectionForAttempt(nextAttempt, client);
+    return projectAttempt(nextAttempt);
   }
 
-  return projectionForAttempt(updated, client);
+  return projectAttempt(updated);
 }

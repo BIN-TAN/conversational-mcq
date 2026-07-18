@@ -1,0 +1,47 @@
+{
+  "manifest_version": "e2a2-topic-dialogue-contract-candidate-v1",
+  "approval_state": "candidate_not_approved",
+  "activation_state": "not_activated",
+  "baseline_approved_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "baseline_candidate_manifest_path": "config/candidate-operational-agent-config.gpt-5.6-full-v2.json",
+  "baseline_candidate_manifest_sha256": "dafa5875394e1abcaa4194df1e7f5c02a63b44128b648ff6b8cfb683e0c5b977",
+  "candidate_profile_name": "E2A.2 exact ten-turn topic dialogue contract",
+  "evaluation_required": true,
+  "human_review_required": true,
+  "student_facing_operational_use_approved": false,
+  "teacher_tool_use_approved": false,
+  "roles_unchanged_from_baseline": true,
+  "topic_dialogue_contract": {
+    "input_schema_version": "topic-dialogue-input-v3",
+    "output_schema_version": "topic-dialogue-output-v2",
+    "validator_version": "eval-topic-boundary-v2",
+    "fallback_version": "topic-dialogue-deterministic-fallback-v1",
+    "maximum_student_turns": 10,
+    "student_turn_semantics": "one accepted student message submitted within the bounded topic dialogue",
+    "recent_raw_turn_window": 18,
+    "history_semantics": "all prior student-visible student and assistant turns for the current topic dialogue, in chronological order, with exact content",
+    "maximum_prior_visible_history_turns": 18,
+    "latest_student_message_separate": true,
+    "internal_context_separate": true,
+    "silent_history_truncation_allowed": false
+  },
+  "exact_delta_from_baseline": {
+    "topic_dialogue_agent.input_schema_version": {
+      "from": "topic-dialogue-input-v2",
+      "to": "topic-dialogue-input-v3"
+    },
+    "runtime_policy.topic_dialogue_policy.recent_raw_turn_window": {
+      "from": 12,
+      "to": 18
+    }
+  },
+  "acceptance_criteria": {
+    "ten_turn_context_complete": true,
+    "exact_visible_content_preserved": true,
+    "chronological_order_preserved": true,
+    "invisible_turns_excluded": true,
+    "provider_evaluation_required_before_approval": true,
+    "human_review_required_before_approval": true,
+    "automatic_activation_forbidden": true
+  }
+}

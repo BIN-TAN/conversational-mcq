@@ -2752,3 +2752,18 @@ attestation required by the canary. It requires the emitted no-live E1 summary
 to report 12/12 passes with zero provider calls and verifies that approved
 dialogue-policy limits fit the current input contract. E2A.1 stops after four
 canary sessions; it does not authorize `eval:formative:e2a:full`.
+
+E2A.2 found a real approved-contract inconsistency. The policy value 10 means
+ten accepted student messages, but approved input V2 accepts at most eight and
+contains only twelve recent message summaries; it does not preserve all nine
+prior visible exchanges exactly for the tenth call. Current approved readiness
+therefore remains fail-closed. A separate inactive V3 candidate preserves 18
+exact prior visible turns plus the latest student message, with no change to the
+approved runtime. Its no-live hash is
+`681ab5f96c9c18dfdd9aa17f335d3594a37cd7696bee6cbfe7c2e010c6943404`.
+
+Evaluation modes are call-scoped. Deterministic E1 and no-live E2A use
+mock-safe adapters, readiness performs no generation, and only live canary or
+production paths use configured live dispatch and bounded safe recovery. The
+authoritative derived-manifest verifier and the Phase 8A compatibility smoke
+both validate the current 17-role approval architecture.

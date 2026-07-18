@@ -11,6 +11,7 @@ import { resolveE2ABudgetLimits, resolveE2ASimulatorConfiguration } from "../src
 import {
   defaultE2AReadinessPath,
   evaluateE2AE1PrerequisiteSummary,
+  evaluateTopicDialoguePolicyContractCompatibility,
   E2A_READINESS_REPORT_VERSION,
   E2AReadinessReportSchema
 } from "../src/lib/evaluation/formative/e2a-readiness";
@@ -18,7 +19,6 @@ import { APPROVED_OPERATIONAL_RUNTIME_HASH } from "../src/lib/evaluation/formati
 import { resolveOpenAICredentialFromEnv } from "../src/lib/llm/openai-credential-resolver";
 import { resolveApprovedOperationalRuntimeRequirement } from "../src/lib/operational/active-approval-bundle";
 import { resolveApplicationBuildInfo } from "../src/lib/provenance/application-build-info";
-import { TOPIC_DIALOGUE_MAX_STUDENT_TURNS_DEFAULT } from "../src/lib/services/student-assessment/topic-dialogue-agent";
 
 loadEnvConfig(process.cwd());
 
@@ -28,9 +28,14 @@ function argValue(name: string) {
 }
 
 function protectedArtifactsUnchanged() {
+  const protectedPaths = [
+    "config/approved-operational-agent-config.json",
+    "config/candidate-operational-agent-config.gpt-5.6-full-v2.json",
+    "src/lib/agents"
+  ];
   for (const args of [
-    ["diff", "--quiet", "HEAD", "--", "config", "src/lib/agents"],
-    ["diff", "--cached", "--quiet", "HEAD", "--", "config", "src/lib/agents"]
+    ["diff", "--quiet", "HEAD", "--", ...protectedPaths],
+    ["diff", "--cached", "--quiet", "HEAD", "--", ...protectedPaths]
   ]) {
     try {
       execFileSync("git", args, { cwd: process.cwd(), stdio: "ignore" });
@@ -138,6 +143,8 @@ async function main() {
   let manifestValid = false;
   let activeKindIsDerived = false;
   let approvedTopicDialogueMaximumTurns: number | null = null;
+  let approvedTopicDialogueRecentRawTurnWindow: number | null = null;
+  let approvedTopicDialogueInputSchemaVersion: string | null = null;
   try {
     const active = readActiveApprovedOperationalRuntimeConfig();
     const verification = verifyApprovedOperationalAgentConfig();
@@ -145,6 +152,17 @@ async function main() {
     approvedTopicDialogueMaximumTurns = active.kind === "derived_approval"
       ? active.runtime_policy.topic_dialogue_policy.maximum_student_turns
       : null;
+    approvedTopicDialogueRecentRawTurnWindow = active.kind === "derived_approval"
+      ? active.runtime_policy.topic_dialogue_policy.recent_raw_turn_window
+      : null;
+    const topicDialogueMetadata = active.kind === "derived_approval"
+      ? active.active_bundle.manifest.configuration_fingerprint
+          .role_version_metadata.topic_dialogue_agent
+      : null;
+    approvedTopicDialogueInputSchemaVersion =
+      typeof topicDialogueMetadata?.input_schema_version === "string"
+        ? topicDialogueMetadata.input_schema_version
+        : null;
     manifestValid = verification.valid &&
       verification.approval_kind === "derived_approval" &&
       verification.role_inventory.length === 17;
@@ -165,9 +183,19 @@ async function main() {
 
   const e1Matrix = runE1MatrixPrerequisite();
   const privacySmokePassed = runNoLivePrerequisite("e2e:privacy-smoke");
+  const topicDialogueCompatibility = approvedTopicDialogueMaximumTurns !== null &&
+    approvedTopicDialogueRecentRawTurnWindow !== null &&
+    approvedTopicDialogueInputSchemaVersion !== null
+    ? evaluateTopicDialoguePolicyContractCompatibility({
+        input_schema_version: approvedTopicDialogueInputSchemaVersion,
+        policy: {
+          maximum_student_turns: approvedTopicDialogueMaximumTurns,
+          recent_raw_turn_window: approvedTopicDialogueRecentRawTurnWindow
+        }
+      })
+    : null;
   const topicDialoguePolicyContractCompatible =
-    approvedTopicDialogueMaximumTurns !== null &&
-    approvedTopicDialogueMaximumTurns <= TOPIC_DIALOGUE_MAX_STUDENT_TURNS_DEFAULT;
+    topicDialogueCompatibility?.compatible ?? false;
   const checks = {
     requested_hash_is_approved_hash: requestedRuntimeHash === APPROVED_OPERATIONAL_RUNTIME_HASH,
     resolved_hash_matches_requested: resolution.resolved_hash === requestedRuntimeHash,
@@ -214,8 +242,21 @@ async function main() {
     runtime_compatibility: {
       topic_dialogue_maximum_student_turns: {
         approved_value: approvedTopicDialogueMaximumTurns,
-        input_contract_maximum: TOPIC_DIALOGUE_MAX_STUDENT_TURNS_DEFAULT,
-        compatible: topicDialoguePolicyContractCompatible
+        input_schema_version: approvedTopicDialogueInputSchemaVersion,
+        input_contract_maximum:
+          topicDialogueCompatibility?.input_contract_maximum_student_turns ?? null,
+        policy_recent_raw_turn_window: approvedTopicDialogueRecentRawTurnWindow,
+        input_contract_history_turn_capacity:
+          topicDialogueCompatibility?.input_contract_history_turn_capacity ?? null,
+        student_turn_semantics: "student_messages_submitted",
+        history_semantics: topicDialogueCompatibility?.history_semantics ?? "unknown",
+        complete_visible_history_required:
+          topicDialogueCompatibility?.complete_visible_history_required ?? false,
+        compatible: topicDialoguePolicyContractCompatible,
+        incompatibility_reasons:
+          topicDialogueCompatibility?.incompatibility_reasons ?? [
+            "topic_dialogue_runtime_contract_metadata_missing"
+          ]
       }
     },
     prerequisites: {

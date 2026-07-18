@@ -797,6 +797,8 @@ function makePrivacyEvaluator(input: {
         model_name: "deterministic-e1.2-fixture",
         provider: "mock",
         client_request_id: `e1_2_${input.suffix}_${evaluationInput.activity_attempt_id}`,
+        provider_request_id: `e1_2_mock_request_${input.suffix}`,
+        provider_response_id: `e1_2_mock_response_${input.suffix}`,
         prompt_version: "formative-activity-response-evaluator-prompt-v6",
         schema_version: "formative-activity-response-evaluation-v1",
         input_payload: { fixture: "e1.2", redacted: true },
@@ -805,6 +807,10 @@ function makePrivacyEvaluator(input: {
         output_validated: true,
         live_call_allowed: false,
         call_status: "succeeded",
+        input_tokens: 0,
+        output_tokens: 0,
+        total_tokens: 0,
+        token_usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
         started_at: new Date(),
         completed_at: new Date()
       }
@@ -1242,6 +1248,7 @@ async function runPrivacyJourney(input: {
       activity_attempt_public_id: activityAttemptId,
       response_text: "I do not understand what this activity is asking.",
       client_message_id: firstDialogueOperation,
+      execution_mode: "no_live_e2a_contract",
       evaluator_override: makePrivacyEvaluator({
         prisma: input.prisma,
         assessment_session_db_id: sessionContext.id,
@@ -1277,6 +1284,7 @@ async function runPrivacyJourney(input: {
       student_message:
         "I still think Option B makes sense. Can you explain where that reasoning fails?",
       client_operation_id: secondDialogueOperation,
+      execution_mode: "no_live_e2a_contract",
       evaluator_override: makePrivacyEvaluator({
         prisma: input.prisma,
         assessment_session_db_id: sessionContext.id,

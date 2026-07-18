@@ -4,6 +4,7 @@ import path from "node:path";
 import {
   assertE2AReadinessAttestation,
   evaluateE2AE1PrerequisiteSummary,
+  evaluateTopicDialoguePolicyContractCompatibility,
   E2A_READINESS_REPORT_VERSION,
   E2AReadinessReportSchema
 } from "../src/lib/evaluation/formative/e2a-readiness";
@@ -48,8 +49,15 @@ function report(now: Date, ready = true) {
     runtime_compatibility: {
       topic_dialogue_maximum_student_turns: {
         approved_value: 8,
+        input_schema_version: "topic-dialogue-input-v2",
         input_contract_maximum: 8,
-        compatible: true
+        policy_recent_raw_turn_window: 12,
+        input_contract_history_turn_capacity: 12,
+        student_turn_semantics: "student_messages_submitted",
+        history_semantics: "recent_message_summaries",
+        complete_visible_history_required: false,
+        compatible: true,
+        incompatibility_reasons: []
       }
     },
     prerequisites: {
@@ -122,6 +130,22 @@ function main() {
       }).passed,
       "A zero-exit E1 command with failed scenarios must not satisfy readiness."
     );
+    const approvedMismatch = evaluateTopicDialoguePolicyContractCompatibility({
+      input_schema_version: "topic-dialogue-input-v2",
+      policy: { maximum_student_turns: 10, recent_raw_turn_window: 12 }
+    });
+    assert(!approvedMismatch.compatible, "The approved ten-turn policy must not fit the v2 eight-turn contract.");
+    assert(
+      approvedMismatch.incompatibility_reasons.includes(
+        "policy_maximum_student_turns_exceeds_input_contract"
+      ),
+      "Readiness should identify the real ten-versus-eight contract mismatch."
+    );
+    const candidateCompatible = evaluateTopicDialoguePolicyContractCompatibility({
+      input_schema_version: "topic-dialogue-input-v3",
+      policy: { maximum_student_turns: 10, recent_raw_turn_window: 18 }
+    });
+    assert(candidateCompatible.compatible, "The unapproved v3 candidate policy should be semantically compatible.");
     assert(
       errorCode(() => assertE2AReadinessAttestation({
         artifactPath,
@@ -151,6 +175,8 @@ function main() {
       expired_readiness_blocks_canary: true,
       successful_readiness_generation_provider_calls: 0,
       partial_e1_result_blocks_readiness: true,
+      real_contract_mismatch_detected: true,
+      semantically_compatible_contract_accepted: true,
       openai_calls: 0
     }, null, 2));
   } finally {

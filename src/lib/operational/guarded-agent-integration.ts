@@ -232,6 +232,31 @@ function firstManifestIssueCode(manifestVerification: ReturnType<typeof verifyAp
   return manifestVerification.issues[0]?.code ?? null;
 }
 
+const NON_LIVE_RUNTIME_ASSERTION_ISSUES = new Set([
+  "model_snapshot_mismatch",
+  "reasoning_effort_mismatch",
+  "runtime_token_limit_mismatch",
+  "runtime_policy_env_mismatch",
+  "effective_result_version_mismatch",
+  "effective_validator_version_mismatch",
+  "approved_config_hash_env_mismatch",
+  "approved_config_hash_missing"
+]);
+
+function verifyOperationalManifestForMode(mode: OperationalAgentMode) {
+  const verification = verifyApprovedOperationalAgentConfig();
+  if (mode === "guarded_live") return verification;
+
+  const issues = verification.issues.filter((issue) =>
+    !NON_LIVE_RUNTIME_ASSERTION_ISSUES.has(issue.code)
+  );
+  return {
+    ...verification,
+    valid: issues.length === 0,
+    issues
+  };
+}
+
 export function operationalModeStatus() {
   const parsed = safeParseServerEnv();
   if (!parsed.success) {
@@ -530,7 +555,7 @@ export async function evaluateOperationalExecutionReadiness(input: {
     };
   }
   const manifestVerification = config.configuration_valid
-    ? verifyApprovedOperationalAgentConfig()
+    ? verifyOperationalManifestForMode(config.mode)
     : {
         approval_kind: manifest.kind,
         valid: false,

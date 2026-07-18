@@ -31,6 +31,10 @@ import {
   type ResponseQualityStage
 } from "@/lib/services/student-assessment/response-quality";
 import type { ChatNativeAssessmentState } from "@/lib/student-assessment/state-machine";
+import {
+  resolveTopicDialogueExecutionPlan,
+  type FormativeExecutionMode
+} from "@/lib/services/student-assessment/formative-execution-mode";
 
 export const ITEM_ADMINISTRATION_TUTOR_VERSION = "item-administration-tutor-v1";
 export const ITEM_ADMINISTRATION_TUTOR_AGENT_NAME = "item_administration_tutor_agent";
@@ -940,7 +944,20 @@ export async function runItemAdministrationTutor(input: {
     concept_unit_session_db_id: string;
     agent_invocation_key: string;
   };
+  execution_mode?: FormativeExecutionMode;
 }) {
+  if (
+    resolveTopicDialogueExecutionPlan(input.execution_mode ?? "production").adapter ===
+    "deterministic_mock_safe"
+  ) {
+    return deterministicTutorResult({
+      ...input,
+      tutor_mode: "mock",
+      item_admin_tutor_source: "deterministic_mock",
+      live_status: "deterministic",
+      fallback_reason: null
+    });
+  }
   const runtimeMode = await resolveItemAdministrationTutorRuntimeMode();
   const fallback = deterministicTutorResult({
     ...input,

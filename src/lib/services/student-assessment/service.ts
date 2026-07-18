@@ -63,6 +63,10 @@ import {
   type ItemAdministrationTutorResult
 } from "@/lib/services/student-assessment/item-administration-tutor";
 import {
+  resolveTopicDialogueExecutionPlan,
+  type FormativeExecutionMode
+} from "@/lib/services/student-assessment/formative-execution-mode";
+import {
   TIMING_CONTRACT_VERSION,
   TIMING_SOURCE_VERSION
 } from "@/lib/services/student-assessment/timing-contract";
@@ -188,6 +192,7 @@ type StartOrResumeStudentAssessmentSessionInput = {
   student_user_db_id: string;
   assessment_public_id: string;
   new_attempt?: boolean;
+  execution_mode?: FormativeExecutionMode;
 };
 type TemptingOptionEvidence = {
   no_tempting_option: boolean;
@@ -1985,6 +1990,9 @@ export async function startOrResumeStudentAssessmentSession(
   }
 ): Promise<StudentSessionCommandResponse | StudentSessionCommandDeliveryResponse> {
   await assertActiveStudentAccount(input.student_user_db_id);
+  const executionPlan = resolveTopicDialogueExecutionPlan(
+    input.execution_mode ?? "production"
+  );
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -2272,19 +2280,25 @@ export async function startOrResumeStudentAssessmentSession(
             };
           }
 
-          const tutorRuntimeStatus = await getAssessmentTutorRuntimeStatus().catch((error) => {
-            throw new StudentAssessmentServiceError(
-              "llm_runtime_status_unavailable",
-              ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE,
-              409,
-              {
-                assessment_public_id: assessment.assessment_public_id,
-                reason_codes: ["llm_runtime_status_unavailable"],
-                runtime_source: "configuration_error",
-                error_name: error instanceof Error ? error.name : "unknown_error"
+          const tutorRuntimeStatus = executionPlan.adapter === "deterministic_mock_safe"
+            ? {
+                ready: true,
+                reason_codes: [] as string[],
+                runtime_source: "deterministic_evaluation_adapter"
               }
-            );
-          });
+            : await getAssessmentTutorRuntimeStatus().catch((error) => {
+                throw new StudentAssessmentServiceError(
+                  "llm_runtime_status_unavailable",
+                  ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE,
+                  409,
+                  {
+                    assessment_public_id: assessment.assessment_public_id,
+                    reason_codes: ["llm_runtime_status_unavailable"],
+                    runtime_source: "configuration_error",
+                    error_name: error instanceof Error ? error.name : "unknown_error"
+                  }
+                );
+              });
           if (!tutorRuntimeStatus.ready) {
             throw new StudentAssessmentServiceError(
               "llm_not_ready",
@@ -2712,6 +2726,7 @@ async function getChatNativeRoundState(followupRoundDbId: string) {
 export async function getStudentSessionState(input: {
   student_user_db_id: string;
   session_public_id: string;
+  execution_mode?: FormativeExecutionMode;
 }) {
   await assertActiveStudentAccount(input.student_user_db_id);
   const session = await prisma.assessmentSession.findFirst({
@@ -3087,10 +3102,11 @@ export async function getStudentSessionState(input: {
         })
       : null;
   const activityRuntime = assessmentState === "FORMATIVE_ACTIVITY"
-    ? await getStudentActivityRuntimeState({
-        student_user_db_id: input.student_user_db_id,
-        session_public_id: input.session_public_id
-      })
+      ? await getStudentActivityRuntimeState({
+          student_user_db_id: input.student_user_db_id,
+          session_public_id: input.session_public_id,
+          execution_mode: input.execution_mode
+        })
     : null;
   const canonicalRuntimeState =
     assessmentState === "FORMATIVE_ACTIVITY" && activityRuntime?.activity_attempt_public_id
@@ -4114,6 +4130,7 @@ export async function recordReasoning(input: {
   session_public_id: string;
   item_public_id: string;
   data: unknown;
+  execution_mode?: FormativeExecutionMode;
 }) {
   const data = reasoningActionSchema.parse(input.data);
   const context = await getActionContext(input);
@@ -4194,7 +4211,8 @@ export async function recordReasoning(input: {
             client_action_id: data.client_action_id,
             text: reasoningText
           })
-        }
+        },
+        execution_mode: input.execution_mode
       });
       const qualityResult = tutorResult.response_quality_result;
 
@@ -4515,6 +4533,7 @@ export async function recordTemptingOption(input: {
   session_public_id: string;
   item_public_id: string;
   data: unknown;
+  execution_mode?: FormativeExecutionMode;
 }) {
   const data = temptingOptionActionSchema.parse(input.data);
   const context = await getActionContext(input);
@@ -4527,7 +4546,8 @@ export async function recordTemptingOption(input: {
     run: async () => {
       const state = await getStudentSessionState({
         student_user_db_id: input.student_user_db_id,
-        session_public_id: input.session_public_id
+        session_public_id: input.session_public_id,
+        execution_mode: input.execution_mode
       });
       const action =
         state.assessment_state === "AWAIT_TEMPTING_REASON"
@@ -4606,7 +4626,8 @@ export async function recordTemptingOption(input: {
           action_status: "same_option_tempting_rejected",
           state: await getStudentSessionState({
             student_user_db_id: input.student_user_db_id,
-            session_public_id: input.session_public_id
+            session_public_id: input.session_public_id,
+            execution_mode: input.execution_mode
           })
         };
         assertStudentPayloadIsSafe(result);
@@ -4666,7 +4687,8 @@ export async function recordTemptingOption(input: {
               client_action_id: data.client_action_id,
               text: temptingOptionReason
             })
-          }
+          },
+          execution_mode: input.execution_mode
         });
         temptingReasonTutorResult = tutorResult;
         const qualityResult = tutorResult.response_quality_result;
@@ -4728,7 +4750,8 @@ export async function recordTemptingOption(input: {
             action_status: "response_quality_rejected",
             state: await getStudentSessionState({
               student_user_db_id: input.student_user_db_id,
-              session_public_id: input.session_public_id
+              session_public_id: input.session_public_id,
+              execution_mode: input.execution_mode
             })
           };
           assertStudentPayloadIsSafe(result);
@@ -4955,7 +4978,8 @@ export async function recordTemptingOption(input: {
 
       const nextState = await getStudentSessionState({
         student_user_db_id: input.student_user_db_id,
-        session_public_id: input.session_public_id
+        session_public_id: input.session_public_id,
+        execution_mode: input.execution_mode
       });
 
       if (!context.isTransferItem && itemComplete && nextState.current_item) {
@@ -5875,6 +5899,7 @@ export async function completeInitialConceptUnitAdministration(input: {
   student_user_db_id: string;
   session_public_id: string;
   concept_unit_public_id: string;
+  execution_mode?: FormativeExecutionMode;
 }) {
   const owned = await getOwnedSession(input);
   const session = await prisma.assessmentSession.findUniqueOrThrow({
@@ -6036,13 +6061,19 @@ export async function completeInitialConceptUnitAdministration(input: {
 
   if (!replayedCompletedOperation) {
     await persistProfileIntegrationSnapshotForSession({
-      session_public_id: session.session_public_id
+      session_public_id: session.session_public_id,
+      execution_mode:
+        resolveTopicDialogueExecutionPlan(input.execution_mode ?? "production").adapter ===
+        "configured_live_runtime"
+          ? "live_provider"
+          : "deterministic_mock"
     });
     await ensureChatNativeFormativeActivity({
       concept_unit_session_db_id: conceptUnitSession.id,
       invocation_reason: operation.already_seen
         ? "student_package_review_continue_replay"
-        : "student_package_review_continue"
+        : "student_package_review_continue",
+      execution_mode: input.execution_mode
     });
   }
 

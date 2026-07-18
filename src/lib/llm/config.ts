@@ -457,6 +457,16 @@ export function getLlmRuntimeConfig(): LlmRuntimeConfig {
     );
   }
 
+  if (provider === "mock") {
+    return {
+      provider,
+      live_calls_enabled: false,
+      openai_key_configured: openaiKeyConfigured,
+      request_timeout_ms: env.OPENAI_REQUEST_TIMEOUT_MS,
+      max_retries: env.OPENAI_MAX_RETRIES
+    };
+  }
+
   const activeApproval = resolveOperationalApprovalForModelResolution();
   const approvedRuntimePolicy = activeApproval?.manifest.runtime_policy;
   assertRuntimePolicyEnvironmentMatches(activeApproval);
@@ -475,11 +485,16 @@ function configuredProcessEnv(name: string) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function resolveOperationalApprovalForModelResolution() {
+function resolveOperationalApprovalForModelResolution(
+  options: { require_approved_hash_match?: boolean } = {}
+) {
   try {
     const active = resolveActiveOperationalApproval();
     if (active?.kind === "derived_approval") {
-      if (process.env.OPERATIONAL_APPROVED_CONFIG_HASH !== active.record.runtime_candidate_hash) {
+      if (
+        options.require_approved_hash_match !== false &&
+        process.env.OPERATIONAL_APPROVED_CONFIG_HASH !== active.record.runtime_candidate_hash
+      ) {
         throw new LlmConfigurationError(
           "approved_config_hash_mismatch",
           "OPERATIONAL_APPROVED_CONFIG_HASH does not match the active operational approval bundle."
@@ -746,10 +761,16 @@ export function resolveOperationalRoleLiveCallsEnabled(
     : env.TOPIC_DIALOGUE_LIVE_CALLS_ENABLED;
 }
 
-export function resolveTopicDialogueRuntimePolicy() {
-  const activeApproval = resolveOperationalApprovalForModelResolution();
+export function resolveTopicDialogueRuntimePolicy(
+  options: { require_environment_match?: boolean } = {}
+) {
+  const activeApproval = resolveOperationalApprovalForModelResolution({
+    require_approved_hash_match: options.require_environment_match !== false
+  });
   if (activeApproval) {
-    assertRuntimePolicyEnvironmentMatches(activeApproval);
+    if (options.require_environment_match !== false) {
+      assertRuntimePolicyEnvironmentMatches(activeApproval);
+    }
     const policy = activeApproval.manifest.runtime_policy.topic_dialogue_policy;
     return {
       maximum_student_turns: policy.maximum_student_turns,

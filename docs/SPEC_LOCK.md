@@ -3239,3 +3239,25 @@ Phase 6A.5 must not implement:
   is not proof of an E1 pass. Approved topic-dialogue policy limits must fit the
   current topic-dialogue input contract or readiness fails closed before paid
   execution.
+- E2A.2 defines one policy turn as one accepted student message. Ten policy
+  turns require nine exact prior visible student/assistant pairs and a separately
+  identified tenth student message on the tenth provider input.
+- Approved `topic-dialogue-input-v2` remains byte-identical and incompatible:
+  it caps the dialogue at eight student turns and carries at most twelve recent
+  message summaries. No other approved input field restores complete exact
+  history. The classification is `approved candidate inconsistency`.
+- The E2A.2 V3 contract candidate is separate, unapproved, and inactive. It may
+  carry 18 exact prior visible turns plus the latest student message, but it
+  cannot authorize a live canary until separately evaluated, reviewed, and
+  approved.
+- Execution mode is command-scoped: `deterministic_e1` and
+  `no_live_e2a_contract` use mock-safe adapters; `e2a_readiness` performs no
+  generation; `live_e2a_canary` and `production` use configured live dispatch.
+  Mutable global mode state is forbidden.
+- Safe recovery is not deterministic dialogue. It is unavailable to the two
+  no-live modes merely because credentials or opt-in are absent, and remains
+  available to live/production paths only for genuine bounded failures.
+- The derived 17-role verifier is authoritative for active derived bundles.
+  Legacy Phase 8A smoke coverage must validate the same derived role inventory,
+  hashes, schemas, validators, and approval linkage instead of rejecting the
+  current architecture.

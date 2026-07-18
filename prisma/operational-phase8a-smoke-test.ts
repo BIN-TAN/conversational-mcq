@@ -6,8 +6,11 @@ import { executeOperationalAgent } from "../src/lib/agents/operational/executor"
 import { persistOperationalEffectiveResult } from "../src/lib/agents/operational/effective-results";
 import {
   activeOperationalConfigHash,
+  readActiveApprovedOperationalRuntimeConfig,
   verifyApprovedOperationalAgentConfig
 } from "../src/lib/agents/operational/approved-config";
+import { approvedRoleEnvironmentAssertions } from "../src/lib/llm/config";
+import { APPROVED_OPERATIONAL_ROLE_NAMES } from "../src/lib/operational/active-approval-bundle";
 import {
   getGuardedOperationalAgentIntegrationReadiness,
   operationalReadinessHasFatalConfigurationBlock
@@ -21,7 +24,11 @@ const suiteArg = process.argv.includes("--suite")
   ? process.argv[process.argv.indexOf("--suite") + 1]
   : "all";
 
-const envKeys = [
+const activeRuntimeAtStart = readActiveApprovedOperationalRuntimeConfig();
+const approvedRuntimeEnvironmentAssertions = activeRuntimeAtStart.kind === "derived_approval"
+  ? approvedRoleEnvironmentAssertions(activeRuntimeAtStart.active_bundle.manifest)
+  : {};
+const envKeys = [...new Set([
   "LLM_PROVIDER",
   "LLM_LIVE_CALLS_ENABLED",
   "OPENAI_API_KEY",
@@ -37,8 +44,9 @@ const envKeys = [
   "OPENAI_REASONING_EFFORT_FOLLOWUP",
   "OPERATIONAL_AGENT_MODE",
   "OPERATIONAL_APPROVED_CONFIG_HASH",
-  "OPERATIONAL_AGENT_INTEGRATION_ENABLED"
-] as const;
+  "OPERATIONAL_AGENT_INTEGRATION_ENABLED",
+  ...Object.keys(approvedRuntimeEnvironmentAssertions)
+])];
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -46,7 +54,7 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
-function setEnv(values: Partial<Record<(typeof envKeys)[number], string | undefined>>) {
+function setEnv(values: Partial<Record<string, string | undefined>>) {
   for (const key of envKeys) {
     if (values[key] === undefined) {
       delete process.env[key];
@@ -68,33 +76,43 @@ function assertIssue(
 
 function assertApprovalManifestVerification() {
   const manifest = verifyApprovedOperationalAgentConfig();
+  const activeRuntime = readActiveApprovedOperationalRuntimeConfig();
   assert(manifest.valid, "Approved operational manifest must match active registry.");
   assert(
-    manifest.active_configuration_hash === manifest.manifest.approved_active_configuration_hash,
+    manifest.active_configuration_hash === activeRuntime.approved_active_configuration_hash,
     "Active configuration hash must match the approved manifest."
   );
+  assert(
+    manifest.role_inventory.length === (activeRuntime.kind === "derived_approval" ? 17 : 5),
+    "Manifest verification should cover the complete active approval architecture."
+  );
 
-  for (const agentName of [
-    "item_verification_agent",
-    "response_collection_agent",
-    "student_profiling_agent",
-    "formative_value_and_planning_agent",
-    "followup_agent"
-  ] as const) {
+  const roleNames = activeRuntime.kind === "derived_approval"
+    ? APPROVED_OPERATIONAL_ROLE_NAMES
+    : [
+        "item_verification_agent",
+        "response_collection_agent",
+        "student_profiling_agent",
+        "formative_value_and_planning_agent",
+        "followup_agent"
+      ] as const;
+  for (const agentName of roleNames) {
     const resolved = manifest.runtime_model_resolution[agentName];
-    const approved = manifest.manifest.agents[agentName];
+    const approved = activeRuntime.roles[agentName];
     assert(resolved, `${agentName} should have runtime model-resolution diagnostics.`);
     assert(approved, `${agentName} should exist in the approved manifest.`);
     assert(
-      resolved.source === "approvedOperationalModelConfigForAgent",
+      resolved.source === "approvedOperationalModelConfigForAgent" ||
+        resolved.source === "approved_derived_bundle" ||
+        resolved.source === "active_approval_bundle",
       `${agentName} should resolve through the operational executor model-config source.`
     );
     assert(
-      resolved.resolved_model_snapshot === manifest.manifest.model_snapshot,
+      resolved.resolved_model_snapshot === approved.model_name,
       `${agentName} runtime model should match approved snapshot.`
     );
     assert(
-      resolved.resolved_reasoning_effort === manifest.manifest.reasoning_effort,
+      resolved.resolved_reasoning_effort === approved.reasoning_effort,
       `${agentName} runtime reasoning effort should match approved value.`
     );
     assert(
@@ -121,7 +139,9 @@ function assertApprovalManifestVerification() {
   const wrongReasoning = verifyApprovedOperationalAgentConfig({
     runtimeModelConfigOverridesForTest: {
       followup_agent: {
-        reasoning_effort: "medium",
+        reasoning_effort: activeRuntime.roles.followup_agent?.reasoning_effort === "high"
+          ? "medium"
+          : "high",
         source: "test_override"
       }
     }
@@ -138,7 +158,12 @@ function assertApprovalManifestVerification() {
     }
   });
   assert(!missingModel.valid, "Missing model configuration should fail field validation.");
-  assertIssue(missingModel, "model_snapshot_missing");
+  assertIssue(
+    missingModel,
+    activeRuntime.kind === "derived_approval"
+      ? "model_snapshot_mismatch"
+      : "model_snapshot_missing"
+  );
 
   const missingReasoning = verifyApprovedOperationalAgentConfig({
     runtimeModelConfigOverridesForTest: {
@@ -149,37 +174,44 @@ function assertApprovalManifestVerification() {
     }
   });
   assert(!missingReasoning.valid, "Missing reasoning configuration should fail field validation.");
-  assertIssue(missingReasoning, "reasoning_effort_missing");
+  assertIssue(
+    missingReasoning,
+    activeRuntime.kind === "derived_approval"
+      ? "reasoning_effort_mismatch"
+      : "reasoning_effort_missing"
+  );
 
-  const promptHashMismatch = verifyApprovedOperationalAgentConfig({
-    activeAgentConfigOverridesForTest: {
-      item_verification_agent: {
-        prompt_hash: "wrong-prompt-hash"
+  if (activeRuntime.kind === "phase8a_legacy") {
+    const promptHashMismatch = verifyApprovedOperationalAgentConfig({
+      activeAgentConfigOverridesForTest: {
+        item_verification_agent: {
+          prompt_hash: "wrong-prompt-hash"
+        }
       }
-    }
-  });
-  assert(!promptHashMismatch.valid, "Prompt hash mismatch should fail.");
-  assertIssue(promptHashMismatch, "active_agent_config_mismatch");
+    });
+    assert(!promptHashMismatch.valid, "Prompt hash mismatch should fail.");
+    assertIssue(promptHashMismatch, "active_agent_config_mismatch");
 
-  const schemaMismatch = verifyApprovedOperationalAgentConfig({
-    activeAgentConfigOverridesForTest: {
-      response_collection_agent: {
-        schema_version: "wrong-schema-version"
+    const schemaMismatch = verifyApprovedOperationalAgentConfig({
+      activeAgentConfigOverridesForTest: {
+        response_collection_agent: {
+          schema_version: "wrong-schema-version"
+        }
       }
-    }
-  });
-  assert(!schemaMismatch.valid, "Schema version mismatch should fail.");
-  assertIssue(schemaMismatch, "active_agent_config_mismatch");
+    });
+    assert(!schemaMismatch.valid, "Schema version mismatch should fail.");
+    assertIssue(schemaMismatch, "active_agent_config_mismatch");
 
-  const tokenMismatch = verifyApprovedOperationalAgentConfig({
-    activeAgentConfigOverridesForTest: {
-      followup_agent: {
-        max_output_tokens: 999
+    const tokenMismatch = verifyApprovedOperationalAgentConfig({
+      activeAgentConfigOverridesForTest: {
+        followup_agent: {
+          max_output_tokens: 999
+        }
       }
-    }
-  });
-  assert(!tokenMismatch.valid, "Token-limit mismatch should fail.");
-  assertIssue(tokenMismatch, "active_agent_config_mismatch");
+    });
+    assert(!tokenMismatch.valid, "Token-limit mismatch should fail.");
+    assertIssue(tokenMismatch, "active_agent_config_mismatch");
+  }
 
   const runtimeTokenMismatch = verifyApprovedOperationalAgentConfig({
     runtimeModelConfigOverridesForTest: {
@@ -257,6 +289,7 @@ async function run() {
 
     if (suiteArg === "approval-manifest") {
       setEnv({
+        ...approvedRuntimeEnvironmentAssertions,
         LLM_PROVIDER: "openai",
         LLM_LIVE_CALLS_ENABLED: "true",
         OPENAI_API_KEY: "fake-key-never-sent",
@@ -276,6 +309,15 @@ async function run() {
     }
 
     await cleanup();
+    setEnv({
+      ...approvedRuntimeEnvironmentAssertions,
+      LLM_PROVIDER: "openai",
+      LLM_LIVE_CALLS_ENABLED: "true",
+      OPENAI_API_KEY: "fake-key-never-sent",
+      OPERATIONAL_AGENT_MODE: "guarded_live",
+      OPERATIONAL_AGENT_INTEGRATION_ENABLED: undefined,
+      OPERATIONAL_APPROVED_CONFIG_HASH: approvedHash
+    });
     assertApprovalManifestVerification();
 
     setEnv({

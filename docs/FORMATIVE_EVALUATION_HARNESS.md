@@ -276,3 +276,17 @@ Readiness parses the E1 result counts rather than trusting only the command exit
 status. It also rejects an approved dialogue-policy turn limit that exceeds the
 current topic-dialogue input contract; this mismatch must be resolved through a
 separately reviewed configuration or contract change before paid execution.
+
+E2A.2 confirms that the approved policy means ten accepted student messages,
+while approved input V2 accepts at most eight and carries only twelve recent
+message summaries. This is a real `approved candidate inconsistency`. The
+approved runtime remains blocked; a separate inactive V3 candidate carries all
+nine prior student/assistant pairs exactly and the tenth student message
+separately. No paid evaluation or activation is part of E2A.2.
+
+Evaluation execution is explicitly scoped as `deterministic_e1`,
+`no_live_e2a_contract`, `e2a_readiness`, `live_e2a_canary`, or `production`.
+Deterministic modes select mock-safe adapters directly and cannot be converted
+to safe recovery merely because live opt-in is absent. Readiness performs no
+dialogue generation, and only live/production modes are eligible for recovery
+after a genuine bounded provider or workflow failure.

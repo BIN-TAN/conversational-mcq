@@ -8,6 +8,11 @@ import {
   executeStudentRuntimeLiveAgent,
   hashStudentRuntimeValue
 } from "@/lib/services/student-assessment/student-runtime-live-agent";
+import {
+  resolveTopicDialogueExecutionPlan,
+  type FormativeExecutionMode
+} from "@/lib/services/student-assessment/formative-execution-mode";
+import { operationalModeStatus } from "@/lib/operational/guarded-agent-integration";
 
 export const STUDENT_COMMUNICATION_AGENT_NAME = "student_communication_agent" as const;
 export const STUDENT_COMMUNICATION_PROMPT_VERSION =
@@ -593,6 +598,7 @@ export async function buildRuntimeStudentCommunication(input: {
   concept_unit_session_db_id: string | null;
   source_evidence_hash: string;
   client?: PrismaClientLike;
+  execution_mode?: FormativeExecutionMode;
 }): Promise<StudentCommunicationBundleV1> {
   const client = input.client ?? prisma;
   const communicationKey = `student-communication:${hashStudentRuntimeValue({
@@ -601,7 +607,13 @@ export async function buildRuntimeStudentCommunication(input: {
     purpose: input.communication_input.communication_purpose,
     source_evidence_hash: input.source_evidence_hash
   })}`;
-  const liveCallsEnabled = resolveOperationalRoleLiveCallsEnabled("student_communication_agent");
+  const executionPlan = resolveTopicDialogueExecutionPlan(
+    input.execution_mode ?? "production"
+  );
+  const liveCallsEnabled = executionPlan.adapter === "configured_live_runtime" &&
+    operationalModeStatus().mode === "guarded_live"
+    ? resolveOperationalRoleLiveCallsEnabled("student_communication_agent")
+    : false;
   if (liveCallsEnabled) {
     await logProcessEvent({
       assessment_session_db_id: input.assessment_session_db_id,

@@ -63,7 +63,8 @@ for (const message of ["what", "about what", "what should I write"]) {
   assert.equal(output.student_message_function, "clarification_request");
   assert.equal(output.topic_relation, "current_assessment_content");
   assert.equal(output.next_action, "await_topic_dialogue_response");
-  assert.match(output.tutor_message, /I mean this part/);
+  assert.match(output.tutor_message, /The question is asking you to explain this boundary/);
+  assert.match(output.tutor_message, /Reliability proves validity/);
 }
 
 const systemOutput = buildDeterministicTopicDialogueResponse(inputFor("what happens next"));

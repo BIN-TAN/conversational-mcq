@@ -6,6 +6,70 @@ export const E2A_READINESS_REPORT_VERSION = "formative-evaluation-e2a-readiness-
 export const E2A_READINESS_MAX_AGE_MS = 4 * 60 * 60 * 1000;
 export const E2A_E1_EXPECTED_RUN_COUNT = 12;
 
+export type TopicDialoguePolicyContractInput = {
+  maximum_student_turns: number;
+  recent_raw_turn_window: number;
+};
+
+export type TopicDialoguePolicyContractCompatibility = {
+  input_schema_version: string;
+  policy_maximum_student_turns: number;
+  input_contract_maximum_student_turns: number | null;
+  policy_recent_raw_turn_window: number;
+  input_contract_history_turn_capacity: number | null;
+  student_turn_semantics: "student_messages_submitted";
+  history_semantics:
+    | "recent_message_summaries"
+    | "exact_prior_visible_student_and_assistant_turns"
+    | "unknown";
+  complete_visible_history_required: boolean;
+  compatible: boolean;
+  incompatibility_reasons: string[];
+};
+
+export function evaluateTopicDialoguePolicyContractCompatibility(input: {
+  input_schema_version: string;
+  policy: TopicDialoguePolicyContractInput;
+}): TopicDialoguePolicyContractCompatibility {
+  const contract = input.input_schema_version === "topic-dialogue-input-v2"
+    ? {
+        maximum_student_turns: 8,
+        history_turn_capacity: 12,
+        history_semantics: "recent_message_summaries" as const,
+        complete_visible_history_required: false
+      }
+    : input.input_schema_version === "topic-dialogue-input-v3"
+      ? {
+          maximum_student_turns: 10,
+          history_turn_capacity: 18,
+          history_semantics: "exact_prior_visible_student_and_assistant_turns" as const,
+          complete_visible_history_required: true
+        }
+      : null;
+  const incompatibilityReasons = contract
+    ? [
+        ...(input.policy.maximum_student_turns > contract.maximum_student_turns
+          ? ["policy_maximum_student_turns_exceeds_input_contract"] : []),
+        ...(contract.complete_visible_history_required &&
+        input.policy.recent_raw_turn_window < contract.history_turn_capacity
+          ? ["policy_history_window_cannot_carry_complete_visible_history"] : [])
+      ]
+    : ["topic_dialogue_input_contract_unknown"];
+
+  return {
+    input_schema_version: input.input_schema_version,
+    policy_maximum_student_turns: input.policy.maximum_student_turns,
+    input_contract_maximum_student_turns: contract?.maximum_student_turns ?? null,
+    policy_recent_raw_turn_window: input.policy.recent_raw_turn_window,
+    input_contract_history_turn_capacity: contract?.history_turn_capacity ?? null,
+    student_turn_semantics: "student_messages_submitted",
+    history_semantics: contract?.history_semantics ?? "unknown",
+    complete_visible_history_required: contract?.complete_visible_history_required ?? false,
+    compatible: Boolean(contract) && incompatibilityReasons.length === 0,
+    incompatibility_reasons: incompatibilityReasons
+  };
+}
+
 export const E2AE1PrerequisiteSummarySchema = z.object({
   command_completed: z.boolean(),
   result_parsed: z.boolean(),
@@ -62,8 +126,19 @@ export const E2AReadinessReportSchema = z.object({
   runtime_compatibility: z.object({
     topic_dialogue_maximum_student_turns: z.object({
       approved_value: z.number().int().positive().nullable(),
-      input_contract_maximum: z.number().int().positive(),
-      compatible: z.boolean()
+      input_schema_version: z.string().min(1).nullable(),
+      input_contract_maximum: z.number().int().positive().nullable(),
+      policy_recent_raw_turn_window: z.number().int().positive().nullable(),
+      input_contract_history_turn_capacity: z.number().int().positive().nullable(),
+      student_turn_semantics: z.literal("student_messages_submitted"),
+      history_semantics: z.enum([
+        "recent_message_summaries",
+        "exact_prior_visible_student_and_assistant_turns",
+        "unknown"
+      ]),
+      complete_visible_history_required: z.boolean(),
+      compatible: z.boolean(),
+      incompatibility_reasons: z.array(z.string())
     }).strict()
   }).strict(),
   prerequisites: z.object({

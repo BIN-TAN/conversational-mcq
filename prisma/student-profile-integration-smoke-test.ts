@@ -32,6 +32,8 @@ import {
   writeProfileIntegrationReviewArtifact
 } from "../src/lib/services/student-assessment/profile-integration";
 import type { LlmProvider, StructuredAgentRequest, StructuredAgentResult } from "../src/lib/llm/providers/types";
+import { approvedRoleEnvironmentAssertions } from "../src/lib/llm/config";
+import { resolveActiveOperationalApproval } from "../src/lib/operational/active-approval-bundle";
 import { applyProvisionalItemDiagnosticMetadata } from "../src/lib/services/student-assessment/provisional-item-diagnostic-metadata";
 import { createResponsePackage } from "../src/lib/services/response-packages";
 import { logProcessEvent } from "../src/lib/services/process-events";
@@ -61,6 +63,15 @@ function configureNoLiveRuntime() {
 
 function fakeOpenAIKey(label: string) {
   return `sk-${label.replace(/[^A-Za-z0-9_-]/g, "")}-000000000000000000000000`;
+}
+
+function activeApprovalEnvironmentForTest(): Record<string, string> {
+  const active = resolveActiveOperationalApproval();
+  if (active?.kind !== "derived_approval") return {};
+  return {
+    ...approvedRoleEnvironmentAssertions(active.manifest),
+    OPERATIONAL_APPROVED_CONFIG_HASH: active.record.runtime_candidate_hash
+  };
 }
 
 async function withTemporaryProcessEnv<T>(
@@ -1096,13 +1107,16 @@ async function runProviderPathAssertions() {
     usage: { input_tokens: 11, output_tokens: 13, total_tokens: 24 },
     latency_ms: 2
   }));
+  const activeApprovalEnv = activeApprovalEnvironmentForTest();
   await withTemporaryProcessEnv(
     {
+      ...activeApprovalEnv,
       LLM_PROVIDER: "openai",
       LLM_LIVE_CALLS_ENABLED: "true",
       OPENAI_API_KEY: fakeOpenAIKey("profile-integration-live-missing-allow"),
       OPENAI_API_KEY_FILE: "",
-      OPENAI_MODEL_PROFILE_INTEGRATION: "gpt-test-profile-integration",
+      OPENAI_MODEL_PROFILE_INTEGRATION:
+        activeApprovalEnv.OPENAI_MODEL_PROFILE_INTEGRATION ?? "gpt-test-profile-integration",
       OPENAI_MODEL_PLANNING: "",
       OPENAI_MODEL_FOLLOWUP: "",
       ALLOW_LOCAL_MOCK_RUNTIME: undefined,
