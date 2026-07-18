@@ -3265,6 +3265,13 @@ Phase 6A.5 must not implement:
   the current approval CLI does not support role-scoped evidence inheritance.
   The E2A.3 packet is therefore a human-review draft only. The candidate remains
   unapproved and inactive until a later explicit approval step.
+- The 2026-07-18 E2A.3 execution is `candidate_evaluation_failed`. All 18
+  tenth-turn context checks passed, but the existing topic-dialogue output
+  contract was rejected locally by the strict provider schema formatter because
+  an optional non-nullable field is not provider-compatible. The authoritative
+  accounting is 30 adapter attempts, zero network generation dispatches, zero
+  tokens, and zero retries. This failure must not be relabeled as provider
+  output evidence or approval readiness.
 - Execution mode is command-scoped: `deterministic_e1` and
   `no_live_e2a_contract` use mock-safe adapters; `e2a_readiness` performs no
   generation; `live_e2a_canary` and `production` use configured live dispatch.

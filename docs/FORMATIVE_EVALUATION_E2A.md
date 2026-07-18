@@ -204,6 +204,17 @@ complete, the correct successful automated result is
 `candidate_evaluation_incomplete`, with `human_review_pending`. The E2A canary
 remains blocked.
 
+The E2A.3 execution on 2026-07-18 ended as `candidate_evaluation_failed` before
+network dispatch. All 18 tenth-turn context records passed, but the existing
+`topic-dialogue-output-v2` runtime schema contains an optional non-nullable
+`schema_version` field. OpenAI's Responses structured-output formatter requires
+every field to be required, so all 30 fixed cases were rejected locally as
+`provider_request_schema_invalid`. The corrected run recorded 30 adapter
+attempts, zero generation dispatches, zero tokens, zero retries, and unchanged
+protected artifacts. No student-facing output exists for human scoring. A
+separate output-contract correction and fresh provider evaluation are required;
+the V3 input candidate remains unapproved and inactive.
+
 ## Execution isolation
 
 Formative evaluation scopes execution mode to each command or service call:

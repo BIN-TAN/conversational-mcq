@@ -2773,6 +2773,13 @@ approval CLI cannot merge role-scoped inherited evidence. The generated
 approval packet is therefore a draft only; the candidate is not approved or
 activated, and the E2A canary remains blocked.
 
+The 2026-07-18 E2A.3 run failed before provider fetch because the existing
+topic-dialogue output schema is not compatible with strict Responses structured
+outputs: its `schema_version` field is optional but non-nullable. The run
+recorded 30 local adapter attempts and zero network generation calls, tokens,
+or retries. A separate output-contract correction and fresh evaluation are
+required before human output review or approval readiness.
+
 ```bash
 npm run eval:formative:e2a3:contract-smoke
 npm run eval:formative:e2a3:no-live-smoke

@@ -231,3 +231,8 @@ does not create assessment sessions, workflow jobs, conversation turns, agent
 calls, profiles, plans, or operational effective-result records. It records 16
 unchanged roles as immutable inherited-evidence references and evaluates only
 `topic_dialogue_agent`; this reference does not authorize runtime use.
+
+The 2026-07-18 E2A.3 attempt did not reach provider fetch. The existing topic
+dialogue output schema failed strict Responses schema conversion, so the
+candidate remains blocked before runtime evaluation. This is not a fallback or
+an activation signal; the approved V2 bundle remains the only active bundle.

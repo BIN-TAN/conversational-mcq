@@ -293,6 +293,14 @@ or represented as a new approval. Because the approval CLI does not currently
 support role-scoped evidence inheritance, E2A.3 emits a review-only approval
 draft and keeps activation forbidden.
 
+The first E2A.3 execution exposed an output-contract blocker before fetch:
+`topic-dialogue-output-v2` cannot be converted to the provider's strict
+structured-output schema because `schema_version` is optional but non-nullable.
+The harness reports local adapter attempts separately from actual network
+generation dispatches, stops retrying permanent pre-dispatch failures, and
+retains only the sanitized `provider_request_schema_invalid` cause. This failed
+run is not provider-output evidence and cannot be human-adjudicated.
+
 Evaluation execution is explicitly scoped as `deterministic_e1`,
 `no_live_e2a_contract`, `e2a_readiness`, `live_e2a_canary`, or `production`.
 Deterministic modes select mock-safe adapters directly and cannot be converted
