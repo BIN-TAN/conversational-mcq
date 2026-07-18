@@ -2712,3 +2712,23 @@ npm run e2e:privacy-smoke
 
 Both commands are no-provider checks. E1.2 does not implement an LLM student,
 an LLM evaluator, or any E2 activation.
+
+### E2A opt-in LLM student surface realization
+
+E2A keeps the E1 hidden-state engine and current approved operational workflow,
+but allows an isolated LLM to render each deterministic permitted student
+intent with natural expression variation. It is CLI-only, requires explicit
+live opt-in, separates simulator and operational provenance, enforces session,
+call, token, and cost caps, and writes ignored local artifacts. It does not add
+an LLM evaluator or E2B behavior.
+
+```bash
+npm run eval:formative:e2a:contract-smoke
+npm run eval:formative:e2a:no-live-smoke
+npm run eval:formative:e2a:report
+```
+
+Live canary and conditional full-matrix commands are documented in
+[Formative Evaluation E2A](docs/FORMATIVE_EVALUATION_E2A.md). Passing E2A is
+engineering evidence under controlled synthetic language variation, not a
+claim of classroom validity or effectiveness.

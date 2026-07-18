@@ -51,6 +51,7 @@ import {
   type StudentIntent
 } from "./schemas";
 import { buildScriptedStudentTurns } from "./scripted-student";
+import { assertStudentPayloadPrivacy } from "./student-privacy-scanner";
 import { writeFormativeEvaluationRunArtifacts, type RunManifest } from "./artifact-writer";
 import type {
   ActivityAttemptRecord,
@@ -71,6 +72,41 @@ type EvaluationContext = {
   assessment_session_db_id: string;
   concept_unit_session_db_id: string;
   concept_unit_public_id: string;
+};
+
+export type FormativeEvaluationStudentTurnRenderInput = {
+  scenario: FormativeEvaluationScenario;
+  expression_variant: 1 | 2 | 3;
+  turn: SeededStudentTurn | BranchDecision;
+  latest_assistant_message: string;
+  visible_conversation: Array<{
+    role: "assistant" | "student";
+    content: string;
+    sequence_index: number;
+  }>;
+};
+
+export type FormativeEvaluationStudentTurnRenderer = (
+  input: FormativeEvaluationStudentTurnRenderInput
+) => Promise<{ message: string }>;
+
+export type FormativeEvaluationOperationalTurnCompletion = {
+  turn: SeededStudentTurn | BranchDecision;
+  operational_assistant_response: string | null;
+};
+
+export type E2AOperationalUsageRecord = {
+  agent_name: string;
+  provider: string;
+  call_status: string;
+  provider_request_present: boolean;
+  provider_response_present: boolean;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number | null;
+  latency_ms: number | null;
+  retry_count: number;
 };
 
 function jsonRecord(value: unknown): Record<string, unknown> {
@@ -427,6 +463,43 @@ async function collectVisibleTurns(prisma: PrismaClient, context: EvaluationCont
   });
 }
 
+function simulatorVisibleConversation(turns: VisibleTurnRecord[]) {
+  return turns
+    .filter((turn) =>
+      turn.actor_type === "student" ||
+      (turn.actor_type === "agent" && /^(?:formative_activity|topic_dialogue)/u.test(turn.message_type ?? ""))
+    )
+    .slice(-12)
+    .map((turn) => ({
+      role: turn.actor_type === "student" ? "student" as const : "assistant" as const,
+      content: turn.message_text,
+      sequence_index: turn.sequence_index
+    }));
+}
+
+async function renderStudentTurn(input: {
+  renderer?: FormativeEvaluationStudentTurnRenderer;
+  scenario: FormativeEvaluationScenario;
+  expression_variant: 1 | 2 | 3;
+  turn: SeededStudentTurn | BranchDecision;
+  latest_assistant_message: string;
+  prisma: PrismaClient;
+  context: EvaluationContext;
+}) {
+  if (!input.renderer) return input.turn;
+  const visibleTurns = await collectVisibleTurns(input.prisma, input.context);
+  const rendered = await input.renderer({
+    scenario: input.scenario,
+    expression_variant: input.expression_variant,
+    turn: input.turn,
+    latest_assistant_message: input.latest_assistant_message,
+    visible_conversation: simulatorVisibleConversation(visibleTurns)
+  });
+  const message = rendered.message.trim();
+  if (!message) throw new Error("e2a_renderer_returned_empty_message");
+  return { ...input.turn, message };
+}
+
 async function collectHistories(prisma: PrismaClient, context: EvaluationContext) {
   const [profiles, plans, attempts, evaluations, packages, events, dialogueTurns] = await Promise.all([
     prisma.studentProfile.findMany({ where: { concept_unit_session_db_id: context.concept_unit_session_db_id }, orderBy: [{ created_at: "asc" }] }),
@@ -561,6 +634,44 @@ async function providerCallCount(prisma: PrismaClient, context: EvaluationContex
   });
 }
 
+async function collectE2AOperationalUsage(
+  prisma: PrismaClient,
+  context: EvaluationContext
+): Promise<E2AOperationalUsageRecord[]> {
+  return (await prisma.agentCall.findMany({
+    where: {
+      assessment_session_db_id: context.assessment_session_db_id,
+      provider: { not: "mock" }
+    },
+    orderBy: [{ created_at: "asc" }],
+    select: {
+      agent_name: true,
+      provider: true,
+      call_status: true,
+      provider_request_id: true,
+      provider_response_id: true,
+      input_tokens: true,
+      output_tokens: true,
+      total_tokens: true,
+      estimated_cost: true,
+      latency_ms: true,
+      retry_count: true
+    }
+  })).map((call) => ({
+    agent_name: call.agent_name,
+    provider: call.provider,
+    call_status: call.call_status,
+    provider_request_present: Boolean(call.provider_request_id),
+    provider_response_present: Boolean(call.provider_response_id),
+    input_tokens: call.input_tokens ?? 0,
+    output_tokens: call.output_tokens ?? 0,
+    total_tokens: call.total_tokens ?? 0,
+    estimated_cost_usd: call.estimated_cost === null ? null : Number(call.estimated_cost),
+    latency_ms: call.latency_ms,
+    retry_count: call.retry_count
+  }));
+}
+
 async function completeTransferFailure(input: {
   context: EvaluationContext;
   state: StudentSessionState;
@@ -615,12 +726,60 @@ export type RunFormativeEvaluationOptions = {
   artifact_dir?: string;
   keep_fixture_on_failure?: boolean;
   fail_on_major?: boolean;
+  e2a_execution?: {
+    mode: "e2a_live_operational" | "e2a_injected_no_live_test";
+    expression_variant: 1 | 2 | 3;
+    student_turn_renderer: FormativeEvaluationStudentTurnRenderer;
+    on_operational_turn_completed?: (
+      input: FormativeEvaluationOperationalTurnCompletion
+    ) => Promise<void> | void;
+    on_operational_usage_collected?: (
+      usage: E2AOperationalUsageRecord[]
+    ) => Promise<void> | void;
+  };
 };
+
+export type FormativeEvaluationE1RunResult = {
+  manifest: RunManifest;
+  artifacts: FormativeEvaluationRunArtifacts;
+  artifact_directory: string;
+};
+
+export type FormativeEvaluationE2ACoreRunResult = {
+  manifest: {
+    artifact_schema_version: "formative-evaluation-e2a-core-v1";
+    run_id: string;
+    scenario_id: string;
+    scenario_version: string;
+    expression_variant: 1 | 2 | 3;
+    git_commit: string;
+    operational_runtime_hash: string;
+    provider_access_enabled: boolean;
+    cleanup_result: {
+      attempted: boolean;
+      succeeded: boolean;
+      retained_on_failure: boolean;
+      detail: string;
+    };
+  };
+  artifacts: FormativeEvaluationRunArtifacts;
+  artifact_directory: null;
+  operational_usage: E2AOperationalUsageRecord[];
+};
+
+export function runFormativeEvaluationScenario(
+  options: RunFormativeEvaluationOptions & { e2a_execution: NonNullable<RunFormativeEvaluationOptions["e2a_execution"]> }
+): Promise<FormativeEvaluationE2ACoreRunResult>;
+export function runFormativeEvaluationScenario(
+  options: RunFormativeEvaluationOptions & { e2a_execution?: undefined }
+): Promise<FormativeEvaluationE1RunResult>;
 
 export async function runFormativeEvaluationScenario(
   options: RunFormativeEvaluationOptions
-) {
-  const noLive = assertAndConfigureE1NoLiveGuard();
+): Promise<FormativeEvaluationE1RunResult | FormativeEvaluationE2ACoreRunResult> {
+  const e2aExecution = options.e2a_execution;
+  const liveOperationalExecution = e2aExecution?.mode === "e2a_live_operational";
+  const noLive = liveOperationalExecution ? null : assertAndConfigureE1NoLiveGuard();
   // E1 runs from the checked-out source tree. A previously generated local build
   // artifact may legitimately describe an older commit, so use the shared
   // resolver's deployment metadata and Git sources for this source evaluation.
@@ -629,7 +788,7 @@ export async function runFormativeEvaluationScenario(
   });
   if (!buildInfo.ok) throw new Error(buildInfo.code);
   const runIndex = options.run_index ?? 1;
-  const runId = `fev_${options.scenario.scenario_id}_${options.seed}_${runIndex}_${buildInfo.info.application_git_commit.slice(0, 8)}`;
+  const runId = `${e2aExecution ? "fev_e2a" : "fev"}_${options.scenario.scenario_id}_${options.seed}_${runIndex}_${buildInfo.info.application_git_commit.slice(0, 8)}`;
   const artifactRoot = path.resolve(options.artifact_dir ?? "artifacts/formative-evaluation");
   const startedAt = new Date();
   let fixture: FormativeEvaluationFixture | null = null;
@@ -644,15 +803,25 @@ export async function runFormativeEvaluationScenario(
   let duplicateCycleExtraCount = 0;
   let idempotentReplayRejectedCount = 0;
   let terminalSubmissionRejectedCount = 0;
+  let operationalUsage: E2AOperationalUsageRecord[] = [];
 
   try {
     fixture = await createFormativeEvaluationFixture({ prisma: options.prisma, scenario_id: options.scenario.scenario_id, seed: options.seed });
     context = await createCompletedInitialPackage({ prisma: options.prisma, fixture, scenario: options.scenario });
+    if (e2aExecution) {
+      assertStudentPayloadPrivacy(
+        await getStudentSessionState({ student_user_db_id: context.student_db_id, session_public_id: context.session_public_id }),
+        "e2a.initial_package_state"
+      );
+    }
     let projection = await startStudentActivityForSession({
       student_user_db_id: context.student_db_id,
       session_public_id: context.session_public_id,
-      activity_generation_override: makeGenerationOverride({ prisma: options.prisma, context, scenario: options.scenario })
+      ...(liveOperationalExecution
+        ? {}
+        : { activity_generation_override: makeGenerationOverride({ prisma: options.prisma, context, scenario: options.scenario }) })
     });
+    if (e2aExecution) assertStudentPayloadPrivacy(projection, "e2a.activity_projection");
     if (!projection.activity_attempt_public_id || !projection.first_turn_message) {
       throw new Error("e1_activity_not_started");
     }
@@ -672,11 +841,20 @@ export async function runFormativeEvaluationScenario(
 
     while (true) {
       const branchTurn = branching?.next(latestAssistant) ?? null;
-      const turn: SeededStudentTurn | BranchDecision | null =
+      const deterministicTurn: SeededStudentTurn | BranchDecision | null =
         branchTurn ?? scripted[scriptedIndex++] ?? null;
-      if (!turn) break;
+      if (!deterministicTurn) break;
+      const turn = await renderStudentTurn({
+        renderer: e2aExecution?.student_turn_renderer,
+        scenario: options.scenario,
+        expression_variant: e2aExecution?.expression_variant ?? 1,
+        turn: deterministicTurn,
+        latest_assistant_message: latestAssistant,
+        prisma: options.prisma,
+        context
+      });
       studentTurns.push(turn);
-      if (branchTurn) branchDecisions.push(branchTurn);
+      if (branchTurn) branchDecisions.push(turn as BranchDecision);
       const operationId = clientOperationId(turn.turn_id, runId);
       const submittedActivityAttemptPublicId = projection.activity_attempt_public_id ?? "";
       try {
@@ -686,7 +864,9 @@ export async function runFormativeEvaluationScenario(
           activity_attempt_public_id: submittedActivityAttemptPublicId,
           response_text: turn.message,
           client_message_id: operationId,
-          evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: turn.intent, suffix: turn.turn_id })
+          ...(liveOperationalExecution
+            ? {}
+            : { evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: turn.intent, suffix: turn.turn_id }) })
         });
       } catch (error) {
         if (error instanceof Error && error.message === "This formative episode has already ended.") {
@@ -695,8 +875,13 @@ export async function runFormativeEvaluationScenario(
         }
         throw error;
       }
+      if (e2aExecution) assertStudentPayloadPrivacy(projection, `e2a.turn.${turn.turn_id}.projection`);
       lastAcceptedState = structuredClone(turn.resulting_state);
       latestAssistant = projection.topic_dialogue?.response_prompt ?? projection.feedback?.message ?? latestAssistant;
+      await e2aExecution?.on_operational_turn_completed?.({
+        turn,
+        operational_assistant_response: latestAssistant
+      });
 
       if (!idempotencyChecked) {
         const before = {
@@ -711,7 +896,9 @@ export async function runFormativeEvaluationScenario(
             activity_attempt_public_id: submittedActivityAttemptPublicId,
             response_text: turn.message,
             client_message_id: operationId,
-            evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: turn.intent, suffix: `${turn.turn_id}_replay` })
+            ...(liveOperationalExecution
+              ? {}
+              : { evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: turn.intent, suffix: `${turn.turn_id}_replay` }) })
           });
         } catch (error) {
           if (error instanceof Error && error.message === "This formative episode has already ended.") {
@@ -740,13 +927,22 @@ export async function runFormativeEvaluationScenario(
     let platformState = (await getStudentSessionState({ student_user_db_id: context.student_db_id, session_public_id: context.session_public_id })).assessment_state;
     if (options.scenario.expected_behavior.transfer_expected) {
       if (!projection.can_continue) {
-        const navigationTurn: SeededStudentTurn = {
+        const deterministicNavigationTurn: SeededStudentTurn = {
           turn_id: "transfer_navigation_evidence",
           intent: "unsupported_understanding_claim",
           message: "I understand now.",
           prior_state: structuredClone(finalState),
           resulting_state: structuredClone({ ...finalState, turn_index: finalState.turn_index + 1 })
         };
+        const navigationTurn = await renderStudentTurn({
+          renderer: e2aExecution?.student_turn_renderer,
+          scenario: options.scenario,
+          expression_variant: e2aExecution?.expression_variant ?? 1,
+          turn: deterministicNavigationTurn,
+          latest_assistant_message: latestAssistant,
+          prisma: options.prisma,
+          context
+        });
         studentTurns.push(navigationTurn);
         try {
           projection = await submitStudentActivityRuntimeResponse({
@@ -755,9 +951,16 @@ export async function runFormativeEvaluationScenario(
             activity_attempt_public_id: projection.activity_attempt_public_id ?? "",
             response_text: navigationTurn.message,
             client_message_id: clientOperationId(navigationTurn.turn_id, runId),
-            evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: navigationTurn.intent, suffix: navigationTurn.turn_id })
+            ...(liveOperationalExecution
+              ? {}
+              : { evaluator_override: makeEvaluatorOverride({ prisma: options.prisma, context, scenario: options.scenario, intent: navigationTurn.intent, suffix: navigationTurn.turn_id }) })
           });
           finalState = navigationTurn.resulting_state;
+          latestAssistant = projection.topic_dialogue?.response_prompt ?? projection.feedback?.message ?? latestAssistant;
+          await e2aExecution?.on_operational_turn_completed?.({
+            turn: navigationTurn,
+            operational_assistant_response: latestAssistant
+          });
         } catch (error) {
           if (error instanceof Error && error.message === "This formative episode has already ended.") {
             terminalSubmissionRejectedCount += 1;
@@ -767,9 +970,20 @@ export async function runFormativeEvaluationScenario(
         }
       }
       if (projection.can_continue && projection.allowed_actions.includes("skip_activity_to_transfer")) {
-        const transferEvidenceTurn = scripted.slice(scriptedIndex).find((turn) =>
+        const deterministicTransferEvidenceTurn = scripted.slice(scriptedIndex).find((turn) =>
           turn.intent === "transfer_failure"
         ) ?? null;
+        const transferEvidenceTurn = deterministicTransferEvidenceTurn
+          ? await renderStudentTurn({
+              renderer: e2aExecution?.student_turn_renderer,
+              scenario: options.scenario,
+              expression_variant: e2aExecution?.expression_variant ?? 1,
+              turn: deterministicTransferEvidenceTurn,
+              latest_assistant_message: latestAssistant,
+              prisma: options.prisma,
+              context
+            })
+          : null;
         await recordStudentActivityRuntimeChoice({
           student_user_db_id: context.student_db_id,
           session_public_id: context.session_public_id,
@@ -791,6 +1005,10 @@ export async function runFormativeEvaluationScenario(
             studentTurns.push(transferEvidenceTurn);
             finalState = structuredClone(transferEvidenceTurn.resulting_state);
             scriptedIndex = scripted.indexOf(transferEvidenceTurn) + 1;
+            await e2aExecution?.on_operational_turn_completed?.({
+              turn: transferEvidenceTurn,
+              operational_assistant_response: null
+            });
           }
         }
       }
@@ -802,8 +1020,14 @@ export async function runFormativeEvaluationScenario(
     const visibleAfter = await collectVisibleTurns(options.prisma, context);
     const histories = await collectHistories(options.prisma, context);
     const providerCalls = await providerCallCount(options.prisma, context);
-    if (providerCalls !== 0) {
+    if (!e2aExecution && providerCalls !== 0) {
       throw new Error("e1_live_provider_call_detected");
+    }
+    if (e2aExecution) {
+      assertStudentPayloadPrivacy(transcriptBefore, "e2a.transcript_before_refresh");
+      assertStudentPayloadPrivacy(transcriptAfter, "e2a.transcript_after_refresh");
+      operationalUsage = await collectE2AOperationalUsage(options.prisma, context);
+      await e2aExecution.on_operational_usage_collected?.(operationalUsage);
     }
     findings = safetyFindings(visibleAfter);
     const activeCount = histories.activityAttempts.filter((attempt) => !["move_on_recommended", "choose_alternative_recommended", "failed_closed"].includes(attempt.status)).length;
@@ -812,6 +1036,9 @@ export async function runFormativeEvaluationScenario(
       event.event_type.includes("fallback_used") &&
       (Boolean(jsonRecord(event.payload).reason) || Boolean(event.event_type))
     ).length + histories.activityAttempts.filter((attempt) => attempt.recovery_used).length;
+    const requestedInvariants = e2aExecution
+      ? options.scenario.hard_invariants.filter((invariant) => invariant !== "no_live_provider_call")
+      : options.scenario.hard_invariants;
     hardInvariants = evaluateHardInvariants({
       visible_turns: visibleAfter,
       profile_history: histories.profileHistory,
@@ -832,7 +1059,7 @@ export async function runFormativeEvaluationScenario(
       typed_recovery_turn_count: typedRecoveryCount,
       fallback_student_visible_leak_count: findings.filter((finding) => finding.finding_id === "fallback_metadata" && !finding.passed).length,
       replacement_history_preserved: true
-    }, options.scenario.hard_invariants);
+    }, requestedInvariants);
     const answerKeyLeakCount = findings.filter((finding) => finding.finding_id === "raw_answer_key_structure" && !finding.passed).length;
     pedagogicalRubric = evaluatePedagogicalRubric({
       scenario: options.scenario,
@@ -955,6 +1182,14 @@ export async function runFormativeEvaluationScenario(
     };
   } catch (error) {
     failed = error;
+    if (e2aExecution && context) {
+      try {
+        operationalUsage = await collectE2AOperationalUsage(options.prisma, context);
+        await e2aExecution.on_operational_usage_collected?.(operationalUsage);
+      } catch {
+        // Preserve the primary run failure; missing usage is visible in E2A artifacts.
+      }
+    }
   } finally {
     if (fixture) {
       cleanup.attempted = true;
@@ -984,6 +1219,25 @@ export async function runFormativeEvaluationScenario(
     safety_findings: findings,
     run_summary: summary
   };
+  if (e2aExecution) {
+    return {
+      manifest: {
+        artifact_schema_version: "formative-evaluation-e2a-core-v1",
+        run_id: runId,
+        scenario_id: options.scenario.scenario_id,
+        scenario_version: options.scenario.scenario_version,
+        expression_variant: e2aExecution.expression_variant,
+        git_commit: buildInfo.info.application_git_commit,
+        operational_runtime_hash: APPROVED_OPERATIONAL_RUNTIME_HASH,
+        provider_access_enabled: liveOperationalExecution,
+        cleanup_result: cleanup
+      },
+      artifacts,
+      artifact_directory: null,
+      operational_usage: operationalUsage
+    } satisfies FormativeEvaluationE2ACoreRunResult;
+  }
+  if (!noLive) throw new Error("e1_no_live_guard_missing");
   const manifest: RunManifest = {
     artifact_schema_version: FORMATIVE_EVALUATION_ARTIFACT_SCHEMA_VERSION,
     run_id: runId,

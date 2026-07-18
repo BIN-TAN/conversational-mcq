@@ -1,4 +1,4 @@
-# Formative Evaluation Harness (E1)
+# Formative Evaluation Harness (E1 and E2A)
 
 ## Purpose and boundary
 
@@ -259,9 +259,8 @@ motivation, language, or unanticipated behavior of real students. Mock-safe
 operational outputs cannot estimate live model variance, latency, token use, or
 cost. Manual rubric dimensions still require a reviewer.
 
-E2 may implement interfaces for a live simulated-student adapter and a live
-rubric-judge adapter. Those adapters must consume the same scenario and result
-schemas, keep hidden truth out of operational agent inputs, preserve the E1
-engineering evaluator, write explicit provider provenance and cost, require
-human review, and remain separately opt-in. No E2 provider implementation or
-activation exists in E1.
+E2A implements only the separately opt-in LLM student surface-realization
+adapter documented in `docs/FORMATIVE_EVALUATION_E2A.md`. It preserves the same
+scenario truth, branching authority, workflow, invariants, fixture cleanup, and
+privacy scanner. It does not implement an LLM rubric judge. E2B remains outside
+the implemented scope and requires a separate specification and approval.

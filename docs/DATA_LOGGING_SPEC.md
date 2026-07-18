@@ -1181,3 +1181,13 @@ package completion, formative dialogue, revision, transfer, failed-transfer
 re-entry, recovery, and refresh. Transcript reconstruction uses persisted
 `sequence_index`; refresh must not reorder, duplicate, or enrich visible turns
 with internal fields.
+
+## E2A Evaluation-Only Provider Evidence
+
+E2A writes local, ignored artifacts that distinguish operational agent calls
+from isolated LLM student-simulator calls. Simulator records contain a
+configuration hash, prompt/schema version, provider call IDs, token counts,
+latency, retry count, and safe validation issue codes. They do not enter
+classroom records or the approved operational manifest. API keys,
+authentication headers, hidden prompts, chain-of-thought, and raw provider
+output are excluded.

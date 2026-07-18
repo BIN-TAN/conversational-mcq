@@ -3206,3 +3206,19 @@ Phase 6A.5 must not implement:
 - E1.2 makes no provider call and does not modify the approved runtime hash,
   prompts, schemas, validators, manifests, approval evidence, activation
   history, prior evaluation evidence, `.env`, or `.env.local`.
+
+## Phase E2A Surface-Realization Evaluation Lock
+
+- E2A is evaluation-only and explicitly live-opt-in. It does not enable a
+  classroom or browser provider path.
+- The E1 hidden-state engine, branch rules, hard invariants, fixture isolation,
+  and current operational workflow remain authoritative.
+- The simulator may render only the permitted student response intent. It may
+  not decide learning, correctness, resolution, or progression.
+- Simulator configuration and provenance remain outside the approved
+  operational manifest. The approved runtime hash remains
+  `8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993`.
+- E2A artifacts exclude credentials, authentication data, hidden prompts, raw
+  provider output, and chain-of-thought.
+- E2A contains no LLM evaluator. Human review remains required and E2B remains
+  unimplemented.

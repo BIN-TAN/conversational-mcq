@@ -30,6 +30,8 @@ test-results
 # local generated data
 .data/
 artifacts/formative-evaluation/
+# E2A live-provider evaluation evidence remains local and untracked.
+.data/formative-evaluation-e2a/
 
 # operator-provided local brand inputs
 _operator_assets/

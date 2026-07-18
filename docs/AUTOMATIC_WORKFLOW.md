@@ -195,3 +195,12 @@ The inverse boundary is also tested: authorized teacher audit data contains
 versioned profile, plan, and agent provenance while those records are absent
 from every student projection. Safe recovery remains student-visible, but its
 provider failure and stale-pointer audit remain internal.
+
+### E2A controlled expression variation
+
+E2A reuses the isolated E1 fixture and this automatic workflow while replacing
+only deterministic student-message wording with a validated, explicitly
+opted-in LLM surface realization. The E1 branching policy still owns hidden
+truth and permitted intent; operational services still own profile, planning,
+activity, dialogue, revision, and transfer. Simulator output cannot transition
+workflow state. See `docs/FORMATIVE_EVALUATION_E2A.md`.
