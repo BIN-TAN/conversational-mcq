@@ -215,6 +215,71 @@ protected artifacts. No student-facing output exists for human scoring. A
 separate output-contract correction and fresh provider evaluation are required;
 the V3 input candidate remains unapproved and inactive.
 
+## E2A.4 strict output-contract candidate
+
+E2A.4 preserves both earlier candidates and adds the separate unapproved file
+`config/candidate-operational-agent-config.e2a4-topic-dialogue-contract-v2.json`.
+Its configuration hash is
+`34323b51adef1839b42be2f93b50874f6c649d2cb31e7f2434fbda132532fbab`
+and its file SHA-256 is
+`8178b5a0262c02a60c1e8cd7b436ad2c95013a1be446a625543b22c168806e18`.
+The delta adds input V3, an exact visible-history window of 18, provider output
+`topic-dialogue-output-v3`, and validator `eval-topic-boundary-v3`; all model,
+prompt, token, fallback, and other-role settings remain inherited unchanged.
+
+The V3 provider payload keeps `dialogue_schema_version` V2-compatible for the
+existing semantic adapter and requires `schema_version` to be the exact,
+non-null `topic-dialogue-output-v3` literal. Every generated object property is
+required. Logical absence is represented by a required nullable field or an
+empty array. Server code adapts validated V3 output to the existing V2 runtime
+shape while retaining V3 schema and validator provenance in audit projection;
+student projection omits schema metadata. Historical V2 records are not
+rewritten.
+
+The no-network audit compiles the exact production schema objects for all 17
+roles through the installed OpenAI formatter. All corrected-candidate schemas
+compile. The preserved V2 topic-dialogue schema is separately classified as an
+approved-runtime latent incompatibility because it contains eight optional
+object properties. The production request builder reached its pre-fetch
+dispatch boundary for all 17 roles with zero network requests and no fallback.
+
+The bounded live run `e2a4_20260718090055_abb9ff54` dispatched both canary
+requests and received two schema-valid outputs. It had zero schema-request
+failures, zero retries, zero privacy or answer-key findings, 3,955 input tokens,
+823 output tokens, 231 reasoning tokens, and 17,133 ms aggregate latency. Exact
+pricing was unavailable and was not invented. The canary failed because both
+outputs violated the fixed no-premature-progression invariant; the tenth-turn
+case also used an unexpected response function. The remaining 28 cases were
+not run. Final status is `candidate_evaluation_failed`, human review remains
+pending, and approval and activation remain forbidden.
+
+```bash
+npm run eval:formative:e2a4:schema-audit
+npm run eval:formative:e2a4:request-compilation
+npm run eval:formative:e2a4:contract-smoke
+npm run eval:formative:e2a4:preflight
+
+EVAL_E2A4_LIVE_PROVIDER=1 \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
+OPERATIONAL_APPROVED_CONFIG_HASH=8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
+npm run eval:formative:e2a4:live -- \
+  --confirm-paid-provider-evaluation \
+  --candidate-hash 34323b51adef1839b42be2f93b50874f6c649d2cb31e7f2434fbda132532fbab \
+  --max-cases 30 \
+  --max-calls 120 \
+  --max-cost-usd 25
+
+npm run eval:formative:e2a4:report
+```
+
+The candidate-wide evidence draft inventories all 17 roles, references the
+active immutable evidence for the 16 unchanged roles, and attaches new
+topic-dialogue evidence. Those inherited references are not represented as
+human approval for this candidate. Every generated output is included in a
+pending human-review packet. The E2A four-session canary and 36-session matrix
+remain blocked.
+
 ## Execution isolation
 
 Formative evaluation scopes execution mode to each command or service call:

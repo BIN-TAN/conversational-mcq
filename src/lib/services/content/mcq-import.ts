@@ -174,7 +174,7 @@ const McqSuggestionDecisionSchema = z.enum([
 const DiagnosticSuggestionModeSchema = z.enum(["suggest_key", "diagnostic_information"]);
 const DiagnosticSuggestionConfidenceSchema = z.enum(["low", "medium", "high"]);
 
-const McqDiagnosticAuthoringSuggestionSchema = z.object({
+export const McqDiagnosticAuthoringSuggestionSchema = z.object({
   agent_name: z.literal(DIAGNOSTIC_ASSISTANT_AGENT_NAME),
   agent_version: z.literal(DIAGNOSTIC_ASSISTANT_AGENT_VERSION),
   prompt_version: z.literal(DIAGNOSTIC_ASSISTANT_PROMPT_VERSION),
@@ -213,7 +213,7 @@ const McqFormattingSourceSpanSchema = z.object({
   source_excerpt: z.string().nullable()
 });
 
-const McqFormattingSuggestionSchema = z.object({
+export const McqFormattingSuggestionSchema = z.object({
   agent_name: z.literal(FORMATTING_ASSISTANT_AGENT_NAME),
   agent_version: z.literal(FORMATTING_ASSISTANT_AGENT_VERSION),
   prompt_version: z.literal(FORMATTING_ASSISTANT_PROMPT_VERSION),

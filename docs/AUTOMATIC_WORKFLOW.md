@@ -236,3 +236,17 @@ The 2026-07-18 E2A.3 attempt did not reach provider fetch. The existing topic
 dialogue output schema failed strict Responses schema conversion, so the
 candidate remains blocked before runtime evaluation. This is not a fallback or
 an activation signal; the approved V2 bundle remains the only active bundle.
+
+E2A.4 repairs only the candidate provider contract by adding strict
+`topic-dialogue-output-v3` and `eval-topic-boundary-v3`; approved V2 runtime and
+failed V3 evidence remain unchanged. A server adapter converts validated V3
+semantic fields to the readable V2 runtime shape, while student serialization
+omits schema metadata and audit serialization retains version provenance. The
+all-role formatter audit and request compilation cover 17 roles with no
+network request.
+
+The E2A.4 dispatch canary proved that two corrected requests reached the
+provider and returned schema-valid outputs. It then failed fixed progression
+and response-function invariants, so the remaining 28 protocol cases did not
+run. No automatic workflow setting, approved hash, approval record, activation
+record, E2A canary, or 36-session matrix was changed.

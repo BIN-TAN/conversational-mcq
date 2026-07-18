@@ -132,7 +132,7 @@ export type E2A3ContextCoverage = {
   context_sections_used: string[];
 };
 
-type RubricDimension = {
+export type RubricDimension = {
   dimension: string;
   status: "passed" | "failed" | "manual_review_required" | "not_applicable";
   score: 0 | 1 | 2 | null;
@@ -539,7 +539,7 @@ function outputTransitionConsistent(output: TopicDialogueOutputV1) {
   return output.next_runtime_state === "AWAIT_TOPIC_DIALOGUE_RESPONSE";
 }
 
-function deterministicRubric(
+export function deterministicRubric(
   testCase: E2A3TopicDialogueCase,
   output: TopicDialogueOutputV1,
   context: E2A3ContextCoverage

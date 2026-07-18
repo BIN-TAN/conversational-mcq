@@ -2780,6 +2780,24 @@ recorded 30 local adapter attempts and zero network generation calls, tokens,
 or retries. A separate output-contract correction and fresh evaluation are
 required before human output review or approval readiness.
 
+E2A.4 adds a separate strict topic-dialogue output candidate without changing
+the approved V2 runtime or failed E2A.3 evidence. Candidate hash
+`34323b51adef1839b42be2f93b50874f6c649d2cb31e7f2434fbda132532fbab`
+uses input V3, exact history window 18, required
+`topic-dialogue-output-v3`, and `eval-topic-boundary-v3`. An all-role audit
+compiles all 17 production schema mappings through the actual OpenAI formatter,
+and a no-network request test reaches the pre-fetch boundary for all roles.
+
+The bounded E2A.4 run `e2a4_20260718090055_abb9ff54` made exactly two canary
+generation calls. Both returned schema-valid, privacy-safe outputs, so the
+Structured Outputs repair worked. Both failed the fixed no-premature-
+progression invariant, and one also failed response-function matching. The
+remaining 28 cases were not run. The result is
+`candidate_evaluation_failed`; human review is pending, no human decision was
+fabricated, and no approval or activation occurred. Use
+`npm run eval:formative:e2a4:report` to read the preserved review packet and
+candidate-wide non-approving evidence draft.
+
 ```bash
 npm run eval:formative:e2a3:contract-smoke
 npm run eval:formative:e2a3:no-live-smoke

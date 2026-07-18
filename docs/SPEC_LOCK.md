@@ -3272,6 +3272,31 @@ Phase 6A.5 must not implement:
   accounting is 30 adapter attempts, zero network generation dispatches, zero
   tokens, and zero retries. This failure must not be relabeled as provider
   output evidence or approval readiness.
+- E2A.4 must add a separate output contract and candidate. It must not edit
+  `topic-dialogue-output-v2`, the failed V3 candidate, prior E2A.3 artifacts,
+  approved evidence, activation evidence, or the approved runtime hash.
+- A provider-generated E2A.4 object must use required exact
+  `schema_version=topic-dialogue-output-v3`. Every object property must be
+  required; logical absence uses a required nullable value or empty array.
+  Student serialization excludes schema metadata, while audit serialization
+  retains output-schema and validator provenance.
+- The E2A.4 no-network gate must compile exact production output schemas for all
+  17 roles through the installed OpenAI formatter and production request
+  builder. Candidate live evaluation is forbidden if a candidate-blocking
+  incompatibility remains.
+- The E2A.4 live dispatch canary consists of one ordinary three-turn case and
+  one tenth-turn exact-history case from the fixed 30-case protocol. If either
+  case fails dispatch, schema, privacy, context, or major engineering
+  invariants, the remaining cases must not run.
+- Run `e2a4_20260718090055_abb9ff54` dispatched both requests and returned two
+  schema-valid outputs, but failed no-premature-progression on both cases and
+  direct-response-function matching on the tenth-turn case. Its final status is
+  `candidate_evaluation_failed`; 28 cases were not run, human review is pending,
+  and candidate approval and activation remain forbidden.
+- Candidate-wide E2A.4 evidence assembly is non-approving. It may reference
+  immutable evidence for 16 unchanged roles, but must not claim that inherited
+  evidence is human approval for the new candidate. `approval_evidence_ready`
+  remains false until a later explicit human review and approval phase.
 - Execution mode is command-scoped: `deterministic_e1` and
   `no_live_e2a_contract` use mock-safe adapters; `e2a_readiness` performs no
   generation; `live_e2a_canary` and `production` use configured live dispatch.
