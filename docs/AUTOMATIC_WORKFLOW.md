@@ -250,3 +250,17 @@ provider and returned schema-valid outputs. It then failed fixed progression
 and response-function invariants, so the remaining 28 protocol cases did not
 run. No automatic workflow setting, approved hash, approval record, activation
 record, E2A canary, or 36-session matrix was changed.
+
+E2A.5 makes recommendation, authorization, and execution explicit. Topic
+dialogue output may recommend only the action already authorized by a
+server-owned authorization object. With `remain_in_dialogue`, the reply must
+directly address the latest message, retain the distractor anchor, elicit new
+evidence, and avoid readiness, transfer, or completion language. Revision,
+transfer, and completion authorization are separate and cannot imply one
+another.
+
+The E2A.4 provider harness did not invoke the operational gate or persist
+runtime state, so its raw recommendations were not executed transitions.
+Controlled E2A.5 checks apply production readiness evidence and the candidate
+validator before a hypothetical projection. Rejected output remains in
+dialogue and requires bounded regeneration; rejection details are internal.

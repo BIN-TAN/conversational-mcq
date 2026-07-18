@@ -1,0 +1,91 @@
+{
+  "manifest_version": "e2a5-topic-dialogue-progression-candidate-v1",
+  "approval_state": "candidate_not_approved",
+  "activation_state": "not_activated",
+  "baseline_approved_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "failed_v4_candidate_hash": "34323b51adef1839b42be2f93b50874f6c649d2cb31e7f2434fbda132532fbab",
+  "failed_v4_candidate_path": "config/candidate-operational-agent-config.e2a4-topic-dialogue-contract-v2.json",
+  "failed_v4_candidate_sha256": "8178b5a0262c02a60c1e8cd7b436ad2c95013a1be446a625543b22c168806e18",
+  "candidate_profile_name": "E2A.5 platform-authorized topic dialogue progression",
+  "evaluation_required": true,
+  "human_review_required": true,
+  "student_facing_operational_use_approved": false,
+  "teacher_tool_use_approved": false,
+  "roles_unchanged_from_baseline": true,
+  "topic_dialogue_contract": {
+    "input_schema_version": "topic-dialogue-input-v4",
+    "output_schema_version": "topic-dialogue-output-v3",
+    "prompt_version": "topic-dialogue-v2-progression-authorized",
+    "prompt_hash": "0bfa883c334e811da29c54a13210789d156b4c7efce2889cfd675ad5d6050571",
+    "validator_version": "eval-topic-boundary-v4",
+    "progression_authorization_version": "topic-dialogue-progression-authorization-v1",
+    "fallback_version": "topic-dialogue-deterministic-fallback-v1",
+    "maximum_student_turns": 10,
+    "recent_raw_turn_window": 18,
+    "provider_payload_schema_version_required": true,
+    "bounded_regeneration_attempts": 1
+  },
+  "exact_delta_from_approved_v2": {
+    "topic_dialogue_agent.prompt_version": {
+      "from": "topic-dialogue-v1",
+      "to": "topic-dialogue-v2-progression-authorized"
+    },
+    "topic_dialogue_agent.prompt_hash": {
+      "from": "4ea205fab1019befe8ba80fd5d6db33eb669c69a4c589241011c09893d588b5d",
+      "to": "0bfa883c334e811da29c54a13210789d156b4c7efce2889cfd675ad5d6050571"
+    },
+    "topic_dialogue_agent.input_schema_version": {
+      "from": "topic-dialogue-input-v2",
+      "to": "topic-dialogue-input-v4"
+    },
+    "topic_dialogue_agent.output_schema_version": {
+      "from": "topic-dialogue-output-v2",
+      "to": "topic-dialogue-output-v3"
+    },
+    "topic_dialogue_agent.validator_version": {
+      "from": "eval-topic-boundary-v2",
+      "to": "eval-topic-boundary-v4"
+    },
+    "topic_dialogue_agent.progression_authorization_version": {
+      "from": "not_applicable",
+      "to": "topic-dialogue-progression-authorization-v1"
+    },
+    "runtime_policy.topic_dialogue_policy.recent_raw_turn_window": {
+      "from": 12,
+      "to": 18
+    }
+  },
+  "exact_delta_from_failed_v4": {
+    "topic_dialogue_agent.prompt_version": {
+      "from": "topic-dialogue-v1",
+      "to": "topic-dialogue-v2-progression-authorized"
+    },
+    "topic_dialogue_agent.prompt_hash": {
+      "from": "4ea205fab1019befe8ba80fd5d6db33eb669c69a4c589241011c09893d588b5d",
+      "to": "0bfa883c334e811da29c54a13210789d156b4c7efce2889cfd675ad5d6050571"
+    },
+    "topic_dialogue_agent.input_schema_version": {
+      "from": "topic-dialogue-input-v3",
+      "to": "topic-dialogue-input-v4"
+    },
+    "topic_dialogue_agent.validator_version": {
+      "from": "eval-topic-boundary-v3",
+      "to": "eval-topic-boundary-v4"
+    },
+    "topic_dialogue_agent.progression_authorization_version": {
+      "from": "not_applicable",
+      "to": "topic-dialogue-progression-authorization-v1"
+    }
+  },
+  "acceptance_criteria": {
+    "platform_authorization_is_server_owned": true,
+    "provider_may_not_broaden_authorization": true,
+    "continued_confusion_remains_in_dialogue": true,
+    "direct_response_matches_latest_turn": true,
+    "student_progression_language_is_authorization_bounded": true,
+    "bounded_regeneration_required_on_contract_failure": true,
+    "provider_re_evaluation_required_before_approval": true,
+    "human_review_required_before_approval": true,
+    "automatic_activation_forbidden": true
+  }
+}

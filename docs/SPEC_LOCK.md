@@ -3308,3 +3308,24 @@ Phase 6A.5 must not implement:
   Legacy Phase 8A smoke coverage must validate the same derived role inventory,
   hashes, schemas, validators, and approval linkage instead of rejecting the
   current architecture.
+- E2A.5 is no-live adjudication and candidate design. It must not rerun the
+  E2A.4 dispatch canary, remaining 30-case protocol, E2A student-simulator
+  canary, 36-session matrix, or any provider generation.
+- Progression evidence is reported at six non-equivalent levels: internal
+  recommendation, student-facing offer, platform authorization, UI
+  availability, executed transition, and terminal completion. A failure at one
+  level must not be reported as an event at a later level.
+- The E2A.4 provider harness created no operational rows and executed no state
+  transition. Its three-turn output had an unauthorized recommendation and
+  visible readiness claim. Its tenth-turn output had an unauthorized
+  final-support recommendation, while the original direct-response finding was
+  a deterministic false positive.
+- V5 input `topic-dialogue-input-v4` carries server-owned
+  `topic-dialogue-progression-authorization-v1`. The model may recommend only
+  the authorized action. Candidate validator `eval-topic-boundary-v4` rejects
+  broader recommendations or visible language, response-function mismatch,
+  lost distractor focus, and unsupported resolution, then permits at most one
+  regeneration.
+- V5 preserves output V3, exact history window 18, and every non-topic-dialogue
+  role. It remains unapproved, inactive, and absent from approval and activation
+  evidence until a fresh bounded provider evaluation and human review occur.

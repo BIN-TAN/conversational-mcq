@@ -303,3 +303,18 @@ permit the required transfer item to be presented, but it does not establish
 transfer success. An incorrect transfer response is retained as transfer
 evidence, triggers re-profiling and re-planning, and returns the student to an
 anchored formative dialogue instead of marking the misconception resolved.
+
+### Progression authorization boundary
+
+Topic-dialogue recommendation and platform transition are distinct. The
+progression taxonomy is: internal recommendation, student-facing offer,
+platform authorization, UI availability, executed transition, and terminal
+completion. Only the platform may move from one level to the next.
+
+The E2A.5 candidate design supplies one server-owned authorized action:
+`remain_in_dialogue`, `request_revision`, `present_transfer`, or
+`complete_episode`. A provider may not broaden it. When dialogue must remain
+active, the message may acknowledge partial progress, contrast the active
+distractor, give a different example, or ask one narrowed question. It must not
+claim resolution, advertise unavailable controls, or replace continued
+confusion with progression language.

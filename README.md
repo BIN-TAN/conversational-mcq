@@ -2798,6 +2798,21 @@ fabricated, and no approval or activation occurred. Use
 `npm run eval:formative:e2a4:report` to read the preserved review packet and
 candidate-wide non-approving evidence draft.
 
+E2A.5 adjudicates those two outputs without another provider call. It separates
+model recommendation, visible offer, platform authorization, UI availability,
+execution, and completion. The review confirms that no operational transition
+occurred, corrects the tenth-turn direct-response false positive, and creates a
+separate inactive V5 design with explicit server-owned progression
+authorization. Candidate hash
+`37e563710ae04ff1004f8e20b5484ee56189f964b0afb5ee5f818d324c11a712`
+remains unapproved and requires fresh provider evaluation plus human review.
+
+```bash
+npm run eval:formative:e2a5:smoke
+npm run eval:formative:e2a5:adjudicate
+npm run eval:formative:e2a5:report
+```
+
 ```bash
 npm run eval:formative:e2a3:contract-smoke
 npm run eval:formative:e2a3:no-live-smoke

@@ -428,3 +428,37 @@ engineering robustness under controlled language variability only.
 E2B may be considered only after E2A engineering acceptance, completed human
 review, reconciled provider accounting, and an explicit new specification. E2B
 must not be inferred or activated by this harness.
+
+## E2A.5 progression adjudication
+
+E2A.5 is a no-provider forensic and candidate-design phase. It preserves the
+failed E2A.4 run and separates six progression levels that the earlier binary
+rubric collapsed: `internal_recommendation`,
+`student_facing_progression_offer`, `platform_authorization`,
+`ui_progression_availability`, `executed_transition`, and
+`terminal_completion`. A provider recommendation is advisory and is not proof
+that the platform authorized, displayed, or executed a transition.
+
+The two E2A.4 responses came from a synthetic provider harness that created no
+session, activity runtime, UI projection, or progression command. No
+operational transition occurred. The three-turn response nevertheless
+recommended progression and visibly said the student was ready while the
+server-owned readiness inputs remained not ready. The tenth-turn response
+directly answered the student's conceptual question, so its original
+`direct_response_function` failure was a deterministic false positive; its
+structured final-support recommendation still exceeded authorization.
+
+Path C therefore creates inactive candidate
+`candidate-operational-agent-config.e2a5-topic-dialogue-progression-v1.json`.
+Input V4 adds required server-owned progression authorization, the prompt
+forbids broadening that authorization, and validator V4 rejects unauthorized
+recommendations, visible progression claims, response-function mismatch, lost
+distractor focus, unsupported mastery, and progression in place of help.
+Rejection permits at most one bounded regeneration. No provider call was rerun,
+human review remains pending, and V5 is neither approved nor active.
+
+```bash
+npm run eval:formative:e2a5:smoke
+npm run eval:formative:e2a5:adjudicate
+npm run eval:formative:e2a5:report
+```

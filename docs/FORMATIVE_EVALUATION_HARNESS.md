@@ -319,6 +319,20 @@ approval evidence. The evidence assembler is review-only, keeps inherited role
 evidence as immutable references, leaves human scores empty, and cannot
 activate a candidate.
 
+E2A.5 rereads those two immutable outputs without provider access. The earlier
+`no_premature_progression` check treated a structured recommendation as though
+it were the same event as platform authorization, UI availability, execution,
+or completion. The adjudicator now reports each level separately. It confirms
+candidate-level authorization defects in both outputs, confirms visible
+readiness language in the three-turn output, and corrects the tenth-turn
+`direct_response_function` finding because `answer_student_question` directly
+matched the student's conceptual question.
+
+The V5 design adds server-owned `progression_authorization` to input V4 and a
+candidate-only validator/prompt revision. All 16 other roles and output V3
+remain unchanged. The generated human summary leaves decisions and scores
+null. It is a review artifact, not approval evidence.
+
 Evaluation execution is explicitly scoped as `deterministic_e1`,
 `no_live_e2a_contract`, `e2a_readiness`, `live_e2a_canary`, or `production`.
 Deterministic modes select mock-safe adapters directly and cannot be converted
