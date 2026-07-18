@@ -3250,6 +3250,21 @@ Phase 6A.5 must not implement:
   carry 18 exact prior visible turns plus the latest student message, but it
   cannot authorize a live canary until separately evaluated, reviewed, and
   approved.
+- E2A.3 is the delta-focused provider evaluation for that V3 candidate. It must
+  not run the E2A canary or 36-session matrix, modify the approved V2 hash, or
+  create approval or activation evidence.
+- E2A.3 uses 18 repeated tenth-message cases and 12 baseline/boundary cases.
+  Tenth-message acceptance requires all 18 prior visible turns exactly once,
+  in order, with exact content; the latest student message remains separate,
+  the initial activity remains present, and invisible drafts remain excluded.
+- Provider execution is bounded to no more than 36 cases, 120 generation calls,
+  600,000 input tokens, 120,000 output tokens, and USD 25 only when complete
+  exact-model pricing is available. Raw provider responses, hidden prompts,
+  chain-of-thought, and credentials are not retained.
+- Existing active evidence may be referenced for the 16 unchanged roles, but
+  the current approval CLI does not support role-scoped evidence inheritance.
+  The E2A.3 packet is therefore a human-review draft only. The candidate remains
+  unapproved and inactive until a later explicit approval step.
 - Execution mode is command-scoped: `deterministic_e1` and
   `no_live_e2a_contract` use mock-safe adapters; `e2a_readiness` performs no
   generation; `live_e2a_canary` and `production` use configured live dispatch.

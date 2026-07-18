@@ -2762,6 +2762,24 @@ exact prior visible turns plus the latest student message, with no change to the
 approved runtime. Its no-live hash is
 `681ab5f96c9c18dfdd9aa17f335d3594a37cd7696bee6cbfe7c2e010c6943404`.
 
+E2A.3 evaluates that inactive V3 contract with 30 fixed synthetic provider
+cases: 18 repeated tenth-message cases and 12 baseline/boundary cases. The
+runner validates exact visible-history coverage, output schema, hard
+pedagogical invariants, privacy, answer-key safety, bounded usage, and protected
+artifact stability. It uses no LLM judge and writes a human-review packet under
+`.data/e2a3-topic-dialogue-candidate-evaluation/`. Evidence for the other 16
+roles is referenced from the immutable active approval bundle, but the current
+approval CLI cannot merge role-scoped inherited evidence. The generated
+approval packet is therefore a draft only; the candidate is not approved or
+activated, and the E2A canary remains blocked.
+
+```bash
+npm run eval:formative:e2a3:contract-smoke
+npm run eval:formative:e2a3:no-live-smoke
+npm run eval:formative:e2a3:preflight
+npm run eval:formative:e2a3:report
+```
+
 Evaluation modes are call-scoped. Deterministic E1 and no-live E2A use
 mock-safe adapters, readiness performs no generation, and only live canary or
 production paths use configured live dispatch and bounded safe recovery. The

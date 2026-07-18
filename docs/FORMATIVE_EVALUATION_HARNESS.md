@@ -284,6 +284,15 @@ approved runtime remains blocked; a separate inactive V3 candidate carries all
 nine prior student/assistant pairs exactly and the tenth student message
 separately. No paid evaluation or activation is part of E2A.2.
 
+E2A.3 adds a delta-focused provider evaluation for that inactive V3 candidate.
+It runs 18 repeated long-history cases and 12 baseline/boundary cases, persists
+exact context-coverage records, uses the existing output schema and validator,
+and requires human review without an LLM judge. Evidence for the 16 unchanged
+roles is referenced from the immutable active approval bundle; it is not copied
+or represented as a new approval. Because the approval CLI does not currently
+support role-scoped evidence inheritance, E2A.3 emits a review-only approval
+draft and keeps activation forbidden.
+
 Evaluation execution is explicitly scoped as `deterministic_e1`,
 `no_live_e2a_contract`, `e2a_readiness`, `live_e2a_canary`, or `production`.
 Deterministic modes select mock-safe adapters directly and cannot be converted

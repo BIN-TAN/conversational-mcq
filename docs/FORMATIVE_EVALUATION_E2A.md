@@ -139,6 +139,71 @@ IDs, missing and duplicated IDs, order and exact-content checks, and the
 context sections used. It proves that V2 remains incompatible while V3 is
 semantically compatible.
 
+## E2A.3 V3 candidate provider evaluation
+
+E2A.3 evaluates only the separate, inactive V3 topic-dialogue contract
+candidate. It does not run the E2A canary or 36-session student-simulator
+matrix, and it does not approve or activate the candidate. The candidate hash
+is `681ab5f96c9c18dfdd9aa17f335d3594a37cd7696bee6cbfe7c2e010c6943404`;
+the approved V2 runtime remains
+`8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993`.
+
+The delta protocol contains 30 fixed synthetic provider cases: 18
+tenth-student-message cases covering six critical long-history categories
+three times each, plus 12 ordinary or boundary cases covering 1, 3, 5, and 8
+student messages, revision-versus-transfer, and failed-transfer re-entry.
+
+For a tenth-message call, the V3 input must carry all nine prior
+student/assistant pairs as 18 exact, chronologically ordered visible-history
+entries. The tenth student message remains separate. The initial formative
+activity remains in the protected activity context, and invisible drafts are
+excluded. A single missing, duplicated, reordered, or changed visible turn is
+a critical failure.
+
+Provider execution is sequential and bounded to at most 36 cases, 120
+generation calls, 600,000 input tokens, 120,000 output tokens, and USD 25 when
+complete versioned pricing exists. The repository default runs 30 cases with
+at most two bounded retries per case. Pricing remains explicitly unavailable
+when the registry lacks the exact candidate model; no cost is invented.
+
+The current approval CLI does not support merging a role-scoped provider run
+with inherited evidence into a new full-candidate approval. E2A.3 therefore
+records immutable references to the active evidence for the 16 unchanged roles
+and produces new evidence only for `topic_dialogue_agent`. Its approval packet
+is a draft for human review, not final approval evidence. Every provider output
+is included in the review packet; at minimum, a human must review every
+tenth-turn and every flagged case. No LLM judge is used.
+
+Artifacts are written below the ignored directory
+`.data/e2a3-topic-dialogue-candidate-evaluation/<run-id>/`. Parsed validated
+outputs and sanitized provider metadata are retained. Raw provider responses,
+hidden prompts, chain-of-thought, credentials, and unrelated private data are
+not retained. The run also compares protected approval, activation, prompt,
+schema, validator, prior-run, and environment-metadata hashes before and after.
+
+```bash
+npm run eval:formative:e2a3:contract-smoke
+npm run eval:formative:e2a3:no-live-smoke
+npm run eval:formative:e2a3:preflight
+
+EVAL_E2A3_LIVE_PROVIDER=1 \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
+npm run eval:formative:e2a3:live -- \
+  --confirm-paid-api \
+  --new-run \
+  --expected-candidate-hash 681ab5f96c9c18dfdd9aa17f335d3594a37cd7696bee6cbfe7c2e010c6943404 \
+  --expected-candidate-file-sha256 1c8ac4e1400fb68b22133a157ec856f6b2ce64a701cd50055e6a3c83d6306bde \
+  --expected-evaluation-protocol-hash <printed-preflight-hash>
+
+npm run eval:formative:e2a3:report
+```
+
+Until human review and a later explicit approval architecture step are
+complete, the correct successful automated result is
+`candidate_evaluation_incomplete`, with `human_review_pending`. The E2A canary
+remains blocked.
+
 ## Execution isolation
 
 Formative evaluation scopes execution mode to each command or service call:

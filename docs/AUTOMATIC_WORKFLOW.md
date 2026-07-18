@@ -224,3 +224,10 @@ dialogue input V2: V2 caps `maximum_dialogue_turns` at eight and carries only
 recent summaries. A separate inactive V3 candidate carries 18 exact prior
 visible messages plus the latest student message. Until that candidate is
 evaluated and explicitly approved, the approved E2A canary remains blocked.
+
+E2A.3 evaluates the V3 delta outside classroom and canary execution. The
+provider runner receives fixed synthetic topic-dialogue inputs directly and
+does not create assessment sessions, workflow jobs, conversation turns, agent
+calls, profiles, plans, or operational effective-result records. It records 16
+unchanged roles as immutable inherited-evidence references and evaluates only
+`topic_dialogue_agent`; this reference does not authorize runtime use.
