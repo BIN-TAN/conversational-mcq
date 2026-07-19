@@ -364,3 +364,12 @@ boundary. The no-live harness compiles four topic-dialogue mode requests and
 the other 16 role requests through the production formatter, for 20 compiled
 requests across 17 roles and zero fetches. Replay and compilation are not
 approval evidence; a fresh V6 provider canary and human review are required.
+
+E2A.8 adds that fresh V6 canary without running the fixed 30-case protocol. Its
+eight cases exercise all four server-selected response modes, including two
+complete tenth-turn histories. Schema validity, direct response, instructional
+adaptation, distractor continuity, progression-language boundaries, privacy,
+and answer-key safety are deterministic checks. Candidate failure and platform
+safety are nonexclusive: a rejected output may activate the already-selected
+safe fallback while still failing candidate evaluation. All provider attempts
+remain pending human review, and the harness cannot approve or activate V6.

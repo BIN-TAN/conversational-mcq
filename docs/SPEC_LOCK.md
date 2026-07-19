@@ -3370,3 +3370,19 @@ Phase 6A.5 must not implement:
   all 17 roles are design evidence only. They do not approve V6. A fresh
   provider canary and explicit human review remain mandatory before any later
   approval proposal.
+- E2A.8 runs only the eight-case V6 authorization-specific provider canary. It
+  must not run the fixed 30-case provider protocol, E2A student simulator,
+  36-session matrix, E2B, or an LLM rubric evaluator.
+- E2A.8 permits at most eight initial generation calls and one same-mode
+  regeneration per case, with hard ceilings of 16 total calls, 220,000 input
+  tokens, 35,000 output tokens, and USD 10 when complete pricing is available.
+- Candidate semantic validity and platform safety are independent. A
+  deterministic fallback preserves the already selected mode and platform
+  safety but fails the provider case and cannot count as V6 success.
+- Cases 2 and 8 require nine exact prior student messages, nine exact prior
+  assistant replies, the initial activity, and a separate tenth student
+  message. Missing, duplicated, reordered, invisible, or altered history fails
+  the canary.
+- E2A.8 may report only `v6_canary_passed_pending_human_review`,
+  `v6_canary_failed`, or `v6_canary_incomplete`. It cannot create approval or
+  activation evidence, change the approved V2 hash, or claim a human decision.

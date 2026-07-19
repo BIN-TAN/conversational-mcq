@@ -345,3 +345,10 @@ validator, and deterministic fallback. Provider failure does not change the
 selected mode. The platform still owns controls, task presentation, state
 transition, and terminal completion. V6 is review-only until fresh provider
 evidence and human review exist.
+
+E2A.8 tests the inactive V6 language boundary with eight fixed topic-dialogue
+cases. Revision, transfer, and completion wording is valid only in its matching
+server-selected mode. Continued dialogue must answer or clarify the latest
+message, preserve the active distractor, and change instructional operation
+after repeated failure. The canary does not execute an activity transition and
+does not replace the later 30-case evaluation or required human review.

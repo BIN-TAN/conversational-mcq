@@ -2866,3 +2866,21 @@ npm run eval:formative:e2a7:request-compilation
 npm run eval:formative:e2a7:adjudicate
 npm run eval:formative:e2a7:report -- --run <run_id>
 ```
+
+E2A.8 is the separately opted-in, eight-case live canary for that inactive V6
+contract. It covers all four server-selected response modes, exact turn-ten
+history in two cases, same-mode bounded regeneration, independent platform
+safety, privacy, and answer-key checks. It never runs the 30-case protocol or
+student-simulator matrix and cannot approve or activate V6.
+
+```bash
+npm run eval:formative:e2a8:smoke
+npm run eval:formative:e2a8:preflight
+npm run eval:formative:e2a8:request-compilation
+npm run eval:formative:e2a8:report -- --run <run_id>
+```
+
+The paid command and its exact candidate hash and budget confirmations are in
+[Formative Evaluation E2A](docs/FORMATIVE_EVALUATION_E2A.md). A passing
+automated canary remains pending human review, and the later 30-case V6
+evaluation remains gated.

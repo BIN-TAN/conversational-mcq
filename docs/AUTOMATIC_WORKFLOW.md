@@ -282,3 +282,10 @@ broaden, narrow, replace, or reinterpret the action. A failed generation uses
 the deterministic fallback for the already selected mode; fallback metadata is
 audit-only and the platform gate remains independent. This is an inactive V6
 design and does not change current runtime behavior or the approved hash.
+
+E2A.8 evaluates this boundary with eight isolated provider cases only. It never
+executes a workflow command or production transition. A valid provider message
+and the platform-authorized action are recorded separately; invalid language
+can be replaced by the fallback for the same mode without converting the
+candidate result into a pass. The later 30-case protocol remains blocked until
+the canary passes and its student-facing outputs receive explicit human review.

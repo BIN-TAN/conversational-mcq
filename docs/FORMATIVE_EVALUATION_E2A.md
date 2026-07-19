@@ -543,3 +543,53 @@ npm run eval:formative:e2a7:report -- --run <run_id>
 These commands make no provider request. Candidate
 `candidate-operational-agent-config.e2a7-topic-dialogue-mode-contract-v1.json`
 is unapproved and inactive.
+
+## E2A.8 V6 authorization-specific live canary
+
+E2A.8 performs only the first bounded provider canary for the inactive V6
+candidate. The eight fixed cases cover unsupported understanding, repeated
+conceptual confusion at turn ten, task-language confusion, a direct-answer and
+prompt-injection request, separately authorized revision, transfer, and
+completion, and recurrence after apparent improvement at turn ten. Cases 2 and
+8 require all nine prior student messages and nine prior assistant replies
+exactly, in order, with the tenth student message supplied separately.
+
+The platform selects the response mode before request construction. Each call
+uses the corresponding V6 prompt and strict schema; provider output contains no
+action, readiness, platform-state, or authorization field. Candidate semantics
+and platform safety are recorded independently. One rejected provider output
+may be regenerated in the same selected mode. A second invalid output uses the
+mode-specific deterministic fallback to keep the platform safe, but the case
+and canary still fail.
+
+Hard ceilings are eight initial calls, eight regenerations, 16 total generation
+calls, 220,000 input tokens, 35,000 output tokens, and USD 10 when complete
+pricing is available. Every parsed provider attempt enters the pending human-
+review packet. More than two regenerations is explicitly flagged for review.
+The only passing automated state is
+`v6_canary_passed_pending_human_review`; it is not approval or activation.
+
+```bash
+npm run eval:formative:e2a8:smoke
+npm run eval:formative:e2a8:preflight
+npm run eval:formative:e2a8:request-compilation
+
+EVAL_E2A8_LIVE_PROVIDER=1 \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
+OPERATIONAL_APPROVED_CONFIG_HASH=8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
+npm run eval:formative:e2a8:live -- \
+  --confirm-paid-provider-canary \
+  --candidate-hash 2ba4b434d89455da8632fa91b9cdc948567c469625fc10e33db74d4d536f7f31 \
+  --max-cases 8 --max-initial-calls 8 \
+  --max-regeneration-calls 8 --max-total-calls 16 \
+  --max-input-tokens 220000 --max-output-tokens 35000 \
+  --max-cost-usd 10
+
+npm run eval:formative:e2a8:report -- --run <run_id>
+```
+
+Artifacts are written under `.data/e2a8-v6-topic-dialogue-canary/<run_id>/`.
+Human scores and decisions remain null. The 30-case V6 evaluation remains
+gated on this canary plus explicit human review; E2A student simulation, the
+36-session matrix, E2B, approval, and activation are outside E2A.8.
