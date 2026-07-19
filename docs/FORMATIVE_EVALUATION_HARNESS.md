@@ -339,3 +339,12 @@ Deterministic modes select mock-safe adapters directly and cannot be converted
 to safe recovery merely because live opt-in is absent. Readiness performs no
 dialogue generation, and only live/production modes are eligible for recovery
 after a genuine bounded provider or workflow failure.
+
+E2A.6 adds a direct V5 topic-dialogue provider protocol, not a student
+simulator. Its no-live harness verifies canonical action normalization,
+server-owned authorization, candidate-validator/platform-gate independence,
+17-role production request compilation, exact history, privacy, and bounded
+regeneration. A five-case authorization canary gates the fixed 30-case
+protocol. Per-attempt usage and outputs are retained so a rejected first output
+cannot disappear behind a repaired output. All outputs require human review;
+the harness cannot emit approval or activation evidence.

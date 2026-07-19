@@ -3329,3 +3329,14 @@ Phase 6A.5 must not implement:
 - V5 preserves output V3, exact history window 18, and every non-topic-dialogue
   role. It remains unapproved, inactive, and absent from approval and activation
   evidence until a fresh bounded provider evaluation and human review occur.
+- E2A.6 evaluates V5 only. Its five-case live authorization gate must pass
+  before the fixed 30-case protocol may run. It must not run the E2A
+  student-simulator canary, the 36-session matrix, E2B, or an LLM judge.
+- Topic-dialogue action normalization is candidate-independent. Every provider
+  action resolves to one of four canonical actions; unknown, obsolete,
+  contradictory, or broader values fail closed to active dialogue. Candidate
+  validation and platform authorization remain independent checks.
+- Every E2A.6 provider attempt, including one bounded validator regeneration,
+  is usage-accounted and included in a pending human-review packet. Automated
+  completion may state only provider evidence readiness, failure, or
+  incompleteness. It cannot approve or activate V5.

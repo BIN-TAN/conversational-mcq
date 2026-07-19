@@ -462,3 +462,46 @@ npm run eval:formative:e2a5:smoke
 npm run eval:formative:e2a5:adjudicate
 npm run eval:formative:e2a5:report
 ```
+
+## E2A.6 V5 topic-dialogue provider evaluation
+
+E2A.6 evaluates only the inactive V5 topic-dialogue delta. Before dispatch it
+normalizes every provider or legacy action to `remain_in_dialogue`,
+`request_revision`, `present_transfer`, or `complete_episode`. Unknown,
+obsolete, contradictory, or broader actions are rejected by a platform gate
+independently of candidate validator V4 and leave the activity active with a
+student-safe response. Authorization fields and their concise evidence summary
+are server-owned, retained in audit projection, and omitted from student
+projection.
+
+The no-network gate compiles all 17 production request mappings with topic
+input V4, output V3, and validator V4. The live evaluator first runs five fixed
+authorization cases. Only a 5/5 pass permits the fixed 30-case provider
+protocol, including 18 exact tenth-turn histories. Every provider attempt,
+including the one permitted validator regeneration, enters the human-review
+packet. Six progression levels remain separate and no operational transition
+is executed.
+
+```bash
+npm run eval:formative:e2a6:smoke
+npm run eval:formative:e2a6:preflight
+npm run eval:formative:e2a6:request-compilation
+
+EVAL_E2A6_LIVE_PROVIDER=1 \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
+OPERATIONAL_APPROVED_CONFIG_HASH=8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
+npm run eval:formative:e2a6:live -- \
+  --confirm-paid-provider-evaluation \
+  --candidate-hash 37e563710ae04ff1004f8e20b5484ee56189f964b0afb5ee5f818d324c11a712 \
+  --canary-max-cases 5 --canary-max-calls 15 --canary-max-cost-usd 8 \
+  --full-max-cases 30 --full-max-calls 120 --full-max-cost-usd 25
+
+npm run eval:formative:e2a6:report
+```
+
+Allowed automated outcomes are
+`provider_evidence_ready_for_human_review`, `candidate_evaluation_failed`, or
+`candidate_evaluation_incomplete`. None approves or activates V5. Human scores
+and decisions remain null until explicit human review. The E2A four-session
+student-simulator canary and 36-session matrix remain blocked.

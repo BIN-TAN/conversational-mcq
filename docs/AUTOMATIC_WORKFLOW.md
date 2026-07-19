@@ -264,3 +264,12 @@ runtime state, so its raw recommendations were not executed transitions.
 Controlled E2A.5 checks apply production readiness evidence and the candidate
 validator before a hypothetical projection. Rejected output remains in
 dialogue and requires bounded regeneration; rejection details are internal.
+
+E2A.6 strengthens the shared runtime boundary with canonical topic-dialogue
+action normalization. The canonical gate evaluates the validated provider
+action before the existing readiness gate. A rejected alias, unknown action,
+or action broader than server authorization is replaced by a direct safe reply,
+keeps the activity active, and records only sanitized rejection provenance in
+teacher/research audit. Student transcript and runtime projections do not
+receive authorization fields. Provider evaluation itself never executes an
+assessment transition.

@@ -318,3 +318,11 @@ active, the message may acknowledge partial progress, contrast the active
 distractor, give a different example, or ask one narrowed question. It must not
 claim resolution, advertise unavailable controls, or replace continued
 confusion with progression language.
+
+E2A.6 makes that boundary executable and independently testable. Legacy values
+are normalized to one canonical action only when they exactly match the
+server-owned authorization. `show_final_support_options`, unknown values, and
+generic readiness or completion labels never authorize progression. Revision,
+transfer, and completion language must match their separately authorized
+action; completion must not be phrased as a mastery claim. Rejection leaves one
+activity active and preserves a bounded, anchor-specific student response.

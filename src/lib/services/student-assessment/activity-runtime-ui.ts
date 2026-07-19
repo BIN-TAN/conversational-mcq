@@ -55,6 +55,10 @@ import {
   type TopicDialogueOutputV1
 } from "@/lib/services/student-assessment/topic-dialogue-agent";
 import {
+  applyCanonicalTopicDialogueActionGate,
+  topicDialogueAuthorizationAuditProjection
+} from "@/lib/services/student-assessment/topic-dialogue-action-normalization";
+import {
   resolveTopicDialogueExecutionPlan,
   type FormativeExecutionMode
 } from "@/lib/services/student-assessment/formative-execution-mode";
@@ -2697,26 +2701,45 @@ async function processTopicDialogueResponse(input: {
         ...dialogueInput,
         latest_student_message: "Please keep the discussion on this assessment topic."
       });
-  const readinessResult = applyTopicDialogueReadinessGate({
+  const actionGateResult = applyCanonicalTopicDialogueActionGate({
     dialogue_input: dialogueInput,
     candidate_output: validatedOutput
   });
+  const readinessResult = applyTopicDialogueReadinessGate({
+    dialogue_input: dialogueInput,
+    candidate_output: actionGateResult.output
+  });
   const persistedOutput = readinessResult.output;
+  const actionValidationPassed = !actionGateResult.rejected;
+  const actionValidationError = actionValidationPassed
+    ? null
+    : `topic_dialogue_action_rejected:${actionGateResult.normalization.rejection_code}`;
+  const providerValidationError = validation.valid
+    ? null
+    : validation.issues.map((issue) => {
+        const blocked = "blocked_pattern_label" in issue
+          ? issue.blocked_pattern_label
+          : undefined;
+        return `${issue.field_path}:${blocked ?? issue.rule_code}`;
+      }).join("; ");
   const fallbackUsed = !deterministicDialogueAdapter &&
-    (liveResult.status !== "succeeded" || !validation.valid);
+    (liveResult.status !== "succeeded" ||
+      !validation.valid ||
+      actionGateResult.overridden ||
+      readinessResult.overridden);
   const agentCall = liveResult.status === "succeeded"
     ? await client.agentCall.update({
         where: { id: liveResult.agent_call_id },
         data: {
           output_payload: prismaJson(persistedOutput),
-          output_validated: validation.valid,
-          validation_error: validation.valid
+          output_validated: validation.valid && actionValidationPassed,
+          validation_error: validation.valid && actionValidationPassed
             ? null
-            : validation.issues.map((issue) => {
-                const blocked = "blocked_pattern_label" in issue ? issue.blocked_pattern_label : undefined;
-                return `${issue.field_path}:${blocked ?? issue.rule_code}`;
-              }).join("; "),
-          call_status: validation.valid ? "succeeded" : "invalid_output"
+            : actionValidationError ?? providerValidationError,
+          blocked_reason: actionValidationError ?? undefined,
+          call_status: validation.valid && actionValidationPassed
+            ? "succeeded"
+            : "invalid_output"
         }
       })
     : existingDialogueCall
@@ -2725,17 +2748,15 @@ async function processTopicDialogueResponse(input: {
           data: {
             output_payload: prismaJson(persistedOutput),
             raw_output: prismaJson(persistedOutput),
-            output_validated: validation.valid,
-            validation_error: validation.valid
+            output_validated: validation.valid && actionValidationPassed,
+            validation_error: validation.valid && actionValidationPassed
               ? null
-              : validation.issues.map((issue) => {
-                  const blocked = "blocked_pattern_label" in issue
-                    ? issue.blocked_pattern_label
-                    : undefined;
-                  return `${issue.field_path}:${blocked ?? issue.rule_code}`;
-                }).join("; "),
-            blocked_reason: "existing_dialogue_call_not_reusable",
-            call_status: validation.valid ? "succeeded" : "invalid_output",
+              : actionValidationError ?? providerValidationError,
+            blocked_reason: actionValidationError ??
+              "existing_dialogue_call_not_reusable",
+            call_status: validation.valid && actionValidationPassed
+              ? "succeeded"
+              : "invalid_output",
             completed_at: new Date()
           }
         })
@@ -2756,17 +2777,16 @@ async function processTopicDialogueResponse(input: {
           input_payload: prismaJson(dialogueRequestInput),
           output_payload: prismaJson(persistedOutput),
           raw_output: prismaJson(persistedOutput),
-          output_validated: validation.valid,
-          validation_error: validation.valid
+          output_validated: validation.valid && actionValidationPassed,
+          validation_error: validation.valid && actionValidationPassed
             ? null
-            : validation.issues.map((issue) => {
-                const blocked = "blocked_pattern_label" in issue ? issue.blocked_pattern_label : undefined;
-                return `${issue.field_path}:${blocked ?? issue.rule_code}`;
-              }).join("; "),
+            : actionValidationError ?? providerValidationError,
           blocked_reason: !deterministicDialogueAdapter && liveResult.status === "not_attempted"
             ? liveResult.blocked_reason
-            : undefined,
-          call_status: validation.valid ? "succeeded" : "invalid_output",
+            : actionValidationError ?? undefined,
+          call_status: validation.valid && actionValidationPassed
+            ? "succeeded"
+            : "invalid_output",
           live_call_allowed: false,
           started_at: new Date(),
           completed_at: new Date()
@@ -2895,6 +2915,11 @@ async function processTopicDialogueResponse(input: {
           boundary_validator_version: TOPIC_DIALOGUE_BOUNDARY_VALIDATOR_VERSION,
           readiness_gate: readinessResult.gate,
           readiness_gate_overrode_candidate: readinessResult.overridden,
+          action_authorization: topicDialogueAuthorizationAuditProjection(
+            actionGateResult.authorization
+          ),
+          action_normalization: actionGateResult.normalization,
+          action_gate_overrode_candidate: actionGateResult.overridden,
           turn_orchestration_audit: {
             profile: staged.profile_audit,
             planning: staged.planning_audit
@@ -2934,7 +2959,12 @@ async function processTopicDialogueResponse(input: {
         structured_payload: prismaJson({
           ...persistedOutput,
           readiness_gate: readinessResult.gate,
-          readiness_gate_overrode_candidate: readinessResult.overridden
+          readiness_gate_overrode_candidate: readinessResult.overridden,
+          action_authorization: topicDialogueAuthorizationAuditProjection(
+            actionGateResult.authorization
+          ),
+          action_normalization: actionGateResult.normalization,
+          action_gate_overrode_candidate: actionGateResult.overridden
         })
       }
     });
@@ -2990,10 +3020,15 @@ async function processTopicDialogueResponse(input: {
       execution_mode: executionPlan.mode,
       dialogue_adapter: executionPlan.adapter,
       readiness_gate: readinessResult.gate,
-      readiness_gate_overrode_candidate: readinessResult.overridden
+      readiness_gate_overrode_candidate: readinessResult.overridden,
+      action_authorization: topicDialogueAuthorizationAuditProjection(
+        actionGateResult.authorization
+      ),
+      action_normalization: actionGateResult.normalization,
+      action_gate_overrode_candidate: actionGateResult.overridden
     }
   });
-  if (liveResult.status === "succeeded" && validation.valid) {
+  if (liveResult.status === "succeeded" && validation.valid && actionValidationPassed) {
     await logProcessEvent({
       assessment_session_db_id: context.session.id,
       concept_unit_session_db_id: context.concept_unit_session.id,

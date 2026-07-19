@@ -2825,3 +2825,23 @@ mock-safe adapters, readiness performs no generation, and only live canary or
 production paths use configured live dispatch and bounded safe recovery. The
 authoritative derived-manifest verifier and the Phase 8A compatibility smoke
 both validate the current 17-role approval architecture.
+
+E2A.6 is the bounded provider evaluation for the inactive V5 topic-dialogue
+candidate. It adds a candidate-independent canonical action gate, checks
+server-owned authorization and student/audit projection separation, compiles
+all 17 production request mappings without fetch, then gates the fixed 30-case
+protocol behind a five-case authorization canary. Every provider attempt is
+retained for human review. V5 remains unapproved and inactive regardless of the
+automated result.
+
+```bash
+npm run eval:formative:e2a6:smoke
+npm run eval:formative:e2a6:preflight
+npm run eval:formative:e2a6:request-compilation
+npm run eval:formative:e2a6:report
+```
+
+The explicitly paid command and hard budget confirmations are documented in
+[Formative Evaluation E2A](docs/FORMATIVE_EVALUATION_E2A.md). E2A.6 does not
+run the four-session student-simulator canary or the 36-session matrix and does
+not create approval or activation evidence.

@@ -22,6 +22,8 @@ import {
   TopicDialogueInputV3Schema,
   type TopicDialogueInputV3
 } from "./e2a-topic-dialogue-contract-candidate";
+import { sanitizeTopicDialogueAuthorizationSummary } from
+  "@/lib/services/student-assessment/topic-dialogue-action-normalization";
 import {
   changedPaths,
   E2A4_APPROVED_V2_HASH,
@@ -138,6 +140,7 @@ export type E2A5ProgressionLanguageFinding = {
   rule_code:
     | "unauthorized_readiness_claim"
     | "unauthorized_resolution_claim"
+    | "unauthorized_revision_claim"
     | "unauthorized_transfer_claim"
     | "unauthorized_completion_claim"
     | "unavailable_control_instruction";
@@ -170,8 +173,14 @@ export function detectUnauthorizedProgressionLanguage(
     push("unauthorized_resolution_claim", "issue_declared_resolved");
   }
   if (
+    !authorization.revision_authorized &&
+    /\b(?:revise|revision|rewrite|edit\s+(?:your|the)\s+(?:answer|claim|explanation|response))\b/iu.test(message)
+  ) {
+    push("unauthorized_revision_claim", "revision_presented_as_available");
+  }
+  if (
     !authorization.transfer_authorized &&
-    /\b(?:you\s+can|let(?:'s| us)|now)\s+(?:continue\s+to|start|move\s+to)\s+(?:the\s+)?transfer\b/iu.test(message)
+    /\b(?:you\s+can|let(?:'s| us)|now|next)\s+(?:continue\s+to|start|move\s+to|try|begin|work\s+on)\s+(?:the\s+)?transfer\b/iu.test(message)
   ) {
     push("unauthorized_transfer_claim", "transfer_presented_as_available");
   }
@@ -333,9 +342,10 @@ export function buildE2A5ProgressionAuthorization(input: {
     transfer_authorized: authorizedAction === "present_transfer",
     completion_authorized: authorizedAction === "complete_episode",
     authorized_action: authorizedAction,
-    authorization_evidence_summary: gate.ready
-      ? `Platform readiness gate authorized ${authorizedAction}.`
-      : `Platform readiness gate requires continued dialogue: ${gate.reason_code}.`
+    authorization_evidence_summary: sanitizeTopicDialogueAuthorizationSummary({
+      authorized_action: authorizedAction,
+      gate_ready: gate.ready
+    })
   });
 }
 
