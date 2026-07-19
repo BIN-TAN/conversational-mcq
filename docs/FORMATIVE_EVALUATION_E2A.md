@@ -751,3 +751,45 @@ and file SHA-256
 `10ed9433541aca94216d91fe4f4fd4717208ba89393101e1075978e4b9681307`.
 It remains unapproved and inactive. A fresh, separately authorized held-out V8
 provider canary and explicit human review are still required.
+
+## E2A.12 V8 fresh held-out runtime canary
+
+E2A.12 froze a 12-case held-out protocol before dispatch at SHA-256
+`e01be26cf1ab34134f05f8b37c8274930475b00238a04e217d793142aef45dd9`.
+Its wording has no exact or near-duplicate match against the E2A.10 student
+messages or provider outputs or the E2A.11 hard-negative and borderline
+corpora. The protocol covers three item/distractor anchors, all seven
+remain-in-dialogue operations, all three progression modes, two tenth-turn
+histories, and two natural-language stress variants.
+
+Run `e2a12_20260719234834_59a67eaf` used source-freeze commit
+`92eac082f3770621e6ffe605693f19eb1c08128d`. All 12 initial responses were
+strict-schema valid. V8 accepted seven and accepted five with internal review
+flags. No response was hard rejected, regenerated, or replaced by fallback.
+The five flagged responses were persisted and displayed unchanged; review
+flags were available in authorized audit projections and absent from student
+state, action responses, transcript output, and rendered text. The read-only
+V7 shadow validator would have rejected seven responses.
+
+The candidate-only production-equivalent path persisted each accepted result,
+constructed student and authorized audit projections, and reconstructed the
+visible transcript after refresh. All 12 persistence, student projection,
+audit projection, transcript, platform-safety, and privacy checks passed; both
+tenth-turn context checks passed. Usage was 12 generation calls, 16,645 input
+tokens, 1,718 output tokens, 412 reasoning tokens, zero retries, and no
+metadata-only requests. Pricing was unavailable, so cost is recorded as
+unknown rather than estimated.
+
+The automated status is
+`v8_canary_automated_pass_pending_human_review`. The review packet is
+`.data/e2a12-v8-held-out-canary/e2a12_20260719234834_59a67eaf/human-review-packet.json`.
+No human decision or approval was recorded. V8 remains unapproved and inactive,
+and the fixed 30-case provider evaluation remains blocked until explicit human
+review of all canary outputs is complete.
+
+```bash
+npm run eval:formative:e2a12:protocol-smoke
+npm run eval:formative:e2a12:request-compilation
+npm run eval:formative:e2a12:preflight
+npm run eval:formative:e2a12:report -- --run e2a12_20260719234834_59a67eaf
+```

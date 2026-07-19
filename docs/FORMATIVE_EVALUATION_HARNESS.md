@@ -421,3 +421,15 @@ results and nonexclusive aggregate counts for schema failures, hard rejection,
 accepted-with-flags, acceptance, regeneration, fallback, safety, privacy,
 answer protection, and pedagogical review. V8 request compilation reuses the
 same production builders and formatter as V7 and stops before fetch.
+
+E2A.12 applies that inactive V8 boundary to a frozen 12-case held-out protocol
+through the candidate-only production-equivalent persistence service. Runtime
+acceptance controls persistence, display, one bounded regeneration, and
+fallback; the independent pedagogical rubric can add internal review flags but
+cannot change the runtime outcome. Run `e2a12_20260719234834_59a67eaf`
+accepted seven outputs and accepted five with review flags, with zero hard
+rejections, regenerations, or fallbacks. Flagged provider text was persisted
+and shown unchanged, while flags remained restricted to authorized audit
+projection. The V7 read-only shadow would have rejected seven of the same
+outputs. The automated pass remains pending human review and does not authorize
+the fixed 30-case evaluation, approval, or activation.

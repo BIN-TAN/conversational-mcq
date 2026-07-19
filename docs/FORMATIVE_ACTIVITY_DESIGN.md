@@ -385,3 +385,12 @@ stored as internal review flags. They do not replace a usable provider message
 with a deterministic fallback. Hard rejection remains limited to auditable
 contract, authorization, privacy, answer-protection, or clear interaction
 failures.
+
+E2A.12 exercised that separation using fresh content and three distinct
+item/distractor anchors. Five safe messages carried qualitative review flags
+and were still persisted and displayed unchanged; seven were accepted without
+flags. The independent rubric recorded strategy, distractor-focus, and
+partial-reasoning concerns without altering platform state. There were no hard
+rejections, fallbacks, privacy findings, answer-key findings, or invalid
+transitions. The human-review packet remains pending, so this canary neither
+activates V8 nor permits the larger 30-case provider evaluation.

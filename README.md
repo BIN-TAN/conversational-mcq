@@ -2945,3 +2945,19 @@ npm run eval:formative:e2a11:report -- --run <run_id>
 These commands make zero provider calls. V8 remains unapproved and inactive;
 the larger evaluation remains blocked pending a separately authorized held-out
 V8 canary and explicit human review.
+
+E2A.12 completed that separately authorized 12-case held-out canary without
+starting the larger evaluation. Protocol
+`e01be26cf1ab34134f05f8b37c8274930475b00238a04e217d793142aef45dd9`
+was frozen before dispatch and passed overlap checks against prior canary and
+calibration text. Run `e2a12_20260719234834_59a67eaf` produced seven accepted
+responses and five accepted-with-review-flags responses, with no hard
+rejection, regeneration, fallback, privacy finding, answer-key finding, or
+invalid platform transition. Flagged messages were persisted and displayed
+unchanged while their flags remained restricted to authorized audit output.
+
+The automated status is `v8_canary_automated_pass_pending_human_review`.
+Review artifacts are under
+`.data/e2a12-v8-held-out-canary/e2a12_20260719234834_59a67eaf/`. V8 is still
+unapproved and inactive, and the 30-case provider evaluation remains gated on
+explicit human review of the 12 provider outputs.

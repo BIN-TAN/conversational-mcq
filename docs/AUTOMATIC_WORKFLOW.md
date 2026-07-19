@@ -322,3 +322,13 @@ with a qualitative concern is persisted and displayed; only an auditable hard
 violation requests one bounded regeneration. A second hard violation uses the
 already selected operation or mode fallback without changing platform
 authorization.
+
+E2A.12 verified this candidate-only path against 12 fresh provider responses.
+The platform selected every mode and operation before dispatch, and V8 runtime
+acceptance controlled persistence and display independently from the
+pedagogical rubric. Seven messages were accepted and five were accepted with
+internal review flags; none required regeneration or fallback. Flagged messages
+were shown unchanged, flags stayed out of all student projections, and refresh
+reconstructed the persisted visible timeline for all cases. This evidence does
+not change the approved workflow: V8 remains inactive, and human review is
+required before the 30-case evaluation can be considered.

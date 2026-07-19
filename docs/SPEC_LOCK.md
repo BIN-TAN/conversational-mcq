@@ -3444,3 +3444,18 @@ Phase 6A.5 must not implement:
 - V8 preserves V7 prompts, schemas, routing, model configuration, history
   window, and fallbacks. It remains unapproved and inactive until a fresh
   held-out provider canary and explicit human review are separately authorized.
+- E2A.12 freezes its 12-case held-out protocol at
+  `e01be26cf1ab34134f05f8b37c8274930475b00238a04e217d793142aef45dd9`
+  before provider dispatch. Protocol overlap checks against E2A.10 messages and
+  outputs and E2A.11 calibration corpora must pass before dispatch.
+- E2A.12 run `e2a12_20260719234834_59a67eaf` used source-freeze commit
+  `92eac082f3770621e6ffe605693f19eb1c08128d` and produced
+  `v8_canary_automated_pass_pending_human_review`: seven accepted, five
+  accepted with review flags, and zero hard rejections, regenerations, or
+  fallbacks.
+- Accepted-with-review-flags provider text is persisted and displayed unchanged.
+  Review flags are authorized-audit data and must not appear in student state,
+  action responses, transcript output, or rendered text. The pedagogical
+  rubric and V7 shadow validator remain read-only with respect to runtime state.
+- E2A.12 does not approve or activate V8 and does not authorize the fixed
+  30-case evaluation. Explicit human review of all 12 outputs remains required.
