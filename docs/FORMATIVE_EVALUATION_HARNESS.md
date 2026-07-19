@@ -373,3 +373,26 @@ and answer-key safety are deterministic checks. Candidate failure and platform
 safety are nonexclusive: a rejected output may activate the already-selected
 safe fallback while still failing candidate evaluation. All provider attempts
 remain pending human review, and the harness cannot approve or activate V6.
+
+E2A.9 rereads the 13 immutable V6 outputs and performs message-level
+adjudication without dispatching a provider request. The harness records exact
+safe trigger spans, separates genuine failures from lexical false positives,
+explains all five failed regenerations, and writes corrected aggregate
+reporting without changing the historical V6 status. Human review fields stay
+null or pending.
+
+The V7 no-live harness specializes `remain_in_dialogue` into seven
+server-selected operations. It compiles seven operation requests, three
+retained progression-mode requests, and the other 16 role requests through the
+production OpenAI Responses formatter. All 26 requests must stop at the
+transport boundary with zero fetches. Schema output contains no provider-owned
+operation or response-function field. Full visible history is preserved while
+evaluation-only fields are removed and historical recommendations are marked
+non-authoritative.
+
+Artifacts are written under
+`.data/e2a9-remain-dialogue-adjudication/<run_id>/`. They are forensic and
+candidate-design evidence only. They cannot approve V7, activate it, or permit
+the fixed 30-case evaluation. A new provider canary is required because V7
+changes the prompt, output schema, validator, regeneration instruction, and
+fallback contract for all remain-in-dialogue cases.

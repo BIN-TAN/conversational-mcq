@@ -593,3 +593,65 @@ Artifacts are written under `.data/e2a8-v6-topic-dialogue-canary/<run_id>/`.
 Human scores and decisions remain null. The 30-case V6 evaluation remains
 gated on this canary plus explicit human review; E2A student simulation, the
 36-session matrix, E2B, approval, and activation are outside E2A.8.
+
+## E2A.9 remain-in-dialogue adjudication and V7 design
+
+E2A.9 is a no-provider forensic phase over the immutable failed V6 run
+`e2a8_20260719084408_8038caac`. It adjudicates all 13 provider attempts and
+does not change V6's historical `v6_canary_failed` result. The three
+progression modes passed because the platform had already selected a narrow,
+positive communication function and matching schema. Generic
+`remain_in_dialogue` failed because one contract covered evidence elicitation,
+concept clarification, task clarification, protected redirects, recurrence
+repair, off-topic redirection, and partial-reasoning refinement.
+
+The calibrated replay classifies eight outputs as compatible and five as
+genuine failures. It distinguishes platform progression claims from ordinary
+words such as "continue", accepts direct semantic answers without requiring a
+stock acknowledgment phrase, and accepts conceptual anchor continuity without
+requiring an item number or option letter. These corrections do not weaken the
+requirement to address the latest turn, preserve the active distractor
+boundary, adapt failed strategies, or avoid unauthorized progression.
+
+The inactive V7 candidate replaces generic remain-in-dialogue generation with
+seven platform-selected operations:
+
+- `elicit_anchor_evidence`
+- `clarify_concept_with_new_strategy`
+- `clarify_task`
+- `protected_redirect`
+- `repair_recurrence`
+- `redirect_off_topic`
+- `refine_partial_reasoning`
+
+The platform selects the operation before request construction. The provider
+returns only `schema_version` and `student_facing_message`; it cannot return a
+response function, operation, action, readiness, or runtime state. Every
+operation has a positive-purpose prompt, strict request-time schema,
+operation-aware validator, one same-operation repair opportunity, and a safe
+operation-specific fallback. Fallback preserves platform safety but never
+counts as candidate success.
+
+V6 context analysis found progression destinations, evaluation protocol
+metadata, and historical assistant task language in remain-in-dialogue input.
+V7 removes evaluation-only and destination fields, preserves the complete
+visible transcript, labels historical recommendations non-authoritative, and
+adds one final authoritative current-turn directive. Held-out no-live cases use
+different student wording from E2A.8; the E2A.8 messages are reserved for
+replay.
+
+```bash
+npm run eval:formative:e2a9:smoke
+npm run eval:formative:e2a9:request-compilation
+npm run eval:formative:e2a9:adjudicate
+npm run eval:formative:e2a9:report -- --run <run_id>
+```
+
+All four commands are no-live. Candidate
+`candidate-operational-agent-config.e2a9-topic-dialogue-operation-contract-v1.json`
+has configuration hash
+`a7443a3d4b7386d8abfd723fd9fea35257fea46491453d3701f1ca0cee7e2254`
+and file SHA-256
+`1c6faf3001d54010867547b9070042ce87adf83c07fc3c21b02372665dd575f1`.
+It remains unapproved and inactive. A fresh bounded V7 provider canary and
+explicit human review are required before any broader evaluation or approval.

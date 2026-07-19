@@ -352,3 +352,20 @@ server-selected mode. Continued dialogue must answer or clarify the latest
 message, preserve the active distractor, and change instructional operation
 after repeated failure. The canary does not execute an activity transition and
 does not replace the later 30-case evaluation or required human review.
+
+E2A.9 concludes that continued dialogue is a family of pedagogical operations,
+not one generic response function. The V7 design has the platform choose one
+operation from current evidence: elicit anchor evidence, clarify the concept
+with a new strategy, clarify the task, protect and redirect, repair recurrence,
+redirect off topic, or refine partial reasoning. Each operation states a
+positive communication purpose and remains tied to the active distractor,
+misconception or partial-understanding target, evidence still needed, and
+strategies that should not be repeated.
+
+Operation choice is not model output. The model returns only bounded
+student-facing language under the operation-specific prompt and schema. One
+operation-specific regeneration may correct named failed requirements while
+preserving the selected operation. The deterministic fallback is also
+operation-specific, keeps the activity active, and is a safety outcome rather
+than successful candidate evidence. This is an unapproved design contract and
+requires a fresh V7 provider canary.

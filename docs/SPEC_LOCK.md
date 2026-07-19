@@ -3386,3 +3386,34 @@ Phase 6A.5 must not implement:
 - E2A.8 may report only `v6_canary_passed_pending_human_review`,
   `v6_canary_failed`, or `v6_canary_incomplete`. It cannot create approval or
   activation evidence, change the approved V2 hash, or claim a human decision.
+- E2A.9 is a no-live adjudication and V7 contract-design phase over immutable
+  V6 run `e2a8_20260719084408_8038caac`. V6 remains failed and its 13 provider
+  outputs, usage, validation, fallback, and review records must not change.
+- `remain_in_dialogue` is not one model-selected response function. For V7,
+  the platform selects one of `elicit_anchor_evidence`,
+  `clarify_concept_with_new_strategy`, `clarify_task`, `protected_redirect`,
+  `repair_recurrence`, `redirect_off_topic`, or `refine_partial_reasoning`
+  before provider request construction.
+- V7 remain-in-dialogue provider output contains only the exact operation
+  schema version and student-facing message. The provider must not select a
+  response function, dialogue operation, platform action, readiness state, or
+  runtime destination.
+- V7 input preserves complete visible history, marks historical
+  recommendations non-authoritative, removes evaluation-only metadata and
+  unavailable progression destinations, and ends with an authoritative
+  server-owned current-turn directive.
+- Each V7 operation has a positive-purpose prompt, strict operation-specific
+  schema, calibrated validator, one same-operation repair instruction, and an
+  operation-specific deterministic fallback. Fallback preserves safety but is
+  not candidate success.
+- Calibrated evaluation must distinguish semantic platform progression from
+  benign conversational wording, direct semantic answers from stock
+  acknowledgment phrases, and conceptual anchor continuity from literal label
+  repetition. Generic tutoring still fails anchor continuity.
+- E2A.9 no-network compilation covers seven operation requests, three retained
+  progression requests, and all 17 role mappings through the production
+  formatter. It must record zero fetches and cannot approve or activate V7.
+- V7 candidate hash
+  `a7443a3d4b7386d8abfd723fd9fea35257fea46491453d3701f1ca0cee7e2254`
+  remains unapproved and inactive until a fresh bounded provider canary and
+  explicit human review occur.

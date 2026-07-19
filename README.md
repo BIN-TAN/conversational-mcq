@@ -2884,3 +2884,27 @@ The paid command and its exact candidate hash and budget confirmations are in
 [Formative Evaluation E2A](docs/FORMATIVE_EVALUATION_E2A.md). A passing
 automated canary remains pending human review, and the later 30-case V6
 evaluation remains gated.
+
+E2A.9 is the no-live adjudication of the failed V6 canary and the design-only
+V7 correction. It preserves all 13 V6 provider outputs and the historical
+failed status, separates five genuine failures from lexical evaluator false
+positives, and explains why all five generic regenerations failed. The V7
+candidate keeps the three progression contracts that passed but replaces
+generic `remain_in_dialogue` with seven platform-selected pedagogical
+operations. Provider output is reduced to one operation-specific schema
+version plus student-facing language.
+
+```bash
+npm run eval:formative:e2a9:smoke
+npm run eval:formative:e2a9:request-compilation
+npm run eval:formative:e2a9:adjudicate
+npm run eval:formative:e2a9:report -- --run <run_id>
+```
+
+These commands make no provider request. They preserve complete visible
+history, remove evaluation-only and unavailable-progression fields, label
+historical recommendations non-authoritative, and compile 26 production
+requests across all 17 roles without fetch. V7 candidate hash
+`a7443a3d4b7386d8abfd723fd9fea35257fea46491453d3701f1ca0cee7e2254`
+is unapproved and inactive. It requires a fresh bounded provider canary and
+explicit human review before any 30-case evaluation, approval, or activation.

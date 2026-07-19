@@ -289,3 +289,19 @@ and the platform-authorized action are recorded separately; invalid language
 can be replaced by the fallback for the same mode without converting the
 candidate result into a pass. The later 30-case protocol remains blocked until
 the canary passes and its student-facing outputs receive explicit human review.
+
+E2A.9 keeps the same four server-owned top-level response modes, but the
+inactive V7 design no longer treats `remain_in_dialogue` as one operation. For
+that mode, the workflow must classify the latest response and select exactly
+one of evidence elicitation, new-strategy concept clarification, task
+clarification, protected redirect, recurrence repair, off-topic redirect, or
+partial-reasoning refinement before request construction. The provider writes
+only the message and cannot select the operation or response function.
+
+The current-turn operation directive overrides historical planning or
+assistant recommendations. Complete student-visible history remains in the
+request, but historical recommendations are explicitly non-authoritative and
+evaluation-only scenario metadata and unavailable progression destinations are
+excluded. A rejected result receives one operation-specific repair request; a
+second failure uses the operation-specific safe fallback without creating a
+candidate pass. V7 is not wired into the approved runtime.

@@ -1,0 +1,149 @@
+{
+  "manifest_version": "e2a9-topic-dialogue-operation-contract-candidate-v1",
+  "approval_state": "candidate_not_approved",
+  "activation_state": "not_activated",
+  "baseline_approved_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "failed_v6_candidate_hash": "2ba4b434d89455da8632fa91b9cdc948567c469625fc10e33db74d4d536f7f31",
+  "failed_v6_candidate_path": "config/candidate-operational-agent-config.e2a7-topic-dialogue-mode-contract-v1.json",
+  "failed_v6_candidate_sha256": "95253eec51daaa88866f5dd22d50218678ab87e7810c33a83a0ff3c1a2c29af1",
+  "candidate_profile_name": "E2A.9 platform-selected remain-in-dialogue operations",
+  "evaluation_required": true,
+  "human_review_required": true,
+  "student_facing_operational_use_approved": false,
+  "teacher_tool_use_approved": false,
+  "roles_unchanged_from_baseline": true,
+  "topic_dialogue_contract": {
+    "top_level_response_mode_contract_family_version": "topic-dialogue-mode-contract-v1",
+    "retained_progression_output_schema_versions": {
+      "request_revision": "topic-dialogue-revision-output-v1",
+      "present_transfer": "topic-dialogue-transfer-output-v1",
+      "complete_episode": "topic-dialogue-completion-output-v1"
+    },
+    "operation_input_schema_version": "topic-dialogue-operation-input-v1",
+    "operation_contract_family_version": "topic-dialogue-operation-contract-v1",
+    "operation_output_schema_versions": {
+      "elicit_anchor_evidence": "topic-dialogue-elicit-anchor-evidence-output-v1",
+      "clarify_concept_with_new_strategy": "topic-dialogue-clarify-concept-new-strategy-output-v1",
+      "clarify_task": "topic-dialogue-clarify-task-output-v1",
+      "protected_redirect": "topic-dialogue-protected-redirect-output-v1",
+      "repair_recurrence": "topic-dialogue-repair-recurrence-output-v1",
+      "redirect_off_topic": "topic-dialogue-redirect-off-topic-output-v1",
+      "refine_partial_reasoning": "topic-dialogue-refine-partial-reasoning-output-v1"
+    },
+    "operation_prompt_family_version": "topic-dialogue-operation-v1",
+    "operation_prompt_family_hash": "93f6da3993b7de6a05d4cc175832be151b46969722a3f82dbb53d989f1e09e8f",
+    "operation_prompt_hashes": {
+      "elicit_anchor_evidence": "54c403fb8429ea032181f6f120a63ea201e743ccd807330d43855b9b8318d4a2",
+      "clarify_concept_with_new_strategy": "fafa367713569035d432729ff5cd1a341495a4ff148609111f70152f41e18359",
+      "clarify_task": "beb399ad7da23d5dbdd7dce55279c863f62f26cdd1ece1dbd08c6f78333dc592",
+      "protected_redirect": "67fed7eb8ce9e834bd867e88c7442cccf83324f3a72f0ffcba7e1c1feccf89bd",
+      "repair_recurrence": "02775b336db8259e09582eb5cc3d774451cb32c5a48ca2ffbb6e75ed1bc16c85",
+      "redirect_off_topic": "0fa48704ff833f769be53ce42b0a3ab13f4d92cd006e0ad330773c4621e637ac",
+      "refine_partial_reasoning": "56c5936d7fe250bcbe5c78530579cdcd5fb3a85b8a84a056b408013386d29452"
+    },
+    "operation_validator_version": "eval-topic-dialogue-operation-v1",
+    "response_mode_selection_version": "topic-dialogue-platform-mode-selection-v1",
+    "operation_selection_version": "topic-dialogue-platform-operation-selection-v1",
+    "operation_server_envelope_version": "topic-dialogue-operation-envelope-v1",
+    "operation_fallback_version": "topic-dialogue-operation-fallback-v1",
+    "maximum_student_turns": 10,
+    "recent_raw_turn_window": 18,
+    "bounded_regeneration_attempts": 1,
+    "provider_generates_progression_action": false,
+    "provider_generates_response_function": false,
+    "provider_generates_dialogue_operation": false,
+    "complete_visible_history_required": true,
+    "evaluation_only_context_removed": true,
+    "historical_recommendations_non_authoritative": true
+  },
+  "exact_delta_from_approved_v2": {
+    "topic_dialogue_agent.prompt_version": {
+      "from": "topic-dialogue-v1",
+      "to": "topic-dialogue-operation-v1"
+    },
+    "topic_dialogue_agent.input_schema_version": {
+      "from": "topic-dialogue-input-v2",
+      "to": "topic-dialogue-operation-input-v1"
+    },
+    "topic_dialogue_agent.output_schema_version": {
+      "from": "topic-dialogue-output-v2",
+      "to": "topic-dialogue-operation-contract-v1"
+    },
+    "topic_dialogue_agent.validator_version": {
+      "from": "eval-topic-boundary-v2",
+      "to": "eval-topic-dialogue-operation-v1"
+    },
+    "topic_dialogue_agent.operation_selection_version": {
+      "from": "not_applicable",
+      "to": "topic-dialogue-platform-operation-selection-v1"
+    },
+    "topic_dialogue_agent.server_envelope_version": {
+      "from": "not_applicable",
+      "to": "topic-dialogue-operation-envelope-v1"
+    },
+    "topic_dialogue_agent.fallback_version": {
+      "from": "topic-dialogue-deterministic-fallback-v1",
+      "to": "topic-dialogue-operation-fallback-v1"
+    },
+    "runtime_policy.topic_dialogue_policy.recent_raw_turn_window": {
+      "from": 12,
+      "to": 18
+    }
+  },
+  "exact_delta_from_failed_v6": {
+    "topic_dialogue_agent.prompt_version": {
+      "from": "topic-dialogue-mode-v1",
+      "to": "topic-dialogue-operation-v1"
+    },
+    "topic_dialogue_agent.input_schema_version": {
+      "from": "topic-dialogue-mode-input-v1",
+      "to": "topic-dialogue-operation-input-v1"
+    },
+    "topic_dialogue_agent.output_schema_version": {
+      "from": "topic-dialogue-mode-contract-v1",
+      "to": "topic-dialogue-operation-contract-v1"
+    },
+    "topic_dialogue_agent.validator_version": {
+      "from": "eval-topic-dialogue-mode-v1",
+      "to": "eval-topic-dialogue-operation-v1"
+    },
+    "topic_dialogue_agent.operation_selection_version": {
+      "from": "not_applicable",
+      "to": "topic-dialogue-platform-operation-selection-v1"
+    },
+    "topic_dialogue_agent.server_envelope_version": {
+      "from": "topic-dialogue-mode-envelope-v1",
+      "to": "topic-dialogue-operation-envelope-v1"
+    },
+    "topic_dialogue_agent.fallback_version": {
+      "from": "topic-dialogue-mode-fallback-v1",
+      "to": "topic-dialogue-operation-fallback-v1"
+    },
+    "topic_dialogue_agent.provider_generates_response_function": {
+      "from": true,
+      "to": false
+    },
+    "topic_dialogue_agent.provider_generates_dialogue_operation": {
+      "from": true,
+      "to": false
+    }
+  },
+  "acceptance_criteria": {
+    "platform_selects_response_mode_before_provider_call": true,
+    "platform_selects_dialogue_operation_before_provider_call": true,
+    "provider_cannot_choose_response_mode": true,
+    "provider_cannot_choose_response_function": true,
+    "provider_cannot_choose_dialogue_operation": true,
+    "operation_specific_schemas_required": true,
+    "operation_specific_prompts_required": true,
+    "operation_specific_validator_required": true,
+    "operation_specific_regeneration_required": true,
+    "operation_specific_fallback_required": true,
+    "complete_visible_history_required": true,
+    "historical_recommendations_non_authoritative": true,
+    "evaluation_only_context_removed": true,
+    "fresh_provider_canary_required_before_approval": true,
+    "human_review_required_before_approval": true,
+    "automatic_activation_forbidden": true
+  }
+}
