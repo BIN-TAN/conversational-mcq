@@ -406,3 +406,18 @@ fallback is platform-safe but is always candidate failure. More than two
 regenerations fails the stability gate even if every regenerated response later
 passes. All outputs require later human review, and the 30-case provider
 evaluation remains blocked.
+
+E2A.11 is a no-live replay and validator-calibration harness. It does not amend
+the failed V7 canary. It records the independent AI-assisted review as a
+separate, ignored adjudication reference and compares that hypothesis with all
+14 immutable provider outputs. Runtime hard rejection is separated from the
+pedagogical rubric: hard findings require an exact text span or structured
+contradiction, while qualitative review flags cannot cause regeneration or
+fallback.
+
+The harness includes 24 human-authored hard negatives, 24 valid or borderline
+examples, and eight one-defect mutation checks. It writes row-level runtime
+results and nonexclusive aggregate counts for schema failures, hard rejection,
+accepted-with-flags, acceptance, regeneration, fallback, safety, privacy,
+answer protection, and pedagogical review. V8 request compilation reuses the
+same production builders and formatter as V7 and stops before fetch.

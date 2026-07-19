@@ -2928,3 +2928,20 @@ The explicit paid command, immutable hashes, and hard resource ceilings are in
 [Formative Evaluation E2A](docs/FORMATIVE_EVALUATION_E2A.md). Artifacts are
 written incrementally under
 `.data/e2a10-v7-topic-dialogue-canary/<run_id>/`.
+
+E2A.11 calibrates the topic-dialogue validator without a provider request. It
+preserves the failed V7 result, replays all 14 V7 outputs, separates hard
+runtime rejection from pedagogical review flags, checks controlled corpora and
+mutations, and compiles the separate inactive V8 candidate through the
+production request path.
+
+```bash
+npm run eval:formative:e2a11:smoke
+npm run eval:formative:e2a11:request-compilation
+npm run eval:formative:e2a11:calibrate
+npm run eval:formative:e2a11:report -- --run <run_id>
+```
+
+These commands make zero provider calls. V8 remains unapproved and inactive;
+the larger evaluation remains blocked pending a separately authorized held-out
+V8 canary and explicit human review.

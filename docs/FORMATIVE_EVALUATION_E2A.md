@@ -700,3 +700,54 @@ Artifacts are written incrementally under
 `.data/e2a10-v7-topic-dialogue-canary/<run_id>/`. E2A.10 does not run the
 30-case evaluation, E2A student simulator, 36-session matrix, E2B, approval, or
 activation.
+
+## E2A.11 V8 runtime-validator calibration
+
+E2A.11 preserves the historical V7 status `v7_canary_failed` and treats the
+independent AI-assisted review of its 14 outputs as an adjudication hypothesis,
+not approval or final human sign-off. Historical V7 files are read only.
+
+The V7 failures came from lexical pedagogical heuristics that could hard reject
+otherwise safe replies without an exact evidence span. V8 separates a runtime
+acceptance validator from a pedagogical evaluation rubric. Runtime acceptance
+has three results: `accepted`, `accepted_with_review_flags`, and
+`hard_rejected`. Only clear contract, authorization, privacy, answer-protection,
+or interaction failures may hard reject. A text-based hard rejection requires
+an exact evidence span; a structured contract contradiction may instead record
+structured evidence.
+
+Naturalness, degree of personalization, strategy quality, recurrence-repair
+quality, and partial-reasoning quality are review dimensions. A soft flag is
+persisted for audit but cannot trigger regeneration, fallback, or suppression
+of a safe student-facing response. One bounded regeneration is requested only
+after `hard_rejected`; a second hard rejection permits the existing
+operation-specific fallback.
+
+The no-live calibration replays all 14 V7 outputs, evaluates at least 24 hard
+negatives and 24 valid or borderline outputs, applies controlled mutations,
+and compiles 26 production requests across all 17 roles without fetch. The V8
+candidate changes only six topic-dialogue validation-policy provenance fields;
+V7 prompts, schemas, routing, model settings, history window, and fallbacks are
+unchanged.
+
+```bash
+npm run eval:formative:e2a11:validator-smoke
+npm run eval:formative:e2a11:historical-replay
+npm run eval:formative:e2a11:negative-corpus
+npm run eval:formative:e2a11:borderline-corpus
+npm run eval:formative:e2a11:mutation-smoke
+npm run eval:formative:e2a11:regeneration-smoke
+npm run eval:formative:e2a11:candidate-smoke
+npm run eval:formative:e2a11:request-compilation
+npm run eval:formative:e2a11:calibrate
+npm run eval:formative:e2a11:report -- --run <run_id>
+```
+
+All E2A.11 commands are no-live. Candidate
+`candidate-operational-agent-config.e2a11-topic-dialogue-validator-calibration-v1.json`
+has configuration hash
+`7f12d942aae671847b0555ae7322a4b98565b5c355771f20e2de6782ebc960a9`
+and file SHA-256
+`10ed9433541aca94216d91fe4f4fd4717208ba89393101e1075978e4b9681307`.
+It remains unapproved and inactive. A fresh, separately authorized held-out V8
+provider canary and explicit human review are still required.

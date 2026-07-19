@@ -376,3 +376,12 @@ same-operation repair is permitted; fallback remains a safe platform response
 but never candidate success. More than two regenerated cases fails the
 stability threshold. Student-facing outputs remain pending explicit human
 review, and the full provider evaluation remains gated.
+
+E2A.11 keeps activity dialogue generation and runtime safety distinct from
+evaluation-only judgments about pedagogical quality. A response that is safe,
+on contract, and relevant may be shown even when naturalness, strategy
+adaptation, or explanatory precision deserves later review. Those concerns are
+stored as internal review flags. They do not replace a usable provider message
+with a deterministic fallback. Hard rejection remains limited to auditable
+contract, authorization, privacy, answer-protection, or clear interaction
+failures.

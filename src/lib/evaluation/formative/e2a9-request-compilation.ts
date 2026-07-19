@@ -137,10 +137,19 @@ function progressionCase(mode: TopicDialogueResponseMode) {
   return found;
 }
 
-export async function compileE2A9CandidateRequestsNoNetwork(
-  outputPath = path.join(E2A9_REQUEST_COMPILATION_ROOT, "request-compilation.json")
-) {
-  const candidate = evaluateE2A9Candidate();
+type NoNetworkCompilationCandidate = {
+  candidate_configuration_hash: string;
+  approved_v2_hash: string;
+  full_candidate: ReturnType<typeof evaluateE2A9Candidate>["full_candidate"];
+};
+
+export async function compileTopicDialogueCandidateRequestsNoNetwork(input: {
+  candidate: NoNetworkCompilationCandidate;
+  output_path: string;
+  compilation_version: string;
+  purpose_prefix: string;
+}) {
+  const candidate = input.candidate;
   const productionContracts = productionRoleOutputContracts(
     candidate.full_candidate,
     { correctedTopicDialogue: true }
@@ -153,7 +162,9 @@ export async function compileE2A9CandidateRequestsNoNetwork(
     OPENAI_API_KEY: "sk-e2a9-no-network-credential-000000000000",
     OPENAI_API_KEY_FILE: undefined
   });
-  if (!credential.ok) throw new Error(`e2a9_test_credential_invalid:${credential.code}`);
+  if (!credential.ok) {
+    throw new Error(`${input.purpose_prefix}_test_credential_invalid:${credential.code}`);
+  }
 
   const originalAbortHook =
     process.env.OPERATIONAL_LIVE_CANARY_TEST_ABORT_AT_TRANSPORT_BOUNDARY;
@@ -212,11 +223,13 @@ export async function compileE2A9CandidateRequestsNoNetwork(
               input: envelope.provider_input,
               output_schema: envelope.output_schema,
               schema_name: envelope.schema_name,
-              client_request_id: `e2a9_compile_operation_${testCase.operation}`,
+              client_request_id:
+                `${input.purpose_prefix}_compile_operation_${testCase.operation}`,
               timeout_ms:
                 candidate.full_candidate.runtime_policy.provider_timeout_ms,
               metadata: {
-                purpose: "e2a9_no_live_operation_request_compilation",
+                purpose:
+                  `${input.purpose_prefix}_no_live_operation_request_compilation`,
                 audit_role: "topic_dialogue_agent",
                 selected_response_mode: "remain_in_dialogue",
                 selected_dialogue_operation: testCase.operation,
@@ -262,11 +275,13 @@ export async function compileE2A9CandidateRequestsNoNetwork(
               input: envelope.provider_input,
               output_schema: envelope.output_schema,
               schema_name: envelope.schema_name,
-              client_request_id: `e2a9_compile_progression_${mode}`,
+              client_request_id:
+                `${input.purpose_prefix}_compile_progression_${mode}`,
               timeout_ms:
                 candidate.full_candidate.runtime_policy.provider_timeout_ms,
               metadata: {
-                purpose: "e2a9_no_live_retained_progression_compilation",
+                purpose:
+                  `${input.purpose_prefix}_no_live_retained_progression_compilation`,
                 audit_role: "topic_dialogue_agent",
                 selected_response_mode: mode,
                 candidate_hash_prefix:
@@ -299,11 +314,13 @@ export async function compileE2A9CandidateRequestsNoNetwork(
               input: { synthetic_no_live_compilation: true },
               output_schema: contract.schema,
               schema_name: contract.schema_name,
-              client_request_id: `e2a9_compile_${contract.role}`,
+              client_request_id:
+                `${input.purpose_prefix}_compile_${contract.role}`,
               timeout_ms:
                 candidate.full_candidate.runtime_policy.provider_timeout_ms,
               metadata: {
-                purpose: "e2a9_no_live_all_role_request_compilation",
+                purpose:
+                  `${input.purpose_prefix}_no_live_all_role_request_compilation`,
                 audit_role: contract.role,
                 candidate_hash_prefix:
                   candidate.candidate_configuration_hash.slice(0, 12)
@@ -336,7 +353,7 @@ export async function compileE2A9CandidateRequestsNoNetwork(
     const uniqueRoles = [...new Set(rows.map((entry) => entry.role))];
     const schemaAudit = buildE2A9SchemaAudit();
     const artifact = {
-      compilation_version: E2A9_REQUEST_COMPILATION_VERSION,
+      compilation_version: input.compilation_version,
       generated_at: new Date().toISOString(),
       selected_candidate_hash: candidate.candidate_configuration_hash,
       role_count: uniqueRoles.length,
@@ -357,9 +374,13 @@ export async function compileE2A9CandidateRequestsNoNetwork(
       unrelated_role_configuration_changed: false,
       role_results: rows
     };
-    mkdirSync(path.dirname(outputPath), { recursive: true });
-    writeFileSync(outputPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
-    return { outputPath, artifact, schemaAudit };
+    mkdirSync(path.dirname(input.output_path), { recursive: true });
+    writeFileSync(
+      input.output_path,
+      `${JSON.stringify(artifact, null, 2)}\n`,
+      "utf8"
+    );
+    return { outputPath: input.output_path, artifact, schemaAudit };
   } finally {
     if (originalAbortHook === undefined) {
       delete process.env.OPERATIONAL_LIVE_CANARY_TEST_ABORT_AT_TRANSPORT_BOUNDARY;
@@ -373,4 +394,15 @@ export async function compileE2A9CandidateRequestsNoNetwork(
       process.env.OPERATIONAL_APPROVED_CONFIG_HASH = originalApprovedHash;
     }
   }
+}
+
+export async function compileE2A9CandidateRequestsNoNetwork(
+  outputPath = path.join(E2A9_REQUEST_COMPILATION_ROOT, "request-compilation.json")
+) {
+  return compileTopicDialogueCandidateRequestsNoNetwork({
+    candidate: evaluateE2A9Candidate(),
+    output_path: outputPath,
+    compilation_version: E2A9_REQUEST_COMPILATION_VERSION,
+    purpose_prefix: "e2a9"
+  });
 }

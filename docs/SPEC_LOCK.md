@@ -3429,3 +3429,18 @@ Phase 6A.5 must not implement:
   `v7_canary_failed`, `v7_canary_failed_stability_threshold`, or
   `v7_canary_incomplete`. Human-review fields remain pending and cannot be
   converted into approval evidence by the canary.
+- E2A.11 is no-live validator calibration over the immutable failed V7 run
+  `e2a10_20260719211316_21a50476`. The independent AI-assisted adjudication is
+  a hypothesis and is neither candidate approval nor final human sign-off.
+- V8 runtime acceptance is `accepted`, `accepted_with_review_flags`, or
+  `hard_rejected`. Qualitative pedagogical findings cannot suppress a safe
+  response, trigger regeneration, or trigger fallback.
+- Every text-based hard rejection requires a nonempty exact evidence span.
+  Structured schema or envelope contradictions may hard reject using explicit
+  structured evidence. Unlocated qualitative concerns must remain soft.
+- V8 permits one regeneration only after a hard rejection. A second hard
+  rejection may use the existing selected-contract fallback. The provider does
+  not choose a mode, operation, action, readiness state, or runtime state.
+- V8 preserves V7 prompts, schemas, routing, model configuration, history
+  window, and fallbacks. It remains unapproved and inactive until a fresh
+  held-out provider canary and explicit human review are separately authorized.

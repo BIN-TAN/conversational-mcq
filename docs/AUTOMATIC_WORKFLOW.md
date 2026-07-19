@@ -313,3 +313,12 @@ and never executes a workflow transition. A deterministic fallback preserves
 the platform-selected action but fails candidate evaluation. Automated canary
 evidence remains pending human review and cannot activate V7 or authorize the
 larger provider evaluation.
+
+E2A.11 defines the candidate-only V8 acceptance boundary. Runtime decisions use
+only `runtime_acceptance`, `regeneration_required`,
+`deterministic_fallback_required`, and `safe_for_student_display`. Pedagogical
+review flags remain audit evidence and never mutate workflow state. Safe output
+with a qualitative concern is persisted and displayed; only an auditable hard
+violation requests one bounded regeneration. A second hard violation uses the
+already selected operation or mode fallback without changing platform
+authorization.

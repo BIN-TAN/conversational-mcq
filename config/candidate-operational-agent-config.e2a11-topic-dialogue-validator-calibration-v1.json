@@ -1,0 +1,73 @@
+{
+  "manifest_version": "e2a11-topic-dialogue-validator-calibration-candidate-v1",
+  "approval_state": "candidate_not_approved",
+  "activation_state": "not_activated",
+  "baseline_approved_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "failed_v7_candidate_hash": "a7443a3d4b7386d8abfd723fd9fea35257fea46491453d3701f1ca0cee7e2254",
+  "failed_v7_candidate_path": "config/candidate-operational-agent-config.e2a9-topic-dialogue-operation-contract-v1.json",
+  "failed_v7_candidate_sha256": "1c6faf3001d54010867547b9070042ce87adf83c07fc3c21b02372665dd575f1",
+  "candidate_profile_name": "gpt-5.6-v8-topic-dialogue-validator-calibration",
+  "evaluation_required": true,
+  "human_review_required": true,
+  "student_facing_operational_use_approved": false,
+  "teacher_tool_use_approved": false,
+  "roles_unchanged_from_v7": true,
+  "prompts_unchanged_from_v7": true,
+  "schemas_unchanged_from_v7": true,
+  "routing_unchanged_from_v7": true,
+  "model_and_runtime_policy_unchanged_from_v7": true,
+  "topic_dialogue_validation": {
+    "runtime_validator_version": "eval-topic-dialogue-runtime-acceptance-v2",
+    "pedagogical_rubric_version": "eval-topic-dialogue-pedagogical-rubric-v1",
+    "validation_policy_version": "topic-dialogue-runtime-vs-quality-policy-v2",
+    "regeneration_trigger_policy_version": "topic-dialogue-hard-rejection-only-regeneration-v2",
+    "review_flag_schema_version": "topic-dialogue-review-flag-v1",
+    "server_envelope_validation_provenance_version": "topic-dialogue-envelope-validation-provenance-v1",
+    "runtime_acceptance_levels": [
+      "accepted",
+      "accepted_with_review_flags",
+      "hard_rejected"
+    ],
+    "soft_findings_trigger_regeneration": false,
+    "soft_findings_trigger_fallback": false,
+    "hard_text_rejection_requires_evidence": true,
+    "maximum_regenerations_per_turn": 1
+  },
+  "exact_delta_from_v7": {
+    "topic_dialogue_agent.validator_version": {
+      "from": "eval-topic-dialogue-operation-v1",
+      "to": "eval-topic-dialogue-runtime-acceptance-v2"
+    },
+    "topic_dialogue_agent.pedagogical_evaluation_rubric_version": {
+      "from": "not_separate",
+      "to": "eval-topic-dialogue-pedagogical-rubric-v1"
+    },
+    "topic_dialogue_agent.validation_policy_version": {
+      "from": "binary_semantic_acceptance-v1",
+      "to": "topic-dialogue-runtime-vs-quality-policy-v2"
+    },
+    "topic_dialogue_agent.regeneration_trigger_policy_version": {
+      "from": "any_semantic_failure-v1",
+      "to": "topic-dialogue-hard-rejection-only-regeneration-v2"
+    },
+    "topic_dialogue_agent.review_flag_schema_version": {
+      "from": "not_available",
+      "to": "topic-dialogue-review-flag-v1"
+    },
+    "topic_dialogue_agent.server_envelope_validation_provenance_version": {
+      "from": "not_available",
+      "to": "topic-dialogue-envelope-validation-provenance-v1"
+    }
+  },
+  "acceptance_criteria": {
+    "runtime_validator_and_pedagogical_rubric_separate": true,
+    "soft_review_findings_do_not_suppress_safe_output": true,
+    "hard_rejection_requires_auditable_evidence": true,
+    "regeneration_only_after_hard_rejection": true,
+    "prompts_schemas_routing_and_model_unchanged": true,
+    "all_17_roles_must_compile_without_network": true,
+    "fresh_provider_canary_required_before_approval": true,
+    "human_review_required_before_approval": true,
+    "automatic_activation_forbidden": true
+  }
+}
