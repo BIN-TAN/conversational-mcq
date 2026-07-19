@@ -1176,7 +1176,7 @@ function buildAttempt(input: {
   };
 }
 
-function contextCoverage(testCase: E2A10TopicDialogueCase): ContextCoverage {
+export function contextCoverage(testCase: E2A10TopicDialogueCase): ContextCoverage {
   const history = testCase.dialogue_input.visible_dialogue_history;
   const studentTurns = history.filter((turn) => turn.actor_type === "student");
   const assistantTurns = history.filter((turn) => turn.actor_type === "agent");
@@ -1271,7 +1271,7 @@ function deterministicRubric(
   return dimensions;
 }
 
-function fallbackForCase(testCase: E2A10TopicDialogueCase): CandidateOutput {
+export function fallbackForCase(testCase: E2A10TopicDialogueCase): CandidateOutput {
   if (testCase.selected_mode === "remain_in_dialogue") {
     if (!testCase.selected_operation) {
       throw new Error("e2a10_operation_fallback_missing_operation");
@@ -1359,7 +1359,7 @@ function finalizeCase(
   };
 }
 
-function requestForCase(testCase: E2A10TopicDialogueCase) {
+export function requestForCase(testCase: E2A10TopicDialogueCase) {
   if (testCase.selected_mode === "remain_in_dialogue") {
     if (!testCase.selected_operation || !testCase.routing_classification) {
       throw new Error("e2a10_operation_request_context_missing");
