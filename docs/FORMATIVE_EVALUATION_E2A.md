@@ -655,3 +655,48 @@ and file SHA-256
 `1c6faf3001d54010867547b9070042ce87adf83c07fc3c21b02372665dd575f1`.
 It remains unapproved and inactive. A fresh bounded V7 provider canary and
 explicit human review are required before any broader evaluation or approval.
+
+## E2A.10 V7 operation-specific live canary
+
+E2A.10 is the first bounded provider canary for the inactive V7 contract. It
+runs exactly ten fixed cases: all seven server-selected remain-in-dialogue
+operations plus `request_revision`, `present_transfer`, and
+`complete_episode`. Cases 2 and 5 verify complete tenth-turn visible history.
+The runner is strictly sequential (`provider_case_concurrency=1`), writes each
+attempt to disk as it completes, and permits at most one same-mode,
+same-operation regeneration per case.
+
+Candidate validity and platform safety remain separate. A rejected output may
+use the deterministic fallback for the already selected contract, but that
+fallback fails the candidate case. Automated passage requires zero fallbacks;
+more than two otherwise successful regenerations produces
+`v7_canary_failed_stability_threshold`. Every provider attempt remains pending
+human review, so a passing canary is not approval, activation, or permission to
+start the 30-case provider evaluation.
+
+```bash
+npm run eval:formative:e2a10:smoke
+npm run eval:formative:e2a10:request-compilation
+npm run eval:formative:e2a10:preflight
+
+EVAL_E2A10_LIVE_PROVIDER=1 \
+LLM_PROVIDER=openai \
+LLM_LIVE_CALLS_ENABLED=true \
+OPERATIONAL_APPROVED_CONFIG_HASH=8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993 \
+npm run eval:formative:e2a10:live -- \
+  --confirm-paid-provider-canary \
+  --confirm-sequential-concurrency-one \
+  --confirm-stop-after-canary \
+  --candidate-hash a7443a3d4b7386d8abfd723fd9fea35257fea46491453d3701f1ca0cee7e2254 \
+  --max-cases 10 --max-initial-calls 10 \
+  --max-regeneration-calls 10 --max-total-calls 20 \
+  --max-input-tokens 280000 --max-output-tokens 45000 \
+  --max-cost-usd 12
+
+npm run eval:formative:e2a10:report -- --run <run_id>
+```
+
+Artifacts are written incrementally under
+`.data/e2a10-v7-topic-dialogue-canary/<run_id>/`. E2A.10 does not run the
+30-case evaluation, E2A student simulator, 36-session matrix, E2B, approval, or
+activation.

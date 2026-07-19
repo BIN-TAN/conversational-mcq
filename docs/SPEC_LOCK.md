@@ -3417,3 +3417,15 @@ Phase 6A.5 must not implement:
   `a7443a3d4b7386d8abfd723fd9fea35257fea46491453d3701f1ca0cee7e2254`
   remains unapproved and inactive until a fresh bounded provider canary and
   explicit human review occur.
+- E2A.10 is the bounded V7 provider canary only: ten sequential cases cover all
+  seven remain-in-dialogue operations and the three retained progression
+  modes. It must not run the 30-case evaluation, E2A student simulator,
+  36-session matrix, E2B, approval, or activation.
+- E2A.10 permits one same-mode and same-operation regeneration per case. Any
+  deterministic fallback fails the candidate case, and more than two
+  regenerations fails the stability gate even if all regenerated outputs pass.
+  Candidate validity and platform safety are reported independently.
+- E2A.10 may emit only `v7_canary_passed_pending_human_review`,
+  `v7_canary_failed`, `v7_canary_failed_stability_threshold`, or
+  `v7_canary_incomplete`. Human-review fields remain pending and cannot be
+  converted into approval evidence by the canary.

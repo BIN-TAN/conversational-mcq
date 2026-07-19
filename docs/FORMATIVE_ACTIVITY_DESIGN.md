@@ -369,3 +369,10 @@ preserving the selected operation. The deterministic fallback is also
 operation-specific, keeps the activity active, and is a safety outcome rather
 than successful candidate evidence. This is an unapproved design contract and
 requires a fresh V7 provider canary.
+
+E2A.10 is that bounded canary: seven operation-specific remain-in-dialogue
+cases and the three retained progression modes, executed sequentially. One
+same-operation repair is permitted; fallback remains a safe platform response
+but never candidate success. More than two regenerated cases fails the
+stability threshold. Student-facing outputs remain pending explicit human
+review, and the full provider evaluation remains gated.

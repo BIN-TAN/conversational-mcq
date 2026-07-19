@@ -2908,3 +2908,23 @@ requests across all 17 roles without fetch. V7 candidate hash
 `a7443a3d4b7386d8abfd723fd9fea35257fea46491453d3701f1ca0cee7e2254`
 is unapproved and inactive. It requires a fresh bounded provider canary and
 explicit human review before any 30-case evaluation, approval, or activation.
+
+E2A.10 is the ten-case, sequential live canary for that inactive V7 boundary.
+It covers all seven operation-specific remain-in-dialogue contracts plus
+revision, transfer, and completion, with at most one same-contract repair per
+case. Fallback remains platform-safe but fails candidate evaluation; more than
+two regenerations fails the stability threshold. All outputs remain pending
+human review, and E2A.10 cannot approve or activate V7 or start the larger
+provider evaluation.
+
+```bash
+npm run eval:formative:e2a10:smoke
+npm run eval:formative:e2a10:request-compilation
+npm run eval:formative:e2a10:preflight
+npm run eval:formative:e2a10:report -- --run <run_id>
+```
+
+The explicit paid command, immutable hashes, and hard resource ceilings are in
+[Formative Evaluation E2A](docs/FORMATIVE_EVALUATION_E2A.md). Artifacts are
+written incrementally under
+`.data/e2a10-v7-topic-dialogue-canary/<run_id>/`.

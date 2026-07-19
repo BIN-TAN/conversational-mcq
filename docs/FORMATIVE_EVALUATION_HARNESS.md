@@ -396,3 +396,13 @@ candidate-design evidence only. They cannot approve V7, activate it, or permit
 the fixed 30-case evaluation. A new provider canary is required because V7
 changes the prompt, output schema, validator, regeneration instruction, and
 fallback contract for all remain-in-dialogue cases.
+
+E2A.10 supplies that bounded V7 canary without broadening the evaluation. The
+ten cases run sequentially with one provider case in memory at a time and
+incremental artifact writes. Seven cases exercise the operation-specific
+remain-in-dialogue contracts and three retain the platform-selected revision,
+transfer, and completion contracts. One same-contract repair is allowed; a
+fallback is platform-safe but is always candidate failure. More than two
+regenerations fails the stability gate even if every regenerated response later
+passes. All outputs require later human review, and the 30-case provider
+evaluation remains blocked.

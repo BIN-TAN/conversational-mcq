@@ -305,3 +305,11 @@ evaluation-only scenario metadata and unavailable progression destinations are
 excluded. A rejected result receives one operation-specific repair request; a
 second failure uses the operation-specific safe fallback without creating a
 candidate pass. V7 is not wired into the approved runtime.
+
+E2A.10 evaluates this inactive boundary with exactly ten sequential provider
+cases. It records the server-selected mode and operation separately from the
+generated message, writes every initial and regenerated attempt incrementally,
+and never executes a workflow transition. A deterministic fallback preserves
+the platform-selected action but fails candidate evaluation. Automated canary
+evidence remains pending human review and cannot activate V7 or authorize the
+larger provider evaluation.
