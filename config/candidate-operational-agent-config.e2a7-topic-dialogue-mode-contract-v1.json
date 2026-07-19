@@ -1,0 +1,137 @@
+{
+  "manifest_version": "e2a7-topic-dialogue-mode-contract-candidate-v1",
+  "approval_state": "candidate_not_approved",
+  "activation_state": "not_activated",
+  "baseline_approved_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "failed_v5_candidate_hash": "37e563710ae04ff1004f8e20b5484ee56189f964b0afb5ee5f818d324c11a712",
+  "failed_v5_candidate_path": "config/candidate-operational-agent-config.e2a5-topic-dialogue-progression-v1.json",
+  "failed_v5_candidate_sha256": "7e39e59c70c7f8c53e9c18a278835d5594df88eecaa96a0bee13b09d997dd87e",
+  "candidate_profile_name": "E2A.7 platform-selected topic-dialogue response modes",
+  "evaluation_required": true,
+  "human_review_required": true,
+  "student_facing_operational_use_approved": false,
+  "teacher_tool_use_approved": false,
+  "roles_unchanged_from_baseline": true,
+  "topic_dialogue_contract": {
+    "input_schema_version": "topic-dialogue-mode-input-v1",
+    "contract_family_version": "topic-dialogue-mode-contract-v1",
+    "output_schema_versions": {
+      "remain_in_dialogue": "topic-dialogue-remain-output-v1",
+      "request_revision": "topic-dialogue-revision-output-v1",
+      "present_transfer": "topic-dialogue-transfer-output-v1",
+      "complete_episode": "topic-dialogue-completion-output-v1"
+    },
+    "prompt_family_version": "topic-dialogue-mode-v1",
+    "prompt_family_hash": "524141e7d4f66f882a2e4813b3747582fcd921a5ab37bdd3e0ed2630f8255d6d",
+    "prompt_hashes": {
+      "remain_in_dialogue": "84d6b243ff8c89df12f19e47df726c57f61f656b8f98b47a8118365a73aa7207",
+      "request_revision": "45ee09a792d8764729d32ee49658d4e69009a2ab38ae3b088763af163d7c7f8a",
+      "present_transfer": "9c6e8a2e228fd0d3a0bbff0340defce80215df13711a5f8447ae3ddf3dc5cce6",
+      "complete_episode": "ec72af2e719434610f27604837320b5cefad3fa93fc4ccdef604737bdab489c0"
+    },
+    "validator_version": "eval-topic-dialogue-mode-v1",
+    "progression_authorization_version": "topic-dialogue-progression-authorization-v1",
+    "response_mode_selection_version": "topic-dialogue-platform-mode-selection-v1",
+    "server_envelope_version": "topic-dialogue-mode-envelope-v1",
+    "fallback_version": "topic-dialogue-mode-fallback-v1",
+    "maximum_student_turns": 10,
+    "recent_raw_turn_window": 18,
+    "provider_payload_schema_version_required": true,
+    "bounded_regeneration_attempts": 1,
+    "provider_generates_progression_action": false,
+    "platform_gate_remains_independent": true
+  },
+  "exact_delta_from_approved_v2": {
+    "topic_dialogue_agent.prompt_version": {
+      "from": "topic-dialogue-v1",
+      "to": "topic-dialogue-mode-v1"
+    },
+    "topic_dialogue_agent.prompt_hash": {
+      "from": "4ea205fab1019befe8ba80fd5d6db33eb669c69a4c589241011c09893d588b5d",
+      "to": "524141e7d4f66f882a2e4813b3747582fcd921a5ab37bdd3e0ed2630f8255d6d"
+    },
+    "topic_dialogue_agent.input_schema_version": {
+      "from": "topic-dialogue-input-v2",
+      "to": "topic-dialogue-mode-input-v1"
+    },
+    "topic_dialogue_agent.output_schema_version": {
+      "from": "topic-dialogue-output-v2",
+      "to": "topic-dialogue-mode-contract-v1"
+    },
+    "topic_dialogue_agent.validator_version": {
+      "from": "eval-topic-boundary-v2",
+      "to": "eval-topic-dialogue-mode-v1"
+    },
+    "topic_dialogue_agent.progression_authorization_version": {
+      "from": "not_applicable",
+      "to": "topic-dialogue-progression-authorization-v1"
+    },
+    "topic_dialogue_agent.response_mode_selection_version": {
+      "from": "not_applicable",
+      "to": "topic-dialogue-platform-mode-selection-v1"
+    },
+    "topic_dialogue_agent.server_envelope_version": {
+      "from": "not_applicable",
+      "to": "topic-dialogue-mode-envelope-v1"
+    },
+    "topic_dialogue_agent.fallback_version": {
+      "from": "topic-dialogue-deterministic-fallback-v1",
+      "to": "topic-dialogue-mode-fallback-v1"
+    },
+    "runtime_policy.topic_dialogue_policy.recent_raw_turn_window": {
+      "from": 12,
+      "to": 18
+    }
+  },
+  "exact_delta_from_failed_v5": {
+    "topic_dialogue_agent.prompt_version": {
+      "from": "topic-dialogue-v2-progression-authorized",
+      "to": "topic-dialogue-mode-v1"
+    },
+    "topic_dialogue_agent.prompt_hash": {
+      "from": "0bfa883c334e811da29c54a13210789d156b4c7efce2889cfd675ad5d6050571",
+      "to": "524141e7d4f66f882a2e4813b3747582fcd921a5ab37bdd3e0ed2630f8255d6d"
+    },
+    "topic_dialogue_agent.input_schema_version": {
+      "from": "topic-dialogue-input-v4",
+      "to": "topic-dialogue-mode-input-v1"
+    },
+    "topic_dialogue_agent.output_schema_version": {
+      "from": "topic-dialogue-output-v3",
+      "to": "topic-dialogue-mode-contract-v1"
+    },
+    "topic_dialogue_agent.validator_version": {
+      "from": "eval-topic-boundary-v4",
+      "to": "eval-topic-dialogue-mode-v1"
+    },
+    "topic_dialogue_agent.response_mode_selection_version": {
+      "from": "model-selected-action-validated-against-authorization",
+      "to": "topic-dialogue-platform-mode-selection-v1"
+    },
+    "topic_dialogue_agent.server_envelope_version": {
+      "from": "not_applicable",
+      "to": "topic-dialogue-mode-envelope-v1"
+    },
+    "topic_dialogue_agent.fallback_version": {
+      "from": "topic-dialogue-deterministic-fallback-v1",
+      "to": "topic-dialogue-mode-fallback-v1"
+    },
+    "topic_dialogue_agent.provider_generates_progression_action": {
+      "from": true,
+      "to": false
+    }
+  },
+  "acceptance_criteria": {
+    "platform_selects_response_mode_before_provider_call": true,
+    "provider_cannot_choose_response_mode": true,
+    "mode_specific_schemas_required": true,
+    "mode_specific_prompts_required": true,
+    "provider_progression_recommendation_removed": true,
+    "candidate_validator_mode_specific": true,
+    "deterministic_fallback_mode_specific": true,
+    "platform_gate_independent": true,
+    "provider_re_evaluation_required_before_approval": true,
+    "human_review_required_before_approval": true,
+    "automatic_activation_forbidden": true
+  }
+}

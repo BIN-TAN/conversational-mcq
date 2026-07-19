@@ -505,3 +505,41 @@ Allowed automated outcomes are
 `candidate_evaluation_incomplete`. None approves or activates V5. Human scores
 and decisions remain null until explicit human review. The E2A four-session
 student-simulator canary and 36-session matrix remain blocked.
+
+## E2A.7 authorization-specific topic-dialogue design
+
+E2A.7 is a no-provider forensic adjudication and V6 contract-design phase. It
+preserves the failed V5 run `e2a6_20260719000538_6cd0cec4`, whose historical
+result remains 1/5 automated passes, 7 invalid attempts, and 5 bounded
+regenerations. The original summary undercounted overrides because accepted,
+rejected, and overridden gate outcomes were aggregated with an exclusive
+`else if` chain. E2A.7 instead records schema validity, candidate semantics,
+regeneration, action alignment, visible-language alignment, gate authorization,
+override, fallback, UI availability, and execution as independent dimensions.
+
+V5 was unstable because one generic generation contract asked the model both
+to write the message and to choose or echo the progression action across four
+authorization modes. V6 removes that responsibility. The platform selects one
+of `remain_in_dialogue`, `request_revision`, `present_transfer`, or
+`complete_episode` before request construction, then selects the matching
+prompt and strict output schema. Provider output contains no action
+recommendation. After semantic validation, the independent platform gate
+applies the action it already authorized.
+
+Each mode has a positive communication function, a restricted
+`response_function`, and a deterministic mode-specific safe fallback. Failed
+generation never changes the selected mode. Deterministic replay of all ten V5
+outputs and no-network production request compilation are design evidence only;
+they do not change the failed V5 decision or establish provider quality for V6.
+A fresh bounded provider canary and explicit human review remain required.
+
+```bash
+npm run eval:formative:e2a7:smoke
+npm run eval:formative:e2a7:request-compilation
+npm run eval:formative:e2a7:adjudicate
+npm run eval:formative:e2a7:report -- --run <run_id>
+```
+
+These commands make no provider request. Candidate
+`candidate-operational-agent-config.e2a7-topic-dialogue-mode-contract-v1.json`
+is unapproved and inactive.

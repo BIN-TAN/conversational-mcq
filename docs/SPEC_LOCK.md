@@ -3340,3 +3340,33 @@ Phase 6A.5 must not implement:
   is usage-accounted and included in a pending human-review packet. Automated
   completion may state only provider evidence readiness, failure, or
   incompleteness. It cannot approve or activate V5.
+- E2A.7 is no-live forensic adjudication and V6 contract design. It must not
+  rerun the V5 five-case canary, fixed 30-case protocol, E2A simulator canary,
+  36-session matrix, or any provider generation.
+- V5 run `e2a6_20260719000538_6cd0cec4` remains
+  `candidate_evaluation_failed`. Its historical 1/5 automated result, ten
+  provider outputs, seven invalid attempts, and five regenerations are
+  immutable.
+- Provider schema validity, candidate semantic validity, regeneration,
+  platform authorization, override, fallback, UI availability, and executed
+  transition are nonexclusive dimensions. Aggregate reporting must count each
+  directly from case rows; an overridden rejection counts as both rejected and
+  overridden.
+- The V6 platform selects `remain_in_dialogue`, `request_revision`,
+  `present_transfer`, or `complete_episode` before provider request
+  construction. Provider output must not contain a progression action,
+  recommendation, readiness field, or runtime destination.
+- Every V6 mode uses its own restricted response-function schema and selected
+  prompt instruction. All properties are required, legitimate absence is
+  nullable or an empty array, and `additionalProperties` is false.
+- V6 candidate validation checks the selected mode, response function, direct
+  response, distractor anchor, language alignment, revision-transfer
+  separation, overclaiming, privacy, and answer-key safety. The platform gate
+  remains an independent boundary.
+- After one failed bounded regeneration, the platform uses the deterministic
+  fallback for the already selected mode. Fallback cannot choose a different
+  mode and its provenance remains hidden from students.
+- Deterministic replay of historical V5 outputs and no-network compilation of
+  all 17 roles are design evidence only. They do not approve V6. A fresh
+  provider canary and explicit human review remain mandatory before any later
+  approval proposal.

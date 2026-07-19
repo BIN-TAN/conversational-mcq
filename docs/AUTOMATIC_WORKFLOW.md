@@ -273,3 +273,12 @@ keeps the activity active, and records only sanitized rejection provenance in
 teacher/research audit. Student transcript and runtime projections do not
 receive authorization fields. Provider evaluation itself never executes an
 assessment transition.
+
+E2A.7 removes progression choice from the candidate provider payload. The
+automatic workflow computes authorization, selects one exact response mode,
+builds that mode's prompt and schema, validates the generated language, and
+then applies the previously authorized platform action. Provider output cannot
+broaden, narrow, replace, or reinterpret the action. A failed generation uses
+the deterministic fallback for the already selected mode; fallback metadata is
+audit-only and the platform gate remains independent. This is an inactive V6
+design and does not change current runtime behavior or the approved hash.

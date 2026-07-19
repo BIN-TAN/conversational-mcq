@@ -326,3 +326,22 @@ generic readiness or completion labels never authorize progression. Revision,
 transfer, and completion language must match their separately authorized
 action; completion must not be phrased as a mastery claim. Rejection leaves one
 activity active and preserves a bounded, anchor-specific student response.
+
+E2A.7 tightens the candidate generation contract so the provider no longer
+selects or recommends progression. Before a request is built, the platform
+selects exactly one mode:
+
+- `remain_in_dialogue`: answer or clarify, retain the distractor anchor, and
+  elicit the next evidence without progression language;
+- `request_revision`: request one bounded revision tied to the active
+  conceptual distinction;
+- `present_transfer`: transition to a new-context check that the platform
+  presents;
+- `complete_episode`: acknowledge accepted evidence and close the bounded
+  episode without introducing another task.
+
+Each mode has a separate strict schema, mode-specific prompt, semantic
+validator, and deterministic fallback. Provider failure does not change the
+selected mode. The platform still owns controls, task presentation, state
+transition, and terminal completion. V6 is review-only until fresh provider
+evidence and human review exist.

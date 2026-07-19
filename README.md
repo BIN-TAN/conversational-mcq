@@ -2845,3 +2845,24 @@ The explicitly paid command and hard budget confirmations are documented in
 [Formative Evaluation E2A](docs/FORMATIVE_EVALUATION_E2A.md). E2A.6 does not
 run the four-session student-simulator canary or the 36-session matrix and does
 not create approval or activation evidence.
+
+E2A.7 adjudicates the preserved failed V5 canary without another provider call.
+It corrects nonexclusive reporting for validation, regeneration, platform
+authorization, override, fallback, UI availability, and execution. V5 remains
+failed at 1/5 automated passes.
+
+The separate V6 candidate moves progression selection entirely to the
+platform. The server selects one of four response modes before request
+construction and uses a mode-specific prompt, strict schema, validator, and
+safe fallback. Provider output contains language only and cannot recommend an
+action. The independent platform gate remains in place. All four mode requests
+and all 17 roles compile through the production formatter without fetch, but
+V6 remains unapproved and inactive pending a fresh provider canary and human
+review.
+
+```bash
+npm run eval:formative:e2a7:smoke
+npm run eval:formative:e2a7:request-compilation
+npm run eval:formative:e2a7:adjudicate
+npm run eval:formative:e2a7:report -- --run <run_id>
+```

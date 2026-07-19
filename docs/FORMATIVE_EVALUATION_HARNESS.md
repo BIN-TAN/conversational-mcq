@@ -348,3 +348,19 @@ regeneration. A five-case authorization canary gates the fixed 30-case
 protocol. Per-attempt usage and outputs are retained so a rejected first output
 cannot disappear behind a repaired output. All outputs require human review;
 the harness cannot emit approval or activation evidence.
+
+E2A.7 rereads the immutable five-case V5 evidence and corrects result
+accounting without provider access. Gate authorization, rejection, override,
+fallback, UI availability, and executed transition are independent booleans;
+none is inferred from another. The historical V5 result remains failed.
+
+The inactive V6 design replaces the broad model-selected action contract with
+four server-selected request contracts. The request builder chooses the mode,
+prompt, strict schema, and deterministic fallback before provider dispatch.
+The provider generates only mode-bounded language and cannot return a
+progression recommendation. The candidate validator checks language and
+pedagogical function, while the platform gate remains an independent safety
+boundary. The no-live harness compiles four topic-dialogue mode requests and
+the other 16 role requests through the production formatter, for 20 compiled
+requests across 17 roles and zero fetches. Replay and compilation are not
+approval evidence; a fresh V6 provider canary and human review are required.
