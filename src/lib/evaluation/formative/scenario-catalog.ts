@@ -399,7 +399,7 @@ const rawCatalog = [
       tags: ["revision", "transfer_failure"]
     }),
     scripted_turns: [
-      { turn_id: "revision_transfer_1", intent: "revision_evidence", message: "I would revise it: theta is the person estimate, while item difficulty changes response probability and precision.", state_patch: { conceptual_state: "mostly_correct_understanding", misconception_status: "apparently_resolved" }, state_change_reason: "The original explanation was substantively repaired." },
+      { turn_id: "revision_transfer_1", intent: "revision_evidence", message: "For Item 1, option B, I would revise it: theta is the person estimate, while item difficulty changes response probability and precision.", state_patch: { conceptual_state: "mostly_correct_understanding", misconception_status: "apparently_resolved" }, state_change_reason: "The original explanation was substantively repaired with an explicit active-item anchor." },
       { turn_id: "revision_transfer_2", intent: "transfer_failure", message: "For a new student I would still say harder items prove higher ability.", state_patch: { conceptual_state: "misconception_based_understanding", misconception_status: "recurred" }, state_change_reason: "Transfer evidence reactivated the misconception." }
     ]
   },

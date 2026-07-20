@@ -3120,3 +3120,16 @@ off-topic responses remain platform-owned, while conceptual evidence in mixed
 messages is retained. The candidate is unapproved and inactive; approved V2
 remains active. See
 `docs/E2A24_AUTONOMOUS_FORMATIVE_DIALOGUE_ARCHITECTURE.md`.
+
+E2A.24a audits that path against a fresh 12-scenario E1 run and freezes the
+three-session held-out E2A.25 protocol without executing it. It verifies full
+visible history, the 17-entry session capacity, immediate sound-to-revision
+routing, intervention memory, held-out overlap, request compilation, budget,
+and composite identity. The candidate remains unapproved and inactive. See
+`docs/E2A24A_AUTONOMOUS_DIALOGUE_LIVE_READINESS.md`.
+
+```bash
+npm run eval:formative:e2a24a:smoke
+npm run eval:formative:e2a24a:run -- \
+  --e1-artifact-root .data/e2a24a-e1-current
+```

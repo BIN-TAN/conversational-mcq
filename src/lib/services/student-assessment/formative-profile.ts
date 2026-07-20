@@ -2080,6 +2080,9 @@ function evidenceRuntimeAttemptInput(input: {
     routing_policy_version: interaction.routing_policy_version,
     activity_type: interaction.activity_type,
     routing_justification: interaction.routing_justification,
+    target_item_index: firstDistractorItem?.item_position ?? null,
+    target_item_id: firstDistractor?.item_public_id ?? null,
+    target_option_label: firstDistractor?.option_label ?? null,
     limitations: [
       "created_from_evidence_integrated_router",
       `effective_evidence_package_hash:${input.bundle.effective_evidence_package_hash}`

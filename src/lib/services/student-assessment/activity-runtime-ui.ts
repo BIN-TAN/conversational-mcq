@@ -1328,7 +1328,15 @@ function alignTopicDialogueOutputToEvidenceFirstRoute(input: {
   const expectedAction = input.route.selected_mode === "request_revision"
     ? "show_progression_choices"
     : "await_topic_dialogue_response";
-  if (input.candidate_output.next_action === expectedAction) {
+  const routeFieldsAligned = input.route.selected_mode === "request_revision"
+    ? input.candidate_output.next_action === expectedAction &&
+      input.candidate_output.next_runtime_state === "SHOW_PROGRESSION_CHOICES" &&
+      input.candidate_output.progression_readiness === "ready" &&
+      input.candidate_output.evidence_sufficiency === "sufficient_to_advance"
+    : input.candidate_output.next_action === expectedAction &&
+      input.candidate_output.next_runtime_state === "AWAIT_TOPIC_DIALOGUE_RESPONSE" &&
+      input.candidate_output.progression_readiness === "not_ready";
+  if (routeFieldsAligned) {
     return { output: input.candidate_output, overridden: false };
   }
   if (![

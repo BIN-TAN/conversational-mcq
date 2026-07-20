@@ -969,7 +969,7 @@ export async function runE2A24NoLiveIntegrationCases() {
   return rows;
 }
 
-async function compileAllRolesNoNetwork(runId: string) {
+export async function compileE2A24AllRolesNoNetwork(runId: string) {
   const tempPath = path.join(os.tmpdir(), `${runId}-e2a14-compilation.json`);
   try {
     const inherited = await compileE2A14CandidateRequestsNoNetwork(tempPath);
@@ -1171,7 +1171,7 @@ export async function executeE2A24(options: { root?: string } = {}) {
   const coverage = buildE2A24CoverageMatrix();
   const integration = await runE2A24NoLiveIntegrationCases();
   const runId = timestampId();
-  const allRoleCompilation = await compileAllRolesNoNetwork(runId);
+  const allRoleCompilation = await compileE2A24AllRolesNoNetwork(runId);
   const drafts = e2a25Drafts();
   const after = snapshotE2A24ProtectedEvidence();
   const protectedUnchanged = before.combined_sha256 === after.combined_sha256;

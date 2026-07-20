@@ -243,6 +243,12 @@ function fixtureForStatus(status: MisconceptionUpdateStatus) {
     "insufficient_new_evidence"
   ]);
   const conceptual = !distractorStatuses.has(status);
+  const resolutionStatus = new Set<MisconceptionUpdateStatus>([
+    "boundary_understanding_improved",
+    "misconception_unsupported",
+    "no_actionable_misconception_evidence",
+    "independent_evidence_supported"
+  ]).has(status);
   return buildNoLiveActivityMisconceptionEvidenceFixture({
     case_id: `e1_${status}`,
     activity_family: conceptual ? "basic_concept_grounding" : "distractor_contrast",
@@ -253,7 +259,15 @@ function fixtureForStatus(status: MisconceptionUpdateStatus) {
     response_length_band: "medium",
     response_summary: "A controlled E1 response supplies redacted evidence for deterministic workflow evaluation.",
     primary_target: conceptual ? "basic_concept_distinction" : "distractor_hidden_assumption",
-    evidence_types: conceptual ? ["basic_concept_distinction_stated"] : ["distractor_tempting_reason_explained"],
+    evidence_types: conceptual
+      ? ["basic_concept_distinction_stated"]
+      : resolutionStatus
+        ? [
+            "distractor_tempting_reason_explained",
+            "target_boundary_explained",
+            "reasoning_link_repaired"
+          ]
+        : ["distractor_tempting_reason_explained"],
     update_status: status,
     evidence_quality: status === "insufficient_new_evidence" ? "low" : "medium"
   });
@@ -1239,7 +1253,7 @@ export async function runFormativeEvaluationScenario(
   } finally {
     if (fixture) {
       cleanup.attempted = true;
-      if (failed && options.keep_fixture_on_failure) {
+      if ((failed || summary?.passed === false) && options.keep_fixture_on_failure) {
         cleanup = { attempted: true, succeeded: false, retained_on_failure: true, detail: "Fixture retained because --keep-fixture-on-failure was set." };
       } else {
         try {

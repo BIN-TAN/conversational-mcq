@@ -3625,3 +3625,14 @@ Phase 6A.5 must not implement:
   `b3db25afadd99fba21dc23fee7a1dbcc21a7268a18b4556aaa4f19d37333656b`.
   It is unapproved, inactive, and changes no unrelated role. Approved V2
   remains active. E2A.25 is drafted but unexecuted and unauthorized.
+- E2A.24a classifies the current E1 11/12 result as a genuine runtime-anchor
+  propagation regression, not an expected-negative case. The supported fix
+  persists the already-selected distractor item and option into the runtime
+  attempt and does not modify the autonomous candidate or weaken an invariant.
+  A fresh 12/12 E1 result is required before readiness can pass.
+- The frozen E2A.25 protocol has three held-out domains, at most eight student
+  turns per session, a maximum of 17 visible entries per session, complete raw
+  history for evaluator and tutor, immediate revision after sound evidence,
+  and no tutor call after sound. E2A.25 remains unexecuted and requires a
+  separate explicit authorization. The E2A.24 candidate remains unapproved and
+  inactive; approved V2 remains unchanged.
