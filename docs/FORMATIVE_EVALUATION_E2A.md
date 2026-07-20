@@ -886,6 +886,13 @@ exactly 30 recomputed final runtime outcomes. Source hashes are compared before
 and after execution. Replay never dispatches a provider request and never
 writes into the E2A.13 run directory.
 
+The paid evaluator uses the shared OpenAI Responses provider and credential
+resolver, but supplies the frozen candidate timeout through an explicitly
+typed `bounded_candidate_evaluation` client option. This isolated option avoids
+requiring the inactive candidate hash to match the active production approval
+bundle. All ordinary operational callers continue through strict active-bundle
+validation; the isolated option does not alter or coerce production config.
+
 ```bash
 npm run eval:formative:e2a15:smoke
 npm run eval:formative:e2a15:preflight

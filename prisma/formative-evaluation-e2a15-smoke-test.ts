@@ -4,6 +4,9 @@ import type {
   StructuredAgentRequest,
   StructuredAgentResult
 } from "@/lib/llm/providers/types";
+import { createOpenAIClient } from "@/lib/llm/openai-client";
+import { resolveOpenAICredentialFromEnv } from
+  "@/lib/llm/openai-credential-resolver";
 import {
   cleanupTemporaryE2A15ArtifactRoot,
   executeE2A15Evaluation,
@@ -55,6 +58,27 @@ class SafeRefusalProvider implements LlmProvider {
 }
 
 async function main() {
+  const syntheticCredential = resolveOpenAICredentialFromEnv({
+    ...process.env,
+    OPENAI_API_KEY: `sk-${"a".repeat(48)}`
+  });
+  assert.equal(syntheticCredential.ok, true);
+  if (!syntheticCredential.ok) throw new Error("synthetic_credential_invalid");
+  assert.doesNotThrow(() => createOpenAIClient({
+    credential: syntheticCredential.credential,
+    isolatedEvaluationRuntime: {
+      purpose: "bounded_candidate_evaluation",
+      request_timeout_ms: 90_000
+    }
+  }));
+  assert.throws(() => createOpenAIClient({
+    credential: syntheticCredential.credential,
+    isolatedEvaluationRuntime: {
+      purpose: "bounded_candidate_evaluation",
+      request_timeout_ms: 999
+    }
+  }), /bounded candidate evaluation timeout/u);
+
   assert.equal(assertE2A15ProtocolFrozen(), E2A15_PROTOCOL_HASH);
   const cases = e2a15ProtectedRequestCases();
   assert.equal(cases.length, 6);

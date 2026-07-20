@@ -1,5 +1,8 @@
 import { zodTextFormat } from "openai/helpers/zod";
-import { createOpenAIClient } from "@/lib/llm/openai-client";
+import {
+  createOpenAIClient,
+  type OpenAIClientTransportInstrumentation
+} from "@/lib/llm/openai-client";
 import {
   currentResolvedOpenAICredential,
   resolveOpenAICredentialFromEnv
@@ -20,6 +23,12 @@ import type {
 } from "./types";
 
 export const OPENAI_RESPONSES_ADAPTER_VERSION = "openai-responses-adapter-v2";
+
+export type OpenAIResponsesProviderOptions = {
+  isolated_evaluation_runtime?: NonNullable<
+    OpenAIClientTransportInstrumentation["isolatedEvaluationRuntime"]
+  >;
+};
 
 export type OpenAIResponsesTransportBoundaryEvent = {
   provider: "openai";
@@ -116,6 +125,8 @@ function initialMilestones(): OpenAITransportMilestone {
 }
 
 export class OpenAIResponsesProvider implements LlmProvider {
+  constructor(private readonly options: OpenAIResponsesProviderOptions = {}) {}
+
   async executeStructured<TInput, TOutput>(
     request: StructuredAgentRequest<TInput, TOutput>
   ): Promise<StructuredAgentResult<TOutput>> {
@@ -162,6 +173,12 @@ export class OpenAIResponsesProvider implements LlmProvider {
 
     const client = createOpenAIClient({
       ...(resolvedCredential ? { credential: resolvedCredential } : {}),
+      ...(this.options.isolated_evaluation_runtime
+        ? {
+            isolatedEvaluationRuntime:
+              this.options.isolated_evaluation_runtime
+          }
+        : {}),
       onFetchInvoked: async () => {
         milestones.fetch_invoked = true;
         await emit("fetch_invoked");

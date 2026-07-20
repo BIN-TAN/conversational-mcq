@@ -1079,7 +1079,13 @@ export async function executeLiveE2A15Evaluation() {
     return await withResolvedOpenAICredential(
       credential.credential,
       () => executeE2A15Evaluation({
-        provider: new OpenAIResponsesProvider(),
+        provider: new OpenAIResponsesProvider({
+          isolated_evaluation_runtime: {
+            purpose: "bounded_candidate_evaluation",
+            request_timeout_ms: evaluateE2A14Candidate().full_candidate
+              .runtime_policy.provider_timeout_ms
+          }
+        }),
         live: true
       })
     );

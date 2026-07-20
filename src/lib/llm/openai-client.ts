@@ -12,6 +12,10 @@ import { getLlmRuntimeConfig, LlmConfigurationError } from "./config";
 
 export type OpenAIClientTransportInstrumentation = {
   credential?: ResolvedOpenAICredential;
+  isolatedEvaluationRuntime?: {
+    purpose: "bounded_candidate_evaluation";
+    request_timeout_ms: number;
+  };
   onFetchInvoked?: (input: { url: string; method: string }) => void | Promise<void>;
   onResponseHeadersReceived?: (input: {
     url: string;
@@ -34,7 +38,23 @@ function retryAfterMs(headers: Headers) {
 }
 
 export function createOpenAIClient(instrumentation?: OpenAIClientTransportInstrumentation) {
-  const runtime = getLlmRuntimeConfig();
+  const isolatedRuntime = instrumentation?.isolatedEvaluationRuntime;
+  if (isolatedRuntime && (
+    !Number.isInteger(isolatedRuntime.request_timeout_ms) ||
+    isolatedRuntime.request_timeout_ms < 1_000 ||
+    isolatedRuntime.request_timeout_ms > 120_000
+  )) {
+    throw new LlmConfigurationError(
+      "isolated_evaluation_timeout_invalid",
+      "The bounded candidate evaluation timeout must be between 1000 and 120000 milliseconds."
+    );
+  }
+  const runtime = isolatedRuntime
+    ? {
+        request_timeout_ms: isolatedRuntime.request_timeout_ms,
+        max_retries: 0
+      }
+    : getLlmRuntimeConfig();
   const credential =
     instrumentation?.credential ??
     currentResolvedOpenAICredential() ??
