@@ -3559,7 +3559,13 @@ Phase 6A.5 must not implement:
   contradiction may reopen the misconception.
 - E2A.22 is no-live. It does not modify or activate candidate
   `f6b4eaaf22f4342d4ccfd37bd3bc10aa75c31206343a84c27abfbde8fbbbc58a`.
-  E2A.23 remains a one-session draft with at most six simulator calls, six
-  initial tutor calls, two tutor regenerations, fourteen logical calls,
-  forty-two adapter attempts, 400,000 input tokens, 31,000 output tokens,
-  USD 10, and provider concurrency one. Separate authorization is required.
+- E2A.23 is authorized exactly once as a one-session evidence-first
+  micro-canary with at most six simulator calls, six initial tutor calls, two
+  tutor regenerations, fourteen logical calls, forty-two adapter attempts,
+  400,000 input tokens, 31,000 output tokens, USD 10 when pricing is complete,
+  and provider concurrency one. It must freeze and verify profile-first source
+  identity, use the latest persisted turn profile for every route and tutor
+  request, fail closed on stale evidence, and stop immediately after a sound
+  profile selects `request_revision`. A six-turn bounded stop remains pending
+  adjudication. E2A.23 cannot approve or activate the candidate and does not
+  authorize E2A.24, the 36-session matrix, or E2B.

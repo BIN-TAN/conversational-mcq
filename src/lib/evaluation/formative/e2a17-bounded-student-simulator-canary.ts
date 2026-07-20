@@ -918,7 +918,7 @@ async function createFixture(
   prisma: PrismaClient,
   runIdValue: string,
   session: E2A17SessionProtocol,
-  evaluationPhase: "e2a17" | "e2a19" | "e2a21" = "e2a17"
+  evaluationPhase: "e2a17" | "e2a19" | "e2a21" | "e2a23" = "e2a17"
 ): Promise<Fixture> {
   const suffix = stableHash({ runIdValue, session: session.session_id })
     .slice(0, 18);
@@ -1260,7 +1260,7 @@ async function persistStudentTurn(input: {
   session: E2A17SessionProtocol;
   turn: E2A17TurnProtocol;
   message: string;
-  evaluation_phase?: "e2a17" | "e2a19" | "e2a21";
+  evaluation_phase?: "e2a17" | "e2a19" | "e2a21" | "e2a23";
 }) {
   const evaluationPhase = input.evaluation_phase ?? "e2a17";
   const created = await input.prisma.conversationTurn.create({
@@ -1301,7 +1301,7 @@ async function persistRouteDecision(input: {
   fixture: Fixture;
   session: E2A17SessionProtocol;
   turn: E2A17TurnProtocol;
-  evaluation_phase?: "e2a17" | "e2a19" | "e2a21";
+  evaluation_phase?: "e2a17" | "e2a19" | "e2a21" | "e2a23";
 }) {
   const evaluationPhase = input.evaluation_phase ?? "e2a17";
   assertRouting(input.turn);
@@ -1340,7 +1340,7 @@ async function executeProgression(input: {
   fixture: Fixture;
   session: E2A17SessionProtocol;
   turn: E2A17TurnProtocol;
-  evaluation_phase?: "e2a17" | "e2a19" | "e2a21";
+  evaluation_phase?: "e2a17" | "e2a19" | "e2a21" | "e2a23";
 }) {
   const evaluationPhase = input.evaluation_phase ?? "e2a17";
   let platformTransferTurn: Awaited<ReturnType<PrismaClient["conversationTurn"]["create"]>> | null = null;

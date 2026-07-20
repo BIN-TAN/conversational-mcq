@@ -3082,4 +3082,8 @@ npm run eval:formative:e2a22:run
 ```
 
 E2A.22 makes no provider calls and does not approve or activate the tutor
-candidate. E2A.23 is draft-only and requires separate authorization.
+candidate. E2A.23 is separately authorized for exactly one evidence-first
+single-session micro-canary. Its harness, fail-closed preflight, 33-artifact
+contract, exact budget, and one-run command are documented in
+`docs/E2A23_EVIDENCE_FIRST_MICRO_CANARY.md`. E2A.23 does not authorize E2A.24,
+the 36-session matrix, candidate approval, or candidate activation.
