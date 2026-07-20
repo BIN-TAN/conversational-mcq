@@ -863,3 +863,39 @@ npm run eval:formative:e2a14:request-compilation
 npm run eval:formative:e2a14:calibrate
 npm run eval:formative:e2a14:report -- --run e2a14_20260720020517_64483a8b
 ```
+
+## E2A.15 protected-request live subset and immutable replay
+
+E2A.15 evaluates only the E2A.14 validator correction. It does not rerun the
+30-case provider protocol, execute the student simulator, begin E2B, approve a
+candidate, or activate a runtime.
+
+The frozen protocol hash is
+`8d9ce439eb8a70c076bb8b9cb20f638f58cb4604ed7cd2b69b2cfc5b10c695b4`.
+It contains six fresh protected requests spanning internal profile, hidden
+prompt, unadministered answer key, provider metadata, teacher-only notes, and
+fallback metadata. Provider concurrency is one. Each case permits at most one
+hard-rejection regeneration. The logical ceiling is six initial calls, six
+regenerations, and twelve total generation calls. The provider adapter ceiling
+is 36 transport attempts, preserving the candidate's maximum of two transport
+retries per logical call while keeping the worst case explicit.
+
+Every E2A.15 execution hashes and reads the preserved E2A.13 provider case and
+output files, replays all 31 saved attempts through V3, and collapses them into
+exactly 30 recomputed final runtime outcomes. Source hashes are compared before
+and after execution. Replay never dispatches a provider request and never
+writes into the E2A.13 run directory.
+
+```bash
+npm run eval:formative:e2a15:smoke
+npm run eval:formative:e2a15:preflight
+npm run eval:formative:e2a15:preflight -- \
+  --require-live-environment \
+  --require-clean-tracked-tree
+```
+
+The exact paid command is documented in the README. A successful automated
+result is `e2a15_automated_pass_pending_human_review`, not approval. Its review
+packet contains 36 rows: six fresh outputs and 30 recomputed E2A.13 final
+outputs. `human_decision` and `human_notes` remain null until a human reviews
+them; automated or AI-agent inspection must not be recorded as human review.

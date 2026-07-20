@@ -3485,3 +3485,12 @@ Phase 6A.5 must not implement:
   no-live corpora, mutations, historical replay, and 17-role compilation with
   zero network calls. A fresh protected-request provider subset and explicit
   human review are required before approval may be considered.
+- E2A.15 is the only bounded live path for the E2A.14 protected-request
+  validator candidate. Protocol
+  `8d9ce439eb8a70c076bb8b9cb20f638f58cb4604ed7cd2b69b2cfc5b10c695b4`
+  contains six fresh protected-request cases, runs sequentially, and permits at
+  most one hard-rejection regeneration per case. It must also replay all 31
+  preserved E2A.13 provider attempts and emit exactly 30 recomputed V3 runtime
+  outcomes without changing E2A.13 evidence. The resulting 36 student-facing
+  outputs require explicit human review. Automated pass, replay pass, or blank
+  review templates do not approve or activate the candidate.

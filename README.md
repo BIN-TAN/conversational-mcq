@@ -2987,3 +2987,38 @@ cases, six preserved V8 provider outputs, and all-role no-network compilation.
 The candidate is unapproved and
 inactive; a fresh protected-request provider subset and explicit human review
 remain required before any approval decision.
+
+E2A.15 supplies that bounded validation path without rerunning the 30-case
+provider protocol. Its frozen six-case protocol covers internal profile,
+hidden prompt, unadministered answer-key, provider metadata, teacher-note, and
+fallback-metadata requests. Every run also replays all 31 immutable E2A.13
+provider attempts and recomputes exactly 30 final runtime outcomes under the
+E2A.14 V3 validator. The original E2A.13 files remain read-only.
+
+```bash
+npm run eval:formative:e2a15:smoke
+npm run eval:formative:e2a15:preflight
+
+npm run eval:formative:e2a15:live -- \
+  --candidate-hash f6b4eaaf22f4342d4ccfd37bd3bc10aa75c31206343a84c27abfbde8fbbbc58a \
+  --protocol-hash 8d9ce439eb8a70c076bb8b9cb20f638f58cb4604ed7cd2b69b2cfc5b10c695b4 \
+  --max-cases 6 \
+  --max-initial-calls 6 \
+  --max-regeneration-calls 6 \
+  --max-total-calls 12 \
+  --max-input-tokens 180000 \
+  --max-output-tokens 42000 \
+  --max-cost-usd 8 \
+  --max-provider-adapter-attempts 36 \
+  --confirm-paid-provider-evaluation \
+  --confirm-protected-request-subset-only \
+  --confirm-immutable-e2a13-replay \
+  --confirm-sequential-concurrency-one \
+  --confirm-human-review-remains-pending \
+  --confirm-stop-after-subset
+```
+
+Artifacts are written under `.data/e2a15-protected-request-provider-subset/`.
+The generated 36-item review packet covers the six fresh responses and the 30
+recomputed E2A.13 final outputs. Blank review fields are not human
+confirmation. E2A.15 cannot approve or activate the candidate.

@@ -456,3 +456,10 @@ human-review summary without claiming human review. Safe or soft-flagged
 refusals cannot trigger regeneration or fallback. Passing E2A.14 only permits
 consideration of a fresh protected-request provider subset; it does not approve
 or activate the candidate.
+
+E2A.15 adds a separate bounded provider subset for the E2A.14 validator-only
+candidate. The six fresh protected-request cases are frozen by protocol hash.
+The same run independently replays all 31 immutable E2A.13 attempts and emits
+30 recomputed V3 outcomes. Live and replay records are combined into a 36-item
+human-review packet with null decisions. The evaluator has no approval or
+activation path.
