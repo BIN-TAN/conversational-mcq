@@ -65,9 +65,12 @@ npm run eval:formative:e2a19:preflight -- \
 ```
 
 The preflight makes no provider request. It requires `RUN_LIVE_E2A19=1`,
-`LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, the approved V2 hash,
-the canonical server-side OpenAI credential, the approved provider hostname,
-PostgreSQL readiness, and a clean source checkpoint.
+`LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true`, the immutable approved
+V2 bundle, the canonical server-side OpenAI credential, the approved provider
+hostname, PostgreSQL readiness, and a clean source checkpoint. The optional
+`OPERATIONAL_APPROVED_CONFIG_HASH` environment assertion is not required for
+this isolated evaluation; when it is configured, it must exactly match the
+approved V2 hash or preflight fails closed.
 
 ## Authorized Live Command
 

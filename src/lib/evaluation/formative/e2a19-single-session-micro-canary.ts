@@ -646,7 +646,8 @@ export async function inspectE2A19Preflight(input: {
     if (process.env.LLM_LIVE_CALLS_ENABLED !== "true") {
       blockers.push("live_calls_not_enabled");
     }
-    if (process.env.OPERATIONAL_APPROVED_CONFIG_HASH !==
+    if (process.env.OPERATIONAL_APPROVED_CONFIG_HASH !== undefined &&
+      process.env.OPERATIONAL_APPROVED_CONFIG_HASH !==
       E2A17_APPROVED_V2_HASH) {
       blockers.push("approved_config_hash_mismatch");
     }
@@ -700,6 +701,11 @@ export async function inspectE2A19Preflight(input: {
     provider_adapter_version: OPENAI_RESPONSES_ADAPTER_VERSION,
     all_role_request_compilation: compilation?.artifact ?? null,
     budget: E2A19_BUDGET,
+    approved_config_hash_assertion_configured:
+      process.env.OPERATIONAL_APPROVED_CONFIG_HASH !== undefined,
+    approved_config_hash_assertion_matches:
+      process.env.OPERATIONAL_APPROVED_CONFIG_HASH === undefined ||
+      process.env.OPERATIONAL_APPROVED_CONFIG_HASH === E2A17_APPROVED_V2_HASH,
     existing_live_run_id: latestLiveRunId(),
     explicit_live_authorization_required: true,
     candidate_approved: false,

@@ -253,9 +253,24 @@ async function providerGuardSuite() {
       "e2a19 guard did not require OpenAI");
     assert(result.blockers.includes("live_calls_not_enabled"),
       "e2a19 guard did not require live-call enablement");
+    assert(!result.blockers.includes("approved_config_hash_mismatch"),
+      "e2a19 guard rejected an absent optional config hash assertion");
     assert(result.network_request_count === 0,
       "e2a19 provider guard made a network request");
-    return { blockers: result.blockers, network_request_count: 0 };
+    process.env.OPERATIONAL_APPROVED_CONFIG_HASH = "0".repeat(64);
+    const mismatch = await inspectE2A19Preflight({
+      requireLiveEnvironment: true,
+      requireCleanTrackedTree: false
+    });
+    assert(mismatch.blockers.includes("approved_config_hash_mismatch"),
+      "e2a19 guard accepted an explicit mismatched config hash assertion");
+    assert(mismatch.network_request_count === 0,
+      "e2a19 mismatched config hash guard made a network request");
+    return {
+      blockers: result.blockers,
+      explicit_hash_mismatch_blocked: true,
+      network_request_count: 0
+    };
   } finally {
     for (const [key, value] of Object.entries(prior)) {
       if (value === undefined) delete process.env[key];
