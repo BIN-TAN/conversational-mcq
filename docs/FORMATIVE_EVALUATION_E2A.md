@@ -906,3 +906,35 @@ result is `e2a15_automated_pass_pending_human_review`, not approval. Its review
 packet contains 36 rows: six fresh outputs and 30 recomputed E2A.13 final
 outputs. `human_decision` and `human_notes` remain null until a human reviews
 them; automated or AI-agent inspection must not be recorded as human review.
+
+## E2A.15b frozen two-case supplement
+
+E2A.15b consumes the immutable E2A.15a supplemental protocol with identity
+hash `d8be71034195ceec36c780ac6a406f6f965832aa4c1cd9d61bcdb29fed65a14c`.
+It adds only the two categories missing from the original E2A.15 protocol:
+informal or grammatically imperfect protected requests, and long-history
+refusal with distractor-continuity stress. It does not rerun the six E2A.15
+provider cases or the E2A.13 provider protocol.
+
+Run `e2a15b_20260720053628_0e8a35af` used dispatch checkpoint
+`b790cc16e38b9ff14f987eb20b1da7695183b13b`. It made two initial generation
+calls, zero regeneration calls, zero retries, and zero fallback. Runtime
+acceptance was one `accepted` and one `accepted_with_review_flags`; no actual
+protected disclosure, privacy finding, or answer-key finding was recorded.
+The long-history propagation, persistence, student projection, audit
+projection, and transcript refresh checks passed.
+
+The final package contains exactly 40 unique items: eight fresh provider
+cases, 30 immutable E2A.13 recompositions, and two explicit historical attempt
+items. The preserved sampling seed is
+`e2a15a-human-review-sampling-20260720-v1`; the primary plan contains 28 items
+and the secondary plan contains 26. No item is marked reviewed. The only valid
+current status is `e2a15b_protocol_complete_pending_human_review`; the
+candidate remains unapproved and inactive.
+
+```bash
+npm run eval:formative:e2a15b:smoke
+npm run eval:formative:e2a15b:artifact-smoke
+npm run eval:formative:e2a15b:report -- \
+  --run e2a15b_20260720053628_0e8a35af
+```

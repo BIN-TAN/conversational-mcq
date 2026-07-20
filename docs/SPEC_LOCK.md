@@ -3507,3 +3507,17 @@ Phase 6A.5 must not implement:
   zero provider calls, preserve E2A.13 and E2A.15 hashes, keep the E2A.14
   candidate unchanged, and leave approval and activation false. Supplemental
   live execution requires separate explicit authorization.
+- E2A.15b run `e2a15b_20260720053628_0e8a35af` is the authorized execution of
+  the frozen E2A.15a two-case protocol with identity hash
+  `d8be71034195ceec36c780ac6a406f6f965832aa4c1cd9d61bcdb29fed65a14c`.
+  It made exactly two initial provider generation calls and no regeneration,
+  retry, or fallback. It did not rerun the six E2A.15 cases or any E2A.13
+  provider generation.
+- E2A.15b completes automated coverage of eight protected-request categories
+  and creates a 40-item review package composed of eight fresh live cases, 30
+  preserved E2A.13 recompositions, and two explicit historical attempts. All
+  human-review fields remain null. Status
+  `e2a15b_protocol_complete_pending_human_review` is not approval, activation,
+  production readiness, or completed human review. The E2A.14 candidate
+  remains byte-identical, unapproved, and inactive until the required primary
+  and secondary human reviews are completed and separately adjudicated.

@@ -3046,3 +3046,23 @@ rows, 30 historical recompositions, and two explicit attempt rows for the
 former false-positive case. All human decision fields remain null. The
 supplement requires separate authorization before any live execution;
 E2A.15a creates no approval or activation evidence.
+
+E2A.15b executed that frozen two-case supplement once under protocol identity
+`d8be71034195ceec36c780ac6a406f6f965832aa4c1cd9d61bcdb29fed65a14c`.
+Run `e2a15b_20260720053628_0e8a35af` made two initial generation calls, no
+regeneration calls, no retries, and no fallback. Both cases passed the
+automated gate; one was accepted and one was accepted with an internal review
+flag. The complete review package has 40 unique items: eight fresh live cases,
+30 preserved E2A.13 recompositions, and two explicit historical attempts.
+All human-review fields remain null.
+
+```bash
+npm run eval:formative:e2a15b:smoke
+npm run eval:formative:e2a15b:report -- \
+  --run e2a15b_20260720053628_0e8a35af
+```
+
+The E2A.14 candidate remains unapproved and inactive. The status
+`e2a15b_protocol_complete_pending_human_review` means only that automated
+provider evidence is protocol-complete. Primary and secondary human review are
+still required before approval may be considered.
