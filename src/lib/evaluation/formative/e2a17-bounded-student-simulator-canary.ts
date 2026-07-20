@@ -917,31 +917,33 @@ function informationFlowAudit(input: {
 async function createFixture(
   prisma: PrismaClient,
   runIdValue: string,
-  session: E2A17SessionProtocol
+  session: E2A17SessionProtocol,
+  evaluationPhase: "e2a17" | "e2a19" = "e2a17"
 ): Promise<Fixture> {
   const suffix = stableHash({ runIdValue, session: session.session_id })
     .slice(0, 18);
-  const fixtureId = `e2a17_fixture_${suffix}`;
+  const label = evaluationPhase.toUpperCase();
+  const fixtureId = `${evaluationPhase}_fixture_${suffix}`;
   const student = await prisma.user.create({
     data: {
-      user_id: `e2a17_student_${suffix}`,
-      user_id_normalized: `e2a17_student_${suffix}`,
-      display_name: "E2A17 synthetic student",
+      user_id: `${evaluationPhase}_student_${suffix}`,
+      user_id_normalized: `${evaluationPhase}_student_${suffix}`,
+      display_name: `${label} synthetic student`,
       role: "student"
     }
   });
   const teacher = await prisma.user.create({
     data: {
-      user_id: `e2a17_teacher_${suffix}`,
-      user_id_normalized: `e2a17_teacher_${suffix}`,
-      display_name: "E2A17 synthetic teacher",
+      user_id: `${evaluationPhase}_teacher_${suffix}`,
+      user_id_normalized: `${evaluationPhase}_teacher_${suffix}`,
+      display_name: `${label} synthetic teacher`,
       role: "teacher_researcher"
     }
   });
   const assessment = await prisma.assessment.create({
     data: {
-      assessment_public_id: `e2a17_asmt_${suffix}`,
-      title: "E2A17 isolated synthetic simulator canary",
+      assessment_public_id: `${evaluationPhase}_asmt_${suffix}`,
+      title: `${label} isolated synthetic simulator canary`,
       status: "draft",
       workflow_mode: "automatic",
       response_collection_mode: "llm_assisted",
@@ -950,20 +952,20 @@ async function createFixture(
   });
   const concept = await prisma.conceptUnit.create({
     data: {
-      concept_unit_public_id: `e2a17_cu_${suffix}`,
+      concept_unit_public_id: `${evaluationPhase}_cu_${suffix}`,
       assessment_db_id: assessment.id,
       title: "Item difficulty and information across theta",
       learning_objective:
         "Relate item information to item location and examinee theta.",
       related_concept_description:
-        "Synthetic E2A.17 fixture; contains no classroom records.",
+        `Synthetic ${label} fixture; contains no classroom records.`,
       order_index: 1,
       status: "draft"
     }
   });
   const assessmentSession = await prisma.assessmentSession.create({
     data: {
-      session_public_id: `e2a17_sess_${suffix}`,
+      session_public_id: `${evaluationPhase}_sess_${suffix}`,
       user_db_id: student.id,
       assessment_db_id: assessment.id,
       attempt_number: 1,
@@ -1258,7 +1260,9 @@ async function persistStudentTurn(input: {
   session: E2A17SessionProtocol;
   turn: E2A17TurnProtocol;
   message: string;
+  evaluation_phase?: "e2a17" | "e2a19";
 }) {
+  const evaluationPhase = input.evaluation_phase ?? "e2a17";
   const created = await input.prisma.conversationTurn.create({
     data: {
       assessment_session_db_id: input.fixture.assessment_session_db_id,
@@ -1267,7 +1271,7 @@ async function persistStudentTurn(input: {
       actor_type: "student",
       message_text: input.message,
       structured_payload: json({
-        evaluation_phase: "e2a17",
+        evaluation_phase: evaluationPhase,
         session_protocol_id: input.session.session_id,
         turn_number: input.turn.turn_number,
         student_intent: input.turn.student_intent
@@ -1278,7 +1282,7 @@ async function persistStudentTurn(input: {
     data: {
       assessment_session_db_id: input.fixture.assessment_session_db_id,
       concept_unit_session_db_id: input.fixture.concept_unit_session_db_id,
-      event_type: "e2a17_student_turn_persisted",
+      event_type: `${evaluationPhase}_student_turn_persisted`,
       event_category: "evaluation_runtime",
       event_source: "backend",
       payload: json({
@@ -1297,13 +1301,15 @@ async function persistRouteDecision(input: {
   fixture: Fixture;
   session: E2A17SessionProtocol;
   turn: E2A17TurnProtocol;
+  evaluation_phase?: "e2a17" | "e2a19";
 }) {
+  const evaluationPhase = input.evaluation_phase ?? "e2a17";
   assertRouting(input.turn);
   await input.prisma.processEvent.create({
     data: {
       assessment_session_db_id: input.fixture.assessment_session_db_id,
       concept_unit_session_db_id: input.fixture.concept_unit_session_db_id,
-      event_type: "e2a17_platform_route_selected",
+      event_type: `${evaluationPhase}_platform_route_selected`,
       event_category: "evaluation_runtime",
       event_source: "backend",
       payload: json({
@@ -1334,7 +1340,9 @@ async function executeProgression(input: {
   fixture: Fixture;
   session: E2A17SessionProtocol;
   turn: E2A17TurnProtocol;
+  evaluation_phase?: "e2a17" | "e2a19";
 }) {
+  const evaluationPhase = input.evaluation_phase ?? "e2a17";
   let platformTransferTurn: Awaited<ReturnType<PrismaClient["conversationTurn"]["create"]>> | null = null;
   if (input.turn.selected_mode === "request_revision") {
     await input.prisma.assessmentSession.update({
@@ -1372,7 +1380,7 @@ async function executeProgression(input: {
         agent_name: "platform_transfer_presenter",
         message_text: input.session.platform_transfer_item_prompt!,
         structured_payload: json({
-          evaluation_phase: "e2a17",
+          evaluation_phase: evaluationPhase,
           platform_owned_transfer_item: true,
           tutor_generated: false
         })
@@ -1383,7 +1391,7 @@ async function executeProgression(input: {
     data: {
       assessment_session_db_id: input.fixture.assessment_session_db_id,
       concept_unit_session_db_id: input.fixture.concept_unit_session_db_id,
-      event_type: "e2a17_platform_progression_applied",
+      event_type: `${evaluationPhase}_platform_progression_applied`,
       event_category: "evaluation_runtime",
       event_source: "backend",
       payload: json({
@@ -2756,3 +2764,31 @@ export function loadE2A17Run(runIdValue: string) {
 export const E2A17_OPENAI_ADAPTER_VERSION = OPENAI_RESPONSES_ADAPTER_VERSION;
 export const E2A17_EFFECTIVE_RESULT_VERSION = E2A15B_EFFECTIVE_RESULT_VERSION;
 export const E2A17_NO_LIVE_PROVIDER_FACTORY = noLiveProviderBundle;
+
+export type {
+  BudgetLedger as E2AEvaluationBudgetLedger,
+  Fixture as E2AEvaluationFixture,
+  ProviderBundle as E2AEvaluationProviderBundle,
+  TurnExecution as E2AEvaluationTurnExecution
+};
+
+export {
+  adapterAttemptCount as e2aAdapterAttemptCount,
+  buildSimulatorInput as buildE2ASimulatorInput,
+  cleanupFixture as cleanupE2AEvaluationFixture,
+  countPersistence as countE2AEvaluationPersistence,
+  createFixture as createE2AEvaluationFixture,
+  dynamicTutorCase as buildE2ADynamicTutorCase,
+  executeProgression as executeE2AProgression,
+  informationFlowAudit as auditE2AInformationFlow,
+  inspectVisibleMessageSafety as inspectE2AVisibleMessageSafety,
+  persistRouteDecision as persistE2ARouteDecision,
+  persistStudentTurn as persistE2AStudentTurn,
+  repairInstructions as buildE2ATutorRepairInstructions,
+  sanitizedProviderResult as sanitizedE2AProviderResult,
+  simulatorRequest as buildE2ASimulatorRequest,
+  transcript as loadE2AEvaluationTranscript,
+  transcriptResult as inspectE2ATranscript,
+  usageFor as e2aUsageFor,
+  validationContext as buildE2ATutorValidationContext
+};

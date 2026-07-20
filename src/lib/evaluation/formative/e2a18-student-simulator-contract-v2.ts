@@ -115,6 +115,7 @@ const anchorContracts: Record<E2A18ConceptualAnchor, AnchorContract> = {
       /\btheta\b/iu,
       /\bitem (?:difficulty|information)\b/iu,
       /\b(?:difficult|hard|hardest) item\b/iu,
+      /\bability range\b/iu,
       /\boption a\b/iu
     ],
     misconception_patterns: [
@@ -144,6 +145,11 @@ const anchorContracts: Record<E2A18ConceptualAnchor, AnchorContract> = {
         label: "difficulty_condition_applied_independently",
         expression:
           /(?:very difficult|hard) item[^.!?]{0,100}(?:more informative|more precision)[^.!?]{0,80}(?:high|higher)[ -]?theta[^.!?]{0,80}(?:than|rather than)[^.!?]{0,80}(?:low|lower)[ -]?theta/iu
+      },
+      {
+        label: "information_useful_near_ability_range",
+        expression:
+          /item[^.!?]{0,100}(?:most useful|most informative|most precise)[^.!?]{0,80}(?:around|near)[^.!?]{0,80}(?:ability|theta)[^.!?]{0,160}(?:distinguish|differentiat)[^.!?]{0,100}(?:not just|rather than|instead of)[^.!?]{0,80}(?:hard|difficult)/iu
       }
     ]
   },
