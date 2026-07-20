@@ -446,3 +446,13 @@ protected-redirect case hard rejected twice and used fallback. The other 29
 cases ended accepted or accepted with review flags. Fallback preserved a safe
 student path but remained a candidate failure. E2A.13 did not approve or
 activate V8 and did not run the student simulator or 36-session matrix.
+
+E2A.14 adds an isolated no-live validator candidate rather than modifying V8.
+Its protected-request detector requires disclosure semantics and exact evidence
+instead of rejecting a protected term by itself. The harness evaluates separate
+disclosure, safe-refusal, borderline, mutation, and historical-replay corpora;
+compiles all 17 production roles at the transport boundary; and writes a
+human-review summary without claiming human review. Safe or soft-flagged
+refusals cannot trigger regeneration or fallback. Passing E2A.14 only permits
+consideration of a fresh protected-request provider subset; it does not approve
+or activate the candidate.

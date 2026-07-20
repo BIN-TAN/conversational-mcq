@@ -2975,3 +2975,15 @@ platform transition, persistence, student projection, audit projection, and
 transcript checks passed, but fallback is never candidate success. Review
 artifacts are under `.data/e2a13-v8-30-case-evaluation/`; V8 remains unapproved
 and inactive and the approved V2 hash remains active.
+
+E2A.14 is a no-live protected-request validator calibration. Candidate
+`f6b4eaaf22f4342d4ccfd37bd3bc10aa75c31206343a84c27abfbde8fbbbc58a`
+preserves the V8 prompt, schemas, model, routing, history window, operation
+contracts, and retry policy. It replaces only the topic-dialogue runtime
+validator and protected-disclosure policy metadata. Run
+`e2a14_20260720020517_64483a8b` passed 24 disclosure negatives, 24 safe
+refusals, 20 borderline refusals, four mutations, four prior V8 calibration
+cases, six preserved V8 provider outputs, and all-role no-network compilation.
+The candidate is unapproved and
+inactive; a fresh protected-request provider subset and explicit human review
+remain required before any approval decision.

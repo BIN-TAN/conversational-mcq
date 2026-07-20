@@ -1,0 +1,71 @@
+{
+  "manifest_version": "e2a14-protected-request-validator-calibration-candidate-v1",
+  "approval_state": "candidate_not_approved",
+  "activation_state": "not_activated",
+  "baseline_approved_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "v8_candidate_hash": "7f12d942aae671847b0555ae7322a4b98565b5c355771f20e2de6782ebc960a9",
+  "v8_candidate_path": "config/candidate-operational-agent-config.e2a11-topic-dialogue-validator-calibration-v1.json",
+  "v8_candidate_sha256": "10ed9433541aca94216d91fe4f4fd4717208ba89393101e1075978e4b9681307",
+  "candidate_profile_name": "gpt-5.6-v9-protected-request-validator-calibration",
+  "evaluation_required": true,
+  "human_review_required": true,
+  "student_facing_operational_use_approved": false,
+  "teacher_tool_use_approved": false,
+  "roles_unchanged_from_v8": true,
+  "prompts_unchanged_from_v8": true,
+  "schemas_unchanged_from_v8": true,
+  "routing_unchanged_from_v8": true,
+  "model_and_runtime_policy_unchanged_from_v8": true,
+  "topic_dialogue_validation": {
+    "runtime_validator_version": "eval-topic-dialogue-runtime-acceptance-v3",
+    "pedagogical_rubric_version": "eval-topic-dialogue-pedagogical-rubric-v1",
+    "validation_policy_version": "topic-dialogue-runtime-vs-quality-policy-v3",
+    "protected_request_validation_policy_version": "topic-dialogue-protected-disclosure-semantics-v1",
+    "protected_request_hard_rejection_policy_version": "topic-dialogue-protected-disclosure-evidence-v1",
+    "regeneration_trigger_policy_version": "topic-dialogue-hard-rejection-only-regeneration-v2",
+    "review_flag_schema_version": "topic-dialogue-review-flag-v1",
+    "server_envelope_validation_provenance_version": "topic-dialogue-envelope-validation-provenance-v1",
+    "runtime_acceptance_levels": [
+      "accepted",
+      "accepted_with_review_flags",
+      "hard_rejected"
+    ],
+    "safe_refusal_may_name_protected_object": true,
+    "actual_disclosure_hard_rejected": true,
+    "protected_disclosure_requires_exact_evidence": true,
+    "protected_disclosure_requires_explanation": true,
+    "soft_findings_trigger_regeneration": false,
+    "soft_findings_trigger_fallback": false,
+    "maximum_regenerations_per_turn": 1
+  },
+  "exact_delta_from_v8": {
+    "topic_dialogue_agent.validator_version": {
+      "from": "eval-topic-dialogue-runtime-acceptance-v2",
+      "to": "eval-topic-dialogue-runtime-acceptance-v3"
+    },
+    "topic_dialogue_agent.validation_policy_version": {
+      "from": "topic-dialogue-runtime-vs-quality-policy-v2",
+      "to": "topic-dialogue-runtime-vs-quality-policy-v3"
+    },
+    "topic_dialogue_agent.protected_request_validation_policy_version": {
+      "from": "not_available",
+      "to": "topic-dialogue-protected-disclosure-semantics-v1"
+    },
+    "topic_dialogue_agent.protected_request_hard_rejection_policy_version": {
+      "from": "not_available",
+      "to": "topic-dialogue-protected-disclosure-evidence-v1"
+    }
+  },
+  "acceptance_criteria": {
+    "safe_refusals_are_not_hard_rejected": true,
+    "actual_disclosures_are_hard_rejected": true,
+    "protected_text_rejections_have_exact_evidence": true,
+    "protected_text_rejections_have_disclosure_explanations": true,
+    "soft_review_findings_do_not_suppress_safe_output": true,
+    "prompts_schemas_routing_model_and_retry_policy_unchanged": true,
+    "all_17_roles_must_compile_without_network": true,
+    "fresh_protected_request_provider_subset_required_before_approval": true,
+    "human_review_required_before_approval": true,
+    "automatic_activation_forbidden": true
+  }
+}

@@ -828,3 +828,38 @@ npm run eval:formative:e2a13:request-compilation
 npm run eval:formative:e2a13:preflight
 npm run eval:formative:e2a13:report -- --run e2a13_20260720004834_23ce39bc
 ```
+
+## E2A.14 protected-request validator calibration
+
+E2A.14 corrects the E2A.13 false positive without changing V8. V8 treated any
+lexical mention of `internal profile` as disclosure, so a safe refusal was hard
+rejected twice. The E2A.14 candidate evaluates disclosure semantics instead:
+explicit attribution of protected content is rejected, while naming a
+protected object inside a refusal remains displayable. Every protected text
+rejection includes a rule code, field path, exact evidence span, and safe
+disclosure explanation. Ambiguous or awkward refusals may receive review flags,
+but those flags do not regenerate, fall back, or suppress the output.
+
+Candidate configuration hash:
+`f6b4eaaf22f4342d4ccfd37bd3bc10aa75c31206343a84c27abfbde8fbbbc58a`.
+Candidate file SHA-256:
+`a229603d767bf4fa0adc19a0b31a60c976bd3ee0cb0ad3dcfed05a30663790e8`.
+The four V8 deltas are the validator version, general validation-policy
+version, protected-request semantic-policy version, and protected-disclosure
+evidence-policy version.
+
+Run `e2a14_20260720020517_64483a8b` is
+`e2a14_passed_unapproved_pending_protected_subset`. Results were 24/24 hard
+disclosures rejected, 24/24 safe refusals accepted or flagged, 20/20 borderline
+refusals displayable, 4/4 mutations detected, 4/4 prior V8 calibration cases
+preserved with the expected safe or hard result, and 6/6 historical V8 provider
+refusals replayed without hard rejection. Compilation covered 17 roles and 26
+requests with zero network requests. No provider evaluation, simulator, E2B,
+approval, or activation occurred.
+
+```bash
+npm run eval:formative:e2a14:smoke
+npm run eval:formative:e2a14:request-compilation
+npm run eval:formative:e2a14:calibrate
+npm run eval:formative:e2a14:report -- --run e2a14_20260720020517_64483a8b
+```

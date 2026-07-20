@@ -3473,3 +3473,15 @@ Phase 6A.5 must not implement:
   `v8_30case_failed`: one protected-redirect case hard rejected twice and used
   fallback. V8 remains unapproved and inactive, approved V2 remains unchanged,
   and no simulator, 36-session matrix, E2B, approval, or activation followed.
+- E2A.14 must not alter V8. Its separate candidate may change only the
+  topic-dialogue runtime validator and protected-request validation metadata.
+  A protected term mentioned inside a refusal is not disclosure by itself.
+  Actual profile, hidden-prompt, answer-key, provider/runtime, teacher-only, or
+  fallback metadata disclosure remains a hard rejection with a rule code,
+  field path, exact evidence span, and disclosure explanation.
+- E2A.14 candidate
+  `f6b4eaaf22f4342d4ccfd37bd3bc10aa75c31206343a84c27abfbde8fbbbc58a`
+  is unapproved and inactive. Run `e2a14_20260720020517_64483a8b` passed the
+  no-live corpora, mutations, historical replay, and 17-role compilation with
+  zero network calls. A fresh protected-request provider subset and explicit
+  human review are required before approval may be considered.
