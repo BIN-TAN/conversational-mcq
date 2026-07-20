@@ -109,4 +109,32 @@ until every E2A.19 review item is explicitly reviewed.
 
 ## Result
 
-Pending the single authorized execution.
+The single authorized execution ran once from checkpoint
+`e8ad8f35b7184a904604fa55785b1e5a0197d5bc`:
+
+- run ID: `e2a19_20260720094054_74982b99`;
+- status: `e2a19_micro_canary_failed`;
+- early-abort reason:
+  `e2a19_observable_evidence_insufficient_for_frozen_transition:4:substantive:partial`;
+- four simulator calls, three initial tutor calls, zero tutor regenerations,
+  seven logical calls, seven adapter attempts, and zero retries;
+- 8,129 input tokens, 1,357 output tokens, and 9,486 total tokens;
+- 49,129 ms aggregate provider latency;
+- cost was not fabricated because pricing metadata was incomplete;
+- three student turns and three effective tutor replies were persisted before
+  the turn-four abort;
+- zero privacy, answer-key, hidden-state, provider-control, invalid-transition,
+  unauthorized-progression, missing-reply, duplicate-reply, or fallback
+  findings;
+- fixture cleanup and the abort-aware 26-artifact contract passed;
+- three human-review items were generated with every review field left null;
+- candidate, approved V2, source logic, and protected historical evidence
+  remained unchanged.
+
+Turn four was within the simulator contract's substantive ceiling, but the
+observable evidence classifier found only partial evidence while the frozen
+transition required substantive evidence. The student turn was therefore not
+persisted and no tutor call was made for turn four. The micro-canary was not
+rerun. The candidate remains unapproved and inactive, and the four-session
+canary and 36-session matrix remain blocked pending explicit adjudication of
+this failed micro-canary and completion of human review.
