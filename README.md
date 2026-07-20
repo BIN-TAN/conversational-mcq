@@ -3066,3 +3066,20 @@ The E2A.14 candidate remains unapproved and inactive. The status
 `e2a15b_protocol_complete_pending_human_review` means only that automated
 provider evidence is protocol-complete. Primary and secondary human review are
 still required before approval may be considered.
+
+E2A.22 adds no-live, platform-owned evidence-first routing for formative topic
+dialogue. Every accepted student turn now receives an authoritative evidence
+profile and cumulative latest-evidence update before the platform selects a
+response mode or operation and constructs the tutor request. A freshness guard
+blocks requests whose profile does not reference the latest accepted student
+turn. The exact E2A.21 replay found the first operation divergence at turn 1
+and the earliest revision-ready response at turn 3. See
+`docs/E2A22_EVIDENCE_FIRST_PROFILE_ROUTING.md`.
+
+```bash
+npm run eval:formative:e2a22:smoke
+npm run eval:formative:e2a22:run
+```
+
+E2A.22 makes no provider calls and does not approve or activate the tutor
+candidate. E2A.23 is draft-only and requires separate authorization.

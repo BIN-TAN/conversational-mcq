@@ -3546,3 +3546,20 @@ Phase 6A.5 must not implement:
   complete pricing is available. Provider concurrency is one, simulator
   regeneration is disabled, soft flags cannot trigger regeneration, and the
   deterministic fallback-rate ceiling is zero. E2A.16 must not dispatch it.
+- E2A.22 orchestration is `e2a22-evidence-first-profile-routing-v1`. For every
+  accepted formative-dialogue response, the platform must persist the student
+  turn and authoritative sequence index, evaluate current evidence, create a
+  turn-level profile, update cumulative latest-evidence state, select the
+  response mode and operation, and verify profile freshness before constructing
+  a tutor request. The provider cannot select progression.
+- Sound, explicit, anchor-specific evidence with no contradiction or essential
+  missing link must authorize `request_revision` immediately. No minimum
+  formative-turn count is permitted. Historical misconceptions remain audit
+  evidence but cannot outweigh a later sound current profile; a later
+  contradiction may reopen the misconception.
+- E2A.22 is no-live. It does not modify or activate candidate
+  `f6b4eaaf22f4342d4ccfd37bd3bc10aa75c31206343a84c27abfbde8fbbbc58a`.
+  E2A.23 remains a one-session draft with at most six simulator calls, six
+  initial tutor calls, two tutor regenerations, fourteen logical calls,
+  forty-two adapter attempts, 400,000 input tokens, 31,000 output tokens,
+  USD 10, and provider concurrency one. Separate authorization is required.

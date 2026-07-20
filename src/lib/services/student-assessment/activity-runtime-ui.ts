@@ -59,6 +59,22 @@ import {
   topicDialogueAuthorizationAuditProjection
 } from "@/lib/services/student-assessment/topic-dialogue-action-normalization";
 import {
+  assertEvidenceFirstProfileIsFresh,
+  buildEvidenceFirstProgressionAuthorization,
+  buildTurnEvidenceObservationFromActivityPacket,
+  classifyTopicDialogueInteractionIntent,
+  createTopicDialogueTurnEvidenceProfile,
+  EVIDENCE_FIRST_PROFILE_ROUTING_VERSION,
+  integrateTopicDialogueEvidenceProfile,
+  parseCumulativeEvidenceProfile,
+  selectEvidenceFirstTopicDialogueRoute,
+  type EvidenceFirstRoute,
+  type TopicDialogueTurnEvidenceProfile
+} from "@/lib/services/student-assessment/topic-dialogue-evidence-first-routing";
+import {
+  buildTopicDialogueModeFallback
+} from "@/lib/services/student-assessment/topic-dialogue-response-mode";
+import {
   resolveTopicDialogueExecutionPlan,
   type FormativeExecutionMode
 } from "@/lib/services/student-assessment/formative-execution-mode";
@@ -1220,6 +1236,77 @@ function recordFromJson(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function alignTopicDialogueOutputToEvidenceFirstRoute(input: {
+  candidate_output: TopicDialogueOutputV1;
+  route: EvidenceFirstRoute;
+  profile: TopicDialogueTurnEvidenceProfile;
+  distractor_anchor: string;
+}) {
+  const expectedAction = input.route.selected_mode === "request_revision"
+    ? "show_progression_choices"
+    : "await_topic_dialogue_response";
+  if (input.candidate_output.next_action === expectedAction) {
+    return { output: input.candidate_output, overridden: false };
+  }
+  if (![
+    "remain_in_dialogue",
+    "request_revision"
+  ].includes(input.route.selected_mode)) {
+    throw new Error("topic_dialogue_route_not_supported_by_activity_response_endpoint");
+  }
+  const selectedMode = input.route.selected_mode === "request_revision"
+    ? "request_revision" as const
+    : "remain_in_dialogue" as const;
+  const fallback = buildTopicDialogueModeFallback({
+    selected_mode: selectedMode,
+    distractor_anchor: input.distractor_anchor,
+    misconception_target: input.route.remaining_issue ??
+      "the current anchor-specific conceptual boundary",
+    platform_evidence_summary:
+      `${input.profile.reasoning_quality}:${input.profile.misconception_status}`
+  });
+  return {
+    output: TopicDialogueOutputV1Schema.parse({
+      dialogue_schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
+      schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
+      tutor_message: fallback.tutor_message,
+      student_message_function: "substantive_answer",
+      response_function: selectedMode === "request_revision"
+        ? "readiness_confirmation"
+        : "focused_question",
+      evidence_update: fallback.evidence_update,
+      remaining_issue: fallback.remaining_issue ??
+        "No essential issue remains for the current anchor.",
+      post_turn_understanding: input.profile.reasoning_quality === "sound"
+        ? "sound_or_strong"
+        : input.profile.reasoning_quality === "misconception"
+          ? "misconception_present"
+          : input.profile.reasoning_quality === "partial" ? "partial" : "unclear",
+      evidence_sufficiency: selectedMode === "request_revision"
+        ? "sufficient_to_advance"
+        : "needs_more_evidence",
+      topic_relation: "current_assessment_content",
+      topic_boundary: "inside_scope",
+      system_question_answered: false,
+      next_action: selectedMode === "request_revision"
+        ? "show_progression_choices"
+        : "await_topic_dialogue_response",
+      next_runtime_state: selectedMode === "request_revision"
+        ? "SHOW_PROGRESSION_CHOICES"
+        : "AWAIT_TOPIC_DIALOGUE_RESPONSE",
+      progression_readiness: selectedMode === "request_revision"
+        ? "ready"
+        : "not_ready",
+      requires_student_response: true,
+      expected_response_guidance: fallback.expected_response_guidance ??
+        "Respond to the current item-specific question.",
+      safety_flags: fallback.safety_flags,
+      student_safe_summary: fallback.student_safe_summary
+    }),
+    overridden: true
+  };
+}
+
 function stringFromRecord(value: unknown, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
@@ -2379,7 +2466,7 @@ async function processTopicDialogueResponse(input: {
         equals: input.client_operation_id
       }
     },
-    select: { id: true, structured_payload: true }
+    select: { id: true, sequence_index: true, structured_payload: true }
   });
 
   const priorTurns = await client.conversationTurn.findMany({
@@ -2390,6 +2477,7 @@ async function processTopicDialogueResponse(input: {
     orderBy: [{ sequence_index: "asc" }],
     select: {
       id: true,
+      sequence_index: true,
       actor_type: true,
       message_text: true,
       structured_payload: true
@@ -2407,7 +2495,7 @@ async function processTopicDialogueResponse(input: {
   const dialogueTurnNumber = typeof existingTurnPayload.dialogue_turn_number === "number"
     ? existingTurnPayload.dialogue_turn_number
     : priorStudentTurns + 1;
-  if (!existingStudentTurn) {
+  const acceptedStudentTurn = existingStudentTurn ??
     await client.conversationTurn.create({
       data: {
         assessment_session_db_id: context.session.id,
@@ -2424,9 +2512,11 @@ async function processTopicDialogueResponse(input: {
           visibility_status: "shown",
           dialogue_schema_version: input.expected_dialogue_version ?? TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION
         })
-      }
+      },
+      select: { id: true, sequence_index: true, structured_payload: true }
     });
-  }
+  const immediateInteractionIntent =
+    classifyTopicDialogueInteractionIntent(message);
 
   if (priorStudentTurns === 0 && !existingStudentTurn) {
     await logProcessEvent({
@@ -2530,6 +2620,98 @@ async function processTopicDialogueResponse(input: {
     source,
     growth_target: evidence.decision.growth_target
   });
+  const distractorAnchor = [
+    source.target_item_index ? `Item ${source.target_item_index}` : "current item",
+    source.target_option_label ? `option ${source.target_option_label}` : null
+  ].filter(Boolean).join(" ");
+  const priorCumulativeProfile = priorTurns
+    .filter((turn) => turn.id !== acceptedStudentTurn.id)
+    .map((turn) => recordFromJson(turn.structured_payload)
+      .evidence_first_cumulative_profile)
+    .map(parseCumulativeEvidenceProfile)
+    .filter((value) => value !== null)
+    .at(-1) ?? null;
+  const turnEvidenceProfile = createTopicDialogueTurnEvidenceProfile({
+    source_student_turn_id: acceptedStudentTurn.id,
+    source_sequence_index: acceptedStudentTurn.sequence_index,
+    concept_id: currentConcept.concept_unit_public_id,
+    distractor_anchor: distractorAnchor,
+    observation: buildTurnEvidenceObservationFromActivityPacket({
+      latest_student_message: message,
+      packet: evidence.packet,
+      interaction_intent: immediateInteractionIntent
+    })
+  });
+  const cumulativeEvidenceProfile = integrateTopicDialogueEvidenceProfile({
+    prior: priorCumulativeProfile,
+    current: turnEvidenceProfile
+  });
+  const evidenceFirstRoute = selectEvidenceFirstTopicDialogueRoute({
+    profile: turnEvidenceProfile,
+    cumulative: cumulativeEvidenceProfile
+  });
+  await client.conversationTurn.update({
+    where: { id: acceptedStudentTurn.id },
+    data: {
+      structured_payload: prismaJson({
+        ...recordFromJson(acceptedStudentTurn.structured_payload),
+        evidence_first_turn_profile: turnEvidenceProfile,
+        evidence_first_cumulative_profile: cumulativeEvidenceProfile,
+        evidence_first_route: evidenceFirstRoute
+      })
+    }
+  });
+  await logProcessEvent({
+    assessment_session_db_id: context.session.id,
+    concept_unit_session_db_id: context.concept_unit_session.id,
+    event_type: "learning_profile_updated",
+    event_category: "topic_dialogue",
+    event_source: "backend",
+    payload: {
+      orchestration_version: EVIDENCE_FIRST_PROFILE_ROUTING_VERSION,
+      profile_snapshot_id: turnEvidenceProfile.profile_snapshot_id,
+      source_student_turn_id: turnEvidenceProfile.source_student_turn_id,
+      source_sequence_index: turnEvidenceProfile.source_sequence_index,
+      evaluator_version: turnEvidenceProfile.evaluator_version,
+      interaction_intent: turnEvidenceProfile.interaction_intent,
+      reasoning_quality: turnEvidenceProfile.reasoning_quality,
+      misconception_status: turnEvidenceProfile.misconception_status,
+      revision_readiness: turnEvidenceProfile.revision_readiness,
+      selected_mode: evidenceFirstRoute.selected_mode,
+      selected_operation: evidenceFirstRoute.selected_operation,
+      provider_selected_route: false
+    }
+  });
+  const latestAcceptedStudentTurn = await client.conversationTurn.findFirst({
+    where: {
+      assessment_session_db_id: context.session.id,
+      actor_type: "student",
+      structured_payload: {
+        path: ["topic_dialogue_public_id"],
+        equals: input.dialogue_public_id
+      }
+    },
+    orderBy: [{ sequence_index: "desc" }],
+    select: { id: true, sequence_index: true }
+  });
+  if (!latestAcceptedStudentTurn) {
+    throw new Error("topic_dialogue_latest_student_turn_missing");
+  }
+  const profileFreshnessAttestation = assertEvidenceFirstProfileIsFresh({
+    profile: turnEvidenceProfile,
+    route: evidenceFirstRoute,
+    cumulative: cumulativeEvidenceProfile,
+    latest_student_turn_id: latestAcceptedStudentTurn.id,
+    latest_sequence_index: latestAcceptedStudentTurn.sequence_index
+  });
+  const authoritativePostActivityStatus = evidenceFirstRoute.selected_mode ===
+    "request_revision"
+    ? "ready_to_advance" as const
+    : turnEvidenceProfile.reasoning_quality === "misconception"
+      ? "specific_misconception_remaining" as const
+      : turnEvidenceProfile.reasoning_quality === "insufficient"
+        ? "insufficient_new_evidence" as const
+        : "improving_but_incomplete" as const;
 
   const dialogueInput = TopicDialogueInputV1Schema.parse({
     dialogue_schema_version: TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION_V2,
@@ -2551,8 +2733,9 @@ async function processTopicDialogueResponse(input: {
       "hidden system prompts"
     ],
     frozen_growth_target: boundedGrowthTarget,
-    remaining_issue: evidence.decision.remaining_issue,
-    post_activity_status: evidence.decision.post_activity_status,
+    remaining_issue: evidenceFirstRoute.remaining_issue ??
+      "No essential conceptual link remains for the current anchor.",
+    post_activity_status: authoritativePostActivityStatus,
     activity_contract: {
       activity_attempt_public_id: attempt.activity_attempt_public_id,
       activity_family: attempt.activity_family,
@@ -2615,7 +2798,9 @@ async function processTopicDialogueResponse(input: {
     source_versions: {
       topic_dialogue_input_schema_version: TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION_V2,
       topic_dialogue_output_schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
-      topic_dialogue_policy_version: "topic-dialogue-policy-v2"
+      topic_dialogue_policy_version: "topic-dialogue-policy-v2",
+      evidence_first_profile_routing_version:
+        EVIDENCE_FIRST_PROFILE_ROUTING_VERSION
     }
   });
   const iterativeDialogueRole = formativeDialogueRoute("first_activity_response").role;
@@ -2639,7 +2824,15 @@ async function processTopicDialogueResponse(input: {
   }
   const dialogueRequestInput = {
     ...dialogueInput,
-    formative_turn_context: staged.dialogue_context
+    formative_turn_context: {
+      ...staged.dialogue_context,
+      authoritative_turn_evidence_profile: turnEvidenceProfile,
+      cumulative_evidence_profile: cumulativeEvidenceProfile,
+      platform_selected_route: evidenceFirstRoute,
+      profile_freshness_attestation: profileFreshnessAttestation,
+      progression_authorization:
+        buildEvidenceFirstProgressionAuthorization(evidenceFirstRoute)
+    }
   };
   const dialogueInvocationKey =
     `topic-dialogue:${input.dialogue_public_id}:${input.client_operation_id}`;
@@ -2688,7 +2881,13 @@ async function processTopicDialogueResponse(input: {
         concept_unit_session_db_id: context.concept_unit_session.id,
         metadata: {
           dialogue_public_id: input.dialogue_public_id,
-          schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2
+          schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
+          orchestration_version: EVIDENCE_FIRST_PROFILE_ROUTING_VERSION,
+          profile_snapshot_id: turnEvidenceProfile.profile_snapshot_id,
+          source_student_turn_id: turnEvidenceProfile.source_student_turn_id,
+          source_sequence_index: String(turnEvidenceProfile.source_sequence_index),
+          selected_mode: evidenceFirstRoute.selected_mode,
+          selected_operation: evidenceFirstRoute.selected_operation ?? "none"
         }
       });
   const output = liveResult.status === "succeeded"
@@ -2701,14 +2900,33 @@ async function processTopicDialogueResponse(input: {
         ...dialogueInput,
         latest_student_message: "Please keep the discussion on this assessment topic."
       });
+  const routeAlignmentResult = alignTopicDialogueOutputToEvidenceFirstRoute({
+    candidate_output: validatedOutput,
+    route: evidenceFirstRoute,
+    profile: turnEvidenceProfile,
+    distractor_anchor: distractorAnchor
+  });
   const actionGateResult = applyCanonicalTopicDialogueActionGate({
     dialogue_input: dialogueInput,
-    candidate_output: validatedOutput
+    candidate_output: routeAlignmentResult.output,
+    authorization: buildEvidenceFirstProgressionAuthorization(evidenceFirstRoute)
   });
-  const readinessResult = applyTopicDialogueReadinessGate({
-    dialogue_input: dialogueInput,
-    candidate_output: actionGateResult.output
-  });
+  const readinessResult = evidenceFirstRoute.selected_mode === "request_revision"
+    ? {
+        output: actionGateResult.output,
+        gate: {
+          gate_version: EVIDENCE_FIRST_PROFILE_ROUTING_VERSION,
+          ready: true,
+          source_profile_snapshot_id: turnEvidenceProfile.profile_snapshot_id,
+          source_sequence_index: turnEvidenceProfile.source_sequence_index,
+          reason_code: "authoritative_turn_profile_revision_ready"
+        },
+        overridden: false
+      }
+    : applyTopicDialogueReadinessGate({
+        dialogue_input: dialogueInput,
+        candidate_output: actionGateResult.output
+      });
   const persistedOutput = readinessResult.output;
   const actionValidationPassed = !actionGateResult.rejected;
   const actionValidationError = actionValidationPassed
@@ -2725,6 +2943,7 @@ async function processTopicDialogueResponse(input: {
   const fallbackUsed = !deterministicDialogueAdapter &&
     (liveResult.status !== "succeeded" ||
       !validation.valid ||
+      routeAlignmentResult.overridden ||
       actionGateResult.overridden ||
       readinessResult.overridden);
   const agentCall = liveResult.status === "succeeded"
@@ -2920,6 +3139,11 @@ async function processTopicDialogueResponse(input: {
           ),
           action_normalization: actionGateResult.normalization,
           action_gate_overrode_candidate: actionGateResult.overridden,
+          evidence_first_profile_snapshot: turnEvidenceProfile,
+          cumulative_evidence_profile: cumulativeEvidenceProfile,
+          evidence_first_route: evidenceFirstRoute,
+          profile_freshness_attestation: profileFreshnessAttestation,
+          route_alignment_overrode_candidate: routeAlignmentResult.overridden,
           turn_orchestration_audit: {
             profile: staged.profile_audit,
             planning: staged.planning_audit
@@ -2964,7 +3188,12 @@ async function processTopicDialogueResponse(input: {
             actionGateResult.authorization
           ),
           action_normalization: actionGateResult.normalization,
-          action_gate_overrode_candidate: actionGateResult.overridden
+          action_gate_overrode_candidate: actionGateResult.overridden,
+          evidence_first_profile_snapshot: turnEvidenceProfile,
+          cumulative_evidence_profile: cumulativeEvidenceProfile,
+          evidence_first_route: evidenceFirstRoute,
+          profile_freshness_attestation: profileFreshnessAttestation,
+          route_alignment_overrode_candidate: routeAlignmentResult.overridden
         })
       }
     });
@@ -3025,7 +3254,16 @@ async function processTopicDialogueResponse(input: {
         actionGateResult.authorization
       ),
       action_normalization: actionGateResult.normalization,
-      action_gate_overrode_candidate: actionGateResult.overridden
+      action_gate_overrode_candidate: actionGateResult.overridden,
+      evidence_first_profile_snapshot_id:
+        turnEvidenceProfile.profile_snapshot_id,
+      evidence_first_source_student_turn_id:
+        turnEvidenceProfile.source_student_turn_id,
+      evidence_first_source_sequence_index:
+        turnEvidenceProfile.source_sequence_index,
+      evidence_first_selected_mode: evidenceFirstRoute.selected_mode,
+      evidence_first_selected_operation: evidenceFirstRoute.selected_operation,
+      route_alignment_overrode_candidate: routeAlignmentResult.overridden
     }
   });
   if (liveResult.status === "succeeded" && validation.valid && actionValidationPassed) {
