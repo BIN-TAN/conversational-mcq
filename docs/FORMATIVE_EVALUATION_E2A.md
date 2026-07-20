@@ -938,3 +938,38 @@ npm run eval:formative:e2a15b:artifact-smoke
 npm run eval:formative:e2a15b:report -- \
   --run e2a15b_20260720053628_0e8a35af
 ```
+
+## E2A.16 human-review closure and E2A.17 readiness
+
+E2A.16 run `e2a16_20260720071641_9e2e4f59` records the project owner's
+supplied attestation that `primary_project_owner` and
+`secondary_colleague_reviewer` independently reviewed all 40 E2A.15b items.
+Both reported the package acceptable, zero critical failures, no unresolved
+material disagreement, and acceptance of immutable E2A.13 evidence
+inheritance. The aliases are audit roles, not legal identities.
+
+Item-level human ratings were not retained, so the closure explicitly records
+`item_level_ratings_retained=false` and
+`inter_rater_reliability_available=false`. It does not claim verified human
+ratings or inter-rater agreement. The user-supplied AI-assisted adjudication
+summary remains a separate non-human evidence layer. Automated, human, and
+AI-assisted conclusions are concordant at the overall-decision and
+critical-failure level.
+
+The closure result is `human_review_closed_by_dual_attestation`. The readiness
+result is `candidate_ready_for_bounded_student_simulator_canary`, not approval,
+activation, approval evidence readiness, or production readiness. Candidate
+`f6b4eaaf22f4342d4ccfd37bd3bc10aa75c31206343a84c27abfbde8fbbbc58a`
+remains byte-identical, unapproved, inactive, and evaluation-only; approved V2
+remains active.
+
+E2A.16 also creates an undispatched E2A.17 draft with four independent
+sessions, six maximum student turns per session, provider concurrency one, 24
+simulator calls, 24 initial tutor calls, 24 permitted hard-rejection-only tutor
+regenerations, and 72 maximum logical generation calls. The draft permits at
+most 216 adapter attempts, 2,112,000 input tokens, 180,000 output tokens, and
+USD 30 estimated cost when complete pricing is available. E2A.17 requires
+separate authorization and a clean live preflight.
+
+See `docs/E2A16_HUMAN_REVIEW_CLOSURE.md` for the evidence boundaries, exact
+budget arithmetic, protocol coverage, and no-live verification commands.

@@ -3521,3 +3521,28 @@ Phase 6A.5 must not implement:
   production readiness, or completed human review. The E2A.14 candidate
   remains byte-identical, unapproved, and inactive until the required primary
   and secondary human reviews are completed and separately adjudicated.
+- E2A.16 run `e2a16_20260720071641_9e2e4f59` closes that review requirement
+  only through the project owner's supplied dual-review attestation. Audit
+  aliases `primary_project_owner` and `secondary_colleague_reviewer` each
+  attest full 40-item independent review, an acceptable overall conclusion,
+  zero critical failures, no unresolved material disagreement, and acceptance
+  of inherited E2A.13 evidence. These aliases are not legal identities.
+- E2A.16 must not invent item-level human ratings. Because paired item-level
+  ratings were not retained, it records no verified human-rating dataset and
+  no inter-rater reliability or agreement statistic. Automated runtime
+  evidence, user-supplied human attestation, and the user-supplied summary of
+  AI-assisted adjudication remain separate evidence layers.
+- Status `e2a16_human_review_closed_candidate_ready_for_bounded_simulator`
+  permits only consideration of a separately authorized E2A.17 bounded
+  student-simulator canary. It is not candidate approval, approval evidence
+  readiness, activation, or production readiness. The calibrated E2A.14
+  candidate remains byte-identical, unapproved, inactive, and evaluation-only;
+  approved V2 remains active and historical E2A.13 status remains
+  `v8_30case_failed`.
+- The E2A.17 draft contains four isolated sessions with at most six student
+  turns each. Its exact maximum is 24 simulator calls, 24 initial tutor calls,
+  24 hard-rejection-only tutor regenerations, 72 generation calls, 216 adapter
+  attempts, 2,112,000 input tokens, 180,000 output tokens, and USD 30 when
+  complete pricing is available. Provider concurrency is one, simulator
+  regeneration is disabled, soft flags cannot trigger regeneration, and the
+  deterministic fallback-rate ceiling is zero. E2A.16 must not dispatch it.
