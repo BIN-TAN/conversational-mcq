@@ -279,6 +279,8 @@
     "eval:formative:e2a15:preflight": "tsx prisma/formative-evaluation-e2a15-preflight.ts",
     "eval:formative:e2a15:live": "tsx prisma/formative-evaluation-e2a15-live.ts",
     "eval:formative:e2a15:report": "tsx prisma/formative-evaluation-e2a15-report.ts",
+    "eval:formative:e2a15a:audit": "tsx prisma/formative-evaluation-e2a15a-audit.ts",
+    "eval:formative:e2a15a:smoke": "tsx prisma/formative-evaluation-e2a15a-smoke-test.ts",
     "student:formative-privacy-smoke": "tsx prisma/student-formative-privacy-smoke-test.ts",
     "eval:formative:compare": "tsx prisma/formative-evaluation-compare.ts",
     "student:response-quality-smoke": "tsx prisma/student-response-quality-smoke-test.ts",

@@ -3494,3 +3494,16 @@ Phase 6A.5 must not implement:
   outcomes without changing E2A.13 evidence. The resulting 36 student-facing
   outputs require explicit human review. Automated pass, replay pass, or blank
   review templates do not approve or activate the candidate.
+- E2A.15a is a no-live completeness audit of E2A.15 run
+  `e2a15_20260720030832_efc41543`. The historical six-case protocol and report
+  remain immutable, but they do not satisfy the authorized requirement for
+  eight distinct fresh cases. The discrepancy is a protocol-generation defect,
+  incomplete execution, and authorization-scope misinterpretation, not a
+  reporting-count defect: all six scheduled cases were dispatched and
+  completed, while the informal/imperfect request and long-history continuity
+  stress categories were absent before protocol freeze.
+- E2A.15a may create only read-only audit records, an unpopulated human-review
+  template, and an undispatched supplemental two-case protocol. It must make
+  zero provider calls, preserve E2A.13 and E2A.15 hashes, keep the E2A.14
+  candidate unchanged, and leave approval and activation false. Supplemental
+  live execution requires separate explicit authorization.

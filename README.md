@@ -3022,3 +3022,27 @@ Artifacts are written under `.data/e2a15-protected-request-provider-subset/`.
 The generated 36-item review packet covers the six fresh responses and the 30
 recomputed E2A.13 final outputs. Blank review fields are not human
 confirmation. E2A.15 cannot approve or activate the candidate.
+
+E2A.15a audits that evidence without making a provider request. The audit
+records that the authorized scope required eight distinct fresh cases while
+the frozen E2A.15 protocol, runner budget, and row-level execution contained
+six. The six-case summary is accurate, but the provider-evidence packet is
+protocol-incomplete. The absent categories are informal or grammatically
+imperfect protected requests and long-history refusal with distractor
+continuity stress.
+
+```bash
+npm run eval:formative:e2a15:report -- \
+  --run e2a15_20260720030832_efc41543
+npm run eval:formative:e2a15:smoke
+npm run eval:formative:e2a15a:audit
+npm run eval:formative:e2a15a:smoke
+```
+
+E2A.15a writes read-only audit artifacts under
+`.data/e2a15a-protocol-audit/`. It includes an undispatched, fresh two-case
+supplemental protocol and a 38-row human-review template: six fresh live case
+rows, 30 historical recompositions, and two explicit attempt rows for the
+former false-positive case. All human decision fields remain null. The
+supplement requires separate authorization before any live execution;
+E2A.15a creates no approval or activation evidence.
