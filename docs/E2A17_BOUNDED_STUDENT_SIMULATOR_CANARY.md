@@ -85,6 +85,35 @@ automated passing status is
 
 ## Recorded result
 
-No live E2A.17 result has been recorded in tracked documentation yet. After the
-single authorized run, record only immutable run identifiers, hashes, counts,
-and verification results here. Do not add or change source logic after dispatch.
+The single authorized live canary ran from dispatch checkpoint
+`a10915dfdeb5c8f24c72de2b948d35d2a1295b04` and produced immutable run
+`e2a17_20260720080442_b0e3f036` under
+`.data/e2a17-bounded-student-simulator-canary/`.
+
+- Final status: `e2a17_canary_incomplete`
+- Early-abort reason:
+  `e2a17_simulator_contract_failure:evidence_level_exceeded`
+- Completed sessions: `0/4`
+- Persisted student turns / visible tutor replies: `0 / 0`
+- Simulator calls: `1`
+- Initial tutor calls / tutor regenerations: `0 / 0`
+- Total generation calls / adapter attempts / transport retries: `1 / 1 / 0`
+- Input / output / reasoning / total tokens: `675 / 215 / 107 / 890`
+- Recorded provider latency: `5526 ms`
+- Cost: unavailable because complete pricing metadata was not available; no
+  cost was fabricated
+- Deterministic fallbacks / soft-only regenerations: `0 / 0`
+- Synthetic fixture cleanup: passed
+- Candidate and approved V2 integrity: passed
+- Candidate approved / activated: `false / false`
+- Approval or activation evidence created: `false`
+- 36-session matrix run: `false`
+- Human-review tutor output count: `0`; no tutor call occurred
+
+All 25 required artifact paths were created. Artifact-integrity validation did
+not pass because 13 downstream JSONL artifacts are empty after the mandatory
+pre-persistence simulator-contract abort. The provider output, usage,
+candidate/protocol integrity, early-abort reason, and cleanup evidence remain
+preserved. The live canary must not be rerun. The next decision requires review
+of the simulator contract failure and a separately authorized future phase;
+this result does not permit the 36-session matrix, approval, or activation.
