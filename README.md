@@ -2961,3 +2961,17 @@ Review artifacts are under
 `.data/e2a12-v8-held-out-canary/e2a12_20260719234834_59a67eaf/`. V8 is still
 unapproved and inactive, and the 30-case provider evaluation remains gated on
 explicit human review of the 12 provider outputs.
+
+E2A.13 executed the separately frozen 30-case V8 protocol once. Protocol
+`bb595bc06a6f0808d9065467c562b04de7bfe72b10a21cd379422e3b32d5e434`
+covers 24 remain-in-dialogue cases, six progression cases, six complete
+tenth-turn histories, and three stress cases. Run
+`e2a13_20260720004834_23ce39bc` produced 19 accepted results, ten accepted with
+review flags, and one deterministic fallback after the same protected-redirect
+response was hard rejected twice. The final status is `v8_30case_failed`.
+
+All 30 initial responses were schema-valid. Privacy, answer-key protection,
+platform transition, persistence, student projection, audit projection, and
+transcript checks passed, but fallback is never candidate success. Review
+artifacts are under `.data/e2a13-v8-30-case-evaluation/`; V8 remains unapproved
+and inactive and the approved V2 hash remains active.

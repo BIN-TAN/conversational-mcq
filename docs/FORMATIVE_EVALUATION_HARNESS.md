@@ -433,3 +433,16 @@ and shown unchanged, while flags remained restricted to authorized audit
 projection. The V7 read-only shadow would have rejected seven of the same
 outputs. The automated pass remains pending human review and does not authorize
 the fixed 30-case evaluation, approval, or activation.
+
+E2A.13 is the bounded 30-case provider evaluation for the same inactive V8
+candidate. Its protocol and evaluator source are hashed before dispatch, cases
+run sequentially, artifacts are written after every case, and one regeneration
+is allowed only after evidence-backed hard rejection. The run stores separate
+provider, runtime-validation, rubric, V7-shadow, persistence, student/audit
+projection, transcript, privacy, usage, and human-review artifacts.
+
+Run `e2a13_20260720004834_23ce39bc` failed the candidate gate because one
+protected-redirect case hard rejected twice and used fallback. The other 29
+cases ended accepted or accepted with review flags. Fallback preserved a safe
+student path but remained a candidate failure. E2A.13 did not approve or
+activate V8 and did not run the student simulator or 36-session matrix.

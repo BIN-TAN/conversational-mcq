@@ -3459,3 +3459,17 @@ Phase 6A.5 must not implement:
   rubric and V7 shadow validator remain read-only with respect to runtime state.
 - E2A.12 does not approve or activate V8 and does not authorize the fixed
   30-case evaluation. Explicit human review of all 12 outputs remains required.
+- E2A.13 uses protocol
+  `bb595bc06a6f0808d9065467c562b04de7bfe72b10a21cd379422e3b32d5e434`
+  for exactly 30 sequential cases: at least three cases per remain-in-dialogue
+  operation, two per progression mode, six complete tenth-turn histories, and
+  three stress cases. The protocol and evaluator source are frozen before
+  dispatch and no provider concurrency above one is permitted.
+- E2A.13 may emit only `v8_30case_pass_pending_human_review`,
+  `v8_30case_failed`, `v8_30case_failed_stability`, or
+  `v8_30case_incomplete`. Any fallback prevents candidate pass even when the
+  fallback is student-safe.
+- E2A.13 run `e2a13_20260720004834_23ce39bc` is
+  `v8_30case_failed`: one protected-redirect case hard rejected twice and used
+  fallback. V8 remains unapproved and inactive, approved V2 remains unchanged,
+  and no simulator, 36-session matrix, E2B, approval, or activation followed.

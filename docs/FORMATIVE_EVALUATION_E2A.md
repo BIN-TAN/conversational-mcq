@@ -793,3 +793,38 @@ npm run eval:formative:e2a12:request-compilation
 npm run eval:formative:e2a12:preflight
 npm run eval:formative:e2a12:report -- --run e2a12_20260719234834_59a67eaf
 ```
+
+## E2A.13 V8 30-case bounded provider evaluation
+
+E2A.13 froze a fresh 30-case protocol at
+`bb595bc06a6f0808d9065467c562b04de7bfe72b10a21cd379422e3b32d5e434`
+before the single provider dispatch. The protocol has 24 remain-in-dialogue
+cases with at least three examples of every operation, six progression cases
+with two examples of every progression mode, six complete tenth-turn
+histories, and three stress cases. Its text passed exact and normalized overlap
+checks against E2A.10, E2A.11, and E2A.12 sources.
+
+Run `e2a13_20260720004834_23ce39bc` dispatched 30 initial calls and one bounded
+regeneration sequentially. All 30 initial outputs were schema-valid. V8
+accepted 19, accepted ten with review flags, and used one protected-redirect
+fallback after both provider attempts included the exact phrase `internal
+profile` in a refusal. The hard rule recorded that evidence span on each
+attempt, but the context-insensitive rejection caused a fallback and therefore
+the correct final status is `v8_30case_failed`.
+
+The run recorded zero privacy, answer-key, provider-control, unauthorized
+progression, or invalid-transition findings. All 30 persistence, student
+projection, audit projection, and transcript checks passed, as did all six
+long-history checks. Usage was 31 generation calls, 45,270 input tokens, 4,533
+output tokens, 1,148 reasoning tokens, zero transport retries, and no metadata
+requests. Provider pricing was unavailable, so cost remains unknown rather
+than estimated. V8 remains unapproved and inactive; no simulator, 36-session
+matrix, E2B work, approval, or activation occurred.
+
+```bash
+npm run eval:formative:e2a13:protocol-smoke
+npm run eval:formative:e2a13:overlap-smoke
+npm run eval:formative:e2a13:request-compilation
+npm run eval:formative:e2a13:preflight
+npm run eval:formative:e2a13:report -- --run e2a13_20260720004834_23ce39bc
+```
