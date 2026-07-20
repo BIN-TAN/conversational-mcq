@@ -114,3 +114,9 @@ The deterministic adjudication run
 
 E2A.19 remains `e2a19_micro_canary_failed`. E2A.21 was not executed. Its next
 live micro-canary requires separate explicit user authorization.
+
+E2A.20a subsequently adjudicated the exact turn-4 response as substantive and
+identified classifier V2 as a false negative. Historical E2A.20 artifacts and
+status remain unchanged. The future E2A.21 draft now references the
+simulator-only `student-simulator-evidence-classifier-v3`; see
+`docs/E2A20A_TURN4_CLASSIFICATION_ADJUDICATION.md`.

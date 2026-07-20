@@ -31,6 +31,8 @@ import {
   E2A18_SIMULATOR_PROMPT_VERSION,
   E2A18_SIMULATOR_SCHEMA_VERSION
 } from "./e2a18-student-simulator-contract-v2";
+import { E2A20A_SIMULATOR_EVIDENCE_CLASSIFIER_VERSION } from
+  "./e2a20a-student-simulator-evidence-classifier-v3";
 import {
   E2A19_AUTHORIZED_ARTIFACTS,
   E2A19_FROZEN_PROTOCOL,
@@ -1081,7 +1083,8 @@ export function buildE2A21ProtocolDraft() {
     maximum_student_turns: 6,
     maximum_visible_dialogue_turns: 12,
     simulator_contract_version: E2A18_SIMULATOR_CONTRACT_VERSION,
-    evidence_classifier_version: E2A18_SIMULATOR_EVIDENCE_CLASSIFIER_VERSION,
+    evidence_classifier_version:
+      E2A20A_SIMULATOR_EVIDENCE_CLASSIFIER_VERSION,
     simulator_prompt_version: E2A18_SIMULATOR_PROMPT_VERSION,
     simulator_schema_version: E2A18_SIMULATOR_SCHEMA_VERSION,
     provider_concurrency: 1,
@@ -1188,8 +1191,8 @@ export function validateE2A21ProtocolDraft() {
       protocol.maximum_visible_dialogue_turns === 12,
     simulator_contract_v2: protocol.simulator_contract_version ===
       E2A18_SIMULATOR_CONTRACT_VERSION,
-    classifier_v2: protocol.evidence_classifier_version ===
-      E2A18_SIMULATOR_EVIDENCE_CLASSIFIER_VERSION,
+    final_classifier: protocol.evidence_classifier_version ===
+      E2A20A_SIMULATOR_EVIDENCE_CLASSIFIER_VERSION,
     no_fixed_turn_transition: !protocol.fixed_turn_evidence_transition_required,
     observed_evidence_authoritative:
       protocol.observed_evidence_controls_transition,
