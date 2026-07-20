@@ -3569,3 +3569,9 @@ Phase 6A.5 must not implement:
   profile selects `request_revision`. A six-turn bounded stop remains pending
   adjudication. E2A.23 cannot approve or activate the candidate and does not
   authorize E2A.24, the 36-session matrix, or E2B.
+- The exactly-once run `e2a23_20260720193108_3aed2779` completed at that valid
+  six-turn bounded stop. All six profile-freshness checks passed and all routes
+  used `refine_partial_reasoning`, but no turn was sound or revision-ready, so
+  the run did not demonstrate `request_revision`. Six human-review decisions
+  remain null. Human review and adjudication are required before any decision
+  about E2A.24; the four-session canary remains unauthorized.

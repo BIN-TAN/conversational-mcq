@@ -127,3 +127,27 @@ Do not rerun the command after an E2A.23 live run directory exists. Report an
 existing run with `npm run eval:formative:e2a23:report -- --run <run_id>`.
 Every human-review decision remains null until an actual human completes the
 separate review. E2A.24 remains unauthorized.
+
+## Executed result
+
+The exactly-once live run `e2a23_20260720193108_3aed2779` completed as
+`e2a23_micro_canary_complete_bounded_stop_pending_adjudication`. It persisted
+six student turns and six effective tutor replies using six simulator calls,
+six initial tutor calls, zero tutor regenerations, twelve logical generation
+calls, twelve adapter attempts, and zero retries. Usage was 17,745 input
+tokens, 2,459 output tokens, 1,112 reasoning tokens, and 20,204 total tokens.
+Pricing metadata was incomplete, so cost remains unreported rather than
+estimated.
+
+Every turn used a fresh latest-turn profile and selected
+`refine_partial_reasoning`. No turn was classified sound or revision-ready, so
+the run exhausted the six-turn bound without demonstrating the
+`request_revision` endpoint. Persistence, student and audit projections,
+transcript reconstruction, fixture cleanup, privacy, progression separation,
+source integrity, approved-V2 integrity, and candidate integrity passed. The
+candidate remained unapproved and inactive.
+
+The six human-review decisions remain null. Explicit human review and
+adjudication of every review item is the remaining blocker; this bounded stop
+does not authorize E2A.24, the four-session canary, the 36-session matrix,
+candidate approval, candidate activation, or E2B.

@@ -3082,8 +3082,11 @@ npm run eval:formative:e2a22:run
 ```
 
 E2A.22 makes no provider calls and does not approve or activate the tutor
-candidate. E2A.23 is separately authorized for exactly one evidence-first
-single-session micro-canary. Its harness, fail-closed preflight, 33-artifact
-contract, exact budget, and one-run command are documented in
+candidate. The exactly-once E2A.23 evidence-first single-session micro-canary
+ran as `e2a23_20260720193108_3aed2779` and completed at the valid six-turn
+bounded stop pending adjudication. All latest-profile freshness, persistence,
+projection, transcript, privacy, cleanup, and protected-integrity checks
+passed, but no sound revision-ready turn occurred. Its harness, 33-artifact
+contract, result, and human-review blocker are documented in
 `docs/E2A23_EVIDENCE_FIRST_MICRO_CANARY.md`. E2A.23 does not authorize E2A.24,
-the 36-session matrix, candidate approval, or candidate activation.
+the four-session or 36-session canaries, candidate approval, or activation.
