@@ -100,6 +100,38 @@ npm run eval:formative:e2a21:report -- --run <run_id>
 
 ## Result
 
-Not executed at harness freeze. This section is updated only after the single
-authorized live dispatch. No result authorizes candidate approval, activation,
-the four-session canary, the 36-session matrix, or E2B.
+The single authorized dispatch ran from checkpoint
+`51b35e3eeb6cb5eb06002a696bda182a6350ddb3` and produced run
+`e2a21_20260720110713_3f9764d1`.
+
+- status: `e2a21_micro_canary_pass_required_endpoint_pending_human_review`
+- session outcome: `passed_required_endpoint`
+- endpoint: `revision_authorized`
+- evidence by turn: `partial`, `partial`, `partial`, `partial`, `partial`,
+  `substantive`
+- student turns persisted / tutor replies: `6 / 6`
+- simulator / initial tutor / regeneration calls: `6 / 6 / 0`
+- logical calls / adapter attempts / retries: `12 / 12 / 0`
+- input / output / total tokens: `16,724 / 2,415 / 19,139`
+- aggregate provider latency: `60,233 ms`
+- estimated cost: `null`; pricing was unavailable or incomplete and was not
+  fabricated
+- privacy, answer-key, hidden-state, provider-control, transition, fallback,
+  and duplicate-response findings: `0`
+- artifact validation: all `28` required artifacts populated and valid
+- protected source and evidence snapshot:
+  `6f35177331a96777241f93db841661857a8a1148740dd1bb7ee55b5162bab8d2`
+- human-review items: `6`; all review decisions remain null
+
+The report is available with:
+
+```bash
+npm run eval:formative:e2a21:report -- \
+  --run e2a21_20260720110713_3f9764d1
+```
+
+The candidate remains unapproved, inactive, and evaluation-only. The remaining
+blocker before any separately authorized four-session canary is explicit human
+review and adjudication of all six E2A.21 review items. This result does not
+authorize candidate approval, activation, the four-session canary, the
+36-session matrix, or E2B.
