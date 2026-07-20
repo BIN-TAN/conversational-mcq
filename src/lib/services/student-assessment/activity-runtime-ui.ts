@@ -79,6 +79,15 @@ import {
   TURN_EVIDENCE_PROFILE_MAPPER_VERSION
 } from "@/lib/services/student-assessment/target-evidence-contract";
 import {
+  AutonomousPedagogyOutputSchema,
+  buildCompleteVisibleFormativeEpisode,
+  completePedagogicalInterventionOutcome,
+  createPedagogicalInterventionRecord,
+  PedagogicalInterventionRecordSchema,
+  type CompleteVisibleFormativeEpisode,
+  type PedagogicalInterventionRecord
+} from "@/lib/services/student-assessment/autonomous-formative-dialogue";
+import {
   buildTopicDialogueModeFallback
 } from "@/lib/services/student-assessment/topic-dialogue-response-mode";
 import {
@@ -1241,6 +1250,73 @@ function recordFromJson(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+function pedagogicalInterventionFromPayload(value: unknown) {
+  const parsed = PedagogicalInterventionRecordSchema.safeParse(
+    recordFromJson(value).pedagogical_intervention
+  );
+  return parsed.success ? parsed.data : null;
+}
+
+async function completeVisibleEpisodeForRuntime(input: {
+  assessment_session_db_id: string;
+  activity_attempt_public_id: string;
+  dialogue_public_id: string;
+  latest_student_turn_id: string;
+  latest_student_sequence_index: number;
+  client: PrismaClientLike;
+}): Promise<CompleteVisibleFormativeEpisode> {
+  const turns = await input.client.conversationTurn.findMany({
+    where: {
+      assessment_session_db_id: input.assessment_session_db_id,
+      structured_payload: {
+        path: ["activity_attempt_public_id"],
+        equals: input.activity_attempt_public_id
+      }
+    },
+    orderBy: [{ sequence_index: "asc" }],
+    select: {
+      id: true,
+      sequence_index: true,
+      actor_type: true,
+      message_text: true,
+      structured_payload: true
+    }
+  });
+  return buildCompleteVisibleFormativeEpisode({
+    activity_attempt_public_id: input.activity_attempt_public_id,
+    dialogue_public_id: input.dialogue_public_id,
+    latest_student_turn_id: input.latest_student_turn_id,
+    latest_student_sequence_index: input.latest_student_sequence_index,
+    turns: turns.flatMap((turn) => {
+      if ((turn.actor_type !== "student" && turn.actor_type !== "agent") ||
+          !turn.message_text?.trim()) return [];
+      const payload = recordFromJson(turn.structured_payload);
+      const messageType = stringFromRecord(payload.message_type);
+      const dialogueTurnNumber = typeof payload.dialogue_turn_number === "number"
+        ? payload.dialogue_turn_number
+        : messageType === "formative_activity_prompt" ? 0 : null;
+      if (dialogueTurnNumber === null) return [];
+      return [{
+        visible_turn_id: turn.id,
+        sequence_index: turn.sequence_index,
+        dialogue_turn_number: dialogueTurnNumber,
+        actor_type: turn.actor_type,
+        message_text: turn.message_text,
+        visibility_status: ["draft", "internal", "not_shown"].includes(
+          stringFromRecord(payload.visibility_status)
+        ) ? "not_shown" as const : "shown" as const,
+        activity_attempt_public_id: stringFromRecord(
+          payload.activity_attempt_public_id,
+          input.activity_attempt_public_id
+        ),
+        topic_dialogue_public_id: stringFromRecord(
+          payload.topic_dialogue_public_id
+        ) || null
+      }];
+    })
+  });
 }
 
 function alignTopicDialogueOutputToEvidenceFirstRoute(input: {
@@ -2522,6 +2598,14 @@ async function processTopicDialogueResponse(input: {
       },
       select: { id: true, sequence_index: true, structured_payload: true }
     });
+  const completeVisibleEpisode = await completeVisibleEpisodeForRuntime({
+    assessment_session_db_id: context.session.id,
+    activity_attempt_public_id: attempt.activity_attempt_public_id,
+    dialogue_public_id: input.dialogue_public_id,
+    latest_student_turn_id: acceptedStudentTurn.id,
+    latest_student_sequence_index: acceptedStudentTurn.sequence_index,
+    client
+  });
   const immediateInteractionIntent =
     classifyTopicDialogueInteractionIntent(message);
 
@@ -2564,7 +2648,7 @@ async function processTopicDialogueResponse(input: {
     }
   });
 
-  const interpretationContext = await buildAuthoritativeFormativeTurnContext({
+  const baseInterpretationContext = await buildAuthoritativeFormativeTurnContext({
     session_public_id: input.session_public_id,
     concept_unit_session_db_id: context.concept_unit_session.id,
     activity_attempt_public_id: attempt.activity_attempt_public_id,
@@ -2573,6 +2657,10 @@ async function processTopicDialogueResponse(input: {
     agent_role: "response_interpretation",
     client
   });
+  const interpretationContext = {
+    ...baseInterpretationContext,
+    active_formative_episode: completeVisibleEpisode
+  };
   const loopResult = await submitStudentActivityResponseForEvidenceUpdate({
     activity_attempt_public_id: attempt.activity_attempt_public_id,
     session_public_id: input.session_public_id,
@@ -2680,6 +2768,21 @@ async function processTopicDialogueResponse(input: {
     prior: priorCumulativeProfile,
     current: turnEvidenceProfile
   });
+  const priorInterventionTurn = [...priorTurns].reverse().find((turn) =>
+    turn.actor_type === "agent" &&
+    pedagogicalInterventionFromPayload(turn.structured_payload) !== null
+  ) ?? null;
+  const priorIntervention = priorInterventionTurn
+    ? pedagogicalInterventionFromPayload(priorInterventionTurn.structured_payload)
+    : null;
+  const completedPriorIntervention = priorIntervention &&
+      !priorIntervention.next_student_turn_id
+    ? completePedagogicalInterventionOutcome({
+        intervention: priorIntervention,
+        next_profile: turnEvidenceProfile,
+        prior_cumulative: priorCumulativeProfile
+      })
+    : null;
   const evidenceFirstRoute = selectEvidenceFirstTopicDialogueRoute({
     profile: turnEvidenceProfile,
     cumulative: cumulativeEvidenceProfile
@@ -2867,6 +2970,7 @@ async function processTopicDialogueResponse(input: {
   }
   const dialogueRequestInput = {
     ...dialogueInput,
+    complete_visible_formative_conversation: completeVisibleEpisode,
     formative_turn_context: {
       ...staged.dialogue_context,
       authoritative_turn_evidence_profile: turnEvidenceProfile,
@@ -2971,6 +3075,44 @@ async function processTopicDialogueResponse(input: {
         candidate_output: actionGateResult.output
       });
   const persistedOutput = readinessResult.output;
+  const interventionHistory = priorTurns.flatMap((turn) => {
+    const intervention = pedagogicalInterventionFromPayload(
+      turn.structured_payload
+    );
+    return intervention ? [intervention] : [];
+  });
+  const pedagogicalIntervention: PedagogicalInterventionRecord | null =
+    evidenceFirstRoute.selected_mode === "remain_in_dialogue" &&
+      immediateInteractionIntent === "ordinary_conceptual_response" &&
+      evidenceFirstRoute.selected_operation
+      ? createPedagogicalInterventionRecord({
+          output: AutonomousPedagogyOutputSchema.parse({
+            schema_version: "topic-dialogue-autonomous-output-v1",
+            source_profile_snapshot_id:
+              turnEvidenceProfile.profile_snapshot_id,
+            source_student_turn_id: turnEvidenceProfile.source_student_turn_id,
+            primary_learning_gap: evidenceFirstRoute.remaining_issue ??
+              "current distractor-linked conceptual gap",
+            pedagogical_goal: `Elicit new evidence for ${
+              evidenceFirstRoute.remaining_issue ?? "the unresolved concept"
+            }`,
+            pedagogical_strategy: evidenceFirstRoute.selected_operation,
+            why_this_strategy_fits_now:
+              "The active approved runtime selected this operation from the latest authoritative profile.",
+            prior_interventions_considered: interventionHistory.map(
+              (entry) => entry.intervention_id
+            ),
+            repetition_risk: interventionHistory.at(-1)?.strategy_description ===
+              evidenceFirstRoute.selected_operation ? "moderate" : "low",
+            evidence_sought_from_next_response: [
+              evidenceFirstRoute.remaining_issue ??
+                "new anchor-specific conceptual evidence"
+            ],
+            student_facing_message: persistedOutput.tutor_message,
+            requires_student_response: true
+          })
+        })
+      : null;
   const actionValidationPassed = !actionGateResult.rejected;
   const actionValidationError = actionValidationPassed
     ? null
@@ -3075,6 +3217,45 @@ async function processTopicDialogueResponse(input: {
             output: staged.planning_output
           })
         });
+    if (completedPriorIntervention && priorInterventionTurn) {
+      const priorPayload = recordFromJson(
+        priorInterventionTurn.structured_payload
+      );
+      await tx.conversationTurn.update({
+        where: { id: priorInterventionTurn.id },
+        data: {
+          structured_payload: prismaJson({
+            ...priorPayload,
+            pedagogical_intervention: completedPriorIntervention
+          })
+        }
+      });
+      const priorTurnNumber = typeof priorPayload.dialogue_turn_number ===
+        "number" ? priorPayload.dialogue_turn_number : null;
+      if (priorTurnNumber !== null) {
+        const priorTopicTurn = await tx.topicDialogueTurn.findUnique({
+          where: {
+            dialogue_public_id_turn_number_actor_type: {
+              dialogue_public_id: input.dialogue_public_id,
+              turn_number: priorTurnNumber,
+              actor_type: "agent"
+            }
+          },
+          select: { id: true, structured_payload: true }
+        });
+        if (priorTopicTurn) {
+          await tx.topicDialogueTurn.update({
+            where: { id: priorTopicTurn.id },
+            data: {
+              structured_payload: prismaJson({
+                ...recordFromJson(priorTopicTurn.structured_payload),
+                pedagogical_intervention: completedPriorIntervention
+              })
+            }
+          });
+        }
+      }
+    }
     await tx.topicDialogue.upsert({
       where: {
         assessment_session_db_id_activity_attempt_public_id: {
@@ -3187,6 +3368,8 @@ async function processTopicDialogueResponse(input: {
           evidence_first_route: evidenceFirstRoute,
           profile_freshness_attestation: profileFreshnessAttestation,
           route_alignment_overrode_candidate: routeAlignmentResult.overridden,
+          complete_visible_formative_conversation: completeVisibleEpisode,
+          pedagogical_intervention: pedagogicalIntervention,
           turn_orchestration_audit: {
             profile: staged.profile_audit,
             planning: staged.planning_audit
@@ -3236,7 +3419,9 @@ async function processTopicDialogueResponse(input: {
           cumulative_evidence_profile: cumulativeEvidenceProfile,
           evidence_first_route: evidenceFirstRoute,
           profile_freshness_attestation: profileFreshnessAttestation,
-          route_alignment_overrode_candidate: routeAlignmentResult.overridden
+          route_alignment_overrode_candidate: routeAlignmentResult.overridden,
+          complete_visible_formative_conversation: completeVisibleEpisode,
+          pedagogical_intervention: pedagogicalIntervention
         })
       }
     });

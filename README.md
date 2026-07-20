@@ -3109,3 +3109,14 @@ npm run eval:formative:e2a23a:report -- --run <run_id>
 
 E2A.23a makes no provider calls, leaves the candidate unapproved and inactive,
 and only prepares an unauthorized held-out E2A.24 protocol.
+
+E2A.24 defines a no-live autonomous formative-dialogue candidate. The platform
+persists each student turn, reconstructs the complete visible active episode,
+runs independent structured evidence evaluation, updates the latest and
+cumulative profiles, and decides progression before the existing
+`topic_dialogue_agent` can choose a pedagogical strategy. Sound evidence moves
+directly to revision with no minimum-turn requirement. Protected, task, and
+off-topic responses remain platform-owned, while conceptual evidence in mixed
+messages is retained. The candidate is unapproved and inactive; approved V2
+remains active. See
+`docs/E2A24_AUTONOMOUS_FORMATIVE_DIALOGUE_ARCHITECTURE.md`.

@@ -3603,3 +3603,25 @@ Phase 6A.5 must not implement:
   means only that no-live reconciliation and the E2A.24 draft passed. E2A.24
   remains unexecuted and requires separate explicit authorization. The status
   is not approval, activation, or production readiness.
+- E2A.24 replaces that historical operation-first canary draft with a no-live
+  autonomous-dialogue architecture and an independent unapproved candidate.
+  The platform still owns all workflow transitions, readiness, persistence,
+  privacy, idempotency, and bounded limits. The existing
+  `formative_activity_response_evaluator_agent` evaluates each accepted turn
+  before the existing `topic_dialogue_agent` may choose an ordinary
+  pedagogical strategy. `post_activity_evidence_evaluator_agent` remains
+  reserved for later post-activity or progression evidence.
+- `complete-visible-formative-episode-v1` supplies the initial activity and
+  every accepted visible student/effective tutor turn, in authoritative order,
+  to both evaluator and tutor. It excludes provider drafts and audit-only
+  metadata and does not truncate raw turns within the frozen episode length.
+- A latest sound profile immediately selects `request_revision`; there is no
+  minimum-turn requirement and no tutor call after sound evidence. Immediate
+  protected, task-confused, or off-topic handling cannot erase meaningful
+  conceptual evidence contained in the same message.
+- Candidate
+  `candidate-operational-agent-config.e2a24-autonomous-formative-dialogue-v1`
+  has deterministic configuration hash
+  `b3db25afadd99fba21dc23fee7a1dbcc21a7268a18b4556aaa4f19d37333656b`.
+  It is unapproved, inactive, and changes no unrelated role. Approved V2
+  remains active. E2A.25 is drafted but unexecuted and unauthorized.
