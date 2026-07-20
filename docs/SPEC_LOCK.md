@@ -3575,3 +3575,31 @@ Phase 6A.5 must not implement:
   the run did not demonstrate `request_revision`. Six human-review decisions
   remain null. Human review and adjudication are required before any decision
   about E2A.24; the four-session canary remains unauthorized.
+- E2A.23a preserves that historical record and adds a separate no-live
+  reconciliation. The primary human attestation and AI-assisted reference are
+  distinct from automated runtime evidence and deterministic analytic
+  adjudication. No item-level human ratings or inter-rater statistic may be
+  inferred.
+- Production item-specific evidence uses `target-evidence-contract-v1` with
+  `production-turn-evidence-evaluator-v2`,
+  `turn-evidence-profile-mapper-v2`, and
+  `turn-evidence-profile-consistency-v2`. Item-specific semantic criteria live
+  in the contract; the mapper must remain domain-agnostic. A satisfied
+  criterion cannot remain essential-missing, explicit accepted anchor evidence
+  maps to `explicit`, internally contradictory profiles fail closed, and
+  optional deepening cannot block revision after all essential criteria pass.
+- The Item-16-specific deterministic replay adjudicator is analytic/replay
+  infrastructure only and must not control browser/runtime routing. Production
+  mapping consumes structured evidence from the existing formative activity
+  response evaluator; no new provider role is introduced.
+- E2A.23a classifier V4 is simulator-only and preserves classifier V3 history.
+  It corrects confirmed Turn-4 and Turn-5 paraphrase false negatives while
+  retaining above-ceiling exact-span and tentative/copied-language safeguards.
+- The E2A.23a corrected result is Turn 1 misconception, Turn 2 partial, and
+  Turns 3-6 sound and revision-ready. Turn 3 is earliest revision-ready; the
+  first route-operation divergence is Turn 1, so later historical turns are
+  path-dependent analytic evidence rather than fabricated counterfactuals.
+- Status `e2a23a_simulator_and_profile_classifiers_corrected_e2a24_ready`
+  means only that no-live reconciliation and the E2A.24 draft passed. E2A.24
+  remains unexecuted and requires separate explicit authorization. The status
+  is not approval, activation, or production readiness.

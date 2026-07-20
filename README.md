@@ -3090,3 +3090,22 @@ passed, but no sound revision-ready turn occurred. Its harness, 33-artifact
 contract, result, and human-review blocker are documented in
 `docs/E2A23_EVIDENCE_FIRST_MICRO_CANARY.md`. E2A.23 does not authorize E2A.24,
 the four-session or 36-session canaries, candidate approval, or activation.
+
+E2A.23a performs a separate no-live reconciliation of those six immutable
+turns. The generic production mapping now consumes an item-specific
+`target-evidence-contract-v1`, enforces criterion/profile consistency, maps
+direct anchor evidence as explicit, and prevents optional deepening from
+blocking revision. The corrected evidence result is misconception at Turn 1,
+partial at Turn 2, and sound/revision-ready at Turns 3-6; Turn 3 is the earliest
+revision-ready turn. Simulator classifier V4 separately corrects V3 paraphrase
+false negatives at Turns 4 and 5 without changing V3 history. See
+`docs/E2A23A_PRODUCTION_EVIDENCE_RECONCILIATION.md`.
+
+```bash
+npm run eval:formative:e2a23a:run
+npm run eval:formative:e2a23a:smoke
+npm run eval:formative:e2a23a:report -- --run <run_id>
+```
+
+E2A.23a makes no provider calls, leaves the candidate unapproved and inactive,
+and only prepares an unauthorized held-out E2A.24 protocol.
