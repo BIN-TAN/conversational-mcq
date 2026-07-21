@@ -144,6 +144,14 @@ items, one transfer item, and disposable student. It does not use
 `student_demo`. Cleanup deletes only records linked to that fixture and runs in
 success and failure paths. Generated artifacts are ignored by Git.
 
+Fail-closed evaluation paths must retain every attempted provider call and
+every generated student-facing output reached before the abort. A generated
+output that was not persisted or displayed must still enter the review packet
+with explicit stage status and a null human decision. Missing historical
+request or output data must be labelled `missing`; it must not be reconstructed
+as though the original serialized provider record were available. E2A.26
+versions this contract as `e2a26-failure-path-artifact-policy-v1`.
+
 ## Artifacts and reports
 
 Every run directory contains the sixteen files defined in the E1 specification:
@@ -162,6 +170,13 @@ misconception, initial conceptual/engagement/confidence state, and final outcome
 The review queue always includes failures, critical/major findings, resolution,
 transfer, recovery, privacy findings, and manual rubric work, then uses a stable
 deterministic sample for otherwise unselected passing runs.
+
+E2A.26 also separates exact categorical expectations from hard progression
+invariants. `insufficient`, `misconception`, and `partial` can overlap at real
+semantic boundaries. A profile-label difference inside an explicitly frozen
+non-sound envelope is review-only when revision remains blocked. False sound,
+sound false negatives, premature progression, context failure, and evaluator
+omission remain hard failures.
 
 ## E1.1 failure classification and correction record
 

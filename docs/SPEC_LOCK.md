@@ -3636,3 +3636,30 @@ Phase 6A.5 must not implement:
   and no tutor call after sound. E2A.25 remains unexecuted and requires a
   separate explicit authorization. The E2A.24 candidate remains unapproved and
   inactive; approved V2 remains unchanged.
+- E2A.25 was later executed exactly once as
+  `e2a25_20260721000435_bf179fb6`. Sessions A and B reached their required
+  revision endpoints. Session C stopped at turn 2 under historical status
+  `e2a25_live_canary_failed_closed`. That status and all E2A.25 artifacts are
+  immutable and must not be retroactively rewritten.
+- E2A.26 is no-live and distinguishes hard progression invariants from
+  defensible semantic label variation. The Session C turn-2 production profile
+  was `misconception`, not `sound`; revision readiness remained false and the
+  autonomous dialogue route remained active. The derived diagnosis is frozen
+  oracle overconstraint, not a factually genuine false-sound event. E2A.25 is
+  not reclassified as passed.
+- `e2a26-semantic-profile-envelope-v1` permits `insufficient` or
+  `misconception` for copied wording when both are defensible, while always
+  prohibiting sound, revision, transfer, or completion without supporting
+  evidence. `e2a26-autonomous-canary-oracle-v1` retains hard failures for false
+  sound, sound false negatives, premature progression, stale context,
+  evaluator omission, tutor-after-sound, and other safety violations.
+- `e2a26-failure-path-artifact-policy-v1` requires attempted calls and
+  generated outputs to survive fail-closed reporting. Historical Session C
+  turn-2 evaluator request and provider output were not appended and cannot be
+  fabricated. Derived records must state that limitation, and the preserved
+  generated tutor output must appear in the derived review packet with null
+  human review and explicit not-displayed status.
+- E2A.27 is only a no-live protocol draft for one fresh chemistry-equilibrium
+  session. It has no live authorization. E2A.25 may not be rerun, Sessions A
+  and B may not be rerun, and E2A.27, later canaries, E2B, approval, and
+  activation require separate authorization.
