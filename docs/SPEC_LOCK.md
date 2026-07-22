@@ -3659,7 +3659,32 @@ Phase 6A.5 must not implement:
   fabricated. Derived records must state that limitation, and the preserved
   generated tutor output must appear in the derived review packet with null
   human review and explicit not-displayed status.
-- E2A.27 is only a no-live protocol draft for one fresh chemistry-equilibrium
-  session. It has no live authorization. E2A.25 may not be rerun, Sessions A
-  and B may not be rerun, and E2A.27, later canaries, E2B, approval, and
+- E2A.26a confirms an independent Session-B production defect that the
+  Session-C oracle-overconstraint diagnosis does not supersede. Session B Turn
+  4 explicitly endorsed the active distractor while its conceptual explanation
+  rejected that distractor's mechanism. V2 recorded the conflict only as a
+  limitation, then incorrectly produced sound, resolved, revision-ready state
+  and `request_revision`.
+- Production anchor interpretation is now versioned as
+  `production-turn-evidence-evaluator-v3`,
+  `turn-evidence-profile-mapper-v3`,
+  `turn-evidence-profile-consistency-v3`,
+  `anchor-conclusion-consistency-v1`, and
+  `sound-gate-anchor-consistency-v1`. Direct option reference is explicit
+  application even when wrong. Sound additionally requires an observable
+  distractor rejection that is consistent with the conceptual explanation and
+  resolved against the distractor. A blocking anchor conflict must be promoted
+  from limitations to structured contradictions or fail closed.
+- E2A.26a preserves all E2A.25/E2A.26 evidence and the autonomous tutor
+  candidate byte-identically. Its dual-human attestation is user-supplied and
+  remains separate from AI-assisted and deterministic evidence. No item-level
+  human agreement statistic is claimed.
+- The earlier chemistry E2A.27 draft is superseded because the composite
+  runtime identity changed. The re-frozen E2A.27 protocol is a no-live,
+  one-session geometrical-optics trajectory with an explicit
+  mechanism-versus-option contradiction followed by clarification and later
+  independent sound resolution. Its maximum is 29 logical calls, 87 adapter
+  attempts, 900,000 input tokens, 70,000 output tokens, 970,000 total tokens,
+  USD 25 when pricing is available, and concurrency one. It has no live
+  authorization. E2A.25 may not be rerun, and E2A.27, E2B, approval, and
   activation require separate authorization.

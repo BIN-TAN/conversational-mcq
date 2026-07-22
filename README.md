@@ -3133,3 +3133,20 @@ npm run eval:formative:e2a24a:smoke
 npm run eval:formative:e2a24a:run -- \
   --e1-artifact-root .data/e2a24a-e1-current
 ```
+
+E2A.26a adds no-live anchor-conclusion consistency correction after replaying
+the immutable E2A.25 and E2A.26 evidence. V3 distinguishes explicit anchor
+application from whether the student endorses or rejects the distractor. A
+response cannot become sound when its option-level conclusion contradicts its
+conceptual explanation, and a blocking conflict cannot remain only in evidence
+limitations. The autonomous tutor candidate remains unchanged, unapproved,
+and inactive. See `docs/E2A26A_ANCHOR_CONCLUSION_CONSISTENCY.md`.
+
+```bash
+npm run eval:formative:e2a26a:smoke
+npm run eval:formative:e2a26a:run
+npm run eval:formative:e2a26a:report -- --run <run_id>
+```
+
+The re-frozen E2A.27 geometrical-optics protocol is an artifact only. It has
+not been executed and is not authorized by E2A.26a.

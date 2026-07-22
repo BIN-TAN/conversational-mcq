@@ -71,13 +71,13 @@ import {
   type TopicDialogueTurnEvidenceProfile
 } from "@/lib/services/student-assessment/topic-dialogue-evidence-first-routing";
 import {
-  assertTargetEvidenceObservationConsistent,
-  buildActivityTargetEvidenceContract,
-  buildTargetEvidenceAdjudicationFromActivityPacket,
-  mapTargetEvidenceAdjudicationToObservation,
-  PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION,
-  TURN_EVIDENCE_PROFILE_MAPPER_VERSION
-} from "@/lib/services/student-assessment/target-evidence-contract";
+  assertTargetEvidenceObservationConsistentV3,
+  buildActivityTargetEvidenceContractV3,
+  buildTargetEvidenceAdjudicationFromActivityPacketV3,
+  mapTargetEvidenceAdjudicationToObservationV3,
+  PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V3,
+  TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V3
+} from "@/lib/services/student-assessment/target-evidence-contract-v3";
 import {
   AutonomousPedagogyOutputSchema,
   buildCompleteVisibleFormativeEpisode,
@@ -2737,7 +2737,7 @@ async function processTopicDialogueResponse(input: {
     .map(parseCumulativeEvidenceProfile)
     .filter((value) => value !== null)
     .at(-1) ?? null;
-  const targetEvidenceContract = buildActivityTargetEvidenceContract({
+  const targetEvidenceContract = buildActivityTargetEvidenceContractV3({
     concept_id: currentConcept.concept_unit_public_id,
     item_id: source.target_item_index
       ? `item_${source.target_item_index}`
@@ -2747,19 +2747,19 @@ async function processTopicDialogueResponse(input: {
     packet: evidence.packet
   });
   const targetEvidenceAdjudication =
-    buildTargetEvidenceAdjudicationFromActivityPacket({
+    buildTargetEvidenceAdjudicationFromActivityPacketV3({
       latest_student_message: message,
       packet: evidence.packet,
       contract: targetEvidenceContract
     });
-  const targetEvidenceObservation = mapTargetEvidenceAdjudicationToObservation({
+  const targetEvidenceObservation = mapTargetEvidenceAdjudicationToObservationV3({
     contract: targetEvidenceContract,
     adjudication: targetEvidenceAdjudication,
     interaction_intent: immediateInteractionIntent,
     confidence_evidence:
       evidence.packet.misconception_evidence_update.confidence
   });
-  const profileConsistency = assertTargetEvidenceObservationConsistent({
+  const profileConsistency = assertTargetEvidenceObservationConsistentV3({
     contract: targetEvidenceContract,
     adjudication: targetEvidenceAdjudication,
     observation: targetEvidenceObservation
@@ -2770,7 +2770,7 @@ async function processTopicDialogueResponse(input: {
     concept_id: currentConcept.concept_unit_public_id,
     distractor_anchor: distractorAnchor,
     observation: targetEvidenceObservation,
-    evaluator_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION
+    evaluator_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V3
   });
   const cumulativeEvidenceProfile = integrateTopicDialogueEvidenceProfile({
     prior: priorCumulativeProfile,
@@ -2806,7 +2806,7 @@ async function processTopicDialogueResponse(input: {
         evidence_first_target_contract: targetEvidenceContract,
         evidence_first_target_adjudication: targetEvidenceAdjudication,
         evidence_first_profile_mapper_version:
-          TURN_EVIDENCE_PROFILE_MAPPER_VERSION,
+          TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V3,
         evidence_first_profile_consistency: profileConsistency
       })
     }
@@ -2823,13 +2823,18 @@ async function processTopicDialogueResponse(input: {
       source_student_turn_id: turnEvidenceProfile.source_student_turn_id,
       source_sequence_index: turnEvidenceProfile.source_sequence_index,
       evaluator_version: turnEvidenceProfile.evaluator_version,
-      profile_mapper_version: TURN_EVIDENCE_PROFILE_MAPPER_VERSION,
+      profile_mapper_version: TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V3,
       target_evidence_contract_version:
         targetEvidenceContract.contract_version,
       profile_consistency_policy_version: profileConsistency.policy_version,
       interaction_intent: turnEvidenceProfile.interaction_intent,
       reasoning_quality: turnEvidenceProfile.reasoning_quality,
       misconception_status: turnEvidenceProfile.misconception_status,
+      anchor_application: targetEvidenceObservation.anchor_application,
+      anchor_stance: targetEvidenceObservation.anchor_stance,
+      anchor_consistency: targetEvidenceObservation.anchor_consistency,
+      anchor_resolution_status:
+        targetEvidenceObservation.anchor_resolution_status,
       revision_readiness: turnEvidenceProfile.revision_readiness,
       selected_mode: evidenceFirstRoute.selected_mode,
       selected_operation: evidenceFirstRoute.selected_operation,

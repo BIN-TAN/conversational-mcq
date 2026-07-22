@@ -394,3 +394,17 @@ partial-reasoning concerns without altering platform state. There were no hard
 rejections, fallbacks, privacy findings, answer-key findings, or invalid
 transitions. The human-review packet remains pending, so this canary neither
 activates V8 nor permits the larger 30-case provider evaluation.
+
+## Anchor-Conclusion Consistency
+
+Production evidence interpretation separates whether a student addressed the
+active item or distractor from the stance the student took toward it. Naming an
+active option is explicit application even when the option conclusion is
+wrong. A conceptual explanation that rejects a distractor mechanism cannot be
+treated as sound when the same response explicitly endorses that distractor.
+
+`anchor-conclusion-consistency-v1` records application, stance, consistency,
+and resolution separately. Mixed conclusions create a structured contradiction
+and keep the dialogue active for clarification. The platform does not presume
+an inconsistent option label is a typo. See
+`docs/E2A26A_ANCHOR_CONCLUSION_CONSISTENCY.md`.

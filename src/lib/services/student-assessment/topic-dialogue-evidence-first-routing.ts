@@ -290,10 +290,22 @@ export function createTopicDialogueTurnEvidenceProfile(input: {
   };
   const profileSnapshotId = `tdp_${createHash("sha256")
     .update(JSON.stringify(snapshotCore)).digest("hex").slice(0, 24)}`;
+  const anchorV3 = input.observation as TurnEvidenceObservation & {
+    anchor_stance?: string;
+    anchor_consistency?: string;
+    anchor_resolution_status?: string;
+  };
+  const v3AnchorReady = anchorV3.anchor_stance === undefined || (
+    anchorV3.anchor_stance === "rejects_distractor" &&
+    anchorV3.anchor_consistency ===
+      "consistent_with_conceptual_reasoning" &&
+    anchorV3.anchor_resolution_status === "resolved_against_distractor"
+  );
   const revisionReadiness =
     input.observation.interaction_intent === "ordinary_conceptual_response" &&
     input.observation.reasoning_quality === "sound" &&
     input.observation.anchor_application === "explicit" &&
+    v3AnchorReady &&
     input.observation.misconception_status === "resolved_for_current_anchor" &&
     input.observation.essential_missing_links.length === 0 &&
     input.observation.contradictions.length === 0;
@@ -305,7 +317,12 @@ export function createTopicDialogueTurnEvidenceProfile(input: {
     evaluator_version: evaluatorVersion,
     concept_id: input.concept_id,
     distractor_anchor: input.distractor_anchor,
-    ...input.observation,
+    interaction_intent: input.observation.interaction_intent,
+    reasoning_quality: input.observation.reasoning_quality,
+    anchor_application: input.observation.anchor_application,
+    misconception_status: input.observation.misconception_status,
+    observable_evidence_spans: input.observation.observable_evidence_spans,
+    confidence_evidence: input.observation.confidence_evidence,
     essential_missing_links: unique(input.observation.essential_missing_links),
     contradictions: unique(input.observation.contradictions),
     revision_readiness: revisionReadiness,

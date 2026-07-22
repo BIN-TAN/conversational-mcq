@@ -17,6 +17,26 @@ import {
   type TargetEvidenceAdjudication,
   type TargetEvidenceContract
 } from "@/lib/services/student-assessment/target-evidence-contract";
+import {
+  assertTargetEvidenceObservationConsistentV3,
+  mapTargetEvidenceAdjudicationToObservationV3,
+  PROFILE_CONSISTENCY_POLICY_VERSION_V3,
+  PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V3,
+  TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V3,
+  type TargetEvidenceAdjudicationV3,
+  type TargetEvidenceContractV3
+} from "@/lib/services/student-assessment/target-evidence-contract-v3";
+import {
+  ANCHOR_CONCLUSION_CONSISTENCY_VERSION,
+  SOUND_GATE_ANCHOR_CONSISTENCY_VERSION
+} from "@/lib/services/student-assessment/anchor-conclusion-consistency";
+
+type AutonomousTargetEvidenceContract =
+  | TargetEvidenceContract
+  | TargetEvidenceContractV3;
+type AutonomousTargetEvidenceAdjudication =
+  | TargetEvidenceAdjudication
+  | TargetEvidenceAdjudicationV3;
 
 export const AUTONOMOUS_FORMATIVE_DIALOGUE_ARCHITECTURE_VERSION =
   "autonomous-formative-dialogue-architecture-v1" as const;
@@ -411,7 +431,7 @@ export function buildAutonomousPedagogyInput(input: {
   complete_episode: CompleteVisibleFormativeEpisode;
   latest_profile: TopicDialogueTurnEvidenceProfile;
   cumulative_profile: TopicDialogueCumulativeEvidenceProfile;
-  target_evidence_contract: TargetEvidenceContract;
+  target_evidence_contract: AutonomousTargetEvidenceContract;
   intervention_history: PedagogicalInterventionRecord[];
   current_student_turn: number;
   maximum_student_turns: number;
@@ -558,7 +578,7 @@ export type AutonomousTurnPersistence = {
     profile: TopicDialogueTurnEvidenceProfile;
     cumulative: TopicDialogueCumulativeEvidenceProfile;
     route: EvidenceFirstRoute;
-    adjudication: TargetEvidenceAdjudication;
+    adjudication: AutonomousTargetEvidenceAdjudication;
   }) => Promise<void>;
   completePriorIntervention: (
     input: PedagogicalInterventionRecord
@@ -591,7 +611,7 @@ export async function executeAutonomousFormativeTurn(input: {
   student_message: string;
   concept_id: string;
   distractor_anchor: string;
-  target_evidence_contract: TargetEvidenceContract;
+  target_evidence_contract: AutonomousTargetEvidenceContract;
   prior_cumulative_profile: TopicDialogueCumulativeEvidenceProfile | null;
   prior_interventions: PedagogicalInterventionRecord[];
   current_student_turn: number;
@@ -600,7 +620,7 @@ export async function executeAutonomousFormativeTurn(input: {
   persistence: AutonomousTurnPersistence;
   evaluateEvidence: (
     input: AutonomousEvidenceEvaluatorInput
-  ) => Promise<TargetEvidenceAdjudication>;
+  ) => Promise<AutonomousTargetEvidenceAdjudication>;
   invokeAutonomousTutor: (
     input: AutonomousPedagogyInput,
     attempt: 1 | 2,
@@ -662,28 +682,49 @@ export async function executeAutonomousFormativeTurn(input: {
   });
   const adjudication = await input.evaluateEvidence(evaluatorInput);
   executionOrder.push("independent_structured_conceptual_evaluation");
-  const conceptualObservation = mapTargetEvidenceAdjudicationToObservation({
-    contract: input.target_evidence_contract,
-    adjudication,
-    interaction_intent: "ordinary_conceptual_response",
-    confidence_evidence: input.confidence_evidence
-  });
+  const usingV3 = input.target_evidence_contract.contract_version ===
+    "target-evidence-contract-v2";
+  const conceptualObservation = usingV3
+    ? mapTargetEvidenceAdjudicationToObservationV3({
+        contract: input.target_evidence_contract as TargetEvidenceContractV3,
+        adjudication: adjudication as TargetEvidenceAdjudicationV3,
+        interaction_intent: "ordinary_conceptual_response",
+        confidence_evidence: input.confidence_evidence
+      })
+    : mapTargetEvidenceAdjudicationToObservation({
+        contract: input.target_evidence_contract as TargetEvidenceContract,
+        adjudication: adjudication as TargetEvidenceAdjudication,
+        interaction_intent: "ordinary_conceptual_response",
+        confidence_evidence: input.confidence_evidence
+      });
   const observation = {
     ...conceptualObservation,
     interaction_intent: interactionIntent
   };
-  assertTargetEvidenceObservationConsistent({
-    contract: input.target_evidence_contract,
-    adjudication,
-    observation
-  });
+  if (usingV3) {
+    assertTargetEvidenceObservationConsistentV3({
+      contract: input.target_evidence_contract as TargetEvidenceContractV3,
+      adjudication: adjudication as TargetEvidenceAdjudicationV3,
+      observation: observation as ReturnType<
+        typeof mapTargetEvidenceAdjudicationToObservationV3
+      >
+    });
+  } else {
+    assertTargetEvidenceObservationConsistent({
+      contract: input.target_evidence_contract as TargetEvidenceContract,
+      adjudication: adjudication as TargetEvidenceAdjudication,
+      observation
+    });
+  }
   const baseProfile = createTopicDialogueTurnEvidenceProfile({
     source_student_turn_id: studentTurn.visible_turn_id,
     source_sequence_index: studentTurn.sequence_index,
     concept_id: input.concept_id,
     distractor_anchor: input.distractor_anchor,
     observation,
-    evaluator_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION,
+    evaluator_version: usingV3
+      ? PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V3
+      : PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION,
     created_at: input.now?.()
   });
   const conceptualRevisionReady =
@@ -815,8 +856,8 @@ export async function executeAutonomousFormativeTurn(input: {
 }
 
 export function criterionEvidenceForEvaluator(input: {
-  contract: TargetEvidenceContract;
-  adjudication: TargetEvidenceAdjudication;
+  contract: AutonomousTargetEvidenceContract;
+  adjudication: AutonomousTargetEvidenceAdjudication;
 }) {
   const definitions = new Map(input.contract.criteria.map((criterion) => [
     criterion.criterion_id,
@@ -847,7 +888,11 @@ export function autonomousDialogueContractIdentity() {
     full_conversation_context_version:
       COMPLETE_VISIBLE_FORMATIVE_EPISODE_VERSION,
     evaluator_role: "formative_activity_response_evaluator_agent",
-    evaluator_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION,
+    evaluator_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V3,
+    profile_mapper_version: TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V3,
+    profile_consistency_version: PROFILE_CONSISTENCY_POLICY_VERSION_V3,
+    anchor_consistency_version: ANCHOR_CONCLUSION_CONSISTENCY_VERSION,
+    sound_gate_version: SOUND_GATE_ANCHOR_CONSISTENCY_VERSION,
     prompt_version: AUTONOMOUS_PEDAGOGY_PROMPT_VERSION,
     prompt_hash: AUTONOMOUS_PEDAGOGY_PROMPT_HASH,
     input_schema_version: AUTONOMOUS_PEDAGOGY_INPUT_SCHEMA_VERSION,
