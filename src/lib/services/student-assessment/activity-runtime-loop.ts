@@ -30,6 +30,9 @@ import {
   type FormativeActivityPacketV1
 } from "@/lib/services/student-assessment/formative-activity-design";
 import type { FormativeValue } from "@/lib/services/student-assessment/formative-value-determination";
+import type {
+  ProductionTurnEvidenceStructuredFieldsV5
+} from "@/lib/services/student-assessment/production-turn-evidence-evaluator-v5";
 import type { AuthoritativeFormativeTurnContext } from "@/lib/services/student-assessment/assessment-interpretation-context";
 
 export const ACTIVITY_RUNTIME_LOOP_VERSION = "activity-runtime-loop-v1" as const;
@@ -227,6 +230,7 @@ export type ActivityRuntimeLoopResult = {
   next_runtime_recommendation: ActivityRuntimeRecommendation;
   runtime_state: ActivityRuntimeState;
   limitations: string[];
+  structured_turn_evidence?: ProductionTurnEvidenceStructuredFieldsV5 | null;
 };
 
 function prismaJson(value: unknown) {
@@ -619,6 +623,12 @@ function buildEvaluationInput(input: {
     response_kind_hint: input.response_kind_hint,
     expected_evidence_focus:
       "Evaluate the latest activity response using the complete authoritative formative-turn context.",
+    target_item_id: input.source.target_item_id ??
+      (input.source.target_item_index
+        ? `item_${input.source.target_item_index}` : undefined),
+    target_option_label: input.source.target_option_label ?? undefined,
+    target_option_text:
+      input.source.distractor_student_safe_description || undefined,
     formative_turn_context: input.formative_turn_context
   } satisfies ActivityMisconceptionEvidenceLiveEvaluationInput;
 }
@@ -878,7 +888,8 @@ export async function submitStudentActivityResponseForEvidenceUpdate(
     student_safe_feedback: normalizeStudentSafeFeedback(evaluation.packet.student_safe_feedback),
     next_runtime_recommendation: recommendation,
     runtime_state: finalState,
-    limitations: evaluation.packet.misconception_evidence_update.limitations
+    limitations: evaluation.packet.misconception_evidence_update.limitations,
+    structured_turn_evidence: evaluation.structured_turn_evidence ?? null
   };
 }
 

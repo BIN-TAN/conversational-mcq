@@ -24,7 +24,6 @@ import {
 import {
   ACTIVITY_MISCONCEPTION_EVIDENCE_SCHEMA_VERSION,
   ACTIVITY_RESPONSE_EVALUATOR_AGENT_NAME,
-  ACTIVITY_RESPONSE_EVALUATOR_SCHEMA_VERSION,
   ActivityMisconceptionEvidencePacketV1Schema,
   assertActivityMisconceptionEvidencePacketIsLiveEvaluatedForProductionUpdate,
   validateActivityMisconceptionEvidencePacket,
@@ -36,6 +35,22 @@ import {
 } from "./activity-misconception-evidence";
 import type { FormativeActivityFamily } from "./formative-activity-design";
 import type { FormativeValue } from "./formative-value-determination";
+import {
+  buildActiveAnchorAliasContract,
+  type ActiveAnchorAliasContract
+} from "./active-anchor-alias-resolution";
+import {
+  PRODUCTION_TURN_EVIDENCE_EVALUATOR_OUTPUT_SCHEMA_VERSION_V5,
+  PRODUCTION_TURN_EVIDENCE_EVALUATOR_PROMPT_HASH_V5,
+  PRODUCTION_TURN_EVIDENCE_EVALUATOR_PROMPT_INSTRUCTIONS_V5,
+  PRODUCTION_TURN_EVIDENCE_EVALUATOR_PROMPT_VERSION_V5,
+  PRODUCTION_TURN_EVIDENCE_EVALUATOR_REPAIR_PROMPT_HASH_V5,
+  PRODUCTION_TURN_EVIDENCE_EVALUATOR_REPAIR_PROMPT_INSTRUCTIONS_V5,
+  PRODUCTION_TURN_EVIDENCE_EVALUATOR_REPAIR_PROMPT_VERSION_V5,
+  ProductionTurnEvidenceEvaluatorOutputV5Schema,
+  buildProductionTurnEvidenceEvaluatorInputV5,
+  type ProductionTurnEvidenceStructuredFieldsV5
+} from "./production-turn-evidence-evaluator-v5";
 
 export const ACTIVITY_RESPONSE_EVALUATOR_AGENT_VERSION =
   "formative-activity-response-evaluator-v1" as const;
@@ -145,6 +160,10 @@ export type ActivityMisconceptionEvidenceLiveEvaluationInput = {
   safe_student_activity_response: string;
   response_kind_hint?: ActivityResponseKind;
   expected_evidence_focus: string;
+  target_item_id?: string;
+  target_option_label?: string;
+  target_option_text?: string;
+  active_anchor_alias_contract?: ActiveAnchorAliasContract;
   assessment_interpretation_context?: AssessmentInterpretationContextV1;
   formative_turn_context?: AuthoritativeFormativeTurnContext;
 };
@@ -747,6 +766,7 @@ export type ActivityMisconceptionEvidenceLiveExecutionResult =
   | {
       status: "succeeded";
       packet: ActivityMisconceptionEvidencePacketV1;
+      structured_turn_evidence?: ProductionTurnEvidenceStructuredFieldsV5;
       evaluator_agent_call_id: string;
       repair_agent_call_id?: string;
       repair_attempted: boolean;
@@ -808,9 +828,45 @@ export async function executeLiveActivityMisconceptionEvidenceEvaluator(input: {
   const providerLabel: ProviderLabel = input.provider_override ? "mock" : "openai";
   const assessmentContext = input.evaluation_input.assessment_interpretation_context ??
     await resolveAssessmentContext(input.evaluation_input.session_public_id);
-  const agentInput = buildActivityMisconceptionEvidenceLiveAgentInput({
+  const legacyAgentInput = buildActivityMisconceptionEvidenceLiveAgentInput({
     ...input.evaluation_input,
     assessment_interpretation_context: assessmentContext
+  });
+  const activeAnchorAliasContract = input.evaluation_input
+    .active_anchor_alias_contract ?? buildActiveAnchorAliasContract({
+      active_anchor_id:
+        `${input.evaluation_input.target_item_id ?? input.evaluation_input.activity_attempt_id}:option:${input.evaluation_input.target_option_label ?? "active_distractor"}`,
+      option_label:
+        input.evaluation_input.target_option_label ?? "active_distractor",
+      option_text:
+        input.evaluation_input.target_option_text ??
+        input.evaluation_input.distractor_role
+    });
+  const activeEpisode = (input.evaluation_input.formative_turn_context as
+    | (AuthoritativeFormativeTurnContext & {
+        active_formative_episode?: {
+          latest_student_turn_id?: unknown;
+          latest_student_sequence_index?: unknown;
+        };
+      })
+    | undefined)?.active_formative_episode;
+  const sourceStudentTurn = {
+    source_student_turn_id:
+      typeof activeEpisode?.latest_student_turn_id === "string" &&
+        activeEpisode.latest_student_turn_id.trim()
+        ? activeEpisode.latest_student_turn_id
+        : `activity_attempt:${input.evaluation_input.activity_attempt_id}:latest_response`,
+    source_sequence_index:
+      typeof activeEpisode?.latest_student_sequence_index === "number" &&
+        Number.isInteger(activeEpisode.latest_student_sequence_index) &&
+        activeEpisode.latest_student_sequence_index > 0
+        ? activeEpisode.latest_student_sequence_index
+        : 1
+  };
+  const agentInput = buildProductionTurnEvidenceEvaluatorInputV5({
+    legacy_evaluator_input: legacyAgentInput,
+    source_student_turn: sourceStudentTurn,
+    active_anchor_alias_contract: activeAnchorAliasContract
   });
   const auditContext = await resolveAuditContext(input.evaluation_input.session_public_id);
 
@@ -823,19 +879,19 @@ export async function executeLiveActivityMisconceptionEvidenceEvaluator(input: {
     live_call_allowed: providerLabel === "openai",
     agent_name: ACTIVITY_RESPONSE_EVALUATOR_AGENT_NAME,
     agent_version: ACTIVITY_RESPONSE_EVALUATOR_AGENT_VERSION,
-    prompt_hash: ACTIVITY_RESPONSE_EVALUATOR_PROMPT_HASH,
-    prompt_version: ACTIVITY_RESPONSE_EVALUATOR_PROMPT_VERSION,
-    instructions: ACTIVITY_RESPONSE_EVALUATOR_PROMPT_INSTRUCTIONS,
+    prompt_hash: PRODUCTION_TURN_EVIDENCE_EVALUATOR_PROMPT_HASH_V5,
+    prompt_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_PROMPT_VERSION_V5,
+    instructions: PRODUCTION_TURN_EVIDENCE_EVALUATOR_PROMPT_INSTRUCTIONS_V5,
     request_input: agentInput,
-    output_schema: ActivityMisconceptionEvidencePacketV1Schema,
-    schema_version: ACTIVITY_RESPONSE_EVALUATOR_SCHEMA_VERSION,
-    schema_name: ACTIVITY_RESPONSE_EVALUATOR_SCHEMA_VERSION,
+    output_schema: ProductionTurnEvidenceEvaluatorOutputV5Schema,
+    schema_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_OUTPUT_SCHEMA_VERSION_V5,
+    schema_name: PRODUCTION_TURN_EVIDENCE_EVALUATOR_OUTPUT_SCHEMA_VERSION_V5,
     invocation_prefix: "activity_misconception_evaluator",
     metadata: {
       purpose: "post_activity_misconception_evidence_evaluation",
       agent_name: ACTIVITY_RESPONSE_EVALUATOR_AGENT_NAME,
-      prompt_version: ACTIVITY_RESPONSE_EVALUATOR_PROMPT_VERSION,
-      schema_version: ACTIVITY_RESPONSE_EVALUATOR_SCHEMA_VERSION
+      prompt_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_PROMPT_VERSION_V5,
+      schema_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_OUTPUT_SCHEMA_VERSION_V5
     }
   });
 
@@ -856,7 +912,7 @@ export async function executeLiveActivityMisconceptionEvidenceEvaluator(input: {
   }
 
   const firstPipeline = evaluateActivityMisconceptionEvidenceLivePipeline({
-    candidate_packet: evaluator.providerResult.parsed_output,
+    candidate_packet: evaluator.providerResult.parsed_output?.evidence_packet,
     evaluator_audit: providerAuditFromResult({
       agent_call_id: evaluator.agent_call_id,
       model_name: modelConfig.model_name,
@@ -868,6 +924,8 @@ export async function executeLiveActivityMisconceptionEvidenceEvaluator(input: {
     return {
       status: "succeeded",
       packet: firstPipeline.packet,
+      structured_turn_evidence:
+        evaluator.providerResult.parsed_output!.structured_turn_evidence,
       evaluator_agent_call_id: evaluator.agent_call_id,
       repair_attempted: false,
       evaluator_call_status: "succeeded",
@@ -934,19 +992,22 @@ export async function executeLiveActivityMisconceptionEvidenceEvaluator(input: {
     live_call_allowed: providerLabel === "openai",
     agent_name: ACTIVITY_RESPONSE_EVALUATOR_AGENT_NAME,
     agent_version: ACTIVITY_RESPONSE_EVALUATOR_AGENT_VERSION,
-    prompt_hash: ACTIVITY_RESPONSE_EVALUATOR_REPAIR_PROMPT_HASH,
-    prompt_version: ACTIVITY_RESPONSE_EVALUATOR_REPAIR_PROMPT_VERSION,
-    instructions: ACTIVITY_RESPONSE_EVALUATOR_REPAIR_PROMPT_INSTRUCTIONS,
+    prompt_hash: PRODUCTION_TURN_EVIDENCE_EVALUATOR_REPAIR_PROMPT_HASH_V5,
+    prompt_version:
+      PRODUCTION_TURN_EVIDENCE_EVALUATOR_REPAIR_PROMPT_VERSION_V5,
+    instructions:
+      PRODUCTION_TURN_EVIDENCE_EVALUATOR_REPAIR_PROMPT_INSTRUCTIONS_V5,
     request_input: repairInput,
-    output_schema: ActivityMisconceptionEvidencePacketV1Schema,
-    schema_version: ACTIVITY_RESPONSE_EVALUATOR_SCHEMA_VERSION,
-    schema_name: ACTIVITY_RESPONSE_EVALUATOR_SCHEMA_VERSION,
+    output_schema: ProductionTurnEvidenceEvaluatorOutputV5Schema,
+    schema_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_OUTPUT_SCHEMA_VERSION_V5,
+    schema_name: PRODUCTION_TURN_EVIDENCE_EVALUATOR_OUTPUT_SCHEMA_VERSION_V5,
     invocation_prefix: "activity_misconception_evaluator_repair",
     metadata: {
       purpose: "post_activity_misconception_evidence_evaluation_repair",
       agent_name: ACTIVITY_RESPONSE_EVALUATOR_AGENT_NAME,
-      prompt_version: ACTIVITY_RESPONSE_EVALUATOR_REPAIR_PROMPT_VERSION,
-      schema_version: ACTIVITY_RESPONSE_EVALUATOR_SCHEMA_VERSION
+      prompt_version:
+        PRODUCTION_TURN_EVIDENCE_EVALUATOR_REPAIR_PROMPT_VERSION_V5,
+      schema_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_OUTPUT_SCHEMA_VERSION_V5
     }
   });
 
@@ -968,13 +1029,13 @@ export async function executeLiveActivityMisconceptionEvidenceEvaluator(input: {
   }
 
   const repairedPipeline = evaluateActivityMisconceptionEvidenceLivePipeline({
-    candidate_packet: evaluator.providerResult.parsed_output,
+    candidate_packet: evaluator.providerResult.parsed_output?.evidence_packet,
     evaluator_audit: providerAuditFromResult({
       agent_call_id: evaluator.agent_call_id,
       model_name: modelConfig.model_name,
       providerResult: evaluator.providerResult
     }),
-    repair_packet: repair.providerResult.parsed_output,
+    repair_packet: repair.providerResult.parsed_output?.evidence_packet,
     repair_audit: providerAuditFromResult({
       agent_call_id: repair.agent_call_id,
       model_name: modelConfig.model_name,
@@ -986,6 +1047,8 @@ export async function executeLiveActivityMisconceptionEvidenceEvaluator(input: {
     return {
       status: "succeeded",
       packet: repairedPipeline.packet,
+      structured_turn_evidence:
+        repair.providerResult.parsed_output!.structured_turn_evidence,
       evaluator_agent_call_id: evaluator.agent_call_id,
       repair_agent_call_id: repair.agent_call_id,
       repair_attempted: true,

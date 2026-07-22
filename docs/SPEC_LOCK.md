@@ -3760,3 +3760,49 @@ Phase 6A.5 must not implement:
 - Protected evidence, the candidate, and approved V2 remained unchanged. The
   candidate is unapproved and inactive. No E2B, approval, activation,
   deployment, or broader live stage ran.
+
+### E2A.28a no-live semantic-anchor correction
+
+- E2A.28 remains an immutable failed-closed run. E2A.28a does not rerun or
+  retroactively pass it.
+- `progression-relevant-semantic-envelope-v2` separates trajectory role from
+  production reasoning quality. E2A.28 Turn 3 may be `misconception` or
+  `partial`, but it must remain non-sound, not revision-ready, and in dialogue.
+- The E2A.28 provider request used prompt V6 with input/output contract V1;
+  V4 was not dispatched. `production-turn-evidence-evaluator-v5` therefore
+  adds stable structured anchor, conceptual, contradiction, exact-span, and
+  source-turn fields while preserving V4 historically.
+- Direct active-anchor identifiers, target-contract aliases, option text,
+  accepted paraphrases, and bounded pronoun references are resolved by
+  `active-anchor-alias-resolution-v1`. Direct endorsement remains explicit
+  even when incorrect.
+- `anchor-contradiction-propagation-v2`,
+  `turn-evidence-profile-consistency-v5`, and
+  `turn-evidence-cross-artifact-consistency-v1` prevent prose-only conflicts
+  or disagreement among evaluator, resolver, mapper, profile, and route views.
+- `pre-tutor-profile-finalization-v2` enforces ordered evaluation,
+  reconciliation, sound-gate, mode, and freshness checks before tutor
+  dispatch. A valid contradictory state continues normally after consistent
+  finalization.
+- The no-live E2A.28 replay and 200-case, eight-domain non-IRT calibration make
+  zero provider calls and zero network requests. Historical Turn-3 normal
+  profile/review gaps remain explicitly missing.
+- The autonomous tutor candidate and approved V2 hashes remain unchanged.
+  E2A.29 is prepared but unauthorized and unexecuted.
+
+### E2A.29 prepared electrical-circuits canary
+
+- The held-out concept distinguishes conserved current in a simple series
+  circuit from electrical-energy transfer. The active distractor says a bulb
+  uses up current.
+- The frozen trajectory includes misconception, copied wording, partial
+  improvement, correct mechanism plus explicit wrong-option endorsement,
+  clarification, and later independent coherent rejection.
+- The contradictory turn must be represented as a finalized structured
+  learning state and remain in dialogue. Sound rejection must trigger
+  immediate revision with zero tutor calls after sound.
+- The maximum frozen budget is one session, 29 logical calls, 87 adapter
+  attempts, 900,000 input tokens, 70,000 output tokens, 970,000 total tokens,
+  USD 25 when pricing exists, and provider concurrency one.
+- This protocol is not execution authorization. E2A.29 requires a new explicit
+  user authorization and must not run as part of E2A.28a verification.

@@ -67,14 +67,19 @@ import {
   type TopicDialogueTurnEvidenceProfile
 } from "@/lib/services/student-assessment/topic-dialogue-evidence-first-routing";
 import {
-  buildActivityTargetEvidenceContractV4,
-  buildTargetEvidenceAdjudicationFromActivityPacketV4,
-  TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V4
-} from "@/lib/services/student-assessment/target-evidence-contract-v4";
+  buildActivityTargetEvidenceContractV5,
+  buildTargetEvidenceAdjudicationFromEvaluatorOutputV5,
+  TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V5
+} from "@/lib/services/student-assessment/target-evidence-contract-v5";
 import {
-  assertTutorDispatchUsesFinalizedProfile,
-  finalizeEvidenceFirstTurnBeforeTutor
+  assertTutorDispatchUsesFinalizedProfile
 } from "@/lib/services/student-assessment/pre-tutor-profile-finalization";
+import {
+  finalizeEvidenceFirstTurnBeforeTutorV2
+} from "@/lib/services/student-assessment/pre-tutor-profile-finalization-v2";
+import {
+  buildNoLiveStructuredTurnEvidenceV5ForTestOnly
+} from "@/lib/services/student-assessment/production-turn-evidence-evaluator-v5";
 import {
   AutonomousPedagogyOutputSchema,
   buildCompleteVisibleFormativeEpisode,
@@ -2734,7 +2739,7 @@ async function processTopicDialogueResponse(input: {
     .map(parseCumulativeEvidenceProfile)
     .filter((value) => value !== null)
     .at(-1) ?? null;
-  const targetEvidenceContract = buildActivityTargetEvidenceContractV4({
+  const targetEvidenceContract = buildActivityTargetEvidenceContractV5({
     concept_id: currentConcept.concept_unit_public_id,
     item_id: source.target_item_index
       ? `item_${source.target_item_index}`
@@ -2743,11 +2748,31 @@ async function processTopicDialogueResponse(input: {
     distractor_claim: source.distractor_student_safe_description,
     packet: evidence.packet
   });
+  const structuredTurnEvidence = loopResult.structured_turn_evidence ??
+    (input.evaluator_override
+      ? buildNoLiveStructuredTurnEvidenceV5ForTestOnly({
+          source_student_turn_id: acceptedStudentTurn.id,
+          source_sequence_index: acceptedStudentTurn.sequence_index,
+          message,
+          packet: evidence.packet,
+          alias_contract: targetEvidenceContract.active_anchor_alias_contract,
+          prior_visible_message: completeVisibleEpisode.visible_turns
+            .slice(0, -1).at(-1)?.message_text ?? null
+        })
+      : null);
+  if (!structuredTurnEvidence) {
+    throw new Error("production_turn_evidence_v5_missing");
+  }
   const targetEvidenceAdjudication =
-    buildTargetEvidenceAdjudicationFromActivityPacketV4({
+    buildTargetEvidenceAdjudicationFromEvaluatorOutputV5({
       latest_student_message: message,
       packet: evidence.packet,
-      contract: targetEvidenceContract
+      structured_turn_evidence: structuredTurnEvidence,
+      contract: targetEvidenceContract,
+      expected_source_student_turn_id: acceptedStudentTurn.id,
+      expected_source_sequence_index: acceptedStudentTurn.sequence_index,
+      prior_visible_message: completeVisibleEpisode.visible_turns
+        .slice(0, -1).at(-1)?.message_text ?? null
     });
   const latestAcceptedStudentTurn = await client.conversationTurn.findFirst({
     where: {
@@ -2764,7 +2789,7 @@ async function processTopicDialogueResponse(input: {
   if (!latestAcceptedStudentTurn) {
     throw new Error("topic_dialogue_latest_student_turn_missing");
   }
-  const finalizedProfile = finalizeEvidenceFirstTurnBeforeTutor({
+  const finalizedProfile = finalizeEvidenceFirstTurnBeforeTutorV2({
     contract: targetEvidenceContract,
     adjudication: targetEvidenceAdjudication,
     interaction_intent: immediateInteractionIntent,
@@ -2810,7 +2835,7 @@ async function processTopicDialogueResponse(input: {
         evidence_first_target_contract: targetEvidenceContract,
         evidence_first_target_adjudication: targetEvidenceAdjudication,
         evidence_first_profile_mapper_version:
-          TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V4,
+          TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V5,
         evidence_first_profile_consistency: profileConsistency,
         evidence_first_pre_tutor_finalization: profileFreshnessAttestation
       })
@@ -2828,7 +2853,7 @@ async function processTopicDialogueResponse(input: {
       source_student_turn_id: turnEvidenceProfile.source_student_turn_id,
       source_sequence_index: turnEvidenceProfile.source_sequence_index,
       evaluator_version: turnEvidenceProfile.evaluator_version,
-      profile_mapper_version: TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V4,
+      profile_mapper_version: TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V5,
       target_evidence_contract_version:
         targetEvidenceContract.contract_version,
       profile_consistency_policy_version: profileConsistency.policy_version,

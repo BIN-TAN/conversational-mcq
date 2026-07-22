@@ -3181,3 +3181,25 @@ did not become sound or revision-ready. All 59 artifacts validate, the
 17-item human-review packet remains pending, and the candidate remains
 unapproved and inactive. E2A.28 must not be rerun under the consumed
 authorization. See `docs/E2A28_ANTIMICROBIAL_RESISTANCE_CANARY.md`.
+
+E2A.28a preserves that failed historical result and corrects two independent
+issues without provider calls: the Turn-3 partial-only oracle was too narrow,
+and the live provider request had not actually used V4 structured anchor
+fields. The V5 evaluator path now binds provider source-turn identity, generic
+target-contract aliases, structured contradictions, cross-artifact
+consistency, and pre-tutor finalization. Its immutable replay maps all three
+direct C references as explicit endorsements; Turn 3 remains non-sound and
+contradictory. A 200-case, eight-domain non-IRT calibration passes. See
+`docs/E2A28A_SEMANTIC_ANCHOR_CONSISTENCY.md`.
+
+```bash
+npm run eval:formative:e2a28a:run
+npm run eval:formative:e2a28a:report
+npm run eval:formative:e2a28a:smoke
+```
+
+E2A.28a also prepares and freezes, but does not authorize or execute, E2A.29.
+The held-out electrical-circuits protocol tests conservation of current versus
+energy transfer and requires a structured contradiction when a correct
+mechanism is paired with explicit endorsement of the current-is-used-up
+distractor. See `docs/E2A29_ELECTRICAL_CIRCUITS_CANARY.md`.

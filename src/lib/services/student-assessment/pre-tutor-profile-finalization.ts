@@ -16,6 +16,10 @@ import {
   type TargetEvidenceAdjudicationV4,
   type TargetEvidenceContractV4
 } from "@/lib/services/student-assessment/target-evidence-contract-v4";
+import {
+  PreTutorProfileFinalizationAttestationV2Schema,
+  type PreTutorProfileFinalizationAttestationV2
+} from "@/lib/services/student-assessment/pre-tutor-profile-finalization-v2";
 
 export const PRE_TUTOR_PROFILE_FINALIZATION_VERSION =
   "pre-tutor-profile-finalization-v1" as const;
@@ -123,11 +127,14 @@ export function finalizeEvidenceFirstTurnBeforeTutor(input: {
 
 export function assertTutorDispatchUsesFinalizedProfile(input: {
   profile: TopicDialogueTurnEvidenceProfile | null;
-  attestation: PreTutorProfileFinalizationAttestation | null;
+  attestation: PreTutorProfileFinalizationAttestation |
+    PreTutorProfileFinalizationAttestationV2 | null;
   latest_accepted_student_turn_id: string;
   latest_accepted_sequence_index: number;
 }) {
   const issues: string[] = [];
+  let parsedAttestation: PreTutorProfileFinalizationAttestation |
+    PreTutorProfileFinalizationAttestationV2 | null = null;
   if (!input.profile) issues.push("latest_profile_missing");
   if (!input.attestation) issues.push("finalization_attestation_missing");
   if (input.profile && (
@@ -137,22 +144,36 @@ export function assertTutorDispatchUsesFinalizedProfile(input: {
       input.latest_accepted_sequence_index
   )) issues.push("latest_profile_source_stale");
   if (input.attestation) {
-    const parsed = PreTutorProfileFinalizationAttestationSchema.parse(
+    const parsedV1 = PreTutorProfileFinalizationAttestationSchema.safeParse(
       input.attestation
     );
-    if (!parsed.profile_consistency_passed) {
-      issues.push("profile_consistency_not_passed");
+    const parsedV2 = PreTutorProfileFinalizationAttestationV2Schema.safeParse(
+      input.attestation
+    );
+    if (!parsedV1.success && !parsedV2.success) {
+      issues.push("finalization_attestation_invalid");
     }
-    if (!parsed.platform_mode_finalized) {
-      issues.push("platform_mode_not_finalized");
-    }
-    if (!parsed.tutor_dispatch_permitted) {
-      issues.push("tutor_dispatch_not_permitted");
+    const parsed = parsedV1.success ? parsedV1.data : parsedV2.success
+      ? parsedV2.data : null;
+    parsedAttestation = parsed;
+    if (!parsed) {
+      // The issue above remains the fail-closed reason.
+    } else {
+      if (!parsed.profile_consistency_passed) {
+        issues.push("profile_consistency_not_passed");
+      }
+      if (!parsed.platform_mode_finalized) {
+        issues.push("platform_mode_not_finalized");
+      }
+      if (!parsed.tutor_dispatch_permitted) {
+        issues.push("tutor_dispatch_not_permitted");
+      }
     }
   }
   if (issues.length > 0) throw new PreTutorProfileFinalizationError(issues);
   return {
-    finalization_version: PRE_TUTOR_PROFILE_FINALIZATION_VERSION,
+    finalization_version: parsedAttestation?.finalization_version ??
+      PRE_TUTOR_PROFILE_FINALIZATION_VERSION,
     tutor_dispatch_permitted: true as const
   };
 }
