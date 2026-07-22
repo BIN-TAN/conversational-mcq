@@ -3916,5 +3916,33 @@ Phase 6A.5 must not implement:
 - Authorization is consumed by a completed provider dispatch. It does not
   permit any E2A.25/E2A.27/E2A.28/E2A.29 rerun, another E2A.30 session, a
   broader matrix, E2B, approval, activation, or deployment.
-- At this pre-dispatch lock point, E2A.30 has not made a provider call. The
+- At the pre-dispatch lock point, E2A.30 had not made a provider call. The
+  subsequent bounded execution result is recorded below.
+
+### E2A.30 executed result
+
+- The one authorized live dispatch ran exactly once as
+  `e2a30_20260722212059_c1f72790` from commit
+  `d27637e89e230a5035f412474ce6f7872baf2768` and composite identity
+  `822c3abf6b76fb4e2fec7f85514c620ed9ff7653a0ee171f9a7de3a478b1a596`.
+- The run stopped fail-closed on turn one with allowed status
+  `e2a30_canary_failed_anchor_resolution`. Evaluator V5 successfully returned
+  structured output that identified a natural-language paraphrase as an
+  explicit anchor endorsement, but the downstream target-evidence parity gate
+  reported `explicit_anchor_not_detected` and `anchor_stance_not_detected`.
+- Exactly one simulator call and one evaluator call completed. No tutor call,
+  semantic regeneration, transport retry, deterministic fallback, later live
+  session, broader matrix, E2B action, approval, activation, or deployment
+  occurred.
+- Actual usage was two logical calls, two adapter attempts, 7,257 input
+  tokens, 2,275 output tokens, and 9,532 total tokens. Pricing metadata was
+  unavailable, so cost remains unavailable rather than estimated.
+- All 73 required artifacts validate, failure-path completeness and fixture
+  cleanup pass, and protected evidence remains byte-identical at hash
+  `286d3802aa48932913843fd23df7950a036647d02280faebc1978c9bc626481b`.
+- Human review found no visible privacy or answer-key disclosure. Immutable
+  human ratings remain null. The result is not approval evidence; the
   candidate remains unapproved and inactive, and approved V2 remains active.
+- The consumed authorization does not permit an E2A.30 rerun. Any follow-up
+  must be a separately scoped no-live reconciliation of natural paraphrase
+  handling between evaluator V5 anchor evidence and target-evidence parity.

@@ -2,10 +2,11 @@
 
 ## Status
 
-E2A.30 has one explicit authorization for one isolated live session. The live
-dispatch has not yet occurred. The E2A.29a draft is superseded by the E2A.29b
-re-frozen protocol because the profile update and cross-artifact consistency
-runtime identity changed.
+The one authorized E2A.30 session was dispatched once on 2026-07-22. It ended
+fail-closed with `e2a30_canary_failed_anchor_resolution`; it must not be rerun
+under the consumed authorization. The E2A.29a draft was superseded by the
+E2A.29b re-frozen protocol because the profile update and cross-artifact
+consistency runtime identity changed.
 
 ## Held-out concept
 
@@ -105,3 +106,33 @@ E2A.30 writes immutable live evidence under
 `.data/e2a30-thermal-physics-transport-autonomous-canary/<run_id>/`. Human
 ratings remain null for later review. The candidate remains unapproved and
 inactive regardless of the canary outcome.
+
+## Executed result
+
+- Run: `e2a30_20260722212059_c1f72790`
+- Dispatch commit: `d27637e89e230a5035f412474ce6f7872baf2768`
+- Composite runtime identity:
+  `822c3abf6b76fb4e2fec7f85514c620ed9ff7653a0ee171f9a7de3a478b1a596`
+- Status: `e2a30_canary_failed_anchor_resolution`
+- Failure: `target_evidence_evaluator_parity_v5_failed` with
+  `explicit_anchor_not_detected` and `anchor_stance_not_detected`
+- Usage: one simulator call and one evaluator call; two adapter attempts;
+  zero retries; zero tutor calls; 7,257 input tokens; 2,275 output tokens;
+  9,532 total tokens; cost unavailable because pricing metadata was absent
+- Artifacts: 73/73 present and valid; failure-path completeness passed;
+  fixture cleanup passed; protected evidence hash remained
+  `286d3802aa48932913843fd23df7950a036647d02280faebc1978c9bc626481b`
+
+Human review of the retained synthetic output found that evaluator V5 itself
+correctly recorded the natural-language distractor paraphrase as an explicit
+anchor reference with stance `endorses_distractor`. The downstream
+target-evidence parity check did not recognize the same reference and stance,
+so the run stopped before profile finalization and before tutor dispatch. No
+student-facing tutor output was generated. Privacy and answer-key review found
+no disclosure in the visible synthetic turns. Human-review ratings in the
+immutable packet remain null.
+
+This is a valid fail-closed canary failure, not approval evidence. The next
+work, if separately authorized, is a no-live reconciliation of natural
+paraphrase handling between evaluator V5 structured anchor evidence and the
+target-evidence parity gate. E2A.30 itself must not be rerun.
