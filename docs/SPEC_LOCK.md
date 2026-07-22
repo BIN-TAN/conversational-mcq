@@ -3887,5 +3887,34 @@ Phase 6A.5 must not implement:
   transport cases pass. Protected historical evidence and candidate hashes
   remain unchanged.
 - E2A.30 is re-frozen against the corrected composite runtime. Its thermal
-  physics domain and budgets are unchanged. It remains unauthorized and has
-  not been executed.
+  physics domain and budgets are unchanged. At E2A.29b completion it remained
+  unauthorized and had not been executed; the later bounded authorization is
+  recorded below.
+
+### E2A.30 authorized one-session execution harness
+
+- The user authorized exactly one isolated E2A.30 thermal-physics live session
+  using the E2A.29b protocol hash
+  `de1ef6b3be33bfbf4fd42d8d896bb9d6f324e99ffc38300c482332f637dedb14`
+  and artifact-contract hash
+  `63a852aad64c35ecba38dcd81bcfe9950b76821690ff88f848cfc36fbe3d229f`.
+- The harness uses `production-turn-evidence-evaluator-v5`, mapper and profile
+  consistency V6, pre-tutor finalization V3, same-layer cross-artifact
+  consistency V2, bounded provider transport retry V1, provider request
+  tracing V1, and exactly-once semantic effects V1.
+- Each logical provider call permits one initial adapter attempt and at most
+  two retries after the frozen approximately 2-second and 8-second backoffs.
+  Canonical request and source-binding identities remain fixed; adapter and
+  client-request IDs are unique per attempt; SDK retries remain disabled.
+- A deterministic no-network 520-then-success smoke proves retry identity,
+  request tracing, bounded accounting, and exactly-once acceptance before the
+  live checkpoint can be recorded.
+- Maximums are 29 logical calls, 87 adapter attempts, 900,000 input tokens,
+  70,000 output tokens, 970,000 total tokens, USD 25 when pricing metadata is
+  available, and provider concurrency one. Normal execution is 17 logical
+  calls and 17 adapter attempts.
+- Authorization is consumed by a completed provider dispatch. It does not
+  permit any E2A.25/E2A.27/E2A.28/E2A.29 rerun, another E2A.30 session, a
+  broader matrix, E2B, approval, activation, or deployment.
+- At this pre-dispatch lock point, E2A.30 has not made a provider call. The
+  candidate remains unapproved and inactive, and approved V2 remains active.
