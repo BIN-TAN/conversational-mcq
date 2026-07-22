@@ -3946,3 +3946,39 @@ Phase 6A.5 must not implement:
 - The consumed authorization does not permit an E2A.30 rerun. Any follow-up
   must be a separately scoped no-live reconciliation of natural paraphrase
   handling between evaluator V5 anchor evidence and target-evidence parity.
+
+### E2A.30a canonical anchor evidence reconciliation
+
+- E2A.30a is a no-live downstream representation correction. Historical run
+  `e2a30_20260722212059_c1f72790` remains immutable and failed closed as
+  `e2a30_canary_failed_anchor_resolution`; it is not relabeled or rerun.
+- Evaluator V5 was structurally sufficient and remains frozen. Its first-turn
+  result identified the thermal anchor as explicit and endorsed, while the V1
+  raw-text resolver returned absent and not expressed because the historical
+  contract supplied unrelated circuit paraphrases.
+- `canonical-anchor-evidence-v1` is the shared wording-independent evidence
+  representation. It retains canonical identity, application, stance, exact
+  spans, source turn and sequence, and bounded confidence without storing
+  chain-of-thought or hidden state.
+- `active-anchor-alias-resolution-v2` retains contract-derived text evidence
+  for independent audit while projecting validated evaluator evidence onto the
+  same canonical identity. It adds no domain-specific runtime rule.
+- `anchor-parity-reconciliation-v1` compares canonical identity, decisive
+  stance, source binding, and explicit evidence provenance. Wording and option
+  formatting differences are not failures; identity, stance, source, and span
+  disagreements still fail closed.
+- Existing contradiction propagation, sound gate, profile consistency,
+  pre-tutor finalization, stale-profile, privacy, and answer-protection gates
+  remain in force.
+- The deterministic corpus contains at least 120 cases plus negative parity
+  guards. The E2A.30 replay consumes only preserved first-turn evidence and
+  creates no counterfactual tutor output.
+- The composite runtime identity binds the autonomous tutor candidate,
+  evaluator V5 prompt/schema/source hashes, canonicalizer, resolver, parity,
+  mapper, contradiction propagation, profile consistency, finalization, sound
+  gate, retry policy, provider adapter, application commit, and prepared
+  E2A.31 protocol.
+- E2A.31 is prepared in held-out ecology only. It is not authorized or
+  executed. E2A.30a makes zero provider calls and zero network requests and
+  does not approve or activate the autonomous tutor candidate or modify the
+  approved V2 hash.
