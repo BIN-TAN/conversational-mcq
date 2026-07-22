@@ -53,6 +53,27 @@ export const TopicDialogueObservableEvidenceSpanSchema = z.object({
   label: z.string().min(1).max(120),
   span: z.string().min(1).max(900)
 }).strict();
+export const TopicDialogueStructuredContradictionSchema = z.object({
+  contradiction_type: z.string().min(1).max(240),
+  anchor_id: z.string().min(1).max(240),
+  anchor_text: z.string().min(1).max(1400),
+  observed_anchor_stance: z.enum([
+    "not_expressed",
+    "ambiguous",
+    "endorses_distractor",
+    "rejects_distractor"
+  ]),
+  conceptual_claim: z.enum([
+    "endorses_distractor",
+    "rejects_distractor"
+  ]),
+  conflicting_evidence_spans: z.array(
+    TopicDialogueObservableEvidenceSpanSchema
+  ).min(1).max(12),
+  blocking: z.literal(true),
+  source_evaluator_version: z.string().min(1),
+  mapper_version: z.string().min(1)
+}).strict();
 
 export const TopicDialogueTurnEvidenceProfileSchema = z.object({
   profile_version: z.literal(TOPIC_DIALOGUE_TURN_PROFILE_VERSION),
@@ -68,6 +89,9 @@ export const TopicDialogueTurnEvidenceProfileSchema = z.object({
   misconception_status: TopicDialogueMisconceptionStatusSchema,
   essential_missing_links: z.array(z.string().min(1).max(240)).max(12),
   contradictions: z.array(z.string().min(1).max(240)).max(12),
+  structured_contradictions: z.array(
+    TopicDialogueStructuredContradictionSchema
+  ).max(12).optional(),
   observable_evidence_spans: z.array(
     TopicDialogueObservableEvidenceSpanSchema
   ).max(12),
@@ -139,6 +163,9 @@ export type TurnEvidenceObservation = {
   misconception_status: z.infer<typeof TopicDialogueMisconceptionStatusSchema>;
   essential_missing_links: string[];
   contradictions: string[];
+  structured_contradictions?: Array<z.infer<
+    typeof TopicDialogueStructuredContradictionSchema
+  >>;
   observable_evidence_spans: Array<{ label: string; span: string }>;
   confidence_evidence: "high" | "medium" | "low" | null;
   evidence_limitations: string[];
@@ -325,6 +352,7 @@ export function createTopicDialogueTurnEvidenceProfile(input: {
     confidence_evidence: input.observation.confidence_evidence,
     essential_missing_links: unique(input.observation.essential_missing_links),
     contradictions: unique(input.observation.contradictions),
+    structured_contradictions: input.observation.structured_contradictions,
     revision_readiness: revisionReadiness,
     transfer_readiness: input.transfer_readiness ?? false,
     completion_readiness: input.completion_readiness ?? false,

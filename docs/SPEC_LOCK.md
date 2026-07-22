@@ -3713,3 +3713,27 @@ Phase 6A.5 must not implement:
   and the failed-session burden metric undercounts attempted/persisted turns.
   These reporting gaps and the unstructured anchor contradiction remain
   blockers before broader heterogeneous testing.
+
+### E2A.27a no-live contradiction-propagation correction
+
+- E2A.27a preserves the immutable E2A.27 failed-closed result and adds
+  `production-turn-evidence-evaluator-v4`,
+  `turn-evidence-profile-mapper-v4`,
+  `turn-evidence-profile-consistency-v4`,
+  `anchor-contradiction-propagation-v1`, and
+  `pre-tutor-profile-finalization-v1`.
+- A blocking conflict between an observable anchor conclusion and conceptual
+  explanation must remain structured through the mapper and consistency
+  layers. It cannot become sound, resolved, or revision-ready. A valid
+  contradictory learning state remains in dialogue rather than causing an
+  infrastructure abort.
+- The latest accepted student turn must have a schema-valid evaluator result,
+  finalized consistent profile, cumulative update, sound-gate result, mode,
+  and freshness attestation before tutor dispatch. Mapping or consistency
+  failure blocks before a tutor provider call.
+- The E2A.27a replay and 144-case non-IRT calibration are no-live. Derived
+  failure-path and human-review records do not replace or rewrite historical
+  artifacts and must mark unavailable historical context as missing.
+- E2A.28 is prepared but not authorized or executed. Its held-out
+  health-sciences protocol tests population selection versus need-driven
+  individual adaptation and requires separate explicit live authorization.

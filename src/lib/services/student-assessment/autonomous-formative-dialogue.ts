@@ -27,16 +27,30 @@ import {
   type TargetEvidenceContractV3
 } from "@/lib/services/student-assessment/target-evidence-contract-v3";
 import {
+  assertTargetEvidenceObservationConsistentV4,
+  mapTargetEvidenceAdjudicationToObservationV4,
+  PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V4,
+  type TargetEvidenceAdjudicationV4,
+  type TargetEvidenceContractV4
+} from "@/lib/services/student-assessment/target-evidence-contract-v4";
+import {
+  PRE_TUTOR_PROFILE_FINALIZATION_VERSION,
+  PreTutorProfileFinalizationAttestationSchema,
+  assertTutorDispatchUsesFinalizedProfile
+} from "@/lib/services/student-assessment/pre-tutor-profile-finalization";
+import {
   ANCHOR_CONCLUSION_CONSISTENCY_VERSION,
   SOUND_GATE_ANCHOR_CONSISTENCY_VERSION
 } from "@/lib/services/student-assessment/anchor-conclusion-consistency";
 
 type AutonomousTargetEvidenceContract =
   | TargetEvidenceContract
-  | TargetEvidenceContractV3;
+  | TargetEvidenceContractV3
+  | TargetEvidenceContractV4;
 type AutonomousTargetEvidenceAdjudication =
   | TargetEvidenceAdjudication
-  | TargetEvidenceAdjudicationV3;
+  | TargetEvidenceAdjudicationV3
+  | TargetEvidenceAdjudicationV4;
 
 export const AUTONOMOUS_FORMATIVE_DIALOGUE_ARCHITECTURE_VERSION =
   "autonomous-formative-dialogue-architecture-v1" as const;
@@ -682,9 +696,18 @@ export async function executeAutonomousFormativeTurn(input: {
   });
   const adjudication = await input.evaluateEvidence(evaluatorInput);
   executionOrder.push("independent_structured_conceptual_evaluation");
+  const usingV4 = input.target_evidence_contract.contract_version ===
+    "target-evidence-contract-v3";
   const usingV3 = input.target_evidence_contract.contract_version ===
     "target-evidence-contract-v2";
-  const conceptualObservation = usingV3
+  const conceptualObservation = usingV4
+    ? mapTargetEvidenceAdjudicationToObservationV4({
+        contract: input.target_evidence_contract as TargetEvidenceContractV4,
+        adjudication: adjudication as TargetEvidenceAdjudicationV4,
+        interaction_intent: "ordinary_conceptual_response",
+        confidence_evidence: input.confidence_evidence
+      })
+    : usingV3
     ? mapTargetEvidenceAdjudicationToObservationV3({
         contract: input.target_evidence_contract as TargetEvidenceContractV3,
         adjudication: adjudication as TargetEvidenceAdjudicationV3,
@@ -701,7 +724,15 @@ export async function executeAutonomousFormativeTurn(input: {
     ...conceptualObservation,
     interaction_intent: interactionIntent
   };
-  if (usingV3) {
+  if (usingV4) {
+    assertTargetEvidenceObservationConsistentV4({
+      contract: input.target_evidence_contract as TargetEvidenceContractV4,
+      adjudication: adjudication as TargetEvidenceAdjudicationV4,
+      observation: observation as ReturnType<
+        typeof mapTargetEvidenceAdjudicationToObservationV4
+      >
+    });
+  } else if (usingV3) {
     assertTargetEvidenceObservationConsistentV3({
       contract: input.target_evidence_contract as TargetEvidenceContractV3,
       adjudication: adjudication as TargetEvidenceAdjudicationV3,
@@ -722,9 +753,11 @@ export async function executeAutonomousFormativeTurn(input: {
     concept_id: input.concept_id,
     distractor_anchor: input.distractor_anchor,
     observation,
-    evaluator_version: usingV3
-      ? PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V3
-      : PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION,
+    evaluator_version: usingV4
+      ? PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V4
+      : usingV3
+        ? PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V3
+        : PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION,
     created_at: input.now?.()
   });
   const conceptualRevisionReady =
@@ -759,6 +792,23 @@ export async function executeAutonomousFormativeTurn(input: {
   });
   executionOrder.push("determine_sound_understanding_and_revision_readiness");
   executionOrder.push("select_platform_response_mode");
+  const preTutorFinalization = PreTutorProfileFinalizationAttestationSchema.parse({
+    finalization_version: PRE_TUTOR_PROFILE_FINALIZATION_VERSION,
+    source_student_turn_id: profile.source_student_turn_id,
+    source_sequence_index: profile.source_sequence_index,
+    evaluator_schema_valid: true,
+    target_contract_applied: true,
+    anchor_interpretation_completed: true,
+    blocking_conflicts_propagated: true,
+    profile_constructed: true,
+    profile_consistency_passed: true,
+    cumulative_profile_updated: true,
+    sound_gate_executed: true,
+    platform_mode_finalized: true,
+    latest_turn_freshness_passed: true,
+    tutor_dispatch_permitted: route.selected_mode === "remain_in_dialogue"
+  });
+  executionOrder.push("finalize_profile_before_tutor_dispatch");
   await input.persistence.persistProfile({
     profile, cumulative, route, adjudication
   });
@@ -788,6 +838,12 @@ export async function executeAutonomousFormativeTurn(input: {
     effectiveMessage = "We have reached the end of this activity. Continue with the next available assessment step when you are ready.";
     responseSource = "bounded_stop";
   } else {
+    assertTutorDispatchUsesFinalizedProfile({
+      profile,
+      attestation: preTutorFinalization,
+      latest_accepted_student_turn_id: studentTurn.visible_turn_id,
+      latest_accepted_sequence_index: studentTurn.sequence_index
+    });
     const tutorInput = buildAutonomousPedagogyInput({
       complete_episode: episode,
       latest_profile: profile,

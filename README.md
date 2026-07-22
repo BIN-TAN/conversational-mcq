@@ -3159,3 +3159,16 @@ activation, deployment, or a rerun. The consumed run
 `e2a27_20260722061521_9bd4a441` stopped fail-closed at turn 4 because the
 mechanism/conclusion conflict was not promoted to the required structured
 anchor contradiction. The candidate remains unapproved and inactive.
+
+E2A.27a corrects that cross-layer propagation and enforces finalized-profile
+ordering before tutor dispatch. It replays immutable provider evidence and a
+144-case non-IRT calibration corpus without provider calls. It also prepares,
+but does not authorize or execute, the held-out E2A.28 health-sciences
+antibiotic-resistance protocol. See
+`docs/E2A27A_CONTRADICTION_PROPAGATION.md`.
+
+```bash
+npm run eval:formative:e2a27a:run
+npm run eval:formative:e2a27a:report
+npm run eval:formative:e2a27a:smoke
+```
