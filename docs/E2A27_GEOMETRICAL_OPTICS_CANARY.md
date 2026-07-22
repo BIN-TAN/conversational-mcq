@@ -107,3 +107,55 @@ npm run eval:formative:e2a27:audit -- --run <run_id>
 The only passing status is `e2a27_canary_pass_pending_human_review`. A pass
 does not approve or activate the candidate and does not establish production
 readiness.
+
+## Executed Result
+
+The one authorized live dispatch was consumed on 2026-07-22. It produced the
+immutable run `e2a27_20260722061521_9bd4a441` and stopped fail-closed with
+`e2a27_canary_failed_anchor_interpretation`. Do not rerun E2A.27 under this
+authorization.
+
+The run reached the deliberate turn-4 mechanism/conclusion conflict. The
+student simulator explained that the outgoing rays remain divergent and that
+only backward extensions meet, but still endorsed option B. The independent
+evaluator recognized that conflict in its safe summary and rationale. The
+target/profile mapping did not promote it to the required structured
+`anchor_conclusion_conceptual_explanation_conflict`, so the run aborted with
+`e2a27_anchor_contradiction_not_structured`. No turn-4 output was displayed or
+persisted as an effective response. Every generated turn-4 provider output was
+retained in the failure-path and human-review evidence.
+
+Observed usage was 4 simulator calls, 4 evidence-evaluator calls, 4 initial
+tutor calls, no tutor regenerations, 12 logical calls, 12 adapter attempts,
+37,651 input tokens, 8,874 output tokens, 3,579 reasoning tokens, 46,525 total
+tokens, no transport retries, and 194,721 ms aggregate provider latency.
+Pricing metadata was unavailable, so no cost was fabricated. All hard call and
+token limits remained within budget.
+
+The run directory contains 54 hash-validated artifacts, including a 23-item
+human-review packet whose ratings remain null. Synthetic fixture cleanup,
+privacy, candidate integrity, approved-V2 integrity, and protected-evidence
+hash parity passed. The candidate remains unapproved and inactive, and no
+later live stage ran.
+
+The shared post-run audit command currently reports
+`approved_v2_hash_changed` because it reads that property from
+`canary-summary.json`, where the harness did not serialize it. The immutable
+`candidate-integrity.json` records the unchanged approved V2 hash
+`8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993`.
+This is a post-run audit/report-contract defect, not evidence of an approved
+configuration change. Frozen source was not modified after dispatch.
+
+Two failed-run reporting limitations also remain. The human-review packet
+retains all 23 visible/provider evidence items and leaves every rating null,
+but provider-output items do not each embed their exact prior visible
+conversation; completed-turn histories are stored separately for turns 1-3.
+The failed-session student-burden metric also reports zero turns instead of the
+observed 4 attempted and 3 fully persisted turns. These gaps block treating
+the packet as fully review-complete.
+
+The local `operational:approval-manifest:verify` command also reports current
+environment assertion mismatches for three model variables and a missing
+`OPERATIONAL_APPROVED_CONFIG_HASH`. This no-provider check does not change the
+approved bundle or E2A.27 evidence, but the environment must be reconciled
+before any broader runtime-readiness claim.

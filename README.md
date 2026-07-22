@@ -3148,11 +3148,14 @@ npm run eval:formative:e2a26a:run
 npm run eval:formative:e2a26a:report -- --run <run_id>
 ```
 
-The re-frozen E2A.27 geometrical-optics protocol is an artifact only. It has
-not been executed and is not authorized by E2A.26a.
+The re-frozen E2A.27 geometrical-optics protocol originated as an E2A.26a
+artifact and was later executed once under separate authorization.
 
 E2A.27 has a separate, explicit one-session execution authorization and a
 fail-closed live harness. See
 `docs/E2A27_GEOMETRICAL_OPTICS_CANARY.md`. The authorization is limited to one
 held-out geometrical-optics session and does not authorize E2B, approval,
-activation, deployment, or a rerun.
+activation, deployment, or a rerun. The consumed run
+`e2a27_20260722061521_9bd4a441` stopped fail-closed at turn 4 because the
+mechanism/conclusion conflict was not promoted to the required structured
+anchor contradiction. The candidate remains unapproved and inactive.

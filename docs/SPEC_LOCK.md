@@ -3700,3 +3700,16 @@ Phase 6A.5 must not implement:
   prohibited.
 - The candidate remains unapproved and inactive. The approved V2 hash remains
   the rollback and production baseline.
+- The authorization was consumed by run
+  `e2a27_20260722061521_9bd4a441`. The run stopped fail-closed at the deliberate
+  turn-4 mechanism/conclusion conflict with
+  `e2a27_anchor_contradiction_not_structured`; it must not be rerun under this
+  authorization.
+- All 54 required and supplemental artifacts were hash-validated. The
+  human-review packet remains pending, the candidate remains unapproved and
+  inactive, approved V2 remains unchanged, and no broader live stage ran.
+- The failed-run packet retains every generated provider output, but its
+  provider-output review items do not each embed exact prior visible history,
+  and the failed-session burden metric undercounts attempted/persisted turns.
+  These reporting gaps and the unstructured anchor contradiction remain
+  blockers before broader heterogeneous testing.
