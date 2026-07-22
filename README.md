@@ -3172,3 +3172,12 @@ npm run eval:formative:e2a27a:run
 npm run eval:formative:e2a27a:report
 npm run eval:formative:e2a27a:smoke
 ```
+
+E2A.28 executed the E2A.27a-frozen health-sciences protocol exactly once as
+`e2a28_20260722083935_6ecb39bb`. It stopped fail-closed at turn 3 because the
+V4 mapper retained `misconception` for a response that still endorsed option C,
+while the frozen turn-3 semantic envelope allowed only `partial`. The profile
+did not become sound or revision-ready. All 59 artifacts validate, the
+17-item human-review packet remains pending, and the candidate remains
+unapproved and inactive. E2A.28 must not be rerun under the consumed
+authorization. See `docs/E2A28_ANTIMICROBIAL_RESISTANCE_CANARY.md`.

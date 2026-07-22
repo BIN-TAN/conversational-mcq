@@ -3734,6 +3734,29 @@ Phase 6A.5 must not implement:
 - The E2A.27a replay and 144-case non-IRT calibration are no-live. Derived
   failure-path and human-review records do not replace or rewrite historical
   artifacts and must mark unavailable historical context as missing.
-- E2A.28 is prepared but not authorized or executed. Its held-out
+- E2A.27a prepared E2A.28 without authorizing or executing it. Its held-out
   health-sciences protocol tests population selection versus need-driven
-  individual adaptation and requires separate explicit live authorization.
+  individual adaptation. The later execution is locked below.
+
+### E2A.28 one-session health-sciences canary
+
+- E2A.28 used only the E2A.27a-frozen antimicrobial-resistance protocol at
+  hash `d9025800788987ed982a30db101bc73f6eb935d8436d58ec26598826fb939185`.
+- The exactly-once authorization was consumed by immutable run
+  `e2a28_20260722083935_6ecb39bb`. E2A.28 must not be rerun under that
+  authorization.
+- The run stopped fail-closed at turn 3 with
+  `e2a28_profile_semantically_outside_allowed_envelope:turn_3:misconception:partial`.
+  The student response described differential survival and reproduction but
+  retained explicit endorsement of distractor C. V4 kept the response
+  non-sound as `misconception`; the frozen turn-3 oracle allowed only
+  `partial`.
+- The run did not reach the planned turn-4 contradiction or turn-6 sound
+  endpoint. It made 9 logical generation calls and 9 adapter attempts with no
+  retry or regeneration and remained within all call and token ceilings.
+- All 59 artifacts passed hash validation. The 17-item human-review packet
+  retains generated and suppressed evidence with null ratings. Human review
+  remains pending.
+- Protected evidence, the candidate, and approved V2 remained unchanged. The
+  candidate is unapproved and inactive. No E2B, approval, activation,
+  deployment, or broader live stage ran.
