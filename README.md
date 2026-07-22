@@ -3206,3 +3206,35 @@ All 59 artifacts validate, protected evidence is unchanged, and the four-item
 human-review packet remains pending. E2A.29 did not pass and must not be rerun
 under the consumed authorization. The candidate remains unapproved and
 inactive. See `docs/E2A29_ELECTRICAL_CIRCUITS_CANARY.md`.
+
+E2A.29a preserves that historical record but derives the supported failure
+domain as provider infrastructure: the first evidence-evaluator adapter attempt
+received HTTP 520 before evaluator output existed. The no-provider correction
+adds `provider-failure-taxonomy-v1`, three-attempt bounded transport retries,
+per-attempt request tracing, and exactly-once semantic-effect guards. It also
+freezes, but does not authorize or execute, the held-out E2A.30 thermal-physics
+canary. See
+`docs/E2A29A_PROVIDER_INFRASTRUCTURE_RECONCILIATION.md` and
+`docs/E2A30_THERMAL_PHYSICS_CANARY.md`.
+
+```bash
+npm run eval:formative:e2a29a:run
+npm run eval:formative:e2a29a:report
+npm run eval:formative:e2a29a:smoke
+```
+
+E2A.29b preserves E2A.29a and corrects an independently reproduced
+non-conceptual profile-consistency defect. Latest-turn evidence observations
+and authoritative cumulative profiles now have separate versioned contracts.
+Pure non-conceptual turns explicitly preserve prior conceptual state,
+mixed-intent turns retain conceptual evidence before an immediate redirect,
+and unsupported understanding claims cannot become sound. All 12 E1 scenarios,
+140 boundary cases, and 87 transport cases pass without provider or network
+calls. E2A.30 is re-frozen against this runtime but remains unauthorized and
+unexecuted. See `docs/E2A29B_NONCONCEPTUAL_PROFILE_CONSISTENCY.md`.
+
+```bash
+npm run eval:formative:e2a29b:smoke
+npm run eval:formative:e2a29b:report
+npm run eval:formative:e2a29b:audit
+```

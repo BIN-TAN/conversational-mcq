@@ -69,14 +69,14 @@ import {
 import {
   buildActivityTargetEvidenceContractV5,
   buildTargetEvidenceAdjudicationFromEvaluatorOutputV5,
-  TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V5
+  TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V6
 } from "@/lib/services/student-assessment/target-evidence-contract-v5";
 import {
   assertTutorDispatchUsesFinalizedProfile
 } from "@/lib/services/student-assessment/pre-tutor-profile-finalization";
 import {
-  finalizeEvidenceFirstTurnBeforeTutorV2
-} from "@/lib/services/student-assessment/pre-tutor-profile-finalization-v2";
+  finalizeEvidenceFirstTurnBeforeTutorV3
+} from "@/lib/services/student-assessment/pre-tutor-profile-finalization-v3";
 import {
   buildNoLiveStructuredTurnEvidenceV5ForTestOnly
 } from "@/lib/services/student-assessment/production-turn-evidence-evaluator-v5";
@@ -2789,9 +2789,10 @@ async function processTopicDialogueResponse(input: {
   if (!latestAcceptedStudentTurn) {
     throw new Error("topic_dialogue_latest_student_turn_missing");
   }
-  const finalizedProfile = finalizeEvidenceFirstTurnBeforeTutorV2({
+  const finalizedProfile = finalizeEvidenceFirstTurnBeforeTutorV3({
     contract: targetEvidenceContract,
     adjudication: targetEvidenceAdjudication,
+    latest_student_message: message,
     interaction_intent: immediateInteractionIntent,
     confidence_evidence:
       evidence.packet.misconception_evidence_update.confidence,
@@ -2835,8 +2836,14 @@ async function processTopicDialogueResponse(input: {
         evidence_first_target_contract: targetEvidenceContract,
         evidence_first_target_adjudication: targetEvidenceAdjudication,
         evidence_first_profile_mapper_version:
-          TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V5,
+          TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V6,
         evidence_first_profile_consistency: profileConsistency,
+        evidence_first_turn_observation:
+          finalizedProfile.observation_record,
+        evidence_first_profile_update_disposition:
+          finalizedProfile.profile_update_record,
+        evidence_first_cross_artifact_consistency:
+          finalizedProfile.cross_artifact_consistency,
         evidence_first_pre_tutor_finalization: profileFreshnessAttestation
       })
     }
@@ -2853,10 +2860,20 @@ async function processTopicDialogueResponse(input: {
       source_student_turn_id: turnEvidenceProfile.source_student_turn_id,
       source_sequence_index: turnEvidenceProfile.source_sequence_index,
       evaluator_version: turnEvidenceProfile.evaluator_version,
-      profile_mapper_version: TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V5,
+      profile_mapper_version: TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V6,
       target_evidence_contract_version:
         targetEvidenceContract.contract_version,
       profile_consistency_policy_version: profileConsistency.policy_version,
+      conceptual_evidence_applicability:
+        finalizedProfile.conceptual_evidence_applicability,
+      profile_update_disposition:
+        finalizedProfile.profile_update_disposition,
+      turn_observation_version:
+        finalizedProfile.observation_record.observation_version,
+      profile_update_contract_version:
+        finalizedProfile.profile_update_record.update_contract_version,
+      cross_artifact_consistency_version:
+        finalizedProfile.cross_artifact_consistency.policy_version,
       interaction_intent: turnEvidenceProfile.interaction_intent,
       reasoning_quality: turnEvidenceProfile.reasoning_quality,
       misconception_status: turnEvidenceProfile.misconception_status,

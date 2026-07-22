@@ -878,8 +878,29 @@ async function completeInitialConcept(
       await apiJson<Record<string, unknown>>(
         request,
         "POST",
-        `${E2E_BASE_URL}/api/student/sessions/${input.sessionPublicId}/items/${itemId}/submit`,
-        { confirm_skip: true, client_action_id: `${clientPrefix}_skip` }
+        `${E2E_BASE_URL}/api/student/sessions/${input.sessionPublicId}/items/${itemId}/option`,
+        { selected_option: "E", client_action_id: `${clientPrefix}_idk_option` }
+      );
+      await apiJson<Record<string, unknown>>(
+        request,
+        "POST",
+        `${E2E_BASE_URL}/api/student/sessions/${input.sessionPublicId}/items/${itemId}/reasoning`,
+        {
+          reasoning_text: "I don't know the reason yet.",
+          client_action_id: `${clientPrefix}_idk_reasoning`
+        }
+      );
+      await apiJson<Record<string, unknown>>(
+        request,
+        "POST",
+        `${E2E_BASE_URL}/api/student/sessions/${input.sessionPublicId}/items/${itemId}/confidence`,
+        { confidence_rating: "low", client_action_id: `${clientPrefix}_idk_confidence` }
+      );
+      await apiJson<Record<string, unknown>>(
+        request,
+        "POST",
+        `${E2E_BASE_URL}/api/student/sessions/${input.sessionPublicId}/items/${itemId}/tempting-option`,
+        { no_tempting_option: true, client_action_id: `${clientPrefix}_idk_tempting` }
       );
       continue;
     }
@@ -893,8 +914,9 @@ async function completeInitialConcept(
       );
     }
 
+    let reasoningAssessmentState: unknown = "AWAIT_REASON";
     if (itemOrder === 1 && [6, 7, 8, 9].includes(input.studentIndex % 10)) {
-      await apiJson<Record<string, unknown>>(
+      const initialMessageResult = await apiJson<Record<string, unknown>>(
         request,
         "POST",
         `${E2E_BASE_URL}/api/student/sessions/${input.sessionPublicId}/initial/messages`,
@@ -903,14 +925,32 @@ async function completeInitialConcept(
           client_message_id: `${clientPrefix}_initial_chat`
         }
       );
+      reasoningAssessmentState = (
+        initialMessageResult.state as { assessment_state?: unknown } | undefined
+      )?.assessment_state;
     }
 
-    await apiJson<Record<string, unknown>>(
-      request,
-      "POST",
-      `${E2E_BASE_URL}/api/student/sessions/${input.sessionPublicId}/items/${itemId}/reasoning`,
-      { reasoning_text: reasoningFor(input.studentIndex, input.conceptIndex, itemOrder), client_action_id: `${clientPrefix}_reasoning` }
-    );
+    if (reasoningAssessmentState === "AWAIT_REASON") {
+      const reasoningResult = await apiJson<Record<string, unknown>>(
+        request,
+        "POST",
+        `${E2E_BASE_URL}/api/student/sessions/${input.sessionPublicId}/items/${itemId}/reasoning`,
+        { reasoning_text: reasoningFor(input.studentIndex, input.conceptIndex, itemOrder), client_action_id: `${clientPrefix}_reasoning` }
+      );
+      const reasoningState = reasoningResult.state as { assessment_state?: unknown } | undefined;
+      if (reasoningState?.assessment_state === "AWAIT_REASON") {
+        await apiJson<Record<string, unknown>>(
+          request,
+          "POST",
+          `${E2E_BASE_URL}/api/student/sessions/${input.sessionPublicId}/items/${itemId}/reasoning`,
+          {
+            reasoning_text:
+              "I chose this option because its claim directly matches the evidence stated in the item.",
+            client_action_id: `${clientPrefix}_reasoning_repair`
+          }
+        );
+      }
+    }
     await apiJson<Record<string, unknown>>(
       request,
       "POST",
@@ -923,8 +963,11 @@ async function completeInitialConcept(
     await apiJson<Record<string, unknown>>(
       request,
       "POST",
-      `${E2E_BASE_URL}/api/student/sessions/${input.sessionPublicId}/items/${itemId}/submit`,
-      { client_action_id: `${clientPrefix}_submit` }
+      `${E2E_BASE_URL}/api/student/sessions/${input.sessionPublicId}/items/${itemId}/tempting-option`,
+      {
+        no_tempting_option: true,
+        client_action_id: `${clientPrefix}_no_tempting_option`
+      }
     );
   }
 
@@ -1612,6 +1655,17 @@ async function runStudentJourney(
         conceptIndex,
         skipLast: input.skipEvidence && conceptIndex === 1
       });
+
+      await waitForPhase(request, sessionPublicId, ["planning_completed"], 45_000);
+      await apiJson<Record<string, unknown>>(
+        request,
+        "POST",
+        `${E2E_BASE_URL}/api/student/sessions/${sessionPublicId}/formative-activity/response`,
+        {
+          message: "The evidence supports option A because it matches the measurement principle in this item.",
+          client_message_id: `${sessionPublicId}_${conceptIndex}_formative_activity_response`
+        }
+      );
       await waitForPhase(request, sessionPublicId, ["followup_active"], 45_000);
 
       await apiJson<Record<string, unknown>>(
@@ -2038,14 +2092,10 @@ async function runHarness(suite: SuiteName) {
 
   process.env.DATABASE_URL = e2eDatabaseUrl();
   process.env.SESSION_SECRET = process.env.SESSION_SECRET || "phase8b-script-session-secret-never-production-use";
-  const env = baseE2eEnv(
-    suite === "privacy-smoke"
-      ? {
-          ALLOW_LOCAL_MOCK_RUNTIME: "true",
-          ITEM_ADMIN_TUTOR_MODE: "mock"
-        }
-      : {}
-  );
+  const env = baseE2eEnv({
+    ALLOW_LOCAL_MOCK_RUNTIME: "true",
+    ITEM_ADMIN_TUTOR_MODE: "mock"
+  });
   for (const [key, value] of Object.entries(env)) {
     if (typeof value === "string") process.env[key] = value;
   }

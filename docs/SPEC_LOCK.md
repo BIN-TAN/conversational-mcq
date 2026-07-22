@@ -3824,3 +3824,68 @@ Phase 6A.5 must not implement:
 - Protected evidence and approved V2 remained unchanged. The candidate is
   unapproved and inactive. No E2B, approval, activation, deployment, broader
   matrix, or later live stage ran.
+
+### E2A.29a provider-infrastructure reconciliation
+
+- The E2A.29 run `e2a29_20260722120813_3fd136e6` and its stored status
+  `e2a29_canary_failed_evidence_accuracy` are immutable historical evidence.
+- The separate derived diagnosis is
+  `e2a29_historical_failure_caused_by_provider_infrastructure_5xx` because the
+  first evaluator adapter attempt received HTTP 520 before evaluator output,
+  profile mapping, tutor dispatch, or progression.
+- Evidence accuracy, structured contradiction, profile accuracy, sound-gate,
+  tutor quality, pedagogical adaptation, and progression efficiency are not
+  applicable to that stopped path. The required reason is
+  `provider_infrastructure_failure_before_evidence_evaluation`.
+- `provider-failure-taxonomy-v1` is the locked failure taxonomy for future
+  canaries. Provider 5xx failures cannot map to evidence-accuracy or pedagogy
+  statuses.
+- `bounded-provider-transport-retry-v1` allows one initial adapter attempt and
+  at most two transport retries per logical call. Backoff is 2,000 ms then
+  8,000 ms, without jitter; provider concurrency remains one; SDK retries remain
+  zero.
+- Transport retries preserve the canonical request hash, source binding,
+  logical call identity, logical idempotency key, model, and schema. Each
+  adapter attempt has a unique attempt ID and `X-Client-Request-Id`.
+- Schema, hard-safety, evidence, and semantic failures are model-result
+  failures handled only by separately bounded semantic regeneration.
+- Profile, tutor, persistence, display, and progression effects may occur at
+  most once after one accepted valid provider result.
+- E2A.30 is frozen as one held-out thermal-physics session with six student
+  turns, eight evidence checkpoints, normal call arithmetic 17/17, and maximum
+  limits of 29 logical calls and 87 adapter attempts. It is not authorized and
+  must not be executed without new explicit authorization.
+- E2A.29a makes no provider request, does not approve or activate the candidate,
+  and does not modify the approved V2 hash, candidate hash, candidate file, V5
+  stack, or E2A.12 through E2A.29 evidence.
+
+### E2A.29b non-conceptual profile consistency
+
+- The exact E1 `off_topic_then_reengages` failure reproduced on untouched
+  `efb5bd5a` and the dirty E2A.29a tree with the same V5
+  `cross_artifact_anchor_consistency_disagreement`. E2A.29a transport changes
+  were not causal.
+- `turn-evidence-observation-v1` represents only the latest accepted student
+  turn. It is not the authoritative cumulative profile.
+- `learning-profile-update-disposition-v1` makes preservation, evidence-based
+  update, contradiction reopening, and unresolved initialization explicit and
+  auditable.
+- A pure off-topic, task-confused, protected, or unsupported-understanding turn
+  with no conceptual evidence preserves prior conceptual state. Its immediate
+  redirect does not erase the prior anchor or misconception state.
+- A mixed-intent turn retains valid conceptual evidence before the immediate
+  platform-owned redirect. Later ordinary routing uses the updated profile.
+- `turn-evidence-cross-artifact-consistency-v2` compares records only within
+  the same semantic layer and separately validates the update transition. It
+  still fails closed on disagreement within a turn-observation or
+  authoritative-profile layer.
+- Runtime mapping/finalization versions are
+  `turn-evidence-profile-mapper-v6`,
+  `turn-evidence-profile-consistency-v6`, and
+  `pre-tutor-profile-finalization-v3`. Evaluator V5 remains frozen.
+- All 12 E1 scenarios, 140 no-provider boundary cases, and all 87 E2A.29a
+  transport cases pass. Protected historical evidence and candidate hashes
+  remain unchanged.
+- E2A.30 is re-frozen against the corrected composite runtime. Its thermal
+  physics domain and budgets are unchanged. It remains unauthorized and has
+  not been executed.

@@ -222,6 +222,15 @@ function makeGenerationOverride(input: {
 function evaluatorStatus(intent: StudentIntent, activityFamily: string): MisconceptionUpdateStatus {
   const positive = intent === "revision_evidence" || intent === "robust_explanation";
   const partial = intent === "partial_explanation";
+  const nonConceptualOrUnsupported = new Set<StudentIntent>([
+    "confusion_task",
+    "off_topic_response",
+    "unsupported_understanding_claim",
+    "direct_answer_request",
+    "prompt_injection_attempt",
+    "assessment_system_question"
+  ]).has(intent);
+  if (nonConceptualOrUnsupported) return "insufficient_new_evidence";
   if (activityFamily === "basic_concept_grounding") {
     if (positive) return "ready_for_distractor_probe";
     if (partial) return "conceptual_entry_improved";
@@ -229,9 +238,6 @@ function evaluatorStatus(intent: StudentIntent, activityFamily: string): Misconc
   }
   if (positive) return "no_actionable_misconception_evidence";
   if (partial) return "misconception_weakened";
-  if (intent === "off_topic_response" || intent === "assessment_system_question") {
-    return "insufficient_new_evidence";
-  }
   return "misconception_persisted";
 }
 

@@ -34,8 +34,8 @@ import {
   type TargetEvidenceContractV4
 } from "@/lib/services/student-assessment/target-evidence-contract-v4";
 import {
-  assertTargetEvidenceObservationConsistentV5,
-  mapTargetEvidenceAdjudicationToObservationV5,
+  assertTargetEvidenceObservationConsistentV6,
+  mapTargetEvidenceAdjudicationToObservationV6,
   type TargetEvidenceAdjudicationV5,
   type TargetEvidenceContractV5
 } from "@/lib/services/student-assessment/target-evidence-contract-v5";
@@ -48,8 +48,15 @@ import {
   assertTutorDispatchUsesFinalizedProfile
 } from "@/lib/services/student-assessment/pre-tutor-profile-finalization";
 import {
-  finalizeEvidenceFirstTurnBeforeTutorV2
-} from "@/lib/services/student-assessment/pre-tutor-profile-finalization-v2";
+  finalizeEvidenceFirstTurnBeforeTutorV3
+} from "@/lib/services/student-assessment/pre-tutor-profile-finalization-v3";
+import type {
+  LearningProfileUpdateDispositionRecordV1,
+  TurnEvidenceObservationRecordV1
+} from "@/lib/services/student-assessment/turn-evidence-profile-update";
+import type {
+  TurnEvidenceCrossArtifactConsistencyResultV2Schema
+} from "@/lib/services/student-assessment/turn-evidence-cross-artifact-consistency";
 import {
   ANCHOR_CONCLUSION_CONSISTENCY_VERSION,
   SOUND_GATE_ANCHOR_CONSISTENCY_VERSION
@@ -607,6 +614,11 @@ export type AutonomousTurnPersistence = {
     cumulative: TopicDialogueCumulativeEvidenceProfile;
     route: EvidenceFirstRoute;
     adjudication: AutonomousTargetEvidenceAdjudication;
+    observation_record?: TurnEvidenceObservationRecordV1;
+    profile_update_record?: LearningProfileUpdateDispositionRecordV1;
+    cross_artifact_consistency?: z.infer<
+      typeof TurnEvidenceCrossArtifactConsistencyResultV2Schema
+    >;
   }) => Promise<void>;
   completePriorIntervention: (
     input: PedagogicalInterventionRecord
@@ -631,6 +643,8 @@ export type AutonomousFormativeTurnResult = {
   effective_message: string;
   intervention: PedagogicalInterventionRecord | null;
   validation: ReturnType<typeof validateAutonomousPedagogyOutput> | null;
+  observation_record: TurnEvidenceObservationRecordV1 | null;
+  profile_update_record: LearningProfileUpdateDispositionRecordV1 | null;
   replayed: boolean;
 };
 
@@ -717,9 +731,10 @@ export async function executeAutonomousFormativeTurn(input: {
   const usingV3 = input.target_evidence_contract.contract_version ===
     "target-evidence-contract-v2";
   const finalizedV5 = usingV5
-    ? finalizeEvidenceFirstTurnBeforeTutorV2({
+    ? finalizeEvidenceFirstTurnBeforeTutorV3({
         contract: input.target_evidence_contract as TargetEvidenceContractV5,
         adjudication: adjudication as TargetEvidenceAdjudicationV5,
+        latest_student_message: message,
         interaction_intent: interactionIntent,
         confidence_evidence: input.confidence_evidence,
         source_student_turn_id: studentTurn.visible_turn_id,
@@ -759,11 +774,11 @@ export async function executeAutonomousFormativeTurn(input: {
     interaction_intent: interactionIntent
   };
   if (usingV5) {
-    assertTargetEvidenceObservationConsistentV5({
+    assertTargetEvidenceObservationConsistentV6({
       contract: input.target_evidence_contract as TargetEvidenceContractV5,
       adjudication: adjudication as TargetEvidenceAdjudicationV5,
       observation: observation as ReturnType<
-        typeof mapTargetEvidenceAdjudicationToObservationV5
+        typeof mapTargetEvidenceAdjudicationToObservationV6
       >
     });
   } else if (usingV4) {
@@ -857,7 +872,13 @@ export async function executeAutonomousFormativeTurn(input: {
     });
   executionOrder.push("finalize_profile_before_tutor_dispatch");
   await input.persistence.persistProfile({
-    profile, cumulative, route, adjudication
+    profile,
+    cumulative,
+    route,
+    adjudication,
+    observation_record: finalizedV5?.observation_record,
+    profile_update_record: finalizedV5?.profile_update_record,
+    cross_artifact_consistency: finalizedV5?.cross_artifact_consistency
   });
   const priorIntervention = input.prior_interventions.at(-1);
   if (priorIntervention && !priorIntervention.next_student_turn_id) {
@@ -954,6 +975,8 @@ export async function executeAutonomousFormativeTurn(input: {
     effective_message: effectiveMessage,
     intervention,
     validation,
+    observation_record: finalizedV5?.observation_record ?? null,
+    profile_update_record: finalizedV5?.profile_update_record ?? null,
     replayed: false
   } satisfies AutonomousFormativeTurnResult;
 }

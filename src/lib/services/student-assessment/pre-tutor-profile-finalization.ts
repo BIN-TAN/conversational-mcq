@@ -20,6 +20,10 @@ import {
   PreTutorProfileFinalizationAttestationV2Schema,
   type PreTutorProfileFinalizationAttestationV2
 } from "@/lib/services/student-assessment/pre-tutor-profile-finalization-v2";
+import {
+  PreTutorProfileFinalizationAttestationV3Schema,
+  type PreTutorProfileFinalizationAttestationV3
+} from "@/lib/services/student-assessment/pre-tutor-profile-finalization-v3";
 
 export const PRE_TUTOR_PROFILE_FINALIZATION_VERSION =
   "pre-tutor-profile-finalization-v1" as const;
@@ -128,13 +132,15 @@ export function finalizeEvidenceFirstTurnBeforeTutor(input: {
 export function assertTutorDispatchUsesFinalizedProfile(input: {
   profile: TopicDialogueTurnEvidenceProfile | null;
   attestation: PreTutorProfileFinalizationAttestation |
-    PreTutorProfileFinalizationAttestationV2 | null;
+    PreTutorProfileFinalizationAttestationV2 |
+    PreTutorProfileFinalizationAttestationV3 | null;
   latest_accepted_student_turn_id: string;
   latest_accepted_sequence_index: number;
 }) {
   const issues: string[] = [];
   let parsedAttestation: PreTutorProfileFinalizationAttestation |
-    PreTutorProfileFinalizationAttestationV2 | null = null;
+    PreTutorProfileFinalizationAttestationV2 |
+    PreTutorProfileFinalizationAttestationV3 | null = null;
   if (!input.profile) issues.push("latest_profile_missing");
   if (!input.attestation) issues.push("finalization_attestation_missing");
   if (input.profile && (
@@ -150,11 +156,14 @@ export function assertTutorDispatchUsesFinalizedProfile(input: {
     const parsedV2 = PreTutorProfileFinalizationAttestationV2Schema.safeParse(
       input.attestation
     );
-    if (!parsedV1.success && !parsedV2.success) {
+    const parsedV3 = PreTutorProfileFinalizationAttestationV3Schema.safeParse(
+      input.attestation
+    );
+    if (!parsedV1.success && !parsedV2.success && !parsedV3.success) {
       issues.push("finalization_attestation_invalid");
     }
     const parsed = parsedV1.success ? parsedV1.data : parsedV2.success
-      ? parsedV2.data : null;
+      ? parsedV2.data : parsedV3.success ? parsedV3.data : null;
     parsedAttestation = parsed;
     if (!parsed) {
       // The issue above remains the fail-closed reason.

@@ -47,6 +47,11 @@ export type OpenAIResponsesTransportBoundaryEvent = {
   provider_request_id?: string | null;
   retry_after_ms?: number | null;
   metadata?: Record<string, string>;
+  logical_call_id?: string;
+  adapter_attempt_id?: string;
+  adapter_attempt_index?: number;
+  canonical_request_hash?: string;
+  x_client_request_id?: string;
 };
 
 type OpenAIResponsesTransportBoundaryObserver = (
@@ -153,6 +158,12 @@ export class OpenAIResponsesProvider implements LlmProvider {
       credential_fingerprint: resolvedCredential?.fingerprint,
       credential_source: resolvedCredential?.source,
       credential_resolver_version: resolvedCredential?.resolver_version,
+      logical_call_id: request.transport_attempt?.logical_call_id,
+      adapter_attempt_id: request.transport_attempt?.adapter_attempt_id,
+      adapter_attempt_index: request.transport_attempt?.adapter_attempt_index,
+      canonical_request_hash: request.transport_attempt?.canonical_request_hash,
+      x_client_request_id: request.transport_attempt?.x_client_request_id,
+      logical_idempotency_key: request.transport_attempt?.logical_idempotency_key,
       ...milestones
     });
 
@@ -168,6 +179,11 @@ export class OpenAIResponsesProvider implements LlmProvider {
       client_request_id: request.client_request_id,
       model_name: request.model_config.model_name,
       metadata: request.metadata,
+      logical_call_id: request.transport_attempt?.logical_call_id,
+      adapter_attempt_id: request.transport_attempt?.adapter_attempt_id,
+      adapter_attempt_index: request.transport_attempt?.adapter_attempt_index,
+      canonical_request_hash: request.transport_attempt?.canonical_request_hash,
+      x_client_request_id: request.transport_attempt?.x_client_request_id,
       ...extra
     });
 
@@ -228,7 +244,15 @@ export class OpenAIResponsesProvider implements LlmProvider {
         .parse(body as Parameters<typeof client.responses.parse>[0], {
           timeout: request.timeout_ms,
           maxRetries: 0,
-          idempotencyKey: request.client_request_id
+          idempotencyKey:
+            request.transport_attempt?.logical_idempotency_key ?? request.client_request_id,
+          ...(request.transport_attempt
+            ? {
+                headers: {
+                  "X-Client-Request-Id": request.transport_attempt.x_client_request_id
+                }
+              }
+            : {})
         })
         .withResponse();
       milestones.response_body_received = true;

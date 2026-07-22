@@ -120,6 +120,21 @@ export type OpenAITransportTelemetry = OpenAITransportMilestone & {
   credential_fingerprint?: string;
   credential_source?: string;
   credential_resolver_version?: string;
+  logical_call_id?: string;
+  adapter_attempt_id?: string;
+  adapter_attempt_index?: number;
+  canonical_request_hash?: string;
+  x_client_request_id?: string;
+  logical_idempotency_key?: string;
+};
+
+export type ProviderTransportAttemptContext = {
+  logical_call_id: string;
+  adapter_attempt_id: string;
+  adapter_attempt_index: number;
+  canonical_request_hash: string;
+  x_client_request_id: string;
+  logical_idempotency_key: string;
 };
 
 export type StructuredAgentRequest<TInput, TOutput> = {
@@ -132,6 +147,7 @@ export type StructuredAgentRequest<TInput, TOutput> = {
   client_request_id: string;
   timeout_ms: number;
   metadata?: Record<string, string>;
+  transport_attempt?: ProviderTransportAttemptContext;
 };
 
 export type StructuredAgentResult<TOutput> = {

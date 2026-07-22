@@ -32,7 +32,7 @@ export function stripInternalKeys(value: unknown): unknown {
     const normalizedKey = key.toLowerCase();
     const isInternalIdKey =
       key === "id" ||
-      key === "agent_call_id" ||
+      key.endsWith("agent_call_id") ||
       key.endsWith("_db_id") ||
       key.endsWith("_db_ids");
     const isSecretKey = secretKeyFragments.some((fragment) => normalizedKey.includes(fragment));
@@ -147,7 +147,7 @@ export function assertNoInternalIds(value: unknown, path = "response") {
   for (const [key, entry] of Object.entries(value)) {
     if (
       key === "id" ||
-      key === "agent_call_id" ||
+      key.endsWith("agent_call_id") ||
       key.endsWith("_db_id") ||
       key.endsWith("_db_ids")
     ) {
