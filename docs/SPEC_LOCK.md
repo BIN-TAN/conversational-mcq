@@ -3788,9 +3788,10 @@ Phase 6A.5 must not implement:
   zero provider calls and zero network requests. Historical Turn-3 normal
   profile/review gaps remain explicitly missing.
 - The autonomous tutor candidate and approved V2 hashes remain unchanged.
-  E2A.29 is prepared but unauthorized and unexecuted.
+  E2A.28a prepared E2A.29 without authorizing or executing it; the later
+  separately authorized execution is locked below.
 
-### E2A.29 prepared electrical-circuits canary
+### E2A.29 one-session electrical-circuits canary
 
 - The held-out concept distinguishes conserved current in a simple series
   circuit from electrical-energy transfer. The active distractor says a bulb
@@ -3804,5 +3805,22 @@ Phase 6A.5 must not implement:
 - The maximum frozen budget is one session, 29 logical calls, 87 adapter
   attempts, 900,000 input tokens, 70,000 output tokens, 970,000 total tokens,
   USD 25 when pricing exists, and provider concurrency one.
-- This protocol is not execution authorization. E2A.29 requires a new explicit
-  user authorization and must not run as part of E2A.28a verification.
+- The separate exactly-once authorization was consumed by immutable run
+  `e2a29_20260722120813_3fd136e6`; E2A.29 must not be rerun under that
+  authorization.
+- The run stopped fail-closed during the first evidence-evaluator call with
+  `e2a29_provider_call_failed:evidence_evaluator:provider_5xx`. The sanitized
+  provider failure is `openai_server_error` with HTTP status 520 and no raw
+  evaluator output or usage. No tutor was dispatched.
+- The simulator completed one synthetic turn, but no evaluator-backed turn was
+  accepted. The planned contradiction and sound-resolution gates were not
+  reached and cannot be adjudicated from this run.
+- The run made two logical calls and two adapter attempts, used 765 input and
+  93 output tokens, and remained within all enforced call and token ceilings.
+  Pricing metadata was unavailable, so no cost was fabricated.
+- All 59 artifacts passed hash validation. The four-item human-review packet
+  retains the available and failed evidence with null ratings; human review
+  remains pending.
+- Protected evidence and approved V2 remained unchanged. The candidate is
+  unapproved and inactive. No E2B, approval, activation, deployment, broader
+  matrix, or later live stage ran.

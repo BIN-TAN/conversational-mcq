@@ -3198,8 +3198,11 @@ npm run eval:formative:e2a28a:report
 npm run eval:formative:e2a28a:smoke
 ```
 
-E2A.28a also prepares and freezes, but does not authorize or execute, E2A.29.
-The held-out electrical-circuits protocol tests conservation of current versus
-energy transfer and requires a structured contradiction when a correct
-mechanism is paired with explicit endorsement of the current-is-used-up
-distractor. See `docs/E2A29_ELECTRICAL_CIRCUITS_CANARY.md`.
+E2A.29 consumed its one-session authorization as immutable run
+`e2a29_20260722120813_3fd136e6`. It stopped fail-closed on the first
+evidence-evaluator call with a sanitized retryable provider 5xx (HTTP 520),
+after one successful synthetic simulator call and before any tutor dispatch.
+All 59 artifacts validate, protected evidence is unchanged, and the four-item
+human-review packet remains pending. E2A.29 did not pass and must not be rerun
+under the consumed authorization. The candidate remains unapproved and
+inactive. See `docs/E2A29_ELECTRICAL_CIRCUITS_CANARY.md`.
