@@ -3688,3 +3688,15 @@ Phase 6A.5 must not implement:
   USD 25 when pricing is available, and concurrency one. It has no live
   authorization. E2A.25 may not be rerun, and E2A.27, E2B, approval, and
   activation require separate authorization.
+
+### E2A.27 one-session authorization
+
+- E2A.27 uses only the E2A.26a re-frozen geometrical-optics protocol at hash
+  `1eb8f769c354e3dfcf5ebe488692a4f4b46e8cf6bba67cd54bdd79d8faa5325c`.
+- The live harness is source-frozen by a committed Git revision, application
+  build provenance, a dispatch checkpoint, and a composite runtime identity.
+- Exactly one isolated live session is authorized. A rerun, broader canary,
+  E2B, candidate approval, candidate activation, and deployment remain
+  prohibited.
+- The candidate remains unapproved and inactive. The approved V2 hash remains
+  the rollback and production baseline.
