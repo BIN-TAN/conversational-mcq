@@ -4067,6 +4067,14 @@ Phase 6A.5 must not implement:
   `66bf3960794ca54f9cbafd7c20e5edebbd097e06454166df3eb6f0491df991ee`;
   composite runtime identity is
   `fd0a9a647bc0dbd271c947ab8ca6f6ebe6ce15bc2c2ce341e34156d5196b6694`.
-- E2A.31b is frozen protocol only. It is not authorized or executed, exposes no
-  live command, makes zero provider calls, and does not approve or activate the
-  candidate, run E2B, or deploy.
+- E2A.31b now has a dedicated exactly-once runner bound to the frozen protocol,
+  V1 reference resolver, V1 stance resolver, composed V3 resolver, unchanged
+  evaluator V5, unchanged tutor candidate, parity reconciliation, and bounded
+  transport policy.
+- The user separately authorized one isolated E2A.31b session with maximums of
+  29 logical calls, 87 adapter attempts, two transport retries per logical
+  call, 900,000 input tokens, 70,000 output tokens, 970,000 total tokens, USD
+  25 when pricing is available, and provider concurrency one.
+- That authorization does not permit rerunning E2A.31, rerunning E2A.31b after
+  dispatch, running any larger matrix or E2B, approving or activating the
+  candidate, or deploying.

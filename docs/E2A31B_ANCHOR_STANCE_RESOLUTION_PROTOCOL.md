@@ -2,9 +2,10 @@
 
 ## Status
 
-E2A.31b is a frozen, no-live protocol prepared for separate authorization. It
-has not been executed, is not authorized for live dispatch, and does not alter
-the result of E2A.31.
+E2A.31b is a frozen protocol with a dedicated exactly-once live runner. The
+user separately authorized one isolated live session on 2026-07-23. The
+authorization is single-use and remains bounded by the frozen protocol,
+runtime identity, transport policy, and budget below.
 
 Historical E2A.31 run `e2a31_20260723031323_56517518` remains failed closed as
 `e2a31_canary_failed_anchor_resolution`. Its 83 files and critical evidence
@@ -105,15 +106,24 @@ npm run eval:formative:e2a31b:artifact-smoke
 npm run eval:formative:e2a31b:provider-call-guard-smoke
 npm run eval:formative:e2a31b:smoke
 npm run eval:formative:e2a31b:report
+npm run eval:formative:e2a31b:live-preflight
+npm run eval:formative:e2a31b:live-authorization-guard-smoke
+npm run eval:formative:e2a31b:live-transport-retry-smoke
+npm run eval:formative:e2a31b:live-smoke
 ```
 
-There is no E2A.31b live command. A future live canary requires separate,
-explicit authorization and a dedicated exactly-once runner bound to the
-frozen protocol.
+The paid command is `npm run eval:formative:e2a31b:live` with the complete
+single-use confirmation set emitted by the committed preflight checkpoint.
+It is blocked unless the current build provenance, source identity, protected
+evidence identity, protocol hash, frozen composite identity, candidate hashes,
+credential readiness, provider host, database readiness, and every numeric
+ceiling match. The runner cannot dispatch when a prior E2A.31b live run or lock
+exists.
 
 ## Decision boundary
 
 This correction is deterministic evidence that the identified stance boundary
-is resolved under the new contract. It is not evidence that E2A.31 passed, is
-not a candidate approval, and does not authorize E2A.31b, E2B, activation, or
-deployment.
+is resolved under the new contract. It is not evidence that E2A.31 passed and
+is not a candidate approval. The separate E2A.31b authorization permits only
+one isolated session; it does not authorize a rerun, a larger matrix, E2B,
+approval, activation, or deployment.
