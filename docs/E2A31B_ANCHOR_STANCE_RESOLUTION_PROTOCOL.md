@@ -189,5 +189,5 @@ The E2A.31c review enhancement binds the original 42-item packet and leaves all
 human fields null. E2A.32 preparation is allowed, but no E2A.32 dispatch,
 candidate approval, activation, matrix, E2B stage, or deployment is
 authorized. The canonical packet is
-`.data/e2a31c-turn5-sound-adjudication/e2a31c_20260723160824_932f698a/`;
+`.data/e2a31c-turn5-sound-adjudication/e2a31c_20260723161034_8e54f5ec/`;
 see `docs/E2A31C_TURN5_SOUND_ADJUDICATION.md`.

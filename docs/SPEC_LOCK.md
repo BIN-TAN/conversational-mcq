@@ -4127,7 +4127,7 @@ Phase 6A.5 must not implement:
 - The original human-review packet remains unchanged and incomplete. E2A.31c
   adds an AI-provenance review enhancement; it does not claim human review.
 - The canonical no-live adjudication packet is
-  `.data/e2a31c-turn5-sound-adjudication/e2a31c_20260723160824_932f698a/`.
+  `.data/e2a31c-turn5-sound-adjudication/e2a31c_20260723161034_8e54f5ec/`.
   All 10 artifacts validate; zero provider and network requests were made.
 - E2A.32 preparation is allowed only as a separately versioned no-live
   protocol that separates simulator trajectory adherence from evaluator

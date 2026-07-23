@@ -61,7 +61,7 @@ correctly not called.
 
 The authoritative no-live adjudication packet is:
 
-`.data/e2a31c-turn5-sound-adjudication/e2a31c_20260723160824_932f698a/`
+`.data/e2a31c-turn5-sound-adjudication/e2a31c_20260723161034_8e54f5ec/`
 
 Its status is
 `e2a31c_frozen_trajectory_oracle_overconstraint_confirmed`. All 10 artifacts
