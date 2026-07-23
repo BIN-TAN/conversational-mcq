@@ -3978,7 +3978,34 @@ Phase 6A.5 must not implement:
   mapper, contradiction propagation, profile consistency, finalization, sound
   gate, retry policy, provider adapter, application commit, and prepared
   E2A.31 protocol.
-- E2A.31 is prepared in held-out ecology only. It is not authorized or
-  executed. E2A.30a makes zero provider calls and zero network requests and
-  does not approve or activate the autonomous tutor candidate or modify the
-  approved V2 hash.
+- E2A.31 is prepared around an exact held-out ecology trophic-cascade scenario,
+  not an entirely unseen broad domain. It is not authorized or executed.
+  E2A.30a makes zero provider calls and zero network requests and does not
+  approve or activate the autonomous tutor candidate or modify the approved V2
+  hash.
+
+### E2A.31a ecology held-out protocol freeze
+
+- E2A.31a freezes a complete, schema-valid ecology `TargetEvidenceContractV5`,
+  canonical option-D anchor, domain-specific alias contract, categorized alias
+  examples, evaluator V5 request, overlap analysis, artifact contract, budget,
+  and composite runtime identity.
+- The composite identity must integrity-check and bind predecessor E2A.30a
+  runtime identity
+  `d6b54054b19b3abcd1494f8893ced303a8bf3eb0e668f6842871435ccd98cf34`;
+  matching component names alone is insufficient.
+- The held-out claim is limited to the exact top-predator-removal scenario,
+  distractor anchor, and trajectory. E2A.28a's generic deterministic
+  `ecology_population_growth` label is disclosed and is not represented as a
+  previously unseen broad domain.
+- The evaluator request is compiled through the production V5 request builder
+  and output schema without dispatch. V1-V4 evaluator identities are prohibited
+  from the compiled request.
+- Frozen maximums are 29 logical calls, 87 adapter attempts, two transport
+  retries per logical call, 900,000 input tokens, 70,000 output tokens, 970,000
+  total tokens, USD 25 when pricing is available, and provider concurrency one.
+- E2A.31a is deterministic and no-live. It does not execute E2A.31, grant
+  dispatch authority, approve or activate the candidate, or modify the tutor,
+  evaluator, canonicalizer, resolver, parity, profile, or transport policies.
+- Any future E2A.31 execution requires separate explicit authorization and a
+  fresh pre-dispatch identity, artifact, budget, and provider-call-guard audit.

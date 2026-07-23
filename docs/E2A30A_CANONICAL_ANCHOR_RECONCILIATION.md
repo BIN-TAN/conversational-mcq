@@ -75,8 +75,10 @@ prompts, or chain-of-thought.
 
 ## E2A.31 boundary
 
-E2A.30a prepares an unexecuted held-out ecology protocol testing explicit
-anchor normalization, mechanism/conclusion contradiction, autonomous
-clarification, sound progression, and transport recovery. Preparation is not
-authorization. No E2A.31 provider dispatch may occur without a separate,
-explicit authorization.
+E2A.30a prepares an unexecuted ecology protocol outline testing explicit anchor
+normalization, mechanism/conclusion contradiction, autonomous clarification,
+sound progression, and transport recovery. E2A.31a separately freezes the
+exact held-out trophic-cascade scenario and discloses that E2A.28a previously
+used a generic `ecology_population_growth` calibration label. Preparation and
+freezing are not authorization. No E2A.31 provider dispatch may occur without
+a separate, explicit authorization.
