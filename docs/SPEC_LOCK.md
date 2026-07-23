@@ -4133,3 +4133,36 @@ Phase 6A.5 must not implement:
   protocol that separates simulator trajectory adherence from evaluator
   evidence accuracy. E2A.32 live execution, candidate approval or activation,
   a larger matrix, E2B, and deployment are not authorized.
+
+### E2A.32 trajectory-envelope protocol freeze preparation
+
+- `trajectory-envelope-v1` separates simulator intended trajectory,
+  acceptable reasoning-quality sets, and evidence-driven progression
+  consequences. Simulator trajectory is explicitly non-authoritative.
+- Every future canary turn defines an expected trajectory role, an allowed
+  reasoning-quality set, the production sound-gate override, progression
+  consequences, and prohibited states. Exact expected reasoning labels and a
+  scripted earliest-sound turn are prohibited.
+- Evaluator V5 follows observable evidence. A result outside the simulator
+  envelope is recorded as trajectory adherence and cannot rewrite evaluator
+  output.
+- `sound-gate-anchor-consistency-v1` remains authoritative. When it passes,
+  revision starts immediately even if the simulator reached sound earlier than
+  intended.
+- Deterministic regressions cover early sound, extended partial evidence,
+  regression after improvement, contradiction after sound, and copied wording
+  without evidence. All preserve evaluator output and apply fail-closed
+  progression.
+- The prepared held-out case is dynamic chemical equilibrium. Its canonical
+  distractor claims that equal forward and reverse rates require equal
+  reactant and product concentrations. The target boundary is that equal rates
+  imply no net concentration change, not equal concentration values.
+- Exact, normalized, token, structural, and semantic-tag overlap checks against
+  E2A.24 through E2A.31 pass without embeddings or provider calls.
+- Frozen protocol
+  `e2a32-chemical-equilibrium-trajectory-envelope-canary-v1` has hash
+  `f0b6f8ee805a4e414fcfbbfc21aae405f522b0eb43a8032b63bd50b5960cf68e`.
+- Evaluator V5, the tutor candidate, target-evidence runtime, resolver V3,
+  stance resolver V1, and production sound gate remain unchanged.
+- E2A.32 is frozen preparation only. Live execution, candidate approval or
+  activation, a larger matrix, E2B, and deployment remain unauthorized.
