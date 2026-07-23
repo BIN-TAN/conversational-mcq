@@ -4039,3 +4039,34 @@ Phase 6A.5 must not implement:
 - This fail-closed result does not approve or activate the candidate. No larger
   matrix, E2B stage, approval, activation, or deployment was run. Any follow-up
   requires a separately authorized no-live investigation or later protocol.
+
+### E2A.31a anchor stance resolution correction and E2A.31b protocol
+
+- Historical E2A.31 run `e2a31_20260723031323_56517518` remains immutable and
+  failed closed as `e2a31_canary_failed_anchor_resolution`. It was not rerun,
+  and the correction does not claim that E2A.31 passed.
+- Anchor reference and stance are now separate deterministic concerns.
+  `active-anchor-alias-resolution-v1` detects reference,
+  `anchor-stance-resolution-v1` resolves stance, and
+  `active-anchor-alias-resolution-v3` composes the two for the prepared
+  E2A.31b protocol.
+- The stance resolver uses generic direct endorsement, direct rejection,
+  negation, contrast, uncertainty, discourse-continuity, and prior-student-
+  reasoning rules. It contains no ecology-specific runtime logic.
+- A 144-case generic calibration corpus passes: explicit endorsements map to
+  `endorses_distractor`, explicit rejections map to `rejects_distractor`, and
+  uncertainty remains `ambiguous`. The corpus includes the required `keep D`,
+  distractor-role, contrast, and uncertainty boundaries.
+- An immutable no-provider replay reproduces frozen V2's
+  `explicit + ambiguous` result and produces V3's
+  `explicit + endorses_distractor` result for E2A.31 turn 3 attempt 1.
+- Evaluator V5, the tutor candidate, candidate configuration, and frozen V2
+  resolver remain byte-identical. All 83 historical E2A.31 files have matching
+  before/after inventories and critical hashes.
+- E2A.31b protocol hash is
+  `66bf3960794ca54f9cbafd7c20e5edebbd097e06454166df3eb6f0491df991ee`;
+  composite runtime identity is
+  `fd0a9a647bc0dbd271c947ab8ca6f6ebe6ce15bc2c2ce341e34156d5196b6694`.
+- E2A.31b is frozen protocol only. It is not authorized or executed, exposes no
+  live command, makes zero provider calls, and does not approve or activate the
+  candidate, run E2B, or deploy.

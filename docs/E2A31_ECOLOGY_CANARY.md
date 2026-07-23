@@ -122,3 +122,15 @@ candidate remains unapproved and inactive. This execution did not run E2A.25,
 E2A.27, E2A.28, E2A.29, E2A.30, a broader canary or matrix, E2B, approval,
 activation, or deployment. Any follow-up must be separately scoped and cannot
 reuse the consumed E2A.31 authorization.
+
+## No-live stance correction
+
+The subsequent deterministic correction is documented in
+`docs/E2A31B_ANCHOR_STANCE_RESOLUTION_PROTOCOL.md`. It separates anchor
+reference detection from `anchor-stance-resolution-v1`, passes a 144-case
+generic calibration corpus, and resolves the preserved first failing boundary
+as an explicit endorsement without a provider call.
+
+That replay does not modify this run or convert it to a pass. E2A.31 remains
+failed closed. E2A.31b is a protocol only and requires separate authorization
+before any live execution.
