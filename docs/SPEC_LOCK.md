@@ -4103,3 +4103,33 @@ Phase 6A.5 must not implement:
   historical E2A.31 evidence remain unchanged, and the candidate remains
   unapproved and inactive. No larger matrix, E2B, approval, activation, or
   deployment was run.
+
+### E2A.31c no-live Turn 5 adjudication
+
+- E2A.31c is an immutable, no-provider replay of E2A.31b run
+  `e2a31b_20260723111043_c82c52ae`. The 84-file source tree and critical
+  artifact hashes must match before and after adjudication.
+- The authoritative evaluator-accuracy rule is the existing
+  `sound-gate-anchor-consistency-v1`, not the student simulator's scripted turn
+  expectation or self-reported evidence level.
+- Turn 5 satisfies the required conceptual relationship, indirect mechanism,
+  explicit anchor application, distractor rejection, consistent resolved
+  conclusion, empty essential-link set, and empty contradiction set.
+- The AI adjudication therefore rejects `genuine_false_sound` and selects
+  `frozen_trajectory_oracle_overconstraint`. The evaluator correctly detected
+  sound evidence; the simulator violated its instruction to postpone a final
+  stance.
+- Turn 3 remains a non-sound control: its explicit distractor endorsement and
+  mechanism/conclusion contradiction remain structured, blocking, and
+  revision-ineligible.
+- The historical E2A.31b status and failure code remain unchanged, and neither
+  E2A.31 nor E2A.31b is relabeled as passed.
+- The original human-review packet remains unchanged and incomplete. E2A.31c
+  adds an AI-provenance review enhancement; it does not claim human review.
+- The canonical no-live adjudication packet is
+  `.data/e2a31c-turn5-sound-adjudication/e2a31c_20260723160824_932f698a/`.
+  All 10 artifacts validate; zero provider and network requests were made.
+- E2A.32 preparation is allowed only as a separately versioned no-live
+  protocol that separates simulator trajectory adherence from evaluator
+  evidence accuracy. E2A.32 live execution, candidate approval or activation,
+  a larger matrix, E2B, and deployment are not authorized.

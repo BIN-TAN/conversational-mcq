@@ -169,3 +169,25 @@ The identified E2A.31 stance boundary was resolved in the live E2A.31b
 trajectory, but the canary as a whole failed at a later evidence-accuracy gate.
 Neither E2A.31 nor E2A.31b passed. The consumed authorization does not permit a
 rerun, a larger matrix, E2B, approval, activation, or deployment.
+
+## E2A.31c no-live adjudication
+
+E2A.31c replays turns 1 through 5 through the unchanged production sound gate
+and preserves this run byte-for-byte. The replay determines that Turn 5 is not
+a genuine false sound. The generated student response supplied the required
+indirect food-web mechanism and explicitly rejected the guaranteed
+prey-increase claim, so `sound-gate-anchor-consistency-v1` correctly passed it.
+
+The supported diagnosis is `frozen_trajectory_oracle_overconstraint`: the
+simulator advanced beyond its instruction to withhold a final stance, while
+the post-finalization oracle incorrectly treated that trajectory violation as
+an evaluator-accuracy failure. This derived diagnosis does not change the
+historical E2A.31b status or failure code, does not make the run pass, and does
+not complete human review.
+
+The E2A.31c review enhancement binds the original 42-item packet and leaves all
+human fields null. E2A.32 preparation is allowed, but no E2A.32 dispatch,
+candidate approval, activation, matrix, E2B stage, or deployment is
+authorized. The canonical packet is
+`.data/e2a31c-turn5-sound-adjudication/e2a31c_20260723160824_932f698a/`;
+see `docs/E2A31C_TURN5_SOUND_ADJUDICATION.md`.
