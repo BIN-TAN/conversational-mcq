@@ -4009,3 +4009,33 @@ Phase 6A.5 must not implement:
   evaluator, canonicalizer, resolver, parity, profile, or transport policies.
 - Any future E2A.31 execution requires separate explicit authorization and a
   fresh pre-dispatch identity, artifact, budget, and provider-call-guard audit.
+
+### E2A.31 authorized ecology canary result
+
+- The user authorized exactly one isolated E2A.31 ecology live session against
+  protocol hash
+  `12817989d2051ef671764dfa7594f1a2af227caf4f32ae995ff38db35466866b`
+  and frozen composite runtime identity
+  `f15784a61afa5a68128f1b8b4d6a941d740df9936c44f651f8a5e881bb5bd485`.
+- The consumed authorization produced immutable run
+  `e2a31_20260723031323_56517518` from dispatch commit
+  `b738703332d6ece6bd35525db625472dc9f4e480`. The run stopped fail-closed
+  with `e2a31_canary_failed_anchor_resolution`; it must not be rerun under that
+  authorization.
+- The exact failure was
+  `e2a31_student_simulator_validation_failed:E2A31-ECOLOGY:3:required_anchor_stance_missing`.
+  Both turn-3 simulator generations explicitly named option D and said to keep
+  it, but frozen resolver V2 classified `keep option D` as an explicit anchor
+  with ambiguous stance rather than `endorses_distractor`.
+- The harness stopped before turn-3 persistence, evaluator dispatch, tutor
+  dispatch, or display. Eight logical calls and eight adapter attempts were
+  made with zero transport retries and 29,903 total tokens. Provider
+  concurrency remained one. Pricing metadata was unavailable, so estimated
+  cost is not reported.
+- All 83 required artifacts validate; the post-run artifact audit passed;
+  protected evidence remained unchanged; fixture cleanup and exactly-once
+  accounting passed. The 23-item human-review packet remains pending with null
+  ratings.
+- This fail-closed result does not approve or activate the candidate. No larger
+  matrix, E2B stage, approval, activation, or deployment was run. Any follow-up
+  requires a separately authorized no-live investigation or later protocol.
