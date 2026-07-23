@@ -3,9 +3,11 @@
 ## Status
 
 E2A.31b is a frozen protocol with a dedicated exactly-once live runner. The
-user separately authorized one isolated live session on 2026-07-23. The
-authorization is single-use and remains bounded by the frozen protocol,
-runtime identity, transport policy, and budget below.
+user separately authorized one isolated live session on 2026-07-23. That
+single-use authorization was consumed by run
+`e2a31b_20260723111043_c82c52ae`, which stopped fail-closed as
+`e2a31b_canary_failed_evidence_accuracy`. E2A.31b did not pass and must not be
+rerun under the consumed authorization.
 
 Historical E2A.31 run `e2a31_20260723031323_56517518` remains failed closed as
 `e2a31_canary_failed_anchor_resolution`. Its 83 files and critical evidence
@@ -120,10 +122,50 @@ credential readiness, provider host, database readiness, and every numeric
 ceiling match. The runner cannot dispatch when a prior E2A.31b live run or lock
 exists.
 
+## Authorized live result
+
+The exactly-once run is preserved at:
+
+`.data/e2a31b-ecology-anchor-stance-resolution-canary/e2a31b_20260723111043_c82c52ae/`
+
+The anchor-stance correction passed the boundary that failed in E2A.31. At
+turn 3, composed resolver V3 classified the explicit option-D reference as
+`endorses_distractor`; the sound gate retained the response as non-sound with
+the mechanism/conclusion contradiction structured and blocking.
+
+The E2A.31b run later stopped at turn 5 with
+`e2a31b_genuine_false_sound`. The frozen turn-5 trajectory required a partial
+mechanism reconstruction without an explicit final stance. The generated
+student message instead explicitly rejected the guaranteed prey-increase
+claim. Evaluator V5 accepted the output as sound, while the frozen turn-5
+semantic envelope allowed only `partial`. This is recorded as an
+evidence-accuracy failure. Human adjudication remains pending; the result is
+not reclassified here.
+
+Usage and execution evidence:
+
+- five simulator calls, five evidence-evaluator calls, four initial tutor
+  calls, and zero tutor regenerations;
+- 14 logical calls and 14 adapter attempts with zero transport retries;
+- 59,350 input tokens, 13,189 output tokens, 4,879 reasoning tokens, and
+  72,539 total tokens;
+- provider concurrency one;
+- pricing metadata unavailable, so USD cost is not reported and the currency
+  ceiling cannot be independently reconciled; call and token ceilings passed;
+- zero completed sessions because the session stopped at the fail-closed
+  evidence boundary.
+
+All 84 required artifacts validate, including preserved provider outputs,
+request/attempt tracing, the stance-resolution evidence, and the 42-item
+human-review packet. The post-run audit passes, fixture cleanup passes,
+protected evidence is unchanged, and historical E2A.31 evidence retains tree
+hash `3f82fb7b6d86250912b3a4805752dec9a731e8773ee4aa7ea38a1e1049e367b0`.
+Human review remains incomplete, and the candidate remains unapproved and
+inactive.
+
 ## Decision boundary
 
-This correction is deterministic evidence that the identified stance boundary
-is resolved under the new contract. It is not evidence that E2A.31 passed and
-is not a candidate approval. The separate E2A.31b authorization permits only
-one isolated session; it does not authorize a rerun, a larger matrix, E2B,
-approval, activation, or deployment.
+The identified E2A.31 stance boundary was resolved in the live E2A.31b
+trajectory, but the canary as a whole failed at a later evidence-accuracy gate.
+Neither E2A.31 nor E2A.31b passed. The consumed authorization does not permit a
+rerun, a larger matrix, E2B, approval, activation, or deployment.

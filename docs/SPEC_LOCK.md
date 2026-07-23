@@ -4078,3 +4078,28 @@ Phase 6A.5 must not implement:
 - That authorization does not permit rerunning E2A.31, rerunning E2A.31b after
   dispatch, running any larger matrix or E2B, approving or activating the
   candidate, or deploying.
+- The single-use E2A.31b authorization was consumed by run
+  `e2a31b_20260723111043_c82c52ae` from dispatch commit
+  `b4b9470f9cd486f923f3abb804ffa6217fd4ee08`. The run stopped fail-closed as
+  `e2a31b_canary_failed_evidence_accuracy` with failure reason
+  `e2a31b_genuine_false_sound`; it must not be rerun under that authorization.
+- The corrected boundary itself behaved as required. At turn 3, composed
+  resolver V3 classified the explicit option-D reference as
+  `endorses_distractor`, and the sound gate retained the response as non-sound
+  with its mechanism/conclusion contradiction structured and blocking.
+- The later failure occurred at turn 5. The frozen trajectory required a
+  partial mechanism reconstruction without an explicit final stance, but the
+  generated student message explicitly rejected the guaranteed prey-increase
+  claim. Evaluator V5 classified that evidence as sound, outside the frozen
+  turn-5 `partial` envelope. Human adjudication remains pending; no pass or
+  evaluator-correctness claim is made.
+- Execution stopped after five simulator calls, five evaluator calls, and four
+  tutor calls: 14 logical calls, 14 adapter attempts, zero transport retries,
+  and 72,539 total tokens at provider concurrency one. Pricing metadata was
+  unavailable, so cost is not reported; call and token ceilings remained
+  within authorization.
+- All 84 required artifacts and the post-run audit pass integrity checks. The
+  42-item human-review packet remains pending, protected evidence and
+  historical E2A.31 evidence remain unchanged, and the candidate remains
+  unapproved and inactive. No larger matrix, E2B, approval, activation, or
+  deployment was run.
