@@ -4166,3 +4166,43 @@ Phase 6A.5 must not implement:
   stance resolver V1, and production sound gate remain unchanged.
 - E2A.32 is frozen preparation only. Live execution, candidate approval or
   activation, a larger matrix, E2B, and deployment remain unauthorized.
+
+## E2A.33 causal-inference held-out protocol freeze
+
+- E2A.33 is deterministic preparation only. It creates no provider client,
+  provider dispatch, live session, approval, activation, matrix, E2B stage, or
+  deployment.
+- The exact held-out scenario concerns educational-app use and exam scores.
+  The active distractor claims that the app directly improves performance
+  because it teaches students skills.
+- E2A.24 already covered the broad correlation-versus-causation concept.
+  E2A.33 therefore claims novelty only for the educational-app scenario,
+  confounder mechanism, canonical anchor, aliases, and trajectory. The overlap
+  artifact explicitly discloses the E2A.24 concept overlap.
+- `TargetEvidenceContractV5` requires the correlation/causation boundary, a
+  plausible confounder, an explanation of the confounder's interpretive
+  effect, a stronger-evidence requirement, explicit distractor rejection, and
+  a coherent conclusion.
+- The required contradiction case identifies confounding and the correlation
+  limitation while endorsing option D. Resolver V3, stance resolver V1,
+  contradiction propagation V2, and the production sound gate preserve
+  `explicit`, `endorses_distractor`,
+  `contradictory_to_conceptual_reasoning`, and `revision_ready=false`.
+- The E2A.33 trajectory roles are `misconception`, `copied_wording`,
+  `partial_improvement`, `contradiction`, `clarification`, and `sound`. They
+  define allowed reasoning-quality sets rather than exact turn labels.
+- Eight deterministic boundaries cover early sound, prolonged partial
+  reasoning, contradiction after improvement, copied wording,
+  confidence/correctness mismatch, explicit endorsement, explicit rejection,
+  and causal-reasoning transfer.
+- Sound evidence overrides trajectory expectation and authorizes immediate
+  revision with no minimum turn count.
+- Exact, normalized, token, structural-template, and semantic-tag checks
+  compare against E2A.24 through E2A.32. The exact scenario is not reused;
+  expected broad concept and protocol-template overlaps are declared.
+- Frozen protocol
+  `e2a33-causal-inference-trajectory-envelope-canary-v1` has hash
+  `c6536a9861c91692e9d5d26a6868f43d79c87d23dd2f9e7cf4dc744ef4ffa45b`.
+- The candidate, evaluator V5, canonical evidence runtime, resolver, stance
+  resolver, contradiction propagation, production sound gate, transport retry
+  policy, and `trajectory-envelope-v1` remain unchanged.
