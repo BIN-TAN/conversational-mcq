@@ -4373,3 +4373,36 @@ Phase 6A.5 must not implement:
   and trajectory-envelope system remain unchanged.
 - Live E2A.34 execution, a larger matrix, E2B, approval, activation, and
   deployment remain unauthorized.
+
+## E2A.34 statistical-inference live result
+
+- The single authorized E2A.34 session
+  `e2a34_20260724162010_49f33990` was dispatched exactly once and stopped
+  fail-closed as `e2a34_canary_failed_anchor_resolution`. It must not be
+  rerun under the consumed authorization.
+- The run used frozen protocol hash
+  `83ddef09e6d70631ce30f1161659fe85aa25b3bcc38891ba7b3f7bc6a9e0c405`
+  and frozen composite runtime identity
+  `39f61e1aa128a7586b1c6f534c6401ffaadbdc61ab59e54943556dde84f35195`.
+- Turn 1 explicitly endorsed option D and retained the p-value misconception.
+  Evaluator V5 and composed resolver V4 both recorded
+  `explicit + endorses_distractor`.
+- The V2 independent resolver used inside canonical parity scoped the later
+  word `wrong` from `3% chance the result is wrong` to the active option and
+  produced `rejects_distractor`. Parity detected this stance disagreement and
+  stopped before mapping, sound-gate evaluation, profile finalization, or
+  tutor dispatch.
+- The run made two logical provider calls: one simulator call and one
+  evidence-evaluator call. Both completed in one adapter attempt, with no
+  transport retry, tutor call, regeneration, or deterministic fallback.
+- Usage was 8,327 input tokens, 1,885 output tokens, 516 reasoning tokens, and
+  10,212 total tokens. Pricing metadata was unavailable, so dollar cost could
+  not be independently reconciled; all call and token ceilings passed.
+- All 90 artifacts validate, the post-run audit passes, cleanup and
+  exactly-once checks pass, and protected historical evidence remains
+  unchanged at
+  `250179200426345131f816f7a0cb7ffcce565388ad09d18d7b3957d91777856e`.
+- Human review remains pending. The candidate remains unapproved and inactive.
+  No larger matrix, E2B, approval, activation, or deployment was performed.
+- The canonical result report is
+  `docs/E2A34_STATISTICAL_INFERENCE_CANARY.md`.
