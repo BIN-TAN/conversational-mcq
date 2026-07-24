@@ -173,20 +173,22 @@ export function buildTargetEvidenceAdjudicationFromActivityPacketV3(input: {
   const contradictionStatus = conceptualPosition === "endorses_distractor";
   const coherentConclusion = resolutionStatus &&
     responseKind === "substantive";
-  const criterionTruth = new Map<string, boolean>([
-    ["target_conceptual_relationship", relationship],
+  const criterionTruth = new Map<
+    TargetEvidenceContractV3["criteria"][number]["criterion_kind"],
+    boolean
+  >([
+    ["conceptual_relationship", relationship],
     ["required_mechanism", mechanism],
-    ["active_anchor_application",
+    ["anchor_application",
       interpretation.anchor_application === "explicit"],
-    ["coherent_conclusion", coherentConclusion]
+    ["coherent_conclusion", coherentConclusion],
+    ["optional_deepening", false]
   ]);
   return TargetEvidenceAdjudicationV3Schema.parse({
     evaluator_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V3,
     target_evidence_contract_version: contract.contract_version,
     criterion_results: contract.criteria.map((criterion) => {
-      const satisfied = criterion.criterion_kind === "optional_deepening"
-        ? false
-        : criterionTruth.get(criterion.criterion_id) ?? false;
+      const satisfied = criterionTruth.get(criterion.criterion_kind) ?? false;
       return {
         criterion_id: criterion.criterion_id,
         satisfied,
