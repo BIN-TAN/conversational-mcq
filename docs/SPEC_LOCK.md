@@ -4206,3 +4206,34 @@ Phase 6A.5 must not implement:
 - The candidate, evaluator V5, canonical evidence runtime, resolver, stance
   resolver, contradiction propagation, production sound gate, transport retry
   policy, and `trajectory-envelope-v1` remain unchanged.
+
+## E2A.33a anchor stance correction and E2A.33b protocol
+
+- Historical E2A.33 run `e2a33_20260724014237_58099b2a` remains immutable and
+  failed closed as `e2a33_canary_failed_anchor_resolution`. It was not rerun,
+  and no E2A.33 pass is claimed.
+- Reference resolver V1 correctly found the explicit option-D reference in
+  both turn-1 provider outputs. Historical stance resolver V1 classified
+  ordinary-language agreement as `ambiguous`.
+- `anchor-stance-evidence-contract-v2` and
+  `anchor-stance-evidence-resolution-v2` now classify stance evidence
+  independently from reference resolution. Composed resolver V4 combines
+  reference V1 and stance-evidence V2 without changing resolver V1 or V3.
+- The correction is domain-neutral. It handles agreement, disagreement,
+  negation, contrast, uncertainty, contextual pronouns, paraphrases, and prior
+  student reasoning without causal-inference-specific rules.
+- A 192-case generic calibration passes. Explicit agreement maps to
+  `endorses_distractor`, explicit disagreement and contrastive rejection map
+  to `rejects_distractor`, and uncertainty remains `ambiguous`.
+- Immutable offline replay reproduces V3's historical
+  `explicit + ambiguous` result for both E2A.33 turn-1 attempts and produces
+  V4's `explicit + endorses_distractor` result. Historical artifacts remain
+  byte-stable and read-only.
+- Evaluator V5, the tutor candidate, candidate configuration, E2A.33 protocol,
+  resolver V1, and resolver V3 remain unchanged.
+- Prepared protocol
+  `e2a33b-causal-inference-anchor-stance-canary-v1` has hash
+  `acc8b7453d57f3b2827e45bea860e8d7b24a4e349c6a17fb36f947185cc5b18d`.
+- E2A.33b preparation is no-live only. It has no live command and does not
+  authorize E2A.33b execution, another E2A.33 run, a larger matrix, E2B,
+  approval, activation, or deployment.
