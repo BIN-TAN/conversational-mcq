@@ -34,8 +34,6 @@ import {
   type TargetEvidenceContractV4
 } from "@/lib/services/student-assessment/target-evidence-contract-v4";
 import {
-  assertTargetEvidenceObservationConsistentV6,
-  mapTargetEvidenceAdjudicationToObservationV6,
   type TargetEvidenceAdjudicationV5,
   type TargetEvidenceContractV5
 } from "@/lib/services/student-assessment/target-evidence-contract-v5";
@@ -48,8 +46,8 @@ import {
   assertTutorDispatchUsesFinalizedProfile
 } from "@/lib/services/student-assessment/pre-tutor-profile-finalization";
 import {
-  finalizeEvidenceFirstTurnBeforeTutorV3
-} from "@/lib/services/student-assessment/pre-tutor-profile-finalization-v3";
+  finalizeEvidenceFirstTurnBeforeTutorV4
+} from "@/lib/services/student-assessment/pre-tutor-profile-finalization-v4";
 import type {
   LearningProfileUpdateDispositionRecordV1,
   TurnEvidenceObservationRecordV1
@@ -731,7 +729,7 @@ export async function executeAutonomousFormativeTurn(input: {
   const usingV3 = input.target_evidence_contract.contract_version ===
     "target-evidence-contract-v2";
   const finalizedV5 = usingV5
-    ? finalizeEvidenceFirstTurnBeforeTutorV3({
+    ? finalizeEvidenceFirstTurnBeforeTutorV4({
         contract: input.target_evidence_contract as TargetEvidenceContractV5,
         adjudication: adjudication as TargetEvidenceAdjudicationV5,
         latest_student_message: message,
@@ -774,13 +772,10 @@ export async function executeAutonomousFormativeTurn(input: {
     interaction_intent: interactionIntent
   };
   if (usingV5) {
-    assertTargetEvidenceObservationConsistentV6({
-      contract: input.target_evidence_contract as TargetEvidenceContractV5,
-      adjudication: adjudication as TargetEvidenceAdjudicationV5,
-      observation: observation as ReturnType<
-        typeof mapTargetEvidenceAdjudicationToObservationV6
-      >
-    });
+    if (!finalizedV5?.consistency.passed ||
+        !finalizedV5.consistency.evidence_preservation.passed) {
+      throw new Error("target_evidence_v7_finalization_not_attested");
+    }
   } else if (usingV4) {
     assertTargetEvidenceObservationConsistentV4({
       contract: input.target_evidence_contract as TargetEvidenceContractV4,

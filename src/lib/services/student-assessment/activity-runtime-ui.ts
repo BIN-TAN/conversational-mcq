@@ -68,15 +68,17 @@ import {
 } from "@/lib/services/student-assessment/topic-dialogue-evidence-first-routing";
 import {
   buildActivityTargetEvidenceContractV5,
-  buildTargetEvidenceAdjudicationFromEvaluatorOutputV5,
-  TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V6
+  buildTargetEvidenceAdjudicationFromEvaluatorOutputV5
 } from "@/lib/services/student-assessment/target-evidence-contract-v5";
+import {
+  TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V7
+} from "@/lib/services/student-assessment/target-evidence-mapper-v7";
 import {
   assertTutorDispatchUsesFinalizedProfile
 } from "@/lib/services/student-assessment/pre-tutor-profile-finalization";
 import {
-  finalizeEvidenceFirstTurnBeforeTutorV3
-} from "@/lib/services/student-assessment/pre-tutor-profile-finalization-v3";
+  finalizeEvidenceFirstTurnBeforeTutorV4
+} from "@/lib/services/student-assessment/pre-tutor-profile-finalization-v4";
 import {
   buildNoLiveStructuredTurnEvidenceV5ForTestOnly
 } from "@/lib/services/student-assessment/production-turn-evidence-evaluator-v5";
@@ -2789,7 +2791,7 @@ async function processTopicDialogueResponse(input: {
   if (!latestAcceptedStudentTurn) {
     throw new Error("topic_dialogue_latest_student_turn_missing");
   }
-  const finalizedProfile = finalizeEvidenceFirstTurnBeforeTutorV3({
+  const finalizedProfile = finalizeEvidenceFirstTurnBeforeTutorV4({
     contract: targetEvidenceContract,
     adjudication: targetEvidenceAdjudication,
     latest_student_message: message,
@@ -2836,7 +2838,7 @@ async function processTopicDialogueResponse(input: {
         evidence_first_target_contract: targetEvidenceContract,
         evidence_first_target_adjudication: targetEvidenceAdjudication,
         evidence_first_profile_mapper_version:
-          TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V6,
+          TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V7,
         evidence_first_profile_consistency: profileConsistency,
         evidence_first_turn_observation:
           finalizedProfile.observation_record,
@@ -2860,7 +2862,7 @@ async function processTopicDialogueResponse(input: {
       source_student_turn_id: turnEvidenceProfile.source_student_turn_id,
       source_sequence_index: turnEvidenceProfile.source_sequence_index,
       evaluator_version: turnEvidenceProfile.evaluator_version,
-      profile_mapper_version: TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V6,
+      profile_mapper_version: TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V7,
       target_evidence_contract_version:
         targetEvidenceContract.contract_version,
       profile_consistency_policy_version: profileConsistency.policy_version,

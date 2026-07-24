@@ -4298,3 +4298,33 @@ Phase 6A.5 must not implement:
 - Human review remains pending. E2A.34 was not executed or authorized. The
   canonical report is
   `docs/E2A33C_CAUSAL_INFERENCE_FALSE_SOUND_ADJUDICATION.md`.
+
+## E2A.33d evidence-preserving mapper correction
+
+- E2A.33d adds `target-evidence-mapper-preservation-v1` and
+  `turn-evidence-profile-mapper-v7`. Mapping may aggregate evidence but may
+  not remove evaluator essential missing links, blocking contradictions,
+  unresolved limitations, or source evidence spans.
+- Evaluator essential missing links must enter the unchanged sound gate before
+  reasoning quality is finalized. `sound` requires an empty
+  `essential_missing_links` list.
+- `pre-tutor-profile-finalization-v4` records the preservation result before
+  profile update, route selection, or tutor authorization. Current V5 runtime
+  paths use V7/V4; historical V1-V3 attestations and frozen E2A harnesses
+  remain supported.
+- Immutable offline replay of E2A.33b Turn 3 now produces `partial`,
+  `revision_readiness=false`, and `remain_in_dialogue`, with both Evaluator V5
+  missing links preserved. E2A.33b remains a historical failure and was not
+  rerun.
+- Four deterministic mapper regressions pass without provider calls. The
+  E2A.33b 90-file evidence tree remains unchanged at aggregate SHA-256
+  `ec134ae3d7333fad30c65c188f1a57de320e7dac7ba9cfabd606a077fe10b348`.
+- Canonical E2A.33d artifact
+  `e2a33d_20260724145806_004e9fee` contains 10 validated files under
+  `.data/e2a33d-evidence-preserving-mapper-correction/`.
+- E2A.34 is only `prepared_not_frozen_not_executable`: no held-out domain,
+  protocol hash, runtime identity, authorization, or dispatch exists.
+- Evaluator V5, the sound gate criteria, the tutor candidate, and the semantic
+  envelope remain unchanged. No provider call was made.
+- The canonical report is
+  `docs/E2A33D_EVIDENCE_PRESERVING_MAPPER_CORRECTION.md`.
