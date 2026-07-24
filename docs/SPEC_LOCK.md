@@ -4237,3 +4237,33 @@ Phase 6A.5 must not implement:
 - E2A.33b preparation is no-live only. It has no live command and does not
   authorize E2A.33b execution, another E2A.33 run, a larger matrix, E2B,
   approval, activation, or deployment.
+
+## E2A.33b causal-inference live result
+
+- The single authorized E2A.33b session
+  `e2a33b_20260724101300_f5ae71c0` was dispatched exactly once and failed
+  closed as `e2a33b_canary_failed_evidence_accuracy`. It must not be rerun
+  under the consumed authorization.
+- The run used frozen protocol hash
+  `acc8b7453d57f3b2827e45bea860e8d7b24a4e349c6a17fb36f947185cc5b18d`
+  and frozen composite identity
+  `99c957224b4d71aa29a4cef4e0a1a02aaa7a938b5ca949dca3b09958a4161d79`.
+- Anchor stance evidence resolver V2 corrected the historical boundary:
+  turn-1 `I agree with D` resolved to `explicit + endorses_distractor` and
+  remained non-sound.
+- Turn 3 explicitly rejected option D and correctly described motivation as a
+  confounder, but proposed an uncontrolled comparison of existing users and
+  nonusers. Evaluator V5 retained two missing causal-design links and described
+  the response as partial.
+- The downstream target-evidence mapper nevertheless promoted turn 3 to
+  `sound`. The V5 consistency guard rejected the internally inconsistent
+  observation as `target_evidence_profile_inconsistent_v5:false_sound` before
+  profile finalization or tutor dispatch.
+- All 90 artifacts validate and are read-only. The post-run audit passes,
+  provider concurrency was one, no transport retry or deterministic fallback
+  occurred, and all call and token ceilings were respected.
+- Human review remains pending. The candidate remains unapproved and inactive.
+  No larger matrix, E2B, approval, activation, or deployment was performed.
+- Historical E2A.33 evidence remains unchanged with evidence-tree hash
+  `75d0c929642f40769b951b6d04cf47fa044ab89e78b7adbfab475058e7303f66`.
+- The canonical result report is `docs/E2A33B_CAUSAL_INFERENCE_CANARY.md`.
