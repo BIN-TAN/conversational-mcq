@@ -4328,3 +4328,48 @@ Phase 6A.5 must not implement:
   envelope remain unchanged. No provider call was made.
 - The canonical report is
   `docs/E2A33D_EVIDENCE_PRESERVING_MAPPER_CORRECTION.md`.
+
+## E2A.34 research-methods statistical-inference protocol freeze
+
+- E2A.34 is deterministic preparation only. It creates no provider client,
+  provider dispatch, live session, approval, activation, matrix, E2B stage, or
+  deployment.
+- The held-out scenario asks whether p = .03 means that the research
+  hypothesis has a 97% probability of being true. The active distractor says
+  that hypothesis probability can be calculated directly from the p-value.
+- `TargetEvidenceContractV5` distinguishes the null-conditional probability
+  of the observed data from the probability of a hypothesis given the data.
+  It requires the null reference condition, data-unusualness interpretation,
+  conditional-probability direction, explicit distractor rejection, and a
+  coherent conclusion.
+- The canonical anchor, alias contract, and
+  `e2a34-p-value-anchor-stance-v1` cover endorsement, rejection, uncertainty,
+  negation, contrast, pronouns, and paraphrases. Twenty deterministic
+  resolver cases pass without changing the shared reference or stance
+  resolver.
+- The required contradiction states the null assumption while retaining the
+  97% claim. It remains `explicit + endorses_distractor +
+  contradictory_to_conceptual_reasoning` with `revision_ready=false`.
+- Nine trajectory regressions cover early sound, prolonged partial evidence,
+  contradiction after improvement, copied wording, confidence mismatch,
+  explicit endorsement and rejection, missing statistical reasoning, and
+  sound rejection of the p-value misconception. Sound evidence authorizes
+  immediate revision with no minimum turn count.
+- The E2A.33d evidence-preservation prerequisite is loaded by hash. Evaluator
+  essential missing links must survive the V7 mapper and reach the unchanged
+  production sound gate.
+- Exact, normalized, token, structural-template, and deterministic
+  semantic-tag checks compare 13 historical-stage inputs from E2A.24 through
+  E2A.33d. The p-value mechanism is not a renamed E2A.33 causal-inference
+  scenario; only the declared `trajectory-envelope-v1` structure is reused.
+- Frozen protocol
+  `e2a34-statistical-inference-trajectory-envelope-canary-v1` has hash
+  `83ddef09e6d70631ce30f1161659fe85aa25b3bcc38891ba7b3f7bc6a9e0c405`.
+  Canonical no-live run `e2a34_20260724T153144381_ffc2d6a3` has composite
+  runtime identity
+  `39f61e1aa128a7586b1c6f534c6401ffaadbdc61ab59e54943556dde84f35195`.
+- Evaluator V5, the tutor candidate, canonical anchor evidence, resolver,
+  stance resolver, mapper evidence-preservation contract, sound gate criteria,
+  and trajectory-envelope system remain unchanged.
+- Live E2A.34 execution, a larger matrix, E2B, approval, activation, and
+  deployment remain unauthorized.
