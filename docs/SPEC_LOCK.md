@@ -4267,3 +4267,34 @@ Phase 6A.5 must not implement:
 - Historical E2A.33 evidence remains unchanged with evidence-tree hash
   `75d0c929642f40769b951b6d04cf47fa044ab89e78b7adbfab475058e7303f66`.
 - The canonical result report is `docs/E2A33B_CAUSAL_INFERENCE_CANARY.md`.
+
+## E2A.33c causal-inference false-sound adjudication
+
+- E2A.33c reviewed immutable E2A.33b run
+  `e2a33b_20260724101300_f5ae71c0` without provider calls or a live rerun.
+- The 90-file source tree remains unchanged at aggregate SHA-256
+  `ec134ae3d7333fad30c65c188f1a57de320e7dac7ba9cfabd606a077fe10b348`.
+- Turn 3 correctly explained motivation as a confounder and rejected option D,
+  but did not explain why an existing-user comparison could remain confounded
+  or specify a causal design that addresses alternative explanations.
+- Evaluator V5 retained those two essential missing links and characterized
+  the reasoning as partial. Evaluator V5 is not the false-sound source.
+- Root cause **B, mapper dropped evidence**, is confirmed. The legacy
+  criterion-kind projection marked every required-mechanism criterion
+  satisfied, and V6 appended the evaluator's structured missing links only
+  after the legacy sound decision.
+- The unchanged sound gate rejects the evidence-complete input with
+  `essential_missing_links_present`. The existing consistency guard correctly
+  rejected `sound + missing links` as `false_sound` before profile finalization
+  or tutor dispatch.
+- Four deterministic regressions preserve the full sound boundary: mechanism
+  understanding, sufficient causal reasoning, distractor rejection, no
+  essential missing links, and a coherent conclusion.
+- The adjudication artifact
+  `e2a33c_20260724142532_cd0ca553` has 11 validated no-live artifacts under
+  `.data/e2a33c-causal-inference-false-sound-adjudication/`.
+- Evaluator V5, the tutor candidate, the historical mapper, the sound gate, and
+  E2A.33b evidence remain unchanged. E2A.33b remains a historical failure.
+- Human review remains pending. E2A.34 was not executed or authorized. The
+  canonical report is
+  `docs/E2A33C_CAUSAL_INFERENCE_FALSE_SOUND_ADJUDICATION.md`.
