@@ -4434,13 +4434,52 @@ Phase 6A.5 must not implement:
   to have passed.
 - The 90-file E2A.34 evidence tree remains read-only and unchanged at
   `ba8be92757911bc75ad43a6fb6d1239da4fd1ea26a62cd5f7b83137b390ae78a`.
-- Prepared E2A.35 protocol
+- The historical E2A.34a preparation protocol, originally assigned an
+  `e2a35-*` name before the sampling-bias stage was defined,
   `e2a35-statistical-inference-anchor-stance-scope-canary-v1` has hash
   `b1f86306b03e60a7dc54f4c34291926667d8bcccb065f5b8f82c67ff29140cbf`
   and preparation composite identity
   `68be79e53f9718b9baeb07733613589f7eaaaa1915eea25634273d253b83359b`.
-- E2A.35 has no live harness or live command in this phase. Execution remains
-  unauthorized. No provider call, larger matrix, E2B stage, approval,
-  activation, or deployment was performed.
+- That historical preparation remains under the `e2a34a:*` no-live commands.
+  No provider call, larger matrix, E2B stage, approval, activation, or
+  deployment was performed.
 - The canonical correction report is
   `docs/E2A34A_ANCHOR_STANCE_SCOPE_CORRECTION.md`.
+
+## E2A.35 self-correction and conversational-state protocol freeze
+
+- E2A.35 is a no-live held-out protocol for Research Methods / Sampling Bias.
+  It tests natural self-correction, unsupported correction claims, topic
+  changes, regression after correction, latest-valid-evidence precedence, and
+  immediate revision after independently sound evidence.
+- The active distractor claims that volunteer students represent the whole
+  university because anyone could participate. Sound evidence must explain
+  systematic volunteer differences, self-selection, and the resulting limit
+  on population generalization, while rejecting the active distractor.
+- `self-correction-intent-v1` keeps a valid correction in the conceptual
+  response route. It does not treat the correction as off-topic, unrelated,
+  or a new question. Correction language alone is not evidence.
+- The unchanged production profile-update contract gives the latest valid
+  evidence precedence while retaining earlier misconception evidence as
+  historical. Renewed misconception evidence reopens the profile; later sound
+  evidence closes it and authorizes revision immediately.
+- `trajectory-envelope-v1` remains non-authoritative about exact turns. Sound
+  evidence overrides simulator intent, prolonged partial evidence can remain
+  in dialogue, and copied wording without evidence cannot progress.
+- A 160-case self-correction calibration, representative prior-scenario
+  overlap checks, and focused profile, reopening, trajectory, target-contract,
+  artifact, and provider-call regressions pass without network access.
+- Frozen protocol
+  `e2a35-sampling-bias-self-correction-canary-v1` has hash
+  `97812ff31dc3af594b992c01706bed8ddda2229ac1e5cbdd96f916c2e569e9b9`.
+  Its composite runtime identity is
+  `cc6f9a6f1f4000106f599c8221b01fbf9c72ff01360ac6b32b2aff4bc9b88303`.
+- The inert budget is one isolated session, 29 logical calls, 87 adapter
+  attempts, at most two transport retries per logical call, 900,000 input
+  tokens, 70,000 output tokens, 970,000 total tokens, USD 25 when pricing
+  metadata is available, and provider concurrency one.
+- E2A.35 was not executed. There is no live command or live harness in this
+  phase. Provider calls and network requests are zero. Candidate approval and
+  activation remain false.
+- The canonical freeze report is
+  `docs/E2A35_SELF_CORRECTION_PROTOCOL_FREEZE.md`.

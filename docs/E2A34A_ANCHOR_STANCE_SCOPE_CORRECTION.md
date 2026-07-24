@@ -94,7 +94,7 @@ Offline replay of E2A.34 Turn 1 first reproduces the legacy
 The replay reads immutable stored provider output. It makes no provider or
 network request.
 
-## Prepared E2A.35 protocol
+## Historical scope-correction preparation protocol
 
 The inert protocol version is:
 
@@ -118,22 +118,23 @@ attempts, at most two transport retries per logical call, 900,000 input
 tokens, 70,000 output tokens, 970,000 total tokens, USD 25 when pricing
 metadata is available, and provider concurrency one.
 
-E2A.35 has no live harness or live command in this phase. Its prepared
-protocol is not executable and requires separate implementation, preflight,
-and explicit authorization before any provider dispatch.
+This historical preparation used an `e2a35-*` protocol name before the
+sampling-bias E2A.35 freeze was defined. It remains immutable evidence of the
+E2A.34a correction and is now exposed under `e2a34a:*` command names so it
+cannot be confused with the current E2A.35 self-correction protocol.
 
 ## Commands
 
 ```bash
-npm run eval:formative:e2a35:run
-npm run eval:formative:e2a35:report
-npm run eval:formative:e2a35:smoke
-npm run eval:formative:e2a35:calibration-smoke
-npm run eval:formative:e2a35:replay-smoke
-npm run eval:formative:e2a35:historical-integrity-smoke
-npm run eval:formative:e2a35:runtime-smoke
-npm run eval:formative:e2a35:artifact-smoke
-npm run eval:formative:e2a35:provider-call-guard-smoke
+npm run eval:formative:e2a34a:run
+npm run eval:formative:e2a34a:report
+npm run eval:formative:e2a34a:smoke
+npm run eval:formative:e2a34a:calibration-smoke
+npm run eval:formative:e2a34a:replay-smoke
+npm run eval:formative:e2a34a:historical-integrity-smoke
+npm run eval:formative:e2a34a:runtime-smoke
+npm run eval:formative:e2a34a:artifact-smoke
+npm run eval:formative:e2a34a:provider-call-guard-smoke
 ```
 
 Persistent no-live artifacts are written under:
