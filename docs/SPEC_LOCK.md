@@ -4406,3 +4406,41 @@ Phase 6A.5 must not implement:
   No larger matrix, E2B, approval, activation, or deployment was performed.
 - The canonical result report is
   `docs/E2A34_STATISTICAL_INFERENCE_CANARY.md`.
+
+## E2A.34a anchor-stance scope correction and E2A.35 preparation
+
+- E2A.34a introduces `anchor-stance-scope-resolution-v1`, which separates
+  polarity detection, anchor-target attachment, and stance classification.
+  Lexical polarity cannot alter anchor stance unless it is attached to the
+  active anchor.
+- Required boundaries are fixed: `Option D is wrong` rejects the distractor;
+  `The result is wrong` does not change anchor stance; `I choose D, although
+  the result may be wrong` endorses the distractor; and uncertainty about D
+  remains ambiguous.
+- `target-evidence-scoped-adjudication-v1` preserves the established V5
+  downstream adjudication shape while replacing only the legacy
+  whole-message lexical parity check. Scope evidence is persisted separately
+  for audit.
+- The production formative-dialogue runtime uses the scoped adjudication
+  integration. Evaluator V5, the tutor candidate, the legacy V2 resolver, and
+  the historical V5 adjudication builder remain unchanged.
+- A 288-case domain-neutral deterministic calibration covers negation,
+  contrast, pronouns, multiple entities, causal/statistical language, option
+  references, non-anchor adjectives, paraphrases, uncertainty, and prior
+  reasoning.
+- Immutable E2A.34 Turn 1 replay reproduces the legacy false parity rejection
+  and verifies the correction without a provider request. E2A.34 remains
+  `e2a34_canary_failed_anchor_resolution`; it was not rerun and is not claimed
+  to have passed.
+- The 90-file E2A.34 evidence tree remains read-only and unchanged at
+  `ba8be92757911bc75ad43a6fb6d1239da4fd1ea26a62cd5f7b83137b390ae78a`.
+- Prepared E2A.35 protocol
+  `e2a35-statistical-inference-anchor-stance-scope-canary-v1` has hash
+  `b1f86306b03e60a7dc54f4c34291926667d8bcccb065f5b8f82c67ff29140cbf`
+  and preparation composite identity
+  `68be79e53f9718b9baeb07733613589f7eaaaa1915eea25634273d253b83359b`.
+- E2A.35 has no live harness or live command in this phase. Execution remains
+  unauthorized. No provider call, larger matrix, E2B stage, approval,
+  activation, or deployment was performed.
+- The canonical correction report is
+  `docs/E2A34A_ANCHOR_STANCE_SCOPE_CORRECTION.md`.

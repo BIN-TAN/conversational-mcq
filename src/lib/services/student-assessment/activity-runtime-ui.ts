@@ -68,8 +68,10 @@ import {
 } from "@/lib/services/student-assessment/topic-dialogue-evidence-first-routing";
 import {
   buildActivityTargetEvidenceContractV5,
-  buildTargetEvidenceAdjudicationFromEvaluatorOutputV5
 } from "@/lib/services/student-assessment/target-evidence-contract-v5";
+import {
+  buildTargetEvidenceScopedAdjudicationV1
+} from "@/lib/services/student-assessment/target-evidence-scoped-adjudication-v1";
 import {
   TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V7
 } from "@/lib/services/student-assessment/target-evidence-mapper-v7";
@@ -2765,8 +2767,8 @@ async function processTopicDialogueResponse(input: {
   if (!structuredTurnEvidence) {
     throw new Error("production_turn_evidence_v5_missing");
   }
-  const targetEvidenceAdjudication =
-    buildTargetEvidenceAdjudicationFromEvaluatorOutputV5({
+  const scopedTargetEvidenceAdjudication =
+    buildTargetEvidenceScopedAdjudicationV1({
       latest_student_message: message,
       packet: evidence.packet,
       structured_turn_evidence: structuredTurnEvidence,
@@ -2776,6 +2778,8 @@ async function processTopicDialogueResponse(input: {
       prior_visible_message: completeVisibleEpisode.visible_turns
         .slice(0, -1).at(-1)?.message_text ?? null
     });
+  const targetEvidenceAdjudication =
+    scopedTargetEvidenceAdjudication.adjudication;
   const latestAcceptedStudentTurn = await client.conversationTurn.findFirst({
     where: {
       assessment_session_db_id: context.session.id,
@@ -2837,6 +2841,10 @@ async function processTopicDialogueResponse(input: {
         evidence_first_route: evidenceFirstRoute,
         evidence_first_target_contract: targetEvidenceContract,
         evidence_first_target_adjudication: targetEvidenceAdjudication,
+        evidence_first_anchor_stance_scope_resolution:
+          scopedTargetEvidenceAdjudication.anchor_stance_scope_resolution,
+        evidence_first_target_adjudication_integration_version:
+          scopedTargetEvidenceAdjudication.integration_version,
         evidence_first_profile_mapper_version:
           TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V7,
         evidence_first_profile_consistency: profileConsistency,
@@ -2865,6 +2873,14 @@ async function processTopicDialogueResponse(input: {
       profile_mapper_version: TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V7,
       target_evidence_contract_version:
         targetEvidenceContract.contract_version,
+      target_adjudication_integration_version:
+        scopedTargetEvidenceAdjudication.integration_version,
+      anchor_stance_scope_resolution_version:
+        scopedTargetEvidenceAdjudication.anchor_stance_scope_resolution
+          .resolver_version,
+      anchor_stance_scope_resolution_basis:
+        scopedTargetEvidenceAdjudication.anchor_stance_scope_resolution
+          .stance_classification.resolution_basis,
       profile_consistency_policy_version: profileConsistency.policy_version,
       conceptual_evidence_applicability:
         finalizedProfile.conceptual_evidence_applicability,
