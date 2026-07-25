@@ -4784,3 +4784,52 @@ isolation remains mandatory.
 
 E2A.42 is not authorized for live execution and does not approve or activate
 the candidate. See `docs/E2A42_CBA_EVALUATION_FRAMEWORK_PROTOCOL.md`.
+
+## Phase E2A.43 CBA Empirical Evaluation Study Protocol Freeze
+
+E2A.43 adds a no-live dissertation research protocol over the protected E2A.42
+evaluation framework.
+
+- Protocol: `e2a43-cba-empirical-evaluation-study-freeze-v1`
+- Research protocol: `cba-empirical-research-protocol-v1`
+- Research questions: `research-question-framework-v1`
+- Study design: `empirical-evaluation-study-design-v1`
+- Expert framework: `expert-rating-framework-v1`
+- Classroom pilot: `classroom-pilot-contract-v1`
+- Comparison framework: `study-comparison-framework-v1`
+- Research schema: `research-data-schema-v1`
+- Ethics boundary: `research-ethics-boundary-v1`
+- Analysis framework: `analysis-framework-v1`
+- Protocol hash:
+  `44d56c4789a4f63e6322d0d129ab62e542fdc31a745bd6f8cb65bb9b8dcba137`
+- Composite runtime identity:
+  `f4b51fcdb9dae9b963fec8b3134a348f065a92f5fbe3906a66287b32a88b3d8a`
+- Research questions: `5`
+- Study phases: `3`
+- Research variables: `15`
+- Required regressions: `14`
+- Deterministic checks: `77`
+- Provider calls: `0`
+- Network requests: `0`
+- Authoritative 38-artifact packet:
+  `.data/e2a43-cba-empirical-evaluation-study-protocol-freeze/e2a43_20260725T172117131Z_0c4b1e5d/`
+
+The ordered design covers synthetic system validation, expert evaluation, and
+a potential classroom pilot. Human-participant phases require appropriate REB
+review. This freeze does not assume approval, authorize recruitment, or
+authorize empirical data collection.
+
+The study integrates E2A.42 diagnostic, learning, process, experience, and
+teacher/research utility dimensions without modifying the protected framework.
+The three-condition comparison does not fabricate expected outcomes, effects,
+or CBA superiority. Analysis methods remain conditional on the eventual
+approved design, sample, measurements, and assumptions.
+
+The research schema uses pseudonymous research IDs and excludes direct
+identifiers, chain-of-thought, hidden model reasoning, hidden prompts, API
+keys, and credential hashes. The protocol explicitly records pilot-context,
+sample-size, generalizability, model-dependency, and replication limitations.
+
+E2A.43 is a research protocol only. It has no live entrypoint and does not
+approve or activate the candidate. See
+`docs/E2A43_CBA_EMPIRICAL_EVALUATION_STUDY_PROTOCOL.md`.
