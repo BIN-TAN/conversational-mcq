@@ -4597,3 +4597,31 @@ Phase 6A.5 must not implement:
   inactive. E2A.38 must not be rerun under the consumed authorization.
 - The canonical report is
   `docs/E2A38_INTEGRATED_AUTONOMOUS_SESSION_CANARY.md`.
+
+## E2A.38a longitudinal evidence update decoupling
+
+- `conceptual-evidence-update-source-v1` separates ordinary conceptual
+  evidence, self-correction intent, and self-correction evidence context.
+- Accepted ordinary conceptual evidence can update the longitudinal current
+  profile without requiring a self-correction-specific update flag.
+  Intent-only, copied, unsupported, uncertain, and non-conceptual responses
+  remain ineligible.
+- A 180-case calibration and all five required profile/stopping regressions
+  pass. Evaluator V5, the sound gate, tutor candidate, adaptive stopping, and
+  trajectory envelope remain byte-verified and unchanged.
+- Offline replay of immutable E2A.38 Turn 5 changes the longitudinal current
+  profile from stale `partial` to `sound`; the unchanged stopping policy then
+  returns `stop_formative_dialogue` with revision ready and tutor dispatch
+  disabled.
+- E2A.38 remains failed and its 122 read-only artifacts remain unchanged at
+  aggregate SHA-256
+  `01217f4ba5b103711577fd4c485d4e6903e82911390044203f3b4e7ad68f4898`.
+- Prepared-only E2A.39 protocol
+  `e2a39-longitudinal-evidence-update-decoupling-canary-v1` has hash
+  `eac352266f94853ffec1de832c3506cfc41d6ecbc73e6b0b894165035d4bf3f8`
+  and composite runtime identity
+  `6dde1efb41bf86a9bfaa840d92f69cf88052d4a4ce9a9ec4913dca5379f35c4f`.
+- E2A.39 remains unauthorized, unexecuted, and without a provider-dispatch
+  path. Provider calls and network requests are zero.
+- The canonical report is
+  `docs/E2A38A_LONGITUDINAL_EVIDENCE_UPDATE_DECOUPLING.md`.
