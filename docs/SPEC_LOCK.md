@@ -4545,3 +4545,33 @@ Phase 6A.5 must not implement:
   activation remain false.
 - The canonical report is
   `docs/E2A37_INSTRUCTOR_HANDOFF_PROTOCOL_FREEZE.md`.
+
+## E2A.38 integrated autonomous session protocol freeze
+
+- E2A.38 is a deterministic, no-provider integrated workflow protocol. It is
+  frozen for separate authorization and was not executed live.
+- The integration path is
+  `activity -> evidence -> profile -> intervention -> reassessment -> revision`.
+  Early sound may short-circuit directly to revision, and later regression
+  reopens targeted support.
+- The educational-measurement scenario tests reliability versus validity so
+  integration behavior can be isolated from domain generalization.
+- Ten deterministic cases cover early and delayed sound, contradiction
+  resolution, supported and unsupported self-correction, regression,
+  persistent-barrier handoff, engagement-qualified personalization, repeated
+  tutor-strategy rejection, and internal-language rejection.
+- Every accepted synthetic turn records learning profile, engagement
+  evidence, intervention memory, and a cross-stage evidence-preservation
+  audit. Sound requires no essential missing links.
+- The E2A.37 protocol and its protected component boundary remain
+  byte-verified and unchanged. E2A.38 adds only workflow-fidelity, efficiency,
+  personalization, stopping-quality, human-boundary, and evidence-integrity
+  assertions.
+- The protocol hash is
+  `84300970cf23afa5f114ec3d367ca9a2096ea074fe9fb78a37e630fc30750911`.
+- The composite runtime identity is
+  `4aeae9f504135a99b4d26fd596d0f1796fb59dcf2d85fbc6fc62dc82e850b96a`.
+- Provider calls and network requests are zero. E2A.38 remains unauthorized
+  and unexecuted; candidate approval and activation remain false.
+- The canonical report is
+  `docs/E2A38_INTEGRATED_AUTONOMOUS_SESSION_PROTOCOL_FREEZE.md`.
