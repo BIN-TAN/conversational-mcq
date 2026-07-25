@@ -4833,3 +4833,60 @@ sample-size, generalizability, model-dependency, and replication limitations.
 E2A.43 is a research protocol only. It has no live entrypoint and does not
 approve or activate the candidate. See
 `docs/E2A43_CBA_EMPIRICAL_EVALUATION_STUDY_PROTOCOL.md`.
+
+## Phase E2A.44 Classroom Pilot Data Architecture Freeze
+
+E2A.44 adds a no-live classroom workflow, conceptual data architecture,
+privacy, visibility, consent, anonymization, and export-reproducibility
+protocol over the protected E2A.43 study design.
+
+- Protocol: `e2a44-classroom-pilot-data-architecture-freeze-v1`
+- Workflow: `classroom-workflow-contract-v1`
+- Architecture: `pilot-data-architecture-contract-v1`
+- Research boundary: `research-data-boundary-v1`
+- Teacher visibility: `teacher-visibility-contract-v1`
+- Student privacy: `student-privacy-contract-v1`
+- Consent and withdrawal: `consent-and-withdrawal-contract-v1`
+- Anonymization: `anonymization-contract-v1`
+- Export reproducibility: `data-export-reproducibility-contract-v1`
+- Protocol hash:
+  `6818e181e5ecbd500afe2bb22d50e33edf56b39f788e0dfd31f406db34c25ea0`
+- Composite runtime identity:
+  `8eac47d0060a905fe6c94725af97ed62797481fae0cb3e4164405da3fa687c5f`
+- Architecture layers: `5`
+- Conceptual entities: `23`
+- Workflow states: `7`
+- Required regressions: `12`
+- Deterministic checks: `83`
+- Provider calls: `0`
+- Network requests: `0`
+- Authoritative 34-artifact packet:
+  `.data/e2a44-classroom-pilot-data-architecture-protocol-freeze/e2a44_20260725T174046126Z_72a2160c/`
+
+The five layers are assessment objects, student evidence, learning-state
+evolution, interventions, and classroom/research boundaries. Evidence,
+profiles, interventions, revisions, and transfer records are append-only,
+versioned, source-linked, and scoped by student/session/course.
+
+Course access and grades remain independent from research consent. Missing,
+declined, or withdrawn consent fails closed for research export without
+penalizing course participation. Pseudonymous research identities use a
+separately controlled study-specific mapping and key; pseudonymization is not
+claimed to be anonymity.
+
+Teacher views allow scoped evidence summaries, candidate misconception
+patterns, and instructional support while excluding hidden reasoning, prompts,
+and system internals. Student views allow feedback, next steps, and
+plain-language learning summaries while excluding internal labels, profile
+fields, and AI decision records.
+
+The reproducible-export contract binds source cutoff, application and
+configuration identities, schema and service versions, consent and
+anonymization versions, stable ordering, record counts, and file hashes.
+Chain-of-thought, hidden reasoning, hidden prompts, unnecessary internal
+metadata, credentials, direct identifiers, and ineligible records are
+prohibited.
+
+E2A.44 is a conceptual protocol only. It performs no deployment, migration,
+research collection, candidate approval, or activation. See
+`docs/E2A44_CLASSROOM_PILOT_DATA_ARCHITECTURE_PROTOCOL.md`.
