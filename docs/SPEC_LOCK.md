@@ -4514,3 +4514,34 @@ Phase 6A.5 must not implement:
   adaptive stopping remain unchanged. Provider and network counts are zero.
 - The canonical report is
   `docs/E2A36A_STUDENT_SELF_CORRECTION_INTENT_ENVELOPE.md`.
+
+## E2A.37 instructor handoff protocol freeze
+
+- E2A.37 is a deterministic, no-provider held-out protocol. It is frozen for
+  separate authorization and is not executable in this phase.
+- The protocol tests when to continue support, change strategy, stop after
+  sound evidence, reopen after regression, and use an educationally
+  appropriate instructor handoff. Fixed turn count and correctness alone
+  cannot justify handoff.
+- Six held-out reliability-validity trajectories cover early progression,
+  persistent high engagement, bounded low responsiveness, early sound,
+  regression after sound, and unsupported understanding language.
+- `e2a37-instructor-handoff-boundary-v1` extends the existing
+  `instructor-escalation-policy-v1` only at the protocol boundary. Evaluator
+  V5, the tutor candidate, anchor evidence and resolvers, the
+  evidence-preservation mapper, `trajectory-envelope-v1`, and
+  `self-correction-intent-envelope-v2` remain byte-verified and unchanged.
+- Student-facing messages may communicate the conceptual distinction and a
+  useful instructor next step. They must not expose profiles, misconception
+  labels, engagement state, stopping rules, budgets, AI limitations, or
+  escalation criteria.
+- Twenty-nine deterministic cases and all eight synthetic metrics pass.
+  Provider calls and network requests are zero.
+- The protocol hash is
+  `d13256eb27213ee9799e2cd401df6cf5b2e8a8a38abe98fe1340ecd8bcc1e68e`.
+- The composite runtime identity is
+  `df4ace071e88af16c4941507c6adaab3f91d3efd9ca0919d767bd7018f815f2a`.
+- E2A.37 remains unauthorized and unexecuted. Candidate approval and
+  activation remain false.
+- The canonical report is
+  `docs/E2A37_INSTRUCTOR_HANDOFF_PROTOCOL_FREEZE.md`.
