@@ -4948,3 +4948,63 @@ The authoritative 32-artifact packet is:
 
 E2A.45 does not execute live testing, approve or activate a candidate, deploy a
 teacher view, or authorize access to production or research data.
+
+## E2A.46 Classroom Pilot Operational Readiness Protocol Freeze
+
+E2A.46 freezes a deterministic operational-readiness protocol on top of E2A.45.
+It does not modify evaluator V5, the tutor candidate, evidence pipeline,
+learning or engagement profiles, intervention memory, stopping policy,
+instructor handoff policy, auditability contracts, classroom data architecture,
+teacher evidence-review contracts, database schema, or deployment
+configuration.
+
+Frozen contracts:
+
+- `instructor-onboarding-contract-v1`
+- `student-onboarding-contract-v1`
+- `pilot-workflow-readiness-contract-v1`
+- `pilot-failure-handling-contract-v1`
+- `pilot-privacy-readiness-contract-v1`
+- `pilot-monitoring-contract-v1`
+- `pilot-readiness-criteria-v1`
+- `pilot-readiness-checklist-v1`
+
+Actual readiness requires explicit evidence for the deployment environment,
+monitoring, backup, recovery, consent, withdrawal, research data handling,
+institutional ethics approval, pilot documentation, instructor training,
+student orientation, and support process. Failed required checks yield
+`not_ready`; unverified checks yield `not_determined`; verified checks can
+yield `ready_for_authorized_controlled_pilot_review`, which still does not
+authorize deployment.
+
+The current E2A.46 decision is `not_determined`. Deterministic protocol checks
+pass, but no real operational or institutional evidence was supplied. E2A.46
+does not establish classroom effectiveness.
+
+The frozen protocol identity is:
+
+```text
+protocol_version:
+e2a46-classroom-pilot-operational-readiness-freeze-v1
+
+protocol_hash:
+68c0f468fa41c01dd5ae9574580453b762ea1d7212c10549274033a980bc38ca
+
+composite_runtime_identity:
+1bbc21e220e77a8dc40e17fc04eb254a8019fbd3a2e84ea586402af6766f5f10
+```
+
+The protocol-freeze budget is zero provider calls and zero network requests.
+The future ceiling of 29 logical calls, 87 adapter attempts, two transport
+retries per logical call, 900,000 input tokens, 70,000 output tokens, 970,000
+total tokens, USD 25 when pricing is available, and concurrency one is frozen
+but not authorized.
+
+The authoritative 36-artifact packet is:
+
+```text
+.data/e2a46-pilot-operational-readiness-protocol-freeze/e2a46_20260725T183518657Z_caca6f2c/
+```
+
+E2A.46 does not execute live testing, run a classroom pilot, assume REB or
+ethics approval, approve or activate a candidate, or deploy anything.
