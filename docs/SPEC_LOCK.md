@@ -4483,3 +4483,34 @@ Phase 6A.5 must not implement:
   activation remain false.
 - The canonical freeze report is
   `docs/E2A35_SELF_CORRECTION_PROTOCOL_FREEZE.md`.
+
+## E2A.36a student self-correction intent envelope
+
+- E2A.36a is a deterministic no-provider correction. E2A.36 run
+  `e2a36_20260725033701_3afd3874` remains
+  `e2a36_canary_failed_stability` and was not rerun.
+- `self-correction-intent-envelope-v2` separates visible interaction behavior,
+  non-authoritative simulator metadata, and conceptual evidence update.
+  Exact metadata-label equality cannot override compatible visible
+  self-correction, reflection, uncertainty, or independently evaluated
+  conceptual evidence.
+- Correction language alone still cannot create conceptual evidence, profile
+  eligibility, soundness, or revision readiness. Unsupported claims such as
+  `I understand now.` remain outside the correction envelope.
+- A 160-case domain-neutral calibration and seven focused regressions pass.
+  Offline replay of both immutable E2A.36 Turn 4 simulator outputs now accepts
+  their visible correction intent without creating a conceptual update.
+- The 113-file E2A.36 tree remains read-only and unchanged at aggregate
+  SHA-256
+  `7e2983e517009a179b0f75c7c50cf0031bedcf9b829d2383203d9ae462aceadc`.
+- Prepared-only E2A.37 protocol
+  `e2a37-measurement-longitudinal-self-correction-intent-envelope-canary-v1`
+  has hash
+  `ddc5aff551509cb9e6f69cd788c6854564f92e25344745589cc1756a9ea39383`
+  and composite runtime identity
+  `9eb18e82648a67d07ba19a2435b655c50fb0c41c1118584a2ebc7dbc65fbbd7d`.
+- E2A.37 remains unauthorized, unexecuted, and without a provider-dispatch
+  path. Evaluator V5, the tutor candidate, learning-profile evolution, and
+  adaptive stopping remain unchanged. Provider and network counts are zero.
+- The canonical report is
+  `docs/E2A36A_STUDENT_SELF_CORRECTION_INTENT_ENVELOPE.md`.

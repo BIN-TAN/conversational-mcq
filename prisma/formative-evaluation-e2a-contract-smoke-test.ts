@@ -105,6 +105,40 @@ async function main() {
     }
   }).includes("prohibited_mastery_claim"), "an explicitly permitted unsupported claim was rejected");
   assert(issueCodes({ ...validOutput, student_message: "Theta is the person estimate because item difficulty changes response probability while remaining separate.", expressed_evidence_level: "minimal", mentions_focus_option: false }).includes("evidence_level_exceeded"), "text-derived evidence strength was not enforced");
+  const revisionEnvelopeInput = {
+    permitted_response: {
+      ...simulatorInput.permitted_response,
+      intent: "revision_evidence" as const,
+      substantive_evidence_level: "substantive" as const,
+      may_show_task_improvement: true,
+      may_show_conceptual_improvement: true,
+      must_preserve_misconception: false,
+      must_avoid_claiming_resolution: true
+    }
+  };
+  assert(
+    !issueCodes({
+      ...validOutput,
+      student_message:
+        "I was wrong because item difficulty does not prove person ability.",
+      rendered_intent: "unsupported_understanding_claim",
+      expressed_evidence_level: "partial",
+      mentions_focus_option: false,
+      claims_understanding: false
+    }, revisionEnvelopeInput).includes("rendered_intent_mismatch"),
+    "visible self-correction was rejected because simulator metadata differed"
+  );
+  assert(
+    issueCodes({
+      ...validOutput,
+      student_message: "I understand now.",
+      rendered_intent: "revision_evidence",
+      expressed_evidence_level: "minimal",
+      mentions_focus_option: false,
+      claims_understanding: true
+    }, revisionEnvelopeInput).includes("rendered_intent_mismatch"),
+    "unsupported understanding was accepted from metadata alone"
+  );
 
   const configuration: E2ASimulatorConfiguration = {
     simulator_enabled: true,

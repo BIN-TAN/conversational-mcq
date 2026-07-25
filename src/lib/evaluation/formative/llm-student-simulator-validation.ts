@@ -1,5 +1,9 @@
 import type { StudentIntent } from "./schemas";
 import {
+  buildSelfCorrectionIntentEnvelopeContractV2,
+  resolveSelfCorrectionIntentEnvelopeV2
+} from "./self-correction-intent-envelope-v2";
+import {
   LlmStudentSimulatorInputSchema,
   LlmStudentSimulatorOutputSchema,
   type E2ASimulatorValidationIssue,
@@ -85,13 +89,37 @@ export function validateLlmStudentSimulatorOutput(input: {
   const message = output.student_message.trim();
   const permitted = simulatorInput.permitted_response;
   const expectedIntent = renderedIntentForStudentIntent(permitted.intent as StudentIntent);
+  const selfCorrectionEnvelope = expectedIntent === "revision_evidence"
+    ? resolveSelfCorrectionIntentEnvelopeV2({
+        contract: buildSelfCorrectionIntentEnvelopeContractV2(),
+        observation: {
+          visible_message: message,
+          simulator_metadata: {
+            rendered_intent: output.rendered_intent,
+            expressed_evidence_level: output.expressed_evidence_level,
+            claims_understanding: output.claims_understanding
+          },
+          conceptual_evidence: {
+            status: "not_evaluated",
+            source: "not_evaluated",
+            observable_evidence_present: false,
+            independent_application_present: false,
+            contradiction_present: false
+          }
+        }
+      })
+    : null;
 
   if (!message) findings.push(issue("empty_message", "student_message", "Student message is empty."));
   if (message.length > 5000) findings.push(issue("message_too_long", "student_message", "Student message exceeds the evaluation limit."));
   if (sentenceCount(message) > simulatorInput.style_constraints.maximum_sentences) {
     findings.push(issue("sentence_limit_exceeded", "student_message", "Student message exceeds the configured sentence limit."));
   }
-  if (output.rendered_intent !== expectedIntent) {
+  if (
+    selfCorrectionEnvelope
+      ? !selfCorrectionEnvelope.accepted_by_intent_envelope
+      : output.rendered_intent !== expectedIntent
+  ) {
     findings.push(issue("rendered_intent_mismatch", "rendered_intent", "Rendered intent differs from the deterministic permitted intent."));
   }
   const observedEvidence = inferredEvidenceLevel(message);
