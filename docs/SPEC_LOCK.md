@@ -4748,3 +4748,39 @@ Phase 6A.5 must not implement:
   Candidate approval and activation remain false.
 - The canonical report is
   `docs/E2A41_AUDITABILITY_RESEARCH_EVIDENCE_PROTOCOL.md`.
+## Phase E2A.42 CBA Evaluation Framework Freeze
+
+E2A.42 adds a no-live, dissertation-oriented evaluation framework over the
+protected E2A.40 multi-student isolation and E2A.41 research-auditability
+contracts.
+
+- Protocol: `e2a42-cba-evaluation-framework-freeze-v1`
+- Framework: `evaluation-framework-v1`
+- Protocol hash:
+  `8e3e42352ba285620e6fd01903b2d4eb9b380c8b29cb77ec4d7fa60620d8b169`
+- Composite runtime identity:
+  `3715fc851a07b69e80cffd4744da50478b61163505781d28b87bb28a53ab7bcc`
+- Synthetic evaluation cases: `8`
+- CBA cases evaluated: `6`
+- Baselines represented: `3`
+- Required regressions: `12`
+- Deterministic checks: `64`
+- Provider calls: `0`
+- Network requests: `0`
+- Authoritative 36-artifact packet:
+  `.data/e2a42-cba-evaluation-framework-protocol-freeze/e2a42_20260725T163409246Z_dc8f8ce2/`
+
+The framework evaluates diagnostic accuracy, observable evidence quality,
+personalized intervention quality, longitudinal progression, dialogue
+efficiency, student experience, and teacher/research utility. It includes
+traditional-MCQ, generic-AI-explanation, and CBA baseline contracts, but the
+comparison reports evidence availability rather than synthetic effect scores
+or empirical estimates.
+
+Evaluation replay uses accepted structured evidence and E2A.41 decision traces.
+It does not store or require hidden prompts, chain-of-thought, hidden model
+reasoning, provider transport payloads, or private identifiers. E2A.40 scope
+isolation remains mandatory.
+
+E2A.42 is not authorized for live execution and does not approve or activate
+the candidate. See `docs/E2A42_CBA_EVALUATION_FRAMEWORK_PROTOCOL.md`.
