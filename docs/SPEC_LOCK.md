@@ -4658,3 +4658,45 @@ Phase 6A.5 must not implement:
   provider-dispatch path. Provider calls and network requests are zero.
 - The canonical report is
   `docs/E2A39_MEASUREMENT_TRANSFER_READINESS_EPISODE_CLOSURE.md`.
+
+## E2A.40 multi-student classroom simulation and profile isolation freeze
+
+- E2A.40 is a deterministic, synthetic protocol freeze only. It adds
+  `multi-student-session-contract-v1`,
+  `profile-isolation-contract-v1`,
+  `intervention-memory-isolation-contract-v1`,
+  `classroom-orchestration-contract-v1`,
+  `classroom-privacy-boundary-v1`, and
+  `multi-student-personalization-evaluation-v1`.
+- Six Measurement Theory trajectories cover a fast learner, slow engaged
+  learner, persistent high-confidence misconception, shallow copied
+  understanding, evidence-bearing self-correction, and regression after
+  improvement. These are test trajectories, not stable learner types.
+- Every profile, transcript, intervention-memory, audit, and closure record is
+  scoped to a synthetic student session. Profile and intervention records also
+  require matching concept and misconception scope. Cross-student reads fail
+  closed.
+- Concurrent input arrays are canonicalized deterministically while
+  preserving each student's local sequence. Reversed and rotated inputs
+  produce the same schedule and outcomes.
+- Stored payloads that reference another synthetic student or session are
+  rejected before insertion, closing both read-side and write-side
+  contamination paths.
+- Student-facing messages must not expose profile, engagement, escalation,
+  stopping, routing, intervention-memory, audit, or peer-student labels.
+  Aggregate output contains deidentified counts only.
+- The protocol validates orchestration contracts and does not claim classroom
+  validity, measurement validity, or stable traits. No real student data is
+  used.
+- The existing evaluator, tutor, profile, stopping, transfer, handoff, and
+  communication sources remain byte-verified and unchanged.
+- E2A.40 has no live entrypoint or provider-dispatch path. Provider calls and
+  network requests are zero. Candidate approval and activation remain false.
+- All 46 deterministic checks pass. The protocol hash is
+  `0ce1218bb01caf99ce85c45a973d3c5604913b9fb8eb80157860b07bdacd91ab`
+  and the composite runtime identity is
+  `ab5a6a047b8e663753303f142ee2fdcb979e854c6f0d37330dd3e10c42da7171`.
+- The authoritative 34-artifact packet is
+  `.data/e2a40-multi-student-classroom-profile-isolation-freeze/e2a40_20260725T141313885Z_b121a78b/`.
+- The canonical report is
+  `docs/E2A40_MULTI_STUDENT_CLASSROOM_PROFILE_ISOLATION.md`.
