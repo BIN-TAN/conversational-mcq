@@ -4575,3 +4575,25 @@ Phase 6A.5 must not implement:
   and unexecuted; candidate approval and activation remain false.
 - The canonical report is
   `docs/E2A38_INTEGRATED_AUTONOMOUS_SESSION_PROTOCOL_FREEZE.md`.
+
+## E2A.38 integrated autonomous session live canary
+
+- The single authorized E2A.38 session was dispatched exactly once as
+  `e2a38_20260725104322_25d11b2c` and stopped fail-closed with
+  `e2a38_canary_failed_evidence_accuracy`.
+- Turn 5 was correctly evaluated as sound with an explicit distractor
+  rejection, no contradiction, and no essential missing links. The sound gate
+  and platform selected immediate revision without another tutor call.
+- Longitudinal profile evolution retained an earlier partial profile because
+  ordinary conceptual evidence was coupled to a self-correction-specific
+  update flag. Adaptive stopping therefore selected `continue_dialogue`,
+  creating the fail-closed runtime mismatch.
+- Fourteen logical provider calls and fourteen adapter attempts completed with
+  no retries. Recorded usage was 60,849 input tokens, 12,356 output tokens,
+  and 73,205 total tokens. Pricing metadata was unavailable.
+- All 122 immutable artifacts are hash-valid. The human-review packet contains
+  42 review items, remains unpopulated, and requires human adjudication.
+- Protected evidence remained unchanged. The candidate remains unapproved and
+  inactive. E2A.38 must not be rerun under the consumed authorization.
+- The canonical report is
+  `docs/E2A38_INTEGRATED_AUTONOMOUS_SESSION_CANARY.md`.
