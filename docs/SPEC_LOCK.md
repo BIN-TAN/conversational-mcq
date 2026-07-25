@@ -4625,3 +4625,36 @@ Phase 6A.5 must not implement:
   path. Provider calls and network requests are zero.
 - The canonical report is
   `docs/E2A38A_LONGITUDINAL_EVIDENCE_UPDATE_DECOUPLING.md`.
+
+## E2A.39 measurement transfer readiness and episode closure freeze
+
+- E2A.39 is a held-out protocol freeze only. It introduces
+  `transfer-evidence-contract-v1`, `transfer-readiness-profile-v1`,
+  `episode-closure-policy-v1`, and
+  `student-facing-closure-language-v1`.
+- The novel transfer scenario asks whether a blood-pressure device that is
+  perfectly consistent but systematically ten points high is reliable and
+  valid. The scenario tests transfer of the reliability-versus-validity
+  mechanism rather than reteaching the original misconception.
+- Transfer is optional. Sound evidence may close without a transfer request;
+  successful transfer may close after application; copied definitions,
+  incomplete application, or misconception recurrence cannot close the
+  episode.
+- Latest valid evidence has precedence. Successful transfer followed by a
+  regression reopens the transfer-readiness profile and blocks closure.
+- Student-facing closure messages must not expose mastery labels, transfer
+  scores, closure rules, profile fields, turn requirements, or internal
+  routing. Tutor dispatch after closure is prohibited.
+- Seven held-out cases and 42 deterministic regressions pass. All protected
+  evaluator, mapper, resolver, profile, stopping, handoff, trajectory, tutor,
+  and candidate files remain byte-verified and unchanged.
+- The frozen protocol hash is
+  `060db7e1caa6e656f4a6b8f890d57f9ada4c5ef2b48c5e316b06ab27f8ddbd3d`.
+- The composite runtime identity is
+  `da31c2032f90e1806fc435918239103593873910b4d1f68c7ef47792d560f2ad`.
+- The authoritative 30-artifact packet is
+  `.data/e2a39-measurement-transfer-readiness-protocol-freeze/e2a39_20260725T131031161Z_39530271/`.
+- E2A.39 remains unauthorized and unexecuted. There is no live entrypoint or
+  provider-dispatch path. Provider calls and network requests are zero.
+- The canonical report is
+  `docs/E2A39_MEASUREMENT_TRANSFER_READINESS_EPISODE_CLOSURE.md`.
