@@ -4700,3 +4700,51 @@ Phase 6A.5 must not implement:
   `.data/e2a40-multi-student-classroom-profile-isolation-freeze/e2a40_20260725T141313885Z_b121a78b/`.
 - The canonical report is
   `docs/E2A40_MULTI_STUDENT_CLASSROOM_PROFILE_ISOLATION.md`.
+
+## E2A.41 auditability and research evidence protocol freeze
+
+- E2A.41 is a deterministic research-audit protocol freeze only. It adds
+  `research-evidence-traceability-v1`, `research-replay-contract-v1`,
+  `human-review-evidence-package-v1`, `student-audit-separation-v1`, and
+  `audit-metrics-contract-v1`.
+- Every major decision trace links the decision to accepted evidence spans, a
+  profile snapshot, policy and rule identifiers, an outcome, and student-facing
+  communication when one exists. Misconception identification, tutor
+  intervention selection, profile update, sound, stopping, and instructor
+  handoff decisions are all covered.
+- Audit artifacts contain structured evidence, offsets, source hashes, safe
+  evidence codes, profile fields, and versioned decision metadata. They do not
+  store hidden prompts, chain-of-thought, raw model reasoning, or real student
+  data.
+- Research replay reconstructs accepted turns, evidence extraction, profile
+  transitions, interventions, and stopping outcomes from explicit sequence and
+  stable record IDs. Reversing input record order produces the same replay
+  hashes.
+- Student-visible messages must not contain policy IDs or versions, profile
+  schemas, confidence scores, escalation criteria, rule codes, stopping
+  outcomes, or model-decision labels.
+- Two synthetic students receive the same Measurement Theory activity and
+  produce different outcomes. Their evidence, profiles, decisions, replay
+  output, review packages, and audit records remain isolated through the full
+  E2A.40 student/session/concept/misconception namespace.
+- Human-review packages include student-visible conversation, structured
+  evidence summaries, profile transitions, intervention history, and final
+  outcome while excluding hidden reasoning, prompts, provider payloads,
+  unnecessary metadata, and direct identifiers.
+- All six audit metrics equal `1`. The protocol includes 11 decision traces and
+  36 deterministic checks, including the ten required regressions and
+  historical E2A.40 integrity.
+- All protected evaluator, tutor, evidence, resolver, mapper, profile,
+  stopping, handoff, and E2A.40 isolation sources remain byte-verified and
+  unchanged.
+- The protocol hash is
+  `01bece2a52167d5f4b1993bd6d358a98b64f6c3332c4a5f78cccb34fa57fcc83`.
+  The composite runtime identity is
+  `9465c76cabd28c3aca8c107bed2b19c81e395150d6012e1f2926e1b3fc283ef5`.
+- The authoritative 34-artifact packet is
+  `.data/e2a41-auditability-research-evidence-protocol-freeze/e2a41_20260725T150029475Z_27d6f2ad/`.
+- E2A.41 remains unauthorized and unexecuted. It has no live entrypoint or
+  provider-dispatch path. Provider calls and network requests are zero.
+  Candidate approval and activation remain false.
+- The canonical report is
+  `docs/E2A41_AUDITABILITY_RESEARCH_EVIDENCE_PROTOCOL.md`.
