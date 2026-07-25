@@ -4890,3 +4890,61 @@ prohibited.
 E2A.44 is a conceptual protocol only. It performs no deployment, migration,
 research collection, candidate approval, or activation. See
 `docs/E2A44_CLASSROOM_PILOT_DATA_ARCHITECTURE_PROTOCOL.md`.
+## E2A.45 Teacher-Facing Evidence Review Protocol Freeze
+
+E2A.45 freezes a deterministic teacher evidence-review protocol on top of the
+E2A.44 classroom pilot data architecture. It does not implement a production
+teacher UI and does not modify evaluator V5, the tutor candidate, evidence
+pipeline, learning or engagement profiles, intervention memory, stopping
+policy, instructor handoff policy, auditability contracts, database schema, or
+classroom data architecture.
+
+Frozen contracts:
+
+- `teacher-evidence-view-contract-v1`
+- `teacher-evidence-interpretation-contract-v1`
+- `teacher-action-contract-v1`
+- `teacher-research-boundary-v1`
+- `teacher-feedback-loop-v1`
+- `teacher-access-control-v1`
+
+Teacher evidence projections must separate observed source-linked evidence,
+provisional system interpretation, and contextual teacher judgment. AI
+interpretation is advisory and must not be presented as final truth. Teacher
+overrides and feedback are append-only and cannot rewrite historical evidence,
+original responses, audit records, or research provenance.
+
+Class summaries are aggregate and must not expose individual student
+identifiers. Individual summaries are authorized-course and student scoped.
+Research projections are pseudonymous. Student projections contain only the
+student's own feedback, next steps, and plain-language learning summaries.
+Chain-of-thought, hidden reasoning, hidden prompts, internal model confidence,
+system-only metadata, and cross-role records are prohibited.
+
+The frozen protocol identity is:
+
+```text
+protocol_version:
+e2a45-teacher-facing-evidence-review-freeze-v1
+
+protocol_hash:
+b18dead79621673384c9ecf68e0405fdcd14bb6c55c5c8aca2d7638782c39615
+
+composite_runtime_identity:
+72497a0101ec8cf196e3f19b1f87464916a61144c0c73c3b3f552cb64d26b3d3
+```
+
+The protocol-freeze budget is zero provider calls and zero network requests.
+The future ceiling of 29 logical calls, 87 adapter attempts, two transport
+retries per logical call, 900,000 input tokens, 70,000 output tokens, 970,000
+total tokens, USD 25 when pricing is available, and concurrency one is frozen
+but not authorized.
+
+The authoritative 32-artifact packet is:
+
+```text
+.data/e2a45-teacher-evidence-review-protocol-freeze/e2a45_20260725T181314839Z_b2835026/
+```
+
+E2A.45 does not execute live testing, approve or activate a candidate, deploy a
+teacher view, or authorize access to production or research data.
