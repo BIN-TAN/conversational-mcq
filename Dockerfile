@@ -23,6 +23,9 @@ RUN apt-get update \
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
+ENV NODE_OPTIONS=--max-old-space-size=12288
+ENV NEXT_PRIVATE_BUILD_WORKER=1
+
 RUN npm run build
 
 FROM node:22-bookworm-slim AS runner
