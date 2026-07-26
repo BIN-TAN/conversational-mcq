@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { jsonApiError, requireRoleApi } from "@/lib/http";
+import { logProductionError } from "@/lib/observability/production-safe-logger";
 import type { AppRole } from "@/types/auth";
 import { MasterExportServiceError } from "./errors";
 
@@ -23,7 +24,9 @@ export function masterExportRouteError(error: unknown): NextResponse {
     });
   }
 
-  console.error(error);
+  logProductionError(error, {
+    safe_error_code: "master_export_route_unhandled_error"
+  });
 
   return jsonApiError("internal_error", "Master export request failed.", 500);
 }

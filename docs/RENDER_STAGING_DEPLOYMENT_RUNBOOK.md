@@ -243,6 +243,33 @@ npm run start
 
 Screenshot placeholder: Render deploy log.
 
+### Build Capacity Gate
+
+The application is built and supported on Node.js 22. Build-time CSS
+dependencies are dev dependencies, so `npm ci --include=dev` is required before
+`npm run build`. Prisma Client must be generated before the Next.js build.
+
+The E2A.48 clean local production-build verification required a 12 GB Node heap
+and one Next.js build worker:
+
+```bash
+npm ci --include=dev
+npm run prisma:generate
+NODE_OPTIONS=--max-old-space-size=12288 \
+NEXT_PRIVATE_BUILD_WORKER=1 \
+npm run build
+```
+
+The 12 GB setting is a conservative observed build requirement, not a claim
+that the process always consumes 12 GB of resident memory. Render runtime-plan
+memory and Render build-environment capacity are separate limits. Before
+deployment, confirm that the selected Render build environment can support this
+heap ceiling and that the `standard` web-service plan can support the runtime,
+workflow concurrency, and request timeouts. If the build is terminated for
+memory pressure, stop the release and increase build capacity; do not remove
+type checking, linting, Prisma generation, or Next.js build steps to make the
+deploy pass.
+
 ## Step 9: Watch Logs
 
 Watch for:
@@ -443,6 +470,60 @@ npm run student:live-llm-smoke
 ```
 
 The live smoke command skips by default unless explicitly opted in. Do not run paid live calls as part of this runbook unless the pilot operator intentionally enables them.
+
+## Application Rollback
+
+Treat a failed build, failed migration, failed health check, startup crash, or
+failed synthetic browser check as a deployment failure. Keep `autoDeploy:
+false`, retain the previous successful deployment and commit SHA, and do not
+admit students while the release is unhealthy.
+
+1. Record the failed deployment identifier and safe error code without copying
+   raw request data or secrets.
+2. Stop further deploys and new classroom access.
+3. In Render, restore the previous successful application deployment or deploy
+   the previous known-good commit.
+4. Restore the previously approved operational configuration variables if they
+   changed with the release. Do not expose their values in logs or tickets.
+5. Verify `/api/health` returns HTTP 200.
+6. Run the synthetic login, student-flow, teacher-review, and export checks
+   before reopening access.
+7. Preserve the failed deployment logs and audit identifiers according to the
+   approved incident-retention policy.
+
+Application rollback is appropriate only when the previous application version
+is compatible with the database schema currently deployed. Do not restore an
+older application that cannot read the current schema.
+
+## Database Rollback and Recovery
+
+Prisma production migrations are forward-applied with
+`npm run prisma:migrate:deploy`. Do not use `prisma migrate reset`, `prisma db
+push`, or destructive local seed commands against staging or production.
+
+Before a migration release:
+
+1. Review every migration for destructive or incompatible operations.
+2. Confirm a recent managed Postgres backup exists.
+3. Confirm the backup retention window and perform a restore drill in an
+   isolated database.
+4. Verify the new application can operate during any rolling compatibility
+   window and that the previous application remains schema-compatible until the
+   release is accepted.
+
+If a migration fails before completion, stop the deployment and inspect Prisma
+migration status from an authorized Render Shell. Prefer a reviewed forward
+repair migration when data integrity is intact. If data or schema integrity is
+not intact, take the service out of classroom use and restore the verified
+pre-deployment backup to an isolated recovery database first. Validate row
+counts, migration state, authentication, assessment sessions, and research
+export boundaries before promoting the recovered database or changing
+`DATABASE_URL`.
+
+Never improvise a down migration in production. The recovery decision must
+record the application version, migration set, backup identifier, restore
+validation evidence, compatibility decision, and operator approval without
+recording credentials or student response content.
 
 ## Teacher Account Rename
 

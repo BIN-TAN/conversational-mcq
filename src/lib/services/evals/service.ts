@@ -7,6 +7,7 @@ import type { AgentName as AgentNameType } from "@/lib/agents/names";
 import { getPromptForAgent } from "@/lib/agents/prompts/registry";
 import { prisma } from "@/lib/db";
 import { getServerEnv } from "@/lib/env";
+import { logProductionError } from "@/lib/observability/production-safe-logger";
 import { MockLlmProvider } from "@/lib/llm/providers/mock-provider";
 import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
@@ -606,7 +607,9 @@ async function createOneMockRun(input: {
       }
     });
 
-    console.error(error);
+    logProductionError(error, {
+      safe_error_code: "evaluation_run_execution_failed"
+    });
 
     return serializeEvalRun(failed);
   }

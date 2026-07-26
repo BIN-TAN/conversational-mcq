@@ -70,6 +70,27 @@ therefore carry a blocked deployment verdict until those runtime log sites are
 replaced with sanitized error codes and types in a separate runtime-hardening
 change.
 
+E2A.48a performs that separate hardening without changing the historical
+E2A.48 artifact. Current production catches use
+`production-safe-log-v1`, whose output is restricted to:
+
+- timestamp;
+- safe error category;
+- caller-owned safe error code;
+- validated request or session identifiers when supplied.
+
+The logger does not serialize error messages, stacks, causes, student response
+data, prompts, credentials, or provider payloads. Run the no-network regression
+with:
+
+```bash
+npm run eval:formative:e2a48a:smoke
+```
+
+The same regression verifies that the checked-in Render runbook contains
+application rollback, database backup/restore recovery, compatibility checks,
+and the observed Node build-capacity requirements.
+
 ## Database Limitation
 
 Historical migrations containing destructive SQL are not assumed safe merely

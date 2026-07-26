@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { jsonApiError, requireRoleApi } from "@/lib/http";
+import { logProductionError } from "@/lib/observability/production-safe-logger";
 import { ContentServiceError } from "./errors";
 
 export async function requireTeacherResearcher() {
@@ -21,7 +22,9 @@ export function contentRouteError(error: unknown): NextResponse {
     );
   }
 
-  console.error(error);
+  logProductionError(error, {
+    safe_error_code: "content_route_unhandled_error"
+  });
 
   return jsonApiError(
     "internal_error",

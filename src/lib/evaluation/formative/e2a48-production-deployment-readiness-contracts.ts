@@ -470,10 +470,9 @@ export function buildSecurityReadinessContractV1() {
     ],
     log_allowlist: [
       "safe_error_code",
-      "error_type",
-      "public_identifier",
-      "status",
-      "count",
+      "error_category",
+      "request_id",
+      "session_id",
       "timestamp"
     ],
     e2a44_student_privacy_boundary_required: true,

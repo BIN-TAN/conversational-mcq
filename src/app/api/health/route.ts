@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getServerEnv } from "@/lib/env";
+import { logProductionError } from "@/lib/observability/production-safe-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -67,9 +68,8 @@ export async function GET() {
       { status: databaseSchemaReady ? 200 : 503 }
     );
   } catch (error) {
-    console.error("health_check_failed", {
-      code: "database_or_environment_unavailable",
-      error_name: error instanceof Error ? error.name : "unknown"
+    logProductionError(error, {
+      safe_error_code: "health_check_failed"
     });
     return NextResponse.json(
       {

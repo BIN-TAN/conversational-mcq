@@ -1073,6 +1073,7 @@
     "eval:formative:e2a48:budget-smoke": "tsx prisma/formative-evaluation-e2a48.ts smoke --suite budget",
     "eval:formative:e2a48:artifact-smoke": "tsx prisma/formative-evaluation-e2a48.ts smoke --suite artifact",
     "eval:formative:e2a48:provider-call-guard-smoke": "tsx prisma/formative-evaluation-e2a48.ts smoke --suite provider-call-guard",
+    "eval:formative:e2a48a:smoke": "tsx prisma/formative-evaluation-e2a48a-smoke-test.ts",
     "student:formative-privacy-smoke": "tsx prisma/student-formative-privacy-smoke-test.ts",
     "eval:formative:compare": "tsx prisma/formative-evaluation-compare.ts",
     "student:response-quality-smoke": "tsx prisma/student-response-quality-smoke-test.ts",

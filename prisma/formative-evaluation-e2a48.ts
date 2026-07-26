@@ -82,6 +82,7 @@ function runSmoke(suite: string) {
       security:
         audits.security.audit.audit_version ===
           "deployment-security-readiness-v1" &&
+        audits.security.audit.passed &&
         audits.security.safe_findings.raw_values_suppressed &&
         !audits.security.safe_findings.student_private_data_logged_by_audit &&
         !audits.security.safe_findings.hidden_prompts_logged_by_audit &&
@@ -89,6 +90,7 @@ function runSmoke(suite: string) {
       observability:
         audits.observability.audit.audit_version ===
           "deployment-observability-readiness-v1" &&
+        audits.observability.audit.passed &&
         audits.observability.safe_findings.health_endpoint === "/api/health" &&
         audits.observability.safe_findings.agent_call_failure_fields.includes(
           "client_request_id"
@@ -96,6 +98,7 @@ function runSmoke(suite: string) {
       render:
         audits.render.audit.audit_version ===
           "render-deployment-readiness-v1" &&
+        audits.render.audit.passed &&
         audits.render.safe_findings.database_attachment ===
           "fromDatabase.connectionString" &&
         !audits.render.safe_findings.actual_render_service_contacted,

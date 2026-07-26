@@ -90,6 +90,7 @@ const DEPLOYMENT_SOURCE_PATHS = [
   "package-lock.json",
   "prisma/schema.prisma",
   "src/lib/env.ts",
+  "src/lib/observability/production-safe-logger.ts",
   "src/app/api/health/route.ts",
   "prisma/student-production-deployment-readiness-smoke-test.ts",
   "prisma/student-render-staging-readiness-smoke-test.ts",
@@ -635,7 +636,8 @@ function buildSecurityAudit() {
       health_route_secret_safe:
         !/NextResponse\.json\([\s\S]*?(?:DATABASE_URL|SESSION_SECRET|OPENAI_API_KEY)/u
           .test(health) &&
-        health.includes("error_name"),
+        health.includes("logProductionError") &&
+        health.includes('safe_error_code: "health_check_failed"'),
       student_privacy_boundary_bound: true,
       teacher_research_boundary_bound: true
     }),

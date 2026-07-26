@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { jsonApiError, requireRoleApi } from "@/lib/http";
+import { logProductionError } from "@/lib/observability/production-safe-logger";
 import { EvalServiceError } from "./errors";
 
 export async function requireEvalTeacher() {
@@ -18,7 +19,9 @@ export function evalRouteError(error: unknown): NextResponse {
     });
   }
 
-  console.error(error);
+  logProductionError(error, {
+    safe_error_code: "evaluation_route_unhandled_error"
+  });
 
   return jsonApiError("internal_error", "Evaluation harness request failed.", 500);
 }

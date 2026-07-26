@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { jsonApiError, requireRoleApi } from "@/lib/http";
+import { logProductionError } from "@/lib/observability/production-safe-logger";
 import { StudentAssessmentServiceError } from "./errors";
 
 export async function requireStudent() {
@@ -35,7 +36,9 @@ export function studentAssessmentRouteError(error: unknown): NextResponse {
     });
   }
 
-  console.error(error);
+  logProductionError(error, {
+    safe_error_code: "student_assessment_route_unhandled_error"
+  });
 
   return jsonApiError(
     "conflict",

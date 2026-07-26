@@ -133,6 +133,32 @@ Use non-free, staging-friendly Render plans for classroom pilot testing. Free or
 
 For step-by-step Dashboard instructions, see `docs/RENDER_STAGING_DEPLOYMENT_RUNBOOK.md`.
 
+## Build Capacity Requirements
+
+Production builds use Node.js 22 and must retain the complete build sequence:
+
+```bash
+npm ci --include=dev
+npm run prisma:generate
+NODE_OPTIONS=--max-old-space-size=12288 \
+NEXT_PRIVATE_BUILD_WORKER=1 \
+npm run build
+```
+
+The 12 GB Node heap and single Next.js worker are the bounded settings that
+completed the E2A.48 clean production build. They are an observed engineering
+requirement for pre-deployment verification, not a guarantee of actual resident
+memory consumption. Render build capacity is separate from the selected web
+service's runtime memory. The operator must confirm both:
+
+- enough build memory for the documented command;
+- enough runtime memory and CPU for Next.js, Prisma, workflow concurrency, and
+  configured request timeouts.
+
+An out-of-memory build is a failed release. Do not bypass type checking, Prisma
+generation, or the production Next.js build. Increase build capacity or use a
+reviewed build environment that can produce the same provenance-bound artifact.
+
 ## Canvas-Link Classroom Access
 
 Canvas is used only as a place to post the public Conversational MCQ URL.
@@ -209,6 +235,41 @@ Before each deployment:
 8. Run a staging or synthetic browser walkthrough before admitting classroom users.
 
 Do not reset a production database. Do not run local seed commands against production unless a specific production seed procedure has been reviewed.
+
+## Rollback and Recovery
+
+### Application rollback
+
+The deployment gate fails closed on build failure, migration failure, startup
+failure, an unhealthy `/api/health` response, or a failed synthetic browser
+check. Keep the previous successful deployment and commit available. Restore
+that version through Render only after confirming it is compatible with the
+currently deployed schema, then rerun health, login, student-flow,
+teacher-review, and export checks before restoring access.
+
+If operational model configuration changed, restore the prior approved
+configuration with the application rollback. Record deployment IDs, commit
+SHAs, health results, and safe error codes only. Never copy secret values,
+student responses, raw provider payloads, or hidden prompts into the incident
+record.
+
+### Database rollback
+
+Before applying migrations, review them for destructive operations, create a
+managed Postgres backup, and complete an isolated restore drill. Production
+migrations use `npm run prisma:migrate:deploy`; production rollback must not use
+`prisma migrate reset` or ad hoc destructive SQL.
+
+Prefer a reviewed forward repair migration when the deployed data remains
+intact. When data or schema integrity is compromised, stop classroom access and
+restore the verified pre-deployment backup into an isolated recovery database.
+Validate migration state, row counts, authentication, assessment sessions,
+teacher access, and research exports before promoting the recovered database.
+Confirm application/schema compatibility before changing `DATABASE_URL` or
+restoring traffic.
+
+The detailed operator sequence is in
+`docs/RENDER_STAGING_DEPLOYMENT_RUNBOOK.md`.
 
 ## First-Run Staging Bootstrap
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { jsonApiError, requireRoleApi } from "@/lib/http";
 import { getServerEnv } from "@/lib/env";
+import { logProductionError } from "@/lib/observability/production-safe-logger";
 import { TeacherReviewServiceError } from "./errors";
 
 export async function requireTeacherReview() {
@@ -35,7 +36,9 @@ export function teacherReviewRouteError(error: unknown): NextResponse {
     });
   }
 
-  console.error(error);
+  logProductionError(error, {
+    safe_error_code: "teacher_review_route_unhandled_error"
+  });
 
   return jsonApiError(
     "internal_error",
