@@ -9,6 +9,19 @@ npm run student:production-deployment-readiness-smoke
 npm run student:render-staging-readiness-smoke
 ```
 
+The frozen E2A.48 repository audit adds deterministic environment, database,
+build, runtime-integrity, security, observability, Render, rollback, and
+data-boundary checks:
+
+```bash
+npm run eval:formative:e2a48:smoke
+npm run eval:formative:e2a48:run
+```
+
+See `docs/E2A48_PRODUCTION_DEPLOYMENT_READINESS_AUDIT.md`. A passing protocol
+artifact does not authorize deployment; use its separate
+`deployment_readiness_status` and blocker list.
+
 The smoke prints only safe booleans, variable names, status labels, counts, and output hashes. It must not print `DATABASE_URL`, OpenAI keys, session secrets, raw provider output, raw prompts, answer keys, correct options, or correctness labels. Missing production-only values are reported as documented gaps rather than leaked values.
 
 The smoke also reports:
