@@ -5008,3 +5008,64 @@ The authoritative 36-artifact packet is:
 
 E2A.46 does not execute live testing, run a classroom pilot, assume REB or
 ethics approval, approve or activate a candidate, or deploy anything.
+
+## E2A.47 Pilot Dry-Run and End-to-End Classroom Validation Freeze
+
+E2A.47 freezes a deterministic five-student end-to-end classroom workflow over
+the protected E2A.44 data architecture and E2A.46 operational-readiness
+protocol. It validates synthetic workflow connectivity, provenance, profile and
+engagement evolution, intervention history, teacher evidence review,
+pseudonymous research-export readiness, failure recovery, privacy, audit
+preservation, and multi-student isolation.
+
+Frozen contracts:
+
+- `pilot-dry-run-workflow-contract-v1`
+- `end-to-end-data-trace-contract-v1`
+- `runtime-schema-alignment-contract-v1`
+- `research-export-readiness-contract-v1`
+- `pilot-failure-recovery-contract-v1`
+- `teacher-review-validation-contract-v1`
+
+The five synthetic trajectories are a fast learner, a slow engaged learner, a
+persistent misconception, copied wording without independent evidence, and
+evidence-based self-correction. Each trajectory produces a 12-stage
+provenance-linked trace from assessment item through pseudonymous research
+export. The deterministic protocol validates 12 required regressions and six
+failure-recovery paths without using production or real-student data.
+
+Teacher projections contain bounded class and individual evidence summaries
+only. Research projections use synthetic pseudonymous identifiers. Neither
+projection includes chain-of-thought, hidden reasoning, hidden prompts, model
+internals, raw provider payloads, credentials, or unnecessary private
+information.
+
+The frozen protocol identity is:
+
+```text
+protocol_version:
+e2a47-pilot-dry-run-end-to-end-classroom-validation-freeze-v1
+
+protocol_hash:
+abe57e5f7727ad41b19817b706a326f2767dfc8754deb0e7d02b9690718d588a
+
+composite_runtime_identity:
+f7959108f2950e663c68de17b11d1f9adc01270161f35684d8974a888c3bfa7d
+```
+
+The protocol-freeze budget is zero provider calls and zero network requests.
+The future ceiling of 29 logical calls, 87 adapter attempts, two transport
+retries per logical call, 900,000 input tokens, 70,000 output tokens, 970,000
+total tokens, USD 25 when pricing is available, and concurrency one is frozen
+but not authorized.
+
+The authoritative 40-artifact packet is:
+
+```text
+.data/e2a47-pilot-dry-run-protocol-freeze/e2a47_20260726T003016278Z_f14028da/
+```
+
+E2A.47 does not execute live classroom testing, establish classroom
+effectiveness or learning gains, establish real-student usability, assume REB
+or ethics approval, approve or activate a candidate, authorize deployment, or
+modify runtime intelligence or the database schema.
