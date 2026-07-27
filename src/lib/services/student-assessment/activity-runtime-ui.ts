@@ -2596,9 +2596,8 @@ async function processTopicDialogueResponse(input: {
     .at(-1) ?? null;
   const targetEvidenceContract = buildActivityTargetEvidenceContractV5({
     concept_id: currentConcept.concept_unit_public_id,
-    item_id: source.target_item_index
-      ? `item_${source.target_item_index}`
-      : source.target_item_id ?? "current_item",
+    item_id: source.target_item_id ??
+      (source.target_item_index ? `item_${source.target_item_index}` : "current_item"),
     distractor_option: source.target_option_label ?? "current_option",
     distractor_claim: source.distractor_student_safe_description,
     packet: evidence.packet

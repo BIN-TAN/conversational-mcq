@@ -46,6 +46,12 @@ import {
   type ActivityMisconceptionEvidenceLiveEvaluationInput,
   type ActivityMisconceptionEvidenceLiveExecutionResult
 } from "../src/lib/services/student-assessment/activity-misconception-evidence-live";
+import {
+  buildActiveAnchorAliasContract
+} from "../src/lib/services/student-assessment/active-anchor-alias-resolution";
+import {
+  buildNoLiveStructuredTurnEvidenceV5ForTestOnly
+} from "../src/lib/services/student-assessment/production-turn-evidence-evaluator-v5";
 import { prisma } from "../src/lib/db";
 import { demoAssessmentPublicId, ensureDemoStudentAssessment } from "./demo-student-assessment-fixture";
 import {
@@ -452,9 +458,33 @@ function makeEvaluator(input: {
       suffix: `${input.suffix}_${evaluationInput.activity_attempt_id}`,
       packet
     });
+    const latestStudentTurn = await prisma.conversationTurn.findFirstOrThrow({
+      where: {
+        assessment_session_db_id: input.context.assessment_session_db_id,
+        actor_type: "student"
+      },
+      orderBy: [{ sequence_index: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        sequence_index: true
+      }
+    });
+    const activeAnchorAliasContract = buildActiveAnchorAliasContract({
+      active_anchor_id:
+        `${evaluationInput.target_item_id ?? evaluationInput.activity_attempt_id}:option:${evaluationInput.target_option_label ?? "active_distractor"}`,
+      option_label: evaluationInput.target_option_label ?? "active_distractor",
+      option_text: evaluationInput.target_option_text ?? evaluationInput.distractor_role
+    });
     return {
       status: "succeeded",
       packet,
+      structured_turn_evidence: buildNoLiveStructuredTurnEvidenceV5ForTestOnly({
+        source_student_turn_id: latestStudentTurn.id,
+        source_sequence_index: latestStudentTurn.sequence_index,
+        message: evaluationInput.safe_student_activity_response,
+        packet,
+        alias_contract: activeAnchorAliasContract
+      }),
       evaluator_agent_call_id: call.id,
       repair_attempted: false,
       evaluator_call_status: "succeeded",
@@ -689,6 +719,24 @@ async function main() {
     assert(projection.first_turn_message, "Started activity should expose a first turn.");
     assert(projection.response_prompt, "Started activity should expose a response prompt.");
     assert(projection.focus_label, "Started activity should expose a safe focus label.");
+    const validAttemptId = projection.activity_attempt_public_id ?? "";
+    const validSource = await prisma.activityRuntimeAttempt.findUniqueOrThrow({
+      where: { activity_attempt_public_id: validAttemptId },
+      select: { source_activity_packet_ref: true }
+    });
+    const canonicalTargetItemId = "item_20260710_dra4nk0";
+    const canonicalAnchorId = `${canonicalTargetItemId}:option:A`;
+    await prisma.activityRuntimeAttempt.update({
+      where: { activity_attempt_public_id: validAttemptId },
+      data: {
+        source_activity_packet_ref: {
+          ...jsonRecord(validSource.source_activity_packet_ref),
+          target_item_index: 1,
+          target_item_id: canonicalTargetItemId,
+          target_option_label: "A"
+        } as Prisma.InputJsonValue
+      }
+    });
     assert(
       !/\bOption\s+[A-E]\b/i.test(projection.first_turn_message ?? "") ||
         /\bItem\s+\d+\b/i.test(projection.first_turn_message ?? ""),
@@ -699,7 +747,7 @@ async function main() {
     projection = await submitStudentActivityRuntimeResponse({
       student_user_db_id: validContext.student_db_id,
       session_public_id: validContext.session_public_id,
-      activity_attempt_public_id: projection.activity_attempt_public_id ?? "",
+      activity_attempt_public_id: validAttemptId,
       response_text: "Theta is the learner estimate, and the item features describe the question rather than the learner.",
       client_message_id: "activity-runtime-ui-response-valid",
       execution_mode: "no_live_e2a_contract",
@@ -711,7 +759,7 @@ async function main() {
       })
     });
     const completedAttempt = await prisma.activityRuntimeAttempt.findUniqueOrThrow({
-      where: { activity_attempt_public_id: projection.activity_attempt_public_id ?? "" },
+      where: { activity_attempt_public_id: validAttemptId },
       select: { limitations: true }
     });
     assert(
@@ -726,6 +774,45 @@ async function main() {
     );
     assertProjectionSafe(projection, "feedback_ready");
     await assertOperationalTurnCycleCreated(validCountsBeforeRuntime, "valid runtime response");
+    const canonicalTutorCall = await prisma.agentCall.findUniqueOrThrow({
+      where: {
+        agent_invocation_key:
+          `topic-dialogue:${topicDialoguePublicId({
+            session_public_id: validContext.session_public_id,
+            activity_attempt_public_id: validAttemptId
+          })}:activity-runtime-ui-response-valid`
+      },
+      select: {
+        agent_name: true,
+        output_validated: true
+      }
+    });
+    assert(
+      canonicalTutorCall.agent_name === "topic_dialogue_agent" &&
+        canonicalTutorCall.output_validated,
+      "Canonical anchor validation should permit validated topic_dialogue_agent dispatch."
+    );
+    const canonicalStudentTurn = await prisma.conversationTurn.findFirstOrThrow({
+      where: {
+        assessment_session_db_id: validContext.assessment_session_db_id,
+        actor_type: "student",
+        structured_payload: {
+          path: ["client_operation_id"],
+          equals: "activity-runtime-ui-response-valid"
+        }
+      },
+      select: { structured_payload: true }
+    });
+    const canonicalTargetContract = jsonRecord(
+      jsonRecord(canonicalStudentTurn.structured_payload).evidence_first_target_contract
+    );
+    const canonicalAliasContract = jsonRecord(
+      canonicalTargetContract.active_anchor_alias_contract
+    );
+    assert(
+      canonicalAliasContract.active_anchor_id === canonicalAnchorId,
+      `Stable target_item_id must define the canonical anchor: ${JSON.stringify(canonicalAliasContract)}`
+    );
 
     const repeatedContext = await createCompletedSession("repeated_confusion");
     contexts.push(repeatedContext);
@@ -1257,6 +1344,8 @@ async function main() {
       sessions_exercised: contexts.length,
       repeated_confusion_turns: confusionTurns.length,
       complete_context_propagation_verified: true,
+      canonical_target_item_id_precedence_verified: true,
+      canonical_anchor_validation_and_tutor_dispatch_verified: true,
       invisible_draft_isolation_verified: true,
       idempotent_replay_verified: true,
       completed_idempotency_key_replays_cached_result: true,
