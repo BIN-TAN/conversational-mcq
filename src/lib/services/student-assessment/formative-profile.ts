@@ -2311,6 +2311,8 @@ export async function reconcilePackageCompletionState(input: {
             structured_payload: toPrismaJson({
               source: FORMATIVE_ACTIVITY_AGENT_NAME,
               message_type: "next_interaction",
+              student_visible: false,
+              visibility_status: "internal",
               presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
               next_interaction_v2: bundle.next_interaction
             }),
@@ -3540,6 +3542,8 @@ async function persistProfileDecisionAndActivity(input: {
         structured_payload: prismaJson({
           source: FORMATIVE_ACTIVITY_AGENT_NAME,
           message_type: evidenceBundle ? "next_interaction" : "matched_formative_activity",
+          student_visible: evidenceBundle ? false : true,
+          visibility_status: evidenceBundle ? "internal" : "shown",
           presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
           matched_activity: input.output.matched_activity,
           next_expected_action: input.output.next_expected_action,

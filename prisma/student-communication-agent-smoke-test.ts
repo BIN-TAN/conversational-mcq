@@ -97,7 +97,7 @@ function strings(value: unknown): string[] {
   return [];
 }
 
-const forbidden = /\b(selected_option|scored_outcome|tempting_option_unavailable|reasonably_calibrated|overconfident|underconfident|profile schema|evidence package|persisted|runtime|routing|diagnostic purpose|source reference|recorded for this version|future version|schema|fallback)\b/i;
+const forbidden = /\b(selected_option|scored_outcome|tempting_option_unavailable|reasonably_calibrated|overconfident|underconfident|profile|diagnosis|assessment stage|recommended activity|conceptually usable|precision to check|growth target|evidence package|persisted|runtime|routing|diagnostic purpose|source reference|recorded for this version|future version|schema|fallback)\b/i;
 
 function assertStudentVisibleTextIsClean(values: string[]) {
   for (const value of values) {
@@ -125,10 +125,8 @@ function main() {
     ["Correct", "Correct", "Correct"]
   );
   assert.ok(
-    communication.output.package_feedback_narrative.includes(
-      "Based on your responses, here is a recommended activity"
-    ),
-    "package narrative should transition naturally into the recommended activity"
+    communication.output.package_feedback_narrative.includes("Try this next"),
+    "package narrative should transition naturally into the activity"
   );
   assert.ok(
     communication.output.activity_prompt.includes("For Item 1"),
@@ -178,6 +176,15 @@ function main() {
   });
   const fallback = buildDeterministicStudentCommunicationFallback(frozenInput);
   assert.equal(validateStudentCommunicationLanguage(fallback).valid, true);
+  assert.equal(
+    validateStudentCommunicationLanguage({
+      ...fallback,
+      package_feedback_narrative:
+        "This profile is conceptually usable, with one precision to check before the recommended activity."
+    }).valid,
+    false,
+    "language validation should reject internal and evaluator wording"
+  );
 
   const changedCorrectness = {
     ...fallback,

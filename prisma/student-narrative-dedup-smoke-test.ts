@@ -79,8 +79,12 @@ assert(
 );
 assert.match(
   bundle.student_communication.output.package_feedback_narrative,
-  /Based on your responses, here is a recommended activity/i,
+  /Try this next/i,
   "narrative should introduce the actual activity naturally"
+);
+assert.doesNotMatch(
+  bundle.student_communication.output.package_feedback_narrative,
+  /\b(recommended activity|profile|diagnosis|assessment stage|conceptually usable|precision to check|growth target)\b/i
 );
 
 for (const phrase of [
@@ -103,6 +107,13 @@ assert(
 assert(
   componentSource.includes("Total correct"),
   "sidebar should retain compact initial-results summary"
+);
+assert(
+  componentSource.indexOf("beforePackageResults.map") <
+    componentSource.indexOf("<PackageResultsChatCard") &&
+    componentSource.indexOf("<PackageResultsChatCard") <
+    componentSource.indexOf("afterPackageResults.map"),
+  "answer review should be the first post-package block"
 );
 
 console.log(JSON.stringify({

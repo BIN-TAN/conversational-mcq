@@ -7124,19 +7124,41 @@ export async function getStudentSafeTranscript(input: {
       response
     ])
   );
+  const visibleActivityAttempts = new Set<string>();
+  const visibleTurns = turns.filter((turn) => {
+    const payload = turn.structured_payload && typeof turn.structured_payload === "object" &&
+      !Array.isArray(turn.structured_payload)
+      ? turn.structured_payload as Record<string, unknown>
+      : {};
+    const messageType = conversationPayloadMessageType(payload);
+
+    if (
+      payload.student_visible === false ||
+      payload.shown_to_student === false ||
+      ["draft", "internal", "not_shown"].includes(String(payload.visibility_status ?? "")) ||
+      messageType === "next_interaction"
+    ) {
+      return false;
+    }
+
+    if (messageType === "formative_activity_prompt") {
+      const activityAttemptPublicId =
+        typeof payload.activity_attempt_public_id === "string"
+          ? payload.activity_attempt_public_id
+          : null;
+      if (activityAttemptPublicId) {
+        if (visibleActivityAttempts.has(activityAttemptPublicId)) {
+          return false;
+        }
+        visibleActivityAttempts.add(activityAttemptPublicId);
+      }
+    }
+
+    return true;
+  });
   const result = {
     session_public_id: input.session_public_id,
-    transcript: turns.filter((turn) => {
-      const payload = turn.structured_payload && typeof turn.structured_payload === "object" &&
-        !Array.isArray(turn.structured_payload)
-        ? turn.structured_payload as Record<string, unknown>
-        : {};
-      return !(
-        payload.student_visible === false ||
-        payload.shown_to_student === false ||
-        ["draft", "internal", "not_shown"].includes(String(payload.visibility_status ?? ""))
-      );
-    }).map((turn) => {
+    transcript: visibleTurns.map((turn) => {
       const responseKey = turn.concept_unit_session_db_id && turn.item_db_id
         ? `${turn.concept_unit_session_db_id}:${turn.item_db_id}`
         : null;

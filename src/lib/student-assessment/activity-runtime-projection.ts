@@ -102,21 +102,21 @@ export type StudentActivityProjectionIssue = {
 };
 
 const ACTIVITY_FOCUS_LABELS = {
-  conceptual_entry_grounding: "Recommended activity",
-  distractor_misconception_probe: "Recommended activity",
-  reasoning_boundary_repair: "Recommended activity",
-  independent_misconception_verification: "Recommended activity",
-  diagnostic_clarification: "Recommended activity",
-  reasoning_refinement: "Recommended activity",
-  confidence_calibration: "Recommended activity",
-  independent_understanding_verification: "Recommended activity",
-  consolidation_and_transfer: "Recommended activity",
-  basic_concept_grounding: "Recommended activity",
-  distractor_contrast: "Recommended activity",
-  reasoning_chain_repair: "Recommended activity",
-  independent_reconstruction: "Recommended activity",
-  confidence_evidence_audit: "Recommended activity",
-  transfer_and_distractor_generation: "Recommended activity"
+  conceptual_entry_grounding: "Try this next",
+  distractor_misconception_probe: "Try this next",
+  reasoning_boundary_repair: "Try this next",
+  independent_misconception_verification: "Try this next",
+  diagnostic_clarification: "Try this next",
+  reasoning_refinement: "Try this next",
+  confidence_calibration: "Try this next",
+  independent_understanding_verification: "Try this next",
+  consolidation_and_transfer: "Try this next",
+  basic_concept_grounding: "Try this next",
+  distractor_contrast: "Try this next",
+  reasoning_chain_repair: "Try this next",
+  independent_reconstruction: "Try this next",
+  confidence_evidence_audit: "Try this next",
+  transfer_and_distractor_generation: "Try this next"
 } as const;
 
 export function studentActivityFocusLabel(input: {
@@ -190,7 +190,7 @@ const blockedPatterns: Array<{
   {
     rule_code: "answer_key_or_correctness_label_detected",
     blocked_pattern_label: "answer_key_or_correctness_language",
-    pattern: /\b(answer key|correctness label|the correct option is|the answer is)\b/i
+    pattern: /\b(answer key|correctness label|the correct option is|the answer is|you now know option [A-E] is correct)\b/i
   },
   {
     rule_code: "internal_activity_label_detected",
@@ -220,7 +220,7 @@ const blockedPatterns: Array<{
   {
     rule_code: "student_facing_internal_phrase_detected",
     blocked_pattern_label: "student_facing_internal_phrase",
-    pattern: /\b(recorded for this version|available choices for a future version|future version choices|workflow|runtime|routing|selection rationale|diagnostic purpose|persisted|schema|fallback|confidence calibrated|reasonably_calibrated|overconfident|underconfident)\b/i
+    pattern: /\b(recorded for this version|available choices for a future version|future version choices|workflow|runtime|routing|selection rationale|diagnostic purpose|persisted|schema|fallback|confidence calibrated|reasonably_calibrated|overconfident|underconfident|recommended activity|conceptually usable|precision to check|growth target|response profile|profile|diagnosis|assessment stage|before continuing to feedback)\b/i
   },
   {
     rule_code: "secret_or_header_label_detected",

@@ -139,7 +139,7 @@ const scenarios: Scenario[] = [
   }
 ];
 
-const bannedStudentVisibleLanguage = /\b(selected_option|scored_outcome|tempting_option_unavailable|reasoning_unavailable|confidence_unavailable|reasonably_calibrated|overconfident|underconfident|calibration|ontology|profile schema|evidence package|persisted|runtime|routing|diagnostic purpose|source reference|recorded for this version|future version|structured output|agent call|system prompt|raw llm output|raw model output)\b/i;
+const bannedStudentVisibleLanguage = /\b(selected_option|scored_outcome|tempting_option_unavailable|reasoning_unavailable|confidence_unavailable|reasonably_calibrated|overconfident|underconfident|calibration|ontology|profile|diagnosis|assessment stage|recommended activity|conceptually usable|precision to check|growth target|evidence package|persisted|runtime|routing|diagnostic purpose|source reference|recorded for this version|future version|structured output|agent call|system prompt|raw llm output|raw model output)\b/i;
 
 function collectStudentVisibleStrings(value: unknown): string[] {
   if (typeof value === "string") return [value];
@@ -189,6 +189,11 @@ function studentVisibleStringsForScenario(scenario: Scenario) {
 function main() {
   for (const scenario of scenarios) {
     const { bundle, strings } = studentVisibleStringsForScenario(scenario);
+    const packageResults = packageResultsForStudent(bundle.profile);
+    assert(
+      packageResults.items.every((item) => item.confidence),
+      `${scenario.name} answer review should include confidence for every administered item`
+    );
     for (const value of strings.filter(Boolean)) {
       assert.doesNotMatch(
         value,
@@ -212,6 +217,11 @@ function main() {
 
     assert.equal(bundle.student_communication.fact_validation.valid, true);
     assert.equal(bundle.student_communication.language_validation.valid, true);
+    assert.doesNotMatch(
+      bundle.next_interaction.prompt,
+      /you now know option [A-E] is correct|rediscover|which option is correct/i,
+      `${scenario.name}: activity should analyze a distractor without revealing or rediscovering the answer`
+    );
   }
 
   console.log(JSON.stringify({

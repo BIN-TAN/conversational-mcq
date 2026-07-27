@@ -581,10 +581,17 @@ export async function createActivityRuntimeAttemptFromEvidenceIntegratedRouter(
     replaced_activity_attempt_public_id: input.replaced_activity_attempt_public_id ?? null,
     activity_switch_reason: input.activity_switch_reason ?? null
   };
-  const attemptPublicId = input.activity_attempt_public_id ?? publicId("act_attempt");
-
-  return client.activityRuntimeAttempt.create({
-    data: {
+  const evidenceStateHash = hashValue({
+    session_public_id: input.session_public_id,
+    concept_unit_id: input.concept_unit_id,
+    source_profile_integration_snapshot_id: input.source_profile_integration_snapshot_id,
+    source_formative_value_packet_id: input.source_formative_value_packet_id,
+    semantic_deduplication_key: ref.semantic_deduplication_key,
+    replaced_activity_attempt_public_id: ref.replaced_activity_attempt_public_id
+  });
+  const attemptPublicId =
+    input.activity_attempt_public_id ?? `act_attempt_${evidenceStateHash.slice(0, 24)}`;
+  const data = {
       activity_attempt_public_id: attemptPublicId,
       session_public_id: input.session_public_id,
       student_public_id: input.student_public_id,
@@ -596,7 +603,14 @@ export async function createActivityRuntimeAttemptFromEvidenceIntegratedRouter(
       generation_source: "evidence_integrated_router",
       status: "awaiting_student_activity_response",
       limitations: prismaJson(input.limitations ?? [])
-    }
+  };
+
+  return client.activityRuntimeAttempt.upsert({
+    where: {
+      activity_attempt_public_id: attemptPublicId
+    },
+    create: data,
+    update: {}
   });
 }
 

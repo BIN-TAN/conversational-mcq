@@ -45,7 +45,7 @@ Rules:
 4. Include exactly one activity transition and exactly one complete activity prompt.
 5. Refer to items only as Item 1, Item 2, Item 3, and to options by label and text when provided.
 6. Never expose raw item IDs, session IDs, assessment IDs, database IDs, UUIDs, public IDs, prompts, schemas, runtime, fallback, routing, agent calls, raw model output, API keys, headers, secrets, teacher notes, or unadministered answers.
-7. Do not use internal labels such as response profile, formative need, engagement profile, calibration, overconfident, underconfident, selected_option, tempting_option, metadata, or structured output.
+7. Do not use internal or evaluator labels such as profile, diagnosis, assessment stage, recommended activity, conceptually usable, precision to check, growth target, formative need, engagement profile, calibration, overconfident, underconfident, selected_option, tempting_option, metadata, or structured output.
 8. Do not accuse the student of cheating, low effort, motivation problems, misconduct, or AI use.
 9. Do not change correctness labels, selected answers, correct answers, item count, growth target, activity type, source item, source option, or source option text.
 10. Do not ask students to rediscover which option is correct after answers have been revealed. The activity must require fresh reasoning.
@@ -230,6 +230,12 @@ const forbiddenStudentLanguagePatterns: Array<{
   { label: "calibration_label", pattern: /\b(calibration|reasonably_calibrated|overconfident|underconfident)\b/i },
   { label: "ontology_label", pattern: /\bontology\b/i },
   { label: "profile_schema_label", pattern: /\bprofile schema\b/i },
+  { label: "profile_label", pattern: /\bprofile\b/i },
+  { label: "diagnosis_label", pattern: /\bdiagnosis\b/i },
+  { label: "assessment_stage_label", pattern: /\bassessment stage\b/i },
+  { label: "recommended_activity_label", pattern: /\brecommended activity\b/i },
+  { label: "evaluator_language", pattern: /\b(conceptually usable|precision to check|growth target)\b/i },
+  { label: "workflow_review_language", pattern: /\b(before continuing to feedback|I have your \d+ responses)\b/i },
   { label: "evidence_package_label", pattern: /\bevidence package\b/i },
   { label: "persistence_label", pattern: /\b(persisted|recorded for this version)\b/i },
   { label: "runtime_label", pattern: /\bruntime\b/i },
@@ -305,8 +311,8 @@ export function buildDeterministicStudentCommunicationFallback(
     input.validated_reasoning_summary.safe_explanation,
     cleanConfidenceText(input.validated_confidence_summary.safe_explanation || input.validated_confidence_summary.student_label),
     limitationText,
-    `The main idea to strengthen is: ${input.validated_growth_target.student_facing_text}.`,
-    "Based on your responses, here is a recommended activity that can help you strengthen this idea:"
+    `The next idea to work on is: ${input.validated_growth_target.student_facing_text.replace(/[.?!]+$/u, "")}.`,
+    "Try this next:"
   ]);
 
   return {
@@ -315,7 +321,7 @@ export function buildDeterministicStudentCommunicationFallback(
     item_review_introductions: itemReviews,
     activity_transition: "Here is a different way to work on the same idea.",
     activity_prompt: activityPromptFor(input),
-    post_activity_feedback: "Thanks. I can use that response to decide whether to continue with this idea or move to the next step.",
+    post_activity_feedback: "Thanks. Let us use that response to see whether this idea is clear or needs another example.",
     ready_to_advance_message: "Your response addresses the key distinction clearly. You can continue when you are ready.",
     topic_dialogue_transition: "Let us work through the remaining part of this idea together.",
     completion_message: "You can use this next response to make the idea clearer.",

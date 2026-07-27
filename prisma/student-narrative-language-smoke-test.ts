@@ -61,7 +61,7 @@ function fixturePackage(name: string, correctness: Array<"correct" | "incorrect"
   };
 }
 
-const banned = /\b(Overall pattern|Your explanations|How sure you were|What to keep in mind|Next focus|Confidence calibration|Reasoning quality|selected_option|scored_outcome|reasonably_calibrated|overconfident|underconfident|profile schema|evidence package|runtime|routing|diagnostic purpose|fallback|schema)\b/i;
+const banned = /\b(Overall pattern|Your explanations|How sure you were|What to keep in mind|Next focus|Confidence calibration|Reasoning quality|selected_option|scored_outcome|reasonably_calibrated|overconfident|underconfident|profile|diagnosis|assessment stage|recommended activity|conceptually usable|precision to check|growth target|evidence package|runtime|routing|diagnostic purpose|fallback|schema)\b/i;
 
 for (const scenario of [
   { name: "all_correct", correctness: ["correct", "correct", "correct"] as const },
@@ -80,7 +80,7 @@ for (const scenario of [
   assert.doesNotMatch(output.activity_prompt, banned, `${scenario.name}: activity prompt leaked internal wording.`);
   assert.match(
     output.package_feedback_narrative,
-    /Based on your responses, here is a recommended activity/i,
+    /Try this next/i,
     `${scenario.name}: narrative should use the approved activity transition.`
   );
   assert.equal(bundle.student_communication.fact_validation.valid, true);

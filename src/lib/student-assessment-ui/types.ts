@@ -155,6 +155,7 @@ export const PackageResultsSchema = z.object({
     item_position: z.number().nullable(),
     selected_option: z.string().nullable(),
     status_label: z.string(),
+    confidence: ConfidenceRatingSchema.nullable(),
     answer_revealed: z.boolean(),
     revealed_answer: z.string().nullable(),
     student_answer: z.string().nullable(),

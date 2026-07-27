@@ -182,10 +182,10 @@ function assertRoutingVariants() {
     "specific_misconception"
   );
   assert.equal(incorrect.next_interaction.activity_type, "distractor_temptation_analysis");
-  assert.match(
+  assert.doesNotMatch(
     incorrect.next_interaction.prompt,
     /You now know option B is correct/i,
-    "Post-reveal misconception work should acknowledge the known correct answer."
+    "Post-reveal misconception work should not repeat the answer key."
   );
   assert.doesNotMatch(
     incorrect.next_interaction.prompt,

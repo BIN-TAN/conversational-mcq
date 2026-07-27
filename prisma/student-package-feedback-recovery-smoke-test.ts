@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import {
   completeInitialConceptUnitAdministration,
   getStudentSessionState,
+  getStudentSafeTranscript,
   ingestFrontendProcessEvents,
   startConceptUnitInitialAdministration,
   startOrResumeStudentAssessmentSession
@@ -135,6 +136,14 @@ async function main() {
     assert(afterFirst.events.package_results_generated === 1, "Backend should emit generated package event.");
     assert(afterFirst.events.package_results_persisted === 1, "Backend should emit persisted package event.");
     assert((afterFirst.events.package_results_shown ?? 0) === 0, "Backend must not emit shown package event.");
+    const firstTranscript = await getStudentSafeTranscript({
+      student_user_db_id: prepared.student.id,
+      session_public_id: prepared.state.session_public_id
+    });
+    assert(
+      firstTranscript.transcript.filter((turn) => turn.interaction_type === "formative_activity").length === 1,
+      "One evidence state should dispatch exactly one student-visible formative activity message."
+    );
 
     const second = await completeInitialConceptUnitAdministration({
       student_user_db_id: prepared.student.id,
@@ -154,6 +163,14 @@ async function main() {
     assert(afterSecond.next_interaction_turns === afterFirst.next_interaction_turns, "Replay must not duplicate next-interaction turn.");
     assert(afterSecond.events.package_results_generated === 1, "Replay must not duplicate generated package event.");
     assert(afterSecond.events.formative_activity_persisted === 1, "Replay must not duplicate persisted activity event.");
+    const replayTranscript = await getStudentSafeTranscript({
+      student_user_db_id: prepared.student.id,
+      session_public_id: prepared.state.session_public_id
+    });
+    assert(
+      replayTranscript.transcript.filter((turn) => turn.interaction_type === "formative_activity").length === 1,
+      "Idempotent package replay must not duplicate the student-visible activity dispatch."
+    );
 
     const session = await prisma.assessmentSession.findUniqueOrThrow({
       where: { session_public_id: prepared.state.session_public_id },

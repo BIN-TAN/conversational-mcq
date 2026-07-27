@@ -866,7 +866,7 @@ function PackageReviewMessage({
         onClick={onContinue}
         type="button"
       >
-        Continue to feedback
+        Finish review
       </button>
     </AgentMessage>
   );
@@ -1550,6 +1550,10 @@ function PackageResultsChatCard({
                       {item.student_answer ?? item.selected_option ?? "No answer recorded"}
                     </p>
                     <p>
+                      <span className="font-semibold text-ink">Confidence:</span>{" "}
+                      {item.confidence ? confidenceLabel(item.confidence) : "Not recorded"}
+                    </p>
+                    <p>
                       <span className="font-semibold text-ink">Correct answer:</span>{" "}
                       {item.answer_revealed && item.revealed_answer
                         ? item.revealed_answer
@@ -1604,9 +1608,6 @@ function StudentAssessmentChatShell({
           <h1 className="mt-1 text-lg font-semibold text-ink">
             {state.current_concept_unit?.title ?? "Assessment"}
           </h1>
-          <p className="mt-1 text-xs text-muted" data-testid="student-flow-stage">
-            {state.assessment_state.replaceAll("_", " ").toLowerCase()}
-          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -1669,6 +1670,35 @@ function shouldShowLearningProfile(state: StudentSessionState) {
     "TRANSFER_ITEM",
     "SESSION_COMPLETE"
   ].includes(state.assessment_state);
+}
+
+function splitTranscriptForPackageResults(
+  entries: StudentTranscriptEntry[],
+  showPackageResults: boolean
+) {
+  if (!showPackageResults) {
+    return {
+      beforePackageResults: entries,
+      afterPackageResults: [] as StudentTranscriptEntry[]
+    };
+  }
+
+  const postPackageBoundary = entries.findIndex((entry) =>
+    entry.interaction_type === "package_feedback" ||
+    entry.interaction_type === "formative_activity"
+  );
+
+  if (postPackageBoundary < 0) {
+    return {
+      beforePackageResults: entries,
+      afterPackageResults: [] as StudentTranscriptEntry[]
+    };
+  }
+
+  return {
+    beforePackageResults: entries.slice(0, postPackageBoundary),
+    afterPackageResults: entries.slice(postPackageBoundary)
+  };
 }
 
 function activeItemPrompt(input: {
@@ -2451,7 +2481,7 @@ export function AssessmentSessionClient({
           // Fall through to the ordinary retry UI when canonical state cannot be read.
         }
 
-        handleError(errorValue, "Continue to feedback", () => {
+        handleError(errorValue, "Finish review", () => {
           void handleCompletePackage();
         });
       } finally {
@@ -2932,6 +2962,11 @@ export function AssessmentSessionClient({
   const visibleTranscript = transcript.filter(
     (entry) => !shouldHideActiveAgentTranscriptEntry(entry, state)
   );
+  const showPackageResults = shouldShowLearningProfile(state) && Boolean(state.package_results);
+  const {
+    beforePackageResults,
+    afterPackageResults
+  } = splitTranscriptForPackageResults(visibleTranscript, showPackageResults);
 
   return (
     <StudentAssessmentChatShell
@@ -2954,12 +2989,15 @@ export function AssessmentSessionClient({
               Retry {failedAction.label}
             </button>
           ) : null}
-          {visibleTranscript.map((entry) => (
+          {beforePackageResults.map((entry) => (
             <ChatBubble entry={entry} key={entry.turn_id} />
           ))}
-          {shouldShowLearningProfile(state) ? (
+          {showPackageResults ? (
             <PackageResultsChatCard packageResults={state.package_results} />
           ) : null}
+          {afterPackageResults.map((entry) => (
+            <ChatBubble entry={entry} key={entry.turn_id} />
+          ))}
           {activePrompt}
           {isBusy ? (
             <div className="flex justify-start">

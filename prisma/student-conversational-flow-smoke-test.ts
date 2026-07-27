@@ -91,7 +91,7 @@ async function assertStudentComponentShape() {
   assert(source.includes("I don't know yet."), "I don't know option row is missing.");
   assert(source.includes("continue-to-feedback"), "Package-level review continuation is missing.");
   assert(
-    promptSource.includes("I have your ${total} responses. You can review or edit them before continuing to feedback."),
+    promptSource.includes("Review your responses. You can edit any response before you finish this set."),
     "Package review chat copy is missing."
   );
   assert(source.includes("Edit response"), "Package review edit action is missing.");

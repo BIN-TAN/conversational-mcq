@@ -221,13 +221,7 @@ export function buildInitialAdminPrompt(input: {
     promptText = TEMPTING_REASON_PROMPTS[index] ?? TEMPTING_REASON_PROMPTS[0];
     promptVariant = `tempting_reason_${index + 1}`;
   } else if (input.kind === "package_review_prompt") {
-    const total =
-      typeof input.initialItemTotal === "number" && Number.isFinite(input.initialItemTotal) && input.initialItemTotal > 0
-        ? input.initialItemTotal
-        : null;
-    promptText = total
-      ? `I have your ${total} responses. You can review or edit them before continuing to feedback.`
-      : "I have your responses. You can review or edit them before continuing to feedback.";
+    promptText = "Review your responses. You can edit any response before you finish this set.";
     promptVariant = "package_review";
   } else if (input.kind === "edit_prompt") {
     promptText = "You can edit your latest response before continuing.";

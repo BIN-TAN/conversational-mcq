@@ -1249,7 +1249,7 @@ export function buildEvidenceIntegratedProfileBundle(input: {
       student_label: reasoningLabel,
       explanation:
         reasoningQuality === "accurate_but_concise"
-          ? "The reasoning is conceptually usable but leaves some precision to check."
+          ? "The reasons you gave show the main idea, but one distinction could be stated more clearly."
           : reasoningQuality === "well_supported_and_precise"
             ? "The reasoning gives clear support for the selected answers."
             : "The reasoning evidence needs additional review before making a stronger claim.",
@@ -1300,7 +1300,7 @@ export function buildEvidenceIntegratedProfileBundle(input: {
         : null,
       next_focus: growthTarget,
       boundary_statement:
-        "This profile summarizes only the evidence from this assessment package."
+        "This summary reflects only what you showed in this assessment."
     },
     source_agent_call_public_id: input.source_agent_call_public_id ?? null,
     validation_status: "validated"
@@ -1497,12 +1497,8 @@ function routeNextInteraction(input: {
   const distractorPhrase = distractor
     ? `Option ${distractor.label}`
     : "one of the incorrect options";
-  const correctOption = stringValue(responseForFirst?.correct_option_snapshot);
   const answersRevealed =
     input.profile.outcome_summary.restricted_answer_reveal_state.full_answer_key_revealed;
-  const knownCorrectAnswerPhrase = correctOption && answersRevealed
-    ? `You now know option ${correctOption} is correct. `
-    : "";
   const postRevealConstraints = {
     may_reveal_correct_option: answersRevealed,
     may_reveal_explanation: answersRevealed,
@@ -1513,7 +1509,7 @@ function routeNextInteraction(input: {
     return {
       next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
       interaction_type: "distractor_focused_activity",
-      prompt: `${knownCorrectAnswerPhrase}${distractorPhrase} could still be attractive to a peer. Rank the flaw in that option by importance, then name the boundary a student would need to notice.`,
+      prompt: `${distractorPhrase} could still be attractive to a peer. Rank the flaw in that option by importance, then name the distinction a student would need to notice.`,
       purpose: "Use a higher-order distractor task to extend already well-supported evidence.",
       expected_response_format: "Two or three sentences ranking the flaw and naming the boundary.",
       response_constraints: [
@@ -1552,12 +1548,12 @@ function routeNextInteraction(input: {
       next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
       interaction_type: scaffolded ? "scaffolded_distractor_activity" : "distractor_focused_activity",
       prompt: scaffolded
-        ? `${knownCorrectAnswerPhrase}${distractorPhrase} has one part that could sound reasonable and one part that does not fit. Name both parts, then rewrite the weak part so it becomes accurate.`
-        : `${knownCorrectAnswerPhrase}${distractorPhrase} could look plausible to another student. In two or three sentences, identify the most precise flaw in that option, then state the stronger boundary.`,
+        ? `${distractorPhrase} has one part that could sound reasonable and one part that does not fit. Name both parts, then rewrite the weak part so it becomes accurate.`
+        : `${distractorPhrase} could look plausible to another student. In two or three sentences, identify the most precise flaw in that option, then state the stronger distinction.`,
       purpose: scaffolded
         ? "Use a brief scaffold to keep distractor work accessible after the answer reveal."
         : "Sharpen the conceptual boundary using an administered distractor after the answer reveal.",
-      expected_response_format: "Two or three sentences that name the flaw in the distractor and connect it to the growth target.",
+      expected_response_format: "Write two or three sentences that name the flaw and explain the important distinction.",
       response_constraints: [
         "Use only the options already shown.",
         "Focus on the reasoning difference, not on guessing.",
@@ -1565,7 +1561,7 @@ function routeNextInteraction(input: {
       ],
       evaluation_criteria: [
         "Names one precise flaw in the distractor.",
-        "Connects the flaw to the current growth target.",
+        "Connects the flaw to the important conceptual distinction.",
         "Avoids unsupported claims about motivation or effort."
       ],
       linked_growth_target: growthTarget,
@@ -1590,7 +1586,7 @@ function routeNextInteraction(input: {
     return {
       next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
       interaction_type: "distractor_focused_activity",
-      prompt: `${knownCorrectAnswerPhrase}Look back at the option you selected. What idea makes it tempting, and what part of that idea needs correction?`,
+      prompt: "Look back at the option you selected. What idea makes it tempting, and what part of that idea needs correction?",
       purpose: "Use the selected distractor to examine a provisional misconception.",
       expected_response_format: "Two or three sentences naming the tempting idea and the correction.",
       response_constraints: ["Use your own words.", "Add a correction rather than copying the explanation."],
@@ -1621,7 +1617,7 @@ function routeNextInteraction(input: {
     return {
       next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
       interaction_type: "foundational_support_activity",
-      prompt: `${knownCorrectAnswerPhrase}Reverse-engineer the item: write one sentence explaining the main concept the item was testing in your own words.`,
+      prompt: "Reverse-engineer the item: write one sentence explaining the main concept the item was testing in your own words.",
       purpose: "Establish an accessible starting point before distractor work.",
       expected_response_format: "One sentence in the student's own words.",
       response_constraints: ["Keep it brief.", "Use your own words rather than copying the explanation."],
@@ -1649,7 +1645,7 @@ function routeNextInteraction(input: {
     return {
       next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
       interaction_type: "prerequisite_support_activity",
-      prompt: `${knownCorrectAnswerPhrase}Name the word, symbol, or calculation step that made the item hard to interpret, then say how you would restate it.`,
+      prompt: "Name the word, symbol, or calculation step that made the item hard to interpret, then say how you would restate it.",
       purpose: "Address a possible prerequisite barrier before returning to distractor reasoning.",
       expected_response_format: "One short phrase or sentence.",
       response_constraints: ["Name only the barrier you noticed.", "Use your own words."],
@@ -1674,7 +1670,7 @@ function routeNextInteraction(input: {
     return {
       next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
       interaction_type: "diagnostic_clarification",
-      prompt: `${knownCorrectAnswerPhrase}What idea do you think the item was mainly asking about, and how does the correct answer use that idea?`,
+      prompt: "What idea do you think the item was mainly asking about, and how does that idea make one of the other options incomplete or misleading?",
       purpose: "Orient to the assessed construct before assigning a distractor or foundational activity.",
       expected_response_format: "One sentence.",
       response_constraints: ["Use your own words.", "Do not copy the explanation."],
@@ -1698,7 +1694,7 @@ function routeNextInteraction(input: {
   return {
     next_interaction_schema_version: NEXT_INTERACTION_SCHEMA_VERSION,
     interaction_type: "diagnostic_clarification",
-    prompt: `${knownCorrectAnswerPhrase}What information or rule would help explain why the correct answer fits these items?`,
+    prompt: "What information or rule would help explain why one of the other options is incomplete or misleading?",
     purpose: "Collect one low-burden clarification because the current evidence is not sufficient for a stronger route.",
     expected_response_format: "One or two sentences.",
     response_constraints: ["Do not worry about being complete.", "Use your own words."],
@@ -1996,6 +1992,7 @@ export function packageResultsForStudent(profile: EvidenceIntegratedProfileV2) {
             : item.result === "unanswered"
               ? "Unanswered"
               : "Not scored",
+      confidence: item.confidence,
       answer_revealed: item.answer_key_revealed,
       revealed_answer: item.answer_key_revealed ? item.correct_option : null,
       student_answer: item.student_answer,
