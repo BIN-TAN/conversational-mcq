@@ -510,13 +510,11 @@ export function chooseStudentActivityRuntimeAction(input: {
   sessionPublicId: string;
   activityAttemptPublicId?: string | null;
   choiceState:
-    | "choose_another_activity"
     | "skip_activity_to_transfer"
     | "skip_activity_to_next_concept"
     | "finish_assessment"
     | "return_to_summary"
     | "move_on";
-  selectedAlternativeActivityFamily?: string | null;
   clientActionId?: string;
 }): Promise<StudentActivityRuntimeProjection> {
   return post(
@@ -524,7 +522,6 @@ export function chooseStudentActivityRuntimeAction(input: {
     {
       activity_attempt_public_id: input.activityAttemptPublicId ?? null,
       choice_state: input.choiceState,
-      selected_alternative_activity_family: input.selectedAlternativeActivityFamily ?? null,
       client_action_id: input.clientActionId ?? newClientActionId(`activity-runtime-${input.choiceState}`)
     },
     (value) =>

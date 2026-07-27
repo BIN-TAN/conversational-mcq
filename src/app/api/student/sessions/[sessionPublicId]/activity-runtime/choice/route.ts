@@ -8,21 +8,12 @@ import { StudentAssessmentServiceError } from "@/lib/services/student-assessment
 const choiceSchema = z.object({
   activity_attempt_public_id: z.string().min(1).nullable().optional(),
   choice_state: z.enum([
-    "choose_another_activity",
     "skip_activity_to_transfer",
     "skip_activity_to_next_concept",
     "finish_assessment",
     "return_to_summary",
     "move_on"
   ]),
-  selected_alternative_activity_family: z.enum([
-    "basic_concept_grounding",
-    "distractor_contrast",
-    "reasoning_chain_repair",
-    "independent_reconstruction",
-    "confidence_evidence_audit",
-    "transfer_and_distractor_generation"
-  ]).nullable().optional(),
   client_action_id: z.string().min(1).optional()
 }).strict();
 
@@ -50,7 +41,6 @@ export async function POST(
       session_public_id: params.sessionPublicId,
       activity_attempt_public_id: body.activity_attempt_public_id ?? null,
       choice_state: body.choice_state,
-      selected_alternative_activity_family: body.selected_alternative_activity_family ?? null,
       client_action_id: clientActionId
     });
 

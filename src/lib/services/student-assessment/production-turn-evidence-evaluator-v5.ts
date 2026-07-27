@@ -137,6 +137,41 @@ export type ProductionTurnEvidenceEvaluatorOutputV5 = z.infer<
   typeof ProductionTurnEvidenceEvaluatorOutputV5Schema
 >;
 
+export function buildNonconceptualStructuredTurnEvidenceV5(input: {
+  source_student_turn_id: string;
+  source_sequence_index: number;
+  alias_contract: ActiveAnchorAliasContract;
+  interaction_intent: "task_language_confusion" | "protected_request" | "off_topic_response";
+  confidence_evidence: "high" | "medium" | "low" | null;
+}) {
+  return ProductionTurnEvidenceStructuredFieldsV5Schema.parse({
+    evaluator_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V5,
+    source_student_turn_id: input.source_student_turn_id,
+    source_sequence_index: input.source_sequence_index,
+    active_anchor_id: input.alias_contract.active_anchor_id,
+    observed_anchor_reference: "absent",
+    observed_anchor_identifier: null,
+    observed_anchor_text: null,
+    observed_anchor_conclusion: "not_expressed",
+    observed_anchor_stance: "not_expressed",
+    conceptual_mechanism:
+      "This interaction-only turn did not provide new conceptual evidence.",
+    conceptual_conclusion: "not_assessable",
+    anchor_concept_alignment: "not_assessable",
+    anchor_conflict_type: null,
+    blocking_conflict: false,
+    exact_anchor_evidence_spans: [],
+    exact_conceptual_evidence_spans: [],
+    essential_missing_links: ["anchor_specific_conceptual_evidence"],
+    confidence_evidence: input.confidence_evidence,
+    engagement_evidence: [],
+    evidence_limitations: [
+      `nonconceptual_interaction:${input.interaction_intent}`,
+      "nonconceptual_interaction_does_not_update_conceptual_evidence"
+    ]
+  });
+}
+
 export const ProductionTurnEvidenceEvaluatorInputV5Schema = z.object({
   schema_version: z.literal(
     PRODUCTION_TURN_EVIDENCE_EVALUATOR_INPUT_SCHEMA_VERSION_V5

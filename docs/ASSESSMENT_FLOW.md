@@ -224,9 +224,10 @@ Teacher-facing review may close a stuck or test attempt and allow another attemp
 
 ## Phase 31ao Post-Activity Topic Dialogue
 
-After the student submits a formative activity response, the backend creates a
-`PostActivityLearningDecisionV1` from persisted evidence. The decision, not the
-LLM, selects the next runtime path:
+After the student submits a formative activity response, the backend persists
+the student turn, reconstructs the complete visible formative transcript and
+evidence context, and creates a `PostActivityLearningDecisionV1`. The decision,
+not the LLM, authorizes the next runtime path:
 
 - `ready_to_advance`: show valid progression choices.
 - `improving_but_incomplete`: enter bounded topic dialogue.
@@ -247,16 +248,19 @@ final support options and valid progression/end choices.
 
 For a new topic-dialogue student message, the backend owns the sequence:
 
-`persist student message -> construct bounded context -> optional live topic dialogue call -> validate output -> persist tutor turn -> return presenter`
+`persist student message -> construct bounded context -> topic_dialogue_agent call -> validate structured output -> apply platform action gate -> persist tutor turn -> return presenter`
 
-The optional live call is server-side only and is enabled by explicit role and
-global LLM configuration. Refresh, resume, and idempotent replay reuse persisted
-dialogue records and must not create a new provider call. If live output is not
-available or fails validation, deterministic fallback can clarify the current
-task, redirect off-topic messages, or offer final support options, but it is not
-reported as successful live dialogue.
+The live call is server-side only and is enabled by explicit role and global LLM
+configuration. No-live tests use the explicit deterministic adapter. Refresh,
+resume, and idempotent replay reuse persisted dialogue records and must not
+create a new provider call. Runtime fallback is allowed only for a provider
+failure, schema-validation failure, or safety failure and is never reported as
+successful live dialogue.
 
 Short nonempty messages during `AWAIT_TOPIC_DIALOGUE_RESPONSE`, including
 "what", "why", "about what", and "which item do you mean", are valid
 conversation turns. They are classified as clarification or system-use
 questions instead of rejected as malformed assessment answers.
+The student UI does not expose a `Choose another activity` action. Clarification
+and requests for an example are handled as turns within the same activity
+attempt.

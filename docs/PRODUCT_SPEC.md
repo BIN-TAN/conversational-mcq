@@ -152,16 +152,20 @@ The `topic_dialogue_agent` is bounded topic support after a formative activity.
 It is not unrestricted chat. It may address only the current topic, current
 concept, administered items, relevant distractors, the frozen growth target, and
 the student's activity response. It must redirect unrelated questions and must
-stop at the configured turn limit or when the student is ready to advance.
+stop at the configured turn limit or when the student is ready to advance. The
+agent generates the next student-facing formative turn, while the application
+retains authority over activity state, revision, transfer, completion, and
+answer visibility. Students do not replace the active activity through a
+separate activity-choice control.
 
 ## Phase 31ap Live Student Dialogue
 
 Student communication and topic dialogue can use server-side live OpenAI
 Responses calls only when the global LLM live configuration and the role-specific
-toggles are explicitly enabled. The browser never calls OpenAI directly. If the
-provider path is disabled, unavailable, invalid, or unsafe, the backend records a
-typed fallback and shows bounded deterministic support rather than treating the
-fallback as successful live dialogue.
+toggles are explicitly enabled. The browser never calls OpenAI directly.
+Deterministic dialogue is limited to explicit no-live test mode or a typed
+provider, schema-validation, or safety fallback; ordinary clarification does
+not select a replacement activity or bypass the topic-dialogue call.
 
 Topic dialogue accepts short clarification and assessment-system questions, such
 as "what", "which item do you mean", or "what happens next". The dialogue scope

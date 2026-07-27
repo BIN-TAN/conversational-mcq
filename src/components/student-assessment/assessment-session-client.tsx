@@ -1240,7 +1240,6 @@ function FormativeActivityControls({
   formativeActivityDraft: string;
   setFormativeActivityDraft: (value: string) => void;
   onChooseActivityRuntimeAction: (choiceState:
-    | "choose_another_activity"
     | "skip_activity_to_transfer"
     | "skip_activity_to_next_concept"
     | "finish_assessment"
@@ -1260,17 +1259,6 @@ function FormativeActivityControls({
 
   const choiceButtons = (
     <div className="mt-4 flex flex-wrap gap-2">
-      {runtime.can_choose_another_activity ? (
-        <button
-          className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
-          data-testid="activity-runtime-choose-another"
-          disabled={isBusy}
-          onClick={() => onChooseActivityRuntimeAction("choose_another_activity")}
-          type="button"
-        >
-          Choose another activity
-        </button>
-      ) : null}
       {runtime.can_move_on ? (
         <button
           className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
@@ -1736,7 +1724,6 @@ function activeItemPrompt(input: {
   onSaveReviewEdit: () => void;
   onStartReviewEdit: (item: StudentReviewItem) => void;
   onChooseActivityRuntimeAction: (choiceState:
-    | "choose_another_activity"
     | "skip_activity_to_transfer"
     | "skip_activity_to_next_concept"
     | "finish_assessment"
@@ -2641,7 +2628,6 @@ export function AssessmentSessionClient({
   }
 
   async function handleChooseActivityRuntimeAction(choiceState:
-    | "choose_another_activity"
     | "skip_activity_to_transfer"
     | "skip_activity_to_next_concept"
     | "finish_assessment"
@@ -2674,7 +2660,7 @@ export function AssessmentSessionClient({
           ? "Continue to transfer item"
           : choiceState === "skip_activity_to_next_concept"
             ? "Continue to next concept"
-            : "Choose another activity";
+            : "Continue activity";
       handleError(errorValue, label, () => {
         void handleChooseActivityRuntimeAction(choiceState);
       });

@@ -264,8 +264,7 @@ export function finalizeEvidenceFirstTurnBeforeTutorV4(input: {
     artifact_type: artifactType,
     cumulative
   }));
-  if (route.selected_mode === "remain_in_dialogue" &&
-      input.interaction_intent === "ordinary_conceptual_response") {
+  if (route.selected_mode !== "complete_episode") {
     authoritativeViews.push(authoritativeLayerView({
       artifact_type: "tutor_input_profile",
       cumulative
@@ -277,8 +276,7 @@ export function finalizeEvidenceFirstTurnBeforeTutorV4(input: {
     turn_observation_views: turnViews,
     authoritative_profile_views: authoritativeViews
   });
-  const tutorDispatchPermitted = route.selected_mode === "remain_in_dialogue" &&
-    input.interaction_intent === "ordinary_conceptual_response";
+  const tutorDispatchPermitted = route.selected_mode !== "complete_episode";
   const attestation = PreTutorProfileFinalizationAttestationV4Schema.parse({
     finalization_version: PRE_TUTOR_PROFILE_FINALIZATION_VERSION_V4,
     source_student_turn_id: profile.source_student_turn_id,

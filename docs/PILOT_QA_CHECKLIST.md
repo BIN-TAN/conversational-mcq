@@ -40,7 +40,7 @@ Supported Canvas placements:
 Suggested Canvas wording:
 
 ```text
-Open the Conversational MCQ activity using the link below. Use the classroom ID and access code provided by your instructor. Complete the activity in one sitting if possible. If the page says it could not safely review a response, follow the on-screen options to try again, choose another activity, or continue to the next available step. Your teacher will review completion and research data inside Conversational MCQ, not through Canvas grade passback.
+Open the Conversational MCQ activity using the link below. Use the classroom ID and access code provided by your instructor. Complete the activity in one sitting if possible. If the page says it could not safely review a response, follow the on-screen options to try again or continue to the next available step. Your teacher will review completion and research data inside Conversational MCQ, not through Canvas grade passback.
 ```
 
 Canvas gradebook will not automatically receive completion or scores. Teacher/research completion review and exports happen inside Conversational MCQ.
@@ -522,6 +522,9 @@ During browser QA after a formative activity:
   "runtime", "routing", "schema", "fallback", or similar implementation terms.
 - Submit a partial activity response and verify the student receives one bounded
   topic-centered prompt with one text box.
+- Enter "I don't understand what you mean." and verify the same activity remains
+  active while the tutor provides an adaptive clarification.
+- Verify no `Choose another activity` control or abstract activity menu appears.
 - Ask an unrelated question and verify the tutor redirects to the assessment
   topic without answering the unrelated question.
 - Continue until the turn cap is reached and verify the student is offered valid

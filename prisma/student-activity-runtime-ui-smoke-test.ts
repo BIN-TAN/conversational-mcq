@@ -90,6 +90,14 @@ function assertStudentComponentCopyIsHardened() {
     "src/components/student-assessment/assessment-session-client.tsx",
     "utf8"
   );
+  const apiSource = readFileSync(
+    "src/components/student-assessment/api.ts",
+    "utf8"
+  );
+  const choiceRouteSource = readFileSync(
+    "src/app/api/student/sessions/[sessionPublicId]/activity-runtime/choice/route.ts",
+    "utf8"
+  );
   assert(source.includes("Total correct"), "Student sidebar should retain compact initial-results wording.");
   assert(source.includes("data-testid=\"initial-answer-review-list\""), "Student sidebar should retain answer reviews.");
   assert(!source.includes("What your responses show"), "Student sidebar should not duplicate the profile narrative.");
@@ -109,6 +117,10 @@ function assertStudentComponentCopyIsHardened() {
   assert(!/data being saved|database|research records|system versions|your data is saved/i.test(source), "End assessment copy should not expose persistence or research language.");
   assert(!source.includes("Available choices for a future version"), "Abstract activity menu should not be rendered.");
   assert(!source.includes("Alternative activity selection is recorded for this version"), "Activity switching should not show audit wording.");
+  assert(!source.includes("Choose another activity"), "Student UI must not offer activity replacement.");
+  assert(!source.includes("activity-runtime-choose-another"), "Student UI must not retain the replacement button.");
+  assert(!apiSource.includes("choose_another_activity"), "Client API must not expose the replacement action.");
+  assert(!choiceRouteSource.includes("choose_another_activity"), "Student choice route must reject replacement actions.");
 }
 
 function jsonRecord(value: unknown): Record<string, unknown> {
@@ -137,9 +149,50 @@ async function assertCompleteDialogueContext(input: {
           activity_attempt_public_id: input.activity_attempt_public_id
         })}:${input.client_operation_id}`
     },
-    select: { input_payload: true }
+    select: {
+      agent_name: true,
+      input_payload: true,
+      output_validated: true
+    }
   });
+  assert(call.agent_name === "topic_dialogue_agent", "The formative tutor call must use topic_dialogue_agent.");
+  assert(call.output_validated, "The topic dialogue output must pass structured validation.");
   const request = jsonRecord(call.input_payload);
+  const orchestration = jsonRecord(request.topic_dialogue_orchestration);
+  assert(
+    jsonRecord(orchestration.current_activity_attempt).activity_attempt_public_id ===
+      input.activity_attempt_public_id,
+    "Topic dialogue input should include the current activity attempt."
+  );
+  assert(
+    jsonArray(orchestration.full_visible_formative_transcript).length > 0,
+    "Topic dialogue input should include the full visible formative transcript."
+  );
+  assert(
+    orchestration.latest_student_message === input.latest_student_message,
+    "Topic dialogue input should include the latest student message."
+  );
+  assert(
+    Array.isArray(orchestration.prior_attempted_activities),
+    "Topic dialogue input should include prior attempted activities."
+  );
+  assert(
+    Array.isArray(orchestration.failed_strategy_history),
+    "Topic dialogue input should include failed strategy history."
+  );
+  assert(
+    Object.keys(jsonRecord(orchestration.current_profile_evidence)).length > 0,
+    "Topic dialogue input should include current profile evidence."
+  );
+  assert(
+    typeof orchestration.formative_goal === "string" &&
+      orchestration.formative_goal.length > 0,
+    "Topic dialogue input should include the formative goal."
+  );
+  assert(
+    jsonArray(orchestration.allowed_actions).length > 0,
+    "Topic dialogue input should include platform-allowed actions."
+  );
   const turnContext = jsonRecord(request.formative_turn_context);
   const purpose = jsonRecord(turnContext.assessment_purpose_and_workflow);
   assert(
@@ -643,8 +696,6 @@ async function main() {
     );
     assertProjectionSafe(projection, "started");
 
-    const originalActivityAttemptId = projection.activity_attempt_public_id;
-    const originalFirstTurn = projection.first_turn_message;
     projection = await submitStudentActivityRuntimeResponse({
       student_user_db_id: validContext.student_db_id,
       session_public_id: validContext.session_public_id,
@@ -675,45 +726,6 @@ async function main() {
     );
     assertProjectionSafe(projection, "feedback_ready");
     await assertOperationalTurnCycleCreated(validCountsBeforeRuntime, "valid runtime response");
-
-    projection = await recordStudentActivityRuntimeChoice({
-      student_user_db_id: validContext.student_db_id,
-      session_public_id: validContext.session_public_id,
-      activity_attempt_public_id: projection.activity_attempt_public_id,
-      choice_state: "choose_another_activity",
-      client_action_id: "activity-runtime-ui-choose-other"
-    });
-    assert(projection.ui_state === "waiting_for_your_response", "Choose another should immediately return a different activity.");
-    assert(
-      projection.activity_attempt_public_id && projection.activity_attempt_public_id !== originalActivityAttemptId,
-      "Choose another should create a replacement activity attempt."
-    );
-    assert(
-      projection.first_turn_message && projection.first_turn_message !== originalFirstTurn,
-      "Choose another should render a different activity prompt immediately."
-    );
-    assert(
-      projection.alternative_activity_labels.length === 0,
-      "Choose another should not expose an abstract activity menu."
-    );
-    assertProjectionSafe(projection, "replacement_activity_ready");
-    const replacementTranscript = await getStudentSafeTranscript({
-      student_user_db_id: validContext.student_db_id,
-      session_public_id: validContext.session_public_id
-    });
-    assert(
-      replacementTranscript.transcript.some((turn) => turn.message_text.includes(originalFirstTurn ?? "__missing__")),
-      "The original shown activity should remain in the visible transcript."
-    );
-    assert(
-      replacementTranscript.transcript.some((turn) => turn.message_text.includes(projection.first_turn_message ?? "__missing__")),
-      "The replacement activity should be a new visible transcript turn."
-    );
-    assert(
-      /Item\s+\d+/i.test(projection.first_turn_message ?? "") &&
-        /option\s+[A-D]/i.test(projection.first_turn_message ?? ""),
-      "The replacement activity must retain the persisted item and distractor anchor."
-    );
 
     const repeatedContext = await createCompletedSession("repeated_confusion");
     contexts.push(repeatedContext);
@@ -758,7 +770,7 @@ async function main() {
     const expectedVisibleMessages = [promptTurn.message_text ?? ""];
     let completedReplayExpected: StudentActivityRuntimeProjection | null = null;
     const confusionTurns = [
-      { id: "activity-runtime-confusion-1", message: "I don't understand." },
+      { id: "activity-runtime-confusion-1", message: "I don't understand what you mean." },
       { id: "activity-runtime-confusion-2", message: "I still don't know what you mean." },
       { id: "activity-runtime-confusion-3", message: "Can you explain the question?" }
     ];
@@ -812,11 +824,31 @@ async function main() {
           structured_payload: { path: ["client_operation_id"], equals: turn.id }
         },
         orderBy: [{ sequence_index: "asc" }],
-        select: { id: true, sequence_index: true, actor_type: true, message_text: true }
+        select: {
+          id: true,
+          sequence_index: true,
+          actor_type: true,
+          agent_name: true,
+          message_text: true,
+          structured_payload: true
+        }
       });
       assert(turnsForOperation.length === 2, `${turn.id}: one student and one assistant turn are required.`);
       assert(turnsForOperation[0]?.actor_type === "student", `${turn.id}: student turn must be first.`);
       assert(turnsForOperation[1]?.actor_type === "agent", `${turn.id}: assistant turn must follow.`);
+      assert(
+        turnsForOperation[1]?.agent_name === "topic_dialogue_agent",
+        `${turn.id}: visible tutor response must be owned by topic_dialogue_agent.`
+      );
+      const tutorTrace = jsonRecord(turnsForOperation[1]?.structured_payload);
+      assert(
+        tutorTrace.agent_name === "topic_dialogue_agent" &&
+          typeof tutorTrace.generation_source === "string" &&
+          tutorTrace.fallback_used === false &&
+          tutorTrace.validator_status === "passed" &&
+          Object.keys(jsonRecord(tutorTrace.action_gate_result)).length > 0,
+        `${turn.id}: visible tutor response is missing runtime provenance fields.`
+      );
       assert(
         (turnsForOperation[0]?.sequence_index ?? 0) < (turnsForOperation[1]?.sequence_index ?? 0),
         `${turn.id}: persisted sequence must preserve student-before-assistant causality.`
@@ -828,6 +860,31 @@ async function main() {
         `${turn.id}: repeated confusion support must remain tied to the active distractor or concept boundary: ${turnsForOperation[1]?.message_text ?? "<missing>"}`
       );
       if (turn.id === confusionTurns[0]?.id) {
+        assert(
+          tutorTrace.dialogue_action === "clarify_task",
+          "A student clarification should produce the clarify_task dialogue action."
+        );
+        assert(
+          !String(turnsForOperation[1]?.message_text ?? "").includes(
+            "I could not complete that review"
+          ),
+          "Normal clarification must not use deterministic safe recovery."
+        );
+        assert(
+          await prisma.activityRuntimeAttempt.count({
+            where: { session_public_id: repeatedContext.session_public_id }
+          }) === 1,
+          "Clarification must not replace the active activity attempt."
+        );
+        assert(
+          await prisma.processEvent.count({
+            where: {
+              assessment_session_db_id: repeatedContext.assessment_session_db_id,
+              event_type: "alternative_activity_requested"
+            }
+          }) === 0,
+          "Clarification must not emit an activity replacement event."
+        );
         const tiedTimestamp = new Date("2026-07-17T09:00:00.000Z");
         await prisma.conversationTurn.updateMany({
           where: { id: { in: turnsForOperation.map((entry) => entry.id) } },

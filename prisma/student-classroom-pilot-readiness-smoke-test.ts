@@ -399,6 +399,7 @@ async function main() {
       response_text:
         "Theta is the person estimate on the linked scale; item parameters describe the question rather than the person.",
       client_message_id: `${SMOKE_PREFIX}_activity_response`,
+      execution_mode: "no_live_e2a_contract",
       evaluator_override: makeEvaluator({
         context: responseContext,
         packets: fixturePackets,
@@ -406,35 +407,32 @@ async function main() {
         suffix: "response"
       })
     });
-    assert(projection.ui_state === "feedback_ready", "Injected evaluator output should produce safe feedback.");
+    assert(
+      projection.topic_dialogue?.state === "awaiting_response" ||
+        projection.topic_dialogue?.state === "final_support",
+      "Injected evaluator output should enter the bounded tutor dialogue."
+    );
     assertProjectionSafe(projection, "activity feedback");
 
-    const previousActivityAttemptPublicId = projection.activity_attempt_public_id;
-    projection = await recordStudentActivityRuntimeChoice({
-      student_user_db_id: responseContext.student_db_id,
-      session_public_id: responseContext.session_public_id,
-      activity_attempt_public_id: projection.activity_attempt_public_id,
-      choice_state: "choose_another_activity",
-      client_action_id: `${SMOKE_PREFIX}_choose_another`
-    });
     assert(
-      projection.ui_state === "waiting_for_your_response",
-      "Choose-another activity should immediately render a replacement activity."
+      projection.can_choose_another_activity === false,
+      "Student activity replacement must not be exposed in the classroom runtime."
     );
     assert(
-      projection.activity_attempt_public_id !== previousActivityAttemptPublicId,
-      "Choose-another activity should activate a different activity attempt."
+      await prisma.activityRuntimeAttempt.count({
+        where: { session_public_id: responseContext.session_public_id }
+      }) === 1,
+      "The formative response should keep one active activity attempt."
     );
-    assertProjectionSafe(projection, "choose another projection");
 
     const countsAfterRuntime = await operationalCounts();
     assert(
-      countsAfterRuntime.student_profiles === countsBeforeRuntime.student_profiles,
-      "Activity runtime must not overwrite or create operational profiles."
+      countsAfterRuntime.student_profiles > countsBeforeRuntime.student_profiles,
+      "Activity runtime should persist the validated profile update used by topic dialogue."
     );
     assert(
-      countsAfterRuntime.response_packages === countsBeforeRuntime.response_packages,
-      "Activity runtime must not mutate response packages."
+      countsAfterRuntime.response_packages > countsBeforeRuntime.response_packages,
+      "Activity runtime should persist auditable profile and planning context packages."
     );
 
     const moveContext = await createCompletedSession("move_on");
@@ -519,7 +517,8 @@ async function main() {
       activity_runtime_projection_prepared_safely: true,
       activity_response_submission_with_injected_evaluator_output: true,
       move_on_path_available: true,
-      choose_another_path_available: true,
+      student_activity_replacement_removed: true,
+      topic_dialogue_profile_update_persisted: true,
       teacher_session_detail_available: true,
       session_evidence_audit_available: true,
       readable_transcript_available: true,
@@ -528,8 +527,8 @@ async function main() {
       research_export_integrity_status: integrityReview.summary.status,
       student_projection_safety_passed: true,
       teacher_research_projection_safety_passed: true,
-      operational_profile_not_overwritten: true,
-      response_package_not_mutated: true,
+      operational_profile_update_audited: true,
+      response_package_context_audited: true,
       workflow_review_artifact_path: workflowReview.artifact_path,
       synthetic_sessions_exercised: contexts.length
     }, null, 2));

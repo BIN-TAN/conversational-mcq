@@ -41,6 +41,8 @@ Hard limits:
 6. Use exactly one actionable student-facing question when asking for another response.
 7. Do not accuse students of cheating, low effort, motivation problems, misconduct, or AI use.
 8. Do not let the student move to another concept, complete the assessment, or choose a next item; only recommend next_action.
+9. Set dialogue_action to exactly one allowed action supplied by the application:
+   continue_dialogue, clarify_task, request_revision, provide_example, or offer_transfer.
 
 Return only the JSON object.
 `;
@@ -78,6 +80,17 @@ export const TopicDialogueNextActionSchema = z.enum([
   "continue_to_next_topic",
   "end_assessment"
 ]);
+
+export const TopicDialogueAgentActionSchema = z.enum([
+  "continue_dialogue",
+  "clarify_task",
+  "request_revision",
+  "provide_example",
+  "offer_transfer"
+]);
+export type TopicDialogueAgentAction = z.infer<
+  typeof TopicDialogueAgentActionSchema
+>;
 
 export const TopicDialogueInputV1Schema = z.object({
   dialogue_schema_version: z.union([
@@ -136,6 +149,10 @@ export const TopicDialogueInputV1Schema = z.object({
   latest_student_message_classification: z.string().min(1).max(80).optional(),
   dialogue_summary: z.string().min(1).max(1000).optional(),
   progression_options: z.array(z.string().min(1).max(80)).max(6).optional(),
+  allowed_dialogue_actions: z.array(TopicDialogueAgentActionSchema)
+    .min(1)
+    .max(5)
+    .optional(),
   source_versions: z.record(z.string(), z.string()).optional()
 }).strict();
 export type TopicDialogueInputV1 = z.infer<typeof TopicDialogueInputV1Schema>;
@@ -186,6 +203,7 @@ export const TopicDialogueOutputV1Schema = z.object({
   ]).optional(),
   topic_boundary: z.enum(["inside_scope", "redirected_to_topic"]),
   system_question_answered: z.boolean().optional(),
+  dialogue_action: TopicDialogueAgentActionSchema.optional(),
   next_action: TopicDialogueNextActionSchema,
   next_runtime_state: z.enum([
     "SHOW_TOPIC_DIALOGUE_PROMPT",
@@ -200,6 +218,14 @@ export const TopicDialogueOutputV1Schema = z.object({
   student_safe_summary: z.string().min(1).max(500)
 }).strict();
 export type TopicDialogueOutputV1 = z.infer<typeof TopicDialogueOutputV1Schema>;
+
+export const TopicDialogueAgentMediatedOutputSchema =
+  TopicDialogueOutputV1Schema.extend({
+    dialogue_action: TopicDialogueAgentActionSchema
+  }).strict();
+export type TopicDialogueAgentMediatedOutput = z.infer<
+  typeof TopicDialogueAgentMediatedOutputSchema
+>;
 
 export const PostActivityLearningDecisionV1Schema = z.object({
   decision_version: z.literal(POST_ACTIVITY_LEARNING_DECISION_VERSION),
@@ -240,7 +266,9 @@ export type TopicDialogueValidationIssue = {
     | "internal_language"
     | "answer_key_leak"
     | "hidden_content_leak"
-    | "raw_identifier_leak";
+    | "raw_identifier_leak"
+    | "action_not_allowed"
+    | "action_inconsistent";
   blocked_pattern_label?: string;
 };
 
@@ -350,7 +378,10 @@ export function classifyTopicDialogueStudentMessage(message: string): {
   topic_relation: NonNullable<TopicDialogueOutputV1["topic_relation"]>;
 } {
   const normalized = message.trim().toLowerCase();
-  if (/^(what|why|how|about what|what do you mean|which part|what should i write)\??$/iu.test(normalized)) {
+  if (
+    /^(what|why|how|about what|what do you mean|which part|what should i write)[.!?]*$/iu.test(normalized) ||
+    /^(?:i\s+)?(?:do not|don't|cannot|can't)\s+understand(?:\s+(?:what|which|the)\b.*)?[.!?]*$/iu.test(normalized)
+  ) {
     return {
       student_message_function: "clarification_request",
       topic_relation: "current_assessment_content"
@@ -519,8 +550,37 @@ export function applyTopicDialogueReadinessGate(input: {
   };
 }
 
-export function validateTopicDialogueOutput(value: unknown) {
+function inferredDialogueAction(
+  output: TopicDialogueOutputV1
+): TopicDialogueAgentAction {
+  if (output.dialogue_action) return output.dialogue_action;
+  if (output.next_action === "continue_to_transfer") return "offer_transfer";
+  if (output.next_action === "show_progression_choices") return "request_revision";
+  if (output.response_function === "clarification") return "clarify_task";
+  if (output.response_function === "worked_example") return "provide_example";
+  return "continue_dialogue";
+}
+
+export function normalizeTopicDialogueAgentOutput(
+  value: unknown
+): TopicDialogueAgentMediatedOutput | null {
   const parsed = TopicDialogueOutputV1Schema.safeParse(value);
+  if (!parsed.success) return null;
+  const normalized = TopicDialogueAgentMediatedOutputSchema.safeParse({
+    ...parsed.data,
+    dialogue_action: inferredDialogueAction(parsed.data)
+  });
+  return normalized.success ? normalized.data : null;
+}
+
+export function validateTopicDialogueOutput(
+  value: unknown,
+  options: { allowed_dialogue_actions?: TopicDialogueAgentAction[] } = {}
+) {
+  const normalized = normalizeTopicDialogueAgentOutput(value);
+  const parsed = normalized
+    ? { success: true as const, data: normalized }
+    : TopicDialogueAgentMediatedOutputSchema.safeParse(value);
   const issues: TopicDialogueValidationIssue[] = [];
 
   if (!parsed.success) {
@@ -531,6 +591,31 @@ export function validateTopicDialogueOutput(value: unknown) {
         rule_code: "schema_invalid" as const
       }))
     };
+  }
+
+  if (
+    options.allowed_dialogue_actions &&
+    !options.allowed_dialogue_actions.includes(parsed.data.dialogue_action)
+  ) {
+    issues.push({
+      field_path: "dialogue_action",
+      rule_code: "action_not_allowed",
+      blocked_pattern_label: "outside_platform_action_envelope"
+    });
+  }
+  const actionConsistent =
+    parsed.data.dialogue_action === "request_revision"
+      ? parsed.data.next_action === "show_progression_choices"
+      : parsed.data.dialogue_action === "offer_transfer"
+        ? parsed.data.next_action === "continue_to_transfer"
+        : parsed.data.next_action === "await_topic_dialogue_response" ||
+          parsed.data.next_action === "show_final_support_options";
+  if (!actionConsistent) {
+    issues.push({
+      field_path: "dialogue_action",
+      rule_code: "action_inconsistent",
+      blocked_pattern_label: "dialogue_action_runtime_action_mismatch"
+    });
   }
 
   for (const entry of collectStrings(parsed.data)) {
@@ -587,7 +672,11 @@ export function validateTopicDialogueOutput(value: unknown) {
     });
   }
 
-  return { valid: issues.length === 0, issues };
+  return {
+    valid: issues.length === 0,
+    issues,
+    output: parsed.data
+  };
 }
 
 export function buildDeterministicTopicDialogueResponse(
@@ -632,7 +721,7 @@ export function buildDeterministicTopicDialogueResponse(
     : clarification
       ? `${anchor.statement} The question is asking you to explain this boundary: ${input.frozen_growth_target}. State one difference between the option's claim and that boundary.`
       : systemQuestion
-        ? "You can answer the current prompt, ask a question about this idea, choose a different activity when that option is available, or end the assessment from the controls."
+        ? "You can answer the current prompt, ask a question about this idea, or end the assessment from the controls."
     : readySignal
       ? `Your explanation now addresses the key distinction in ${readyAnchor}. You can continue when you are ready.`
       : atLimit
@@ -645,7 +734,16 @@ export function buildDeterministicTopicDialogueResponse(
               ? `${anchor.statement} Complete this contrast in your own words: "The option is tempting because ..., but it fails because ...".`
               : `${anchor.statement} Compare it with this boundary: ${input.frozen_growth_target}. What exact step in the option's reasoning crosses that boundary?`;
 
-  return TopicDialogueOutputV1Schema.parse({
+  const dialogueAction: TopicDialogueAgentAction = nextAction ===
+      "show_progression_choices"
+    ? "request_revision"
+    : clarification
+      ? "clarify_task"
+      : requestForExample
+        ? "provide_example"
+        : "continue_dialogue";
+
+  return TopicDialogueAgentMediatedOutputSchema.parse({
     dialogue_schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION,
     schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
     tutor_message: tutorMessage,
@@ -674,6 +772,7 @@ export function buildDeterministicTopicDialogueResponse(
     topic_relation: classification.topic_relation,
     topic_boundary: offTopic ? "redirected_to_topic" : "inside_scope",
     system_question_answered: systemQuestion,
+    dialogue_action: dialogueAction,
     next_action: nextAction,
     next_runtime_state: nextAction === "show_progression_choices"
       ? "SHOW_PROGRESSION_CHOICES"

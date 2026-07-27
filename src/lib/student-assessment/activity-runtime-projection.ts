@@ -19,7 +19,6 @@ export const StudentActivityRuntimeActionSchema = z.enum([
   "submit_response",
   "submit_topic_dialogue_response",
   "ask_question_about_topic",
-  "choose_another_activity",
   "skip_activity_to_transfer",
   "skip_activity_to_next_concept",
   "finish_assessment",
@@ -30,7 +29,6 @@ export const StudentActivityRuntimeFeedbackSchema = z.object({
   message: z.string().min(1).max(700),
   next_options: z.array(z.enum([
     "continue",
-    "choose another activity",
     "skip this activity and continue",
     "continue to transfer item",
     "continue to next concept",
@@ -148,9 +146,9 @@ export function studentActivityRecommendationLabel(value: string | null | undefi
     case "optional_extension_or_move_on":
       return "You can try an extension or continue to the next step";
     case "retry_or_choose_or_move_on":
-      return "Try again, choose another activity, or continue to the next step";
+      return "Try again or continue to the next step";
     case "choose_alternative_activity":
-      return "Choose another activity";
+      return "Continue working on this idea";
     case "move_on":
       return "End assessment";
     case "failed_closed":

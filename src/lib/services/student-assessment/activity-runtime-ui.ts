@@ -22,7 +22,6 @@ import {
   type StudentActivityRuntimeProjection
 } from "@/lib/student-assessment/activity-runtime-projection";
 import {
-  createActivityRuntimeAttemptFromEvidenceIntegratedRouter,
   createActivityRuntimeAttemptFromLiveActivityPacket,
   submitStudentActivityResponseForEvidenceUpdate,
   type ActivityRuntimeLoopResult
@@ -45,6 +44,7 @@ import {
   TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS_DEFAULT,
   TOPIC_DIALOGUE_MAX_STUDENT_TURNS_DEFAULT,
   TOPIC_DIALOGUE_RECENT_TURN_WINDOW_DEFAULT,
+  TopicDialogueAgentMediatedOutputSchema,
   TopicDialogueInputV1Schema,
   TopicDialogueOutputV1Schema,
   applyTopicDialogueReadinessGate,
@@ -52,6 +52,7 @@ import {
   topicDialoguePublicId,
   validateTopicDialogueOutput,
   type PostActivityLearningDecisionV1,
+  type TopicDialogueAgentAction,
   type TopicDialogueOutputV1
 } from "@/lib/services/student-assessment/topic-dialogue-agent";
 import {
@@ -82,6 +83,7 @@ import {
   finalizeEvidenceFirstTurnBeforeTutorV4
 } from "@/lib/services/student-assessment/pre-tutor-profile-finalization-v4";
 import {
+  buildNonconceptualStructuredTurnEvidenceV5,
   buildNoLiveStructuredTurnEvidenceV5ForTestOnly
 } from "@/lib/services/student-assessment/production-turn-evidence-evaluator-v5";
 import {
@@ -118,7 +120,6 @@ import {
   FORMATIVE_ACTIVITY_AGENT_NAME,
   FormativeActivityFamilySchema,
   FormativeActivityPacketV1Schema,
-  type FormativeActivityFamily,
   type FormativeActivityPacketV1
 } from "@/lib/services/student-assessment/formative-activity-design";
 import {
@@ -183,15 +184,6 @@ function topicDialoguePolicyForExecutionMode(mode: FormativeExecutionMode) {
 
 const alternativeActivityLabels: string[] = [];
 
-const alternativeFamilyOrder: FormativeActivityFamily[] = [
-  "distractor_contrast",
-  "reasoning_chain_repair",
-  "independent_reconstruction",
-  "confidence_evidence_audit",
-  "basic_concept_grounding",
-  "transfer_and_distractor_generation"
-];
-
 const SourceActivityPacketRefSchema = z.object({
   schema_version: z.string().min(1),
   activity_packet_hash: z.string().min(1),
@@ -229,7 +221,6 @@ const SourceActivityPacketRefSchema = z.object({
 }).passthrough();
 
 type StudentActivityRuntimeChoiceAction =
-  | "choose_another_activity"
   | "skip_activity_to_transfer"
   | "skip_activity_to_next_concept"
   | "finish_assessment"
@@ -240,7 +231,6 @@ const FeedbackSchema = z.object({
   message: z.string().min(1),
   next_options: z.array(z.enum([
     "continue",
-    "choose another activity",
     "skip this activity and continue",
     "continue to transfer item",
     "continue to next concept",
@@ -749,6 +739,22 @@ function boundedTopicDialogueRecoveryMessage(attempt: ActivityRuntimeAttempt) {
   return `Let's stay with ${focus}. I could not complete that review just now, so please name one part of this option or distinction that is still unclear.`;
 }
 
+function topicDialogueRecoveryCategory(error: unknown):
+  "provider_failure" | "schema_validation_failure" | "safety_failure" | null {
+  if (error instanceof z.ZodError) return "schema_validation_failure";
+  const message = error instanceof Error ? error.message : "";
+  if (/(?:provider|agent_execution|evaluation_failed|candidate_execution_failed)/iu.test(message)) {
+    return "provider_failure";
+  }
+  if (/(?:schema|structured_turn_evidence_v5_missing|evidence_packet_missing|post_activity_decision_missing|invalid_output)/iu.test(message)) {
+    return "schema_validation_failure";
+  }
+  if (/(?:canonical_anchor|target_evidence|profile_consistency|pre_tutor|action_rejected|answer_key|unsafe|safety)/iu.test(message)) {
+    return "safety_failure";
+  }
+  return null;
+}
+
 function studentSafeOptionText(options: Prisma.JsonValue, label: string) {
   for (const option of jsonArray(options)) {
     const entry = recordFromJson(option);
@@ -854,94 +860,6 @@ async function enrichAttemptWithInitialDistractorAnchor(input: {
   });
 }
 
-function nextAlternativeFamily(currentFamily: FormativeActivityFamily): FormativeActivityFamily {
-  const currentIndex = alternativeFamilyOrder.indexOf(currentFamily);
-  const nextIndex = currentIndex >= 0
-    ? (currentIndex + 1) % alternativeFamilyOrder.length
-    : 0;
-  return alternativeFamilyOrder[nextIndex];
-}
-
-function promptForAlternativeActivity(input: {
-  source: z.infer<typeof SourceActivityPacketRefSchema>;
-  family: FormativeActivityFamily;
-}) {
-  const itemIndex = inferTargetItemIndex(input.source);
-  const optionLabel = itemIndex ? inferTargetOptionLabel(input.source) : null;
-  const itemPrefix = itemIndex ? `For Item ${itemIndex}, ` : "Using one answer from your first set, ";
-  const optionPhrase = optionLabel ? `option ${optionLabel}` : "one tempting option";
-
-  switch (input.family) {
-    case "distractor_contrast":
-      return {
-        prompt: `${itemPrefix}${optionPhrase} may still feel plausible. Explain what makes it tempting, then name the key boundary that separates it from the idea you want to use.`,
-        expected: "Write two or three sentences that compare the tempting idea with your own reasoning.",
-        construct: "separating a tempting distractor from the target idea"
-      };
-    case "reasoning_chain_repair":
-      return {
-        prompt: `${itemPrefix}rewrite your explanation about ${optionPhrase} as two linked steps: first the idea that makes the option tempting, then the boundary that shows where its conclusion goes too far.`,
-        expected: "Write the repaired explanation in the chat box.",
-        construct: "linking evidence to a conclusion"
-      };
-    case "independent_reconstruction":
-      return {
-        prompt: `${itemPrefix}setting the option choices aside, explain in your own words the distinction that makes ${optionPhrase} misleading.`,
-        expected: "Write a short explanation without using the answer choices.",
-        construct: "explaining the idea without relying on the options"
-      };
-    case "confidence_evidence_audit":
-      return {
-        prompt: `${itemPrefix}consider ${optionPhrase}. Name the evidence that could make it seem convincing, then name the evidence that shows its boundary.`,
-        expected: "Write a short confidence check in the chat box.",
-        construct: "connecting confidence to evidence"
-      };
-    case "basic_concept_grounding":
-      return {
-        prompt: `${itemPrefix}start with the basic distinction behind ${optionPhrase}. In your own words, describe what belongs to the learner and what belongs to the item.`,
-        expected: "Write a concise explanation of the distinction.",
-        construct: "grounding the learner-versus-item distinction"
-      };
-    case "transfer_and_distractor_generation":
-      return {
-        prompt: `${itemPrefix}use the tempting idea in ${optionPhrase} to create a nearby example that could confuse someone. Then explain the boundary that would keep the example from being misleading.`,
-        expected: "Write the example and the boundary in the chat box.",
-        construct: "testing the idea in a nearby example"
-      };
-  }
-}
-
-function assertAlternativeActivityIsExecutable(input: {
-  prompt: string;
-  expected: string;
-  targetItemIndex: number | null;
-  targetOptionLabel: string | null;
-}) {
-  if (!/\b(write|explain|describe|name|create|rewrite)\b/i.test(`${input.prompt} ${input.expected}`)) {
-    throw new StudentAssessmentServiceError(
-      "validation_failed",
-      "I could not safely prepare this activity right now.",
-      409
-    );
-  }
-
-  if (input.targetOptionLabel && !input.targetItemIndex) {
-    throw new StudentAssessmentServiceError(
-      "validation_failed",
-      "I could not safely prepare this activity right now.",
-      409
-    );
-  }
-
-  if (/\b(workflow|runtime|routing|schema|fallback|recorded for this version|future version)\b/i.test(input.prompt)) {
-    throw new StudentAssessmentServiceError(
-      "validation_failed",
-      "I could not safely prepare this activity right now.",
-      409
-    );
-  }
-}
-
 async function activityDestinationAvailability(input: {
   attempt: ActivityRuntimeAttempt;
   client: PrismaClientLike;
@@ -1008,101 +926,6 @@ function feedbackOptionsForDestinations(input: {
   options.push("finish assessment");
 
   return options.slice(0, 3);
-}
-
-async function createAlternativeActivityAttempt(input: {
-  source: z.infer<typeof SourceActivityPacketRefSchema>;
-  attempt: ActivityRuntimeAttempt;
-  assessment_session_db_id: string;
-  concept_unit_session_db_id: string;
-  client: PrismaClientLike;
-}) {
-  const family = nextAlternativeFamily(input.source.activity_family);
-  const targetItemIndex = inferTargetItemIndex(input.source);
-  const targetOptionLabel = targetItemIndex ? inferTargetOptionLabel(input.source) : null;
-  const alternative = promptForAlternativeActivity({
-    source: input.source,
-    family
-  });
-
-  assertAlternativeActivityIsExecutable({
-    prompt: alternative.prompt,
-    expected: alternative.expected,
-    targetItemIndex,
-    targetOptionLabel
-  });
-
-  const earlierActivityWasShown = Boolean(await input.client.conversationTurn.findFirst({
-    where: {
-      assessment_session_db_id: input.assessment_session_db_id,
-      actor_type: "agent",
-      structured_payload: {
-        path: ["activity_attempt_public_id"],
-        equals: input.attempt.activity_attempt_public_id
-      }
-    },
-    select: { id: true }
-  }));
-  const nextAttempt = await createActivityRuntimeAttemptFromEvidenceIntegratedRouter({
-    session_public_id: input.attempt.session_public_id,
-    student_public_id: input.attempt.student_public_id,
-    assessment_public_id: input.attempt.assessment_public_id,
-    concept_unit_id: input.attempt.concept_unit_id,
-    activity_family:
-      family === "distractor_contrast"
-        ? "distractor_focused_activity"
-        : family === "basic_concept_grounding"
-          ? "foundational_support_activity"
-          : "diagnostic_clarification",
-    diagnostic_purpose:
-      family === "distractor_contrast"
-        ? "distractor_misconception_probe"
-        : family === "reasoning_chain_repair"
-          ? "reasoning_boundary_repair"
-          : family === "basic_concept_grounding"
-            ? "conceptual_entry_grounding"
-            : "independent_misconception_verification",
-    selected_formative_value: input.source.selected_formative_value,
-    safe_activity_prompt: earlierActivityWasShown
-      ? `Here is a different way to work on the same idea.\n\n${alternative.prompt}`
-      : alternative.prompt,
-    expected_student_action_prompt: alternative.expected,
-    distractor_role: input.source.distractor_role,
-    distractor_student_safe_description: input.source.distractor_student_safe_description,
-    source_profile_integration_snapshot_id:
-      input.source.source_profile_integration_snapshot_id ?? input.source.activity_packet_hash,
-    source_formative_value_packet_id:
-      input.source.source_formative_value_packet_id ?? input.source.activity_packet_hash,
-    next_interaction_schema_version: "student-activity-runtime-alternative-v1",
-    routing_policy_version: "student-requested-alternative-v1",
-    activity_type: `student_requested_alternative_${family}`,
-    routing_justification:
-      "Student requested a different activity, so the runtime selected a different activity family with a chat-answerable prompt.",
-    target_item_index: targetItemIndex,
-    target_item_id: input.source.target_item_id ?? null,
-    target_option_label: targetOptionLabel,
-    target_construct_or_boundary:
-      input.source.target_construct_or_boundary ?? alternative.construct,
-    student_task_prompt: alternative.prompt,
-    expected_response_mode: "free_text",
-    rationale_for_selection:
-      "Student requested a different activity; this activity uses a different response pattern while staying anchored to the same response package.",
-    semantic_deduplication_key: hashStudentRuntimeValue({
-      family,
-      source_attempt: input.attempt.activity_attempt_public_id,
-      prompt: alternative.prompt
-    }),
-    replaced_activity_attempt_public_id: input.attempt.activity_attempt_public_id,
-    activity_switch_reason: "student_requested_different_activity",
-    limitations: []
-  }, input.client);
-  await ensureActivityPromptVisible({
-    attempt: nextAttempt,
-    assessment_session_db_id: input.assessment_session_db_id,
-    concept_unit_session_db_id: input.concept_unit_session_db_id,
-    client: input.client
-  });
-  return nextAttempt;
 }
 
 async function assertActiveStudentAccount(studentUserDbId: string, client: PrismaClientLike) {
@@ -1333,27 +1156,22 @@ function alignTopicDialogueOutputToEvidenceFirstRoute(input: {
 }) {
   const expectedAction = input.route.selected_mode === "request_revision"
     ? "show_progression_choices"
-    : "await_topic_dialogue_response";
-  const routeFieldsAligned = input.route.selected_mode === "request_revision"
+    : input.route.selected_mode === "present_transfer"
+      ? "continue_to_transfer"
+      : input.route.selected_mode === "complete_episode"
+        ? "end_assessment"
+        : "await_topic_dialogue_response";
+  const routeFieldsAligned = input.route.selected_mode === "remain_in_dialogue"
     ? input.candidate_output.next_action === expectedAction &&
-      input.candidate_output.next_runtime_state === "SHOW_PROGRESSION_CHOICES" &&
-      input.candidate_output.progression_readiness === "ready" &&
-      input.candidate_output.evidence_sufficiency === "sufficient_to_advance"
-    : input.candidate_output.next_action === expectedAction &&
       input.candidate_output.next_runtime_state === "AWAIT_TOPIC_DIALOGUE_RESPONSE" &&
-      input.candidate_output.progression_readiness === "not_ready";
+      input.candidate_output.progression_readiness === "not_ready"
+    : input.candidate_output.next_action === expectedAction &&
+      input.candidate_output.progression_readiness === "ready" &&
+      input.candidate_output.evidence_sufficiency === "sufficient_to_advance";
   if (routeFieldsAligned) {
     return { output: input.candidate_output, overridden: false };
   }
-  if (![
-    "remain_in_dialogue",
-    "request_revision"
-  ].includes(input.route.selected_mode)) {
-    throw new Error("topic_dialogue_route_not_supported_by_activity_response_endpoint");
-  }
-  const selectedMode = input.route.selected_mode === "request_revision"
-    ? "request_revision" as const
-    : "remain_in_dialogue" as const;
+  const selectedMode = input.route.selected_mode;
   const fallback = buildTopicDialogueModeFallback({
     selected_mode: selectedMode,
     distractor_anchor: input.distractor_anchor,
@@ -1368,6 +1186,11 @@ function alignTopicDialogueOutputToEvidenceFirstRoute(input: {
       schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
       tutor_message: fallback.tutor_message,
       student_message_function: "substantive_answer",
+      dialogue_action: selectedMode === "request_revision"
+        ? "request_revision"
+        : selectedMode === "present_transfer"
+          ? "offer_transfer"
+          : "continue_dialogue",
       response_function: selectedMode === "request_revision"
         ? "readiness_confirmation"
         : "focused_question",
@@ -1379,22 +1202,30 @@ function alignTopicDialogueOutputToEvidenceFirstRoute(input: {
         : input.profile.reasoning_quality === "misconception"
           ? "misconception_present"
           : input.profile.reasoning_quality === "partial" ? "partial" : "unclear",
-      evidence_sufficiency: selectedMode === "request_revision"
-        ? "sufficient_to_advance"
-        : "needs_more_evidence",
+      evidence_sufficiency: selectedMode === "remain_in_dialogue"
+        ? "needs_more_evidence"
+        : "sufficient_to_advance",
       topic_relation: "current_assessment_content",
       topic_boundary: "inside_scope",
       system_question_answered: false,
       next_action: selectedMode === "request_revision"
         ? "show_progression_choices"
-        : "await_topic_dialogue_response",
-      next_runtime_state: selectedMode === "request_revision"
-        ? "SHOW_PROGRESSION_CHOICES"
-        : "AWAIT_TOPIC_DIALOGUE_RESPONSE",
-      progression_readiness: selectedMode === "request_revision"
-        ? "ready"
-        : "not_ready",
-      requires_student_response: true,
+        : selectedMode === "present_transfer"
+          ? "continue_to_transfer"
+          : selectedMode === "complete_episode"
+            ? "end_assessment"
+            : "await_topic_dialogue_response",
+      next_runtime_state: selectedMode === "remain_in_dialogue"
+        ? "AWAIT_TOPIC_DIALOGUE_RESPONSE"
+        : selectedMode === "complete_episode"
+          ? "SHOW_FINAL_SUPPORT_OPTIONS"
+          : "SHOW_PROGRESSION_CHOICES",
+      progression_readiness: selectedMode === "remain_in_dialogue"
+        ? "not_ready"
+        : "ready",
+      requires_student_response:
+        selectedMode === "remain_in_dialogue" ||
+        selectedMode === "request_revision",
       expected_response_guidance: fallback.expected_response_guidance ??
         "Respond to the current item-specific question.",
       safety_flags: fallback.safety_flags,
@@ -1402,6 +1233,25 @@ function alignTopicDialogueOutputToEvidenceFirstRoute(input: {
     }),
     overridden: true
   };
+}
+
+function allowedTopicDialogueActions(input: {
+  student_message_function: ReturnType<
+    typeof classifyTopicDialogueStudentMessage
+  >["student_message_function"];
+  selected_mode: EvidenceFirstRoute["selected_mode"];
+}): TopicDialogueAgentAction[] {
+  if (input.selected_mode === "request_revision") return ["request_revision"];
+  if (input.selected_mode === "present_transfer") return ["offer_transfer"];
+  if (input.student_message_function === "clarification_request" ||
+      input.student_message_function === "prompt_instruction_question") {
+    return ["clarify_task"];
+  }
+  if (input.student_message_function === "request_for_example" ||
+      input.student_message_function === "request_for_alternative_explanation") {
+    return ["provide_example"];
+  }
+  return ["continue_dialogue", "provide_example"];
 }
 
 function stringFromRecord(value: unknown, fallback = "") {
@@ -1562,17 +1412,17 @@ function projectionForStartFailure(): StudentActivityRuntimeProjection {
     focus_label: null,
     first_turn_message: null,
     response_prompt: null,
-    helper_text: "You can try again, choose another activity, or end the assessment.",
-    allowed_actions: ["start_activity", "choose_another_activity", "finish_assessment"],
+    helper_text: "You can try again or end the assessment.",
+    allowed_actions: ["start_activity", "finish_assessment"],
     can_start: true,
     can_submit_response: false,
-    can_choose_another_activity: true,
+    can_choose_another_activity: false,
     can_move_on: true,
     can_continue: false,
     message_max_chars: ACTIVITY_RUNTIME_MAX_RESPONSE_CHARS,
     feedback: {
-      message: "I could not safely prepare this activity right now. You can try again, choose another activity, or end the assessment.",
-      next_options: ["continue", "choose another activity", "finish assessment"]
+      message: "I could not safely prepare this activity right now. You can try again or end the assessment.",
+      next_options: ["continue", "finish assessment"]
     },
     first_turn_visible_in_transcript: false,
     latest_reply_visible_in_transcript: false,
@@ -1666,7 +1516,10 @@ async function projectionForAttempt(
 ): Promise<StudentActivityRuntimeProjection> {
   const source = sourceFromAttempt(attempt);
   const evidence = await latestEvidenceContext(attempt, source, client, options);
-  const feedback = loopResult?.student_safe_feedback ?? evidence.feedback;
+  const loopFeedback = FeedbackSchema.safeParse(loopResult?.student_safe_feedback);
+  const feedback = loopFeedback.success
+    ? normalizeRuntimeFeedback(loopFeedback.data)
+    : evidence.feedback;
   const uiState = uiStateForAttempt(attempt);
   const topicDialogue = await latestTopicDialogueProjection({
     attempt,
@@ -1759,7 +1612,7 @@ async function projectionForAttempt(
             : uiState === "moved_on"
               ? "Assessment ended"
               : uiState === "alternative_requested"
-                ? "Preparing a different activity"
+                ? "Continue this activity"
                 : uiState === "could_not_review_response_safely"
                   ? "I could not safely review this response right now."
                   : "Activity ready",
@@ -1768,7 +1621,7 @@ async function projectionForAttempt(
     response_prompt: source?.expected_student_action_prompt ?? null,
     helper_text:
       uiState === "could_not_review_response_safely"
-        ? "You can try again, choose another activity, or end the assessment."
+        ? "You can try again or end the assessment."
         : "Write a short response in your own words.",
     allowed_actions:
       topicDialogue?.state === "awaiting_response"
@@ -1780,7 +1633,7 @@ async function projectionForAttempt(
               "finish_assessment" as const
             ]
         : uiState === "waiting_for_your_response"
-        ? ["submit_response", "choose_another_activity", "finish_assessment"]
+        ? ["submit_response", "finish_assessment"]
         : uiState === "feedback_ready"
           ? [
               ...(destinations.transfer_item_available ? ["skip_activity_to_transfer" as const] : []),
@@ -1788,16 +1641,14 @@ async function projectionForAttempt(
               "finish_assessment" as const
             ]
           : uiState === "could_not_review_response_safely"
-            ? ["submit_response", "choose_another_activity", "finish_assessment"]
-            : ["choose_another_activity", "finish_assessment"],
+            ? ["submit_response", "finish_assessment"]
+            : ["finish_assessment"],
     can_start: false,
     can_submit_response:
       topicDialogue?.state === "awaiting_response" ||
       uiState === "waiting_for_your_response" ||
       uiState === "could_not_review_response_safely",
-    can_choose_another_activity:
-      !topicDialogueActive &&
-      uiState !== "moved_on" && uiState !== "reviewing_your_response" && uiState !== "feedback_ready",
+    can_choose_another_activity: false,
     can_move_on: uiState !== "reviewing_your_response" && uiState !== "moved_on",
     can_continue:
       uiState === "feedback_ready" &&
@@ -1808,7 +1659,7 @@ async function projectionForAttempt(
       feedbackWithDestinations ??
       (uiState === "alternative_requested"
         ? {
-            message: "I am preparing a different activity.",
+            message: "Continue working on the current idea.",
             next_options: ["continue"]
           }
         : uiState === "moved_on"
@@ -1818,8 +1669,8 @@ async function projectionForAttempt(
             }
           : uiState === "could_not_review_response_safely"
             ? {
-                message: "I could not safely review this response right now. You can try again, choose another activity, or end the assessment.",
-                next_options: ["continue", "choose another activity", "skip this activity and continue"]
+                message: "I could not safely review this response right now. You can try again or end the assessment.",
+                next_options: ["continue", "skip this activity and continue"]
               }
             : null),
     first_turn_visible_in_transcript: Boolean(firstTurnVisible),
@@ -2752,9 +2603,19 @@ async function processTopicDialogueResponse(input: {
     distractor_claim: source.distractor_student_safe_description,
     packet: evidence.packet
   });
-  const structuredTurnEvidence = loopResult.structured_turn_evidence ??
-    (input.evaluator_override
-      ? buildNoLiveStructuredTurnEvidenceV5ForTestOnly({
+  const structuredTurnEvidence = immediateInteractionIntent !==
+      "ordinary_conceptual_response"
+    ? buildNonconceptualStructuredTurnEvidenceV5({
+        source_student_turn_id: acceptedStudentTurn.id,
+        source_sequence_index: acceptedStudentTurn.sequence_index,
+        alias_contract: targetEvidenceContract.active_anchor_alias_contract,
+        interaction_intent: immediateInteractionIntent,
+        confidence_evidence:
+          evidence.packet.misconception_evidence_update.confidence
+      })
+    : loopResult.structured_turn_evidence ??
+      (input.evaluator_override
+        ? buildNoLiveStructuredTurnEvidenceV5ForTestOnly({
           source_student_turn_id: acceptedStudentTurn.id,
           source_sequence_index: acceptedStudentTurn.sequence_index,
           message,
@@ -2762,8 +2623,8 @@ async function processTopicDialogueResponse(input: {
           alias_contract: targetEvidenceContract.active_anchor_alias_contract,
           prior_visible_message: completeVisibleEpisode.visible_turns
             .slice(0, -1).at(-1)?.message_text ?? null
-        })
-      : null);
+          })
+        : null);
   if (!structuredTurnEvidence) {
     throw new Error("production_turn_evidence_v5_missing");
   }
@@ -2914,6 +2775,13 @@ async function processTopicDialogueResponse(input: {
       : turnEvidenceProfile.reasoning_quality === "insufficient"
         ? "insufficient_new_evidence" as const
         : "improving_but_incomplete" as const;
+  const studentMessageClassification =
+    classifyTopicDialogueStudentMessage(message);
+  const allowedDialogueActions = allowedTopicDialogueActions({
+    student_message_function:
+      studentMessageClassification.student_message_function,
+    selected_mode: evidenceFirstRoute.selected_mode
+  });
 
   const dialogueInput = TopicDialogueInputV1Schema.parse({
     dialogue_schema_version: TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION_V2,
@@ -2959,7 +2827,7 @@ async function processTopicDialogueResponse(input: {
     }],
     latest_student_message: message,
     latest_student_message_classification:
-      classifyTopicDialogueStudentMessage(message).student_message_function,
+      studentMessageClassification.student_message_function,
     recent_relevant_dialogue_turns: priorTurns.slice(-dialoguePolicy.recent_turn_window).map((turn, index) => ({
       turn_number: index + 1,
       actor_type: turn.actor_type === "student" ? "student" : "agent",
@@ -2993,10 +2861,10 @@ async function processTopicDialogueResponse(input: {
       .join(" | ") || "This is the first topic-dialogue response for the current activity.",
     progression_options: [
       "continue with this topic",
-      "choose another activity",
       "continue to transfer item when available",
       "end assessment"
     ],
+    allowed_dialogue_actions: allowedDialogueActions,
     source_versions: {
       topic_dialogue_input_schema_version: TOPIC_DIALOGUE_INPUT_SCHEMA_VERSION_V2,
       topic_dialogue_output_schema_version: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
@@ -3008,7 +2876,7 @@ async function processTopicDialogueResponse(input: {
   const iterativeDialogueRole = formativeDialogueRoute("first_activity_response").role;
   const deterministicDialogueAdapter =
     executionPlan.adapter === "deterministic_mock_safe";
-  const tutorRequired = evidenceFirstRoute.selected_mode === "remain_in_dialogue";
+  const tutorRequired = profileFreshnessAttestation.tutor_dispatch_permitted;
   const topicDialogueLiveEnabled = executionPlan.adapter === "configured_live_runtime" &&
     resolveOperationalRoleLiveCallsEnabled(iterativeDialogueRole);
   if (topicDialogueLiveEnabled && tutorRequired) {
@@ -3028,6 +2896,27 @@ async function processTopicDialogueResponse(input: {
   const dialogueRequestInput = {
     ...dialogueInput,
     complete_visible_formative_conversation: completeVisibleEpisode,
+    topic_dialogue_orchestration: {
+      current_activity_attempt:
+        staged.dialogue_context.complete_activity_runtime_history.attempts
+          .find((entry) => entry.is_current) ?? null,
+      full_visible_formative_transcript: completeVisibleEpisode.visible_turns,
+      latest_student_message: message,
+      prior_attempted_activities:
+        staged.dialogue_context.complete_activity_runtime_history.attempts
+          .filter((entry) => !entry.is_current),
+      failed_strategy_history:
+        staged.dialogue_context.complete_activity_runtime_history
+          .strategies_not_to_repeat,
+      current_profile_evidence: {
+        authoritative_turn_evidence_profile: turnEvidenceProfile,
+        cumulative_evidence_profile: cumulativeEvidenceProfile,
+        profile_history:
+          staged.dialogue_context.complete_profile_history.versions
+      },
+      formative_goal: boundedGrowthTarget,
+      allowed_actions: allowedDialogueActions
+    },
     formative_turn_context: {
       ...staged.dialogue_context,
       authoritative_turn_evidence_profile: turnEvidenceProfile,
@@ -3047,7 +2936,9 @@ async function processTopicDialogueResponse(input: {
   const reusableDialogueOutput = !deterministicDialogueAdapter &&
     existingDialogueCall?.call_status === "succeeded" &&
     existingDialogueCall.output_validated
-    ? TopicDialogueOutputV1Schema.safeParse(existingDialogueCall.output_payload)
+    ? TopicDialogueAgentMediatedOutputSchema.safeParse(
+        existingDialogueCall.output_payload
+      )
     : null;
   if (tutorRequired && !deterministicDialogueAdapter &&
       !reusableDialogueOutput?.success && !existingDialogueCall) {
@@ -3093,7 +2984,7 @@ async function processTopicDialogueResponse(input: {
         schema_name: TOPIC_DIALOGUE_OUTPUT_SCHEMA_VERSION_V2,
         instructions: TOPIC_DIALOGUE_PROMPT_INSTRUCTIONS,
         request_input: dialogueRequestInput,
-        output_schema: TopicDialogueOutputV1Schema,
+        output_schema: TopicDialogueAgentMediatedOutputSchema,
         invocation_key: dialogueInvocationKey,
         assessment_session_db_id: context.session.id,
         concept_unit_session_db_id: context.concept_unit_session.id,
@@ -3111,9 +3002,11 @@ async function processTopicDialogueResponse(input: {
   const output = liveResult.status === "succeeded"
     ? liveResult.output
     : buildDeterministicTopicDialogueResponse(dialogueInput);
-  const validation = validateTopicDialogueOutput(output);
+  const validation = validateTopicDialogueOutput(output, {
+    allowed_dialogue_actions: allowedDialogueActions
+  });
   const validatedOutput: TopicDialogueOutputV1 = validation.valid
-    ? output
+    ? validation.output
     : buildDeterministicTopicDialogueResponse({
         ...dialogueInput,
         latest_student_message: "Please keep the discussion on this assessment topic."
@@ -3129,7 +3022,7 @@ async function processTopicDialogueResponse(input: {
     candidate_output: routeAlignmentResult.output,
     authorization: buildEvidenceFirstProgressionAuthorization(evidenceFirstRoute)
   });
-  const readinessResult = evidenceFirstRoute.selected_mode === "request_revision"
+  const readinessResult = evidenceFirstRoute.selected_mode !== "remain_in_dialogue"
     ? {
         output: actionGateResult.output,
         gate: {
@@ -3202,6 +3095,26 @@ async function processTopicDialogueResponse(input: {
       routeAlignmentResult.overridden ||
       actionGateResult.overridden ||
       readinessResult.overridden);
+  const generationSource = deterministicDialogueAdapter
+    ? "deterministic_test_adapter" as const
+    : fallbackUsed
+      ? "deterministic_fallback" as const
+      : "live_llm" as const;
+  const validatorStatus = !validation.valid
+    ? "failed" as const
+    : actionValidationPassed
+      ? "passed" as const
+      : "action_rejected" as const;
+  const actionGateAudit = {
+    status: actionGateResult.normalization.status,
+    authorized_action: actionGateResult.authorization.authorized_action,
+    requested_dialogue_action: persistedOutput.dialogue_action ?? null,
+    normalized_requested_action:
+      actionGateResult.normalization.normalized_requested_action,
+    effective_action: actionGateResult.normalization.effective_action,
+    overridden: actionGateResult.overridden,
+    rejection_code: actionGateResult.normalization.rejection_code
+  };
   const agentCall = liveResult.status === "succeeded"
     ? await client.agentCall.update({
         where: { id: liveResult.agent_call_id },
@@ -3406,7 +3319,10 @@ async function processTopicDialogueResponse(input: {
           dialogue_turn_number: dialogueTurnNumber,
           client_operation_id: input.client_operation_id,
           agent_call_id: agentCall.id,
+          agent_name: TOPIC_DIALOGUE_AGENT_NAME,
+          generation_source: generationSource,
           visibility_status: "shown",
+          dialogue_action: persistedOutput.dialogue_action ?? null,
           response_function: persistedOutput.response_function,
           evidence_update: persistedOutput.evidence_update,
           evidence_sufficiency: persistedOutput.evidence_sufficiency,
@@ -3425,6 +3341,8 @@ async function processTopicDialogueResponse(input: {
           execution_mode: executionPlan.mode,
           dialogue_adapter: executionPlan.adapter,
           fallback_used: fallbackUsed,
+          validator_status: validatorStatus,
+          action_gate_result: actionGateAudit,
           fallback_version: TOPIC_DIALOGUE_FALLBACK_VERSION,
           boundary_validator_version: TOPIC_DIALOGUE_BOUNDARY_VALIDATOR_VERSION,
           readiness_gate: readinessResult.gate,
@@ -3479,6 +3397,11 @@ async function processTopicDialogueResponse(input: {
         message_text: persistedOutput.tutor_message,
         structured_payload: prismaJson({
           ...persistedOutput,
+          agent_name: TOPIC_DIALOGUE_AGENT_NAME,
+          generation_source: generationSource,
+          fallback_used: fallbackUsed,
+          validator_status: validatorStatus,
+          action_gate_result: actionGateAudit,
           readiness_gate: readinessResult.gate,
           readiness_gate_overrode_candidate: readinessResult.overridden,
           action_authorization: topicDialogueAuthorizationAuditProjection(
@@ -3541,10 +3464,15 @@ async function processTopicDialogueResponse(input: {
       topic_dialogue_public_id: input.dialogue_public_id,
       dialogue_turn_number: dialogueTurnNumber,
       response_function: persistedOutput.response_function,
+      dialogue_action: persistedOutput.dialogue_action ?? null,
       next_action: persistedOutput.next_action,
       topic_boundary: persistedOutput.topic_boundary,
       agent_call_id: agentCall.id,
+      agent_name: TOPIC_DIALOGUE_AGENT_NAME,
+      generation_source: generationSource,
       fallback_used: fallbackUsed,
+      validator_status: validatorStatus,
+      action_gate_result: actionGateAudit,
       execution_mode: executionPlan.mode,
       dialogue_adapter: executionPlan.adapter,
       readiness_gate: readinessResult.gate,
@@ -3725,7 +3653,8 @@ export async function submitTopicDialogueResponse(input: {
     const executionPlan = resolveTopicDialogueExecutionPlan(
       input.execution_mode ?? "production"
     );
-    if (!executionPlan.safe_recovery_eligible) {
+    const recoveryCategory = topicDialogueRecoveryCategory(error);
+    if (!executionPlan.safe_recovery_eligible || !recoveryCategory) {
       throw error;
     }
     const { policy: dialoguePolicy } = topicDialoguePolicyForExecutionMode(
@@ -3774,8 +3703,20 @@ export async function submitTopicDialogueResponse(input: {
               activity_attempt_public_id: attempt.activity_attempt_public_id,
               client_operation_id: input.client_operation_id,
               visibility_status: "shown",
+              agent_name: TOPIC_DIALOGUE_AGENT_NAME,
+              generation_source: "deterministic_fallback",
               recovery_message: true,
               fallback_used: true,
+              validator_status: recoveryCategory,
+              action_gate_result: {
+                status: "not_reached",
+                authorized_action: null,
+                requested_dialogue_action: null,
+                normalized_requested_action: null,
+                effective_action: null,
+                overridden: false,
+                rejection_code: recoveryCategory
+              },
               fallback_version: "formative-turn-safe-recovery-v2",
               distractor_anchor_preserved: true
             })
@@ -3818,7 +3759,20 @@ export async function submitTopicDialogueResponse(input: {
       payload: {
         topic_dialogue_public_id: input.dialogue_public_id,
         client_operation_id: input.client_operation_id,
-        reason: "formative_turn_cycle_failed"
+        agent_name: TOPIC_DIALOGUE_AGENT_NAME,
+        generation_source: "deterministic_fallback",
+        fallback_used: true,
+        validator_status: recoveryCategory,
+        action_gate_result: {
+          status: "not_reached",
+          authorized_action: null,
+          requested_dialogue_action: null,
+          normalized_requested_action: null,
+          effective_action: null,
+          overridden: false,
+          rejection_code: recoveryCategory
+        },
+        reason: recoveryCategory
       }
     });
     const recoveredAttempt = await client.activityRuntimeAttempt.findUniqueOrThrow({
@@ -3835,7 +3789,6 @@ export async function recordStudentActivityRuntimeChoice(input: {
   session_public_id: string;
   activity_attempt_public_id?: string | null;
   choice_state: StudentActivityRuntimeChoiceAction;
-  selected_alternative_activity_family?: FormativeActivityFamily | null;
   client_action_id: string;
   execution_mode?: FormativeExecutionMode;
   client?: PrismaClientLike;
@@ -3862,9 +3815,6 @@ export async function recordStudentActivityRuntimeChoice(input: {
     : await latestAttemptForSession(input.session_public_id, client);
 
   if (!attempt || attempt.session_public_id !== input.session_public_id) {
-    if (input.choice_state === "choose_another_activity") {
-      return projectionForStartFailure();
-    }
     return projectionForNoAttempt();
   }
 
@@ -3876,20 +3826,9 @@ export async function recordStudentActivityRuntimeChoice(input: {
     input.choice_state === "skip_activity_to_transfer" ||
     input.choice_state === "skip_activity_to_next_concept";
 
-  if (
-    (terminalChoice && attempt.status === "move_on_recommended") ||
-    (input.choice_state === "choose_another_activity" && attempt.status === "choose_alternative_recommended")
-  ) {
-    if (input.choice_state === "choose_another_activity") {
-      const latestAttempt = await latestAttemptForSession(input.session_public_id, client);
-      if (latestAttempt && latestAttempt.id !== attempt.id) {
-        return projectAttempt(latestAttempt);
-      }
-    }
+  if (terminalChoice && attempt.status === "move_on_recommended") {
     return projectAttempt(attempt);
   }
-
-  const source = sourceFromAttempt(attempt);
 
   if (destinationChoice) {
     if (attempt.status !== "continue_recommended") {
@@ -3957,22 +3896,26 @@ export async function recordStudentActivityRuntimeChoice(input: {
     return projectAttempt(attempt);
   }
 
+  if (!terminalChoice) {
+    throw new StudentAssessmentServiceError(
+      "invalid_phase_for_action",
+      "This activity action is not available.",
+      409
+    );
+  }
+
   const responseReference = attempt.latest_activity_response_reference
     ? undefined
     : prismaJson({
         activity_response_reference_id: `activity_choice_${input.client_action_id}`,
-        student_choice_state: input.choice_state === "choose_another_activity"
-          ? "choose_another_activity"
-          : "move_on",
-        selected_alternative_activity_family: input.selected_alternative_activity_family ?? null,
+        student_choice_state: "move_on",
         raw_response_stored_elsewhere: false,
         submitted_at: new Date().toISOString()
       });
-  const nextStatus = terminalChoice ? "move_on_recommended" : "choose_alternative_recommended";
   const updated = await client.activityRuntimeAttempt.update({
     where: { id: attempt.id },
     data: {
-      status: terminalChoice && attempt.status === "continue_recommended" ? attempt.status : nextStatus,
+      status: attempt.status === "continue_recommended" ? attempt.status : "move_on_recommended",
       completed_at: new Date(),
       ...(responseReference ? { latest_activity_response_reference: responseReference } : {})
     }
@@ -3981,106 +3924,75 @@ export async function recordStudentActivityRuntimeChoice(input: {
   await logProcessEvent({
     assessment_session_db_id: context.session.id,
     concept_unit_session_db_id: context.concept_unit_session.id,
-    event_type: terminalChoice
-      ? "student_activity_runtime_move_on"
-      : "student_activity_runtime_choose_another",
+    event_type: "student_activity_runtime_move_on",
+    event_category: "formative_activity_runtime",
+    event_source: "frontend",
+    payload: {
+      activity_attempt_public_id: attempt.activity_attempt_public_id,
+      client_action_id: input.client_action_id
+    }
+  });
+
+  const now = new Date();
+  if (context.session.current_phase !== "session_completed") {
+    await client.assessmentSession.update({
+      where: { id: context.session.id },
+      data: {
+        current_phase: "session_completed",
+        status: "completed",
+        completed_at: now,
+        last_activity_at: now
+      }
+    });
+    await client.conceptUnitSession.update({
+      where: { id: context.concept_unit_session.id },
+      data: {
+        status: "completed",
+        followup_status: "stopped",
+        followup_completed_at: now
+      }
+    });
+  }
+
+  await logProcessEvent({
+    assessment_session_db_id: context.session.id,
+    concept_unit_session_db_id: context.concept_unit_session.id,
+    event_type: "formative_activity_skipped",
     event_category: "formative_activity_runtime",
     event_source: "frontend",
     payload: {
       activity_attempt_public_id: attempt.activity_attempt_public_id,
       client_action_id: input.client_action_id,
-      selected_alternative_activity_family: input.selected_alternative_activity_family ?? null
+      selected_navigation_destination: "end_assessment",
+      terminal_reason: "ended_during_formative_activity",
+      next_runtime_state: "SESSION_COMPLETE",
+      skipped_not_completed: attempt.status !== "continue_recommended"
     }
   });
-
-  if (terminalChoice) {
-    const now = new Date();
-    if (context.session.current_phase !== "session_completed") {
-      await client.assessmentSession.update({
-        where: { id: context.session.id },
-        data: {
-          current_phase: "session_completed",
-          status: "completed",
-          completed_at: now,
-          last_activity_at: now
-        }
-      });
-      await client.conceptUnitSession.update({
-        where: { id: context.concept_unit_session.id },
-        data: {
-          status: "completed",
-          followup_status: "stopped",
-          followup_completed_at: now
-        }
-      });
+  await logProcessEvent({
+    assessment_session_db_id: context.session.id,
+    concept_unit_session_db_id: context.concept_unit_session.id,
+    event_type: "finish_assessment_selected",
+    event_category: "assessment_navigation",
+    event_source: "frontend",
+    payload: {
+      activity_attempt_public_id: attempt.activity_attempt_public_id,
+      client_action_id: input.client_action_id,
+      destination_type: "assessment_end",
+      terminal_reason: "ended_during_formative_activity"
     }
-
-    await logProcessEvent({
-      assessment_session_db_id: context.session.id,
-      concept_unit_session_db_id: context.concept_unit_session.id,
-      event_type: "formative_activity_skipped",
-      event_category: "formative_activity_runtime",
-      event_source: "frontend",
-      payload: {
-        activity_attempt_public_id: attempt.activity_attempt_public_id,
-        client_action_id: input.client_action_id,
-        selected_navigation_destination: "end_assessment",
-        terminal_reason: "ended_during_formative_activity",
-        next_runtime_state: "SESSION_COMPLETE",
-        skipped_not_completed: attempt.status !== "continue_recommended"
-      }
-    });
-    await logProcessEvent({
-      assessment_session_db_id: context.session.id,
-      concept_unit_session_db_id: context.concept_unit_session.id,
-      event_type: "finish_assessment_selected",
-      event_category: "assessment_navigation",
-      event_source: "frontend",
-      payload: {
-        activity_attempt_public_id: attempt.activity_attempt_public_id,
-        client_action_id: input.client_action_id,
-        destination_type: "assessment_end",
-        terminal_reason: "ended_during_formative_activity"
-      }
-    });
-    await logProcessEvent({
-      assessment_session_db_id: context.session.id,
-      concept_unit_session_db_id: context.concept_unit_session.id,
-      event_type: "session_completed",
-      event_category: "session",
-      event_source: "backend",
-      payload: {
-        terminal_reason: "ended_during_formative_activity",
-        activity_attempt_public_id: attempt.activity_attempt_public_id
-      }
-    });
-  } else {
-    if (!source) {
-      return projectionForStartFailure();
+  });
+  await logProcessEvent({
+    assessment_session_db_id: context.session.id,
+    concept_unit_session_db_id: context.concept_unit_session.id,
+    event_type: "session_completed",
+    event_category: "session",
+    event_source: "backend",
+    payload: {
+      terminal_reason: "ended_during_formative_activity",
+      activity_attempt_public_id: attempt.activity_attempt_public_id
     }
-    const nextAttempt = await createAlternativeActivityAttempt({
-      source,
-      attempt,
-      assessment_session_db_id: context.session.id,
-      concept_unit_session_db_id: context.concept_unit_session.id,
-      client
-    });
-    await logProcessEvent({
-      assessment_session_db_id: context.session.id,
-      concept_unit_session_db_id: context.concept_unit_session.id,
-      event_type: "alternative_activity_requested",
-      event_category: "formative_activity_runtime",
-      event_source: "frontend",
-      payload: {
-        activity_attempt_public_id: attempt.activity_attempt_public_id,
-        replacement_activity_attempt_public_id: nextAttempt.activity_attempt_public_id,
-        client_action_id: input.client_action_id,
-        selected_alternative_activity_family: nextAttempt.activity_family,
-        activity_switch_reason: "student_requested_different_activity"
-      }
-    });
-    return projectAttempt(nextAttempt);
-  }
+  });
 
   return projectAttempt(updated);
 }
