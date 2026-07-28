@@ -124,6 +124,12 @@ enum FormativeConversationStatus {
   ended
 }
 
+enum FormativeConversationLearningOutcome {
+  sound
+  largely_improved
+  teacher_assistance_recommended
+}
+
 enum FormativeConversationReceiptStatus {
   reserved
   student_turn_persisted
@@ -897,6 +903,7 @@ model ConversationTurn {
   formative_conversation_turn_telemetry       FormativeConversationTurnTelemetry?
   formative_conversation_input_telemetry      FormativeConversationInputTelemetry?
   formative_conversation_profile_transitions_source FormativeConversationProfileTransition[] @relation("FormativeConversationProfileTransitionSourceTurn")
+  formative_conversation_profile_transition_turn_references FormativeConversationProfileTransitionTurnReference[]
   formative_conversation_profile_evidence_references FormativeConversationProfileEvidenceReference[] @relation("FormativeConversationProfileEvidenceReferenceTutorTurn")
   evidence_cutoff_for_followup_update_cycles FollowupUpdateCycle[] @relation("FollowupUpdateEvidenceCutoff")
 
@@ -1409,34 +1416,61 @@ model FormativeConversationInputTelemetry {
 }
 
 model FormativeConversationProfileTransition {
-  id                                      String     @id @default(uuid()) @db.Uuid
-  transition_public_id                    String     @unique @default(cuid())
-  formative_conversation_session_db_id    String     @db.Uuid
-  prior_student_profile_db_id             String     @db.Uuid
-  updated_student_profile_db_id           String     @db.Uuid
-  source_turn_db_id                       String?    @db.Uuid
-  source_agent_call_db_id                 String?    @db.Uuid
-  transitioned_at                         DateTime   @db.Timestamptz(6)
-  created_at                              DateTime   @default(now()) @db.Timestamptz(6)
+  id                                      String                                @id @default(uuid()) @db.Uuid
+  transition_public_id                    String                                @unique @default(cuid())
+  formative_conversation_session_db_id    String                                @db.Uuid
+  prior_student_profile_db_id             String                                @db.Uuid
+  updated_student_profile_db_id           String                                @db.Uuid
+  assessment_student_profile_db_id        String?                               @db.Uuid
+  source_turn_db_id                       String?                               @db.Uuid
+  source_agent_call_db_id                 String?                               @db.Uuid
+  transition_version                      String                                @default("formative-conversation-profile-transition-v1")
+  learning_outcome                        FormativeConversationLearningOutcome?
+  learning_observations                   Json?
+  evidence_interpretation                 String?                               @db.Text
+  profile_snapshot                        Json?
+  transitioned_at                         DateTime                              @db.Timestamptz(6)
+  created_at                              DateTime                              @default(now()) @db.Timestamptz(6)
 
   formative_conversation_session FormativeConversationSession @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade)
   prior_student_profile          StudentProfile                @relation("FormativeConversationPriorProfile", fields: [prior_student_profile_db_id], references: [id], onDelete: Cascade)
   updated_student_profile        StudentProfile                @relation("FormativeConversationUpdatedProfile", fields: [updated_student_profile_db_id], references: [id], onDelete: Cascade)
+  assessment_student_profile     StudentProfile?               @relation("FormativeConversationAssessmentProfile", fields: [assessment_student_profile_db_id], references: [id], onDelete: SetNull)
   source_turn                    ConversationTurn?             @relation("FormativeConversationProfileTransitionSourceTurn", fields: [source_turn_db_id], references: [id], onDelete: SetNull)
   source_agent_call              AgentCall?                    @relation("FormativeConversationProfileTransitionSourceAgentCall", fields: [source_agent_call_db_id], references: [id], onDelete: SetNull)
+  supporting_turn_references     FormativeConversationProfileTransitionTurnReference[]
+  profile_evidence_references    FormativeConversationProfileEvidenceReference[]
 
-  @@unique([formative_conversation_session_db_id, updated_student_profile_db_id])
+  @@unique([formative_conversation_session_db_id, updated_student_profile_db_id], map: "formative_conversation_profile_transitions_profile_key")
+  @@unique([formative_conversation_session_db_id, source_agent_call_db_id], map: "fc_profile_transition_session_agent_call_key")
   @@index([formative_conversation_session_db_id, transitioned_at])
   @@index([prior_student_profile_db_id])
+  @@index([assessment_student_profile_db_id])
   @@index([source_turn_db_id])
   @@index([source_agent_call_db_id])
   @@map("formative_conversation_profile_transitions")
+}
+
+model FormativeConversationProfileTransitionTurnReference {
+  id                               String   @id @default(uuid()) @db.Uuid
+  profile_transition_db_id         String   @db.Uuid
+  conversation_turn_db_id          String   @db.Uuid
+  evidence_role                    String
+  created_at                       DateTime @default(now()) @db.Timestamptz(6)
+
+  profile_transition FormativeConversationProfileTransition @relation(fields: [profile_transition_db_id], references: [id], onDelete: Cascade, map: "fc_profile_transition_turn_transition_fkey")
+  conversation_turn  ConversationTurn                       @relation(fields: [conversation_turn_db_id], references: [id], onDelete: Cascade, map: "fc_profile_transition_turn_turn_fkey")
+
+  @@unique([profile_transition_db_id, conversation_turn_db_id])
+  @@index([conversation_turn_db_id])
+  @@map("formative_conversation_profile_transition_turn_references")
 }
 
 model FormativeConversationProfileEvidenceReference {
   id                                      String   @id @default(uuid()) @db.Uuid
   evidence_reference_public_id            String   @unique @default(cuid())
   formative_conversation_session_db_id    String   @db.Uuid
+  profile_transition_db_id                String?  @db.Uuid
   source_agent_call_db_id                 String   @db.Uuid
   source_tutor_turn_db_id                 String   @db.Uuid
   evidence_observation_index              Int
@@ -1444,11 +1478,13 @@ model FormativeConversationProfileEvidenceReference {
   created_at                              DateTime @default(now()) @db.Timestamptz(6)
 
   formative_conversation_session FormativeConversationSession @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade, map: "fc_profile_evidence_session_fkey")
+  profile_transition             FormativeConversationProfileTransition? @relation(fields: [profile_transition_db_id], references: [id], onDelete: SetNull, map: "fc_profile_evidence_transition_fkey")
   source_agent_call             AgentCall                    @relation("FormativeConversationProfileEvidenceReferenceAgentCall", fields: [source_agent_call_db_id], references: [id], onDelete: Cascade, map: "fc_profile_evidence_agent_call_fkey")
   source_tutor_turn             ConversationTurn             @relation("FormativeConversationProfileEvidenceReferenceTutorTurn", fields: [source_tutor_turn_db_id], references: [id], onDelete: Cascade, map: "fc_profile_evidence_tutor_turn_fkey")
 
   @@unique([source_agent_call_db_id, evidence_observation_index])
   @@index([formative_conversation_session_db_id, created_at])
+  @@index([profile_transition_db_id])
   @@index([source_tutor_turn_db_id])
   @@map("formative_conversation_profile_evidence_references")
 }
@@ -2137,6 +2173,7 @@ model StudentProfile {
   formative_conversation_review_signals FormativeConversationReviewSignal[] @relation("FormativeConversationReviewSignalProfile")
   prior_formative_conversation_profile_transitions FormativeConversationProfileTransition[] @relation("FormativeConversationPriorProfile")
   updated_formative_conversation_profile_transitions FormativeConversationProfileTransition[] @relation("FormativeConversationUpdatedProfile")
+  assessment_formative_conversation_profile_transitions FormativeConversationProfileTransition[] @relation("FormativeConversationAssessmentProfile")
 
   @@index([concept_unit_session_db_id, created_at])
   @@index([ability_profile])

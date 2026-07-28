@@ -1,13 +1,16 @@
 import { loadEnvConfig } from "@next/env";
 import {
   activeOperationalConfigHash,
+  readActiveApprovedOperationalRuntimeConfig,
   verifyApprovedOperationalAgentConfig
 } from "../src/lib/agents/operational/approved-config";
 import { getAuthEnv, safeParseServerEnv } from "../src/lib/env";
 import {
+  agentModelReadiness,
   LlmConfigurationError,
   liveModelRoles,
-  resolveOpenAIModelConfigForRole
+  resolveOpenAIModelConfigForRole,
+  resolveOperationalRoleLiveCallsEnabled
 } from "../src/lib/llm/config";
 
 loadEnvConfig(process.cwd());
@@ -27,6 +30,7 @@ const envKeys = [
   "OPENAI_REASONING_EFFORT_FOLLOWUP",
   "OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION",
   "OPENAI_REASONING_EFFORT_TOPIC_DIALOGUE",
+  "OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION",
   "OPENAI_REASONING_EFFORT_MCQ_DIAGNOSTIC_AUTHORING",
   "OPENAI_REASONING_EFFORT_MCQ_FORMATTING",
   "OPENAI_REASONING_EFFORT_CONNECTIVITY_TEST",
@@ -39,12 +43,15 @@ const envKeys = [
   "OPENAI_MODEL_FOLLOWUP",
   "OPENAI_MODEL_STUDENT_COMMUNICATION",
   "OPENAI_MODEL_TOPIC_DIALOGUE",
+  "OPENAI_MODEL_FORMATIVE_CONVERSATION",
   "OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING",
   "OPENAI_MODEL_MCQ_FORMATTING",
   "OPENAI_MODEL_CONNECTIVITY_TEST",
   "OPENAI_MAX_OUTPUT_TOKENS_ITEM_ADMIN",
   "OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION",
   "OPENAI_MAX_OUTPUT_TOKENS_TOPIC_DIALOGUE",
+  "OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION",
+  "FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED",
   "OPERATIONAL_AGENT_MODE",
   "OPERATIONAL_APPROVED_CONFIG_HASH",
   "OPERATIONAL_EFFECTIVE_RESULT_VERSION",
@@ -69,6 +76,7 @@ async function withEnv<T>(values: Partial<Record<(typeof envKeys)[number], strin
   process.env.SESSION_SECRET = "phase31ad-smoke-session-secret-at-least-32-characters";
   process.env.OPERATIONAL_EFFECTIVE_RESULT_VERSION = "effective-system-eval-v2";
   process.env.OPERATIONAL_EFFECTIVE_VALIDATOR_VERSION = "effective-validator-v1";
+  process.env.OPERATIONAL_APPROVED_CONFIG_HASH = activeOperationalConfigHash();
   Object.entries(values).forEach(([key, value]) => {
     if (value === undefined) {
       delete process.env[key];
@@ -109,11 +117,15 @@ const candidateEnv = {
   OPENAI_MODEL_FOLLOWUP: "gpt-5.6-sol",
   OPENAI_REASONING_EFFORT_FOLLOWUP: "medium",
   OPENAI_MODEL_STUDENT_COMMUNICATION: "gpt-5.6-terra",
-  OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION: "low",
+  OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION: "medium",
   OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION: "2500",
   OPENAI_MODEL_TOPIC_DIALOGUE: "gpt-5.6-sol",
   OPENAI_REASONING_EFFORT_TOPIC_DIALOGUE: "medium",
   OPENAI_MAX_OUTPUT_TOKENS_TOPIC_DIALOGUE: "3500",
+  OPENAI_MODEL_FORMATIVE_CONVERSATION: "gpt-5.6-sol",
+  OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION: "medium",
+  OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION: "3500",
+  FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED: "true",
   OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING: "gpt-5.6-terra",
   OPENAI_REASONING_EFFORT_MCQ_DIAGNOSTIC_AUTHORING: "medium",
   OPENAI_MODEL_MCQ_FORMATTING: "gpt-5.6-luna",
@@ -143,6 +155,19 @@ async function main() {
     const itemAdminConfig = resolveOpenAIModelConfigForRole("item_administration_tutor_agent");
     assert(itemAdminConfig.reasoning_effort === "low", "Item-admin effort should reach provider model config.");
     assert(itemAdminConfig.max_output_tokens === 1200, "Item-admin should preserve current token default.");
+    const formativeConversation = resolveOpenAIModelConfigForRole("formative_conversation_agent");
+    assert(formativeConversation.model_name === "gpt-5.6-sol", "Formative conversation should resolve its dedicated model.");
+    assert(formativeConversation.reasoning_effort === "medium", "Formative conversation should resolve its dedicated effort.");
+    assert(formativeConversation.max_output_tokens === 3500, "Formative conversation should resolve its dedicated token limit.");
+    assert(
+      resolveOperationalRoleLiveCallsEnabled("formative_conversation_agent"),
+      "Formative conversation should resolve its dedicated live-call boundary."
+    );
+    assert(
+      agentModelReadiness().formative_conversation_agent.model_env_key ===
+        "OPENAI_MODEL_FORMATIVE_CONVERSATION",
+      "Readiness should expose the dedicated formative-conversation environment source."
+    );
   });
 
   await withEnv({
@@ -154,7 +179,10 @@ async function main() {
       resolveOpenAIModelConfigForRole("item_administration_tutor_agent");
     } catch (error) {
       blocked = error instanceof LlmConfigurationError &&
-        error.code === "agent_model_config_incompatible";
+        (
+          error.code === "agent_model_config_incompatible" ||
+          error.code === "reasoning_effort_mismatch"
+        );
     }
     assert(blocked, "Unsupported model/effort combination should fail closed.");
   });
@@ -173,14 +201,31 @@ async function main() {
   });
 
   await withEnv({}, () => {
+    const activeRuntime = readActiveApprovedOperationalRuntimeConfig();
     const baselineHash = activeOperationalConfigHash();
     process.env.OPENAI_API_KEY = "sk-proj_different_synthetic_hash_test_key";
     const hashWithKey = activeOperationalConfigHash();
     assert(baselineHash === hashWithKey, "API keys must not affect the active operational hash.");
-    process.env.OPENAI_MODEL_FOLLOWUP = "gpt-5.6-sol";
+    process.env.OPENAI_MODEL_FOLLOWUP = activeRuntime.kind === "derived_approval"
+      ? "gpt-5.4-mini"
+      : "gpt-5.6-sol";
     process.env.OPENAI_REASONING_EFFORT_FOLLOWUP = "medium";
     const hashWithOverride = activeOperationalConfigHash();
-    assert(hashWithOverride !== baselineHash, "Explicit non-baseline model/effort override should alter active hash.");
+    if (activeRuntime.kind === "derived_approval") {
+      assert(
+        hashWithOverride === baselineHash,
+        "Derived approval identity should remain immutable when an environment assertion conflicts."
+      );
+      assert(
+        !verifyApprovedOperationalAgentConfig().valid,
+        "A conflicting environment assertion should invalidate the derived runtime."
+      );
+    } else {
+      assert(
+        hashWithOverride !== baselineHash,
+        "Explicit non-baseline model/effort override should alter the legacy active hash."
+      );
+    }
   });
 
   console.log(JSON.stringify({

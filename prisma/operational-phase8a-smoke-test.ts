@@ -104,7 +104,8 @@ function assertApprovalManifestVerification() {
     assert(
       resolved.source === "approvedOperationalModelConfigForAgent" ||
         resolved.source === "approved_derived_bundle" ||
-        resolved.source === "active_approval_bundle",
+        resolved.source === "active_approval_bundle" ||
+        resolved.source === "active_approval_bundle_legacy_topic_dialogue_compatibility",
       `${agentName} should resolve through the operational executor model-config source.`
     );
     assert(

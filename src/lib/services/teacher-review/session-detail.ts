@@ -1,3 +1,4 @@
+import type { StudentProfile } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { serializeFormativeDecisionForTeacher } from "@/lib/agents/formative-planning/serializers";
 import { serializeFollowupRoundForTeacher } from "@/lib/agents/followup/serializers";
@@ -11,6 +12,48 @@ import { deriveAutomationState } from "@/lib/workflow/automation";
 import { serializeWorkflowJob } from "@/lib/workflow/jobs";
 import { TeacherReviewServiceError } from "./errors";
 import { serializeDate } from "./serializers";
+
+function teacherLearningObservations(value: unknown) {
+  return Array.isArray(value)
+    ? value.flatMap((entry) => {
+        if (
+          !entry ||
+          Array.isArray(entry) ||
+          typeof entry !== "object" ||
+          typeof entry.observation !== "string"
+        ) {
+          return [];
+        }
+        return [entry.observation];
+      })
+    : [];
+}
+
+function serializeFormativeLearningProfile(
+  profile: Pick<
+    StudentProfile,
+    | "profile_type"
+    | "integrated_diagnostic_profile"
+    | "evidence_sufficiency"
+    | "confidence_alignment"
+    | "profile_confidence"
+    | "integrated_profile_rationale"
+    | "reasoning_quality_summary"
+    | "created_at"
+  >
+) {
+  return {
+    profile_type: profile.profile_type,
+    assessment_specific_understanding:
+      profile.integrated_diagnostic_profile,
+    evidence_sufficiency: profile.evidence_sufficiency,
+    confidence_alignment: profile.confidence_alignment,
+    profile_confidence: profile.profile_confidence,
+    evidence_summary: profile.integrated_profile_rationale,
+    reasoning_summary: profile.reasoning_quality_summary,
+    created_at: serializeDate(profile.created_at)
+  };
+}
 
 export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
   const session = await prisma.assessmentSession.findUnique({
@@ -241,6 +284,16 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       formative_conversation_sessions: {
         orderBy: { started_at: "asc" },
         include: {
+          concept_unit_session: {
+            select: {
+              concept_unit: {
+                select: {
+                  concept_unit_public_id: true,
+                  title: true
+                }
+              }
+            }
+          },
           initial_student_profile: true,
           current_student_profile: true,
           conversation_turns: {
@@ -250,7 +303,6 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
             },
             orderBy: { sequence_index: "asc" },
             select: {
-              id: true,
               sequence_index: true,
               actor_type: true,
               message_text: true,
@@ -276,6 +328,23 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
               source_turn: {
                 select: {
                   sequence_index: true
+                }
+              },
+              supporting_turn_references: {
+                select: {
+                  conversation_turn: {
+                    select: {
+                      sequence_index: true,
+                      actor_type: true,
+                      message_text: true,
+                      created_at: true
+                    }
+                  }
+                }
+              },
+              _count: {
+                select: {
+                  profile_evidence_references: true
                 }
               }
             }
@@ -429,8 +498,10 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
           conversation.current_student_profile?.id;
       const currentIntegratedProfile =
         conversation.current_student_profile?.integrated_diagnostic_profile;
+      const latestTransition = conversation.profile_transitions.at(-1);
       const learningOutcome =
-        conversation.status === "teacher_assistance_recommended" ||
+        latestTransition?.learning_outcome ??
+        (conversation.status === "teacher_assistance_recommended" ||
         conversation.review_signals.some(
           (signal) =>
             signal.reason_code === "teacher_assistance_recommended" &&
@@ -441,10 +512,15 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
             ? "sound"
             : profileChanged
               ? "largely_improved"
-              : null;
+              : null);
 
       return {
         conversation_public_id: conversation.conversation_public_id,
+        concept_unit_public_id:
+          conversation.concept_unit_session.concept_unit
+            .concept_unit_public_id,
+        concept_unit_title:
+          conversation.concept_unit_session.concept_unit.title,
         status: conversation.status,
         started_at: serializeDate(conversation.started_at),
         last_activity_at: serializeDate(conversation.last_activity_at),
@@ -452,42 +528,68 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
         completed_at: serializeDate(conversation.completed_at),
         learning_outcome: learningOutcome,
         initial_learning_profile: conversation.initial_student_profile
-          ? serializeStudentProfileForTeacher(
+          ? serializeFormativeLearningProfile(
               conversation.initial_student_profile
             )
           : null,
         current_learning_profile: conversation.current_student_profile
-          ? serializeStudentProfileForTeacher(
+          ? serializeFormativeLearningProfile(
               conversation.current_student_profile
             )
           : null,
         timeline: conversation.conversation_turns.map((turn) => ({
-          turn_id: turn.id,
+          turn_reference: `${conversation.conversation_public_id}:turn:${turn.sequence_index}`,
           sequence_index: turn.sequence_index,
-          actor: turn.actor_type === "student" ? "student" : "tutor",
+          actor:
+            turn.actor_type === "student"
+              ? ("student" as const)
+              : ("tutor" as const),
           message_text: turn.message_text ?? "",
           created_at: serializeDate(turn.created_at)
         })),
         profile_evolution: conversation.profile_transitions.map(
           (transition) => ({
             transition_public_id: transition.transition_public_id,
-            prior_profile: serializeStudentProfileForTeacher(
+            prior_profile: serializeFormativeLearningProfile(
               transition.prior_student_profile
             ),
-            updated_profile: serializeStudentProfileForTeacher(
+            updated_profile: serializeFormativeLearningProfile(
               transition.updated_student_profile
             ),
+            learning_outcome: transition.learning_outcome,
+            learning_observations: teacherLearningObservations(
+              transition.learning_observations
+            ),
+            evidence_interpretation:
+              transition.evidence_interpretation,
             source_turn_sequence_index:
               transition.source_turn?.sequence_index ?? null,
+            supporting_turns: transition.supporting_turn_references
+              .map((reference) => ({
+                sequence_index:
+                  reference.conversation_turn.sequence_index,
+                actor:
+                  reference.conversation_turn.actor_type === "student"
+                    ? ("student" as const)
+                    : ("tutor" as const),
+                message_text:
+                  reference.conversation_turn.message_text ?? "",
+                created_at: serializeDate(
+                  reference.conversation_turn.created_at
+                )
+              }))
+              .sort(
+                (left, right) =>
+                  left.sequence_index - right.sequence_index
+              ),
+            evidence_reference_count:
+              transition._count.profile_evidence_references,
             transitioned_at: serializeDate(transition.transitioned_at)
           })
         ),
         intervention_history: conversation.interventions.map(
           (intervention) => ({
-            intervention_public_id: intervention.intervention_public_id,
-            strategy_type: intervention.strategy_type,
-            targeted_evidence_gap: intervention.targeted_evidence_gap,
-            status: intervention.status,
+            support_focus: intervention.targeted_evidence_gap,
             started_at: serializeDate(intervention.started_at),
             completed_at: serializeDate(intervention.completed_at)
           })

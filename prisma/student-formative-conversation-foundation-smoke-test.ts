@@ -411,8 +411,33 @@ async function main() {
         conversation_public_id: created.session.conversation_public_id,
         prior_student_profile_db_id: initialProfile.id,
         updated_student_profile_db_id: updatedProfile.id,
+        assessment_student_profile_db_id: initialProfile.id,
         source_turn_db_id: persistedAssistant.assistant_turn.id,
         source_agent_call_db_id: fixtureAgentCall.id,
+        learning_outcome: "largely_improved",
+        learning_observations: [
+          {
+            evidence_type: "conceptual_distinction",
+            observation:
+              "The student distinguishes consistency from interpretation evidence.",
+            source_turn_sequence_indexes: [studentTurn.sequence_index]
+          }
+        ],
+        evidence_interpretation:
+          "The persisted student and tutor turns support a formative profile update.",
+        profile_snapshot: {
+          profile_version: updatedProfile.id,
+          outcome: "largely_improved_understanding",
+          evidence_summary: [
+            "The student distinguishes consistency from interpretation evidence."
+          ],
+          unresolved_evidence: [],
+          evidence_limitations: []
+        },
+        supporting_turn_db_ids: [
+          studentTurn.id,
+          persistedAssistant.assistant_turn.id
+        ],
         transitioned_at: at(18_000)
       });
     assert.equal(profileTransition.replayed, false);
@@ -429,8 +454,33 @@ async function main() {
         conversation_public_id: created.session.conversation_public_id,
         prior_student_profile_db_id: initialProfile.id,
         updated_student_profile_db_id: updatedProfile.id,
+        assessment_student_profile_db_id: initialProfile.id,
         source_turn_db_id: persistedAssistant.assistant_turn.id,
         source_agent_call_db_id: fixtureAgentCall.id,
+        learning_outcome: "largely_improved",
+        learning_observations: [
+          {
+            evidence_type: "conceptual_distinction",
+            observation:
+              "The student distinguishes consistency from interpretation evidence.",
+            source_turn_sequence_indexes: [studentTurn.sequence_index]
+          }
+        ],
+        evidence_interpretation:
+          "The persisted student and tutor turns support a formative profile update.",
+        profile_snapshot: {
+          profile_version: updatedProfile.id,
+          outcome: "largely_improved_understanding",
+          evidence_summary: [
+            "The student distinguishes consistency from interpretation evidence."
+          ],
+          unresolved_evidence: [],
+          evidence_limitations: []
+        },
+        supporting_turn_db_ids: [
+          studentTurn.id,
+          persistedAssistant.assistant_turn.id
+        ],
         transitioned_at: at(18_000)
       });
     assert.equal(replayedProfileTransition.replayed, true);

@@ -318,7 +318,31 @@ const analysisSessionSelect = {
           },
           source_agent_call: {
             select: {
-              agent_name: true
+              agent_name: true,
+              agent_invocation_key: true
+            }
+          },
+          supporting_turn_references: {
+            include: {
+              conversation_turn: {
+                select: {
+                  sequence_index: true,
+                  actor_type: true
+                }
+              }
+            }
+          },
+          profile_evidence_references: {
+            select: {
+              evidence_reference_public_id: true
+            },
+            orderBy: {
+              evidence_observation_index: "asc"
+            }
+          },
+          assessment_student_profile: {
+            select: {
+              created_at: true
             }
           }
         }
@@ -449,12 +473,24 @@ const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_COLUMNS = [
   "session_public_id",
   "research_student_id",
   "conversation_public_id",
+  "transition_version",
+  "formative_outcome",
   "prior_learning_profile",
   "prior_evidence_sufficiency",
+  "prior_profile_created_at",
   "updated_learning_profile",
   "updated_evidence_sufficiency",
+  "updated_profile_created_at",
+  "learning_observations",
+  "evidence_interpretation",
   "source_turn_sequence_index",
+  "supporting_turn_sequence_indexes",
+  "supporting_turn_actors",
+  "supporting_turn_evidence_roles",
+  "evidence_reference_public_ids",
+  "assessment_profile_created_at",
   "source_agent_name",
+  "source_agent_invocation_key",
   "transitioned_at"
 ] as const;
 
@@ -1736,18 +1772,73 @@ function formativeConversationProfileTransitionRows(
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
         conversation_public_id: conversation.conversation_public_id,
+        transition_version: transition.transition_version,
+        formative_outcome: transition.learning_outcome,
         prior_learning_profile:
           transition.prior_student_profile.integrated_diagnostic_profile,
         prior_evidence_sufficiency:
           transition.prior_student_profile.evidence_sufficiency,
+        prior_profile_created_at: iso(
+          transition.prior_student_profile.created_at
+        ),
         updated_learning_profile:
           transition.updated_student_profile.integrated_diagnostic_profile,
         updated_evidence_sufficiency:
           transition.updated_student_profile.evidence_sufficiency,
+        updated_profile_created_at: iso(
+          transition.updated_student_profile.created_at
+        ),
+        learning_observations: JSON.stringify(
+          transition.learning_observations ?? []
+        ),
+        evidence_interpretation:
+          transition.evidence_interpretation,
         source_turn_sequence_index:
           transition.source_turn?.sequence_index ?? null,
+        supporting_turn_sequence_indexes:
+          transition.supporting_turn_references
+            .map(
+              (reference) =>
+                reference.conversation_turn.sequence_index
+            )
+            .sort((left, right) => left - right)
+            .join("|"),
+        supporting_turn_actors:
+          [...transition.supporting_turn_references]
+            .sort(
+              (left, right) =>
+                left.conversation_turn.sequence_index -
+                right.conversation_turn.sequence_index
+            )
+            .map((reference) =>
+              reference.conversation_turn.actor_type === "student"
+                ? "student"
+                : "tutor"
+            )
+            .join("|"),
+        supporting_turn_evidence_roles:
+          [...transition.supporting_turn_references]
+            .sort(
+              (left, right) =>
+                left.conversation_turn.sequence_index -
+                right.conversation_turn.sequence_index
+            )
+            .map((reference) => reference.evidence_role)
+            .join("|"),
+        evidence_reference_public_ids:
+          transition.profile_evidence_references
+            .map(
+              (reference) =>
+                reference.evidence_reference_public_id
+            )
+            .join("|"),
+        assessment_profile_created_at: iso(
+          transition.assessment_student_profile?.created_at
+        ),
         source_agent_name:
           transition.source_agent_call?.agent_name ?? null,
+        source_agent_invocation_key:
+          transition.source_agent_call?.agent_invocation_key ?? null,
         transitioned_at: iso(transition.transitioned_at)
       }))
     )
@@ -1827,6 +1918,33 @@ function formativeConversationDataDictionaryRows() {
     }
     if (variable.includes("learning_profile")) {
       return "Validated assessment-specific learning-profile category at the named point in the conversation.";
+    }
+    if (variable === "formative_outcome") {
+      return "Outcome recommended by the formative conversation agent and persisted after provenance validation.";
+    }
+    if (variable === "learning_observations") {
+      return "JSON array of learning observations authored by the formative conversation agent from cited conversation evidence.";
+    }
+    if (variable === "evidence_interpretation") {
+      return "Agent-authored interpretation supporting the recorded formative profile transition.";
+    }
+    if (variable === "supporting_turn_sequence_indexes") {
+      return "Pipe-delimited sequence indexes for student and tutor turns linked to the transition.";
+    }
+    if (variable === "supporting_turn_actors") {
+      return "Pipe-delimited actor labels aligned with supporting_turn_sequence_indexes.";
+    }
+    if (variable === "supporting_turn_evidence_roles") {
+      return "Pipe-delimited provenance roles aligned with supporting_turn_sequence_indexes.";
+    }
+    if (variable === "evidence_reference_public_ids") {
+      return "Pipe-delimited public references to persisted conversation evidence observations linked to the transition.";
+    }
+    if (variable === "assessment_profile_created_at") {
+      return "Creation timestamp of the initial assessment profile supplied as assessment-phase provenance.";
+    }
+    if (variable === "source_agent_invocation_key") {
+      return "Idempotent invocation reference for the validated formative conversation agent call; provider payloads are excluded.";
     }
     if (variable.includes("evidence_sufficiency")) {
       return "Validated evidence-sufficiency category associated with the named profile.";

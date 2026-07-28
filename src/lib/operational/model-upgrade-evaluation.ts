@@ -30,6 +30,7 @@ import {
 } from "@/lib/llm/config";
 import {
   buildOperationalModelUpgradeComparison,
+  candidateOperationalRoleInventory,
   candidateOperationalModelHash,
   candidateRuntimeConfigurationHash,
   fullGpt56V2EvaluationCases,
@@ -2356,7 +2357,7 @@ export function buildModelUpgradeEvaluationPlan(input: {
     fixture_set_version: MODEL_UPGRADE_FIXTURE_SET_VERSION,
     fixture_count: fixtures.length,
     planned_role_count: new Set(fixtures.map((entry) => entry.role)).size,
-    all_candidate_roles: liveModelRoles,
+    all_candidate_roles: candidateOperationalRoleInventory(candidate),
     covered_roles: [...new Set(fixtures.map((entry) => entry.role))],
     fixture_preflight: fixturePreflight,
     semantic_calibration: {

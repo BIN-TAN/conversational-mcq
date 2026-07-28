@@ -32,6 +32,7 @@ import type {
   SessionDetailResponse,
   StructuredApiError,
   TeacherConceptProgressionRecord,
+  TeacherFormativeLearningProfile,
   TeacherFormativeDecision,
   TeacherFollowupRound,
   TeacherFollowupUpdateCycle,
@@ -49,6 +50,7 @@ import {
   LoadingState,
   StatusPill
 } from "./ui";
+import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdown";
 
 const tabs = [
   "overview",
@@ -561,7 +563,11 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
             <ItemResponsesSection data={itemResponses} />
           ) : null}
           {activeTab === "formative_conversation" ? (
-            <FormativeConversationEvidenceSection detail={detail} />
+            <FormativeConversationEvidenceSection
+              conversations={detail.formative_conversations}
+              itemResponses={itemResponses}
+              sessionPublicId={detail.session.session_public_id}
+            />
           ) : null}
           {activeTab === "readable_transcript" && readableTranscript ? (
             <ReadableTranscriptSection
@@ -605,173 +611,476 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
   );
 }
 
-function FormativeConversationEvidenceSection({
-  detail
+type FormativeConversationProjection =
+  SessionDetailResponse["formative_conversations"][number];
+
+function formativeOutcomeTone(
+  outcome: FormativeConversationProjection["learning_outcome"]
+) {
+  if (outcome === "sound") {
+    return "good" as const;
+  }
+  if (outcome === "teacher_assistance_recommended") {
+    return "warn" as const;
+  }
+  return "neutral" as const;
+}
+
+function formativeOutcomeLabel(
+  outcome: FormativeConversationProjection["learning_outcome"]
+) {
+  if (outcome === "sound") {
+    return "Sound";
+  }
+  if (outcome === "largely_improved") {
+    return "Largely improved";
+  }
+  if (outcome === "teacher_assistance_recommended") {
+    return "Teacher assistance recommended";
+  }
+  return "Outcome not yet determined";
+}
+
+function readableItemStem(value: unknown) {
+  if (typeof value === "string" && value.trim()) {
+    return value;
+  }
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    for (const key of ["item_stem", "stem", "prompt"]) {
+      if (typeof record[key] === "string" && record[key].trim()) {
+        return record[key];
+      }
+    }
+  }
+  return "Item text is not available in this record.";
+}
+
+function FormativeLearningProfileSummary({
+  profile
 }: {
-  detail: SessionDetailResponse;
+  profile: TeacherFormativeLearningProfile;
 }) {
-  if (detail.formative_conversations.length === 0) {
+  return (
+    <div className="space-y-3">
+      <dl className="grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Assessment-specific understanding
+          </dt>
+          <dd className="mt-1 text-ink">
+            {label(profile.assessment_specific_understanding)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Evidence strength
+          </dt>
+          <dd className="mt-1 text-ink">
+            {label(profile.evidence_sufficiency)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Confidence pattern
+          </dt>
+          <dd className="mt-1 text-ink">
+            {label(profile.confidence_alignment)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Profile confidence
+          </dt>
+          <dd className="mt-1 text-ink">
+            {label(profile.profile_confidence)}
+          </dd>
+        </div>
+      </dl>
+      <div>
+        <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">
+          Evidence summary
+        </h5>
+        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">
+          {profile.evidence_summary || "No summary recorded."}
+        </p>
+      </div>
+      <div>
+        <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">
+          Reasoning summary
+        </h5>
+        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">
+          {profile.reasoning_summary || "No reasoning summary recorded."}
+        </p>
+      </div>
+      <p className="text-xs text-muted">
+        Recorded {formatDate(profile.created_at)}
+      </p>
+    </div>
+  );
+}
+
+export function FormativeConversationEvidenceSection({
+  conversations,
+  itemResponses,
+  sessionPublicId
+}: {
+  conversations: SessionDetailResponse["formative_conversations"];
+  itemResponses: ItemResponsesResponse | null;
+  sessionPublicId: string;
+}) {
+  if (conversations.length === 0) {
     return (
       <EmptyState title="No formative conversation evidence is recorded for this session." />
     );
   }
+
   return (
     <section className="space-y-5" data-testid="teacher-formative-conversation-review">
-      {detail.formative_conversations.map((conversation) => (
-        <article
-          className="rounded-lg border border-line bg-white p-5 shadow-soft"
-          key={conversation.conversation_public_id}
-        >
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold text-ink">
-                Formative learning trajectory
-              </h3>
-              <p className="mt-1 text-xs text-muted">
-                Conversation ID: {conversation.conversation_public_id}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <StatusPill value={conversation.status} />
-              <StatusPill
-                value={conversation.learning_outcome ?? "outcome_not_yet_determined"}
-                tone={
-                  conversation.learning_outcome === "sound"
-                    ? "good"
-                    : conversation.learning_outcome ===
-                        "teacher_assistance_recommended"
-                      ? "warn"
-                      : "neutral"
-                }
-              />
-            </div>
-          </div>
+      {conversations.map((conversation) => {
+        const administeredResponses = (
+          itemResponses?.concept_units ?? []
+        )
+          .filter(
+            (conceptUnit) =>
+              conceptUnit.concept_unit_public_id ===
+              conversation.concept_unit_public_id
+          )
+          .flatMap((conceptUnit) =>
+            conceptUnit.item_responses
+              .filter(
+                (response) =>
+                  response.response_state !== "unanswered" ||
+                  response.item_started_at !== null ||
+                  response.item_submitted_at !== null
+              )
+              .map((response) => ({
+                ...response,
+                concept_unit_title: conceptUnit.title
+              }))
+          );
+        const outcomesByEvidenceTurn = new Map<number, string[]>();
+        for (const transition of conversation.profile_evolution) {
+          const outcome = transition.learning_outcome
+            ? formativeOutcomeLabel(transition.learning_outcome)
+            : "Profile update";
+          for (const turn of transition.supporting_turns) {
+            const current = outcomesByEvidenceTurn.get(turn.sequence_index) ?? [];
+            if (!current.includes(outcome)) {
+              current.push(outcome);
+            }
+            outcomesByEvidenceTurn.set(turn.sequence_index, current);
+          }
+        }
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            <div>
-              <h4 className="text-sm font-semibold text-ink">
-                Initial learning profile
-              </h4>
-              {conversation.initial_learning_profile ? (
-                <div className="mt-3">
-                  <ProfileDetails profile={conversation.initial_learning_profile} />
-                </div>
-              ) : (
-                <p className="mt-2 text-sm text-muted">Not recorded.</p>
-              )}
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-ink">
-                Current learning profile
-              </h4>
-              {conversation.current_learning_profile ? (
-                <div className="mt-3">
-                  <ProfileDetails profile={conversation.current_learning_profile} />
-                </div>
-              ) : (
-                <p className="mt-2 text-sm text-muted">Not recorded.</p>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <h4 className="text-sm font-semibold text-ink">
-              Conversation timeline
-            </h4>
-            <div className="mt-3 space-y-3">
-              {conversation.timeline.map((turn) => (
-                <div
-                  className="rounded-lg border border-line bg-slate-50 p-3"
-                  key={turn.turn_id}
+        return (
+          <article
+            className="rounded-lg border border-line bg-white p-5 shadow-soft"
+            key={conversation.conversation_public_id}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-ink">
+                  Formative learning trajectory
+                </h3>
+                <p className="mt-1 text-sm text-muted">
+                  {conversation.concept_unit_title}
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  Conversation ID: {conversation.conversation_public_id}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill value={conversation.status} />
+                <StatusPill
+                  value={formativeOutcomeLabel(
+                    conversation.learning_outcome
+                  )}
+                  tone={formativeOutcomeTone(conversation.learning_outcome)}
+                />
+                <a
+                  className="inline-flex h-8 items-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink hover:border-accent"
+                  href={`/teacher/data/research?section=dataset&session_public_id=${encodeURIComponent(sessionPublicId)}`}
                 >
-                  <div className="flex flex-wrap justify-between gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-accent">
-                      {turn.actor === "student" ? "Student" : "Tutor"} · Turn{" "}
-                      {turn.sequence_index}
-                    </span>
-                    <time className="text-xs text-muted">
-                      {formatDate(turn.created_at)}
-                    </time>
-                  </div>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
-                    {turn.message_text}
-                  </p>
-                </div>
-              ))}
+                  Export session evidence
+                </a>
+              </div>
             </div>
-          </div>
 
-          <div className="mt-6 grid gap-4 lg:grid-cols-2">
-            <div>
-              <h4 className="text-sm font-semibold text-ink">
+            <section
+              className="mt-6 border-t border-line pt-5"
+              data-testid="teacher-initial-assessment-evidence"
+            >
+              <h4 className="text-base font-semibold text-ink">
+                Initial assessment evidence
+              </h4>
+              <p className="mt-1 text-sm text-muted">
+                Administered responses establish the starting evidence for the
+                formative conversation.
+              </p>
+              {conversation.initial_learning_profile ? (
+                <div className="mt-4 border-l-2 border-accent pl-4">
+                  <h5 className="text-sm font-semibold text-ink">
+                    Initial learning profile
+                  </h5>
+                  <div className="mt-3">
+                    <FormativeLearningProfileSummary
+                      profile={conversation.initial_learning_profile}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-muted">
+                  No initial learning profile is recorded.
+                </p>
+              )}
+              {administeredResponses.length > 0 ? (
+                <div className="mt-5 grid gap-3 lg:grid-cols-2">
+                  {administeredResponses.map((response) => (
+                    <article
+                      className="rounded-md border border-line p-4"
+                      key={`${conversation.conversation_public_id}-${response.item_public_id}`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-accent">
+                            Item {response.item_order}
+                          </p>
+                          <p className="mt-1 text-xs text-muted">
+                            {response.concept_unit_title}
+                          </p>
+                        </div>
+                        <StatusPill
+                          value={response.correctness}
+                          tone={correctnessTone(response.correctness)}
+                        />
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-ink">
+                        {readableItemStem(response.item_stem_snapshot)}
+                      </p>
+                      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+                        <div>
+                          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+                            Student answer
+                          </dt>
+                          <dd className="mt-1 text-ink">
+                            {response.selected_option ?? "Not recorded"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+                            Correct answer
+                          </dt>
+                          <dd className="mt-1 text-ink">
+                            {response.correct_option_snapshot}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+                            Confidence
+                          </dt>
+                          <dd className="mt-1 text-ink">
+                            {response.confidence_rating
+                              ? label(response.confidence_rating)
+                              : "Not recorded"}
+                          </dd>
+                        </div>
+                      </dl>
+                      <div className="mt-3 border-t border-line pt-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                          Student reasoning
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">
+                          {response.reasoning_text ??
+                            "No reasoning text recorded."}
+                        </p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-muted">
+                  No administered item responses are recorded.
+                </p>
+              )}
+            </section>
+
+            <section
+              className="mt-6 border-t border-line pt-5"
+              data-testid="teacher-formative-conversation-trajectory"
+            >
+              <h4 className="text-base font-semibold text-ink">
+                Formative conversation trajectory
+              </h4>
+              <div className="mt-3 space-y-3">
+                {conversation.timeline.map((turn) => {
+                  const evidenceOutcomes =
+                    outcomesByEvidenceTurn.get(turn.sequence_index) ?? [];
+                  return (
+                    <div
+                      className="rounded-md border border-line bg-slate-50 p-3"
+                      key={turn.turn_reference}
+                    >
+                      <div className="flex flex-wrap justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-accent">
+                            {turn.actor === "student" ? "Student" : "Tutor"} ·
+                            Turn {turn.sequence_index}
+                          </span>
+                          {evidenceOutcomes.map((outcome) => (
+                            <span
+                              className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-900"
+                              key={`${turn.turn_reference}-${outcome}`}
+                            >
+                              Evidence for {outcome}
+                            </span>
+                          ))}
+                        </div>
+                        <time className="text-xs text-muted">
+                          {formatDate(turn.created_at)}
+                        </time>
+                      </div>
+                      {turn.actor === "tutor" ? (
+                        <SafeTutorMessageMarkdown
+                          className="mt-2 text-ink"
+                          message={turn.message_text}
+                        />
+                      ) : (
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+                          {turn.message_text}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section
+              className="mt-6 border-t border-line pt-5"
+              data-testid="teacher-profile-evolution-timeline"
+            >
+              <h4 className="text-base font-semibold text-ink">
                 Profile evolution
               </h4>
               {conversation.profile_evolution.length > 0 ? (
-                <ol className="mt-3 space-y-2">
+                <ol className="mt-4 space-y-6">
                   {conversation.profile_evolution.map((transition) => (
                     <li
-                      className="border-l-2 border-accent pl-3 text-sm text-ink"
+                      className="border-l-2 border-accent pl-4"
                       key={transition.transition_public_id}
                     >
-                      <p>
-                        {label(
-                          transition.prior_profile
-                            .integrated_diagnostic_profile
-                        )}{" "}
-                        to{" "}
-                        {label(
-                          transition.updated_profile
-                            .integrated_diagnostic_profile
-                        )}
-                      </p>
-                      <p className="mt-1 text-xs text-muted">
-                        {formatDate(transition.transitioned_at)}
-                        {transition.source_turn_sequence_index
-                          ? ` · Turn ${transition.source_turn_sequence_index}`
-                          : ""}
-                      </p>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h5 className="font-semibold text-ink">
+                          {transition.learning_outcome
+                            ? formativeOutcomeLabel(
+                                transition.learning_outcome
+                              )
+                            : "Profile updated"}
+                        </h5>
+                        <time className="text-xs text-muted">
+                          {formatDate(transition.transitioned_at)}
+                        </time>
+                      </div>
+                      {transition.evidence_interpretation ? (
+                        <p className="mt-2 text-sm leading-6 text-ink">
+                          {transition.evidence_interpretation}
+                        </p>
+                      ) : null}
+                      {transition.learning_observations.length > 0 ? (
+                        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted">
+                          {transition.learning_observations.map(
+                            (observation, index) => (
+                              <li
+                                key={`${transition.transition_public_id}-observation-${index}`}
+                              >
+                                {observation}
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      ) : null}
+                      <div className="mt-4 grid gap-5 lg:grid-cols-2">
+                        <div>
+                          <h6 className="text-sm font-semibold text-ink">
+                            Before
+                          </h6>
+                          <div className="mt-2">
+                            <FormativeLearningProfileSummary
+                              profile={transition.prior_profile}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <h6 className="text-sm font-semibold text-ink">
+                            After
+                          </h6>
+                          <div className="mt-2">
+                            <FormativeLearningProfileSummary
+                              profile={transition.updated_profile}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      {transition.supporting_turns.length > 0 ? (
+                        <div className="mt-4">
+                          <h6 className="text-sm font-semibold text-ink">
+                            Conversation evidence
+                          </h6>
+                          <div className="mt-2 space-y-2">
+                            {transition.supporting_turns.map((turn) => (
+                              <blockquote
+                                className="border-l-2 border-emerald-300 pl-3 text-sm leading-6 text-muted"
+                                key={`${transition.transition_public_id}-${turn.sequence_index}`}
+                              >
+                                <span className="font-medium text-ink">
+                                  {turn.actor === "student"
+                                    ? "Student"
+                                    : "Tutor"}{" "}
+                                  · Turn {turn.sequence_index}:
+                                </span>{" "}
+                                {turn.message_text}
+                              </blockquote>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                     </li>
                   ))}
                 </ol>
               ) : (
                 <p className="mt-2 text-sm text-muted">
-                  No validated profile transition is recorded yet.
+                  No validated profile transition is recorded yet. The
+                  conversation can continue while evidence is insufficient.
                 </p>
               )}
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-ink">
-                Intervention history
-              </h4>
-              {conversation.intervention_history.length > 0 ? (
-                <ol className="mt-3 space-y-2">
-                  {conversation.intervention_history.map((intervention) => (
-                    <li
-                      className="border-l-2 border-[#c99700] pl-3 text-sm text-ink"
-                      key={intervention.intervention_public_id}
-                    >
-                      <p className="font-medium">
-                        {label(intervention.strategy_type)}
-                      </p>
-                      <p className="mt-1 text-muted">
-                        {intervention.targeted_evidence_gap}
-                      </p>
-                      <p className="mt-1 text-xs text-muted">
-                        {label(intervention.status)} ·{" "}
-                        {formatDate(intervention.started_at)}
-                      </p>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="mt-2 text-sm text-muted">
-                  No intervention history is recorded yet.
-                </p>
-              )}
-            </div>
-          </div>
-        </article>
-      ))}
+            </section>
+
+            {conversation.intervention_history.length > 0 ? (
+              <section className="mt-6 border-t border-line pt-5">
+                <h4 className="text-base font-semibold text-ink">
+                  Teaching support during the conversation
+                </h4>
+                <ul className="mt-3 space-y-2">
+                  {conversation.intervention_history.map(
+                    (intervention, index) => (
+                      <li
+                        className="border-l-2 border-[#c99700] pl-3 text-sm leading-6 text-ink"
+                        key={`${intervention.started_at}-${index}`}
+                      >
+                        {intervention.support_focus}
+                        <span className="ml-2 text-xs text-muted">
+                          {formatDate(intervention.started_at)}
+                        </span>
+                      </li>
+                    )
+                  )}
+                </ul>
+              </section>
+            ) : null}
+          </article>
+        );
+      })}
     </section>
   );
 }
@@ -1242,9 +1551,16 @@ function ReadableTranscriptSection({
             {turn.safe_context_label ? (
               <p className="mt-2 text-xs font-medium text-muted">{turn.safe_context_label}</p>
             ) : null}
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink">
-              {turn.message_text}
-            </p>
+            {turn.speaker === "agent" ? (
+              <SafeTutorMessageMarkdown
+                className="mt-3 text-ink"
+                message={turn.message_text}
+              />
+            ) : (
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink">
+                {turn.message_text}
+              </p>
+            )}
             {turn.has_structured_payload_available_elsewhere ? (
               <p className="mt-2 text-xs text-muted">
                 Structured metadata is available in the Structured event log.
@@ -1287,9 +1603,16 @@ function TranscriptSection({ data }: { data: TranscriptResponse }) {
             {turn.agent_name ? <StatusPill value={turn.agent_name} /> : null}
             <span className="text-xs text-muted">{formatDate(turn.created_at)}</span>
           </div>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink">
-            {turn.message_text ?? "No text message recorded."}
-          </p>
+          {turn.actor_type === "agent" && turn.message_text ? (
+            <SafeTutorMessageMarkdown
+              className="mt-3 text-ink"
+              message={turn.message_text}
+            />
+          ) : (
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink">
+              {turn.message_text ?? "No text message recorded."}
+            </p>
+          )}
           <p className="mt-2 text-xs text-muted">
             {turn.concept_unit_public_id ? `Topic: ${turn.concept_unit_public_id}` : "No topic association"}
             {turn.item_public_id ? ` · Item: ${turn.item_public_id}` : ""}

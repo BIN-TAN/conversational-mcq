@@ -7,10 +7,10 @@ import {
   type ModelUpgradeFixture
 } from "../src/lib/operational/model-upgrade-evaluation";
 import {
+  candidateOperationalRoleInventory,
   FULL_GPT56_V2_CANDIDATE_CONFIG_PATH,
   readCandidateOperationalModelConfig
 } from "../src/lib/operational/model-upgrade";
-import { liveModelRoles } from "../src/lib/llm/config";
 import { assert } from "./operational-model-upgrade-test-helpers";
 
 loadEnvConfig(process.cwd());
@@ -399,7 +399,7 @@ function runConfidenceSuite() {
 
 function runPromptProvenanceSuite() {
   const candidate = readCandidateOperationalModelConfig(FULL_GPT56_V2_CANDIDATE_CONFIG_PATH);
-  for (const role of liveModelRoles) {
+  for (const role of candidateOperationalRoleInventory(candidate)) {
     const metadata = candidate.configuration_fingerprint?.role_version_metadata[role];
     assert(metadata, `Missing role metadata for ${role}.`);
     assert(typeof metadata?.prompt_hash === "string" && /^[a-f0-9]{64}$/u.test(metadata.prompt_hash), `${role} prompt hash should be non-null and deterministic.`);

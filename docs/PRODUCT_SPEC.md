@@ -192,3 +192,20 @@ lifecycle, and validated learning-profile transitions. The approved
 `topic_dialogue_agent` execution role supplies the model and live-call boundary
 until a separately approved model role is introduced; audit records still use
 `agent_name=formative_conversation_agent`.
+
+Learning-profile evolution in this phase is append-only. The conversation agent
+authors learning observations, evidence interpretation, and any recommended
+outcome (`sound`, `largely_improved`, or
+`teacher_assistance_recommended`). The platform validates and persists source
+turns, the source agent call, evidence references, and the initial assessment
+profile; it does not infer the outcome from activity completion or fixed
+thresholds. Insufficient evidence may leave the conversation active without a
+new profile version.
+
+Teacher review presents this evidence as one readable trajectory: administered
+item responses and the initial profile, the visible student/tutor conversation,
+and each validated profile transition with its supporting turns. It does not
+show hidden prompts, provider payloads, API metadata, routing decisions, or
+deterministic workflow labels. Research exports retain the phase-separated raw
+assessment evidence, observable formative telemetry, safe agent metadata, and
+append-only transition provenance needed for reproducible analysis.

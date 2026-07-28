@@ -22,6 +22,8 @@ export const LOCAL_APPROVED_RUNTIME_MATERIALIZATION_VERSION =
   "operational-approved-runtime-local-materialization-v1";
 export const LEGACY_GPT54_APPROVED_RUNTIME_HASH =
   "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2";
+const LEGACY_TOPIC_DIALOGUE_APPROVAL_MANIFEST_VERSION =
+  "phase31at-gpt-5.6-full-v2-candidate-v6";
 
 export const APPROVED_OPERATIONAL_ROLE_NAMES = [
   "item_verification_agent",
@@ -38,6 +40,7 @@ export const APPROVED_OPERATIONAL_ROLE_NAMES = [
   "post_activity_evidence_evaluator_agent",
   "student_communication_agent",
   "topic_dialogue_agent",
+  "formative_conversation_agent",
   "mcq_diagnostic_authoring_assistant_agent",
   "mcq_import_formatting_assistant_agent",
   "connectivity_test"
@@ -57,7 +60,8 @@ const RuntimePolicySchema = z.object({
   provider_max_retries: z.number().int().nonnegative(),
   role_live_toggles: z.object({
     student_communication_agent: z.boolean(),
-    topic_dialogue_agent: z.boolean()
+    topic_dialogue_agent: z.boolean(),
+    formative_conversation_agent: z.boolean().optional()
   }).strict(),
   topic_dialogue_policy: z.object({
     maximum_student_turns: z.number().int().positive(),
@@ -96,22 +100,94 @@ export const ApprovedCandidateManifestSchema = z.object({
   configuration_fingerprint: FingerprintSchema,
   evaluation_cases: z.array(z.string().min(1)).optional(),
   acceptance_criteria: z.record(z.string(), z.union([z.boolean(), z.number()]))
-}).strict();
+}).strict().superRefine((manifest, context) => {
+  if (
+    manifest.roles.formative_conversation_agent &&
+    typeof manifest.runtime_policy.role_live_toggles.formative_conversation_agent !== "boolean"
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["runtime_policy", "role_live_toggles", "formative_conversation_agent"],
+      message: "formative_conversation_agent requires its dedicated live-call toggle."
+    });
+  }
+});
 
 export type ApprovedCandidateManifest = z.infer<typeof ApprovedCandidateManifestSchema>;
+
+export function approvedOperationalRoleNamesForManifest(
+  manifest: Pick<ApprovedCandidateManifest, "manifest_version" | "roles">
+): ApprovedOperationalRoleName[] {
+  const legacyTopicDialogueApproval =
+    manifest.manifest_version === LEGACY_TOPIC_DIALOGUE_APPROVAL_MANIFEST_VERSION &&
+    manifest.roles.topic_dialogue_agent !== undefined &&
+    manifest.roles.formative_conversation_agent === undefined;
+  return APPROVED_OPERATIONAL_ROLE_NAMES.filter(
+    (role) => role !== "formative_conversation_agent" || !legacyTopicDialogueApproval
+  );
+}
+
+export function approvedCandidateRoleConfigResolution(
+  manifest: ApprovedCandidateManifest,
+  role: ApprovedOperationalRoleName
+) {
+  const config = manifest.roles[role];
+  if (config) {
+    return {
+      config,
+      approved_role: role,
+      compatibility_used: false
+    } as const;
+  }
+  if (
+    role === "formative_conversation_agent" &&
+    approvedOperationalRoleNamesForManifest(manifest).length < APPROVED_OPERATIONAL_ROLE_NAMES.length
+  ) {
+    const legacyConfig = manifest.roles.topic_dialogue_agent;
+    if (legacyConfig) {
+      return {
+        config: legacyConfig,
+        approved_role: "topic_dialogue_agent",
+        compatibility_used: true
+      } as const;
+    }
+  }
+  throw new OperationalApprovalBundleError(
+    "approved_role_missing",
+    `Approved candidate manifest is missing ${role}.`
+  );
+}
 
 export function approvedCandidateRoleConfig(
   manifest: ApprovedCandidateManifest,
   role: ApprovedOperationalRoleName
 ) {
-  const config = manifest.roles[role];
-  if (!config) {
-    throw new OperationalApprovalBundleError(
-      "approved_role_missing",
-      `Approved candidate manifest is missing ${role}.`
-    );
+  return approvedCandidateRoleConfigResolution(manifest, role).config;
+}
+
+export function approvedCandidateRoleLiveCallsEnabled(
+  manifest: ApprovedCandidateManifest,
+  role:
+    | "student_communication_agent"
+    | "topic_dialogue_agent"
+    | "formative_conversation_agent"
+) {
+  if (role !== "formative_conversation_agent") {
+    return manifest.runtime_policy.role_live_toggles[role];
   }
-  return config;
+  const configured = manifest.runtime_policy.role_live_toggles.formative_conversation_agent;
+  if (typeof configured === "boolean") {
+    return configured;
+  }
+  if (
+    approvedOperationalRoleNamesForManifest(manifest).length < APPROVED_OPERATIONAL_ROLE_NAMES.length
+  ) {
+    return manifest.runtime_policy.role_live_toggles.topic_dialogue_agent;
+  }
+  throw new OperationalApprovalBundleError(
+    "approved_role_live_toggle_missing",
+    "Approved candidate manifest is missing the formative conversation live-call toggle."
+  );
 }
 
 const ApprovalEvidenceSchema = z.object({
@@ -243,7 +319,8 @@ function assertFileHash(reference: z.infer<typeof FileReferenceSchema>, bundlePa
 
 function assertExactRoleInventory(manifest: ApprovedCandidateManifest) {
   const actualRoles = Object.keys(manifest.roles).sort();
-  const expectedRoles = [...APPROVED_OPERATIONAL_ROLE_NAMES].sort();
+  const approvedRoles = approvedOperationalRoleNamesForManifest(manifest);
+  const expectedRoles = [...approvedRoles].sort();
   if (actualRoles.length !== expectedRoles.length || actualRoles.some((role, index) => role !== expectedRoles[index])) {
     throw new OperationalApprovalBundleError(
       "approved_role_inventory_mismatch",
@@ -257,6 +334,15 @@ function assertExactRoleInventory(manifest: ApprovedCandidateManifest) {
     throw new OperationalApprovalBundleError(
       "approved_role_version_inventory_mismatch",
       "Approved candidate version metadata does not contain the exact operational role inventory."
+    );
+  }
+  if (
+    approvedRoles.includes("formative_conversation_agent") &&
+    typeof manifest.runtime_policy.role_live_toggles.formative_conversation_agent !== "boolean"
+  ) {
+    throw new OperationalApprovalBundleError(
+      "approved_role_live_toggle_missing",
+      "Approved candidate manifest is missing the formative conversation live-call toggle."
     );
   }
 }
@@ -283,7 +369,8 @@ export function verifyApprovedCandidateArtifacts(input: {
   );
   assertExactRoleInventory(manifest);
 
-  const runtimeHash = modelUpgradeCandidateRuntimeHash(manifest, APPROVED_OPERATIONAL_ROLE_NAMES);
+  const approvedRoles = approvedOperationalRoleNamesForManifest(manifest);
+  const runtimeHash = modelUpgradeCandidateRuntimeHash(manifest, approvedRoles);
   const recomputedApprovalEvidenceHash = stableHash({
     source_provider_run_id: evidence.source_provider_run_id,
     derived_evaluation_id: evidence.derived_evaluation_id,
@@ -439,14 +526,14 @@ export function resolveActiveOperationalApproval(input: {
     evidence: verified.evidence,
     runtime_snapshot: modelUpgradeCandidateRuntimeSnapshot(
       verified.manifest,
-      APPROVED_OPERATIONAL_ROLE_NAMES
+      approvedOperationalRoleNamesForManifest(verified.manifest)
     )
   };
 }
 
 function requiredRoleMetadataIssues(manifest: ApprovedCandidateManifest) {
   const issues: string[] = [];
-  for (const role of APPROVED_OPERATIONAL_ROLE_NAMES) {
+  for (const role of approvedOperationalRoleNamesForManifest(manifest)) {
     const metadata = manifest.configuration_fingerprint.role_version_metadata[role];
     if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
       issues.push(`role_version_metadata_missing:${role}`);
@@ -534,13 +621,14 @@ export function resolveApprovedOperationalRuntimeRequirement(input: {
   }
 
   const actualRoles = Object.keys(active.manifest.roles);
+  const approvedRoles = approvedOperationalRoleNamesForManifest(active.manifest);
   const seen = new Set<string>();
   const duplicateRoles = actualRoles.filter((role) => {
     if (seen.has(role)) return true;
     seen.add(role);
     return false;
   });
-  const missingRoles = APPROVED_OPERATIONAL_ROLE_NAMES.filter((role) => !seen.has(role));
+  const missingRoles = approvedRoles.filter((role) => !seen.has(role));
   const metadataIssues = requiredRoleMetadataIssues(active.manifest);
   const mismatchReasons = [
     ...(active.record.runtime_candidate_hash !== input.requestedHash
@@ -556,7 +644,7 @@ export function resolveApprovedOperationalRuntimeRequirement(input: {
     resolved_hash: active.record.runtime_candidate_hash,
     resolution_source: "approved_derived_bundle",
     approved_bundle_complete: mismatchReasons.length === 0 &&
-      actualRoles.length === APPROVED_OPERATIONAL_ROLE_NAMES.length,
+      actualRoles.length === approvedRoles.length,
     role_count: actualRoles.length,
     missing_roles: missingRoles,
     duplicate_roles: duplicateRoles,

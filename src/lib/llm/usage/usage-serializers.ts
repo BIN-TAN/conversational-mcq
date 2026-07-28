@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { AgentName } from "@/lib/agents/names";
+import { LiveModelRole } from "@/lib/llm/config";
 import { getLlmUsageLimitConfig } from "./usage-limits";
 import { getLlmUsageSnapshot, getUsageWindow } from "./usage-accounting";
 import { LlmUsageGuardBlockedReason } from "./usage-guard";
@@ -60,7 +60,7 @@ export async function getTeacherLlmUsageStatus() {
     ])
   );
   const perAgentAllProviders = Object.fromEntries(
-    AgentName.options.map((agentName) => {
+    LiveModelRole.options.map((agentName) => {
       const rows = dailyCalls.filter((call) => call.agent_name === agentName);
 
       return [

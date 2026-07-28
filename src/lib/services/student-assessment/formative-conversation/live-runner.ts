@@ -63,11 +63,11 @@ export function createLiveFormativeConversationAgentRunner(): FormativeConversat
   if (
     runtime.provider !== "openai" ||
     !runtime.live_calls_enabled ||
-    !resolveOperationalRoleLiveCallsEnabled("topic_dialogue_agent")
+    !resolveOperationalRoleLiveCallsEnabled("formative_conversation_agent")
   ) {
     throw new Error("formative_conversation_live_runtime_not_ready");
   }
-  const modelConfig = resolveOpenAIModelConfigForRole("topic_dialogue_agent");
+  const modelConfig = resolveOpenAIModelConfigForRole("formative_conversation_agent");
   const provider = createLlmProvider();
 
   return {
@@ -97,7 +97,7 @@ export function createLiveFormativeConversationAgentRunner(): FormativeConversat
         timeout_ms: runtime.request_timeout_ms,
         metadata: {
           invocation_key,
-          approved_execution_role: "topic_dialogue_agent"
+          approved_execution_role: FORMATIVE_CONVERSATION_AGENT_NAME
         }
       });
       if (result.status !== "completed" || !result.parsed_output) {

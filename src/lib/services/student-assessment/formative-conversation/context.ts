@@ -9,6 +9,10 @@ import {
   type FormativeConversationAgentInput,
   type FormativeConversationProfileEvidence
 } from "./agent-contract";
+import {
+  formativeConversationContextOutcome,
+  parseFormativeConversationProfileSnapshot
+} from "./profile-update";
 import { validateFormativeConversationSafetyBoundary } from "./safety-boundary";
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -153,6 +157,20 @@ export async function compilePersistedFormativeConversationContext(input: {
           input_token_count: true,
           output_token_count: true
         }
+      },
+      profile_transitions: {
+        orderBy: { transitioned_at: "asc" },
+        select: {
+          updated_student_profile_db_id: true,
+          learning_outcome: true,
+          profile_snapshot: true,
+          transitioned_at: true,
+          source_agent_call: {
+            select: {
+              agent_name: true
+            }
+          }
+        }
       }
     }
   });
@@ -177,6 +195,21 @@ export async function compilePersistedFormativeConversationContext(input: {
     value === "robust_understanding_ready_for_transfer"
       ? ("sound_understanding" as const)
       : ("not_yet_determined" as const);
+  const transitionByUpdatedProfileId = new Map(
+    session.profile_transitions.map((transition) => [
+      transition.updated_student_profile_db_id,
+      transition
+    ])
+  );
+  const latestProfileTransition = session.profile_transitions.at(-1);
+  const persistedCurrentProfile =
+    latestProfileTransition &&
+    latestProfileTransition.updated_student_profile_db_id ===
+      session.current_student_profile_db_id
+      ? parseFormativeConversationProfileSnapshot(
+          latestProfileTransition.profile_snapshot
+        )
+      : null;
 
   return compileFormativeConversationContext({
     conversation_public_id: session.conversation_public_id,
@@ -190,15 +223,26 @@ export async function compilePersistedFormativeConversationContext(input: {
       input.assessment_response_evidence ?? [],
     assessment_process_evidence: input.assessment_process_evidence ?? [],
     initial_profile: input.initial_profile,
-    current_profile: input.current_profile,
+    current_profile: persistedCurrentProfile ?? input.current_profile,
     profile_history: session.concept_unit_session.student_profiles.map(
-      (profile) => ({
-        profile_version: profile.id,
-        outcome: profileOutcome(profile.integrated_diagnostic_profile),
-        created_at: profile.created_at.toISOString(),
-        evidence_source:
-          profile.based_on_agent_call?.agent_name ?? "assessment_profile"
-      })
+      (profile) => {
+        const transition = transitionByUpdatedProfileId.get(profile.id);
+        return {
+          profile_version: profile.id,
+          outcome: transition?.learning_outcome
+            ? formativeConversationContextOutcome(
+                transition.learning_outcome
+              )
+            : profileOutcome(profile.integrated_diagnostic_profile),
+          created_at:
+            transition?.transitioned_at.toISOString() ??
+            profile.created_at.toISOString(),
+          evidence_source:
+            transition?.source_agent_call?.agent_name ??
+            profile.based_on_agent_call?.agent_name ??
+            "assessment_profile"
+        };
+      }
     ),
     telemetry_summary: {
       observable_student_turn_count: visibleTranscript.filter(

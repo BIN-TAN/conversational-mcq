@@ -6,6 +6,8 @@ import {
   type ApprovedCandidateManifest,
   LEGACY_GPT54_APPROVED_RUNTIME_HASH,
   approvedCandidateRoleConfig,
+  approvedCandidateRoleConfigResolution,
+  approvedCandidateRoleLiveCallsEnabled,
   OperationalApprovalBundleError,
   resolveActiveOperationalApproval
 } from "@/lib/operational/active-approval-bundle";
@@ -27,6 +29,7 @@ export const LiveModelRole = z.enum([
   "post_activity_evidence_evaluator_agent",
   "student_communication_agent",
   "topic_dialogue_agent",
+  "formative_conversation_agent",
   "mcq_diagnostic_authoring_assistant_agent",
   "mcq_import_formatting_assistant_agent",
   "connectivity_test"
@@ -305,6 +308,12 @@ const roleEnvSources = {
     maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_TOPIC_DIALOGUE",
     defaultMaxTokens: 3500
   }],
+  formative_conversation_agent: [{
+    model: "OPENAI_MODEL_FORMATIVE_CONVERSATION",
+    reasoning: "OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION",
+    maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION",
+    defaultMaxTokens: 3500
+  }],
   mcq_diagnostic_authoring_assistant_agent: [{
     model: "OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING",
     reasoning: "OPENAI_REASONING_EFFORT_MCQ_DIAGNOSTIC_AUTHORING",
@@ -337,7 +346,10 @@ export type RoleModelReadiness = {
   approval_boundary: "operational_manifest" | "operational_extension_required" | "teacher_tool" | "utility";
   compatibility_status: "compatible" | "incompatible" | "not_configured";
   compatibility_issues: string[];
-  resolution_source?: "environment" | "active_approval_bundle";
+  resolution_source?:
+    | "environment"
+    | "active_approval_bundle"
+    | "active_approval_bundle_legacy_topic_dialogue_compatibility";
 };
 
 function approvalBoundary(role: LiveModelRole): RoleModelReadiness["approval_boundary"] {
@@ -391,6 +403,7 @@ function roleAllowsModel(role: LiveModelRole, modelName: string) {
     post_activity_evidence_evaluator_agent: ["gpt-5.6-sol"],
     student_communication_agent: ["gpt-5.6-terra"],
     topic_dialogue_agent: ["gpt-5.6-sol"],
+    formative_conversation_agent: ["gpt-5.6-sol"],
     mcq_diagnostic_authoring_assistant_agent: ["gpt-5.6-terra"],
     mcq_import_formatting_assistant_agent: ["gpt-5.6-luna"],
     connectivity_test: ["gpt-5.6-luna"]
@@ -550,6 +563,11 @@ function assertRuntimePolicyEnvironmentMatches(
     policy.role_live_toggles.topic_dialogue_agent
   );
   assertExplicitPolicyValue(
+    "FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED",
+    env.FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED,
+    approvedCandidateRoleLiveCallsEnabled(active.manifest, "formative_conversation_agent")
+  );
+  assertExplicitPolicyValue(
     "TOPIC_DIALOGUE_MAX_STUDENT_TURNS",
     env.TOPIC_DIALOGUE_MAX_STUDENT_TURNS,
     policy.topic_dialogue_policy.maximum_student_turns
@@ -693,7 +711,8 @@ export function agentModelReadiness() {
   const activeApproval = resolveOperationalApprovalForModelResolution();
   if (activeApproval) {
     return Object.fromEntries(LiveModelRole.options.map((role) => {
-      const config = approvedCandidateRoleConfig(activeApproval.manifest, role);
+      const resolution = approvedCandidateRoleConfigResolution(activeApproval.manifest, role);
+      const config = resolution.config;
       const issues = modelConfigCompatibilityIssues(role, config);
       return [role, {
         role,
@@ -706,7 +725,9 @@ export function agentModelReadiness() {
         approval_boundary: approvalBoundary(role),
         compatibility_status: issues.length === 0 ? "compatible" : "incompatible",
         compatibility_issues: issues,
-        resolution_source: "active_approval_bundle"
+        resolution_source: resolution.compatibility_used
+          ? "active_approval_bundle_legacy_topic_dialogue_compatibility"
+          : "active_approval_bundle"
       }];
     })) as Record<LiveModelRole, RoleModelReadiness>;
   }
@@ -748,17 +769,23 @@ export function agentModelReadiness() {
 }
 
 export function resolveOperationalRoleLiveCallsEnabled(
-  role: "student_communication_agent" | "topic_dialogue_agent"
+  role:
+    | "student_communication_agent"
+    | "topic_dialogue_agent"
+    | "formative_conversation_agent"
 ) {
   const activeApproval = resolveOperationalApprovalForModelResolution();
   if (activeApproval) {
     assertRuntimePolicyEnvironmentMatches(activeApproval);
-    return activeApproval.manifest.runtime_policy.role_live_toggles[role];
+    return approvedCandidateRoleLiveCallsEnabled(activeApproval.manifest, role);
   }
   const env = getServerEnv();
-  return role === "student_communication_agent"
-    ? env.STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED
-    : env.TOPIC_DIALOGUE_LIVE_CALLS_ENABLED;
+  if (role === "student_communication_agent") {
+    return env.STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED;
+  }
+  return role === "topic_dialogue_agent"
+    ? env.TOPIC_DIALOGUE_LIVE_CALLS_ENABLED
+    : env.FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED;
 }
 
 export function resolveTopicDialogueRuntimePolicy(
@@ -812,6 +839,9 @@ export function approvedRoleEnvironmentAssertions(manifest: ApprovedCandidateMan
     OPENAI_MAX_RETRIES: String(policy.provider_max_retries),
     STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED: String(policy.role_live_toggles.student_communication_agent),
     TOPIC_DIALOGUE_LIVE_CALLS_ENABLED: String(policy.role_live_toggles.topic_dialogue_agent),
+    FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED: String(
+      approvedCandidateRoleLiveCallsEnabled(manifest, "formative_conversation_agent")
+    ),
     TOPIC_DIALOGUE_MAX_STUDENT_TURNS: String(policy.topic_dialogue_policy.maximum_student_turns),
     TOPIC_DIALOGUE_RECENT_TURN_WINDOW: String(policy.topic_dialogue_policy.recent_raw_turn_window),
     TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS: String(policy.topic_dialogue_policy.maximum_student_message_characters),

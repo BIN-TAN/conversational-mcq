@@ -148,6 +148,8 @@ export type SessionDetailResponse = {
   };
   formative_conversations: Array<{
     conversation_public_id: string;
+    concept_unit_public_id: string;
+    concept_unit_title: string;
     status: string;
     started_at: string | null;
     last_activity_at: string | null;
@@ -158,10 +160,10 @@ export type SessionDetailResponse = {
       | "largely_improved"
       | "teacher_assistance_recommended"
       | null;
-    initial_learning_profile: TeacherStudentProfile | null;
-    current_learning_profile: TeacherStudentProfile | null;
+    initial_learning_profile: TeacherFormativeLearningProfile | null;
+    current_learning_profile: TeacherFormativeLearningProfile | null;
     timeline: Array<{
-      turn_id: string;
+      turn_reference: string;
       sequence_index: number;
       actor: "student" | "tutor";
       message_text: string;
@@ -169,16 +171,27 @@ export type SessionDetailResponse = {
     }>;
     profile_evolution: Array<{
       transition_public_id: string;
-      prior_profile: TeacherStudentProfile;
-      updated_profile: TeacherStudentProfile;
+      prior_profile: TeacherFormativeLearningProfile;
+      updated_profile: TeacherFormativeLearningProfile;
+      learning_outcome:
+        | "sound"
+        | "largely_improved"
+        | "teacher_assistance_recommended"
+        | null;
+      learning_observations: string[];
+      evidence_interpretation: string | null;
       source_turn_sequence_index: number | null;
+      supporting_turns: Array<{
+        sequence_index: number;
+        actor: "student" | "tutor";
+        message_text: string;
+        created_at: string | null;
+      }>;
+      evidence_reference_count: number;
       transitioned_at: string | null;
     }>;
     intervention_history: Array<{
-      intervention_public_id: string;
-      strategy_type: string;
-      targeted_evidence_gap: string;
-      status: string;
+      support_focus: string;
       started_at: string | null;
       completed_at: string | null;
     }>;
@@ -285,6 +298,17 @@ export type TeacherStudentProfile = {
     created_at: string | null;
     completed_at: string | null;
   } | null;
+};
+
+export type TeacherFormativeLearningProfile = {
+  profile_type: string;
+  assessment_specific_understanding: string;
+  evidence_sufficiency: string;
+  confidence_alignment: string;
+  profile_confidence: string;
+  evidence_summary: string;
+  reasoning_summary: string;
+  created_at: string | null;
 };
 
 export type TeacherFormativeDecision = {

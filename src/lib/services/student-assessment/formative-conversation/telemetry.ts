@@ -413,9 +413,14 @@ export async function recordFormativeConversationProfileTransition(
     if (
       existing.prior_student_profile_db_id ===
         parsed.prior_student_profile_db_id &&
-      existing.source_turn_db_id === (parsed.source_turn_db_id ?? null) &&
+      existing.assessment_student_profile_db_id ===
+        parsed.assessment_student_profile_db_id &&
+      existing.source_turn_db_id === parsed.source_turn_db_id &&
       existing.source_agent_call_db_id ===
-        (parsed.source_agent_call_db_id ?? null) &&
+        parsed.source_agent_call_db_id &&
+      existing.learning_outcome === parsed.learning_outcome &&
+      existing.evidence_interpretation ===
+        parsed.evidence_interpretation &&
       existing.transitioned_at.toISOString() ===
         parsed.transitioned_at.toISOString()
     ) {
@@ -428,47 +433,63 @@ export async function recordFormativeConversationProfileTransition(
   }
 
   return prisma.$transaction(async (tx) => {
+    const expectedProfileIds = [
+      ...new Set([
+        parsed.prior_student_profile_db_id,
+        parsed.updated_student_profile_db_id,
+        parsed.assessment_student_profile_db_id
+      ])
+    ];
     const profiles = await tx.studentProfile.findMany({
       where: {
         id: {
-          in: [
-            parsed.prior_student_profile_db_id,
-            parsed.updated_student_profile_db_id
-          ]
+          in: expectedProfileIds
         },
         concept_unit_session_db_id: session.concept_unit_session_db_id
       },
       select: { id: true }
     });
-    if (profiles.length !== 2) {
+    if (profiles.length !== expectedProfileIds.length) {
       throw new FormativeConversationTelemetryError(
         "telemetry_profile_mismatch",
         "A profile does not belong to this formative conversation."
       );
     }
-    if (parsed.source_turn_db_id) {
-      const sourceTurn = await tx.conversationTurn.findUniqueOrThrow({
-        where: { id: parsed.source_turn_db_id },
-        select: { formative_conversation_session_db_id: true }
-      });
-      if (sourceTurn.formative_conversation_session_db_id !== session.id) {
-        throw new FormativeConversationTelemetryError(
-          "telemetry_turn_mismatch",
-          "The profile transition source turn belongs to another conversation."
-        );
+    const supportingTurnIds = [
+      ...new Set([
+        ...parsed.supporting_turn_db_ids,
+        parsed.source_turn_db_id
+      ])
+    ];
+    const supportingTurns = await tx.conversationTurn.findMany({
+      where: {
+        id: { in: supportingTurnIds },
+        formative_conversation_session_db_id: session.id
+      },
+      select: {
+        id: true,
+        actor_type: true
       }
+    });
+    if (
+      supportingTurns.length !== supportingTurnIds.length ||
+      !supportingTurns.some((turn) => turn.actor_type === "student") ||
+      !supportingTurns.some((turn) => turn.actor_type === "agent")
+    ) {
+      throw new FormativeConversationTelemetryError(
+        "telemetry_turn_mismatch",
+        "Profile transition evidence turns must include student and tutor turns from this conversation."
+      );
     }
-    if (parsed.source_agent_call_db_id) {
-      const sourceAgentCall = await tx.agentCall.findUniqueOrThrow({
-        where: { id: parsed.source_agent_call_db_id },
-        select: { formative_conversation_session_db_id: true }
-      });
-      if (sourceAgentCall.formative_conversation_session_db_id !== session.id) {
-        throw new FormativeConversationTelemetryError(
-          "telemetry_agent_call_mismatch",
-          "The profile transition agent call belongs to another conversation."
-        );
-      }
+    const sourceAgentCall = await tx.agentCall.findUniqueOrThrow({
+      where: { id: parsed.source_agent_call_db_id },
+      select: { formative_conversation_session_db_id: true }
+    });
+    if (sourceAgentCall.formative_conversation_session_db_id !== session.id) {
+      throw new FormativeConversationTelemetryError(
+        "telemetry_agent_call_mismatch",
+        "The profile transition agent call belongs to another conversation."
+      );
     }
 
     const updated = await tx.formativeConversationSession.updateMany({
@@ -494,10 +515,29 @@ export async function recordFormativeConversationProfileTransition(
         formative_conversation_session_db_id: session.id,
         prior_student_profile_db_id: parsed.prior_student_profile_db_id,
         updated_student_profile_db_id: parsed.updated_student_profile_db_id,
-        source_turn_db_id: parsed.source_turn_db_id ?? null,
-        source_agent_call_db_id: parsed.source_agent_call_db_id ?? null,
+        assessment_student_profile_db_id:
+          parsed.assessment_student_profile_db_id,
+        source_turn_db_id: parsed.source_turn_db_id,
+        source_agent_call_db_id: parsed.source_agent_call_db_id,
+        transition_version: parsed.transition_version,
+        learning_outcome: parsed.learning_outcome,
+        learning_observations:
+          parsed.learning_observations as Prisma.InputJsonValue,
+        evidence_interpretation: parsed.evidence_interpretation,
+        profile_snapshot:
+          parsed.profile_snapshot as Prisma.InputJsonValue,
         transitioned_at: parsed.transitioned_at
       }
+    });
+    await tx.formativeConversationProfileTransitionTurnReference.createMany({
+      data: supportingTurns.map((turn) => ({
+        profile_transition_db_id: transition.id,
+        conversation_turn_db_id: turn.id,
+        evidence_role:
+          turn.actor_type === "student"
+            ? "student_evidence"
+            : "tutor_interpretation"
+      }))
     });
     return { transition, replayed: false };
   });

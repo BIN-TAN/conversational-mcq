@@ -5,6 +5,8 @@ import { loadEnvConfig } from "@next/env";
 import {
   activateOperationalApprovalBundle,
   APPROVED_OPERATIONAL_ROLE_NAMES,
+  ApprovedCandidateManifestSchema,
+  approvedOperationalRoleNamesForManifest,
   LEGACY_GPT54_APPROVED_RUNTIME_HASH,
   materializeApprovedOperationalRuntimeLocally,
   resolveActiveOperationalApproval,
@@ -67,6 +69,7 @@ const touchedEnvKeys = [
   "OPENAI_MAX_RETRIES",
   "STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED",
   "TOPIC_DIALOGUE_LIVE_CALLS_ENABLED",
+  "FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED",
   "TOPIC_DIALOGUE_MAX_STUDENT_TURNS",
   "TOPIC_DIALOGUE_RECENT_TURN_WINDOW",
   "TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS",
@@ -86,6 +89,42 @@ async function main() {
     const manifestSource = path.join(process.cwd(), "config", "candidate-operational-agent-config.gpt-5.6-full-v2.json");
     const manifestPath = path.join(root, "approved-candidate-manifest.json");
     copyFileSync(manifestSource, manifestPath);
+    const historicalManifest = ApprovedCandidateManifestSchema.parse(
+      JSON.parse(readFileSync(manifestSource, "utf8"))
+    );
+    const prospectiveManifestWithoutToggle = {
+      ...historicalManifest,
+      manifest_version: "formative-conversation-role-schema-smoke-v1",
+      roles: {
+        ...historicalManifest.roles,
+        formative_conversation_agent: historicalManifest.roles.topic_dialogue_agent
+      },
+      configuration_fingerprint: {
+        ...historicalManifest.configuration_fingerprint,
+        role_version_metadata: {
+          ...historicalManifest.configuration_fingerprint.role_version_metadata,
+          formative_conversation_agent:
+            historicalManifest.configuration_fingerprint.role_version_metadata.topic_dialogue_agent
+        }
+      }
+    };
+    assert(
+      !ApprovedCandidateManifestSchema.safeParse(prospectiveManifestWithoutToggle).success,
+      "A future formative-conversation approval role must require its dedicated live toggle."
+    );
+    assert(
+      ApprovedCandidateManifestSchema.safeParse({
+        ...prospectiveManifestWithoutToggle,
+        runtime_policy: {
+          ...prospectiveManifestWithoutToggle.runtime_policy,
+          role_live_toggles: {
+            ...prospectiveManifestWithoutToggle.runtime_policy.role_live_toggles,
+            formative_conversation_agent: true
+          }
+        }
+      }).success,
+      "A future formative-conversation approval role should parse with its dedicated live toggle."
+    );
     const humanReview = {
       decision: "approve",
       semantic_review_confirmed: true,
@@ -140,18 +179,40 @@ async function main() {
     assert(active.record.evaluation_protocol_hash === EXPECTED_PROTOCOL_HASH, "Protocol hash must match.");
     assert(active.record.approval_evidence_hash === approvalEvidenceHash, "Approval evidence hash must match.");
     assert(readActiveApprovedOperationalRuntimeConfig().kind === "derived_approval", "Runtime must not use Phase 8a while derived approval is active.");
+    const activeApprovedRoles = approvedOperationalRoleNamesForManifest(active.manifest);
 
     const verification = verifyApprovedOperationalAgentConfig();
     assert(verification.valid, `Active approval should verify: ${JSON.stringify(verification.issues)}`);
     assert(verification.role_inventory.length === 17, "All 17 approved roles must be verified.");
-    for (const role of APPROVED_OPERATIONAL_ROLE_NAMES) {
+    for (const role of activeApprovedRoles) {
       const resolved = resolveOpenAIModelConfigForRole(role);
+      assert(
+        role !== "formative_conversation_agent",
+        "The immutable historical approval must retain its original 17-role inventory."
+      );
       const expected = expectedRoles[role];
       assert(resolved.model_name === expected[0], `${role} model must resolve independently.`);
       assert(resolved.reasoning_effort === expected[1], `${role} effort must resolve independently.`);
       assert(resolved.max_output_tokens === expected[2], `${role} token limit must resolve independently.`);
       assert(!resolved.model_name.includes("gpt-5.4"), `${role} must not resolve to GPT-5.4.`);
     }
+    assert(
+      APPROVED_OPERATIONAL_ROLE_NAMES.includes("formative_conversation_agent"),
+      "The current approval inventory must include formative_conversation_agent."
+    );
+    const formativeConversation = resolveOpenAIModelConfigForRole("formative_conversation_agent");
+    const historicalTopicDialogue = expectedRoles.topic_dialogue_agent;
+    assert(
+      formativeConversation.model_name === historicalTopicDialogue[0] &&
+      formativeConversation.reasoning_effort === historicalTopicDialogue[1] &&
+      formativeConversation.max_output_tokens === historicalTopicDialogue[2],
+      "The immutable 17-role approval must provide a behavior-preserving formative-conversation compatibility projection."
+    );
+    assert(
+      verification.runtime_model_resolution.formative_conversation_agent?.source ===
+        "active_approval_bundle_legacy_topic_dialogue_compatibility",
+      "Readiness must identify the temporary compatibility source."
+    );
 
     process.env.OPENAI_MODEL_FOLLOWUP = "gpt-5.4-mini";
     assert(

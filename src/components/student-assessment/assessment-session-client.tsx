@@ -52,6 +52,7 @@ import {
   studentIndicatedReasoningUncertainty,
   temptingOptionsForSelectedAnswer
 } from "@/lib/student-assessment/initial-admin-prompts";
+import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdown";
 
 const MAX_REASONING_LENGTH = 5000;
 const IDK_OPTION_LABEL = "E";
@@ -254,9 +255,13 @@ function FormativeConversationBubble({
         >
           {isTutor ? STUDENT_FACING_TUTOR_LABEL : "You"}
         </p>
-        <p className="whitespace-pre-wrap text-sm leading-6">
-          {turn.message_text}
-        </p>
+        {isTutor ? (
+          <SafeTutorMessageMarkdown message={turn.message_text} />
+        ) : (
+          <p className="whitespace-pre-wrap text-sm leading-6">
+            {turn.message_text}
+          </p>
+        )}
         <time className="sr-only" dateTime={turn.created_at}>
           {formatTranscriptTimestamp(turn.created_at)}
         </time>

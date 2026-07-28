@@ -161,6 +161,9 @@ OPENAI_MAX_OUTPUT_TOKENS_STUDENT_COMMUNICATION=2500
 OPENAI_MODEL_TOPIC_DIALOGUE=gpt-5.6-sol
 OPENAI_REASONING_EFFORT_TOPIC_DIALOGUE=medium
 OPENAI_MAX_OUTPUT_TOKENS_TOPIC_DIALOGUE=3500
+OPENAI_MODEL_FORMATIVE_CONVERSATION=gpt-5.6-sol
+OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION=medium
+OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION=3500
 OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING=gpt-5.6-terra
 OPENAI_REASONING_EFFORT_MCQ_DIAGNOSTIC_AUTHORING=medium
 OPENAI_MAX_OUTPUT_TOKENS_MCQ_DIAGNOSTIC_AUTHORING=2500
@@ -177,10 +180,15 @@ TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS=5000
 TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS=true
 STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED=true
 TOPIC_DIALOGUE_LIVE_CALLS_ENABLED=true
+FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED=true
 ```
 
 Do not set the candidate values for classroom use until the candidate
 evaluation and approval workflow outputs a new `OPERATIONAL_APPROVED_CONFIG_HASH`.
+The current approved 17-role bundle remains unchanged during the Phase A role
+migration. Until a new bundle is explicitly evaluated and approved,
+`formative_conversation_agent` readiness reports a version-scoped compatibility
+projection from the approved `topic_dialogue_agent` model policy.
 
 Paid GPT-5.6 candidate evaluation must be run as a separate operator step, not
 as part of Render deployment. The isolated runner uses fixed synthetic fixtures

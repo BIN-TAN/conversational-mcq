@@ -202,6 +202,13 @@ for progression. During formative conversation, the LLM owns teaching content
 and conversational strategy while the backend validates safety, persistence,
 and any recommended profile transition.
 
+A terminal profile recommendation from `formative_conversation_agent` appends a
+new profile version and records the prior profile, updated profile, supporting
+student and tutor turns, source agent call, conversation evidence references,
+and initial assessment-profile provenance. A recommendation to continue does
+not force an outcome. No activity-completion rule, fixed threshold, or legacy
+topic-dialogue route determines the formative learning outcome.
+
 ## Phase 30a Loop Policy
 
 The diagnostic loop should be described as continuing until no actionable distractor-linked misconception evidence remains, until the current misconception hypothesis is weakened or unsupported, until evidence becomes insufficient, until the student chooses a destination-specific continue action, or until a runtime guard stops the loop. It should not be described as looping until all misconceptions are eliminated.

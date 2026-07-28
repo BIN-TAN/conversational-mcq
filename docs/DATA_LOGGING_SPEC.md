@@ -374,9 +374,21 @@ The research dataset ZIP contains:
 | `formative_conversation_turns.csv` | One row per visible formative student or tutor turn | Includes observable turn and input telemetry; does not include hidden prompts or provider payloads. |
 | `formative_conversation_events.csv` | One row per observable formative lifecycle/navigation event | Includes visibility, refresh, pause/resume, reconnect, and persisted message/call milestones. |
 | `formative_conversation_llm_calls.csv` | One row per formative conversation agent call | Includes model, prompt/context/schema versions, validation, retries, latency, and token counts without raw prompts or outputs. |
-| `formative_conversation_profile_transitions.csv` | One row per validated profile transition | Preserves prior/current profile categories, timestamp, source turn, and source agent provenance. |
+| `formative_conversation_profile_transitions.csv` | One row per validated profile transition | Preserves the agent-authored outcome and interpretation, prior/updated profile versions, supporting student/tutor turns, evidence-reference public IDs, initial assessment-profile provenance, timestamp, and source agent invocation without hidden prompts or chain-of-thought. |
 | `formative_conversation_interventions.csv` | One row per persisted intervention record | Documents strategy history and targeted evidence gap without claiming an inferred student trait. |
 | `formative_conversation_data_dictionary.csv` | One row per formative-conversation export variable | Identifies raw observable fields versus derived/validated profile fields and states interpretation cautions. |
+
+Formative profile evolution is append-only. A validated terminal recommendation
+from `formative_conversation_agent` creates a new `StudentProfile` version and a
+`FormativeConversationProfileTransition`; it does not rewrite the assessment
+profile or an earlier formative profile. `continue_conversation` records
+conversation evidence without forcing a terminal outcome. The platform checks
+conversation, turn, agent-call, and assessment-profile ownership, but does not
+replace the agent recommendation with deterministic pedagogical thresholds.
+Transition rows include prior and updated profile timestamps plus aligned
+supporting-turn sequence, actor, and evidence-role columns so the profile
+timeline can be reconstructed without exporting hidden prompts or raw provider
+payloads.
 
 The standard research dataset ZIP does not include the internal source-schema
 appendix or platform/excluded field inventory. Those are documentation and

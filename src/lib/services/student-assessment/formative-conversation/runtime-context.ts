@@ -11,6 +11,7 @@ import {
   FORMATIVE_CONVERSATION_AGENT_NAME,
   FORMATIVE_CONVERSATION_ASSESSMENT_SPECIFICATION_VERSION
 } from "./agent-contract";
+import { parseFormativeConversationProfileSnapshot } from "./profile-update";
 import type { FormativeConversationRuntimeContextSeed } from "./runtime";
 
 type JsonRecord = Record<string, unknown>;
@@ -110,8 +111,15 @@ function profileEvidence(
     evidence_sufficiency: string;
     recommended_next_evidence: unknown;
   } | null,
-  fallbackVersion: string
+  fallbackVersion: string,
+  persistedSnapshot?: unknown
 ): FormativeConversationProfileEvidence {
+  const snapshot = parseFormativeConversationProfileSnapshot(
+    persistedSnapshot
+  );
+  if (snapshot) {
+    return snapshot;
+  }
   if (!profile) {
     return {
       profile_version: fallbackVersion,
@@ -233,7 +241,15 @@ async function buildRuntimeContextSeed(input: {
         }
       },
       initial_student_profile: true,
-      current_student_profile: true
+      current_student_profile: true,
+      profile_transitions: {
+        orderBy: { transitioned_at: "desc" },
+        take: 1,
+        select: {
+          updated_student_profile_db_id: true,
+          profile_snapshot: true
+        }
+      }
     }
   });
   if (!session) {
@@ -386,7 +402,11 @@ async function buildRuntimeContextSeed(input: {
     ),
     current_profile: profileEvidence(
       session.current_student_profile ?? session.initial_student_profile,
-      "current-profile-unavailable"
+      "current-profile-unavailable",
+      session.profile_transitions[0]?.updated_student_profile_db_id ===
+        session.current_student_profile_db_id
+        ? session.profile_transitions[0]?.profile_snapshot
+        : null
     )
   };
 }

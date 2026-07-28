@@ -134,6 +134,10 @@ async function main() {
     const beforeTopicDialogueCount = await prisma.topicDialogue.count({
       where: { assessment_session_db_id: fixture.session.id }
     });
+    const beforeActivityAttemptCount =
+      await prisma.activityRuntimeAttempt.count({
+        where: { session_public_id: fixture.session.session_public_id }
+      });
     const profileEvidence = {
       profile_version: "runtime-foundation-profile-v1",
       outcome: "not_yet_determined" as const,
@@ -218,6 +222,8 @@ async function main() {
       current_profile: profileEvidence
     };
     let runnerCallCount = 0;
+    const markdownTutorMessage =
+      "**Consistency** tells you how steadily scores behave. What additional `evidence` would you need before using those scores for an intended interpretation?";
     let latestCompiledContext:
       | {
           visible_transcript: Array<{
@@ -294,8 +300,7 @@ async function main() {
         return {
           output: {
             contract_version: FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
-            student_visible_message:
-              "Consistency tells you how steadily scores behave. What additional evidence would you need before using those scores for an intended interpretation?",
+            student_visible_message: markdownTutorMessage,
             teaching_artifact: null,
             evidence_observations: [
               {
@@ -313,9 +318,9 @@ async function main() {
             },
             profile_transition_recommendation: {
               recommended: true,
-              proposed_outcome: "teacher_assistance_recommended",
+              proposed_outcome: "largely_improved_understanding",
               rationale:
-                "The conversation has not yet produced independent application evidence.",
+                "The student is engaging with the distinction, while independent application evidence is still developing.",
               source_turn_sequence_indexes: [
                 latestStudentTurn.sequence_index
               ]
@@ -485,6 +490,7 @@ async function main() {
       firstResult.agent_call?.formative_conversation_context_version,
       "formative-conversation-context-v1"
     );
+    assert(firstResult.agent_call);
     assert.equal(firstResult.evidence_references.length, 1);
     assert(firstResult.profile_transition_recommendation);
     assert.deepEqual(
@@ -496,9 +502,46 @@ async function main() {
         await prisma.formativeConversationSession.findUniqueOrThrow({
           where: { id: conversation.id }
         })
-      ).current_student_profile_db_id,
-      initialProfile.id,
-      "Agent evidence must not directly mutate the current profile."
+      ).current_student_profile_db_id === initialProfile.id,
+      false,
+      "A validated agent recommendation should append a new current profile version."
+    );
+    const firstTransition =
+      await prisma.formativeConversationProfileTransition.findFirstOrThrow({
+        where: {
+          formative_conversation_session_db_id: conversation.id,
+          source_agent_call_db_id: firstResult.agent_call.id
+        },
+        include: {
+          supporting_turn_references: {
+            include: {
+              conversation_turn: {
+                select: {
+                  sequence_index: true,
+                  actor_type: true
+                }
+              }
+            }
+          },
+          profile_evidence_references: true
+        }
+      });
+    assert.equal(firstTransition.learning_outcome, "largely_improved");
+    assert.equal(
+      firstTransition.assessment_student_profile_db_id,
+      initialProfile.id
+    );
+    assert.deepEqual(
+      firstTransition.supporting_turn_references
+        .map((reference) => reference.conversation_turn.actor_type)
+        .sort(),
+      ["agent", "student"]
+    );
+    assert.equal(firstTransition.profile_evidence_references.length, 1);
+    assert.equal(
+      firstTransition.profile_evidence_references[0]
+        .profile_transition_db_id,
+      firstTransition.id
     );
 
     const replayed = await processFormativeConversationStudentMessage(
@@ -550,6 +593,15 @@ async function main() {
           ]
         }
       ],
+      profile_transition_recommendation: {
+        recommended: true,
+        proposed_outcome: "sound_understanding" as const,
+        rationale:
+          "The student now states the conceptual boundary in their own words.",
+        source_turn_sequence_indexes: [
+          reserved.receipt.student_turn.sequence_index
+        ]
+      },
       teacher_assistance_recommendation: {
         recommended: false,
         reason_code: null
@@ -612,7 +664,69 @@ async function main() {
     );
     assert.equal(resumed.resumed, true);
     assert.equal(resumed.replayed, false);
+    assert(resumed.profile_transition_recommendation);
     assert.equal(runnerCallCount, 2, "Resume should use the persisted validated agent result.");
+    const profileTransitions =
+      await prisma.formativeConversationProfileTransition.findMany({
+        where: {
+          formative_conversation_session_db_id: conversation.id
+        },
+        orderBy: { transitioned_at: "asc" },
+        include: {
+          supporting_turn_references: true,
+          profile_evidence_references: true
+        }
+      });
+    assert.equal(profileTransitions.length, 2);
+    assert.equal(profileTransitions[0].learning_outcome, "largely_improved");
+    assert.equal(profileTransitions[1].learning_outcome, "sound");
+    assert.equal(
+      profileTransitions[1].prior_student_profile_db_id,
+      profileTransitions[0].updated_student_profile_db_id,
+      "Profile history must form an append-only provenance chain."
+    );
+    assert.notEqual(
+      profileTransitions[0].updated_student_profile_db_id,
+      profileTransitions[1].updated_student_profile_db_id
+    );
+    assert.equal(
+      await prisma.studentProfile.count({
+        where: {
+          concept_unit_session_db_id: fixture.conceptUnitSession.id
+        }
+      }),
+      3,
+      "The initial profile and both formative updates must remain preserved."
+    );
+    assert.equal(
+      (
+        await prisma.formativeConversationSession.findUniqueOrThrow({
+          where: { id: conversation.id }
+        })
+      ).current_student_profile_db_id,
+      profileTransitions[1].updated_student_profile_db_id
+    );
+    const { compilePersistedFormativeConversationContext } = await import(
+      "../src/lib/services/student-assessment/formative-conversation/context"
+    );
+    const evolvedContext =
+      await compilePersistedFormativeConversationContext({
+        conversation_public_id: conversation.conversation_public_id,
+        ...context
+      });
+    assert.equal(
+      evolvedContext.context.current_profile.outcome,
+      "sound_understanding"
+    );
+    assert.deepEqual(
+      evolvedContext.context.profile_history
+        .filter(
+          (profile) =>
+            profile.evidence_source === FORMATIVE_CONVERSATION_AGENT_NAME
+        )
+        .map((profile) => profile.outcome),
+      ["largely_improved_understanding", "sound_understanding"]
+    );
 
     const transcript = await getFormativeConversationTranscript(
       conversation.conversation_public_id
@@ -681,6 +795,13 @@ async function main() {
       }),
       beforeTopicDialogueCount,
       "The legacy topic-dialogue runtime must remain unchanged."
+    );
+    assert.equal(
+      await prisma.activityRuntimeAttempt.count({
+        where: { session_public_id: fixture.session.session_public_id }
+      }),
+      beforeActivityAttemptCount,
+      "Profile evolution must not invoke deterministic activity routing."
     );
     const studentUiSource = readFileSync(
       "src/components/student-assessment/assessment-session-client.tsx",
@@ -764,6 +885,11 @@ async function main() {
     const { getTeacherReviewSessionDetail } = await import(
       "../src/lib/services/teacher-review/session-detail"
     );
+    const { canAccessTeacherReview } = await import(
+      "../src/lib/services/teacher-review/api"
+    );
+    assert.equal(canAccessTeacherReview("teacher_researcher"), true);
+    assert.equal(canAccessTeacherReview("student"), false);
     const teacherDetail = await getTeacherReviewSessionDetail(
       fixture.session.session_public_id
     );
@@ -774,7 +900,26 @@ async function main() {
     );
     assert.equal(
       teacherDetail.formative_conversations[0].learning_outcome,
-      "teacher_assistance_recommended"
+      "sound"
+    );
+    assert.deepEqual(
+      teacherDetail.formative_conversations[0].profile_evolution.map(
+        (transition) => transition.learning_outcome
+      ),
+      ["largely_improved", "sound"]
+    );
+    assert(
+      teacherDetail.formative_conversations[0].profile_evolution.every(
+        (transition) =>
+          transition.supporting_turns.some(
+            (turn) =>
+              turn.actor === "student" && turn.message_text.length > 0
+          ) &&
+          transition.supporting_turns.some(
+            (turn) =>
+              turn.actor === "tutor" && turn.message_text.length > 0
+          )
+      )
     );
     const teacherFormativeProjection = JSON.stringify(
       teacherDetail.formative_conversations
@@ -789,12 +934,67 @@ async function main() {
       "prompt_hash",
       "token_usage",
       "latency_ms",
-      "agent_name"
+      "agent_name",
+      "based_on_agent_call",
+      "ability_pattern_flags",
+      "engagement_pattern_flags",
+      "evidence_reference_public_ids",
+      "turn_id"
     ]) {
       assert.equal(
         teacherFormativeProjection.includes(prohibitedTeacherField),
         false,
         `Teacher formative review must not expose ${prohibitedTeacherField}.`
+      );
+    }
+    const { getTeacherReviewItemResponses } = await import(
+      "../src/lib/services/teacher-review/item-responses"
+    );
+    const teacherItemResponses = await getTeacherReviewItemResponses(
+      fixture.session.session_public_id
+    );
+    const React = await import("react");
+    Object.assign(globalThis, { React: React.default });
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { FormativeConversationEvidenceSection } = await import(
+      "../src/components/teacher-review/session-detail-client"
+    );
+    const teacherTrajectoryMarkup = renderToStaticMarkup(
+      React.createElement(FormativeConversationEvidenceSection, {
+        conversations: teacherDetail.formative_conversations,
+        itemResponses: teacherItemResponses,
+        sessionPublicId: fixture.session.session_public_id
+      })
+    );
+    for (const requiredTeacherText of [
+      "Initial assessment evidence",
+      "Initial learning profile",
+      "Student reasoning",
+      "Formative conversation trajectory",
+      "Profile evolution",
+      "Largely improved",
+      "Sound",
+      firstMessage,
+      "I focused on consistency and did not separate it from interpretation."
+    ]) {
+      assert(
+        teacherTrajectoryMarkup.includes(requiredTeacherText),
+        `Teacher trajectory rendering must include ${requiredTeacherText}.`
+      );
+    }
+    for (const prohibitedTeacherText of [
+      "Based-on agent call metadata",
+      "prompt_version",
+      "provider_request_id",
+      "raw_output",
+      "input_payload",
+      "activity routing",
+      "deterministic workflow"
+    ]) {
+      assert.equal(
+        teacherTrajectoryMarkup.includes(prohibitedTeacherText),
+        false,
+        `Teacher trajectory rendering must not include ${prohibitedTeacherText}.`
       );
     }
     const teacherReviewUiSource = readFileSync(
@@ -805,6 +1005,14 @@ async function main() {
       teacherReviewUiSource.includes(
         'data-testid="teacher-formative-conversation-review"'
       )
+    );
+    const teacherSessionRouteSource = readFileSync(
+      "src/app/api/teacher/sessions/[sessionPublicId]/route.ts",
+      "utf8"
+    );
+    assert(
+      teacherSessionRouteSource.includes("await requireTeacherReview()"),
+      "The teacher trajectory API must retain teacher/research authorization."
     );
     for (const legacyActivityReviewLabel of [
       'labelText="Activity attempts"',
@@ -861,9 +1069,63 @@ async function main() {
         file("formative_conversation_turns.csv").includes(firstMessage)
       );
       assert(
+        file("formative_conversation_turns.csv").includes(
+          markdownTutorMessage
+        ),
+        "Research transcript export must retain the exact Markdown source text."
+      );
+      assert(
         file("formative_conversation_llm_calls.csv").includes(
           FORMATIVE_CONVERSATION_AGENT_NAME
         )
+      );
+      const itemResponseRows = parse(file("item_responses.csv"), {
+        columns: true,
+        skip_empty_lines: true
+      }) as Array<Record<string, string>>;
+      assert(
+        itemResponseRows.some(
+          (row) =>
+            row.session_public_id === fixture.session.session_public_id &&
+            row.reasoning_text ===
+              "I focused on consistency and did not separate it from interpretation." &&
+            row.confidence_rating === "medium"
+        ),
+        "The assessment-phase export must preserve response, reasoning, and confidence evidence."
+      );
+      assert(
+        file("formative_conversation_events.csv").includes(
+          "student_message_persisted"
+        ),
+        "The formative export must preserve observable conversation telemetry."
+      );
+      const transitionRows = parse(
+        file("formative_conversation_profile_transitions.csv"),
+        {
+          columns: true,
+          skip_empty_lines: true
+        }
+      ) as Array<Record<string, string>>;
+      assert.deepEqual(
+        transitionRows.map((row) => row.formative_outcome),
+        ["largely_improved", "sound"]
+      );
+      assert(
+        transitionRows.every(
+          (row) =>
+            row.transition_version ===
+              "formative-conversation-profile-transition-v1" &&
+            row.prior_profile_created_at.length > 0 &&
+            row.updated_profile_created_at.length > 0 &&
+            row.supporting_turn_sequence_indexes.length > 0 &&
+            row.supporting_turn_evidence_roles.length > 0 &&
+            row.evidence_reference_public_ids.length > 0 &&
+            row.assessment_profile_created_at.length > 0 &&
+            row.source_agent_invocation_key.startsWith(
+              "formative_conversation:"
+            )
+        ),
+        "Profile transition exports must preserve the assessment-to-conversation provenance chain."
       );
       const sessionRows = parse(file("sessions.csv"), {
         columns: true,
@@ -887,6 +1149,8 @@ async function main() {
       assert(!exportedText.includes("password_hash"));
       assert(!exportedText.includes("input_payload"));
       assert(!exportedText.includes("raw_output"));
+      assert(!exportedText.includes("system_prompt"));
+      assert(!exportedText.includes("chain_of_thought"));
     } finally {
       if (previousPseudonymizationKey === undefined) {
         delete process.env.RESEARCH_PSEUDONYMIZATION_KEY;
@@ -910,11 +1174,16 @@ async function main() {
             "agent_call_binding",
             "validated_agent_result_resume",
             "idempotent_duplicate_message",
-            "profile_evidence_reference_without_profile_mutation",
+            "append_only_agent_owned_profile_evolution",
+            "profile_transition_turn_call_and_assessment_provenance",
             "student_conversation_projection_and_privacy_isolation",
             "student_pause_and_resume_lifecycle",
+            "teacher_research_access_and_privacy_separation",
             "teacher_formative_trajectory_review",
+            "teacher_profile_timeline_rendering",
             "phase_separated_research_export_and_dictionary",
+            "assessment_formative_outcome_export_integrity",
+            "markdown_source_preserved_in_research_export",
             "legacy_topic_dialogue_preserved"
           ],
           provider_calls: 0

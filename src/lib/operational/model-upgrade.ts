@@ -59,7 +59,8 @@ const CandidateRuntimePolicySchema = z.object({
   provider_max_retries: z.number().int().nonnegative().optional(),
   role_live_toggles: z.object({
     student_communication_agent: z.literal(true),
-    topic_dialogue_agent: z.literal(true)
+    topic_dialogue_agent: z.literal(true),
+    formative_conversation_agent: z.literal(true).optional()
   }).strict(),
   topic_dialogue_policy: z.object({
     maximum_student_turns: z.number().int().positive(),
@@ -98,7 +99,18 @@ const CandidateConfigSchema = z.object({
   configuration_fingerprint: CandidateConfigurationFingerprintSchema.optional(),
   evaluation_cases: z.array(z.string().min(1)).optional(),
   acceptance_criteria: z.record(z.string(), z.union([z.boolean(), z.number()]))
-}).strict();
+}).strict().superRefine((candidate, context) => {
+  if (
+    candidate.roles.formative_conversation_agent &&
+    candidate.runtime_policy?.role_live_toggles.formative_conversation_agent !== true
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["runtime_policy", "role_live_toggles", "formative_conversation_agent"],
+      message: "formative_conversation_agent requires its dedicated live-call toggle."
+    });
+  }
+});
 
 export type CandidateOperationalModelConfig = z.infer<typeof CandidateConfigSchema>;
 
@@ -123,6 +135,7 @@ const baselineDefaultMaxTokens: Partial<Record<LiveModelRole, number>> = {
   post_activity_evidence_evaluator_agent: 3000,
   student_communication_agent: 2500,
   topic_dialogue_agent: 3500,
+  formative_conversation_agent: 3500,
   mcq_diagnostic_authoring_assistant_agent: 2500,
   mcq_import_formatting_assistant_agent: 3000,
   connectivity_test: 200
@@ -143,6 +156,7 @@ const roleSurface: Record<LiveModelRole, "student_operational" | "teacher_tool" 
   post_activity_evidence_evaluator_agent: "student_operational",
   student_communication_agent: "student_operational",
   topic_dialogue_agent: "student_operational",
+  formative_conversation_agent: "student_operational",
   mcq_diagnostic_authoring_assistant_agent: "teacher_tool",
   mcq_import_formatting_assistant_agent: "teacher_tool",
   connectivity_test: "utility"
@@ -214,8 +228,16 @@ export function candidateOperationalModelHash(candidate = readCandidateOperation
   return stableHash(candidate);
 }
 
+export function candidateOperationalRoleInventory(
+  candidate: CandidateOperationalModelConfig
+) {
+  return liveModelRoles.filter((role) =>
+    Object.prototype.hasOwnProperty.call(candidate.roles, role)
+  );
+}
+
 export function candidateRuntimeConfigurationSnapshot(candidate = readCandidateOperationalModelConfig()) {
-  return modelUpgradeCandidateRuntimeSnapshot(candidate, liveModelRoles);
+  return modelUpgradeCandidateRuntimeSnapshot(candidate, candidateOperationalRoleInventory(candidate));
 }
 
 export function candidateActiveOperationalConfigSnapshot(candidate = readCandidateOperationalModelConfig()) {
@@ -224,7 +246,8 @@ export function candidateActiveOperationalConfigSnapshot(candidate = readCandida
     baseline_manifest_path: candidate.baseline_manifest_path,
     baseline_model_snapshot: baseline.model_snapshot,
     baseline_reasoning_effort: baseline.reasoning_effort,
-    roles: Object.fromEntries(liveModelRoles.map((role) => [role, candidate.roles[role]])),
+    roles: Object.fromEntries(candidateOperationalRoleInventory(candidate)
+      .map((role) => [role, candidate.roles[role]])),
     runtime_policy: candidate.runtime_policy ?? null,
     evaluation_cases: candidate.evaluation_cases ?? sharedSyntheticFixtures,
     acceptance_criteria: candidate.acceptance_criteria,
@@ -237,7 +260,7 @@ export function candidateActiveOperationalConfigSnapshot(candidate = readCandida
 }
 
 export function candidateRuntimeConfigurationHash(candidate = readCandidateOperationalModelConfig()) {
-  return modelUpgradeCandidateRuntimeHash(candidate, liveModelRoles);
+  return modelUpgradeCandidateRuntimeHash(candidate, candidateOperationalRoleInventory(candidate));
 }
 
 export function candidateActiveOperationalConfigHash(candidate = readCandidateOperationalModelConfig()) {
@@ -272,7 +295,7 @@ export function buildOperationalModelUpgradeComparison(options: ModelUpgradeComp
   const candidateActiveHash = candidateActiveOperationalConfigHash(candidate);
   const runtimeCandidateHash = candidateRuntimeConfigurationHash(candidate);
   const evaluationCases = candidate.evaluation_cases ?? sharedSyntheticFixtures;
-  const roleComparisons = liveModelRoles.map((role) => {
+  const roleComparisons = candidateOperationalRoleInventory(candidate).map((role) => {
     const baselineConfig = baselineRoleConfig(role);
     const candidateConfig = candidate.roles[role];
     if (!candidateConfig) {

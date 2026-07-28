@@ -11,6 +11,7 @@ import {
 import {
   buildOperationalModelUpgradeComparison,
   candidateActiveOperationalConfigHash,
+  candidateOperationalRoleInventory,
   candidateOperationalModelHash,
   FULL_GPT56_V2_CANDIDATE_CONFIG_PATH,
   fullGpt56V2EvaluationCases,
@@ -27,11 +28,11 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
-const expectedRoleConfig: Record<LiveModelRole, {
+const expectedRoleConfig: Partial<Record<LiveModelRole, {
   model_name: string;
   reasoning_effort: string;
   max_output_tokens: number;
-}> = {
+}>> = {
   item_verification_agent: {
     model_name: "gpt-5.6-terra",
     reasoning_effort: "medium",
@@ -128,6 +129,7 @@ function main() {
   const comparison = buildOperationalModelUpgradeComparison({
     manifestPath: FULL_GPT56_V2_CANDIDATE_CONFIG_PATH
   });
+  const fullV2Roles = candidateOperationalRoleInventory(fullV2);
 
   const fullV2ManifestHash = candidateOperationalModelHash(fullV2);
   const fullV2ActiveHash = candidateActiveOperationalConfigHash(fullV2);
@@ -151,12 +153,21 @@ function main() {
   assert(fullV2ManifestHash !== minimalManifestHash, "Full v2 manifest hash must differ from minimal candidate manifest hash.");
   assert(fullV2ActiveHash !== minimalActiveHash, "Full v2 active hash must differ from minimal candidate active hash.");
   assert(fullV2ActiveHash !== approved.approved_active_configuration_hash, "Full v2 active hash must differ from the approved baseline.");
-  assert(changedRoles.length === liveModelRoles.length, "Every covered role should differ from the GPT-5.4-mini baseline.");
+  assert(changedRoles.length === fullV2Roles.length, "Every covered historical role should differ from the GPT-5.4-mini baseline.");
+  assert(
+    liveModelRoles.includes("formative_conversation_agent"),
+    "The current operational inventory should include formative_conversation_agent."
+  );
+  assert(
+    !fullV2Roles.includes("formative_conversation_agent"),
+    "The immutable historical full-v2 candidate must not be rewritten during Phase A."
+  );
 
-  for (const role of liveModelRoles) {
+  for (const role of fullV2Roles) {
     const actual = fullV2.roles[role];
     const expected = expectedRoleConfig[role];
     assert(actual, `Full v2 candidate is missing ${role}.`);
+    assert(expected, `Historical expected config is missing ${role}.`);
     assert(actual.model_name === expected.model_name, `${role} model mismatch.`);
     assert(!actual.model_name.includes("gpt-5.4-mini"), `${role} must not remain on gpt-5.4-mini.`);
     assert(actual.reasoning_effort === expected.reasoning_effort, `${role} reasoning effort mismatch.`);
@@ -237,7 +248,7 @@ function main() {
     "Full v2 candidate should fingerprint run-provenance evaluation."
   );
 
-  for (const role of liveModelRoles) {
+  for (const role of fullV2Roles) {
     const metadata = fullV2.configuration_fingerprint?.role_version_metadata[role];
     assert(
       metadata,

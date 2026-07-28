@@ -45,7 +45,11 @@ async function main() {
     assert(!canAccessTeacherReview(student.role), "Student should not be authorized for review routes.");
 
     const defaultList = await listTeacherReviewSessions(
-      sessionListQuerySchema.parse({ page: "1", page_size: "25" })
+      sessionListQuerySchema.parse({
+        assessment_public_id: teacherReviewAssessmentPublicId,
+        page: "1",
+        page_size: "25"
+      })
     );
     assert(
       defaultList.sessions.some(

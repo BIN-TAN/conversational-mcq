@@ -11,6 +11,7 @@ import {
   FormativeConversationAgentOutputSchema,
   type FormativeConversationAdministeredItem,
   type FormativeConversationAgentInput,
+  type FormativeConversationAgentOutput,
   type FormativeConversationAssessmentProcessEvidence,
   type FormativeConversationAssessmentResponseEvidence,
   type FormativeConversationAssessmentSpecification,
@@ -154,6 +155,31 @@ function asObject(value: Prisma.JsonValue | null): Record<string, unknown> {
     return {};
   }
   return value as Record<string, unknown>;
+}
+
+async function persistAgentProfileEvidence(input: {
+  conversation_public_id: string;
+  source_agent_call_db_id: string;
+  source_tutor_turn_db_id: string;
+  output: FormativeConversationAgentOutput;
+}) {
+  const evidence = await recordFormativeConversationProfileEvidenceReferences({
+    conversation_public_id: input.conversation_public_id,
+    source_agent_call_db_id: input.source_agent_call_db_id,
+    source_tutor_turn_db_id: input.source_tutor_turn_db_id,
+    evidence_observations: input.output.evidence_observations
+  });
+  const profileTransition = input.output.profile_transition_recommendation
+    ? await recordFormativeConversationProfileTransitionRecommendation({
+        conversation_public_id: input.conversation_public_id,
+        source_agent_call_db_id: input.source_agent_call_db_id,
+        source_tutor_turn_db_id: input.source_tutor_turn_db_id,
+        agent_evidence_observations: input.output.evidence_observations,
+        recommendation: input.output.profile_transition_recommendation
+      })
+    : null;
+
+  return { evidence, profile_transition: profileTransition };
 }
 
 async function recordRuntimeEvent(input: {
@@ -615,18 +641,39 @@ export async function processFormativeConversationStudentMessage(
         )
       }
     });
-    const evidenceReferences = existingCall
-      ? await prisma.formativeConversationProfileEvidenceReference.findMany({
-          where: { source_agent_call_db_id: existingCall.id },
-          orderBy: { evidence_observation_index: "asc" }
-        })
-      : [];
+    const existingOutput =
+      existingCall?.call_status === "succeeded" &&
+      existingCall.output_validated &&
+      existingCall.output_payload
+        ? FormativeConversationAgentOutputSchema.safeParse(
+            existingCall.output_payload
+          )
+        : null;
+    const persistedEvidence =
+      existingCall && existingOutput?.success
+        ? await persistAgentProfileEvidence({
+            conversation_public_id: input.conversation_public_id,
+            source_agent_call_db_id: existingCall.id,
+            source_tutor_turn_db_id: reservation.receipt.assistant_turn.id,
+            output: existingOutput.data
+          })
+        : null;
+    const evidenceReferences =
+      persistedEvidence?.evidence.references ??
+      (existingCall
+        ? await prisma.formativeConversationProfileEvidenceReference.findMany({
+            where: { source_agent_call_db_id: existingCall.id },
+            orderBy: { evidence_observation_index: "asc" }
+          })
+        : []);
     return {
       receipt: reservation.receipt,
       student_turn: studentTurn,
       tutor_turn: reservation.receipt.assistant_turn,
       agent_call: existingCall,
       evidence_references: evidenceReferences,
+      profile_transition_recommendation:
+        persistedEvidence?.profile_transition ?? null,
       replayed: true,
       resumed: false
     };
@@ -682,28 +729,21 @@ export async function processFormativeConversationStudentMessage(
     occurred_at: tutorMessage.assistant_turn.created_at
   });
 
-  const evidence = await recordFormativeConversationProfileEvidenceReferences({
+  const persistedEvidence = await persistAgentProfileEvidence({
     conversation_public_id: input.conversation_public_id,
     source_agent_call_db_id: agentResult.agent_call.id,
     source_tutor_turn_db_id: tutorMessage.assistant_turn.id,
-    evidence_observations: agentResult.output.evidence_observations
+    output: agentResult.output
   });
-  const profileTransitionRecommendation =
-    agentResult.output.profile_transition_recommendation
-      ? await recordFormativeConversationProfileTransitionRecommendation({
-          conversation_public_id: input.conversation_public_id,
-          source_tutor_turn_db_id: tutorMessage.assistant_turn.id,
-          recommendation: agentResult.output.profile_transition_recommendation
-        })
-      : null;
 
   return {
     receipt: tutorMessage.receipt,
     student_turn: studentTurn,
     tutor_turn: tutorMessage.assistant_turn,
     agent_call: agentResult.agent_call,
-    evidence_references: evidence.references,
-    profile_transition_recommendation: profileTransitionRecommendation,
+    evidence_references: persistedEvidence.evidence.references,
+    profile_transition_recommendation:
+      persistedEvidence.profile_transition,
     replayed: false,
     resumed: agentResult.resumed
   };

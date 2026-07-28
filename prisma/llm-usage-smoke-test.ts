@@ -9,6 +9,10 @@ import { hashSecret } from "../src/lib/password";
 import { generatePublicId } from "../src/lib/services/ids";
 import { fixtureInputForAgent } from "./llm-fixtures";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
+import {
+  activeOperationalConfigHash,
+  approvedModelConfigForRole
+} from "../src/lib/agents/operational/approved-config";
 
 const prisma = new PrismaClient();
 const llmEnvKeys = [
@@ -16,6 +20,7 @@ const llmEnvKeys = [
   "LLM_LIVE_CALLS_ENABLED",
   "OPENAI_API_KEY",
   "OPENAI_MODEL_RESPONSE_COLLECTION",
+  "OPERATIONAL_APPROVED_CONFIG_HASH",
   "LLM_DAILY_CLASS_CALL_LIMIT",
   "LLM_DAILY_CLASS_TOKEN_LIMIT",
   "LLM_DAILY_STUDENT_CALL_LIMIT",
@@ -49,7 +54,9 @@ function setOpenAiEnv(values: Partial<Record<(typeof llmEnvKeys)[number], string
     LLM_PROVIDER: "openai",
     LLM_LIVE_CALLS_ENABLED: "true",
     OPENAI_API_KEY: "sk-synthetic-usage-smoke-not-a-real-secret",
-    OPENAI_MODEL_RESPONSE_COLLECTION: "synthetic-usage-smoke-model",
+    OPENAI_MODEL_RESPONSE_COLLECTION:
+      approvedModelConfigForRole("response_collection_agent").model_name,
+    OPERATIONAL_APPROVED_CONFIG_HASH: activeOperationalConfigHash(),
     LLM_DAILY_CLASS_CALL_LIMIT: "1000",
     LLM_DAILY_CLASS_TOKEN_LIMIT: "1000000",
     LLM_DAILY_STUDENT_CALL_LIMIT: "1000",
@@ -338,6 +345,40 @@ async function main() {
     );
 
     await resetCalls(prefix);
+    setOpenAiEnv({ LLM_AGENT_CALL_LIMIT_PER_SESSION: "1" });
+    await createSyntheticCall({
+      prefix,
+      sessionId: fixture.session.id,
+      agentName: "formative_conversation_agent",
+      totalTokens: 24
+    });
+    const formativeConversationLimit = await checkLlmLiveCallReadiness({
+      agent_name: "formative_conversation_agent",
+      assessment_session_db_id: fixture.session.id,
+      model_configured: true
+    });
+    assert(
+      !formativeConversationLimit.allowed &&
+      formativeConversationLimit.reason === "agent_session_call_limit_exceeded",
+      "Formative conversation should have dedicated per-agent session accounting."
+    );
+    const formativeConversationUsage = await getLlmUsageSnapshot({
+      agent_name: "formative_conversation_agent",
+      assessment_session_db_id: fixture.session.id
+    });
+    assert(
+      formativeConversationUsage.agent_session?.call_count === 1 &&
+      formativeConversationUsage.agent_session.total_tokens === 24,
+      "Formative-conversation usage should be attributed to its own operational role."
+    );
+    const formativeTeacherUsage = await getTeacherLlmUsageStatus();
+    assert(
+      formativeTeacherUsage.per_agent_all_provider_counts_today.formative_conversation_agent
+        ?.call_count >= 1,
+      "Teacher usage reporting should include formative_conversation_agent."
+    );
+
+    await resetCalls(prefix);
     setOpenAiEnv({ LLM_DAILY_STUDENT_CALL_LIMIT: "1" });
     await createSyntheticCall({ prefix, sessionId: fixture.session.id });
     const blockedExecution = await executeAgent({
@@ -371,6 +412,10 @@ async function main() {
     const teacherUsage = await getTeacherLlmUsageStatus();
     const teacherJson = JSON.stringify(teacherUsage);
     assert(!/OPENAI_API_KEY|SESSION_SECRET|DATABASE_URL|authorization|cookie|placeholder-not-a-real-secret/i.test(teacherJson), "Teacher usage serializer exposed secret data.");
+    assert(
+      teacherUsage.per_agent_all_provider_counts_today.formative_conversation_agent !== undefined,
+      "Teacher usage projection should retain the dedicated formative-conversation role at zero usage."
+    );
 
     const studentMessage = buildLlmUnavailableStudentMessage("student_daily_call_limit_exceeded");
     assert(!/budget|cost|api key|rate limit|provider|OpenAI/i.test(studentMessage), "Student message exposed operational details.");

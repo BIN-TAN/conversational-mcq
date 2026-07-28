@@ -121,19 +121,50 @@ export const FormativeConversationProfileTransitionInputSchema = z
     conversation_public_id: z.string().min(1),
     prior_student_profile_db_id: z.string().uuid(),
     updated_student_profile_db_id: z.string().uuid(),
-    source_turn_db_id: z.string().uuid().nullable().optional(),
-    source_agent_call_db_id: z.string().uuid().nullable().optional(),
+    assessment_student_profile_db_id: z.string().uuid(),
+    source_turn_db_id: z.string().uuid(),
+    source_agent_call_db_id: z.string().uuid(),
+    transition_version: z
+      .literal("formative-conversation-profile-transition-v1")
+      .default("formative-conversation-profile-transition-v1"),
+    learning_outcome: z.enum([
+      "sound",
+      "largely_improved",
+      "teacher_assistance_recommended"
+    ]),
+    learning_observations: z
+      .array(
+        z
+          .object({
+            evidence_type: z.string().min(1),
+            observation: z.string().min(1),
+            source_turn_sequence_indexes: z.array(
+              z.number().int().positive()
+            )
+          })
+          .strict()
+      )
+      .min(1),
+    evidence_interpretation: z.string().min(1),
+    profile_snapshot: z
+      .object({
+        profile_version: z.string().min(1),
+        outcome: z.enum([
+          "not_yet_determined",
+          "sound_understanding",
+          "largely_improved_understanding",
+          "teacher_assistance_recommended"
+        ]),
+        evidence_summary: z.array(z.string().min(1)),
+        unresolved_evidence: z.array(z.string().min(1)),
+        evidence_limitations: z.array(z.string().min(1))
+      })
+      .strict(),
+    supporting_turn_db_ids: z.array(z.string().uuid()).min(2),
     transitioned_at: z.coerce.date()
   })
   .strict()
   .superRefine((value, context) => {
-    if (!value.source_turn_db_id && !value.source_agent_call_db_id) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["source_turn_db_id"],
-        message: "at least one persisted evidence source reference is required"
-      });
-    }
     if (value.prior_student_profile_db_id === value.updated_student_profile_db_id) {
       context.addIssue({
         code: z.ZodIssueCode.custom,

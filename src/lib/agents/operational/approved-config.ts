@@ -17,6 +17,9 @@ import {
   type ApprovedOperationalRoleName,
   APPROVED_OPERATIONAL_ROLE_NAMES,
   approvedCandidateRoleConfig,
+  approvedCandidateRoleConfigResolution,
+  approvedCandidateRoleLiveCallsEnabled,
+  approvedOperationalRoleNamesForManifest,
   OperationalApprovalBundleError,
   resolveActiveOperationalApproval
 } from "@/lib/operational/active-approval-bundle";
@@ -135,7 +138,8 @@ const operationalExtensionRoles: LiveModelRole[] = [
   "formative_activity_response_evaluator_agent",
   "post_activity_evidence_evaluator_agent",
   "student_communication_agent",
-  "topic_dialogue_agent"
+  "topic_dialogue_agent",
+  "formative_conversation_agent"
 ];
 
 function configuredString(value: unknown) {
@@ -321,7 +325,7 @@ export function approvedOperationalConfigHash(config: ApprovedOperationalAgentCo
 }
 
 function activeAgentsFromDerivedManifest(manifest: ApprovedCandidateManifest) {
-  return Object.fromEntries(APPROVED_OPERATIONAL_ROLE_NAMES.map((role) => {
+  return Object.fromEntries(approvedOperationalRoleNamesForManifest(manifest).map((role) => {
     const metadata = manifest.configuration_fingerprint.role_version_metadata[role] ?? {};
     const promptVersion = typeof metadata.prompt_version === "string"
       ? metadata.prompt_version
@@ -471,7 +475,8 @@ function verifyDerivedApprovedOperationalConfig(
     options.activeAgentConfigOverridesForTest
   );
   const runtimeModelResolution = Object.fromEntries(APPROVED_OPERATIONAL_ROLE_NAMES.map((role) => {
-    const approved = approvedCandidateRoleConfig(manifest, role);
+    const approvalResolution = approvedCandidateRoleConfigResolution(manifest, role);
+    const approved = approvalResolution.config;
     const roleSource = sources[role][0];
     const configuredModel = explicitlyConfigured(roleSource.model)
       ? String(process.env[roleSource.model] ?? "")
@@ -491,7 +496,11 @@ function verifyDerivedApprovedOperationalConfig(
       max_output_tokens: override?.max_output_tokens === undefined
         ? approved.max_output_tokens
         : override.max_output_tokens,
-      source: override?.source ?? "active_approval_bundle"
+      source: override?.source ?? (
+        approvalResolution.compatibility_used
+          ? "active_approval_bundle_legacy_topic_dialogue_compatibility"
+          : "active_approval_bundle"
+      )
     };
 
     if (configuredModel !== null && configuredModel !== approved.model_name) {
@@ -570,6 +579,11 @@ function verifyDerivedApprovedOperationalConfig(
     ["OPENAI_MAX_RETRIES", env.OPENAI_MAX_RETRIES, manifest.runtime_policy.provider_max_retries],
     ["STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED", env.STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED, manifest.runtime_policy.role_live_toggles.student_communication_agent],
     ["TOPIC_DIALOGUE_LIVE_CALLS_ENABLED", env.TOPIC_DIALOGUE_LIVE_CALLS_ENABLED, manifest.runtime_policy.role_live_toggles.topic_dialogue_agent],
+    [
+      "FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED",
+      env.FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED,
+      approvedCandidateRoleLiveCallsEnabled(manifest, "formative_conversation_agent")
+    ],
     ["TOPIC_DIALOGUE_MAX_STUDENT_TURNS", env.TOPIC_DIALOGUE_MAX_STUDENT_TURNS, manifest.runtime_policy.topic_dialogue_policy.maximum_student_turns],
     ["TOPIC_DIALOGUE_RECENT_TURN_WINDOW", env.TOPIC_DIALOGUE_RECENT_TURN_WINDOW, manifest.runtime_policy.topic_dialogue_policy.recent_raw_turn_window],
     ["TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS", env.TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS, manifest.runtime_policy.topic_dialogue_policy.maximum_student_message_characters],
@@ -611,7 +625,7 @@ function verifyDerivedApprovedOperationalConfig(
     runtime_candidate_hash: activeRuntime.approved_active_configuration_hash,
     evaluation_protocol_hash: activeRuntime.evaluation_evidence.evaluation_protocol_hash,
     approval_evidence_hash: activeRuntime.evaluation_evidence.approval_evidence_hash,
-    role_inventory: [...APPROVED_OPERATIONAL_ROLE_NAMES],
+    role_inventory: approvedOperationalRoleNamesForManifest(manifest),
     runtime_policy: manifest.runtime_policy,
     approval_bundle_path: activeRuntime.active_bundle.bundle_path,
     semantic_validator_version: activeRuntime.semantic_validator_version,
