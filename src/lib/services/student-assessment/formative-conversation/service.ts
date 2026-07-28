@@ -1,6 +1,13 @@
 import { createHash } from "node:crypto";
 import { Prisma, type AssessmentPhase } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import {
+  FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
+  FORMATIVE_CONVERSATION_OPENING_VERSION
+} from "./opening-contract";
+
+export const FORMATIVE_CONVERSATION_CANONICAL_RUNTIME_STATE =
+  "FORMATIVE_CONVERSATION" as const;
 
 export type FormativeConversationFoundationErrorCode =
   | "conversation_session_mismatch"
@@ -323,6 +330,69 @@ export async function reserveAndPersistFormativeConversationStudentMessage(input
   }
 }
 
+export async function reserveFormativeConversationOpening(
+  conversationPublicId: string
+) {
+  const requestHash = createHash("sha256")
+    .update(
+      JSON.stringify({
+        operation: "formative_conversation_opening",
+        version: FORMATIVE_CONVERSATION_OPENING_VERSION
+      })
+    )
+    .digest("hex");
+  const reserve = async () =>
+    prisma.$transaction(async (tx) => {
+      const session = await getConversationPhase(tx, conversationPublicId);
+      const existing =
+        await tx.formativeConversationMessageReceipt.findUnique({
+          where: {
+            formative_conversation_session_db_id_client_message_id: {
+              formative_conversation_session_db_id: session.session_id,
+              client_message_id:
+                FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID
+            }
+          },
+          include: { student_turn: true, assistant_turn: true }
+        });
+
+      if (existing) {
+        if (existing.request_hash !== requestHash) {
+          throw new FormativeConversationFoundationError(
+            "idempotency_hash_mismatch",
+            "The formative conversation opening identity does not match."
+          );
+        }
+        return { receipt: existing, replayed: true };
+      }
+
+      const receipt = await tx.formativeConversationMessageReceipt.create({
+        data: {
+          formative_conversation_session_db_id: session.session_id,
+          client_message_id:
+            FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
+          request_hash: requestHash,
+          status: "reserved"
+        },
+        include: { student_turn: true, assistant_turn: true }
+      });
+
+      return { receipt, replayed: false };
+    });
+
+  try {
+    return await reserve();
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return reserve();
+    }
+    throw error;
+  }
+}
+
 export async function persistFormativeConversationAssistantMessage(input: {
   conversation_public_id: string;
   client_message_id: string;
@@ -331,6 +401,10 @@ export async function persistFormativeConversationAssistantMessage(input: {
   validator_status: string;
   agent_call_db_id?: string;
   fallback_used?: boolean;
+  message_type?:
+    | "formative_conversation_tutor_message"
+    | "formative_conversation_opening";
+  opening_version?: string;
 }) {
   const messageText = input.message_text.trim();
   if (!messageText || messageText.length > 12_000) {
@@ -363,12 +437,14 @@ export async function persistFormativeConversationAssistantMessage(input: {
         agent_name: "formative_conversation_agent",
         message_text: messageText,
         structured_payload: {
-          message_type: "formative_conversation_tutor_message",
+          message_type:
+            input.message_type ?? "formative_conversation_tutor_message",
           visibility: "student_visible",
           generation_source: input.generation_source,
           validator_status: input.validator_status,
           agent_call_db_id: input.agent_call_db_id ?? null,
-          fallback_used: input.fallback_used ?? false
+          fallback_used: input.fallback_used ?? false,
+          opening_version: input.opening_version ?? null
         }
       }
     });
@@ -382,7 +458,10 @@ export async function persistFormativeConversationAssistantMessage(input: {
           agent_call_db_id: input.agent_call_db_id ?? null,
           generation_source: input.generation_source,
           validator_status: input.validator_status,
-          fallback_used: input.fallback_used ?? false
+          fallback_used: input.fallback_used ?? false,
+          message_type:
+            input.message_type ?? "formative_conversation_tutor_message",
+          opening_version: input.opening_version ?? null
         },
         completed_at: new Date()
       },

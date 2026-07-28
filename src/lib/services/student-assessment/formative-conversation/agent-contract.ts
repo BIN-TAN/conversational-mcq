@@ -9,6 +9,8 @@ export const FORMATIVE_CONVERSATION_MEMORY_VERSION =
   "formative-conversation-memory-v1";
 export const FORMATIVE_CONVERSATION_SAFETY_BOUNDARY_VERSION =
   "formative-conversation-safety-boundary-v1";
+export const FORMATIVE_CONVERSATION_ASSESSMENT_SPECIFICATION_VERSION =
+  "formative-conversation-assessment-specification-v1";
 
 export const FormativeConversationTranscriptTurnSchema = z
   .object({
@@ -38,6 +40,76 @@ export const FormativeConversationAdministeredItemSchema = z
     correct_answer: z.string().min(1),
     concise_explanation: z.string().min(1),
     administered: z.literal(true)
+  })
+  .strict();
+
+export const FormativeConversationAssessmentSpecificationSchema = z
+  .object({
+    schema_version: z.literal(
+      FORMATIVE_CONVERSATION_ASSESSMENT_SPECIFICATION_VERSION
+    ),
+    assessment_title: z.string().min(1).nullable(),
+    diagnostic_focus: z.string().min(1).nullable(),
+    concept_unit_title: z.string().min(1).nullable(),
+    learning_objective: z.string().min(1).nullable(),
+    related_concept_description: z.string().min(1).nullable(),
+    administered_item_guidance: z.array(
+      z
+        .object({
+          item_public_id: z.string().min(1),
+          target_reasoning_note: z.string().min(1).nullable(),
+          strong_reasoning_should_mention: z.string().min(1).nullable(),
+          plain_language_distractor_diagnostic_notes: z
+            .string()
+            .min(1)
+            .nullable(),
+          interpretation_caution: z.string().min(1).nullable()
+        })
+        .strict()
+    ),
+    boundaries: z
+      .object({
+        administered_items_only: z.literal(true),
+        unadministered_item_content_protected: z.literal(true),
+        administered_answer_discussion_allowed: z.literal(true),
+        raw_teacher_notes_must_not_be_quoted: z.literal(true),
+        pedagogy_owner: z.literal(FORMATIVE_CONVERSATION_AGENT_NAME),
+        legacy_activity_routing_authoritative: z.literal(false)
+      })
+      .strict()
+  })
+  .strict();
+
+export const FormativeConversationAssessmentResponseEvidenceSchema = z
+  .object({
+    item_public_id: z.string().min(1),
+    selected_option: z.string().min(1).nullable(),
+    correctness: z.enum(["correct", "incorrect", "not_scored", "unanswered"]),
+    written_reasoning: z.string().min(1).nullable(),
+    confidence: z.string().min(1).nullable(),
+    revision_summary: z.string().min(1).nullable(),
+    tempting_option: z.string().min(1).nullable(),
+    tempting_option_reason: z.string().min(1).nullable(),
+    safe_timing_summary: z
+      .object({
+        total_item_time_ms: z.number().int().nonnegative().nullable(),
+        response_time_answer_ms: z.number().int().nonnegative().nullable(),
+        response_time_reasoning_ms: z.number().int().nonnegative().nullable(),
+        response_time_confidence_ms: z.number().int().nonnegative().nullable()
+      })
+      .strict()
+  })
+  .strict();
+
+export const FormativeConversationAssessmentProcessEvidenceSchema = z
+  .object({
+    event_type: z.string().min(1),
+    event_category: z.string().min(1),
+    event_source: z.string().min(1),
+    item_public_id: z.string().min(1).nullable(),
+    occurred_at: z.string().datetime(),
+    visibility_duration_ms: z.number().int().nonnegative().nullable(),
+    pause_duration_ms: z.number().int().nonnegative().nullable()
   })
   .strict();
 
@@ -97,6 +169,17 @@ export const FormativeConversationAgentInputSchema = z
     latest_student_message: z.string().min(1).max(5_000).nullable(),
     visible_transcript: z.array(FormativeConversationTranscriptTurnSchema),
     administered_items: z.array(FormativeConversationAdministeredItemSchema),
+    assessment_specification:
+      FormativeConversationAssessmentSpecificationSchema.nullable().default(
+        null
+      ),
+    assessment_response_evidence: z
+      .array(FormativeConversationAssessmentResponseEvidenceSchema)
+      .default([]),
+    assessment_process_evidence: z
+      .array(FormativeConversationAssessmentProcessEvidenceSchema)
+      .max(500)
+      .default([]),
     initial_profile: FormativeConversationProfileEvidenceSchema,
     current_profile: FormativeConversationProfileEvidenceSchema,
     profile_history: z
@@ -192,4 +275,13 @@ export type FormativeConversationProfileEvidence = z.infer<
 >;
 export type FormativeConversationAdministeredItem = z.infer<
   typeof FormativeConversationAdministeredItemSchema
+>;
+export type FormativeConversationAssessmentSpecification = z.infer<
+  typeof FormativeConversationAssessmentSpecificationSchema
+>;
+export type FormativeConversationAssessmentResponseEvidence = z.infer<
+  typeof FormativeConversationAssessmentResponseEvidenceSchema
+>;
+export type FormativeConversationAssessmentProcessEvidence = z.infer<
+  typeof FormativeConversationAssessmentProcessEvidenceSchema
 >;

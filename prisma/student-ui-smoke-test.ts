@@ -23,6 +23,9 @@ import { normalizeUserId } from "../src/lib/services/student-accounts/validation
 
 const prisma = new PrismaClient();
 
+process.env.LLM_PROVIDER = "mock";
+process.env.LLM_LIVE_CALLS_ENABLED = "false";
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
@@ -369,9 +372,19 @@ async function main() {
         concept_unit_public_id: state.current_concept_unit?.concept_unit_public_id ?? ""
       })
     ).state;
-    frame = buildStudentConversationFrame(state);
-    assert(frame.interaction_type === "formative_activity", "Expected formative-activity frame.");
-    assertNoForbiddenFields(frame);
+    assert(
+      state.next_step === "formative_conversation",
+      "Expected the conversation-owned formative handoff."
+    );
+    assert(
+      state.formative_conversation?.transcript[0]?.actor === "tutor",
+      "Expected a persisted tutor opening after answer review."
+    );
+    assert(
+      state.formative_activity === null && state.activity_runtime === null,
+      "The new student UX must not expose legacy activity controls."
+    );
+    assertNoForbiddenFields(state.formative_conversation);
 
     const review = await getStudentReviewResponses({
       student_user_db_id: student.id,

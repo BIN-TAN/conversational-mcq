@@ -248,6 +248,7 @@ export const StudentSessionStateSchema = z.object({
     "initial_concept_unit_complete",
     "awaiting_profiling",
     "formative_activity",
+    "formative_conversation",
     "formative_response_saved",
     "revision_requested",
     "transfer_item",

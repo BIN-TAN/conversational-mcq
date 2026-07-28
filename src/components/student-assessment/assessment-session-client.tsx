@@ -2466,7 +2466,11 @@ export function AssessmentSessionClient({
   }, [state?.activity_runtime]);
 
   useEffect(() => {
-    if (!state || state.assessment_state !== "FORMATIVE_ACTIVITY") {
+    if (
+      !state ||
+      state.assessment_state !== "FORMATIVE_ACTIVITY" ||
+      state.formative_conversation
+    ) {
       return;
     }
 
@@ -2763,6 +2767,8 @@ export function AssessmentSessionClient({
             (
               canonicalState.assessment_state === "FORMATIVE_ACTIVITY" ||
               canonicalState.next_step === "formative_activity" ||
+              canonicalState.next_step === "formative_conversation" ||
+              Boolean(canonicalState.formative_conversation) ||
               Boolean(canonicalState.package_results) ||
               Boolean(canonicalState.activity_runtime?.activity_attempt_public_id)
             );

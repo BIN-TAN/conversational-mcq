@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import {
   ChatNativeFormativeProfileOutputSchema,
-  ChatNativeTargetedFeedbackOutputSchema
+  ChatNativeTargetedFeedbackOutputSchema,
+  reconcilePackageCompletionState
 } from "../src/lib/services/student-assessment/formative-profile";
 import {
   completeInitialConceptUnitAdministration,
@@ -160,8 +161,87 @@ async function runScenario(input: {
       completedInitial.state.assessment_state === "FORMATIVE_ACTIVITY",
       `${input.scenario}: expected formative activity after package submission.`
     );
+    assert(
+      completedInitial.state.next_step === "formative_conversation",
+      `${input.scenario}: expected the conversation-owned formative handoff.`
+    );
+    assert(
+      completedInitial.state.formative_conversation?.transcript[0]?.actor ===
+        "tutor",
+      `${input.scenario}: expected an assistant-first formative opening.`
+    );
     assertStudentVisibleTextIsSafe(completedInitial.state);
     observedStates.push(completedInitial.state.assessment_state);
+    const [formativeConversationCount, dormantActivityAttemptCount] =
+      await Promise.all([
+        prisma.formativeConversationSession.count({
+          where: {
+            assessment_session: {
+              session_public_id: started.session.session_public_id
+            }
+          }
+        }),
+        prisma.activityRuntimeAttempt.count({
+          where: {
+            session_public_id: started.session.session_public_id
+          }
+        })
+      ]);
+    assert(
+      formativeConversationCount === 1,
+      `${input.scenario}: expected one formative conversation.`
+    );
+    assert(
+      dormantActivityAttemptCount === 0,
+      `${input.scenario}: formative conversation must not create a dormant activity attempt.`
+    );
+    const legacyRoutingEventCount = await prisma.processEvent.count({
+      where: {
+        assessment_session: {
+          session_public_id: started.session.session_public_id
+        },
+        event_type: {
+          in: [
+            "student_communication_generated",
+            "next_interaction_generated",
+            "formative_activity_persisted"
+          ]
+        }
+      }
+    });
+    assert(
+      legacyRoutingEventCount === 0,
+      `${input.scenario}: the conversation-owned handoff must not execute legacy routing.`
+    );
+
+    const initialConceptUnitSession =
+      await prisma.conceptUnitSession.findFirstOrThrow({
+        where: {
+          assessment_session: {
+            session_public_id: started.session.session_public_id
+          }
+        },
+        select: {
+          id: true
+        }
+      });
+    await prisma.formativeConversationSession.deleteMany({
+      where: {
+        assessment_session: {
+          session_public_id: started.session.session_public_id
+        }
+      }
+    });
+    const legacyRecovery = await reconcilePackageCompletionState({
+      concept_unit_session_db_id: initialConceptUnitSession.id,
+      reason: "mvp_e2e_legacy_continuation"
+    });
+    assert(
+      legacyRecovery.recovered_stages.includes(
+        "activity_runtime_attempt_restored"
+      ),
+      `${input.scenario}: the explicit legacy branch should restore its activity runtime.`
+    );
 
     const activity = await submitFormativeActivityResponse({
       student_user_db_id: student.id,
@@ -278,7 +358,6 @@ async function runScenario(input: {
       "package_submitted",
       "llm_profile_requested",
       "llm_profile_received",
-      "formative_activity_persisted",
       "followup_response_submitted",
       "formative_activity_evaluated",
       "learning_profile_updated",
@@ -289,6 +368,10 @@ async function runScenario(input: {
       "next_choice_selected",
       "session_completed"
     ]);
+    assert(
+      (counts.formative_activity_persisted ?? 0) === 0,
+      `${input.scenario}: the conversation-owned handoff must not emit activity-persistence telemetry.`
+    );
 
     if (input.nextChoice === "try_another") {
       assertEventsPresent(counts, [

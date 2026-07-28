@@ -282,6 +282,11 @@ export async function buildTeacherSessionDataAudit(input: {
           title: true
         }
       },
+      formative_conversation_sessions: {
+        select: {
+          status: true
+        }
+      },
       concept_unit_sessions: {
         orderBy: [{ concept_unit: { order_index: "asc" } }, { created_at: "asc" }],
         include: {
@@ -369,6 +374,8 @@ export async function buildTeacherSessionDataAudit(input: {
   const latestPackageSummary = latestInitialPackage
     ? summarizeResponsePackagePayload(latestInitialPackage.payload)
     : null;
+  const usesFormativeConversation =
+    session.formative_conversation_sessions.length > 0;
 
   const eventCounts = countBy(allProcessEvents.map((event) => event.event_type));
   const observedEventTypes = Object.keys(eventCounts).sort();
@@ -528,19 +535,31 @@ export async function buildTeacherSessionDataAudit(input: {
   );
 
   const activityRuntimeSummary = {
+    runtime_mode: usesFormativeConversation
+      ? "formative_conversation"
+      : "legacy_activity",
     attempt_count: activityAttempts.length,
+    active_attempt_count: usesFormativeConversation
+      ? 0
+      : activityAttempts.length,
     status_counts: countBy(activityAttempts.map((attempt) => attempt.status)),
     activity_family_counts: countBy(activityAttempts.map((attempt) => attempt.activity_family)),
     generation_source_counts: countBy(activityAttempts.map((attempt) => attempt.generation_source)),
-    latest_state: latestActivityAttempt?.status ?? null,
+    latest_state: usesFormativeConversation
+      ? null
+      : latestActivityAttempt?.status ?? null,
     latest_activity_response_reference_count: activityAttempts.filter((attempt) =>
       Boolean(attempt.latest_activity_response_reference)
     ).length,
     student_choice_state_counts: summarizeActivityResponseChoices(activityAttempts),
     failed_closed_count: activityAttempts.filter((attempt) => attempt.status === "failed_closed").length,
-    limitations: activityAttempts.length > 0
-      ? cleanLimitations(activityAttempts.map((attempt) => attempt.limitations))
-      : ["no_activity_runtime_attempts_found"]
+    limitations: usesFormativeConversation
+      ? activityAttempts.length > 0
+        ? ["historical_activity_records_preserved"]
+        : []
+      : activityAttempts.length > 0
+        ? cleanLimitations(activityAttempts.map((attempt) => attempt.limitations))
+        : ["no_activity_runtime_attempts_found"]
   };
 
   const safetyFlagRecords = evidenceRecords.map((record) => asRecord(record.safety_flags));
@@ -626,9 +645,15 @@ export async function buildTeacherSessionDataAudit(input: {
     ...(!processDataSummary.availability.pause_or_inactivity_events_available
       ? ["pause_or_inactivity_events_unobserved"]
       : []),
-    ...(activityAttempts.length === 0 ? ["activity_runtime_attempts_missing"] : []),
-    ...(evidenceRecords.length === 0 ? ["post_activity_misconception_evidence_missing"] : []),
-    ...(diagnosticSnapshots.length === 0 ? ["post_activity_diagnostic_snapshots_missing"] : [])
+    ...(!usesFormativeConversation && activityAttempts.length === 0
+      ? ["activity_runtime_attempts_missing"]
+      : []),
+    ...(!usesFormativeConversation && evidenceRecords.length === 0
+      ? ["post_activity_misconception_evidence_missing"]
+      : []),
+    ...(!usesFormativeConversation && diagnosticSnapshots.length === 0
+      ? ["post_activity_diagnostic_snapshots_missing"]
+      : [])
   ];
 
   const audit = {

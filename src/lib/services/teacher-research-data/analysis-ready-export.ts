@@ -844,6 +844,11 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       (activity) => activity.session_public_id === session.session_public_id
     );
     const latestActivityAttempt = activityAttempts.at(-1) ?? null;
+    const usesFormativeConversation =
+      session.formative_conversation_sessions.length > 0;
+    const activeActivityAttempt = usesFormativeConversation
+      ? null
+      : latestActivityAttempt;
     const activitySkippedEvent = lastEvent(sessionEvents, ["formative_activity_skipped"]);
     const teacherEndedEvent = lastEvent(sessionEvents, ["attempt_ended_by_teacher"]);
     const studentEndedEvent = lastEvent(sessionEvents, ["attempt_ended_by_student"]);
@@ -883,11 +888,11 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
               ? "paused"
               : null;
     const formativeActivityCompletionStatus =
-      latestActivityAttempt?.status === "move_on_recommended"
+      activeActivityAttempt?.status === "move_on_recommended"
         ? "skipped"
-        : latestActivityAttempt?.completed_at
+        : activeActivityAttempt?.completed_at
           ? "completed"
-          : latestActivityAttempt?.status ?? null;
+          : activeActivityAttempt?.status ?? null;
     const packageCompletionEvent = lastEvent(sessionEvents, ["package_completion_operation_completed"]);
     const recoveryEvent = lastEvent(sessionEvents, ["package_completion_reconciled"]);
     const displayAckEvent = lastEvent(sessionEvents, [
@@ -902,8 +907,10 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       return payload.message_type === "next_interaction";
     });
     const canonicalRuntimeState =
-      session.current_phase === "planning_completed" &&
-      latestActivityAttempt?.status === "awaiting_student_activity_response"
+      usesFormativeConversation
+        ? "FORMATIVE_CONVERSATION"
+        : session.current_phase === "planning_completed" &&
+            activeActivityAttempt?.status === "awaiting_student_activity_response"
         ? "AWAIT_FORMATIVE_ACTIVITY_RESPONSE"
         : session.current_phase;
     const conflictRecoveryMetadata = {
@@ -941,7 +948,9 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
             : null,
       pause_count: countEvents(sessionEvents, ["attempt_paused", "session_paused"]),
       resume_count: countEvents(sessionEvents, ["attempt_resumed", "session_resumed"]),
-      last_runtime_state: latestActivityAttempt?.status ?? null,
+      last_runtime_state: usesFormativeConversation
+        ? "FORMATIVE_CONVERSATION"
+        : activeActivityAttempt?.status ?? null,
       formative_activity_completion_status: formativeActivityCompletionStatus,
       activity_skip_reason: activitySkippedEvent
         ? payloadString(activitySkippedEvent.payload, ["skip_reason", "reason"]) ?? "student_selected_skip_activity"
@@ -1011,13 +1020,19 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
         typeof revealState.correctness_status_reveal_policy === "string"
           ? revealState.correctness_status_reveal_policy
           : null,
-      next_interaction_type: profileString(nextInteraction, "interaction_type"),
+      next_interaction_type: usesFormativeConversation
+        ? null
+        : profileString(nextInteraction, "interaction_type"),
       package_completion_operation_id: payloadString(packageCompletionEvent?.payload, ["operation_public_id"]),
       package_completion_workflow_stage: payloadString(packageCompletionEvent?.payload, ["workflow_stage"]),
       package_completion_recovery_status: payloadString(packageCompletionEvent?.payload, ["recovery_status"]),
       canonical_runtime_state: canonicalRuntimeState,
-      active_next_interaction_id: nextInteractionTurn ? `${session.session_public_id}:turn:${nextInteractionTurn.created_at.toISOString()}` : null,
-      active_activity_id: latestActivityAttempt?.activity_attempt_public_id ?? null,
+      active_next_interaction_id:
+        !usesFormativeConversation && nextInteractionTurn
+          ? `${session.session_public_id}:turn:${nextInteractionTurn.created_at.toISOString()}`
+          : null,
+      active_activity_id:
+        activeActivityAttempt?.activity_attempt_public_id ?? null,
       display_acknowledgement: displayAckEvent ? "acknowledged" : "not_acknowledged",
       display_event_contract_version: payloadString(displayAckEvent?.payload, ["display_event_contract_version"]),
       answer_review_display_acknowledgement: answerReviewDisplayAckEvent ? "acknowledged" : "not_acknowledged",
@@ -1025,9 +1040,15 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
         "display_event_contract_version"
       ]),
       conflict_recovery_metadata: jsonString(conflictRecoveryMetadata),
-      activity_type: profileString(nextInteraction, "activity_type"),
-      routing_policy_version: profileString(nextInteraction, "routing_policy_version"),
-      activity_taxonomy_version: profileString(nextInteraction, "activity_taxonomy_version"),
+      activity_type: usesFormativeConversation
+        ? null
+        : profileString(nextInteraction, "activity_type"),
+      routing_policy_version: usesFormativeConversation
+        ? null
+        : profileString(nextInteraction, "routing_policy_version"),
+      activity_taxonomy_version: usesFormativeConversation
+        ? null
+        : profileString(nextInteraction, "activity_taxonomy_version"),
       evidence_profile_schema_version: profileString(profileV2, "profile_schema_version"),
       effective_evidence_package_hash:
         typeof profileEvidence.effective_evidence_package_hash === "string"

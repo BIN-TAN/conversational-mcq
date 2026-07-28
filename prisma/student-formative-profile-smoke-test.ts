@@ -9,8 +9,7 @@ import {
   recordSelectedOption,
   recordTemptingOption,
   startConceptUnitInitialAdministration,
-  startOrResumeStudentAssessmentSession,
-  submitFormativeActivityResponse
+  startOrResumeStudentAssessmentSession
 } from "../src/lib/services/student-assessment/service";
 import {
   ChatNativeFormativeProfileOutputSchema
@@ -236,9 +235,23 @@ async function main() {
     });
 
     assert(completed.state.assessment_state === "FORMATIVE_ACTIVITY", "Expected formative activity state.");
-    assert(completed.state.next_step === "formative_activity", "Expected formative activity next step.");
+    assert(
+      completed.state.next_step === "formative_conversation",
+      "Expected the formative conversation next step."
+    );
     assert(completed.state.current_phase === "planning_completed", "Expected planning_completed phase.");
-    assert(completed.state.formative_activity?.can_send, "Formative activity should accept one response.");
+    assert(
+      completed.state.formative_activity === null,
+      "Conversation-owned runtime should not expose legacy formative activity controls."
+    );
+    assert(
+      completed.state.formative_conversation?.can_send,
+      "The formative conversation should accept a student message."
+    );
+    assert(
+      completed.state.formative_conversation?.transcript[0]?.actor === "tutor",
+      "The formative conversation should begin with a persisted tutor opening."
+    );
     assertStudentVisibleTextIsSafe(completed.state);
 
     const session = await prisma.assessmentSession.findUniqueOrThrow({
@@ -282,15 +295,22 @@ async function main() {
     ]);
     assert(profileCount >= 1, "Expected stored student profile evidence.");
     assert(decisionCount === 1, "Expected one stored formative decision.");
-    assert(round.status === "active", "Expected one active formative activity round.");
+    assert(
+      round.status === "active",
+      "Expected one compatibility follow-up round for persisted historical contracts."
+    );
 
     const transcript = await getStudentSafeTranscript({
       student_user_db_id: student.id,
       session_public_id: started.session.session_public_id
     });
     assert(
-      transcript.transcript.some((turn) => turn.interaction_type === "formative_activity"),
-      "Transcript does not include the formative activity."
+      transcript.transcript.every(
+        (turn) =>
+          turn.interaction_type !== "formative_activity" &&
+          turn.interaction_type !== "package_feedback"
+      ),
+      "The assessment transcript should not expose legacy package feedback or an activity prompt."
     );
     assertStudentVisibleTextIsSafe(transcript);
 
@@ -302,51 +322,15 @@ async function main() {
     for (const expected of [
       "package_submitted",
       "llm_profile_requested",
-      "llm_profile_received",
-      "formative_activity_persisted"
+      "llm_profile_received"
     ]) {
       assert(eventTypes.has(expected), `Missing process event: ${expected}`);
     }
-
-    const agentCallCountBeforeResponse = await prisma.agentCall.count({
-      where: { assessment_session_db_id: session.id }
-    });
-    const response = await submitFormativeActivityResponse({
-      student_user_db_id: student.id,
-      session_public_id: started.session.session_public_id,
-      message: "Theta describes the person location, while difficulty describes the item location.",
-      client_message_id: `${prefix}_activity_response`
-    });
-    assert(response.message_status === "saved", "Formative response was not saved.");
-    assert(response.targeted_feedback_available === true, "Targeted feedback should become available.");
-    assert(response.state.assessment_state === "REVISION", "Expected revision state after formative response.");
-    assert(response.state.next_step === "revision_requested", "Expected revision request after feedback.");
-    const agentCallCountAfterResponse = await prisma.agentCall.count({
-      where: { assessment_session_db_id: session.id }
-    });
     assert(
-      agentCallCountAfterResponse === agentCallCountBeforeResponse + 1,
-      "Submitting the activity response should create one targeted-feedback agent call."
+      !eventTypes.has("formative_activity_persisted") &&
+        !eventTypes.has("next_interaction_persisted"),
+      "The conversation-owned handoff should not run the legacy activity route."
     );
-
-    const submittedRound = await prisma.followupRound.findUniqueOrThrow({
-      where: { id: round.id }
-    });
-    assert(submittedRound.status === "active", "Formative activity round should remain active while revision is pending.");
-    const followupEventCount = await prisma.processEvent.count({
-      where: {
-        assessment_session_db_id: session.id,
-        event_type: "followup_response_submitted"
-      }
-    });
-    assert(followupEventCount === 1, "Expected one followup_response_submitted event.");
-    const targetedFeedbackCount = await prisma.processEvent.count({
-      where: {
-        assessment_session_db_id: session.id,
-        event_type: "targeted_feedback_shown"
-      }
-    });
-    assert(targetedFeedbackCount === 1, "Expected one targeted_feedback_shown event.");
 
     console.log("Phase 5 student formative profile smoke test passed. No OpenAI calls are made by this script.");
   } finally {

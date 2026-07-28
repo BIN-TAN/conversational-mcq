@@ -11,13 +11,22 @@ import {
   FormativeConversationAgentOutputSchema,
   type FormativeConversationAdministeredItem,
   type FormativeConversationAgentInput,
+  type FormativeConversationAssessmentProcessEvidence,
+  type FormativeConversationAssessmentResponseEvidence,
+  type FormativeConversationAssessmentSpecification,
   type FormativeConversationProfileEvidence
 } from "./agent-contract";
 import { compilePersistedFormativeConversationContext } from "./context";
 import { recordFormativeConversationProfileEvidenceReferences } from "./evidence-references";
+import {
+  FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
+  FORMATIVE_CONVERSATION_OPENING_VERSION,
+  validateFormativeConversationOpeningOutput
+} from "./opening-contract";
 import { recordFormativeConversationProfileTransitionRecommendation } from "./profile-update";
 import {
   persistFormativeConversationAssistantMessage,
+  reserveFormativeConversationOpening,
   reserveAndPersistFormativeConversationStudentMessage
 } from "./service";
 import {
@@ -84,6 +93,9 @@ export type FormativeConversationRuntimeContextSeed = {
   assessment_public_id: string;
   concept_unit_public_id: string;
   administered_items: FormativeConversationAdministeredItem[];
+  assessment_specification?: FormativeConversationAssessmentSpecification | null;
+  assessment_response_evidence?: FormativeConversationAssessmentResponseEvidence[];
+  assessment_process_evidence?: FormativeConversationAssessmentProcessEvidence[];
   initial_profile: FormativeConversationProfileEvidence;
   current_profile: FormativeConversationProfileEvidence;
 };
@@ -109,7 +121,8 @@ export class FormativeConversationRuntimeError extends Error {
     public readonly code:
       | "agent_call_in_progress"
       | "agent_call_failed"
-      | "agent_output_invalid",
+      | "agent_output_invalid"
+      | "opening_requires_empty_transcript",
     message: string
   ) {
     super(message);
@@ -400,6 +413,131 @@ async function executeOrResumeAgentCall(input: {
     output: parsedOutput.data,
     generation_source: execution.generation_source,
     resumed: false
+  };
+}
+
+export async function processFormativeConversationOpening(
+  input: {
+    conversation_public_id: string;
+    context: FormativeConversationRuntimeContextSeed;
+  },
+  dependencies: {
+    runner: FormativeConversationAgentRunner;
+  }
+) {
+  const reservation = await reserveFormativeConversationOpening(
+    input.conversation_public_id
+  );
+
+  if (reservation.receipt.assistant_turn) {
+    const existingCall = await prisma.agentCall.findUnique({
+      where: {
+        agent_invocation_key: formativeConversationInvocationKey(
+          input.conversation_public_id,
+          FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID
+        )
+      }
+    });
+    return {
+      receipt: reservation.receipt,
+      tutor_turn: reservation.receipt.assistant_turn,
+      agent_call: existingCall,
+      replayed: true,
+      resumed: false
+    };
+  }
+
+  const compiled = await compilePersistedFormativeConversationContext({
+    conversation_public_id: input.conversation_public_id,
+    ...input.context
+  });
+  if (
+    compiled.context.latest_student_message !== null ||
+    compiled.context.visible_transcript.length > 0
+  ) {
+    throw new FormativeConversationRuntimeError(
+      "opening_requires_empty_transcript",
+      "The formative conversation opening must precede all student and tutor turns."
+    );
+  }
+  assertNoProhibitedProviderInput(compiled.context);
+
+  const agentResult = await executeOrResumeAgentCall({
+    conversation_public_id: input.conversation_public_id,
+    client_message_id: FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
+    context: compiled.context,
+    runner: dependencies.runner
+  });
+  if (agentResult.resumed) {
+    await recordRuntimeEvent({
+      conversation_public_id: input.conversation_public_id,
+      client_message_id: FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
+      event_type: "agent_call_completed",
+      event_source: "agent",
+      occurred_at:
+        agentResult.agent_call.completed_at ?? agentResult.agent_call.updated_at
+    });
+  }
+
+  const openingValidation = validateFormativeConversationOpeningOutput(
+    agentResult.output
+  );
+  if (!openingValidation.valid || !openingValidation.output) {
+    await prisma.agentCall.update({
+      where: { id: agentResult.agent_call.id },
+      data: {
+        output_validated: false,
+        validation_error: JSON.stringify({
+          category: "formative_conversation_opening_validation",
+          issue_count: openingValidation.issue_codes.length,
+          issue_codes: openingValidation.issue_codes
+        }),
+        error_category: "formative_conversation_opening_validation",
+        call_status: "invalid_output"
+      }
+    });
+    throw new FormativeConversationRuntimeError(
+      "agent_output_invalid",
+      "The formative conversation opening failed student-facing validation."
+    );
+  }
+
+  const tutorMessage = await persistFormativeConversationAssistantMessage({
+    conversation_public_id: input.conversation_public_id,
+    client_message_id: FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
+    message_text: openingValidation.output.student_visible_message,
+    generation_source: agentResult.generation_source,
+    validator_status: "opening_validated",
+    agent_call_db_id: agentResult.agent_call.id,
+    fallback_used: false,
+    message_type: "formative_conversation_opening",
+    opening_version: FORMATIVE_CONVERSATION_OPENING_VERSION
+  });
+  await recordFormativeConversationTurnTelemetry({
+    conversation_public_id: input.conversation_public_id,
+    conversation_turn_db_id: tutorMessage.assistant_turn.id,
+    agent_call_db_id: agentResult.agent_call.id,
+    turn_started_at: agentResult.agent_call.started_at,
+    turn_submitted_at: agentResult.agent_call.completed_at,
+    response_time_ms: agentResult.agent_call.latency_ms,
+    message_length_chars: tutorMessage.assistant_turn.message_text?.length ?? 0,
+    input_token_count: agentResult.agent_call.input_tokens,
+    output_token_count: agentResult.agent_call.output_tokens
+  });
+  await recordRuntimeEvent({
+    conversation_public_id: input.conversation_public_id,
+    client_message_id: FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
+    event_type: "tutor_message_persisted",
+    event_source: "backend",
+    occurred_at: tutorMessage.assistant_turn.created_at
+  });
+
+  return {
+    receipt: tutorMessage.receipt,
+    tutor_turn: tutorMessage.assistant_turn,
+    agent_call: agentResult.agent_call,
+    replayed: false,
+    resumed: agentResult.resumed
   };
 }
 

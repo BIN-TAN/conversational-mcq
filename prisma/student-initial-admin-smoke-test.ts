@@ -26,6 +26,9 @@ import { normalizeUserId } from "../src/lib/services/student-accounts/validation
 
 const prisma = new PrismaClient();
 
+process.env.LLM_PROVIDER = "mock";
+process.env.LLM_LIVE_CALLS_ENABLED = "false";
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
@@ -432,8 +435,15 @@ async function main() {
       concept_unit_public_id: conceptUnit.concept_unit_public_id
     });
     assert(completed.completion_status === "completed", "Concept-unit completion did not complete.");
-    assert(completed.state.current_phase === "planning_completed", "Session did not prepare the formative activity.");
-    assert(completed.state.next_step === "formative_activity", "Completion should show the formative activity.");
+    assert(completed.state.current_phase === "planning_completed", "Session did not prepare formative support.");
+    assert(
+      completed.state.next_step === "formative_conversation",
+      "Completion should enter the LLM-hosted formative conversation."
+    );
+    assert(
+      completed.state.formative_conversation?.transcript[0]?.actor === "tutor",
+      "Completion should persist the assistant-first formative opening."
+    );
     const packageCount = await prisma.responsePackage.count({
       where: {
         concept_unit_session: {

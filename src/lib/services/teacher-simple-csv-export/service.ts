@@ -432,12 +432,20 @@ async function loadActivityCounts(sessionPublicId: string) {
     activity_attempt_count,
     post_activity_evidence_count,
     diagnostic_snapshot_count,
+    formative_conversation_count,
     latestSnapshot,
     latestAttempt
   ] = await Promise.all([
     prisma.activityRuntimeAttempt.count({ where: { session_public_id: sessionPublicId } }),
     prisma.activityMisconceptionEvidenceRecord.count({ where: { session_public_id: sessionPublicId } }),
     prisma.postActivityDiagnosticSnapshot.count({ where: { session_public_id: sessionPublicId } }),
+    prisma.formativeConversationSession.count({
+      where: {
+        assessment_session: {
+          session_public_id: sessionPublicId
+        }
+      }
+    }),
     prisma.postActivityDiagnosticSnapshot.findFirst({
       where: { session_public_id: sessionPublicId },
       orderBy: { created_at: "desc" },
@@ -450,12 +458,19 @@ async function loadActivityCounts(sessionPublicId: string) {
     })
   ]);
 
+  const usesFormativeConversation = formative_conversation_count > 0;
+
   return {
     activity_attempt_count,
     post_activity_evidence_count,
     diagnostic_snapshot_count,
+    uses_formative_conversation: usesFormativeConversation,
     latest_diagnostic_purpose:
-      latestSnapshot?.next_diagnostic_purpose ?? latestAttempt?.diagnostic_purpose ?? ""
+      usesFormativeConversation
+        ? ""
+        : latestSnapshot?.next_diagnostic_purpose ??
+          latestAttempt?.diagnostic_purpose ??
+          ""
   };
 }
 
@@ -579,9 +594,11 @@ async function buildSessionRow(
 
   if (status.limitation) limitations.add(status.limitation);
   if (responsePackages.length === 0) limitations.add("response_package_missing");
-  if (activityCounts.activity_attempt_count === 0) limitations.add("activity_attempts_missing");
-  if (activityCounts.post_activity_evidence_count === 0) limitations.add("post_activity_evidence_missing");
-  if (activityCounts.diagnostic_snapshot_count === 0) limitations.add("diagnostic_snapshots_missing");
+  if (!activityCounts.uses_formative_conversation) {
+    if (activityCounts.activity_attempt_count === 0) limitations.add("activity_attempts_missing");
+    if (activityCounts.post_activity_evidence_count === 0) limitations.add("post_activity_evidence_missing");
+    if (activityCounts.diagnostic_snapshot_count === 0) limitations.add("diagnostic_snapshots_missing");
+  }
 
   return {
     ...sourceIdentityRow(source),

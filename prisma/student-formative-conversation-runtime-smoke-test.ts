@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { loadEnvConfig } from "@next/env";
 import { PrismaClient } from "@prisma/client";
+import { parse } from "csv-parse/sync";
 import { agentOutputSchemas } from "../src/lib/agents/contracts";
 import { mockOutputForAgent } from "../src/lib/agents/mock-fixtures";
 import type { FormativeConversationAgentRunner } from "../src/lib/services/student-assessment/formative-conversation/runtime";
@@ -67,10 +68,13 @@ async function main() {
     const {
       FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
       FORMATIVE_CONVERSATION_AGENT_NAME,
+      FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
       formativeConversationInvocationKey,
       getFormativeConversationTranscript,
+      processFormativeConversationOpening,
       processFormativeConversationStudentMessage,
-      reserveAndPersistFormativeConversationStudentMessage
+      reserveAndPersistFormativeConversationStudentMessage,
+      validateFormativeConversationOpeningOutput
     } = await import(
       "../src/lib/services/student-assessment/formative-conversation/index"
     );
@@ -161,6 +165,55 @@ async function main() {
           administered: true as const
         }
       ],
+      assessment_specification: {
+        schema_version:
+          "formative-conversation-assessment-specification-v1" as const,
+        assessment_title: fixture.assessment.title,
+        diagnostic_focus: null,
+        concept_unit_title: fixture.conceptUnit.title,
+        learning_objective: fixture.conceptUnit.learning_objective,
+        related_concept_description:
+          fixture.conceptUnit.related_concept_description,
+        administered_item_guidance: [],
+        boundaries: {
+          administered_items_only: true as const,
+          unadministered_item_content_protected: true as const,
+          administered_answer_discussion_allowed: true as const,
+          raw_teacher_notes_must_not_be_quoted: true as const,
+          pedagogy_owner: "formative_conversation_agent" as const,
+          legacy_activity_routing_authoritative: false as const
+        }
+      },
+      assessment_response_evidence: [
+        {
+          item_public_id: fixture.items[0].item_public_id,
+          selected_option: "B",
+          correctness: "incorrect" as const,
+          written_reasoning:
+            "I focused on consistency and did not separate it from interpretation.",
+          confidence: "medium",
+          revision_summary: null,
+          tempting_option: null,
+          tempting_option_reason: null,
+          safe_timing_summary: {
+            total_item_time_ms: 60_000,
+            response_time_answer_ms: null,
+            response_time_reasoning_ms: null,
+            response_time_confidence_ms: null
+          }
+        }
+      ],
+      assessment_process_evidence: [
+        {
+          event_type: "item_completed",
+          event_category: "initial_administration",
+          event_source: "backend",
+          item_public_id: fixture.items[0].item_public_id,
+          occurred_at: "2026-07-28T08:01:00.000Z",
+          visibility_duration_ms: null,
+          pause_duration_ms: null
+        }
+      ],
       initial_profile: profileEvidence,
       current_profile: profileEvidence
     };
@@ -172,8 +225,14 @@ async function main() {
             message_text: string;
           }>;
           latest_student_message: string | null;
+          assessment_specification: {
+            learning_objective: string | null;
+          } | null;
+          assessment_response_evidence: unknown[];
+          assessment_process_evidence: unknown[];
         }
       | undefined;
+    const readLatestCompiledContext = () => latestCompiledContext;
     const runner: FormativeConversationAgentRunner = {
       identity: {
         agent_name: FORMATIVE_CONVERSATION_AGENT_NAME,
@@ -195,9 +254,43 @@ async function main() {
         const latestStudentTurn = [...input.context.visible_transcript]
           .reverse()
           .find((turn) => turn.actor === "student");
-        assert(latestStudentTurn);
         const startedAt = new Date();
         const completedAt = new Date(startedAt.getTime() + 25);
+        if (!latestStudentTurn) {
+          return {
+            output: {
+              contract_version:
+                FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
+              student_visible_message:
+                "You've reviewed your answers. We can begin with the distinction between score consistency and the evidence needed for an intended interpretation.",
+              teaching_artifact: null,
+              evidence_observations: [],
+              teacher_assistance_recommendation: {
+                recommended: false,
+                reason_code: null
+              },
+              profile_transition_recommendation: null,
+              lifecycle_recommendation: "continue" as const
+            },
+            raw_output: {
+              fixture: "deterministic_no_provider_opening",
+              contract_version:
+                FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION
+            },
+            generation_source: "deterministic_test",
+            provider_request_id: "mock-request-runtime-opening",
+            provider_response_id: "mock-response-runtime-opening",
+            client_request_id: "mock-client-runtime-opening",
+            retry_count: 0,
+            latency_ms: 25,
+            input_tokens: 70,
+            output_tokens: 25,
+            total_tokens: 95,
+            estimated_cost: 0,
+            started_at: startedAt,
+            completed_at: completedAt
+          };
+        }
         return {
           output: {
             contract_version: FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
@@ -248,6 +341,109 @@ async function main() {
         };
       }
     };
+    const blockedOpening = validateFormativeConversationOpeningOutput({
+      contract_version: FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
+      student_visible_message:
+        "Your profile has a growth target. Try this next activity.",
+      teaching_artifact: null,
+      evidence_observations: [],
+      profile_transition_recommendation: null,
+      teacher_assistance_recommendation: {
+        recommended: false,
+        reason_code: null
+      },
+      lifecycle_recommendation: "continue"
+    });
+    assert.equal(blockedOpening.valid, false);
+    assert(
+      blockedOpening.issue_codes.includes(
+        "opening_exposes_profile_language"
+      )
+    );
+    assert(
+      blockedOpening.issue_codes.includes(
+        "opening_exposes_growth_target_language"
+      )
+    );
+    assert(
+      blockedOpening.issue_codes.includes("opening_prescribes_activity")
+    );
+    const naturalOpeningWithoutFixedQuestion =
+      validateFormativeConversationOpeningOutput({
+        contract_version: FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
+        student_visible_message:
+          "You've reviewed your answers. We can begin with the distinction that matters most in your reasoning.",
+        teaching_artifact: null,
+        evidence_observations: [],
+        profile_transition_recommendation: null,
+        teacher_assistance_recommendation: {
+          recommended: false,
+          reason_code: null
+        },
+        lifecycle_recommendation: "continue"
+      });
+    assert.equal(
+      naturalOpeningWithoutFixedQuestion.valid,
+      true,
+      "Opening validation must not impose a fixed question or invitation format."
+    );
+
+    const opening = await processFormativeConversationOpening(
+      {
+        conversation_public_id: conversation.conversation_public_id,
+        context
+      },
+      { runner }
+    );
+    assert.equal(opening.replayed, false);
+    assert.equal(runnerCallCount, 1);
+    const openingCompiledContext = readLatestCompiledContext();
+    assert.equal(openingCompiledContext?.latest_student_message, null);
+    assert.deepEqual(openingCompiledContext?.visible_transcript, []);
+    assert.equal(
+      openingCompiledContext?.assessment_specification?.learning_objective,
+      fixture.conceptUnit.learning_objective
+    );
+    assert.equal(
+      openingCompiledContext?.assessment_response_evidence.length,
+      1
+    );
+    assert.equal(
+      openingCompiledContext?.assessment_process_evidence.length,
+      1
+    );
+    assert.equal(opening.tutor_turn.agent_name, FORMATIVE_CONVERSATION_AGENT_NAME);
+    assert.equal(
+      (
+        opening.tutor_turn.structured_payload as Record<string, unknown>
+      ).message_type,
+      "formative_conversation_opening"
+    );
+    assert.equal(
+      opening.agent_call?.formative_conversation_session_db_id,
+      conversation.id
+    );
+    assert.equal(
+      opening.agent_call?.agent_invocation_key,
+      formativeConversationInvocationKey(
+        conversation.conversation_public_id,
+        FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID
+      )
+    );
+    const replayedOpening = await processFormativeConversationOpening(
+      {
+        conversation_public_id: conversation.conversation_public_id,
+        context
+      },
+      { runner }
+    );
+    assert.equal(replayedOpening.replayed, true);
+    assert.equal(replayedOpening.tutor_turn.id, opening.tutor_turn.id);
+    assert.equal(
+      runnerCallCount,
+      1,
+      "Refreshing the conversation must not regenerate its opening."
+    );
 
     const firstClientMessageId = `${prefix}_message_1`;
     const firstMessage = "Why is consistency not enough?";
@@ -274,11 +470,12 @@ async function main() {
     );
     assert.equal(firstResult.replayed, false);
     assert.equal(firstResult.resumed, false);
-    assert.equal(runnerCallCount, 1);
-    assert.equal(latestCompiledContext?.latest_student_message, firstMessage);
+    assert.equal(runnerCallCount, 2);
+    const firstCompiledContext = readLatestCompiledContext();
+    assert.equal(firstCompiledContext?.latest_student_message, firstMessage);
     assert.deepEqual(
-      latestCompiledContext?.visible_transcript.map((turn) => turn.actor),
-      ["student"]
+      firstCompiledContext?.visible_transcript.map((turn) => turn.actor),
+      ["tutor", "student"]
     );
     assert.equal(
       firstResult.agent_call?.formative_conversation_session_db_id,
@@ -326,7 +523,7 @@ async function main() {
       { runner }
     );
     assert.equal(replayed.replayed, true);
-    assert.equal(runnerCallCount, 1, "A duplicate message must not call the agent again.");
+    assert.equal(runnerCallCount, 2, "A duplicate message must not call the agent again.");
     assert.equal(replayed.tutor_turn.id, firstResult.tutor_turn.id);
 
     const secondClientMessageId = `${prefix}_message_2`;
@@ -415,7 +612,7 @@ async function main() {
     );
     assert.equal(resumed.resumed, true);
     assert.equal(resumed.replayed, false);
-    assert.equal(runnerCallCount, 1, "Resume should use the persisted validated agent result.");
+    assert.equal(runnerCallCount, 2, "Resume should use the persisted validated agent result.");
 
     const transcript = await getFormativeConversationTranscript(
       conversation.conversation_public_id
@@ -423,6 +620,7 @@ async function main() {
     assert.deepEqual(
       transcript.conversation_turns.map((turn) => turn.message_text),
       [
+        opening.tutor_turn.message_text,
         firstMessage,
         firstResult.tutor_turn.message_text,
         secondMessage,
@@ -439,10 +637,10 @@ async function main() {
       lifecycleEvents.slice(0, 5).map((event) => event.event_type),
       [
         "session_started",
-        "student_message_persisted",
         "agent_call_started",
         "agent_call_completed",
-        "tutor_message_persisted"
+        "tutor_message_persisted",
+        "student_message_persisted"
       ]
     );
     assert(
@@ -457,7 +655,7 @@ async function main() {
       await prisma.formativeConversationMessageReceipt.count({
         where: { formative_conversation_session_db_id: conversation.id }
       }),
-      2
+      3
     );
     assert.equal(
       await prisma.agentCall.count({
@@ -466,7 +664,7 @@ async function main() {
           agent_name: FORMATIVE_CONVERSATION_AGENT_NAME
         }
       }),
-      2
+      3
     );
     assert.equal(
       await prisma.agentCall.count({
@@ -518,7 +716,8 @@ async function main() {
       session_public_id: fixture.session.session_public_id
     });
     assert(projection);
-    assert.equal(projection.transcript.length, 4);
+    assert.equal(projection.transcript.length, 5);
+    assert.equal(projection.transcript[0].turn_id, opening.tutor_turn.id);
     assert.equal(projection.can_send, true);
     assert.equal(
       await getStudentFormativeConversationProjection({
@@ -571,7 +770,7 @@ async function main() {
     assert.equal(teacherDetail.formative_conversations.length, 1);
     assert.equal(
       teacherDetail.formative_conversations[0].timeline.length,
-      4
+      5
     );
     assert.equal(
       teacherDetail.formative_conversations[0].learning_outcome,
@@ -666,6 +865,20 @@ async function main() {
           FORMATIVE_CONVERSATION_AGENT_NAME
         )
       );
+      const sessionRows = parse(file("sessions.csv"), {
+        columns: true,
+        skip_empty_lines: true
+      }) as Array<Record<string, string>>;
+      const sessionRow = sessionRows.find(
+        (row) => row.session_public_id === fixture.session.session_public_id
+      );
+      assert(sessionRow, "The formative conversation session should be exported.");
+      assert.equal(
+        sessionRow.canonical_runtime_state,
+        "FORMATIVE_CONVERSATION"
+      );
+      assert.equal(sessionRow.active_activity_id, "");
+      assert.equal(sessionRow.formative_activity_completion_status, "");
       const exportedText = exportResult.files
         .filter((entry) => entry.path.startsWith("formative_conversation_"))
         .map((entry) => entry.data)
@@ -690,6 +903,8 @@ async function main() {
           smoke: "student-formative-conversation-runtime",
           assertions: [
             "automatic_session_creation_after_initial_profile",
+            "assistant_first_opening_and_opening_language_validation",
+            "idempotent_opening_refresh_resume",
             "student_and_tutor_message_persistence",
             "observable_event_ordering",
             "agent_call_binding",

@@ -84,7 +84,10 @@ import {
   getStudentActivityRuntimeState,
   reopenFormativeEpisodeAfterTransferFailure
 } from "@/lib/services/student-assessment/activity-runtime-ui";
-import { getStudentFormativeConversationProjection } from "@/lib/services/student-assessment/formative-conversation";
+import {
+  FORMATIVE_CONVERSATION_CANONICAL_RUNTIME_STATE,
+  getStudentFormativeConversationProjection
+} from "@/lib/services/student-assessment/formative-conversation";
 import {
   assertChatNativeActionAllowed,
   type ChatNativeAssessmentAction,
@@ -162,6 +165,7 @@ export const InitialAdministrationStep = z.enum([
   "initial_concept_unit_complete",
   "awaiting_profiling",
   "formative_activity",
+  "formative_conversation",
   "formative_response_saved",
   "revision_requested",
   "transfer_item",
@@ -306,9 +310,16 @@ type PackageCompletionOutcome = {
   package_submission_status: "created" | "existing" | "missing";
   profile_status: "created" | "existing" | "missing";
   feedback_status: "persisted" | "existing" | "missing";
-  next_interaction_status: "persisted" | "existing" | "missing";
+  next_interaction_status:
+    | "persisted"
+    | "existing"
+    | "missing"
+    | "not_applicable";
   activity_status: "awaiting_student_activity_response" | "existing" | "missing" | "unavailable";
-  canonical_runtime_state: typeof PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE | ChatNativeAssessmentState;
+  canonical_runtime_state:
+    | typeof FORMATIVE_CONVERSATION_CANONICAL_RUNTIME_STATE
+    | typeof PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE
+    | ChatNativeAssessmentState;
   presenter_version: typeof PACKAGE_FEEDBACK_PRESENTER_VERSION;
   already_completed: boolean;
   recovery_action: "none" | "reconciled" | "replayed_existing" | "completed";
@@ -640,7 +651,14 @@ async function buildPackageCompletionOutcome(input: {
   recovery_metadata?: Record<string, unknown>;
   state: Awaited<ReturnType<typeof getStudentSessionState>>;
 }): Promise<PackageCompletionOutcome> {
-  const [profileCount, feedbackTurn, nextTurn, activityAttempt, shownCount] = await Promise.all([
+  const [
+    profileCount,
+    feedbackTurn,
+    nextTurn,
+    formativeConversation,
+    activityAttempt,
+    shownCount
+  ] = await Promise.all([
     prisma.studentProfile.count({ where: { concept_unit_session_db_id: input.concept_unit_session_db_id } }),
     prisma.conversationTurn.findFirst({
       where: {
@@ -660,6 +678,15 @@ async function buildPackageCompletionOutcome(input: {
       orderBy: [{ sequence_index: "desc" }],
       select: { id: true }
     }),
+    prisma.formativeConversationSession.findUnique({
+      where: {
+        concept_unit_session_db_id: input.concept_unit_session_db_id
+      },
+      select: {
+        conversation_public_id: true,
+        status: true
+      }
+    }),
     prisma.activityRuntimeAttempt.findFirst({
       where: { session_public_id: input.session_public_id },
       orderBy: [{ created_at: "desc" }],
@@ -676,15 +703,22 @@ async function buildPackageCompletionOutcome(input: {
       }
     })
   ]);
+  const usesFormativeConversation = Boolean(formativeConversation);
   const canonicalRuntimeState =
-    input.state.assessment_state === "FORMATIVE_ACTIVITY"
+    usesFormativeConversation
+      ? FORMATIVE_CONVERSATION_CANONICAL_RUNTIME_STATE
+      : input.state.assessment_state === "FORMATIVE_ACTIVITY"
       ? PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE
       : input.state.assessment_state;
   const safeWarnings: string[] = [];
 
   if (!feedbackTurn) safeWarnings.push("package_feedback_turn_missing");
-  if (!nextTurn) safeWarnings.push("next_interaction_turn_missing");
-  if (!activityAttempt) safeWarnings.push("activity_runtime_attempt_missing");
+  if (!usesFormativeConversation && !nextTurn) {
+    safeWarnings.push("next_interaction_turn_missing");
+  }
+  if (!usesFormativeConversation && !activityAttempt) {
+    safeWarnings.push("activity_runtime_attempt_missing");
+  }
 
   return {
     operation_public_id: input.identity.operation_public_id,
@@ -694,9 +728,15 @@ async function buildPackageCompletionOutcome(input: {
     package_submission_status: input.response_package_status,
     profile_status: profileCount > 0 ? "existing" : "missing",
     feedback_status: feedbackTurn ? "existing" : "missing",
-    next_interaction_status: nextTurn ? "existing" : "missing",
+    next_interaction_status: usesFormativeConversation
+      ? "not_applicable"
+      : nextTurn
+        ? "existing"
+        : "missing",
     activity_status:
-      activityAttempt?.status === "awaiting_student_activity_response"
+      usesFormativeConversation
+        ? "unavailable"
+        : activityAttempt?.status === "awaiting_student_activity_response"
         ? "awaiting_student_activity_response"
         : activityAttempt
           ? "existing"
@@ -710,15 +750,21 @@ async function buildPackageCompletionOutcome(input: {
       operation_version: PACKAGE_COMPLETION_OPERATION_VERSION,
       idempotency_hash: input.identity.idempotency_hash,
       workflow_stage:
-        canonicalRuntimeState === PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE
+        canonicalRuntimeState === FORMATIVE_CONVERSATION_CANONICAL_RUNTIME_STATE
+          ? "formative_conversation_ready"
+          : canonicalRuntimeState === PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE
           ? "presenter_ready"
           : "presenter_not_ready",
       recovery_status:
         input.recovery_action === "reconciled"
           ? "recovered_from_partial_success"
           : input.recovery_action,
-      active_next_interaction_id: nextTurn?.id ?? null,
-      active_activity_id: activityAttempt?.activity_attempt_public_id ?? null,
+      active_next_interaction_id: usesFormativeConversation
+        ? null
+        : nextTurn?.id ?? null,
+      active_activity_id: usesFormativeConversation
+        ? null
+        : activityAttempt?.activity_attempt_public_id ?? null,
       display_acknowledgement: shownCount > 0 ? "acknowledged" : "not_acknowledged",
       display_event_contract_version: DISPLAY_EVENT_CONTRACT_VERSION,
       conflict_recovery_metadata: input.recovery_metadata ?? {}
@@ -3108,6 +3154,10 @@ export async function getStudentSessionState(input: {
         session_public_id: input.session_public_id
       })
     : null;
+  if (formativeConversation) {
+    assessmentState = "FORMATIVE_ACTIVITY";
+    nextStep = "formative_conversation";
+  }
   const activityRuntime =
     assessmentState === "FORMATIVE_ACTIVITY" && !formativeConversation
       ? await getStudentActivityRuntimeState({
@@ -3117,7 +3167,10 @@ export async function getStudentSessionState(input: {
         })
     : null;
   const canonicalRuntimeState =
-    assessmentState === "FORMATIVE_ACTIVITY" && activityRuntime?.activity_attempt_public_id
+    formativeConversation
+      ? FORMATIVE_CONVERSATION_CANONICAL_RUNTIME_STATE
+      : assessmentState === "FORMATIVE_ACTIVITY" &&
+          activityRuntime?.activity_attempt_public_id
       ? PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE
       : assessmentState;
   const attemptLifecycle = resolveCanonicalAttemptLifecycle(session);
@@ -3165,7 +3218,7 @@ export async function getStudentSessionState(input: {
     initial_chat: {
       message_max_chars: getServerEnv().INITIAL_CHAT_MESSAGE_MAX_CHARS
     },
-    followup: activeOrLatestFollowupRound
+    followup: !formativeConversation && activeOrLatestFollowupRound
       ? {
           round_index: activeOrLatestFollowupRound.round_index,
           status: activeOrLatestFollowupRound.status,
@@ -3186,7 +3239,9 @@ export async function getStudentSessionState(input: {
         }
       : null,
     formative_activity:
-      effectivePhase === "planning_completed" && activeOrLatestFollowupRound
+      !formativeConversation &&
+      effectivePhase === "planning_completed" &&
+      activeOrLatestFollowupRound
         ? {
             round_index: activeOrLatestFollowupRound.round_index,
             status: activeOrLatestFollowupRound.status,
@@ -3208,7 +3263,7 @@ export async function getStudentSessionState(input: {
       }) && latestEvidenceIntegratedProfile
         ? packageResultsForStudent(latestEvidenceIntegratedProfile)
         : null,
-    progression,
+    progression: formativeConversation ? null : progression,
     learning_profile: shouldExposeLearningProfileToStudent({
       assessment_state: assessmentState,
       effective_phase: effectivePhase,
@@ -6132,7 +6187,11 @@ export async function completeInitialConceptUnitAdministration(input: {
 
   return {
     completion_status: outcome.already_completed ? "already_completed" : "completed",
-    next_step: "formative_activity",
+    next_step:
+      outcome.canonical_runtime_state ===
+      FORMATIVE_CONVERSATION_CANONICAL_RUNTIME_STATE
+        ? "formative_conversation"
+        : "formative_activity",
     outcome,
     state
   };
@@ -7054,52 +7113,63 @@ export async function getStudentSafeTranscript(input: {
   session_public_id: string;
 }) {
   const owned = await getOwnedSession(input);
-  const turns = await prisma.conversationTurn.findMany({
-    where: {
-      assessment_session_db_id: owned.id,
-      OR: [
-        { actor_type: "student" },
-        {
-          actor_type: "agent",
-          phase: {
-            in: ["followup_active", "followup_stopped"]
+  const [turns, formativeConversations] = await Promise.all([
+    prisma.conversationTurn.findMany({
+      where: {
+        assessment_session_db_id: owned.id,
+        OR: [
+          { actor_type: "student" },
+          {
+            actor_type: "agent",
+            phase: {
+              in: ["followup_active", "followup_stopped"]
+            }
+          },
+          { agent_name: "response_collection_agent" },
+          { agent_name: "deterministic_response_collection_fallback" },
+          { agent_name: INITIAL_ADMIN_AGENT_NAME },
+          { agent_name: "chat_native_formative_activity" },
+          { agent_name: FORMATIVE_ACTIVITY_AGENT_NAME },
+          { agent_name: "student_communication_agent" },
+          { agent_name: "topic_dialogue_agent" },
+          {
+            actor_type: "student",
+            phase: "planning_completed"
+          }
+        ]
+      },
+      orderBy: [{ sequence_index: "asc" }],
+      select: {
+        id: true,
+        concept_unit_session_db_id: true,
+        item_db_id: true,
+        actor_type: true,
+        phase: true,
+        message_text: true,
+        structured_payload: true,
+        created_at: true,
+        item: {
+          select: {
+            item_public_id: true
           }
         },
-        { agent_name: "response_collection_agent" },
-        { agent_name: "deterministic_response_collection_fallback" },
-        { agent_name: INITIAL_ADMIN_AGENT_NAME },
-        { agent_name: "chat_native_formative_activity" },
-        { agent_name: FORMATIVE_ACTIVITY_AGENT_NAME },
-        { agent_name: "student_communication_agent" },
-        { agent_name: "topic_dialogue_agent" },
-        {
-          actor_type: "student",
-          phase: "planning_completed"
-        }
-      ]
-    },
-    orderBy: [{ sequence_index: "asc" }],
-    select: {
-      id: true,
-      concept_unit_session_db_id: true,
-      item_db_id: true,
-      actor_type: true,
-      phase: true,
-      message_text: true,
-      structured_payload: true,
-      created_at: true,
-      item: {
-        select: {
-          item_public_id: true
-        }
-      },
-      followup_round: {
-        select: {
-          round_index: true
+        followup_round: {
+          select: {
+            round_index: true
+          }
         }
       }
-    }
-  });
+    }),
+    prisma.formativeConversationSession.findMany({
+      where: { assessment_session_db_id: owned.id },
+      select: { concept_unit_session_db_id: true }
+    })
+  ]);
+  const formativeConversationConceptUnitSessionIds = new Set(
+    formativeConversations.map(
+      (conversation) => conversation.concept_unit_session_db_id
+    )
+  );
   const responseLookupKeys = [
     ...new Set(
       turns
@@ -7142,6 +7212,11 @@ export async function getStudentSafeTranscript(input: {
     const messageType = conversationPayloadMessageType(payload);
 
     if (
+      (["package_feedback", "pattern_statement"].includes(messageType ?? "") &&
+        turn.concept_unit_session_db_id &&
+        formativeConversationConceptUnitSessionIds.has(
+          turn.concept_unit_session_db_id
+        )) ||
       payload.student_visible === false ||
       payload.shown_to_student === false ||
       ["draft", "internal", "not_shown"].includes(String(payload.visibility_status ?? "")) ||

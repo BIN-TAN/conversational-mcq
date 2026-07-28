@@ -90,6 +90,9 @@ export async function compilePersistedFormativeConversationContext(input: {
   assessment_public_id: string;
   concept_unit_public_id: string;
   administered_items: FormativeConversationAdministeredItem[];
+  assessment_specification?: FormativeConversationAgentInput["assessment_specification"];
+  assessment_response_evidence?: FormativeConversationAgentInput["assessment_response_evidence"];
+  assessment_process_evidence?: FormativeConversationAgentInput["assessment_process_evidence"];
   initial_profile: FormativeConversationProfileEvidence;
   current_profile: FormativeConversationProfileEvidence;
 }) {
@@ -182,6 +185,10 @@ export async function compilePersistedFormativeConversationContext(input: {
     latest_student_message: latestStudentMessage,
     visible_transcript: visibleTranscript,
     administered_items: input.administered_items,
+    assessment_specification: input.assessment_specification ?? null,
+    assessment_response_evidence:
+      input.assessment_response_evidence ?? [],
+    assessment_process_evidence: input.assessment_process_evidence ?? [],
     initial_profile: input.initial_profile,
     current_profile: input.current_profile,
     profile_history: session.concept_unit_session.student_profiles.map(
