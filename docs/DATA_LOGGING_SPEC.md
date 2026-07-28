@@ -365,30 +365,62 @@ The research dataset ZIP contains:
 | `item_responses.csv` | One row per student response to one administered item snapshot | Includes answer, reasoning, confidence, tempting-option evidence, timing, counts, and interpretation/evidence fields. Restricted answer-key columns are excluded by default. |
 | `process_events.csv` | One row per recorded process event | Includes event type/category/source, timing, item/session joins, and safe flattened payload fields. Raw payload JSON is not a primary analysis column. |
 | `conversation_turns.csv` | One row per visible or research-readable conversation turn | Includes actor, phase, item/session joins, message text, and response/action latency where available. |
-| `agent_activity_records.csv` | One row per agent call, workflow decision, formative activity attempt, or diagnostic update record | Uses `record_type` to distinguish incompatible row types; non-applicable fields remain null. |
+| `agent_activity_records.csv` | One row per agent call, workflow decision, authoritative legacy formative activity attempt, or diagnostic update record | Uses `record_type` and `authority_status` to distinguish incompatible row types. Historical `FollowupRound` rows are emitted as `legacy_followup_round` with `legacy_non_authoritative`; they are not active activity attempts. Non-applicable fields remain null. |
 | `assessment_content.csv` | One row per administered item snapshot | Reflects content actually administered. Restricted item-key and diagnostic-note fields are excluded by default. |
 | `assessment_summary.csv` | One row per student-assessment attempt summary | Includes safe session counts, status, timing, latest student-safe diagnostic signals, and explicit limitations. |
 | `research_data_dictionary.csv` | One row per ordinary or restricted research dataset variable | Documents qualified variable name, dataset/table, measurement level, source nature, source-code reference, source service/function, source-verification status, missing/zero/false semantics, privacy, export policy, timing formulas, applicable record types, and interpretation cautions. |
 | `process_event_codebook.csv` | One row per allow-listed process-event type | Documents event trigger, actor/source, scope, timestamp meaning, allow-listed payload fields, derived variables, source-code reference, source-verification status, and interpretation cautions. |
 | `formative_conversation_sessions.csv` | One row per persistent formative conversation | Separates conversation lifecycle and starting/current profile references from assessment item administration. |
-| `formative_conversation_turns.csv` | One row per visible formative student or tutor turn | Includes observable turn and input telemetry; does not include hidden prompts or provider payloads. |
-| `formative_conversation_events.csv` | One row per observable formative lifecycle/navigation event | Includes visibility, refresh, pause/resume, reconnect, and persisted message/call milestones. |
-| `formative_conversation_llm_calls.csv` | One row per formative conversation agent call | Includes model, prompt/context/schema versions, validation, retries, latency, and token counts without raw prompts or outputs. |
-| `formative_conversation_profile_transitions.csv` | One row per validated profile transition | Preserves the agent-authored outcome and interpretation, prior/updated profile versions, supporting student/tutor turns, evidence-reference public IDs, initial assessment-profile provenance, timestamp, and source agent invocation without hidden prompts or chain-of-thought. |
+| `formative_conversation_turns.csv` | One row per visible formative student or tutor turn | Includes a conversation-local turn index and observable turn/input telemetry: timestamps, response time, message length, token counts, typing-duration method, edit count, backspace count, paste event count, and paste character count. Pasted text is not stored. Tutor rows carry an opaque public AgentCall join key. |
+| `formative_conversation_events.csv` | One row per observable formative lifecycle/navigation event | Includes a conversation-local event index and distinguishes enter/re-enter, leave, visibility changes, refresh, pause/resume, reconnect, conversation end, and persisted message/call milestones. |
+| `formative_conversation_llm_calls.csv` | One row per formative conversation agent call | Includes the same opaque public AgentCall join key plus model, prompt/context/schema versions, validation, retries, latency, and token counts without provider request IDs, raw prompts, or outputs. |
+| `formative_conversation_profile_transitions.csv` | One row per validated profile transition | Preserves the agent-authored outcome and interpretation, prior/updated profile versions, supporting student/tutor turns, evidence-reference public IDs, initial assessment-profile provenance, timestamp, and source public AgentCall join key without hidden prompts, provider request IDs, or chain-of-thought. |
 | `formative_conversation_interventions.csv` | One row per persisted intervention record | Documents strategy history and targeted evidence gap without claiming an inferred student trait. |
 | `formative_conversation_data_dictionary.csv` | One row per formative-conversation export variable | Identifies raw observable fields versus derived/validated profile fields and states interpretation cautions. |
 
 Formative profile evolution is append-only. A validated terminal recommendation
-from `formative_conversation_agent` creates a new `StudentProfile` version and a
+from `formative_conversation_agent` supplies a complete canonical updated
+profile and field-level evidence dispositions. Changed fields must cite
+conversation evidence; unchanged fields may be retained only when the
+recommendation states that their earlier evidence remains valid. Persistence
+creates a new `StudentProfile` version and a
 `FormativeConversationProfileTransition`; it does not rewrite the assessment
-profile or an earlier formative profile. `continue_conversation` records
-conversation evidence without forcing a terminal outcome. The platform checks
-conversation, turn, agent-call, and assessment-profile ownership, but does not
-replace the agent recommendation with deterministic pedagogical thresholds.
-Transition rows include prior and updated profile timestamps plus aligned
-supporting-turn sequence, actor, and evidence-role columns so the profile
-timeline can be reconstructed without exporting hidden prompts or raw provider
-payloads.
+profile, rewrite an earlier formative profile, or copy stale fields by default.
+`continue_conversation` records conversation evidence without forcing a
+terminal outcome. The platform checks conversation, turn, agent-call, and
+assessment-profile ownership, but does not replace the agent recommendation
+with deterministic pedagogical thresholds. Transition rows include prior and
+updated profile fields, the complete canonical snapshot, profile timestamps,
+and aligned supporting-turn sequence, actor, and evidence-role columns so the
+profile timeline can be reconstructed without exporting hidden prompts or raw
+provider payloads.
+
+The latest persisted transition is the only authoritative formative outcome
+for teacher and research projections. Conversation status, review signals,
+narrative text, and current-profile pointers must not be used to infer
+`sound`, `largely_improved`, or `teacher_assistance_recommended` when no
+transition exists. In that case, projections report no validated profile
+change yet.
+
+Formative conversation lifecycle events have separate meanings:
+
+- `paused` and `resumed` change the resumable conversation lifecycle;
+- `left` and `reentered` record observable page departure and return without
+  pausing or ending the conversation;
+- `conversation_ended` records the student's explicit end-conversation action;
+- assessment-attempt end remains an assessment lifecycle command and is not a
+  synonym for any formative conversation event.
+
+A validated profile outcome does not automatically end the formative
+conversation. Conversation termination requires its own explicit lifecycle
+action.
+
+Runtime research-consent collection and external form integration are outside
+the current implementation. A future research-data eligibility layer may link
+consent/withdrawal status to public session or pseudonymous research-student
+identifiers before export. That extension must not rewrite raw assessment or
+formative records, and no Google Form or other external consent source is
+queried by the current runtime.
 
 The standard research dataset ZIP does not include the internal source-schema
 appendix or platform/excluded field inventory. Those are documentation and
@@ -414,6 +446,11 @@ Use public IDs rather than internal database UUIDs:
   context for a specific session.
 - `item_public_id` and `item_snapshot_public_id` join administered item
   response/content records.
+- `agent_call_public_id` joins visible formative tutor turns to safe LLM-call
+  metadata, and `source_agent_call_public_id` joins profile transitions to the
+  same call record. Both are application-generated opaque identifiers; provider
+  request IDs, invocation keys, raw prompts, raw payloads, and internal database
+  IDs are not exported.
 - `attempt_number` keeps repeated attempts separate.
 
 Production research exports fail closed if `RESEARCH_PSEUDONYMIZATION_KEY` is

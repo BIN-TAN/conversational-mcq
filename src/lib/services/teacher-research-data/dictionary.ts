@@ -297,6 +297,7 @@ export const CONVERSATION_TURNS_COLUMNS = [
 
 export const AGENT_ACTIVITY_RECORDS_COLUMNS = [
   "record_type",
+  "authority_status",
   "session_public_id",
   "research_student_id",
   "student_id",
@@ -999,10 +1000,11 @@ const LLM_INTERPRETIVE_COLUMNS = new Set([
 ]);
 
 const ALL_AGENT_ACTIVITY_RECORD_TYPES =
-  "agent_call; profile_result; formative_decision; activity_attempt; workflow_job; formative_activity; post_activity_evidence; diagnostic_snapshot";
+  "agent_call; profile_result; formative_decision; legacy_followup_round; workflow_job; formative_activity; post_activity_evidence; diagnostic_snapshot";
 
 const AGENT_ACTIVITY_APPLICABILITY: Record<string, string> = {
   record_type: ALL_AGENT_ACTIVITY_RECORD_TYPES,
+  authority_status: ALL_AGENT_ACTIVITY_RECORD_TYPES,
   session_public_id: ALL_AGENT_ACTIVITY_RECORD_TYPES,
   research_student_id: ALL_AGENT_ACTIVITY_RECORD_TYPES,
   student_id: ALL_AGENT_ACTIVITY_RECORD_TYPES,
@@ -1043,8 +1045,8 @@ const AGENT_ACTIVITY_APPLICABILITY: Record<string, string> = {
   evidence_sufficiency: "profile_result",
   uncertainty: "profile_result",
   limitations: ALL_AGENT_ACTIVITY_RECORD_TYPES,
-  activity_public_id: "activity_attempt; workflow_job; formative_activity; post_activity_evidence; diagnostic_snapshot",
-  activity_type: "activity_attempt; workflow_job; formative_activity; post_activity_evidence",
+  activity_public_id: "legacy_followup_round; workflow_job; formative_activity; post_activity_evidence; diagnostic_snapshot",
+  activity_type: "legacy_followup_round; workflow_job; formative_activity; post_activity_evidence",
   activity_target: "formative_activity",
   activity_source_item_id: "formative_activity",
   activity_source_option_label: "formative_activity",
@@ -1055,7 +1057,7 @@ const AGENT_ACTIVITY_APPLICABILITY: Record<string, string> = {
   activity_switch_history_reference: "formative_activity",
   activity_switch_reason: "formative_activity",
   activity_prompt: "formative_activity",
-  attempt_number: "activity_attempt; formative_activity",
+  attempt_number: "legacy_followup_round; formative_activity",
   student_response: "reserved for post_activity_evidence or activity evaluation response text when a safe excerpt is explicitly populated; current serializer leaves null",
   evaluation_status: "post_activity_evidence; diagnostic_snapshot",
   misconception_persisted: "post_activity_evidence",
@@ -1068,11 +1070,12 @@ const AGENT_ACTIVITY_APPLICABILITY: Record<string, string> = {
 
 const AGENT_ACTIVITY_DEFINITIONS: Record<string, string> = {
   record_type: "Discriminator naming which concrete agent/activity serializer branch produced the row.",
+  authority_status: "Authority classification for the row. legacy_non_authoritative records are retained for historical analysis but excluded from current formative-conversation activity summaries.",
   agent_call_public_id: "Public or deterministic identifier for the LLM or mock-provider agent-call audit record.",
   agent_name: "Agent identifier recorded by the agent-call audit layer for the executed or attempted backend agent.",
   provider: "Provider family recorded for the agent call, such as mock or OpenAI, when the agent-call branch is populated.",
   model: "Model name recorded for the provider-backed agent call when available.",
-  status: "Lifecycle status for the exported agent call, profile result, formative decision, activity attempt, workflow job, post-activity evidence record, or diagnostic snapshot.",
+  status: "Lifecycle status for the exported agent call, profile result, formative decision, legacy follow-up, workflow job, post-activity evidence record, or diagnostic snapshot.",
   blocked_reason: "Sanitized readiness, guard, validation, or provider-blocking reason recorded for an agent call when a call could not complete normally.",
   started_at: "Timestamp when the exported agent, profile, decision, activity, job, evidence, or snapshot record began or was created.",
   completed_at: "Timestamp when the exported agent, activity, job, evidence, or snapshot record reached a terminal or persisted state.",
@@ -1126,6 +1129,8 @@ const AGENT_ACTIVITY_DEFINITIONS: Record<string, string> = {
 };
 
 const AGENT_ACTIVITY_METHODS: Record<string, string> = {
+  authority_status:
+    "Assigned in agentAndActivityRows() from the session runtime mode and source branch. FollowupRound records and activity-era rows attached to a formative-conversation session are legacy_non_authoritative.",
   input_token_count: "Copied in agentAndActivityRows() from AgentCall.input_tokens after the provider adapter stores usage metadata; null means the provider did not return usable usage for that call.",
   output_token_count: "Copied in agentAndActivityRows() from AgentCall.output_tokens after the provider adapter stores usage metadata; null means the provider did not return usable usage for that call.",
   total_token_count: "Copied in agentAndActivityRows() from AgentCall.total_tokens after the provider adapter stores usage metadata; null means the provider did not return usable usage for that call.",
@@ -1345,7 +1350,8 @@ function countDefinition(table: string, variable: string) {
     process_event_count: "Number of process-event rows associated with the assessment attempt or assessment-summary row.",
     conversation_turn_count: "Number of conversation-turn rows associated with the assessment attempt or assessment-summary row.",
     agent_call_count: "Number of agent-call audit records associated with the assessment attempt or assessment-summary row.",
-    formative_activity_attempt_count: "Number of formative activity runtime attempts associated with the assessment attempt.",
+    formative_activity_attempt_count:
+      "Number of authoritative formative activity runtime attempts associated with the assessment attempt. Formative-conversation sessions report zero; retained legacy_non_authoritative rows are excluded.",
     post_activity_evidence_count: "Number of post-activity misconception-evidence records associated with the assessment attempt.",
     diagnostic_snapshot_count: "Number of post-activity diagnostic snapshots associated with the assessment attempt.",
     unsupported_correct_response_count: "Number of correct selected answers whose accompanying evidence did not strongly support the correctness classification.",

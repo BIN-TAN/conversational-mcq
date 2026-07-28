@@ -1,5 +1,18 @@
 import { prisma } from "@/lib/db";
+import { FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID } from "./opening-contract";
 import { recordFormativeConversationLifecycleEvent } from "./telemetry";
+
+export type FormativeConversationOpeningStatus =
+  | "ready"
+  | "preparing"
+  | "retry_available"
+  | "unavailable";
+
+function jsonRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
 
 function turnProjection(turn: {
   id: string;
@@ -56,12 +69,49 @@ export async function getStudentFormativeConversationProjection(input: {
           message_text: { not: null }
         },
         orderBy: { sequence_index: "asc" }
+      },
+      message_receipts: {
+        where: {
+          client_message_id:
+            FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID
+        },
+        take: 1,
+        include: {
+          assistant_turn: true
+        }
       }
     }
   });
   if (!conversation) {
     return null;
   }
+  const openingReceipt = conversation.message_receipts[0] ?? null;
+  const persistedOpening =
+    openingReceipt?.assistant_turn ??
+    conversation.conversation_turns.find(
+      (turn) =>
+        jsonRecord(turn.structured_payload).message_type ===
+        "formative_conversation_opening"
+    ) ??
+    null;
+  const failurePayload = jsonRecord(openingReceipt?.response_payload);
+  const failureRetryable = failurePayload.retryable !== false;
+  const openingStatus: FormativeConversationOpeningStatus = persistedOpening
+    ? "ready"
+    : openingReceipt?.status === "reserved"
+      ? "preparing"
+      : openingReceipt?.status === "failed"
+        ? failureRetryable
+          ? "retry_available"
+          : "unavailable"
+        : conversation.conversation_turns.length === 0
+          ? "retry_available"
+          : "unavailable";
+  const openingReady = openingStatus === "ready";
+  const canRetryOpening =
+    conversation.status === "active" &&
+    openingStatus === "retry_available";
+
   return {
     conversation_public_id: conversation.conversation_public_id,
     status: conversation.status,
@@ -69,7 +119,9 @@ export async function getStudentFormativeConversationProjection(input: {
     last_activity_at: conversation.last_activity_at.toISOString(),
     paused_at: conversation.paused_at?.toISOString() ?? null,
     completed_at: conversation.completed_at?.toISOString() ?? null,
-    can_send: conversation.status === "active",
+    opening_status: openingStatus,
+    can_retry_opening: canRetryOpening,
+    can_send: conversation.status === "active" && openingReady,
     can_pause: conversation.status === "active",
     can_resume: conversation.status === "paused",
     can_end: ["active", "paused"].includes(conversation.status),
@@ -141,7 +193,7 @@ export async function updateStudentFormativeConversationLifecycle(input: {
         ? "paused"
         : input.action === "resume"
           ? "resumed"
-          : "completed",
+          : "conversation_ended",
     event_source: "backend",
     observed_interval_duration_ms: null,
     client_instance_id: null,

@@ -538,13 +538,23 @@ export async function buildTeacherSessionDataAudit(input: {
     runtime_mode: usesFormativeConversation
       ? "formative_conversation"
       : "legacy_activity",
-    attempt_count: activityAttempts.length,
+    attempt_count: usesFormativeConversation
+      ? 0
+      : activityAttempts.length,
+    legacy_non_authoritative_attempt_count:
+      usesFormativeConversation ? activityAttempts.length : 0,
     active_attempt_count: usesFormativeConversation
       ? 0
       : activityAttempts.length,
-    status_counts: countBy(activityAttempts.map((attempt) => attempt.status)),
-    activity_family_counts: countBy(activityAttempts.map((attempt) => attempt.activity_family)),
-    generation_source_counts: countBy(activityAttempts.map((attempt) => attempt.generation_source)),
+    status_counts: usesFormativeConversation
+      ? {}
+      : countBy(activityAttempts.map((attempt) => attempt.status)),
+    activity_family_counts: usesFormativeConversation
+      ? {}
+      : countBy(activityAttempts.map((attempt) => attempt.activity_family)),
+    generation_source_counts: usesFormativeConversation
+      ? {}
+      : countBy(activityAttempts.map((attempt) => attempt.generation_source)),
     latest_state: usesFormativeConversation
       ? null
       : latestActivityAttempt?.status ?? null,

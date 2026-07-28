@@ -1,6 +1,9 @@
 import { parse } from "csv-parse/sync";
 import { PrismaClient } from "@prisma/client";
-import { buildAnalysisReadyResearchDataBundle } from "../src/lib/services/teacher-research-data/analysis-ready-export";
+import {
+  buildAnalysisReadyResearchDataBundle,
+  countSerializedCsvDataRows
+} from "../src/lib/services/teacher-research-data/analysis-ready-export";
 import {
   buildCoreResearchDictionaryEntries,
   buildExcludedPlatformVariableEntries,
@@ -77,6 +80,12 @@ async function main() {
   await ensureTeacherReviewDemoFixture(prisma);
 
   try {
+    const multilineCsv =
+      'message_text,actor\n"First line\nSecond line",student\n';
+    assert(
+      countSerializedCsvDataRows(multilineCsv) === 1,
+      "CSV row counting must treat an embedded newline as part of one quoted record."
+    );
     const teacher = await prisma.user.findUniqueOrThrow({ where: { user_id: "teacher_demo" } });
     const beforeAgentCalls = await prisma.agentCall.count();
     const result = await buildAnalysisReadyResearchDataBundle({
@@ -106,6 +115,15 @@ async function main() {
     assert(result.filename.includes("research_dataset.zip"), "Research dataset filename should be explicit.");
     assert(result.no_live_provider_call_made === true, "Research dataset export should not make provider calls.");
     assert(result.files.map((file) => file.path).join("|") === expectedFiles.join("|"), "Unexpected ZIP file list.");
+    for (const file of result.files.filter((entry) =>
+      entry.path.endsWith(".csv")
+    )) {
+      assert(
+        result.row_counts[file.path] ===
+          parseCsv<Record<string, string>>(file.data).length,
+        `${file.path} row count must match parsed CSV records.`
+      );
+    }
 
     const sessions = parseCsv<Record<string, string>>(fileData(result.files, "sessions.csv"));
     const itemResponses = parseCsv<Record<string, string>>(fileData(result.files, "item_responses.csv"));

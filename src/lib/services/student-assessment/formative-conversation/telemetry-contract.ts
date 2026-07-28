@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FormativeConversationProfileEvidenceSchema } from "./agent-contract";
 
 export const FORMATIVE_CONVERSATION_TELEMETRY_CONTRACT_VERSION =
   "formative-conversation-telemetry-v1";
@@ -22,7 +23,8 @@ export const FormativeConversationLifecycleEventInputSchema = z
       "resumed",
       "disconnected",
       "reconnected",
-      "completed"
+      "completed",
+      "conversation_ended"
     ]),
     event_source: z.enum(["frontend", "backend", "agent", "system"]),
     observed_interval_duration_ms: z
@@ -78,6 +80,7 @@ export const FormativeConversationInputTelemetryInputSchema = z
     edit_count: z.number().int().nonnegative(),
     backspace_count: z.number().int().nonnegative(),
     paste_event_count: z.number().int().nonnegative(),
+    paste_character_count: z.number().int().nonnegative().default(0),
     final_message_length_chars: z.number().int().nonnegative(),
     submitted_at: z.coerce.date()
   })
@@ -125,7 +128,10 @@ export const FormativeConversationProfileTransitionInputSchema = z
     source_turn_db_id: z.string().uuid(),
     source_agent_call_db_id: z.string().uuid(),
     transition_version: z
-      .literal("formative-conversation-profile-transition-v1")
+      .enum([
+        "formative-conversation-profile-transition-v1",
+        "formative-conversation-profile-transition-v2"
+      ])
       .default("formative-conversation-profile-transition-v1"),
     learning_outcome: z.enum([
       "sound",
@@ -146,20 +152,7 @@ export const FormativeConversationProfileTransitionInputSchema = z
       )
       .min(1),
     evidence_interpretation: z.string().min(1),
-    profile_snapshot: z
-      .object({
-        profile_version: z.string().min(1),
-        outcome: z.enum([
-          "not_yet_determined",
-          "sound_understanding",
-          "largely_improved_understanding",
-          "teacher_assistance_recommended"
-        ]),
-        evidence_summary: z.array(z.string().min(1)),
-        unresolved_evidence: z.array(z.string().min(1)),
-        evidence_limitations: z.array(z.string().min(1))
-      })
-      .strict(),
+    profile_snapshot: FormativeConversationProfileEvidenceSchema,
     supporting_turn_db_ids: z.array(z.string().uuid()).min(2),
     transitioned_at: z.coerce.date()
   })

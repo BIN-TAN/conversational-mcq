@@ -10,6 +10,7 @@ export type StudentAssessmentErrorCode =
   | "llm_profile_validation_failed"
   | "llm_targeted_feedback_validation_failed"
   | "llm_runtime_blocked"
+  | "formative_conversation_unavailable"
   | "live_smoke_flow_mismatch"
   | "account_unavailable"
   | "assessment_manual_review_not_available"

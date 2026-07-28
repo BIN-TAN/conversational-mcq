@@ -2580,6 +2580,11 @@ environment boundary. The currently approved 17-role bundle remains immutable;
 until a later bundle explicitly approves the new role, readiness reports the
 version-scoped `topic_dialogue_agent` compatibility source while preserving the
 approved model, effort, token limit, live toggle, and configuration hash.
+Compatibility is valid only when the active bundle is present and
+`OPERATIONAL_APPROVED_CONFIG_HASH` matches it exactly. Missing or mismatched
+approval evidence leaves the conversation opening in a retryable unavailable
+state and prevents provider dispatch; it does not authorize a deterministic
+teaching fallback.
 
 ## Evidence-Integrated Package Feedback
 

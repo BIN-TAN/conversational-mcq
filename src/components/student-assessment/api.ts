@@ -113,6 +113,7 @@ export function sendFormativeConversationMessage(input: {
     edit_count: number;
     backspace_count: number;
     paste_event_count: number;
+    paste_character_count: number;
   };
 }): Promise<StudentFormativeConversation | null> {
   return post(
@@ -122,6 +123,22 @@ export function sendFormativeConversationMessage(input: {
       client_message_id: input.clientMessageId,
       message_text: input.messageText,
       observable_input_telemetry: input.observableInputTelemetry
+    },
+    (value) =>
+      StudentFormativeConversationSchema.nullable().parse(
+        (value as { formative_conversation: unknown }).formative_conversation
+      )
+  );
+}
+
+export function retryFormativeConversationOpening(input: {
+  sessionPublicId: string;
+  conversationPublicId: string;
+}): Promise<StudentFormativeConversation | null> {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/formative-conversation/opening/retry`,
+    {
+      conversation_public_id: input.conversationPublicId
     },
     (value) =>
       StudentFormativeConversationSchema.nullable().parse(
@@ -145,6 +162,7 @@ export function sendFormativeConversationEvent(input: {
   occurredAt: string;
   observedIntervalDurationMs?: number | null;
   clientInstanceId?: string | null;
+  keepalive?: boolean;
 }) {
   return post(
     `/api/student/sessions/${input.sessionPublicId}/formative-conversation/events`,
@@ -157,7 +175,8 @@ export function sendFormativeConversationEvent(input: {
         input.observedIntervalDurationMs ?? null,
       client_instance_id: input.clientInstanceId ?? null
     },
-    (value) => value as { recorded: boolean }
+    (value) => value as { recorded: boolean },
+    { keepalive: input.keepalive ?? false }
   );
 }
 
@@ -231,7 +250,10 @@ async function get<T>(path: string, parse: (value: unknown) => T) {
 async function post<T>(
   path: string,
   body: Record<string, unknown>,
-  parse: (value: unknown) => T
+  parse: (value: unknown) => T,
+  options?: {
+    keepalive?: boolean;
+  }
 ) {
   const response = await fetch(path, {
     method: "POST",
@@ -239,7 +261,8 @@ async function post<T>(
       Accept: "application/json",
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    keepalive: options?.keepalive ?? false
   });
 
   return parseResponse(response, parse);

@@ -8,6 +8,10 @@ import {
   FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
   FORMATIVE_CONVERSATION_AGENT_NAME
 } from "./agent-contract";
+import {
+  FormativeConversationUnavailableError,
+  formativeConversationUnavailableFromConfiguration
+} from "./availability";
 import { createLiveFormativeConversationAgentRunner } from "./live-runner";
 import { FORMATIVE_CONVERSATION_OPENING_VERSION } from "./opening-contract";
 import type { FormativeConversationAgentRunner } from "./runtime";
@@ -68,22 +72,35 @@ function noLiveOpeningTestRunner(): FormativeConversationAgentRunner {
 export function createFormativeConversationOpeningRunner(
   executionMode: FormativeExecutionMode
 ): FormativeConversationAgentRunner {
-  const executionPlan = resolveTopicDialogueExecutionPlan(executionMode);
+  try {
+    const executionPlan = resolveTopicDialogueExecutionPlan(executionMode);
 
-  if (executionPlan.adapter === "configured_live_runtime") {
-    const runtime = getLlmRuntimeConfig();
-    if (runtime.provider === "openai" && runtime.live_calls_enabled) {
-      return createLiveFormativeConversationAgentRunner();
+    if (executionPlan.adapter === "configured_live_runtime") {
+      const runtime = getLlmRuntimeConfig();
+      if (runtime.provider === "openai" && runtime.live_calls_enabled) {
+        return createLiveFormativeConversationAgentRunner();
+      }
+      if (runtime.provider === "mock" && process.env.NODE_ENV !== "production") {
+        return noLiveOpeningTestRunner();
+      }
+      throw new FormativeConversationUnavailableError(
+        "formative_conversation_opening_live_runtime_not_ready"
+      );
     }
-    if (runtime.provider === "mock" && process.env.NODE_ENV !== "production") {
-      return noLiveOpeningTestRunner();
+
+    if (executionPlan.adapter === "no_generation") {
+      throw new FormativeConversationUnavailableError(
+        "formative_conversation_opening_generation_disabled"
+      );
     }
-    throw new Error("formative_conversation_opening_live_runtime_not_ready");
-  }
 
-  if (executionPlan.adapter === "no_generation") {
-    throw new Error("formative_conversation_opening_generation_disabled");
+    return noLiveOpeningTestRunner();
+  } catch (error) {
+    const unavailable =
+      formativeConversationUnavailableFromConfiguration(error);
+    if (unavailable) {
+      throw unavailable;
+    }
+    throw error;
   }
-
-  return noLiveOpeningTestRunner();
 }

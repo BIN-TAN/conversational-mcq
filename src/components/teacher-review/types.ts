@@ -303,8 +303,11 @@ export type TeacherStudentProfile = {
 export type TeacherFormativeLearningProfile = {
   profile_type: string;
   assessment_specific_understanding: string;
+  combined_evidence_pattern: string;
   evidence_sufficiency: string;
   confidence_alignment: string;
+  independence_interpretability: string;
+  misconception_evidence: string[];
   profile_confidence: string;
   evidence_summary: string;
   reasoning_summary: string;

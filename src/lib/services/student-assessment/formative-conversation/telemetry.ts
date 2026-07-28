@@ -72,6 +72,32 @@ async function getConversationIdentity(conversationPublicId: string) {
   return session;
 }
 
+async function allocateConversationLocalEventSequence(sessionId: string) {
+  const session = await prisma.formativeConversationSession.update({
+    where: { id: sessionId },
+    data: {
+      telemetry_event_sequence_counter: { increment: 1 }
+    },
+    select: {
+      telemetry_event_sequence_counter: true
+    }
+  });
+  return session.telemetry_event_sequence_counter;
+}
+
+async function allocateConversationLocalTurnSequence(sessionId: string) {
+  const session = await prisma.formativeConversationSession.update({
+    where: { id: sessionId },
+    data: {
+      telemetry_turn_sequence_counter: { increment: 1 }
+    },
+    select: {
+      telemetry_turn_sequence_counter: true
+    }
+  });
+  return session.telemetry_turn_sequence_counter;
+}
+
 export async function recordFormativeConversationLifecycleEvent(
   input: FormativeConversationLifecycleEventInput
 ) {
@@ -106,9 +132,13 @@ export async function recordFormativeConversationLifecycleEvent(
   }
 
   try {
+    const conversationLocalEventSequenceIndex =
+      await allocateConversationLocalEventSequence(session.id);
     const event = await prisma.formativeConversationLifecycleEvent.create({
       data: {
         formative_conversation_session_db_id: session.id,
+        conversation_local_event_sequence_index:
+          conversationLocalEventSequenceIndex,
         client_event_id: parsed.client_event_id,
         event_hash: eventHash,
         event_type: parsed.event_type,
@@ -244,12 +274,16 @@ export async function recordFormativeConversationTurnTelemetry(
   }
 
   try {
+    const conversationLocalTurnSequenceIndex =
+      await allocateConversationLocalTurnSequence(session.id);
     const telemetry = await prisma.formativeConversationTurnTelemetry.create({
       data: {
         formative_conversation_session_db_id: session.id,
         conversation_turn_db_id: turn.id,
         agent_call_db_id: parsed.agent_call_db_id ?? null,
         turn_sequence_index: turn.sequence_index,
+        conversation_local_turn_sequence_index:
+          conversationLocalTurnSequenceIndex,
         turn_started_at: parsed.turn_started_at ?? null,
         turn_submitted_at: parsed.turn_submitted_at ?? null,
         response_time_ms: parsed.response_time_ms ?? null,
@@ -329,6 +363,7 @@ export async function recordFormativeConversationInputTelemetry(
       existing.edit_count === parsed.edit_count &&
       existing.backspace_count === parsed.backspace_count &&
       existing.paste_event_count === parsed.paste_event_count &&
+      existing.paste_character_count === parsed.paste_character_count &&
       existing.final_message_length_chars ===
         parsed.final_message_length_chars &&
       existing.submitted_at.toISOString() === parsed.submitted_at.toISOString()
@@ -354,6 +389,7 @@ export async function recordFormativeConversationInputTelemetry(
         edit_count: parsed.edit_count,
         backspace_count: parsed.backspace_count,
         paste_event_count: parsed.paste_event_count,
+        paste_character_count: parsed.paste_character_count,
         final_message_length_chars: parsed.final_message_length_chars,
         submitted_at: parsed.submitted_at
       }
@@ -380,6 +416,7 @@ export async function recordFormativeConversationInputTelemetry(
         telemetry.edit_count === parsed.edit_count &&
         telemetry.backspace_count === parsed.backspace_count &&
         telemetry.paste_event_count === parsed.paste_event_count &&
+        telemetry.paste_character_count === parsed.paste_character_count &&
         telemetry.final_message_length_chars ===
           parsed.final_message_length_chars &&
         telemetry.submitted_at.toISOString() === parsed.submitted_at.toISOString()
@@ -613,7 +650,8 @@ export async function getFormativeConversationTelemetrySummary(
       "resumed",
       "disconnected",
       "reconnected",
-      "completed"
+      "completed",
+      "conversation_ended"
     ].map((eventType) => [
       eventType,
       session.lifecycle_events.filter((event) => event.event_type === eventType)

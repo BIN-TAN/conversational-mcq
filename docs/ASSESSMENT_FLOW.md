@@ -203,11 +203,22 @@ and conversational strategy while the backend validates safety, persistence,
 and any recommended profile transition.
 
 A terminal profile recommendation from `formative_conversation_agent` appends a
-new profile version and records the prior profile, updated profile, supporting
-student and tutor turns, source agent call, conversation evidence references,
-and initial assessment-profile provenance. A recommendation to continue does
-not force an outcome. No activity-completion rule, fixed threshold, or legacy
-topic-dialogue route determines the formative learning outcome.
+new profile version from the agent's complete canonical profile recommendation.
+Each field is identified either as updated from cited conversation evidence or
+as unchanged because its existing evidence remains valid. The platform must not
+blindly clone stale understanding, evidence-sufficiency, confidence-alignment,
+or misconception fields. The transition records the prior and updated profiles,
+supporting student and tutor turns, source agent call, conversation evidence
+references, timestamp, outcome, and initial assessment-profile provenance. A
+recommendation to continue records evidence but does not force an outcome or
+append a profile version. No activity-completion rule, fixed threshold, legacy
+topic-dialogue route, conversation status, or current-profile pointer determines
+the formative learning outcome.
+
+Teacher and research projections use the same latest persisted transition as
+the authoritative formative result. If no transition exists, the displayed
+state is `No validated profile change yet`; projections must not infer
+`sound` or `largely_improved` from narrative text or runtime state.
 
 ## Phase 30a Loop Policy
 

@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Loader2, LogOut, MessageSquareText, Send } from "lucide-react";
+import {
+  AlertTriangle,
+  Loader2,
+  LogOut,
+  MessageSquareText,
+  RefreshCw,
+  Send
+} from "lucide-react";
 import type {
   ConfidenceRating,
   StructuredStudentApiError,
@@ -27,6 +34,7 @@ import {
   fetchStudentTranscript,
   newClientActionId,
   requestProgression,
+  retryFormativeConversationOpening,
   saveConfidence,
   saveOption,
   saveReasoning,
@@ -277,8 +285,9 @@ function FormativeConversationControls(input: {
   onBackspace: () => void;
   onChange: (value: string) => void;
   onEnd: () => void;
-  onPaste: () => void;
+  onPaste: (pastedCharacterCount: number) => void;
   onPause: () => void;
+  onRetryOpening: () => void;
   onResume: () => void;
   onSend: () => void;
 }) {
@@ -304,7 +313,7 @@ function FormativeConversationControls(input: {
               onClick={input.onPause}
               type="button"
             >
-              Pause
+              Pause conversation
             </button>
           ) : null}
           {conversation.can_resume ? (
@@ -314,7 +323,7 @@ function FormativeConversationControls(input: {
               onClick={input.onResume}
               type="button"
             >
-              Resume
+              Resume conversation
             </button>
           ) : null}
           {conversation.can_end ? (
@@ -348,7 +357,11 @@ function FormativeConversationControls(input: {
                   input.onSend();
                 }
               }}
-              onPaste={input.onPaste}
+              onPaste={(event) =>
+                input.onPaste(
+                  event.clipboardData.getData("text").length
+                )
+              }
               placeholder="Type your message..."
               value={input.draft}
             />
@@ -368,6 +381,39 @@ function FormativeConversationControls(input: {
             )}
           </button>
         </div>
+      ) : conversation.opening_status === "preparing" ? (
+        <p
+          className="mt-4 flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted"
+          data-testid="formative-conversation-opening-preparing"
+        >
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Preparing your learning conversation...
+        </p>
+      ) : conversation.can_retry_opening ? (
+        <div
+          className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2"
+          data-testid="formative-conversation-opening-retry"
+        >
+          <p className="text-sm text-muted">
+            The learning conversation is not available yet.
+          </p>
+          <button
+            className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:opacity-60"
+            disabled={input.isBusy}
+            onClick={input.onRetryOpening}
+            type="button"
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            Try again
+          </button>
+        </div>
+      ) : conversation.opening_status === "unavailable" ? (
+        <p
+          className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted"
+          data-testid="formative-conversation-opening-unavailable"
+        >
+          The learning conversation is temporarily unavailable.
+        </p>
       ) : (
         <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted">
           {conversation.status === "paused"
@@ -2193,6 +2239,7 @@ export function AssessmentSessionClient({
   const formativeEditCountRef = useRef(0);
   const formativeBackspaceCountRef = useRef(0);
   const formativePasteCountRef = useRef(0);
+  const formativePasteCharacterCountRef = useRef(0);
   const formativeClientInstanceIdRef = useRef<string | null>(null);
   const formativeConversationPublicId =
     state?.formative_conversation?.conversation_public_id ?? null;
@@ -2216,8 +2263,11 @@ export function AssessmentSessionClient({
         | "page_visible"
         | "page_hidden"
         | "refreshed"
+        | "left"
+        | "reentered"
         | "disconnected"
-        | "reconnected"
+        | "reconnected",
+      keepalive = false
     ) => {
       const occurredAt = new Date();
       void sendFormativeConversationEvent({
@@ -2226,19 +2276,36 @@ export function AssessmentSessionClient({
         clientEventId: newClientActionId(`formative-${eventType}`),
         eventType,
         occurredAt: occurredAt.toISOString(),
-        clientInstanceId
+        clientInstanceId,
+        keepalive
       }).catch(() => undefined);
     };
-    record("refreshed");
+    const navigationEntry = performance
+      .getEntriesByType("navigation")
+      .at(0) as PerformanceNavigationTiming | undefined;
+    const visitKey = `formative-conversation-visited:${formativeConversationPublicId}`;
+    const hasVisited =
+      window.sessionStorage.getItem(visitKey) === "true";
+    if (navigationEntry?.type === "reload") {
+      record("refreshed");
+    } else if (hasVisited) {
+      record("reentered");
+    } else {
+      record("page_visible");
+    }
+    window.sessionStorage.setItem(visitKey, "true");
     const onVisibilityChange = () =>
       record(document.visibilityState === "hidden" ? "page_hidden" : "page_visible");
+    const onPageHide = () => record("left", true);
     const onOffline = () => record("disconnected");
     const onOnline = () => record("reconnected");
     document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", onPageHide);
     window.addEventListener("offline", onOffline);
     window.addEventListener("online", onOnline);
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", onPageHide);
       window.removeEventListener("offline", onOffline);
       window.removeEventListener("online", onOnline);
     };
@@ -2291,12 +2358,13 @@ export function AssessmentSessionClient({
     formativeEditCountRef.current = 0;
     formativeBackspaceCountRef.current = 0;
     formativePasteCountRef.current = 0;
+    formativePasteCharacterCountRef.current = 0;
   }
 
   async function handleSendFormativeConversationMessage() {
     const conversation = state?.formative_conversation;
     const message = formativeConversationDraft.trim();
-    if (!state || !conversation || !message || isBusy) {
+    if (!state || !conversation || !conversation.can_send || !message || isBusy) {
       return;
     }
     const clientMessageId =
@@ -2330,7 +2398,9 @@ export function AssessmentSessionClient({
             : null,
           edit_count: formativeEditCountRef.current,
           backspace_count: formativeBackspaceCountRef.current,
-          paste_event_count: formativePasteCountRef.current
+          paste_event_count: formativePasteCountRef.current,
+          paste_character_count:
+            formativePasteCharacterCountRef.current
         }
       });
       setState((current) =>
@@ -2345,6 +2415,34 @@ export function AssessmentSessionClient({
       handleError(errorValue, "message", () => {
         void handleSendFormativeConversationMessage();
       });
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function handleRetryFormativeConversationOpening() {
+    const conversation = state?.formative_conversation;
+    if (!state || !conversation?.can_retry_opening || isBusy) {
+      return;
+    }
+    setIsBusy(true);
+    setError(null);
+    setFailedAction(null);
+    try {
+      const nextConversation = await retryFormativeConversationOpening({
+        sessionPublicId: state.session_public_id,
+        conversationPublicId: conversation.conversation_public_id
+      });
+      setState((current) =>
+        current
+          ? { ...current, formative_conversation: nextConversation }
+          : current
+      );
+    } catch (errorValue) {
+      handleError(errorValue, "learning conversation", () => {
+        void handleRetryFormativeConversationOpening();
+      });
+      setFailedAction(null);
     } finally {
       setIsBusy(false);
     }
@@ -3230,10 +3328,13 @@ export function AssessmentSessionClient({
       }}
       onChange={handleFormativeConversationDraft}
       onEnd={() => void handleFormativeConversationLifecycle("end")}
-      onPaste={() => {
+      onPaste={(pastedCharacterCount) => {
         formativePasteCountRef.current += 1;
+        formativePasteCharacterCountRef.current +=
+          pastedCharacterCount;
       }}
       onPause={() => void handleFormativeConversationLifecycle("pause")}
+      onRetryOpening={() => void handleRetryFormativeConversationOpening()}
       onResume={() => void handleFormativeConversationLifecycle("resume")}
       onSend={() => void handleSendFormativeConversationMessage()}
     />

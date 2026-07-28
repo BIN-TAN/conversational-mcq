@@ -35,10 +35,17 @@ type StudentOption = {
   availability: string;
 };
 
+type SessionOption = {
+  session_public_id: string;
+  counts: ExportAvailabilityCounts;
+  availability: string;
+};
+
 type OptionsResponse = {
   export_version: string;
   assessments: AssessmentOption[];
   students: StudentOption[];
+  sessions: SessionOption[];
   data_dictionary: Array<{ field: string; definition?: string }>;
 };
 
@@ -311,20 +318,12 @@ function selectedCounts(input: {
     return input.options?.students.find((student) => student.user_id === input.studentId)?.counts ?? null;
   }
   if (input.scopeMode === "session") {
-    return input.sessionId
-      ? {
-          sessions: 1,
-          item_responses: 0,
-          process_events: 0,
-          latency_rows: 0,
-          conversation_turns: 0,
-          response_packages: 0,
-          agent_calls: 0,
-          activity_attempts: 0,
-          post_activity_evidence: 0,
-          diagnostic_snapshots: 0
-        }
-      : null;
+    return (
+      input.options?.sessions?.find(
+        (session) =>
+          session.session_public_id === input.sessionId
+      )?.counts ?? null
+    );
   }
   return (input.options?.assessments ?? []).reduce<ExportAvailabilityCounts>(
     (total, assessment) => ({

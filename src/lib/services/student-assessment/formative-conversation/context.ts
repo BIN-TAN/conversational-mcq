@@ -202,14 +202,27 @@ export async function compilePersistedFormativeConversationContext(input: {
     ])
   );
   const latestProfileTransition = session.profile_transitions.at(-1);
-  const persistedCurrentProfile =
-    latestProfileTransition &&
-    latestProfileTransition.updated_student_profile_db_id ===
-      session.current_student_profile_db_id
-      ? parseFormativeConversationProfileSnapshot(
-          latestProfileTransition.profile_snapshot
-        )
-      : null;
+  const persistedCurrentProfile = latestProfileTransition
+    ? parseFormativeConversationProfileSnapshot(
+        latestProfileTransition.profile_snapshot
+      )
+    : null;
+  const currentProfile = latestProfileTransition
+    ? persistedCurrentProfile
+      ? {
+          ...persistedCurrentProfile,
+          canonical_profile:
+            persistedCurrentProfile.canonical_profile ??
+            input.current_profile.canonical_profile
+        }
+      : input.current_profile
+    : input.initial_profile;
+  const canonicalProfileIds = new Set([
+    session.initial_student_profile_db_id,
+    ...session.profile_transitions.map(
+      (transition) => transition.updated_student_profile_db_id
+    )
+  ]);
 
   return compileFormativeConversationContext({
     conversation_public_id: session.conversation_public_id,
@@ -223,9 +236,10 @@ export async function compilePersistedFormativeConversationContext(input: {
       input.assessment_response_evidence ?? [],
     assessment_process_evidence: input.assessment_process_evidence ?? [],
     initial_profile: input.initial_profile,
-    current_profile: persistedCurrentProfile ?? input.current_profile,
-    profile_history: session.concept_unit_session.student_profiles.map(
-      (profile) => {
+    current_profile: currentProfile,
+    profile_history: session.concept_unit_session.student_profiles
+      .filter((profile) => canonicalProfileIds.has(profile.id))
+      .map((profile) => {
         const transition = transitionByUpdatedProfileId.get(profile.id);
         return {
           profile_version: profile.id,
@@ -242,8 +256,7 @@ export async function compilePersistedFormativeConversationContext(input: {
             profile.based_on_agent_call?.agent_name ??
             "assessment_profile"
         };
-      }
-    ),
+      }),
     telemetry_summary: {
       observable_student_turn_count: visibleTranscript.filter(
         (turn) => turn.actor === "student"

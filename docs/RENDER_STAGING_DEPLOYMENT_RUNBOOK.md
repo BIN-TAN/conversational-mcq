@@ -95,6 +95,15 @@ OPENAI_MODEL_ITEM_ADMIN=<model>
 OPENAI_MODEL_PROFILE_INTEGRATION=<model>
 OPENAI_MODEL_PLANNING=<model>
 OPENAI_MODEL_FOLLOWUP=<model>
+OPENAI_MODEL_FORMATIVE_CONVERSATION=<approved model>
+OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION=<approved effort>
+OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION=<approved limit>
+FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED=true
+OPERATIONAL_AGENT_MODE=guarded_live
+OPERATIONAL_APPROVED_CONFIG_HASH=<exact active bundle hash>
+OPERATIONAL_APPROVAL_BUNDLE_PATH=<absolute active bundle path>
+OPERATIONAL_APPROVED_MANIFEST_PATH=<absolute bundle manifest path>
+OPERATIONAL_APPROVAL_EVIDENCE_PATH=<absolute bundle evidence path>
 LLM_DAILY_CLASS_CALL_LIMIT=<pilot limit>
 LLM_DAILY_CLASS_TOKEN_LIMIT=<pilot limit>
 LLM_DAILY_STUDENT_CALL_LIMIT=<pilot limit>
@@ -187,8 +196,16 @@ Do not set the candidate values for classroom use until the candidate
 evaluation and approval workflow outputs a new `OPERATIONAL_APPROVED_CONFIG_HASH`.
 The current approved 17-role bundle remains unchanged during the Phase A role
 migration. Until a new bundle is explicitly evaluated and approved,
-`formative_conversation_agent` readiness reports a version-scoped compatibility
-projection from the approved `topic_dialogue_agent` model policy.
+`formative_conversation_agent` may use only the existing version-scoped
+compatibility mapping from the approved `topic_dialogue_agent` model policy.
+That mapping is accepted only when the active approval bundle is present, its
+version is the explicitly supported immutable 17-role version, and
+`OPERATIONAL_APPROVED_CONFIG_HASH` exactly matches the bundle's configured
+hash. The dedicated model, reasoning-effort, and token variables must also
+match that mapped policy. A missing bundle, missing hash, or mismatch fails
+closed as `formative_conversation_unavailable`; it does not create an
+`AgentCall` or silently fall back to a deterministic lesson. Do not set a hash
+without deploying its matching bundle artifacts.
 
 Paid GPT-5.6 candidate evaluation must be run as a separate operator step, not
 as part of Render deployment. The isolated runner uses fixed synthetic fixtures

@@ -403,6 +403,8 @@ function dataDictionary() {
       success_criteria_summary: "Redacted success criteria summary.",
       activity_attempt_public_id: "Public activity runtime attempt identifier.",
       activity_attempt_id: "Compatibility activity-attempt reference. It should match a public activity attempt identifier, not a database UUID.",
+      authority_status:
+        "Whether a legacy activity-era record remains authoritative for a legacy session or is retained only as legacy_non_authoritative history after formative-conversation cutover.",
       student_public_id: "Safe student public identifier used by activity runtime records.",
       concept_unit_id: "Safe concept-unit identifier used by activity runtime records.",
       activity_family: "Formative activity family.",
@@ -631,7 +633,12 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
   });
 
   const sessionPublicIds = sessions.map((session) => session.session_public_id);
-  const [activityAttempts, evidenceRecords, diagnosticSnapshots] = await Promise.all([
+  const [
+    activityAttempts,
+    evidenceRecords,
+    diagnosticSnapshots,
+    formativeConversationSessions
+  ] = await Promise.all([
     prisma.activityRuntimeAttempt.findMany({
       where: { session_public_id: { in: sessionPublicIds } },
       orderBy: [{ created_at: "asc" }]
@@ -648,8 +655,28 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
           select: { evidence_public_id: true }
         }
       }
+    }),
+    prisma.formativeConversationSession.findMany({
+      where: {
+        assessment_session: {
+          session_public_id: { in: sessionPublicIds }
+        }
+      },
+      select: {
+        assessment_session: {
+          select: {
+            session_public_id: true
+          }
+        }
+      }
     })
   ]);
+  const formativeConversationSessionIds = new Set(
+    formativeConversationSessions.map(
+      (conversation) =>
+        conversation.assessment_session.session_public_id
+    )
+  );
 
   const [readableTranscripts, audits] = await Promise.all([
     Promise.all(sessionPublicIds.map((sessionPublicId) => getTeacherReadableTranscript(sessionPublicId))),
@@ -891,6 +918,11 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
     diagnostic_purpose: attempt.diagnostic_purpose,
     generation_source: attempt.generation_source,
     status: attempt.status,
+    authority_status: formativeConversationSessionIds.has(
+      attempt.session_public_id
+    )
+      ? "legacy_non_authoritative"
+      : "authoritative_legacy_runtime",
     started_at: iso(attempt.started_at),
     completed_at: iso(attempt.completed_at),
     latest_evidence_record_public_id: attempt.latest_evidence_record_public_id,
@@ -908,6 +940,11 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
     evaluation_source: record.evaluation_source,
     review_only: record.review_only,
     runtime_servable_to_student: record.runtime_servable_to_student,
+    authority_status: formativeConversationSessionIds.has(
+      record.session_public_id
+    )
+      ? "legacy_non_authoritative"
+      : "authoritative_legacy_runtime",
     production_mode: record.production_mode,
     diagnostic_purpose: record.diagnostic_purpose,
     activity_family: record.activity_family,
@@ -928,6 +965,11 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
     student_public_id: snapshot.student_public_id,
     activity_attempt_id: snapshot.activity_attempt_id,
     activity_attempt_public_id: snapshot.activity_attempt_id,
+    authority_status: formativeConversationSessionIds.has(
+      snapshot.session_public_id
+    )
+      ? "legacy_non_authoritative"
+      : "authoritative_legacy_runtime",
     pre_activity_diagnostic_state: snapshot.pre_activity_diagnostic_state,
     activity_update_status: snapshot.activity_update_status,
     post_activity_diagnostic_state: snapshot.post_activity_diagnostic_state,

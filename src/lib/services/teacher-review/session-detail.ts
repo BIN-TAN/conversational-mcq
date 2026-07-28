@@ -7,6 +7,10 @@ import { serializeStudentProfileForTeacher } from "@/lib/agents/student-profilin
 import { getServerEnv } from "@/lib/env";
 import { serializeProgressionForTeacher } from "@/lib/services/concept-progression/progression";
 import { serializeAssessmentContentState } from "@/lib/services/content/governance";
+import {
+  latestPersistedFormativeConversationProfileTransition,
+  persistedFormativeConversationOutcome
+} from "@/lib/services/student-assessment/formative-conversation/profile-projection";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 import { deriveAutomationState } from "@/lib/workflow/automation";
 import { serializeWorkflowJob } from "@/lib/workflow/jobs";
@@ -29,13 +33,39 @@ function teacherLearningObservations(value: unknown) {
     : [];
 }
 
+function teacherProfileEvidence(value: unknown): string[] {
+  if (typeof value === "string") {
+    const normalized = value.replace(/\s+/g, " ").trim();
+    return normalized ? [normalized] : [];
+  }
+  if (Array.isArray(value)) {
+    return [...new Set(value.flatMap(teacherProfileEvidence))].slice(0, 20);
+  }
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+  const record = value as Record<string, unknown>;
+  return [
+    "student_safe_summary",
+    "observation",
+    "summary",
+    "description",
+    "misconception",
+    "indicator",
+    "label"
+  ].flatMap((key) => teacherProfileEvidence(record[key]));
+}
+
 function serializeFormativeLearningProfile(
   profile: Pick<
     StudentProfile,
     | "profile_type"
+    | "ability_profile"
     | "integrated_diagnostic_profile"
     | "evidence_sufficiency"
     | "confidence_alignment"
+    | "independence_interpretability"
+    | "misconception_indicators"
     | "profile_confidence"
     | "integrated_profile_rationale"
     | "reasoning_quality_summary"
@@ -45,9 +75,16 @@ function serializeFormativeLearningProfile(
   return {
     profile_type: profile.profile_type,
     assessment_specific_understanding:
+      profile.ability_profile,
+    combined_evidence_pattern:
       profile.integrated_diagnostic_profile,
     evidence_sufficiency: profile.evidence_sufficiency,
     confidence_alignment: profile.confidence_alignment,
+    independence_interpretability:
+      profile.independence_interpretability,
+    misconception_evidence: teacherProfileEvidence(
+      profile.misconception_indicators
+    ),
     profile_confidence: profile.profile_confidence,
     evidence_summary: profile.integrated_profile_rationale,
     reasoning_summary: profile.reasoning_quality_summary,
@@ -491,28 +528,16 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
     Boolean(session.automation_exception_reason) || latestWorkflowJob?.status === "failed";
   const formativeConversations = session.formative_conversation_sessions.map(
     (conversation) => {
-      const profileChanged =
-        Boolean(conversation.initial_student_profile) &&
-        Boolean(conversation.current_student_profile) &&
-        conversation.initial_student_profile?.id !==
-          conversation.current_student_profile?.id;
-      const currentIntegratedProfile =
-        conversation.current_student_profile?.integrated_diagnostic_profile;
-      const latestTransition = conversation.profile_transitions.at(-1);
-      const learningOutcome =
-        latestTransition?.learning_outcome ??
-        (conversation.status === "teacher_assistance_recommended" ||
-        conversation.review_signals.some(
-          (signal) =>
-            signal.reason_code === "teacher_assistance_recommended" &&
-            signal.status === "open"
-        )
-          ? "teacher_assistance_recommended"
-          : currentIntegratedProfile === "robust_understanding_ready_for_transfer"
-            ? "sound"
-            : profileChanged
-              ? "largely_improved"
-              : null);
+      const latestTransition =
+        latestPersistedFormativeConversationProfileTransition(
+          conversation.profile_transitions
+        );
+      const learningOutcome = persistedFormativeConversationOutcome(
+        conversation.profile_transitions
+      );
+      const canonicalCurrentProfile =
+        latestTransition?.updated_student_profile ??
+        conversation.initial_student_profile;
 
       return {
         conversation_public_id: conversation.conversation_public_id,
@@ -532,9 +557,9 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
               conversation.initial_student_profile
             )
           : null,
-        current_learning_profile: conversation.current_student_profile
+        current_learning_profile: canonicalCurrentProfile
           ? serializeFormativeLearningProfile(
-              conversation.current_student_profile
+              canonicalCurrentProfile
             )
           : null,
         timeline: conversation.conversation_turns.map((turn) => ({

@@ -1,14 +1,17 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type StudentProfile } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { toPrismaJson } from "@/lib/services/json";
 import {
+  FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS,
+  FORMATIVE_CONVERSATION_CANONICAL_PROFILE_VERSION,
   FormativeConversationProfileEvidenceSchema,
   type FormativeConversationAgentOutput,
+  type FormativeConversationCanonicalProfile,
   type FormativeConversationProfileEvidence
 } from "./agent-contract";
 
 export const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VERSION =
-  "formative-conversation-profile-transition-v1";
+  "formative-conversation-profile-transition-v2";
 
 export type FormativeConversationProfileEvidenceHookInput = {
   conversation_public_id: string;
@@ -36,6 +39,9 @@ export class FormativeConversationProfileTransitionError extends Error {
       | "profile_transition_tutor_turn_mismatch"
       | "profile_transition_evidence_turn_mismatch"
       | "profile_transition_student_evidence_missing"
+      | "profile_transition_evidence_missing"
+      | "profile_transition_updated_profile_missing"
+      | "profile_transition_field_evidence_invalid"
       | "profile_transition_stale",
     message: string
   ) {
@@ -87,17 +93,125 @@ export function parseFormativeConversationProfileSnapshot(
   return parsed.success ? parsed.data : null;
 }
 
-function textArray(value: Prisma.JsonValue) {
-  return Array.isArray(value)
-    ? value.filter(
-        (entry): entry is string =>
-          typeof entry === "string" && entry.trim().length > 0
-      )
-    : [];
-}
-
 function jsonInput(value: unknown): Prisma.InputJsonValue {
   return (toPrismaJson(value) ?? []) as Prisma.InputJsonValue;
+}
+
+function normalizedText(value: string, fallback: string) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized || fallback;
+}
+
+function normalizedProfileTextList(
+  value: Prisma.JsonValue,
+  limit: number
+) {
+  const entries: string[] = [];
+  const visit = (entry: Prisma.JsonValue, path: string[]) => {
+    if (entries.length >= limit || entry === null) {
+      return;
+    }
+    if (typeof entry === "string") {
+      const normalized = entry.replace(/\s+/g, " ").trim();
+      if (normalized) {
+        entries.push(
+          path.length > 0
+            ? `${path.at(-1)?.replaceAll("_", " ")}: ${normalized}`
+            : normalized
+        );
+      }
+      return;
+    }
+    if (typeof entry === "number" || typeof entry === "boolean") {
+      entries.push(
+        path.length > 0
+          ? `${path.at(-1)?.replaceAll("_", " ")}: ${String(entry)}`
+          : String(entry)
+      );
+      return;
+    }
+    if (Array.isArray(entry)) {
+      entry.forEach((child) => visit(child, path));
+      return;
+    }
+    Object.entries(entry).forEach(([key, child]) => {
+      if (child !== undefined) {
+        visit(child, [...path, key]);
+      }
+    });
+  };
+  visit(value, []);
+  return [...new Set(entries)].slice(0, limit);
+}
+
+export function canonicalFormativeConversationProfileFromStudentProfile(
+  profile: StudentProfile
+): FormativeConversationCanonicalProfile {
+  return {
+    schema_version: FORMATIVE_CONVERSATION_CANONICAL_PROFILE_VERSION,
+    ability_profile: profile.ability_profile,
+    ability_pattern_flags: normalizedProfileTextList(
+      profile.ability_pattern_flags,
+      20
+    ),
+    engagement_profile: profile.engagement_profile,
+    engagement_pattern_flags: normalizedProfileTextList(
+      profile.engagement_pattern_flags,
+      20
+    ),
+    integrated_diagnostic_profile:
+      profile.integrated_diagnostic_profile,
+    integrated_profile_confidence:
+      profile.integrated_profile_confidence,
+    integrated_profile_rationale: normalizedText(
+      profile.integrated_profile_rationale,
+      "No integrated profile rationale was recorded."
+    ),
+    evidence_sufficiency: profile.evidence_sufficiency,
+    confidence_alignment: profile.confidence_alignment,
+    independence_interpretability:
+      profile.independence_interpretability,
+    misconception_indicators: normalizedProfileTextList(
+      profile.misconception_indicators,
+      20
+    ),
+    item_level_evidence: normalizedProfileTextList(
+      profile.item_level_evidence,
+      50
+    ),
+    reasoning_quality_summary: normalizedText(
+      profile.reasoning_quality_summary,
+      "No reasoning-quality summary was recorded."
+    ),
+    engagement_summary: normalizedText(
+      profile.engagement_summary,
+      "No engagement summary was recorded."
+    ),
+    process_interpretation_cautions: normalizedProfileTextList(
+      profile.process_interpretation_cautions,
+      20
+    ),
+    profile_confidence: profile.profile_confidence,
+    rationale: normalizedText(
+      profile.rationale,
+      "No profile rationale was recorded."
+    ),
+    recommended_next_evidence: normalizedProfileTextList(
+      profile.recommended_next_evidence,
+      20
+    )
+  };
+}
+
+function profileFieldValue(
+  profile: FormativeConversationCanonicalProfile,
+  field: (typeof FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS)[number]
+) {
+  return profile[field];
+}
+
+function profileValuesEqual(left: unknown, right: unknown) {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 async function existingTransitionForAgentCall(
@@ -143,6 +257,20 @@ export async function recordFormativeConversationProfileTransitionRecommendation
   );
   if (!input.recommendation.recommended || !learningOutcome) {
     return null;
+  }
+  const updatedCanonicalProfile =
+    input.recommendation.updated_profile;
+  if (!updatedCanonicalProfile) {
+    throw new FormativeConversationProfileTransitionError(
+      "profile_transition_updated_profile_missing",
+      "A terminal profile transition requires the agent's complete updated profile."
+    );
+  }
+  if (input.agent_evidence_observations.length === 0) {
+    throw new FormativeConversationProfileTransitionError(
+      "profile_transition_evidence_missing",
+      "A terminal profile transition requires persisted conversation evidence."
+    );
   }
 
   const existing = await existingTransitionForAgentCall(
@@ -223,7 +351,15 @@ export async function recordFormativeConversationProfileTransitionRecommendation
       }
 
       const citedSequenceIndexes = [
-        ...new Set(input.recommendation.source_turn_sequence_indexes)
+        ...new Set([
+          ...input.recommendation.source_turn_sequence_indexes,
+          ...input.recommendation.field_evidence.flatMap(
+            (evidence) => evidence.source_turn_sequence_indexes
+          ),
+          ...input.agent_evidence_observations.flatMap(
+            (observation) => observation.source_turn_sequence_indexes
+          )
+        ])
       ];
       const citedTurns = await tx.conversationTurn.findMany({
         where: {
@@ -249,39 +385,60 @@ export async function recordFormativeConversationProfileTransitionRecommendation
         );
       }
 
-      const priorTransition =
-        await tx.formativeConversationProfileTransition.findFirst({
-          where: {
-            formative_conversation_session_db_id: session.id,
-            updated_student_profile_db_id: priorProfile.id
-          },
-          orderBy: { transitioned_at: "desc" },
-          select: { profile_snapshot: true }
-        });
-      const priorSnapshot =
-        parseFormativeConversationProfileSnapshot(
-          priorTransition?.profile_snapshot
-        ) ?? {
-          profile_version: priorProfile.id,
-          outcome:
-            priorProfile.integrated_diagnostic_profile ===
-            "robust_understanding_ready_for_transfer"
-              ? ("sound_understanding" as const)
-              : ("not_yet_determined" as const),
-          evidence_summary: [
-            priorProfile.integrated_profile_rationale,
-            priorProfile.reasoning_quality_summary
-          ].filter(Boolean),
-          unresolved_evidence: textArray(
-            priorProfile.recommended_next_evidence
-          ),
-          evidence_limitations:
-            priorProfile.evidence_sufficiency === "strong"
-              ? []
-              : [
-                  `Evidence sufficiency is ${priorProfile.evidence_sufficiency}.`
-                ]
-        };
+      const citedTurnsBySequence = new Map(
+        citedTurns.map((turn) => [turn.sequence_index, turn])
+      );
+      const priorCanonicalProfile =
+        canonicalFormativeConversationProfileFromStudentProfile(
+          priorProfile
+        );
+      const fieldEvidenceByField = new Map(
+        input.recommendation.field_evidence.flatMap((evidence) =>
+          evidence.profile_fields.map((field) => [field, evidence] as const)
+        )
+      );
+      for (const field of FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS) {
+        const fieldEvidence = fieldEvidenceByField.get(field);
+        if (!fieldEvidence) {
+          throw new FormativeConversationProfileTransitionError(
+            "profile_transition_field_evidence_invalid",
+            `The agent recommendation does not provide evidence provenance for ${field}.`
+          );
+        }
+        const changed = !profileValuesEqual(
+          profileFieldValue(priorCanonicalProfile, field),
+          profileFieldValue(updatedCanonicalProfile, field)
+        );
+        if (
+          changed &&
+          fieldEvidence.disposition !==
+            "updated_from_conversation_evidence"
+        ) {
+          throw new FormativeConversationProfileTransitionError(
+            "profile_transition_field_evidence_invalid",
+            `The changed ${field} field is not supported as a conversation evidence update.`
+          );
+        }
+        if (
+          fieldEvidence.disposition ===
+            "updated_from_conversation_evidence" &&
+          !fieldEvidence.source_turn_sequence_indexes.some(
+            (sequenceIndex) =>
+              citedTurnsBySequence.get(sequenceIndex)?.actor_type ===
+              "student"
+          )
+        ) {
+          throw new FormativeConversationProfileTransitionError(
+            "profile_transition_field_evidence_invalid",
+            `The ${field} update does not cite a supporting student turn.`
+          );
+        }
+      }
+      const retainedProfileField = (
+        field: (typeof FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS)[number]
+      ) =>
+        fieldEvidenceByField.get(field)?.disposition ===
+        "retained_evidence_remains_valid";
       const learningObservations = input.agent_evidence_observations.map(
         (observation) => ({
           evidence_type: observation.evidence_type,
@@ -290,43 +447,59 @@ export async function recordFormativeConversationProfileTransitionRecommendation
             observation.source_turn_sequence_indexes
         })
       );
-      const learningObservationText = learningObservations
-        .map((observation) => observation.observation)
-        .join(" ");
-
       const updatedProfile = await tx.studentProfile.create({
         data: {
           concept_unit_session_db_id: priorProfile.concept_unit_session_db_id,
           profile_type: "updated",
-          ability_profile: priorProfile.ability_profile,
-          ability_pattern_flags: jsonInput(priorProfile.ability_pattern_flags),
-          engagement_profile: priorProfile.engagement_profile,
+          ability_profile: updatedCanonicalProfile.ability_profile,
+          ability_pattern_flags: jsonInput(
+            retainedProfileField("ability_pattern_flags")
+              ? priorProfile.ability_pattern_flags
+              : updatedCanonicalProfile.ability_pattern_flags
+          ),
+          engagement_profile: updatedCanonicalProfile.engagement_profile,
           engagement_pattern_flags: jsonInput(
-            priorProfile.engagement_pattern_flags
+            retainedProfileField("engagement_pattern_flags")
+              ? priorProfile.engagement_pattern_flags
+              : updatedCanonicalProfile.engagement_pattern_flags
           ),
           integrated_diagnostic_profile:
-            priorProfile.integrated_diagnostic_profile,
+            updatedCanonicalProfile.integrated_diagnostic_profile,
           integrated_profile_confidence:
-            priorProfile.integrated_profile_confidence,
-          integrated_profile_rationale: input.recommendation.rationale,
-          evidence_sufficiency: priorProfile.evidence_sufficiency,
-          confidence_alignment: priorProfile.confidence_alignment,
+            updatedCanonicalProfile.integrated_profile_confidence,
+          integrated_profile_rationale:
+            updatedCanonicalProfile.integrated_profile_rationale,
+          evidence_sufficiency:
+            updatedCanonicalProfile.evidence_sufficiency,
+          confidence_alignment:
+            updatedCanonicalProfile.confidence_alignment,
           independence_interpretability:
-            priorProfile.independence_interpretability,
+            updatedCanonicalProfile.independence_interpretability,
           misconception_indicators: jsonInput(
-            priorProfile.misconception_indicators
+            retainedProfileField("misconception_indicators")
+              ? priorProfile.misconception_indicators
+              : updatedCanonicalProfile.misconception_indicators
           ),
-          item_level_evidence: jsonInput(priorProfile.item_level_evidence),
+          item_level_evidence: jsonInput(
+            retainedProfileField("item_level_evidence")
+              ? priorProfile.item_level_evidence
+              : updatedCanonicalProfile.item_level_evidence
+          ),
           reasoning_quality_summary:
-            learningObservationText || priorProfile.reasoning_quality_summary,
-          engagement_summary: priorProfile.engagement_summary,
+            updatedCanonicalProfile.reasoning_quality_summary,
+          engagement_summary:
+            updatedCanonicalProfile.engagement_summary,
           process_interpretation_cautions: jsonInput(
-            priorProfile.process_interpretation_cautions
+            retainedProfileField("process_interpretation_cautions")
+              ? priorProfile.process_interpretation_cautions
+              : updatedCanonicalProfile.process_interpretation_cautions
           ),
-          profile_confidence: priorProfile.profile_confidence,
-          rationale: input.recommendation.rationale,
+          profile_confidence: updatedCanonicalProfile.profile_confidence,
+          rationale: updatedCanonicalProfile.rationale,
           recommended_next_evidence: jsonInput(
-            priorProfile.recommended_next_evidence
+            retainedProfileField("recommended_next_evidence")
+              ? priorProfile.recommended_next_evidence
+              : updatedCanonicalProfile.recommended_next_evidence
           ),
           based_on_agent_call_db_id: agentCall.id
         }
@@ -335,13 +508,15 @@ export async function recordFormativeConversationProfileTransitionRecommendation
         profile_version: updatedProfile.id,
         outcome: formativeConversationContextOutcome(learningOutcome),
         evidence_summary:
-          learningObservations.length > 0
-            ? learningObservations.map(
-                (observation) => observation.observation
-              )
-            : priorSnapshot.evidence_summary,
-        unresolved_evidence: priorSnapshot.unresolved_evidence,
-        evidence_limitations: priorSnapshot.evidence_limitations
+          learningObservations.map(
+            (observation) => observation.observation
+          ),
+        unresolved_evidence:
+          updatedCanonicalProfile.recommended_next_evidence,
+        evidence_limitations:
+          updatedCanonicalProfile.process_interpretation_cautions,
+        canonical_profile: updatedCanonicalProfile,
+        field_evidence: input.recommendation.field_evidence
       };
       const transition =
         await tx.formativeConversationProfileTransition.create({
@@ -386,13 +561,20 @@ export async function recordFormativeConversationProfileTransitionRecommendation
         data: supportingTurns,
         skipDuplicates: true
       });
-      await tx.formativeConversationProfileEvidenceReference.updateMany({
-        where: {
-          formative_conversation_session_db_id: session.id,
-          source_agent_call_db_id: agentCall.id
-        },
-        data: { profile_transition_db_id: transition.id }
-      });
+      const linkedEvidence =
+        await tx.formativeConversationProfileEvidenceReference.updateMany({
+          where: {
+            formative_conversation_session_db_id: session.id,
+            source_agent_call_db_id: agentCall.id
+          },
+          data: { profile_transition_db_id: transition.id }
+        });
+      if (linkedEvidence.count === 0) {
+        throw new FormativeConversationProfileTransitionError(
+          "profile_transition_evidence_missing",
+          "The profile transition has no persisted evidence references."
+        );
+      }
 
       const sessionUpdate =
         await tx.formativeConversationSession.updateMany({
@@ -412,6 +594,12 @@ export async function recordFormativeConversationProfileTransitionRecommendation
           "The formative conversation profile changed before this transition was recorded."
         );
       }
+      await tx.conceptUnitSession.update({
+        where: { id: session.concept_unit_session_db_id },
+        data: {
+          latest_student_profile_db_id: updatedProfile.id
+        }
+      });
 
       await tx.formativeConversationReviewSignal.create({
         data: {
@@ -422,8 +610,11 @@ export async function recordFormativeConversationProfileTransitionRecommendation
           reason_code: learningOutcome,
           evidence_summary: jsonInput({
             transition_public_id: transition.transition_public_id,
+            recommendation_version:
+              input.recommendation.recommendation_version,
             evidence_interpretation: input.recommendation.rationale,
-            source_turn_sequence_indexes: citedSequenceIndexes
+            source_turn_sequence_indexes: citedSequenceIndexes,
+            field_evidence: input.recommendation.field_evidence
           })
         }
       });

@@ -31,10 +31,19 @@ const REQUIRED_RENDER_ENV_KEYS = [
   "OPENAI_MODEL_ITEM_ADMIN",
   "OPENAI_MODEL_PROFILE_INTEGRATION",
   "OPENAI_MODEL_PLANNING",
-  "OPENAI_MODEL_FOLLOWUP"
+  "OPENAI_MODEL_FOLLOWUP",
+  "OPENAI_MODEL_FORMATIVE_CONVERSATION",
+  "OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION",
+  "OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION",
+  "FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED",
+  "OPERATIONAL_AGENT_MODE",
+  "OPERATIONAL_APPROVED_CONFIG_HASH",
+  "OPERATIONAL_APPROVAL_BUNDLE_PATH",
+  "OPERATIONAL_APPROVED_MANIFEST_PATH",
+  "OPERATIONAL_APPROVAL_EVIDENCE_PATH"
 ] as const;
 
-const MANUAL_SECRET_KEYS = [
+const MANUAL_ENV_KEYS = [
   "APP_BASE_URL",
   "NEXT_PUBLIC_APP_BASE_URL",
   "SESSION_SECRET",
@@ -43,7 +52,23 @@ const MANUAL_SECRET_KEYS = [
   "OPENAI_MODEL_ITEM_ADMIN",
   "OPENAI_MODEL_PROFILE_INTEGRATION",
   "OPENAI_MODEL_PLANNING",
-  "OPENAI_MODEL_FOLLOWUP"
+  "OPENAI_MODEL_FOLLOWUP",
+  "OPENAI_MODEL_FORMATIVE_CONVERSATION",
+  "OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION",
+  "OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION",
+  "FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED",
+  "OPERATIONAL_AGENT_MODE",
+  "OPERATIONAL_APPROVED_CONFIG_HASH",
+  "OPERATIONAL_APPROVAL_BUNDLE_PATH",
+  "OPERATIONAL_APPROVED_MANIFEST_PATH",
+  "OPERATIONAL_APPROVAL_EVIDENCE_PATH"
+] as const;
+
+const FORMATIVE_CONVERSATION_RENDER_ENV_KEYS = [
+  "OPENAI_MODEL_FORMATIVE_CONVERSATION",
+  "OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION",
+  "OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION",
+  "FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED"
 ] as const;
 
 const SECRET_VALUE_PATTERNS = [
@@ -232,8 +257,8 @@ async function checkRenderBlueprint(renderYaml: string) {
     data: { missing_env_names: missingEnvKeys }
   });
 
-  const manualKeysWithValues = MANUAL_SECRET_KEYS.filter((key) => blockHasValue(renderYaml, key));
-  const manualKeysWithoutSyncFalse = MANUAL_SECRET_KEYS.filter((key) => !blockUsesSyncFalse(renderYaml, key));
+  const manualKeysWithValues = MANUAL_ENV_KEYS.filter((key) => blockHasValue(renderYaml, key));
+  const manualKeysWithoutSyncFalse = MANUAL_ENV_KEYS.filter((key) => !blockUsesSyncFalse(renderYaml, key));
   addCheck({
     name: "manual_secret_values_not_hardcoded",
     status: manualKeysWithValues.length === 0 && manualKeysWithoutSyncFalse.length === 0 ? "pass" : "fail",
@@ -241,6 +266,23 @@ async function checkRenderBlueprint(renderYaml: string) {
     data: {
       keys_with_committed_values: manualKeysWithValues,
       keys_missing_sync_false: manualKeysWithoutSyncFalse
+    }
+  });
+
+  const missingFormativeConversationKeys =
+    FORMATIVE_CONVERSATION_RENDER_ENV_KEYS.filter(
+      (key) =>
+        !envKeyPresent(renderYaml, key) ||
+        !blockUsesSyncFalse(renderYaml, key)
+    );
+  addCheck({
+    name: "formative_conversation_operational_env_boundary",
+    status:
+      missingFormativeConversationKeys.length === 0 ? "pass" : "fail",
+    detail:
+      "The dedicated formative-conversation model, effort, token, and live-call settings must be explicit operator-supplied Render variables.",
+    data: {
+      missing_or_committed_env_names: missingFormativeConversationKeys
     }
   });
 

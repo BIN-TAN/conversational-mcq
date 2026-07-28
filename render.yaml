@@ -51,6 +51,24 @@ services:
         sync: false
       - key: OPENAI_MODEL_FOLLOWUP
         sync: false
+      - key: OPENAI_MODEL_FORMATIVE_CONVERSATION
+        sync: false
+      - key: OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION
+        sync: false
+      - key: OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION
+        sync: false
+      - key: FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED
+        sync: false
+      - key: OPERATIONAL_AGENT_MODE
+        sync: false
+      - key: OPERATIONAL_APPROVED_CONFIG_HASH
+        sync: false
+      - key: OPERATIONAL_APPROVAL_BUNDLE_PATH
+        sync: false
+      - key: OPERATIONAL_APPROVED_MANIFEST_PATH
+        sync: false
+      - key: OPERATIONAL_APPROVAL_EVIDENCE_PATH
+        sync: false
       - key: ALLOW_LOCAL_MOCK_RUNTIME
         value: "false"
       - key: ITEM_ADMIN_TUTOR_MODE

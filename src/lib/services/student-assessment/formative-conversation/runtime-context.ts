@@ -1,3 +1,4 @@
+import type { StudentProfile } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { buildAssessmentInterpretationContextFromResponsePackage } from "@/lib/services/student-assessment/assessment-interpretation-context";
 import type {
@@ -11,7 +12,10 @@ import {
   FORMATIVE_CONVERSATION_AGENT_NAME,
   FORMATIVE_CONVERSATION_ASSESSMENT_SPECIFICATION_VERSION
 } from "./agent-contract";
-import { parseFormativeConversationProfileSnapshot } from "./profile-update";
+import {
+  canonicalFormativeConversationProfileFromStudentProfile,
+  parseFormativeConversationProfileSnapshot
+} from "./profile-update";
 import type { FormativeConversationRuntimeContextSeed } from "./runtime";
 
 type JsonRecord = Record<string, unknown>;
@@ -103,14 +107,7 @@ function answerExplanation(input: {
 }
 
 function profileEvidence(
-  profile: {
-    id: string;
-    integrated_diagnostic_profile: string;
-    integrated_profile_rationale: string;
-    reasoning_quality_summary: string;
-    evidence_sufficiency: string;
-    recommended_next_evidence: unknown;
-  } | null,
+  profile: StudentProfile | null,
   fallbackVersion: string,
   persistedSnapshot?: unknown
 ): FormativeConversationProfileEvidence {
@@ -118,7 +115,14 @@ function profileEvidence(
     persistedSnapshot
   );
   if (snapshot) {
-    return snapshot;
+    return {
+      ...snapshot,
+      canonical_profile:
+        snapshot.canonical_profile ??
+        (profile
+          ? canonicalFormativeConversationProfileFromStudentProfile(profile)
+          : null)
+    };
   }
   if (!profile) {
     return {
@@ -126,7 +130,9 @@ function profileEvidence(
       outcome: "not_yet_determined",
       evidence_summary: [],
       unresolved_evidence: [],
-      evidence_limitations: ["No validated learning profile is available."]
+      evidence_limitations: ["No validated learning profile is available."],
+      canonical_profile: null,
+      field_evidence: []
     };
   }
   const sound =
@@ -142,7 +148,10 @@ function profileEvidence(
     evidence_limitations:
       profile.evidence_sufficiency === "strong"
         ? []
-        : [`Evidence sufficiency is ${profile.evidence_sufficiency}.`]
+        : [`Evidence sufficiency is ${profile.evidence_sufficiency}.`],
+    canonical_profile:
+      canonicalFormativeConversationProfileFromStudentProfile(profile),
+    field_evidence: []
   };
 }
 
@@ -245,9 +254,8 @@ async function buildRuntimeContextSeed(input: {
       profile_transitions: {
         orderBy: { transitioned_at: "desc" },
         take: 1,
-        select: {
-          updated_student_profile_db_id: true,
-          profile_snapshot: true
+        include: {
+          updated_student_profile: true
         }
       }
     }
@@ -400,14 +408,16 @@ async function buildRuntimeContextSeed(input: {
       session.initial_student_profile,
       "initial-profile-unavailable"
     ),
-    current_profile: profileEvidence(
-      session.current_student_profile ?? session.initial_student_profile,
-      "current-profile-unavailable",
-      session.profile_transitions[0]?.updated_student_profile_db_id ===
-        session.current_student_profile_db_id
-        ? session.profile_transitions[0]?.profile_snapshot
-        : null
-    )
+    current_profile: session.profile_transitions[0]
+      ? profileEvidence(
+          session.profile_transitions[0].updated_student_profile,
+          "current-profile-unavailable",
+          session.profile_transitions[0].profile_snapshot
+        )
+      : profileEvidence(
+          session.initial_student_profile,
+          "current-profile-unavailable"
+        )
   };
 }
 

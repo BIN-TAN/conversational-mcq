@@ -10,6 +10,10 @@ import {
   getStudentFormativeConversationProjection,
   processFormativeConversationStudentMessage
 } from "@/lib/services/student-assessment/formative-conversation";
+import {
+  FORMATIVE_CONVERSATION_UNAVAILABLE_MESSAGE
+} from "@/lib/services/student-assessment/formative-conversation/availability";
+import { StudentAssessmentServiceError } from "@/lib/services/student-assessment/errors";
 
 const messageSchema = z
   .object({
@@ -30,7 +34,8 @@ const messageSchema = z
           .optional(),
         edit_count: z.number().int().nonnegative(),
         backspace_count: z.number().int().nonnegative(),
-        paste_event_count: z.number().int().nonnegative()
+        paste_event_count: z.number().int().nonnegative(),
+        paste_character_count: z.number().int().nonnegative().default(0)
       })
       .strict()
       .optional()
@@ -54,10 +59,30 @@ export async function POST(
     });
     if (
       !owned ||
-      owned.conversation_public_id !== body.conversation_public_id ||
-      !owned.can_send
+      owned.conversation_public_id !== body.conversation_public_id
     ) {
-      throw new Error("formative_conversation_not_available");
+      throw new StudentAssessmentServiceError(
+        "not_found",
+        "The learning conversation was not found.",
+        404
+      );
+    }
+    if (owned.opening_status !== "ready") {
+      throw new StudentAssessmentServiceError(
+        "formative_conversation_unavailable",
+        FORMATIVE_CONVERSATION_UNAVAILABLE_MESSAGE,
+        503,
+        {
+          retryable: owned.can_retry_opening
+        }
+      );
+    }
+    if (!owned.can_send) {
+      throw new StudentAssessmentServiceError(
+        "invalid_phase_for_action",
+        "The learning conversation is not accepting messages.",
+        409
+      );
     }
     const seed = await buildFormativeConversationRuntimeContextSeed({
       conversation_public_id: body.conversation_public_id,
@@ -92,7 +117,9 @@ export async function POST(
               edit_count: body.observable_input_telemetry.edit_count,
               backspace_count: body.observable_input_telemetry.backspace_count,
               paste_event_count:
-                body.observable_input_telemetry.paste_event_count
+                body.observable_input_telemetry.paste_event_count,
+              paste_character_count:
+                body.observable_input_telemetry.paste_character_count
             }
           : undefined
       },

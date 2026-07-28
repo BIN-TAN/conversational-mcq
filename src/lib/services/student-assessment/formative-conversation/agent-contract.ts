@@ -11,6 +11,242 @@ export const FORMATIVE_CONVERSATION_SAFETY_BOUNDARY_VERSION =
   "formative-conversation-safety-boundary-v1";
 export const FORMATIVE_CONVERSATION_ASSESSMENT_SPECIFICATION_VERSION =
   "formative-conversation-assessment-specification-v1";
+export const FORMATIVE_CONVERSATION_CANONICAL_PROFILE_VERSION =
+  "formative-conversation-learning-profile-v1";
+export const FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION =
+  "formative-conversation-profile-recommendation-v2";
+
+export const FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS = [
+  "ability_profile",
+  "ability_pattern_flags",
+  "engagement_profile",
+  "engagement_pattern_flags",
+  "integrated_diagnostic_profile",
+  "integrated_profile_confidence",
+  "integrated_profile_rationale",
+  "evidence_sufficiency",
+  "confidence_alignment",
+  "independence_interpretability",
+  "misconception_indicators",
+  "item_level_evidence",
+  "reasoning_quality_summary",
+  "engagement_summary",
+  "process_interpretation_cautions",
+  "profile_confidence",
+  "rationale",
+  "recommended_next_evidence"
+] as const;
+
+const FormativeConversationCanonicalProfileFieldSchema = z.enum(
+  FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS
+);
+
+const FormativeConversationProfileTextListSchema = z
+  .array(z.string().min(1).max(1_200))
+  .max(50);
+
+export const FormativeConversationCanonicalProfileSchema = z
+  .object({
+    schema_version: z.literal(
+      FORMATIVE_CONVERSATION_CANONICAL_PROFILE_VERSION
+    ),
+    ability_profile: z.enum([
+      "insufficient_evidence",
+      "minimal_or_no_demonstrated_understanding",
+      "fragmented_or_limited_understanding",
+      "partial_understanding",
+      "misconception_based_understanding",
+      "fragile_correct_understanding",
+      "procedural_or_application_error",
+      "mostly_correct_understanding",
+      "robust_transfer_ready_understanding"
+    ]),
+    ability_pattern_flags:
+      FormativeConversationProfileTextListSchema.max(20),
+    engagement_profile: z.enum([
+      "insufficient_process_evidence",
+      "low_engagement",
+      "variable_engagement",
+      "adequate_engagement",
+      "productive_engagement",
+      "sustained_high_engagement"
+    ]),
+    engagement_pattern_flags:
+      FormativeConversationProfileTextListSchema.max(20),
+    integrated_diagnostic_profile: z.enum([
+      "insufficient_evidence_for_formative_decision",
+      "low_engagement_limits_interpretability",
+      "conflicting_evidence_needs_clarification",
+      "developing_understanding_with_productive_engagement",
+      "misconception_with_sufficient_engagement",
+      "correct_but_fragile_understanding",
+      "correct_but_independence_uncertain",
+      "underconfident_but_reasoning_supported",
+      "robust_understanding_ready_for_transfer"
+    ]),
+    integrated_profile_confidence: z.enum(["low", "medium", "high"]),
+    integrated_profile_rationale: z.string().min(1).max(4_000),
+    evidence_sufficiency: z.enum([
+      "insufficient",
+      "limited",
+      "adequate",
+      "strong"
+    ]),
+    confidence_alignment: z.enum([
+      "insufficient_evidence",
+      "underconfident",
+      "well_calibrated",
+      "overconfident",
+      "mixed"
+    ]),
+    independence_interpretability: z.enum([
+      "not_applicable",
+      "independent_understanding_likely",
+      "independent_understanding_uncertain",
+      "insufficient_evidence"
+    ]),
+    misconception_indicators:
+      FormativeConversationProfileTextListSchema.max(20),
+    item_level_evidence:
+      FormativeConversationProfileTextListSchema.max(50),
+    reasoning_quality_summary: z.string().min(1).max(4_000),
+    engagement_summary: z.string().min(1).max(4_000),
+    process_interpretation_cautions:
+      FormativeConversationProfileTextListSchema.max(20),
+    profile_confidence: z.enum(["low", "medium", "high"]),
+    rationale: z.string().min(1).max(4_000),
+    recommended_next_evidence:
+      FormativeConversationProfileTextListSchema.max(20)
+  })
+  .strict();
+
+export const FormativeConversationProfileFieldEvidenceSchema = z
+  .object({
+    profile_fields: z
+      .array(FormativeConversationCanonicalProfileFieldSchema)
+      .min(1)
+      .max(FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS.length),
+    disposition: z.enum([
+      "updated_from_conversation_evidence",
+      "retained_evidence_remains_valid"
+    ]),
+    evidence_basis: z.enum([
+      "prior_profile_evidence",
+      "conversation_evidence",
+      "combined"
+    ]),
+    rationale: z.string().min(1).max(1_200),
+    source_turn_sequence_indexes: z
+      .array(z.number().int().positive())
+      .max(40)
+  })
+  .strict();
+
+const FormativeConversationProfileTransitionRecommendationSchema = z
+  .object({
+    recommendation_version: z.literal(
+      FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION
+    ),
+    recommended: z.boolean(),
+    proposed_outcome: z.enum([
+      "sound_understanding",
+      "largely_improved_understanding",
+      "teacher_assistance_recommended",
+      "continue_conversation"
+    ]),
+    rationale: z.string().min(1).max(2_000),
+    source_turn_sequence_indexes: z
+      .array(z.number().int().positive())
+      .max(40),
+    updated_profile:
+      FormativeConversationCanonicalProfileSchema.nullable(),
+    field_evidence: z
+      .array(FormativeConversationProfileFieldEvidenceSchema)
+      .max(20)
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const terminalRecommendation =
+      value.proposed_outcome !== "continue_conversation";
+    if (value.recommended !== terminalRecommendation) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["recommended"],
+        message:
+          "recommended must be true only for a terminal profile transition"
+      });
+    }
+    if (
+      terminalRecommendation &&
+      value.source_turn_sequence_indexes.length === 0
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["source_turn_sequence_indexes"],
+        message: "a terminal transition requires conversation evidence"
+      });
+    }
+    if (terminalRecommendation && !value.updated_profile) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["updated_profile"],
+        message: "a terminal transition requires a complete updated profile"
+      });
+    }
+    if (
+      !terminalRecommendation &&
+      (value.updated_profile !== null || value.field_evidence.length > 0)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["updated_profile"],
+        message:
+          "continue_conversation records evidence without creating a profile transition"
+      });
+    }
+    if (!terminalRecommendation) {
+      return;
+    }
+
+    const coveredFields = new Map<string, number>();
+    for (const evidence of value.field_evidence) {
+      for (const field of evidence.profile_fields) {
+        coveredFields.set(field, (coveredFields.get(field) ?? 0) + 1);
+      }
+      if (
+        evidence.disposition ===
+          "updated_from_conversation_evidence" &&
+        (evidence.evidence_basis === "prior_profile_evidence" ||
+          evidence.source_turn_sequence_indexes.length === 0)
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["field_evidence"],
+          message:
+            "updated fields require cited conversation evidence"
+        });
+      }
+      for (const sequenceIndex of evidence.source_turn_sequence_indexes) {
+        if (!value.source_turn_sequence_indexes.includes(sequenceIndex)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["field_evidence"],
+            message:
+              "field evidence turns must be included in the transition evidence set"
+          });
+        }
+      }
+    }
+    for (const field of FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS) {
+      if (coveredFields.get(field) !== 1) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["field_evidence"],
+          message: `field evidence must cover ${field} exactly once`
+        });
+      }
+    }
+  });
 
 export const FormativeConversationTranscriptTurnSchema = z
   .object({
@@ -124,7 +360,13 @@ export const FormativeConversationProfileEvidenceSchema = z
     ]),
     evidence_summary: z.array(z.string().min(1)).max(20),
     unresolved_evidence: z.array(z.string().min(1)).max(20),
-    evidence_limitations: z.array(z.string().min(1)).max(20)
+    evidence_limitations: z.array(z.string().min(1)).max(20),
+    canonical_profile:
+      FormativeConversationCanonicalProfileSchema.nullable().default(null),
+    field_evidence: z
+      .array(FormativeConversationProfileFieldEvidenceSchema)
+      .max(20)
+      .default([])
   })
   .strict();
 
@@ -239,19 +481,8 @@ export const FormativeConversationAgentOutputSchema = z
         })
         .strict()
     ),
-    profile_transition_recommendation: z
-      .object({
-        recommended: z.boolean(),
-        proposed_outcome: z.enum([
-          "sound_understanding",
-          "largely_improved_understanding",
-          "teacher_assistance_recommended",
-          "continue_conversation"
-        ]),
-        rationale: z.string().min(1).max(2_000),
-        source_turn_sequence_indexes: z.array(z.number().int().positive()).max(40)
-      })
-      .strict()
+    profile_transition_recommendation:
+      FormativeConversationProfileTransitionRecommendationSchema
       .nullable()
       .default(null),
     teacher_assistance_recommendation: z
@@ -272,6 +503,12 @@ export type FormativeConversationAgentOutput = z.infer<
 >;
 export type FormativeConversationProfileEvidence = z.infer<
   typeof FormativeConversationProfileEvidenceSchema
+>;
+export type FormativeConversationCanonicalProfile = z.infer<
+  typeof FormativeConversationCanonicalProfileSchema
+>;
+export type FormativeConversationProfileFieldEvidence = z.infer<
+  typeof FormativeConversationProfileFieldEvidenceSchema
 >;
 export type FormativeConversationAdministeredItem = z.infer<
   typeof FormativeConversationAdministeredItemSchema

@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/db";
 import type { FormativeExecutionMode } from "@/lib/services/student-assessment/formative-execution-mode";
+import { FormativeConversationUnavailableError } from "./availability";
 import { createFormativeConversationOpeningRunner } from "./opening-runner";
-import { processFormativeConversationOpening } from "./runtime";
+import {
+  FormativeConversationRuntimeError,
+  processFormativeConversationOpening
+} from "./runtime";
 import { buildFormativeConversationRuntimeContextSeedForInternalOpening } from "./runtime-context";
 
 export async function ensureFormativeConversationOpeningForConceptUnitSession(input: {
@@ -40,18 +44,41 @@ export async function ensureFormativeConversationOpeningForConceptUnitSession(in
     await buildFormativeConversationRuntimeContextSeedForInternalOpening({
       conversation_public_id: conversation.conversation_public_id
     });
-  const opening = await processFormativeConversationOpening(
-    {
-      conversation_public_id: conversation.conversation_public_id,
-      context
-    },
-    {
-      runner: createFormativeConversationOpeningRunner(input.execution_mode)
-    }
-  );
+  try {
+    const opening = await processFormativeConversationOpening(
+      {
+        conversation_public_id: conversation.conversation_public_id,
+        context
+      },
+      {
+        runner_factory: () =>
+          createFormativeConversationOpeningRunner(input.execution_mode)
+      }
+    );
 
-  return {
-    status: opening.replayed ? ("existing_opening" as const) : ("created" as const),
-    opening
-  };
+    return {
+      status: opening.replayed
+        ? ("existing_opening" as const)
+        : ("created" as const),
+      opening
+    };
+  } catch (error) {
+    if (
+      error instanceof FormativeConversationUnavailableError ||
+      (error instanceof FormativeConversationRuntimeError &&
+        [
+          "agent_call_in_progress",
+          "agent_call_failed",
+          "agent_output_invalid"
+        ].includes(error.code)) ||
+      (error instanceof Error &&
+        error.message.startsWith("formative_conversation_provider_failed:"))
+    ) {
+      return {
+        status: "opening_retry_available" as const,
+        opening: null
+      };
+    }
+    throw error;
+  }
 }

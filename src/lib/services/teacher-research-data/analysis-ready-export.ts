@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -13,6 +14,10 @@ import {
   eventTimestamp,
   timingLimitationsText
 } from "@/lib/services/student-assessment/timing-contract";
+import {
+  latestPersistedFormativeConversationProfileTransition,
+  persistedFormativeConversationOutcome
+} from "@/lib/services/student-assessment/formative-conversation/profile-projection";
 import { createStoreOnlyZip } from "@/lib/services/teacher-research-export/zip";
 import {
   buildExportSourceIdentity,
@@ -211,6 +216,7 @@ const analysisSessionSelect = {
   agent_calls: {
     orderBy: [{ created_at: "asc" }],
     select: {
+      agent_call_public_id: true,
       agent_name: true,
       agent_version: true,
       provider: true,
@@ -227,8 +233,6 @@ const analysisSessionSelect = {
       schema_version: true,
       output_validated: true,
       validation_error: true,
-      client_request_id: true,
-      agent_invocation_key: true,
       created_at: true
     }
   },
@@ -265,7 +269,15 @@ const analysisSessionSelect = {
         },
         orderBy: { sequence_index: "asc" },
         include: {
-          formative_conversation_turn_telemetry: true,
+          formative_conversation_turn_telemetry: {
+            include: {
+              agent_call: {
+                select: {
+                  agent_call_public_id: true
+                }
+              }
+            }
+          },
           formative_conversation_input_telemetry: true
         }
       },
@@ -275,6 +287,7 @@ const analysisSessionSelect = {
       agent_calls: {
         orderBy: { created_at: "asc" },
         select: {
+          agent_call_public_id: true,
           agent_name: true,
           agent_version: true,
           provider: true,
@@ -299,15 +312,21 @@ const analysisSessionSelect = {
         include: {
           prior_student_profile: {
             select: {
+              ability_profile: true,
               integrated_diagnostic_profile: true,
               evidence_sufficiency: true,
+              confidence_alignment: true,
+              misconception_indicators: true,
               created_at: true
             }
           },
           updated_student_profile: {
             select: {
+              ability_profile: true,
               integrated_diagnostic_profile: true,
               evidence_sufficiency: true,
+              confidence_alignment: true,
+              misconception_indicators: true,
               created_at: true
             }
           },
@@ -318,8 +337,8 @@ const analysisSessionSelect = {
           },
           source_agent_call: {
             select: {
+              agent_call_public_id: true,
               agent_name: true,
-              agent_invocation_key: true
             }
           },
           supporting_turn_references: {
@@ -398,6 +417,8 @@ const FORMATIVE_CONVERSATION_SESSION_COLUMNS = [
   "agent_call_count",
   "intervention_count",
   "profile_transition_count",
+  "latest_profile_transition_public_id",
+  "validated_formative_outcome",
   "initial_learning_profile",
   "initial_profile_evidence_sufficiency",
   "current_learning_profile",
@@ -408,7 +429,9 @@ const FORMATIVE_CONVERSATION_TURN_COLUMNS = [
   "session_public_id",
   "research_student_id",
   "conversation_public_id",
+  "agent_call_public_id",
   "turn_sequence_index",
+  "conversation_local_turn_sequence_index",
   "actor_type",
   "actor_name",
   "message_text",
@@ -429,6 +452,7 @@ const FORMATIVE_CONVERSATION_TURN_COLUMNS = [
   "edit_count",
   "backspace_count",
   "paste_event_count",
+  "paste_character_count",
   "final_message_length_chars"
 ] as const;
 
@@ -438,6 +462,7 @@ const FORMATIVE_CONVERSATION_EVENT_COLUMNS = [
   "research_student_id",
   "conversation_public_id",
   "event_sequence_index",
+  "conversation_local_event_sequence_index",
   "event_type",
   "event_source",
   "observed_interval_duration_ms",
@@ -449,6 +474,7 @@ const FORMATIVE_CONVERSATION_LLM_COLUMNS = [
   "session_public_id",
   "research_student_id",
   "conversation_public_id",
+  "agent_call_public_id",
   "agent_call_index",
   "agent_name",
   "agent_version",
@@ -475,12 +501,19 @@ const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_COLUMNS = [
   "conversation_public_id",
   "transition_version",
   "formative_outcome",
+  "prior_understanding_category",
   "prior_learning_profile",
   "prior_evidence_sufficiency",
+  "prior_confidence_alignment",
+  "prior_misconception_indicators",
   "prior_profile_created_at",
+  "updated_understanding_category",
   "updated_learning_profile",
   "updated_evidence_sufficiency",
+  "updated_confidence_alignment",
+  "updated_misconception_indicators",
   "updated_profile_created_at",
+  "canonical_profile_snapshot",
   "learning_observations",
   "evidence_interpretation",
   "source_turn_sequence_index",
@@ -490,7 +523,7 @@ const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_COLUMNS = [
   "evidence_reference_public_ids",
   "assessment_profile_created_at",
   "source_agent_name",
-  "source_agent_invocation_key",
+  "source_agent_call_public_id",
   "transitioned_at"
 ] as const;
 
@@ -540,6 +573,21 @@ function csv(columns: readonly string[], rows: CsvRow[]) {
     rows.map((row) => Object.fromEntries(columns.map((column) => [column, csvSafe(row[column])]))),
     { header: true, columns: [...columns] }
   );
+}
+
+export function countSerializedCsvDataRows(data: string) {
+  const records = parse(data, {
+    columns: false,
+    skip_empty_lines: true
+  }) as unknown[][];
+  return Math.max(0, records.length - 1);
+}
+
+function serializedFileRecordCount(file: { path: string; data: string }) {
+  if (file.path.endsWith(".csv")) {
+    return countSerializedCsvDataRows(file.data);
+  }
+  return file.data.trim() ? 1 : 0;
 }
 
 function columnsFor(columns: readonly string[], includeRestricted: boolean) {
@@ -836,8 +884,16 @@ function sessionBase(source: ExportSourceIdentity, session: AnalysisSession) {
 }
 
 function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], supplemental: SupplementalRecords) {
+  const formativeConversationSessionIds = new Set(
+    sessions
+      .filter((session) => session.formative_conversation_sessions.length > 0)
+      .map((session) => session.session_public_id)
+  );
   const activityCounts = new Map<string, number>();
   for (const activity of supplemental.activityAttempts) {
+    if (formativeConversationSessionIds.has(activity.session_public_id)) {
+      continue;
+    }
     activityCounts.set(activity.session_public_id, (activityCounts.get(activity.session_public_id) ?? 0) + 1);
   }
   const evidenceCounts = new Map<string, number>();
@@ -1367,6 +1423,11 @@ function conversationRows(sessions: AnalysisSession[]) {
 
 function agentAndActivityRows(sessions: AnalysisSession[], supplemental: SupplementalRecords) {
   const rows: CsvRow[] = [];
+  const formativeConversationSessionIds = new Set(
+    sessions
+      .filter((session) => session.formative_conversation_sessions.length > 0)
+      .map((session) => session.session_public_id)
+  );
   const activitySwitchCountsBySession = new Map<string, number>();
   for (const activity of supplemental.activityAttempts) {
     const sourceRef = asRecord(activity.source_activity_packet_ref);
@@ -1378,17 +1439,17 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
     }
   }
   for (const session of sessions) {
-    for (const [index, call] of session.agent_calls.entries()) {
+    for (const call of session.agent_calls) {
       rows.push({
         record_type: "agent_call",
+        authority_status: "authoritative_operational_record",
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
         student_id: researchStudentId(session.user.user_id),
         assessment_public_id: session.assessment.assessment_public_id,
         assessment_snapshot_public_id: assessmentSnapshotId(session),
         item_snapshot_public_id: null,
-        agent_call_public_id:
-          call.client_request_id ?? call.agent_invocation_key ?? `${session.session_public_id}:agent_call:${index + 1}`,
+        agent_call_public_id: call.agent_call_public_id,
         agent_name: call.agent_name,
         provider: call.provider,
         model: call.model_name,
@@ -1421,6 +1482,7 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
       for (const profile of conceptUnitSession.student_profiles) {
         rows.push({
           record_type: "profile_result",
+          authority_status: "authoritative_profile_record",
           session_public_id: session.session_public_id,
           research_student_id: researchStudentId(session.user.user_id),
           student_id: researchStudentId(session.user.user_id),
@@ -1440,6 +1502,7 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
       for (const decision of conceptUnitSession.formative_decisions) {
         rows.push({
           record_type: "formative_decision",
+          authority_status: "authoritative_legacy_decision",
           session_public_id: session.session_public_id,
           research_student_id: researchStudentId(session.user.user_id),
           student_id: researchStudentId(session.user.user_id),
@@ -1455,7 +1518,8 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
       }
       for (const followup of conceptUnitSession.followup_rounds) {
         rows.push({
-          record_type: "activity_attempt",
+          record_type: "legacy_followup_round",
+          authority_status: "legacy_non_authoritative",
           session_public_id: session.session_public_id,
           research_student_id: researchStudentId(session.user.user_id),
           student_id: researchStudentId(session.user.user_id),
@@ -1474,6 +1538,7 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
     for (const job of session.workflow_jobs) {
       rows.push({
         record_type: "workflow_job",
+        authority_status: "authoritative_operational_record",
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
         student_id: researchStudentId(session.user.user_id),
@@ -1494,6 +1559,11 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
     const sourceRef = asRecord(activity.source_activity_packet_ref);
     rows.push({
       record_type: "formative_activity",
+      authority_status: formativeConversationSessionIds.has(
+        activity.session_public_id
+      )
+        ? "legacy_non_authoritative"
+        : "authoritative_legacy_runtime",
       session_public_id: activity.session_public_id,
       research_student_id: researchStudentId(activity.student_public_id),
       student_id: researchStudentId(activity.student_public_id),
@@ -1526,6 +1596,11 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
   for (const evidence of supplemental.evidenceRecords) {
     rows.push({
       record_type: "post_activity_evidence",
+      authority_status: formativeConversationSessionIds.has(
+        evidence.session_public_id
+      )
+        ? "legacy_non_authoritative"
+        : "authoritative_legacy_runtime",
       session_public_id: evidence.session_public_id,
       research_student_id: researchStudentId(evidence.student_public_id),
       student_id: researchStudentId(evidence.student_public_id),
@@ -1550,6 +1625,11 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
   for (const snapshot of supplemental.snapshots) {
     rows.push({
       record_type: "diagnostic_snapshot",
+      authority_status: formativeConversationSessionIds.has(
+        snapshot.session_public_id
+      )
+        ? "legacy_non_authoritative"
+        : "authoritative_legacy_runtime",
       session_public_id: snapshot.session_public_id,
       research_student_id: researchStudentId(snapshot.student_public_id),
       student_id: researchStudentId(snapshot.student_public_id),
@@ -1619,43 +1699,60 @@ function assessmentContentRows(sessions: AnalysisSession[], includeRestricted: b
 
 function formativeConversationSessionRows(sessions: AnalysisSession[]) {
   return sessions.flatMap((session) =>
-    session.formative_conversation_sessions.map((conversation) => ({
-      session_public_id: session.session_public_id,
-      research_student_id: researchStudentId(session.user.user_id),
-      assessment_public_id: session.assessment.assessment_public_id,
-      concept_unit_public_id:
-        conversation.concept_unit_session.concept_unit.concept_unit_public_id,
-      conversation_public_id: conversation.conversation_public_id,
-      conversation_status: conversation.status,
-      started_at: iso(conversation.started_at),
-      last_activity_at: iso(conversation.last_activity_at),
-      paused_at: iso(conversation.paused_at),
-      completed_at: iso(conversation.completed_at),
-      ended_at: iso(conversation.ended_at),
-      wall_clock_duration_ms: diff(
-        ms(conversation.started_at),
-        ms(
-          conversation.completed_at ??
-            conversation.ended_at ??
-            conversation.last_activity_at
-        )
-      ),
-      turn_count: conversation.conversation_turns.length,
-      lifecycle_event_count: conversation.lifecycle_events.length,
-      agent_call_count: conversation.agent_calls.length,
-      intervention_count: conversation.interventions.length,
-      profile_transition_count: conversation.profile_transitions.length,
-      initial_learning_profile:
-        conversation.initial_student_profile?.integrated_diagnostic_profile ??
-        null,
-      initial_profile_evidence_sufficiency:
-        conversation.initial_student_profile?.evidence_sufficiency ?? null,
-      current_learning_profile:
-        conversation.current_student_profile?.integrated_diagnostic_profile ??
-        null,
-      current_profile_evidence_sufficiency:
-        conversation.current_student_profile?.evidence_sufficiency ?? null
-    }))
+    session.formative_conversation_sessions.map((conversation) => {
+      const latestTransition =
+        latestPersistedFormativeConversationProfileTransition(
+          conversation.profile_transitions
+        );
+      const canonicalCurrentProfile =
+        latestTransition?.updated_student_profile ??
+        conversation.initial_student_profile;
+      return {
+        session_public_id: session.session_public_id,
+        research_student_id: researchStudentId(session.user.user_id),
+        assessment_public_id: session.assessment.assessment_public_id,
+        concept_unit_public_id:
+          conversation.concept_unit_session.concept_unit
+            .concept_unit_public_id,
+        conversation_public_id: conversation.conversation_public_id,
+        conversation_status: conversation.status,
+        started_at: iso(conversation.started_at),
+        last_activity_at: iso(conversation.last_activity_at),
+        paused_at: iso(conversation.paused_at),
+        completed_at: iso(conversation.completed_at),
+        ended_at: iso(conversation.ended_at),
+        wall_clock_duration_ms: diff(
+          ms(conversation.started_at),
+          ms(
+            conversation.completed_at ??
+              conversation.ended_at ??
+              conversation.last_activity_at
+          )
+        ),
+        turn_count: conversation.conversation_turns.length,
+        lifecycle_event_count: conversation.lifecycle_events.length,
+        agent_call_count: conversation.agent_calls.length,
+        intervention_count: conversation.interventions.length,
+        profile_transition_count:
+          conversation.profile_transitions.length,
+        latest_profile_transition_public_id:
+          latestTransition?.transition_public_id ?? null,
+        validated_formative_outcome:
+          persistedFormativeConversationOutcome(
+            conversation.profile_transitions
+          ),
+        initial_learning_profile:
+          conversation.initial_student_profile
+            ?.integrated_diagnostic_profile ?? null,
+        initial_profile_evidence_sufficiency:
+          conversation.initial_student_profile?.evidence_sufficiency ??
+          null,
+        current_learning_profile:
+          canonicalCurrentProfile?.integrated_diagnostic_profile ?? null,
+        current_profile_evidence_sufficiency:
+          canonicalCurrentProfile?.evidence_sufficiency ?? null
+      };
+    })
   );
 }
 
@@ -1670,7 +1767,11 @@ function formativeConversationTurnRows(sessions: AnalysisSession[]) {
           session_public_id: session.session_public_id,
           research_student_id: researchStudentId(session.user.user_id),
           conversation_public_id: conversation.conversation_public_id,
+          agent_call_public_id:
+            telemetry?.agent_call?.agent_call_public_id ?? null,
           turn_sequence_index: turn.sequence_index,
+          conversation_local_turn_sequence_index:
+            telemetry?.conversation_local_turn_sequence_index ?? null,
           actor_type: turn.actor_type,
           actor_name:
             turn.actor_type === "agent"
@@ -1705,6 +1806,8 @@ function formativeConversationTurnRows(sessions: AnalysisSession[]) {
           edit_count: inputTelemetry?.edit_count ?? null,
           backspace_count: inputTelemetry?.backspace_count ?? null,
           paste_event_count: inputTelemetry?.paste_event_count ?? null,
+          paste_character_count:
+            inputTelemetry?.paste_character_count ?? null,
           final_message_length_chars:
             inputTelemetry?.final_message_length_chars ?? null
         };
@@ -1722,6 +1825,8 @@ function formativeConversationEventRows(sessions: AnalysisSession[]) {
         research_student_id: researchStudentId(session.user.user_id),
         conversation_public_id: conversation.conversation_public_id,
         event_sequence_index: event.sequence_index,
+        conversation_local_event_sequence_index:
+          event.conversation_local_event_sequence_index,
         event_type: event.event_type,
         event_source: event.event_source,
         observed_interval_duration_ms:
@@ -1740,6 +1845,7 @@ function formativeConversationLlmRows(sessions: AnalysisSession[]) {
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
         conversation_public_id: conversation.conversation_public_id,
+        agent_call_public_id: call.agent_call_public_id,
         agent_call_index: index + 1,
         agent_name: call.agent_name,
         agent_version: call.agent_version,
@@ -1774,19 +1880,36 @@ function formativeConversationProfileTransitionRows(
         conversation_public_id: conversation.conversation_public_id,
         transition_version: transition.transition_version,
         formative_outcome: transition.learning_outcome,
+        prior_understanding_category:
+          transition.prior_student_profile.ability_profile,
         prior_learning_profile:
           transition.prior_student_profile.integrated_diagnostic_profile,
         prior_evidence_sufficiency:
           transition.prior_student_profile.evidence_sufficiency,
+        prior_confidence_alignment:
+          transition.prior_student_profile.confidence_alignment,
+        prior_misconception_indicators: JSON.stringify(
+          transition.prior_student_profile.misconception_indicators
+        ),
         prior_profile_created_at: iso(
           transition.prior_student_profile.created_at
         ),
+        updated_understanding_category:
+          transition.updated_student_profile.ability_profile,
         updated_learning_profile:
           transition.updated_student_profile.integrated_diagnostic_profile,
         updated_evidence_sufficiency:
           transition.updated_student_profile.evidence_sufficiency,
+        updated_confidence_alignment:
+          transition.updated_student_profile.confidence_alignment,
+        updated_misconception_indicators: JSON.stringify(
+          transition.updated_student_profile.misconception_indicators
+        ),
         updated_profile_created_at: iso(
           transition.updated_student_profile.created_at
+        ),
+        canonical_profile_snapshot: JSON.stringify(
+          transition.profile_snapshot ?? null
         ),
         learning_observations: JSON.stringify(
           transition.learning_observations ?? []
@@ -1837,8 +1960,8 @@ function formativeConversationProfileTransitionRows(
         ),
         source_agent_name:
           transition.source_agent_call?.agent_name ?? null,
-        source_agent_invocation_key:
-          transition.source_agent_call?.agent_invocation_key ?? null,
+        source_agent_call_public_id:
+          transition.source_agent_call?.agent_call_public_id ?? null,
         transitioned_at: iso(transition.transitioned_at)
       }))
     )
@@ -1916,11 +2039,41 @@ function formativeConversationDataDictionaryRows() {
     if (variable === "paste_event_count") {
       return "Count of observed paste events; pasted text is not stored in this field.";
     }
+    if (variable === "paste_character_count") {
+      return "Total character count observed across paste events; pasted text is not stored.";
+    }
+    if (variable === "agent_call_public_id" || variable === "source_agent_call_public_id") {
+      return "Opaque public join key for the persisted formative conversation AgentCall; provider request identifiers and internal database IDs are excluded.";
+    }
+    if (variable === "conversation_local_turn_sequence_index") {
+      return "One-based persisted turn-telemetry order within this formative conversation.";
+    }
+    if (variable === "conversation_local_event_sequence_index") {
+      return "One-based persisted lifecycle-event order within this formative conversation.";
+    }
     if (variable.includes("learning_profile")) {
       return "Validated assessment-specific learning-profile category at the named point in the conversation.";
     }
-    if (variable === "formative_outcome") {
+    if (
+      variable === "formative_outcome" ||
+      variable === "validated_formative_outcome"
+    ) {
       return "Outcome recommended by the formative conversation agent and persisted after provenance validation.";
+    }
+    if (variable === "latest_profile_transition_public_id") {
+      return "Public identifier of the latest persisted formative profile transition; null means no validated profile change exists.";
+    }
+    if (variable.includes("understanding_category")) {
+      return "Assessment-specific understanding category stored in the named append-only profile version.";
+    }
+    if (variable.includes("confidence_alignment")) {
+      return "Confidence-alignment category stored in the named append-only profile version.";
+    }
+    if (variable.includes("misconception_indicators")) {
+      return "JSON representation of the misconception evidence included in the named append-only profile version.";
+    }
+    if (variable === "canonical_profile_snapshot") {
+      return "Complete canonical profile and field-level evidence provenance persisted with the authoritative transition.";
     }
     if (variable === "learning_observations") {
       return "JSON array of learning observations authored by the formative conversation agent from cited conversation evidence.";
@@ -1942,9 +2095,6 @@ function formativeConversationDataDictionaryRows() {
     }
     if (variable === "assessment_profile_created_at") {
       return "Creation timestamp of the initial assessment profile supplied as assessment-phase provenance.";
-    }
-    if (variable === "source_agent_invocation_key") {
-      return "Idempotent invocation reference for the validated formative conversation agent call; provider payloads are excluded.";
     }
     if (variable.includes("evidence_sufficiency")) {
       return "Validated evidence-sufficiency category associated with the named profile.";
@@ -2066,6 +2216,13 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
       ],
       sessions: sessions.map((session) => {
         const conceptUnitSessions = session.concept_unit_sessions;
+        const usesFormativeConversation =
+          session.formative_conversation_sessions.length > 0;
+        const historicalActivityAttemptCount =
+          supplemental.activityAttempts.filter(
+            (attempt) =>
+              attempt.session_public_id === session.session_public_id
+          ).length;
         return {
           session_public_id: session.session_public_id,
           assessment_public_id: session.assessment.assessment_public_id,
@@ -2081,9 +2238,22 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
           student_profile_count: conceptUnitSessions.reduce((total, entry) => total + entry.student_profiles.length, 0),
           formative_decision_count: conceptUnitSessions.reduce((total, entry) => total + entry.formative_decisions.length, 0),
           followup_round_count: conceptUnitSessions.reduce((total, entry) => total + entry.followup_rounds.length, 0),
-          formative_activity_attempt_count: supplemental.activityAttempts.filter(
-            (attempt) => attempt.session_public_id === session.session_public_id
-          ).length,
+          formative_activity_attempt_count: usesFormativeConversation
+            ? 0
+            : historicalActivityAttemptCount,
+          legacy_non_authoritative_activity_record_count:
+            usesFormativeConversation
+              ? historicalActivityAttemptCount +
+                conceptUnitSessions.reduce(
+                  (total, entry) =>
+                    total + entry.followup_rounds.length,
+                  0
+                )
+              : conceptUnitSessions.reduce(
+                  (total, entry) =>
+                    total + entry.followup_rounds.length,
+                  0
+                ),
           post_activity_evidence_count: supplemental.evidenceRecords.filter(
             (record) => record.session_public_id === session.session_public_id
           ).length,
@@ -2288,7 +2458,12 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
     buffer: createStoreOnlyZip(files),
     files,
     source,
-    row_counts: Object.fromEntries(files.map((file) => [file.path, Math.max(0, file.data.trim().split(/\r?\n/).length - 1)])),
+    row_counts: Object.fromEntries(
+      files.map((file) => [
+        file.path,
+        serializedFileRecordCount(file)
+      ])
+    ),
     restricted_fields_included: includeRestricted,
     no_live_provider_call_made: true
   };

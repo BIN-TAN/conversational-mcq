@@ -166,6 +166,7 @@ enum FormativeConversationLifecycleEventType {
   disconnected
   reconnected
   completed
+  conversation_ended
 }
 
 enum FormativeConversationTypingDurationMethod {
@@ -994,6 +995,7 @@ model WorkflowOverride {
 
 model AgentCall {
   id                         String          @id @default(uuid()) @db.Uuid
+  agent_call_public_id       String          @unique @default(cuid())
   assessment_session_db_id   String?         @db.Uuid
   concept_unit_session_db_id String?         @db.Uuid
   followup_round_db_id       String?         @db.Uuid
@@ -1214,6 +1216,8 @@ model FormativeConversationSession {
   memory_contract_version         String                      @default("formative-conversation-memory-v1")
   safety_boundary_version         String                      @default("formative-conversation-safety-boundary-v1")
   concurrency_version             Int                         @default(0)
+  telemetry_turn_sequence_counter Int                         @default(0)
+  telemetry_event_sequence_counter Int                        @default(0)
   last_processed_turn_sequence    Int?
   lifecycle_reason                String?
   started_at                      DateTime                    @default(now()) @db.Timestamptz(6)
@@ -1351,6 +1355,7 @@ model FormativeConversationLifecycleEvent {
   sequence_index                          Int                                      @unique @default(autoincrement())
   event_public_id                         String                                   @unique @default(cuid())
   formative_conversation_session_db_id    String                                   @db.Uuid
+  conversation_local_event_sequence_index Int
   client_event_id                         String
   event_hash                              String
   event_type                              FormativeConversationLifecycleEventType
@@ -1363,6 +1368,7 @@ model FormativeConversationLifecycleEvent {
   formative_conversation_session FormativeConversationSession @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade)
 
   @@unique([formative_conversation_session_db_id, client_event_id])
+  @@unique([formative_conversation_session_db_id, conversation_local_event_sequence_index], map: "fc_lifecycle_session_local_sequence_key")
   @@index([formative_conversation_session_db_id, sequence_index], map: "fc_lifecycle_session_sequence_idx")
   @@index([formative_conversation_session_db_id, occurred_at], map: "formative_conversation_lifecycle_events_session_time_idx")
   @@index([event_type, occurred_at])
@@ -1375,6 +1381,7 @@ model FormativeConversationTurnTelemetry {
   conversation_turn_db_id                 String                       @unique @db.Uuid
   agent_call_db_id                        String?                      @unique @db.Uuid
   turn_sequence_index                     Int
+  conversation_local_turn_sequence_index  Int
   turn_started_at                         DateTime?                    @db.Timestamptz(6)
   turn_submitted_at                       DateTime?                    @db.Timestamptz(6)
   response_time_ms                        Int?
@@ -1388,6 +1395,7 @@ model FormativeConversationTurnTelemetry {
   agent_call                     AgentCall?                    @relation(fields: [agent_call_db_id], references: [id], onDelete: SetNull)
 
   @@index([formative_conversation_session_db_id, turn_sequence_index])
+  @@unique([formative_conversation_session_db_id, conversation_local_turn_sequence_index], map: "fc_turn_telemetry_session_local_sequence_key")
   @@map("formative_conversation_turn_telemetry")
 }
 
@@ -1403,6 +1411,7 @@ model FormativeConversationInputTelemetry {
   edit_count                              Int                                         @default(0)
   backspace_count                         Int                                         @default(0)
   paste_event_count                       Int                                         @default(0)
+  paste_character_count                   Int                                         @default(0)
   final_message_length_chars              Int
   submitted_at                            DateTime                                    @db.Timestamptz(6)
   created_at                              DateTime                                    @default(now()) @db.Timestamptz(6)

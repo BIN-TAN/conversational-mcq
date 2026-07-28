@@ -547,7 +547,9 @@ async function main() {
       outcome: "not_yet_determined" as const,
       evidence_summary: ["The student distinguishes consistency from interpretation."],
       unresolved_evidence: ["The distinction has not yet been independently applied."],
-      evidence_limitations: ["One short formative exchange is available."]
+      evidence_limitations: ["One short formative exchange is available."],
+      canonical_profile: null,
+      field_evidence: []
     };
     const compiled = await compilePersistedFormativeConversationContext({
       conversation_public_id: created.session.conversation_public_id,

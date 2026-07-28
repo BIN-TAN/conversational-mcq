@@ -10,13 +10,17 @@ import {
   FORMATIVE_CONVERSATION_AGENT_NAME,
   FormativeConversationAgentOutputSchema
 } from "./agent-contract";
+import {
+  FormativeConversationUnavailableError,
+  formativeConversationUnavailableFromConfiguration
+} from "./availability";
 import type {
   FormativeConversationAgentExecution,
   FormativeConversationAgentRunner
 } from "./runtime";
 
 export const FORMATIVE_CONVERSATION_PROMPT_VERSION =
-  "formative-conversation-host-v3";
+  "formative-conversation-host-v4";
 
 export const FORMATIVE_CONVERSATION_INSTRUCTIONS = `
 You host a persistent formative learning conversation after an assessment package has been reviewed.
@@ -43,6 +47,12 @@ assessment evidence.
 Return the formative-conversation-agent-contract-v1 JSON object. The student_visible_message must be
 natural instructional dialogue. Evidence observations and transition recommendations are audit
 recommendations only; the application separately validates and records profile transitions.
+When recommending sound_understanding, largely_improved_understanding, or
+teacher_assistance_recommended, provide the complete formative-conversation-profile-recommendation-v2
+updated profile. For every profile field, state whether conversation evidence updated it or whether
+the prior evidence remains valid. Do not copy a prior field merely because no replacement was
+considered. Use continue_conversation when the evidence does not support a validated profile change;
+that records evidence without forcing a profile transition.
 
 When latest_student_message is null and the visible transcript is empty, write the first conversational
 turn after the student has reviewed the assessment answers. Acknowledge the transition and use the
@@ -59,80 +69,91 @@ export const FORMATIVE_CONVERSATION_PROMPT_HASH = createHash("sha256")
   .digest("hex");
 
 export function createLiveFormativeConversationAgentRunner(): FormativeConversationAgentRunner {
-  const runtime = getLlmRuntimeConfig();
-  if (
-    runtime.provider !== "openai" ||
-    !runtime.live_calls_enabled ||
-    !resolveOperationalRoleLiveCallsEnabled("formative_conversation_agent")
-  ) {
-    throw new Error("formative_conversation_live_runtime_not_ready");
-  }
-  const modelConfig = resolveOpenAIModelConfigForRole("formative_conversation_agent");
-  const provider = createLlmProvider();
-
-  return {
-    identity: {
-      agent_name: FORMATIVE_CONVERSATION_AGENT_NAME,
-      agent_version: "formative-conversation-runtime-v1",
-      model_name: modelConfig.model_name,
-      provider: "openai",
-      prompt_version: FORMATIVE_CONVERSATION_PROMPT_VERSION,
-      schema_version: FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
-      prompt_hash: FORMATIVE_CONVERSATION_PROMPT_HASH,
-      reasoning_effort: modelConfig.reasoning_effort ?? null,
-      max_output_tokens: modelConfig.max_output_tokens ?? null,
-      live_call_allowed: true
-    },
-    async execute({ invocation_key, context }) {
-      const startedAt = new Date();
-      const clientRequestId = `${FORMATIVE_CONVERSATION_AGENT_NAME}:${randomUUID()}`;
-      const result = await provider.executeStructured({
-        agent_name: FORMATIVE_CONVERSATION_AGENT_NAME,
-        model_config: modelConfig,
-        instructions: FORMATIVE_CONVERSATION_INSTRUCTIONS,
-        input: context,
-        output_schema: FormativeConversationAgentOutputSchema,
-        schema_name: FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
-        client_request_id: clientRequestId,
-        timeout_ms: runtime.request_timeout_ms,
-        metadata: {
-          invocation_key,
-          approved_execution_role: FORMATIVE_CONVERSATION_AGENT_NAME
-        }
-      });
-      if (result.status !== "completed" || !result.parsed_output) {
-        throw new Error(
-          `formative_conversation_provider_failed:${result.error?.category ?? result.status}`
-        );
-      }
-      const completedAt = new Date();
-      const usage = result.usage;
-      const execution: FormativeConversationAgentExecution = {
-        output: result.parsed_output,
-        raw_output: result.raw_output,
-        generation_source: "live_llm",
-        provider_request_id:
-          result.provider_request_id ??
-          result.transport_telemetry?.provider_request_id ??
-          null,
-        provider_response_id:
-          result.provider_response_id ??
-          result.transport_telemetry?.provider_response_id ??
-          null,
-        client_request_id: result.client_request_id,
-        retry_count: Math.max(
-          (result.transport_telemetry?.adapter_attempt_index ?? 1) - 1,
-          0
-        ),
-        latency_ms: result.latency_ms,
-        input_tokens: usage?.input_tokens ?? null,
-        output_tokens: usage?.output_tokens ?? null,
-        total_tokens: usage?.total_tokens ?? null,
-        estimated_cost: null,
-        started_at: startedAt,
-        completed_at: completedAt
-      };
-      return execution;
+  try {
+    const runtime = getLlmRuntimeConfig();
+    if (
+      runtime.provider !== "openai" ||
+      !runtime.live_calls_enabled ||
+      !resolveOperationalRoleLiveCallsEnabled("formative_conversation_agent")
+    ) {
+      throw new FormativeConversationUnavailableError(
+        "formative_conversation_live_runtime_not_ready"
+      );
     }
-  };
+    const modelConfig = resolveOpenAIModelConfigForRole("formative_conversation_agent");
+    const provider = createLlmProvider();
+
+    return {
+      identity: {
+        agent_name: FORMATIVE_CONVERSATION_AGENT_NAME,
+        agent_version: "formative-conversation-runtime-v2",
+        model_name: modelConfig.model_name,
+        provider: "openai",
+        prompt_version: FORMATIVE_CONVERSATION_PROMPT_VERSION,
+        schema_version: FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
+        prompt_hash: FORMATIVE_CONVERSATION_PROMPT_HASH,
+        reasoning_effort: modelConfig.reasoning_effort ?? null,
+        max_output_tokens: modelConfig.max_output_tokens ?? null,
+        live_call_allowed: true
+      },
+      async execute({ invocation_key, context }) {
+        const startedAt = new Date();
+        const clientRequestId = `${FORMATIVE_CONVERSATION_AGENT_NAME}:${randomUUID()}`;
+        const result = await provider.executeStructured({
+          agent_name: FORMATIVE_CONVERSATION_AGENT_NAME,
+          model_config: modelConfig,
+          instructions: FORMATIVE_CONVERSATION_INSTRUCTIONS,
+          input: context,
+          output_schema: FormativeConversationAgentOutputSchema,
+          schema_name: FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
+          client_request_id: clientRequestId,
+          timeout_ms: runtime.request_timeout_ms,
+          metadata: {
+            invocation_key,
+            approved_execution_role: FORMATIVE_CONVERSATION_AGENT_NAME
+          }
+        });
+        if (result.status !== "completed" || !result.parsed_output) {
+          throw new Error(
+            `formative_conversation_provider_failed:${result.error?.category ?? result.status}`
+          );
+        }
+        const completedAt = new Date();
+        const usage = result.usage;
+        const execution: FormativeConversationAgentExecution = {
+          output: result.parsed_output,
+          raw_output: result.raw_output,
+          generation_source: "live_llm",
+          provider_request_id:
+            result.provider_request_id ??
+            result.transport_telemetry?.provider_request_id ??
+            null,
+          provider_response_id:
+            result.provider_response_id ??
+            result.transport_telemetry?.provider_response_id ??
+            null,
+          client_request_id: result.client_request_id,
+          retry_count: Math.max(
+            (result.transport_telemetry?.adapter_attempt_index ?? 1) - 1,
+            0
+          ),
+          latency_ms: result.latency_ms,
+          input_tokens: usage?.input_tokens ?? null,
+          output_tokens: usage?.output_tokens ?? null,
+          total_tokens: usage?.total_tokens ?? null,
+          estimated_cost: null,
+          started_at: startedAt,
+          completed_at: completedAt
+        };
+        return execution;
+      }
+    };
+  } catch (error) {
+    const unavailable =
+      formativeConversationUnavailableFromConfiguration(error);
+    if (unavailable) {
+      throw unavailable;
+    }
+    throw error;
+  }
 }

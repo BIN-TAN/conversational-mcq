@@ -23,6 +23,10 @@ import {
   resolveOpenAIModelConfigForRole
 } from "../src/lib/llm/config";
 import { getGuardedOperationalAgentIntegrationReadiness } from "../src/lib/operational/guarded-agent-integration";
+import {
+  FormativeConversationUnavailableError,
+  createLiveFormativeConversationAgentRunner
+} from "../src/lib/services/student-assessment/formative-conversation";
 
 loadEnvConfig(process.cwd());
 
@@ -213,6 +217,82 @@ async function main() {
         "active_approval_bundle_legacy_topic_dialogue_compatibility",
       "Readiness must identify the temporary compatibility source."
     );
+    process.env.OPENAI_MODEL_FORMATIVE_CONVERSATION =
+      historicalTopicDialogue[0];
+    process.env.OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION =
+      historicalTopicDialogue[1];
+    process.env.OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION = String(
+      historicalTopicDialogue[2]
+    );
+    process.env.FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED = "true";
+    const dedicatedFormativeConversation =
+      resolveOpenAIModelConfigForRole("formative_conversation_agent");
+    assert(
+      dedicatedFormativeConversation.model_name ===
+        historicalTopicDialogue[0] &&
+        dedicatedFormativeConversation.reasoning_effort ===
+          historicalTopicDialogue[1] &&
+        dedicatedFormativeConversation.max_output_tokens ===
+          historicalTopicDialogue[2],
+      "Dedicated formative-conversation environment assertions must match the legacy compatibility role exactly."
+    );
+
+    process.env.OPERATIONAL_AGENT_MODE = "guarded_live";
+    process.env.LLM_PROVIDER = "openai";
+    process.env.LLM_LIVE_CALLS_ENABLED = "true";
+    process.env.OPENAI_API_KEY = "sk-test-placeholder-not-used-by-smoke";
+    process.env.OPERATIONAL_APPROVED_CONFIG_HASH = "0".repeat(64);
+    let approvalHashMismatchCode: string | null = null;
+    try {
+      createLiveFormativeConversationAgentRunner();
+    } catch (error) {
+      if (error instanceof FormativeConversationUnavailableError) {
+        approvalHashMismatchCode = error.reason_code;
+      }
+    }
+    assert(
+      approvalHashMismatchCode === "approved_config_hash_mismatch",
+      "A mismatched approval hash must fail closed as typed formative-conversation unavailability before provider dispatch."
+    );
+    process.env.OPERATIONAL_APPROVED_CONFIG_HASH = EXPECTED_RUNTIME_HASH;
+    const configuredRunner = createLiveFormativeConversationAgentRunner();
+    assert(
+      configuredRunner.identity.agent_name ===
+        "formative_conversation_agent" &&
+        configuredRunner.identity.model_name === historicalTopicDialogue[0],
+      "The dedicated role must construct only after exact legacy compatibility approval succeeds."
+    );
+
+    const activeBundlePath = process.env.OPERATIONAL_APPROVAL_BUNDLE_PATH;
+    const activeManifestPath =
+      process.env.OPERATIONAL_APPROVED_MANIFEST_PATH;
+    const activeEvidencePath =
+      process.env.OPERATIONAL_APPROVAL_EVIDENCE_PATH;
+    process.env.OPERATIONAL_APPROVAL_BUNDLE_PATH = path.join(
+      root,
+      "missing-active-bundle.json"
+    );
+    delete process.env.OPERATIONAL_APPROVED_MANIFEST_PATH;
+    delete process.env.OPERATIONAL_APPROVAL_EVIDENCE_PATH;
+    let missingActiveBundleCode: string | null = null;
+    try {
+      createLiveFormativeConversationAgentRunner();
+    } catch (error) {
+      if (error instanceof FormativeConversationUnavailableError) {
+        missingActiveBundleCode = error.reason_code;
+      }
+    }
+    assert(
+      missingActiveBundleCode === "active_approval_bundle_missing",
+      "A configured but missing active approval bundle must fail closed before provider dispatch."
+    );
+    process.env.OPERATIONAL_APPROVAL_BUNDLE_PATH = String(activeBundlePath);
+    process.env.OPERATIONAL_APPROVED_MANIFEST_PATH = String(
+      activeManifestPath
+    );
+    process.env.OPERATIONAL_APPROVAL_EVIDENCE_PATH = String(
+      activeEvidencePath
+    );
 
     process.env.OPENAI_MODEL_FOLLOWUP = "gpt-5.4-mini";
     assert(
@@ -246,10 +326,6 @@ async function main() {
     writeFileSync(activated.approved_manifest_path, approvedManifestCopyContents, "utf8");
     assert(verifyApprovedOperationalAgentConfig().valid, "Restored immutable artifact must verify again.");
 
-    process.env.OPERATIONAL_AGENT_MODE = "guarded_live";
-    process.env.LLM_PROVIDER = "openai";
-    process.env.LLM_LIVE_CALLS_ENABLED = "true";
-    process.env.OPENAI_API_KEY = "sk-test-placeholder-not-used-by-smoke";
     const readiness = await getGuardedOperationalAgentIntegrationReadiness({ checkDatabase: false });
     assert(readiness.allowed, `Exact active bundle should permit guarded live readiness: ${JSON.stringify(readiness.blocking_reasons)}`);
     assert(readiness.readiness_snapshot.evaluation_evidence_found, "Derived approval evidence must satisfy the production guard.");
@@ -381,6 +457,10 @@ async function main() {
       role_count: APPROVED_OPERATIONAL_ROLE_NAMES.length,
       derived_evidence_recognized: true,
       extension_role_resolution_independent: true,
+      dedicated_formative_conversation_role_configured: true,
+      legacy_formative_conversation_compatibility_hash_verified: true,
+      approval_hash_mismatch_failed_closed_before_provider: true,
+      missing_active_bundle_failed_closed_before_provider: true,
       incompatible_role_resolution_blocked: true,
       invalid_bundle_did_not_fall_back: true,
       environment_mismatch_blocked: true,

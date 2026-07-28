@@ -189,23 +189,31 @@ pedagogical action enum.
 The platform retains authority over authentication, transcript persistence,
 idempotency, privacy, safety, unadministered-item protection, conversation
 lifecycle, and validated learning-profile transitions. The approved
-`topic_dialogue_agent` execution role supplies the model and live-call boundary
-until a separately approved model role is introduced; audit records still use
-`agent_name=formative_conversation_agent`.
+`formative_conversation_agent` operational role supplies the model and
+live-call boundary. Historical `topic_dialogue_agent` records and routes remain
+available for legacy sessions, but they do not own the new conversation.
 
 Learning-profile evolution in this phase is append-only. The conversation agent
 authors learning observations, evidence interpretation, and any recommended
 outcome (`sound`, `largely_improved`, or
-`teacher_assistance_recommended`). The platform validates and persists source
-turns, the source agent call, evidence references, and the initial assessment
-profile; it does not infer the outcome from activity completion or fixed
-thresholds. Insufficient evidence may leave the conversation active without a
-new profile version.
+`teacher_assistance_recommended`). A terminal recommendation includes one
+complete canonical updated profile and field-level provenance that distinguishes
+conversation-supported changes from unchanged fields whose earlier evidence
+remains valid. The platform must not create an updated profile by copying stale
+fields from the prior version. It validates and persists the prior and updated
+profiles, source turns, source agent call, evidence references, transition
+timestamp, outcome, and initial assessment profile; it does not infer an
+outcome from activity completion, conversation status, profile pointers, or
+fixed thresholds. Insufficient evidence leaves the conversation active and
+records evidence without forcing a profile transition.
 
 Teacher review presents this evidence as one readable trajectory: administered
 item responses and the initial profile, the visible student/tutor conversation,
 and each validated profile transition with its supporting turns. It does not
 show hidden prompts, provider payloads, API metadata, routing decisions, or
-deterministic workflow labels. Research exports retain the phase-separated raw
-assessment evidence, observable formative telemetry, safe agent metadata, and
-append-only transition provenance needed for reproducible analysis.
+deterministic workflow labels. Teacher review and research exports read the same
+latest persisted transition. When none exists, both report that no validated
+profile change exists rather than deriving a learning outcome heuristically.
+Research exports retain the phase-separated raw assessment evidence, observable
+formative telemetry, safe agent metadata, and append-only transition provenance
+needed for reproducible analysis.

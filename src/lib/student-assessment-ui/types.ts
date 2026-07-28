@@ -179,6 +179,13 @@ export const StudentFormativeConversationSchema = z.object({
   last_activity_at: z.string(),
   paused_at: z.string().nullable(),
   completed_at: z.string().nullable(),
+  opening_status: z.enum([
+    "ready",
+    "preparing",
+    "retry_available",
+    "unavailable"
+  ]),
+  can_retry_opening: z.boolean(),
   can_send: z.boolean(),
   can_pause: z.boolean(),
   can_resume: z.boolean(),

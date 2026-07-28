@@ -239,6 +239,11 @@ const sessionSelect = {
     select: {
       id: true
     }
+  },
+  _count: {
+    select: {
+      formative_conversation_sessions: true
+    }
   }
 } satisfies Prisma.AssessmentSessionSelect;
 
@@ -461,7 +466,9 @@ async function loadActivityCounts(sessionPublicId: string) {
   const usesFormativeConversation = formative_conversation_count > 0;
 
   return {
-    activity_attempt_count,
+    activity_attempt_count: usesFormativeConversation
+      ? 0
+      : activity_attempt_count,
     post_activity_evidence_count,
     diagnostic_snapshot_count,
     uses_formative_conversation: usesFormativeConversation,
@@ -800,8 +807,17 @@ export async function listSimpleCsvExplorerOptions(input: { teacher_user_db_id: 
     }),
     loadSessions({ teacher_user_db_id: input.teacher_user_db_id })
   ]);
+  const formativeConversationSessionIds = new Set(
+    sessions
+      .filter(
+        (session) =>
+          session._count.formative_conversation_sessions > 0
+      )
+      .map((session) => session.session_public_id)
+  );
   const supplementalBySession = await loadSupplementalAvailabilityCounts(
-    sessions.map((session) => session.session_public_id)
+    sessions.map((session) => session.session_public_id),
+    formativeConversationSessionIds
   );
   const countsByAssessment = new Map<string, ExportAvailabilityCounts>();
   const countsByStudent = new Map<string, ExportAvailabilityCounts>();
@@ -829,6 +845,17 @@ export async function listSimpleCsvExplorerOptions(input: { teacher_user_db_id: 
       const counts = countsByStudent.get(student.user_id) ?? emptyAvailabilityCounts();
       return {
         ...student,
+        counts,
+        availability: availabilityForCounts(counts)
+      };
+    }),
+    sessions: sessions.map((session) => {
+      const counts = countsForSession(
+        session,
+        supplementalBySession.get(session.session_public_id)
+      );
+      return {
+        session_public_id: session.session_public_id,
         counts,
         availability: availabilityForCounts(counts)
       };
@@ -878,7 +905,10 @@ function emptySupplementalAvailabilityCounts(): SupplementalAvailabilityCounts {
   };
 }
 
-async function loadSupplementalAvailabilityCounts(sessionPublicIds: string[]) {
+async function loadSupplementalAvailabilityCounts(
+  sessionPublicIds: string[],
+  formativeConversationSessionIds: ReadonlySet<string> = new Set()
+) {
   if (sessionPublicIds.length === 0) {
     return new Map<string, SupplementalAvailabilityCounts>();
   }
@@ -909,7 +939,11 @@ async function loadSupplementalAvailabilityCounts(sessionPublicIds: string[]) {
     const current = counts.get(entry.session_public_id) ?? emptySupplementalAvailabilityCounts();
     counts.set(entry.session_public_id, {
       ...current,
-      activity_attempts: entry._count._all
+      activity_attempts: formativeConversationSessionIds.has(
+        entry.session_public_id
+      )
+        ? 0
+        : entry._count._all
     });
   }
   for (const entry of evidenceRecords) {
@@ -942,7 +976,10 @@ function countsForSession(
     conversation_turns: session.conversation_turns.length,
     response_packages: session.concept_unit_sessions.flatMap((entry) => entry.response_packages).length,
     agent_calls: session.agent_calls.length,
-    activity_attempts: supplemental.activity_attempts,
+    activity_attempts:
+      session._count.formative_conversation_sessions > 0
+        ? 0
+        : supplemental.activity_attempts,
     post_activity_evidence: supplemental.post_activity_evidence,
     diagnostic_snapshots: supplemental.diagnostic_snapshots
   };

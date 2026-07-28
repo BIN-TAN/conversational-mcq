@@ -591,7 +591,18 @@ has completed no-live tests, fixed synthetic live evaluation, human review of
 student-facing outputs, and explicit operational approval with a matching
 approved configuration hash.
 
-Optional Render/server variables for candidate evaluation:
+Required Render/server assertions for the active formative-conversation path:
+
+- `OPENAI_MODEL_FORMATIVE_CONVERSATION`
+- `OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION`
+- `OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION`
+- `FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED`
+- `OPERATIONAL_APPROVED_CONFIG_HASH`
+- `OPERATIONAL_APPROVAL_BUNDLE_PATH`
+- `OPERATIONAL_APPROVED_MANIFEST_PATH`
+- `OPERATIONAL_APPROVAL_EVIDENCE_PATH`
+
+Additional Render/server variables for candidate evaluation:
 
 - `OPENAI_MODEL_STUDENT_COMMUNICATION`
 - `OPENAI_REASONING_EFFORT_STUDENT_COMMUNICATION`
@@ -599,10 +610,6 @@ Optional Render/server variables for candidate evaluation:
 - `OPENAI_MODEL_TOPIC_DIALOGUE`
 - `OPENAI_REASONING_EFFORT_TOPIC_DIALOGUE`
 - `OPENAI_MAX_OUTPUT_TOKENS_TOPIC_DIALOGUE`
-- `OPENAI_MODEL_FORMATIVE_CONVERSATION`
-- `OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION`
-- `OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION`
-- `FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED`
 - `OPENAI_MODEL_FORMATIVE_VALUE_DETERMINATION`
 - `OPENAI_REASONING_EFFORT_FORMATIVE_VALUE_DETERMINATION`
 - `OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_VALUE_DETERMINATION`
@@ -624,6 +631,17 @@ Optional Render/server variables for candidate evaluation:
 - `TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS`
 - `OPENAI_REQUEST_TIMEOUT_MS`
 - `OPENAI_MAX_RETRIES`
+
+The dedicated formative-conversation settings do not constitute approval by
+themselves. While the immutable legacy 17-role bundle is active, the only
+permitted compatibility source is its version-scoped
+`topic_dialogue_agent` entry. Production must load the active bundle and
+matching manifest/evidence artifacts, and
+`OPERATIONAL_APPROVED_CONFIG_HASH` must exactly equal the bundle hash. Missing
+or mismatched approval evidence makes the assistant-first opening fail closed
+with a typed `formative_conversation_unavailable` response before provider
+dispatch. The conversation remains available for an idempotent opening retry;
+no deterministic instructional fallback is served.
 
 Do not add these values to public or browser-visible configuration. If a
 candidate rollout must be reverted, remove the candidate variables, restore the

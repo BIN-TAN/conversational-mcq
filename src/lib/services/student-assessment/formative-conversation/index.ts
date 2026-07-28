@@ -1,4 +1,5 @@
 export * from "./agent-contract";
+export * from "./availability";
 export * from "./context";
 export * from "./evidence-references";
 export * from "./live-runner";
@@ -7,6 +8,7 @@ export * from "./opening-contract";
 export * from "./opening-orchestration";
 export * from "./opening-runner";
 export * from "./projection";
+export * from "./profile-projection";
 export * from "./profile-update";
 export * from "./runtime";
 export * from "./runtime-context";

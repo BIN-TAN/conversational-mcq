@@ -638,7 +638,7 @@ function formativeOutcomeLabel(
   if (outcome === "teacher_assistance_recommended") {
     return "Teacher assistance recommended";
   }
-  return "Outcome not yet determined";
+  return "No validated profile change yet";
 }
 
 function readableItemStem(value: unknown) {
@@ -674,6 +674,14 @@ function FormativeLearningProfileSummary({
         </div>
         <div>
           <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Combined evidence pattern
+          </dt>
+          <dd className="mt-1 text-ink">
+            {label(profile.combined_evidence_pattern)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
             Evidence strength
           </dt>
           <dd className="mt-1 text-ink">
@@ -696,6 +704,14 @@ function FormativeLearningProfileSummary({
             {label(profile.profile_confidence)}
           </dd>
         </div>
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Independent application
+          </dt>
+          <dd className="mt-1 text-ink">
+            {label(profile.independence_interpretability)}
+          </dd>
+        </div>
       </dl>
       <div>
         <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -712,6 +728,22 @@ function FormativeLearningProfileSummary({
         <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">
           {profile.reasoning_summary || "No reasoning summary recorded."}
         </p>
+      </div>
+      <div>
+        <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">
+          Misconception evidence
+        </h5>
+        {profile.misconception_evidence.length > 0 ? (
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-sm leading-6 text-ink">
+            {profile.misconception_evidence.map((entry, index) => (
+              <li key={`${entry}-${index}`}>{entry}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-1 text-sm leading-6 text-muted">
+            No misconception evidence is included in this profile version.
+          </p>
+        )}
       </div>
       <p className="text-xs text-muted">
         Recorded {formatDate(profile.created_at)}
@@ -1050,8 +1082,8 @@ export function FormativeConversationEvidenceSection({
                 </ol>
               ) : (
                 <p className="mt-2 text-sm text-muted">
-                  No validated profile transition is recorded yet. The
-                  conversation can continue while evidence is insufficient.
+                  No validated profile change yet. The conversation can
+                  continue while evidence is insufficient.
                 </p>
               )}
             </section>

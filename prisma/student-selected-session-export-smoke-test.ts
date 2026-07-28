@@ -1,6 +1,7 @@
 import { parse } from "csv-parse/sync";
 import { PrismaClient } from "@prisma/client";
 import { buildAnalysisReadyResearchDataBundle } from "../src/lib/services/teacher-research-data/analysis-ready-export";
+import { listSimpleCsvExplorerOptions } from "../src/lib/services/teacher-simple-csv-export/service";
 import {
   cleanupTeacherReviewDemoFixture,
   ensureTeacherReviewDemoFixture
@@ -38,6 +39,35 @@ async function main() {
       orderBy: { created_at: "asc" }
     });
     const beforeAgentCalls = await prisma.agentCall.count();
+    const options = await listSimpleCsvExplorerOptions({
+      teacher_user_db_id: teacher.id
+    });
+    const selectedSessionPreview = options.sessions.find(
+      (entry) =>
+        entry.session_public_id === session.session_public_id
+    );
+    assert(
+      selectedSessionPreview,
+      "Selected-session preview should be sourced from an authorized session record."
+    );
+    assert(
+      selectedSessionPreview.counts.item_responses ===
+        (await prisma.itemResponse.count({
+          where: {
+            concept_unit_session: {
+              assessment_session_db_id: session.id
+            }
+          }
+        })),
+      "Selected-session preview should report the actual item-response count."
+    );
+    assert(
+      selectedSessionPreview.counts.conversation_turns ===
+        (await prisma.conversationTurn.count({
+          where: { assessment_session_db_id: session.id }
+        })),
+      "Selected-session preview should report the actual conversation-turn count."
+    );
     const standard = await buildAnalysisReadyResearchDataBundle({
       teacher_user_db_id: teacher.id,
       scope: "selected_session",

@@ -68,15 +68,28 @@ async function main() {
     const {
       FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
       FORMATIVE_CONVERSATION_AGENT_NAME,
+      FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS,
+      FORMATIVE_CONVERSATION_CANONICAL_PROFILE_VERSION,
       FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
+      FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION,
+      FormativeConversationUnavailableError,
+      FormativeConversationProfileEvidenceSchema,
+      canonicalFormativeConversationProfileFromStudentProfile,
       formativeConversationInvocationKey,
       getFormativeConversationTranscript,
+      getStudentFormativeConversationProjection,
+      persistedFormativeConversationOutcome,
       processFormativeConversationOpening,
       processFormativeConversationStudentMessage,
       reserveAndPersistFormativeConversationStudentMessage,
       validateFormativeConversationOpeningOutput
     } = await import(
       "../src/lib/services/student-assessment/formative-conversation/index"
+    );
+    assert.equal(
+      persistedFormativeConversationOutcome([]),
+      null,
+      "No persisted transition must produce no validated formative outcome."
     );
     const { persistInitialStudentProfile } = await import(
       "../src/lib/agents/student-profiling/persistence"
@@ -113,10 +126,34 @@ async function main() {
     const profileOutput = agentOutputSchemas.student_profiling_agent.parse(
       mockOutputForAgent("student_profiling_agent")
     );
-    const initialProfile = await persistInitialStudentProfile({
+    const persistedInitialProfile = await persistInitialStudentProfile({
       concept_unit_session_db_id: fixture.conceptUnitSession.id,
       based_on_agent_call_db_id: null,
       output: profileOutput
+    });
+    const initialProfile = await prisma.studentProfile.update({
+      where: { id: persistedInitialProfile.id },
+      data: {
+        ability_profile: "misconception_based_understanding",
+        integrated_diagnostic_profile:
+          "misconception_with_sufficient_engagement",
+        integrated_profile_confidence: "medium",
+        integrated_profile_rationale:
+          "The assessment evidence supports a consistency-versus-validity misconception.",
+        evidence_sufficiency: "limited",
+        confidence_alignment: "overconfident",
+        misconception_indicators: [
+          "Consistency evidence alone establishes validity."
+        ],
+        reasoning_quality_summary:
+          "The reasoning treats consistency as sufficient validity evidence.",
+        profile_confidence: "medium",
+        rationale:
+          "The initial profile is based on the administered assessment evidence.",
+        recommended_next_evidence: [
+          "Explain why consistency evidence is not enough for an intended interpretation."
+        ]
+      }
     });
     const conversation =
       await prisma.formativeConversationSession.findUniqueOrThrow({
@@ -130,6 +167,37 @@ async function main() {
       "Initial profile persistence should create and bind the conversation."
     );
     assert.equal(conversation.current_student_profile_db_id, initialProfile.id);
+    const { getTeacherReviewSessionDetail } = await import(
+      "../src/lib/services/teacher-review/session-detail"
+    );
+    await prisma.studentProfile.update({
+      where: { id: initialProfile.id },
+      data: {
+        integrated_diagnostic_profile:
+          "robust_understanding_ready_for_transfer",
+        integrated_profile_rationale:
+          "This temporary test value must not imply a persisted formative outcome."
+      }
+    });
+    const noTransitionTeacherDetail =
+      await getTeacherReviewSessionDetail(
+        fixture.session.session_public_id
+      );
+    assert.equal(
+      noTransitionTeacherDetail.formative_conversations[0]
+        .learning_outcome,
+      null,
+      "Teacher review must not infer an outcome from a profile field when no transition exists."
+    );
+    await prisma.studentProfile.update({
+      where: { id: initialProfile.id },
+      data: {
+        integrated_diagnostic_profile:
+          initialProfile.integrated_diagnostic_profile,
+        integrated_profile_rationale:
+          initialProfile.integrated_profile_rationale
+      }
+    });
 
     const beforeTopicDialogueCount = await prisma.topicDialogue.count({
       where: { assessment_session_db_id: fixture.session.id }
@@ -138,8 +206,12 @@ async function main() {
       await prisma.activityRuntimeAttempt.count({
         where: { session_public_id: fixture.session.session_public_id }
       });
+    const initialCanonicalProfile =
+      canonicalFormativeConversationProfileFromStudentProfile(
+        initialProfile
+      );
     const profileEvidence = {
-      profile_version: "runtime-foundation-profile-v1",
+      profile_version: initialProfile.id,
       outcome: "not_yet_determined" as const,
       evidence_summary: [
         "The initial package shows a distinction that needs further explanation."
@@ -147,7 +219,80 @@ async function main() {
       unresolved_evidence: [
         "Independent application of the distinction has not been observed."
       ],
-      evidence_limitations: ["Only the initial package is available."]
+      evidence_limitations: ["Only the initial package is available."],
+      canonical_profile: initialCanonicalProfile,
+      field_evidence: []
+    };
+    const fieldEvidenceFor = (
+      priorProfile: typeof initialCanonicalProfile,
+      updatedProfile: typeof initialCanonicalProfile,
+      sourceTurnSequenceIndex: number
+    ) => {
+      const changedFields =
+        FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS.filter(
+          (field) =>
+            JSON.stringify(priorProfile[field]) !==
+            JSON.stringify(updatedProfile[field])
+        );
+      const retainedFields =
+        FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS.filter(
+          (field) => !changedFields.includes(field)
+        );
+      return [
+        ...(changedFields.length > 0
+          ? [
+              {
+                profile_fields: changedFields,
+                disposition:
+                  "updated_from_conversation_evidence" as const,
+                evidence_basis: "conversation_evidence" as const,
+                rationale:
+                  "The cited student response provides new evidence for these profile fields.",
+                source_turn_sequence_indexes: [
+                  sourceTurnSequenceIndex
+                ]
+              }
+            ]
+          : []),
+        ...(retainedFields.length > 0
+          ? [
+              {
+                profile_fields: retainedFields,
+                disposition:
+                  "retained_evidence_remains_valid" as const,
+                evidence_basis: "prior_profile_evidence" as const,
+                rationale:
+                  "The prior evidence for these fields remains valid and is not contradicted by this turn.",
+                source_turn_sequence_indexes: []
+              }
+            ]
+          : [])
+      ];
+    };
+    const largelyImprovedProfile: typeof initialCanonicalProfile = {
+      ...initialCanonicalProfile,
+      schema_version:
+        FORMATIVE_CONVERSATION_CANONICAL_PROFILE_VERSION,
+      ability_profile: "mostly_correct_understanding" as const,
+      ability_pattern_flags: [
+        "The student distinguishes score consistency from validity evidence when prompted."
+      ],
+      integrated_diagnostic_profile:
+        "developing_understanding_with_productive_engagement" as const,
+      integrated_profile_confidence: "medium" as const,
+      integrated_profile_rationale:
+        "Conversation evidence shows an improved conceptual distinction, while independent application is still developing.",
+      evidence_sufficiency: "adequate" as const,
+      confidence_alignment: "well_calibrated" as const,
+      misconception_indicators: [],
+      reasoning_quality_summary:
+        "The student now distinguishes consistency evidence from evidence for an intended interpretation.",
+      profile_confidence: "medium" as const,
+      rationale:
+        "The updated profile reflects the cited conversation evidence.",
+      recommended_next_evidence: [
+        "Apply the distinction independently to a new score-use claim."
+      ]
     };
     const context = {
       assessment_public_id: fixture.assessment.assessment_public_id,
@@ -223,7 +368,7 @@ async function main() {
     };
     let runnerCallCount = 0;
     const markdownTutorMessage =
-      "**Consistency** tells you how steadily scores behave. What additional `evidence` would you need before using those scores for an intended interpretation?";
+      "**Consistency** tells you how steadily scores behave.\n\nWhat additional `evidence` would you need before using those scores for an intended interpretation?";
     let latestCompiledContext:
       | {
           visible_transcript: Array<{
@@ -317,13 +462,21 @@ async function main() {
               reason_code: null
             },
             profile_transition_recommendation: {
+              recommendation_version:
+                FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION,
               recommended: true,
               proposed_outcome: "largely_improved_understanding",
               rationale:
                 "The student is engaging with the distinction, while independent application evidence is still developing.",
               source_turn_sequence_indexes: [
                 latestStudentTurn.sequence_index
-              ]
+              ],
+              updated_profile: largelyImprovedProfile,
+              field_evidence: fieldEvidenceFor(
+                initialCanonicalProfile,
+                largelyImprovedProfile,
+                latestStudentTurn.sequence_index
+              )
             },
             lifecycle_recommendation: "continue"
           },
@@ -393,6 +546,95 @@ async function main() {
       "Opening validation must not impose a fixed question or invitation format."
     );
 
+    const beforeOpeningProjection =
+      await getStudentFormativeConversationProjection({
+        student_user_db_id: fixture.student.id,
+        session_public_id: fixture.session.session_public_id
+      });
+    assert(beforeOpeningProjection);
+    assert.equal(beforeOpeningProjection.opening_status, "retry_available");
+    assert.equal(beforeOpeningProjection.can_retry_opening, true);
+    assert.equal(
+      beforeOpeningProjection.can_send,
+      false,
+      "A new conversation must not accept student messages before its opening is persisted."
+    );
+    const agentCallsBeforeUnavailableOpening = await prisma.agentCall.count({
+      where: {
+        formative_conversation_session_db_id: conversation.id
+      }
+    });
+    await assert.rejects(
+      processFormativeConversationOpening(
+        {
+          conversation_public_id: conversation.conversation_public_id,
+          context
+        },
+        {
+          runner_factory() {
+            throw new FormativeConversationUnavailableError(
+              "approved_config_hash_mismatch"
+            );
+          }
+        }
+      ),
+      (error) =>
+        error instanceof FormativeConversationUnavailableError &&
+        error.reason_code === "approved_config_hash_mismatch"
+    );
+    assert.equal(runnerCallCount, 0);
+    assert.equal(
+      await prisma.agentCall.count({
+        where: {
+          formative_conversation_session_db_id: conversation.id
+        }
+      }),
+      agentCallsBeforeUnavailableOpening,
+      "Unavailable operational configuration must fail before AgentCall creation."
+    );
+    const failedOpeningReceipt =
+      await prisma.formativeConversationMessageReceipt.findUniqueOrThrow({
+        where: {
+          formative_conversation_session_db_id_client_message_id: {
+            formative_conversation_session_db_id: conversation.id,
+            client_message_id:
+              FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID
+          }
+        }
+      });
+    assert.equal(failedOpeningReceipt.status, "failed");
+    assert.equal(
+      failedOpeningReceipt.failure_code,
+      "approved_config_hash_mismatch"
+    );
+    const retryProjection = await getStudentFormativeConversationProjection({
+      student_user_db_id: fixture.student.id,
+      session_public_id: fixture.session.session_public_id
+    });
+    assert(retryProjection);
+    assert.equal(retryProjection.opening_status, "retry_available");
+    assert.equal(retryProjection.can_retry_opening, true);
+    assert.equal(retryProjection.can_send, false);
+    const { studentAssessmentRouteError } = await import(
+      "../src/lib/services/student-assessment/api"
+    );
+    const unavailableResponse = studentAssessmentRouteError(
+      new FormativeConversationUnavailableError(
+        "approved_config_hash_mismatch"
+      )
+    );
+    assert.equal(unavailableResponse.status, 503);
+    assert.deepEqual(await unavailableResponse.json(), {
+      error: {
+        code: "formative_conversation_unavailable",
+        message:
+          "The learning conversation is temporarily unavailable. Please try again.",
+        details: {
+          retryable: true
+        }
+      }
+    });
+
     const opening = await processFormativeConversationOpening(
       {
         conversation_public_id: conversation.conversation_public_id,
@@ -432,7 +674,8 @@ async function main() {
       opening.agent_call?.agent_invocation_key,
       formativeConversationInvocationKey(
         conversation.conversation_public_id,
-        FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID
+        FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
+        2
       )
     );
     const replayedOpening = await processFormativeConversationOpening(
@@ -468,7 +711,8 @@ async function main() {
           typing_duration_method: "active_intervals",
           edit_count: 2,
           backspace_count: 1,
-          paste_event_count: 0
+          paste_event_count: 1,
+          paste_character_count: 18
         }
       },
       { runner }
@@ -513,6 +757,8 @@ async function main() {
           source_agent_call_db_id: firstResult.agent_call.id
         },
         include: {
+          prior_student_profile: true,
+          updated_student_profile: true,
           supporting_turn_references: {
             include: {
               conversation_turn: {
@@ -528,8 +774,56 @@ async function main() {
       });
     assert.equal(firstTransition.learning_outcome, "largely_improved");
     assert.equal(
+      firstTransition.transition_version,
+      "formative-conversation-profile-transition-v2"
+    );
+    assert.equal(
       firstTransition.assessment_student_profile_db_id,
       initialProfile.id
+    );
+    assert.equal(
+      firstTransition.updated_student_profile.ability_profile,
+      "mostly_correct_understanding"
+    );
+    assert.equal(
+      firstTransition.updated_student_profile.evidence_sufficiency,
+      "adequate"
+    );
+    assert.equal(
+      firstTransition.updated_student_profile.confidence_alignment,
+      "well_calibrated"
+    );
+    assert.deepEqual(
+      firstTransition.updated_student_profile.misconception_indicators,
+      [],
+      "The complete agent recommendation must remove a stale misconception instead of cloning it."
+    );
+    assert.equal(
+      firstTransition.updated_student_profile.engagement_profile,
+      firstTransition.prior_student_profile.engagement_profile,
+      "An unchanged evidence-backed field may be retained explicitly."
+    );
+    assert.deepEqual(
+      firstTransition.updated_student_profile.item_level_evidence,
+      firstTransition.prior_student_profile.item_level_evidence,
+      "Explicitly retained structured assessment evidence must not be replaced by its normalized agent-context summary."
+    );
+    const firstProfileSnapshot =
+      FormativeConversationProfileEvidenceSchema.parse(
+        firstTransition.profile_snapshot
+      );
+    assert.deepEqual(
+      firstProfileSnapshot.canonical_profile,
+      largelyImprovedProfile
+    );
+    assert(
+      firstProfileSnapshot.field_evidence.some(
+        (evidence) =>
+          evidence.disposition ===
+            "retained_evidence_remains_valid" &&
+          evidence.profile_fields.includes("engagement_profile")
+      ),
+      "Retained profile fields must carry explicit evidence-validity provenance."
     );
     assert.deepEqual(
       firstTransition.supporting_turn_references
@@ -560,7 +854,8 @@ async function main() {
           typing_duration_method: "active_intervals",
           edit_count: 2,
           backspace_count: 1,
-          paste_event_count: 0
+          paste_event_count: 1,
+          paste_character_count: 18
         }
       },
       { runner }
@@ -568,6 +863,110 @@ async function main() {
     assert.equal(replayed.replayed, true);
     assert.equal(runnerCallCount, 2, "A duplicate message must not call the agent again.");
     assert.equal(replayed.tutor_turn.id, firstResult.tutor_turn.id);
+    assert.equal(
+      replayed.profile_transition_recommendation?.transition.id,
+      firstTransition.id,
+      "Idempotent replay must return the authoritative existing transition."
+    );
+    assert.equal(
+      await prisma.formativeConversationProfileTransition.count({
+        where: {
+          formative_conversation_session_db_id: conversation.id
+        }
+      }),
+      1,
+      "Idempotent replay must not append another profile version."
+    );
+
+    let continueRunnerCallCount = 0;
+    const continueRunner: FormativeConversationAgentRunner = {
+      identity: runner.identity,
+      async execute(input) {
+        continueRunnerCallCount += 1;
+        const latestStudentTurn = [...input.context.visible_transcript]
+          .reverse()
+          .find((turn) => turn.actor === "student");
+        assert(latestStudentTurn);
+        const startedAt = new Date();
+        const completedAt = new Date(startedAt.getTime() + 20);
+        return {
+          output: {
+            contract_version:
+              FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
+            student_visible_message:
+              "That is useful evidence, but let us test the distinction with one more example before changing the profile again.",
+            teaching_artifact: null,
+            evidence_observations: [
+              {
+                evidence_type: "developing_application",
+                observation:
+                  "The student asks for another opportunity to apply the distinction.",
+                source_turn_sequence_indexes: [
+                  latestStudentTurn.sequence_index
+                ]
+              }
+            ],
+            profile_transition_recommendation: {
+              recommendation_version:
+                FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION,
+              recommended: false,
+              proposed_outcome: "continue_conversation" as const,
+              rationale:
+                "The conversation contains useful evidence but does not yet support another validated profile change.",
+              source_turn_sequence_indexes: [
+                latestStudentTurn.sequence_index
+              ],
+              updated_profile: null,
+              field_evidence: []
+            },
+            teacher_assistance_recommendation: {
+              recommended: false,
+              reason_code: null
+            },
+            lifecycle_recommendation: "continue" as const
+          },
+          raw_output: {
+            fixture: "deterministic_no_provider_continue"
+          },
+          generation_source: "deterministic_test",
+          provider_request_id: "mock-request-runtime-continue",
+          provider_response_id: "mock-response-runtime-continue",
+          client_request_id: "mock-client-runtime-continue",
+          retry_count: 0,
+          latency_ms: 20,
+          input_tokens: 75,
+          output_tokens: 25,
+          total_tokens: 100,
+          estimated_cost: 0,
+          started_at: startedAt,
+          completed_at: completedAt
+        };
+      }
+    };
+    const continueMessageId = `${prefix}_message_continue`;
+    const continueResult =
+      await processFormativeConversationStudentMessage(
+        {
+          conversation_public_id: conversation.conversation_public_id,
+          client_message_id: continueMessageId,
+          message_text:
+            "Can I try one more example before we decide?",
+          context
+        },
+        { runner: continueRunner }
+      );
+    assert.equal(continueRunnerCallCount, 1);
+    assert.equal(continueResult.evidence_references.length, 1);
+    assert.equal(continueResult.profile_transition_recommendation, null);
+    assert.equal(
+      await prisma.formativeConversationProfileTransition.count({
+        where: {
+          formative_conversation_session_db_id: conversation.id
+        }
+      }),
+      1,
+      "continue_conversation must preserve evidence without forcing a profile transition."
+    );
 
     const secondClientMessageId = `${prefix}_message_2`;
     const secondMessage = "So interpretation needs more evidence than consistency.";
@@ -578,6 +977,28 @@ async function main() {
         message_text: secondMessage
       });
     assert(reserved.receipt.student_turn);
+    const soundProfile: typeof initialCanonicalProfile = {
+      ...largelyImprovedProfile,
+      ability_profile:
+        "robust_transfer_ready_understanding" as const,
+      ability_pattern_flags: [
+        "The student independently states the distinction and applies it to the intended interpretation."
+      ],
+      integrated_diagnostic_profile:
+        "robust_understanding_ready_for_transfer" as const,
+      integrated_profile_confidence: "high" as const,
+      integrated_profile_rationale:
+        "The cited conversation evidence supports sound understanding and independent application.",
+      evidence_sufficiency: "strong" as const,
+      independence_interpretability:
+        "independent_understanding_likely" as const,
+      reasoning_quality_summary:
+        "The student independently explains why consistency evidence does not establish validity.",
+      profile_confidence: "high" as const,
+      rationale:
+        "The complete profile reflects the latest valid conversation evidence.",
+      recommended_next_evidence: []
+    };
     const resumedOutput = {
       contract_version: FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
       student_visible_message:
@@ -594,13 +1015,21 @@ async function main() {
         }
       ],
       profile_transition_recommendation: {
+        recommendation_version:
+          FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION,
         recommended: true,
         proposed_outcome: "sound_understanding" as const,
         rationale:
           "The student now states the conceptual boundary in their own words.",
         source_turn_sequence_indexes: [
           reserved.receipt.student_turn.sequence_index
-        ]
+        ],
+        updated_profile: soundProfile,
+        field_evidence: fieldEvidenceFor(
+          largelyImprovedProfile,
+          soundProfile,
+          reserved.receipt.student_turn.sequence_index
+        )
       },
       teacher_assistance_recommendation: {
         recommended: false,
@@ -690,6 +1119,16 @@ async function main() {
       profileTransitions[1].updated_student_profile_db_id
     );
     assert.equal(
+      (
+        await prisma.formativeConversationSession.findUniqueOrThrow({
+          where: { id: conversation.id },
+          select: { status: true }
+        })
+      ).status,
+      "active",
+      "A validated profile outcome must not automatically end the conversation."
+    );
+    assert.equal(
       await prisma.studentProfile.count({
         where: {
           concept_unit_session_db_id: fixture.conceptUnitSession.id
@@ -727,6 +1166,22 @@ async function main() {
         .map((profile) => profile.outcome),
       ["largely_improved_understanding", "sound_understanding"]
     );
+    assert.deepEqual(
+      evolvedContext.context.current_profile.canonical_profile,
+      soundProfile,
+      "The latest persisted transition must supply the canonical current profile."
+    );
+    assert.deepEqual(
+      evolvedContext.context.profile_history.map(
+        (profile) => profile.profile_version
+      ),
+      [
+        initialProfile.id,
+        profileTransitions[0].updated_student_profile_db_id,
+        profileTransitions[1].updated_student_profile_db_id
+      ],
+      "Only the initial profile and append-only formative transitions belong in canonical history."
+    );
 
     const transcript = await getFormativeConversationTranscript(
       conversation.conversation_public_id
@@ -737,6 +1192,8 @@ async function main() {
         opening.tutor_turn.message_text,
         firstMessage,
         firstResult.tutor_turn.message_text,
+        "Can I try one more example before we decide?",
+        continueResult.tutor_turn.message_text,
         secondMessage,
         resumedOutput.student_visible_message
       ]
@@ -744,8 +1201,14 @@ async function main() {
     const lifecycleEvents =
       await prisma.formativeConversationLifecycleEvent.findMany({
         where: { formative_conversation_session_db_id: conversation.id },
-        orderBy: { sequence_index: "asc" },
-        select: { sequence_index: true, event_type: true }
+        orderBy: {
+          conversation_local_event_sequence_index: "asc"
+        },
+        select: {
+          sequence_index: true,
+          conversation_local_event_sequence_index: true,
+          event_type: true
+        }
       });
     assert.deepEqual(
       lifecycleEvents.slice(0, 5).map((event) => event.event_type),
@@ -765,11 +1228,61 @@ async function main() {
       ),
       "Runtime events should have a stable persisted order."
     );
+    assert.deepEqual(
+      lifecycleEvents.map(
+        (event) =>
+          event.conversation_local_event_sequence_index
+      ),
+      lifecycleEvents.map((_, index) => index + 1),
+      "Lifecycle events must retain a conversation-local sequence."
+    );
+    const turnTelemetry =
+      await prisma.formativeConversationTurnTelemetry.findMany({
+        where: {
+          formative_conversation_session_db_id: conversation.id
+        },
+        orderBy: {
+          conversation_local_turn_sequence_index: "asc"
+        },
+        select: {
+          conversation_local_turn_sequence_index: true,
+          agent_call: {
+            select: {
+              agent_call_public_id: true
+            }
+          }
+        }
+      });
+    assert.deepEqual(
+      turnTelemetry.map(
+        (telemetry) =>
+          telemetry.conversation_local_turn_sequence_index
+      ),
+      turnTelemetry.map((_, index) => index + 1),
+      "Turn telemetry must retain a conversation-local sequence."
+    );
+    assert(
+      turnTelemetry
+        .filter((telemetry) => telemetry.agent_call)
+        .every(
+          (telemetry) =>
+            (telemetry.agent_call?.agent_call_public_id.length ?? 0) > 0
+        ),
+      "Tutor telemetry must link through a safe public AgentCall key."
+    );
+    const firstInputTelemetry =
+      await prisma.formativeConversationInputTelemetry.findUniqueOrThrow({
+        where: {
+          conversation_turn_db_id: firstResult.student_turn.id
+        }
+      });
+    assert.equal(firstInputTelemetry.paste_event_count, 1);
+    assert.equal(firstInputTelemetry.paste_character_count, 18);
     assert.equal(
       await prisma.formativeConversationMessageReceipt.count({
         where: { formative_conversation_session_db_id: conversation.id }
       }),
-      3
+      4
     );
     assert.equal(
       await prisma.agentCall.count({
@@ -778,7 +1291,7 @@ async function main() {
           agent_name: FORMATIVE_CONVERSATION_AGENT_NAME
         }
       }),
-      3
+      4
     );
     assert.equal(
       await prisma.agentCall.count({
@@ -817,6 +1330,8 @@ async function main() {
       "formative-conversation-controls",
       "formative-conversation-input",
       "send-formative-conversation-message",
+      "formative-conversation-opening-retry",
+      "handleRetryFormativeConversationOpening",
       "handleSendFormativeConversationMessage",
       "handleFormativeConversationLifecycle"
     ]) {
@@ -826,10 +1341,7 @@ async function main() {
       );
     }
 
-    const {
-      getStudentFormativeConversationProjection,
-      updateStudentFormativeConversationLifecycle
-    } = await import(
+    const { updateStudentFormativeConversationLifecycle } = await import(
       "../src/lib/services/student-assessment/formative-conversation/projection"
     );
     const projection = await getStudentFormativeConversationProjection({
@@ -837,8 +1349,10 @@ async function main() {
       session_public_id: fixture.session.session_public_id
     });
     assert(projection);
-    assert.equal(projection.transcript.length, 5);
+    assert.equal(projection.transcript.length, 7);
     assert.equal(projection.transcript[0].turn_id, opening.tutor_turn.id);
+    assert.equal(projection.opening_status, "ready");
+    assert.equal(projection.can_retry_opening, false);
     assert.equal(projection.can_send, true);
     assert.equal(
       await getStudentFormativeConversationProjection({
@@ -881,10 +1395,16 @@ async function main() {
       ).map((event) => event.event_type),
       ["paused", "resumed"]
     );
-
-    const { getTeacherReviewSessionDetail } = await import(
-      "../src/lib/services/teacher-review/session-detail"
+    assert(
+      studentUiSource.includes("Pause conversation") &&
+        studentUiSource.includes("Resume conversation") &&
+        studentUiSource.includes("End conversation") &&
+        studentUiSource.includes("End attempt") &&
+        studentUiSource.includes('record("left", true)') &&
+        studentUiSource.includes('record("reentered")'),
+      "Conversation pause/end controls and assessment-attempt termination must remain visibly distinct."
     );
+
     const { canAccessTeacherReview } = await import(
       "../src/lib/services/teacher-review/api"
     );
@@ -896,11 +1416,26 @@ async function main() {
     assert.equal(teacherDetail.formative_conversations.length, 1);
     assert.equal(
       teacherDetail.formative_conversations[0].timeline.length,
-      5
+      7
     );
     assert.equal(
       teacherDetail.formative_conversations[0].learning_outcome,
       "sound"
+    );
+    assert.equal(
+      teacherDetail.formative_conversations[0].current_learning_profile
+        ?.assessment_specific_understanding,
+      soundProfile.ability_profile
+    );
+    assert.equal(
+      teacherDetail.formative_conversations[0].current_learning_profile
+        ?.evidence_sufficiency,
+      soundProfile.evidence_sufficiency
+    );
+    assert.deepEqual(
+      teacherDetail.formative_conversations[0].current_learning_profile
+        ?.misconception_evidence,
+      soundProfile.misconception_indicators
     );
     assert.deepEqual(
       teacherDetail.formative_conversations[0].profile_evolution.map(
@@ -1027,11 +1562,77 @@ async function main() {
       );
     }
 
+    const assessmentLifecycleBeforeConversationEnd =
+      await prisma.assessmentSession.findUniqueOrThrow({
+        where: { id: fixture.session.id },
+        select: {
+          status: true,
+          current_phase: true
+        }
+      });
+    const endedProjection =
+      await updateStudentFormativeConversationLifecycle({
+        student_user_db_id: fixture.student.id,
+        session_public_id: fixture.session.session_public_id,
+        action: "end"
+      });
+    assert(endedProjection);
+    assert.equal(endedProjection.status, "ended");
+    assert.equal(endedProjection.can_send, false);
+    assert.equal(
+      await prisma.formativeConversationLifecycleEvent.count({
+        where: {
+          formative_conversation_session_db_id: conversation.id,
+          event_type: "conversation_ended"
+        }
+      }),
+      1,
+      "Ending a formative conversation must use its own observable lifecycle event."
+    );
+    assert.deepEqual(
+      await prisma.assessmentSession.findUniqueOrThrow({
+        where: { id: fixture.session.id },
+        select: {
+          status: true,
+          current_phase: true
+        }
+      }),
+      assessmentLifecycleBeforeConversationEnd,
+      "Ending the conversation must not end the assessment attempt."
+    );
+
     const previousPseudonymizationKey =
       process.env.RESEARCH_PSEUDONYMIZATION_KEY;
     process.env.RESEARCH_PSEUDONYMIZATION_KEY =
       "formative-conversation-runtime-smoke-research-key";
     try {
+      const legacyDecision = await prisma.formativeDecision.create({
+        data: {
+          concept_unit_session_db_id:
+            fixture.conceptUnitSession.id,
+          student_profile_db_id: initialProfile.id,
+          formative_value: "reasoning_refinement",
+          formative_action_plan:
+            "Historical fixture retained for export classification.",
+          target_evidence: {},
+          success_criteria: {},
+          followup_prompt_constraints: {},
+          profile_update_triggers: {},
+          rationale:
+            "Historical fixture retained for export classification.",
+          mapping_followed: true
+        }
+      });
+      await prisma.followupRound.create({
+        data: {
+          concept_unit_session_db_id:
+            fixture.conceptUnitSession.id,
+          round_index: 1,
+          formative_decision_db_id: legacyDecision.id,
+          status: "active",
+          evidence_trigger_type: "historical_fixture"
+        }
+      });
       const { buildAnalysisReadyResearchDataBundle } = await import(
         "../src/lib/services/teacher-research-data/analysis-ready-export"
       );
@@ -1065,6 +1666,50 @@ async function main() {
           `${path} should be reproducible from unchanged source records.`
         );
       }
+      const formativeDictionaryRows = parse(
+        file("formative_conversation_data_dictionary.csv"),
+        {
+          columns: true,
+          skip_empty_lines: true
+        }
+      ) as Array<Record<string, string>>;
+      const formativeDictionaryVariables = new Set(
+        formativeDictionaryRows.map((row) => row.variable)
+      );
+      for (const requiredVariable of [
+        "agent_call_public_id",
+        "source_agent_call_public_id",
+        "conversation_local_turn_sequence_index",
+        "conversation_local_event_sequence_index",
+        "message_length_chars",
+        "typing_duration_ms",
+        "typing_duration_method",
+        "edit_count",
+        "backspace_count",
+        "paste_event_count",
+        "paste_character_count",
+        "final_message_length_chars"
+      ]) {
+        assert(
+          formativeDictionaryVariables.has(requiredVariable),
+          `The emitted formative data dictionary must define ${requiredVariable}.`
+        );
+      }
+      const researchDictionaryRows = parse(
+        file("research_data_dictionary.csv"),
+        {
+          columns: true,
+          skip_empty_lines: true
+        }
+      ) as Array<Record<string, string>>;
+      assert(
+        researchDictionaryRows.some(
+          (row) =>
+            row.table_name === "agent_activity_records" &&
+            row.variable_name === "authority_status"
+        ),
+        "The emitted research data dictionary must define authority_status."
+      );
       assert(
         file("formative_conversation_turns.csv").includes(firstMessage)
       );
@@ -1099,6 +1744,12 @@ async function main() {
         ),
         "The formative export must preserve observable conversation telemetry."
       );
+      assert(
+        file("formative_conversation_events.csv").includes(
+          "conversation_ended"
+        ),
+        "The formative export must distinguish explicit conversation end from assessment-attempt termination."
+      );
       const transitionRows = parse(
         file("formative_conversation_profile_transitions.csv"),
         {
@@ -1114,18 +1765,74 @@ async function main() {
         transitionRows.every(
           (row) =>
             row.transition_version ===
-              "formative-conversation-profile-transition-v1" &&
+              "formative-conversation-profile-transition-v2" &&
             row.prior_profile_created_at.length > 0 &&
             row.updated_profile_created_at.length > 0 &&
             row.supporting_turn_sequence_indexes.length > 0 &&
             row.supporting_turn_evidence_roles.length > 0 &&
             row.evidence_reference_public_ids.length > 0 &&
             row.assessment_profile_created_at.length > 0 &&
-            row.source_agent_invocation_key.startsWith(
-              "formative_conversation:"
-            )
+            row.source_agent_call_public_id.length > 0
         ),
         "Profile transition exports must preserve the assessment-to-conversation provenance chain."
+      );
+      assert.equal(
+        transitionRows[0].prior_understanding_category,
+        initialCanonicalProfile.ability_profile
+      );
+      assert.equal(
+        transitionRows[0].updated_understanding_category,
+        largelyImprovedProfile.ability_profile
+      );
+      assert.equal(
+        transitionRows[0].updated_confidence_alignment,
+        largelyImprovedProfile.confidence_alignment
+      );
+      assert.equal(
+        transitionRows[0].updated_misconception_indicators,
+        "[]"
+      );
+      const latestTransitionSnapshot =
+        FormativeConversationProfileEvidenceSchema.parse(
+          JSON.parse(transitionRows[1].canonical_profile_snapshot)
+        );
+      assert.deepEqual(
+        latestTransitionSnapshot.canonical_profile,
+        soundProfile
+      );
+      const formativeSessionRows = parse(
+        file("formative_conversation_sessions.csv"),
+        {
+          columns: true,
+          skip_empty_lines: true
+        }
+      ) as Array<Record<string, string>>;
+      const formativeSessionRow = formativeSessionRows.find(
+        (row) =>
+          row.conversation_public_id ===
+          conversation.conversation_public_id
+      );
+      assert(
+        formativeSessionRow,
+        "The canonical formative conversation session should be exported."
+      );
+      assert.equal(
+        formativeSessionRow.latest_profile_transition_public_id,
+        profileTransitions[1].transition_public_id
+      );
+      assert.equal(formativeSessionRow.validated_formative_outcome, "sound");
+      assert.equal(
+        formativeSessionRow.current_learning_profile,
+        soundProfile.integrated_diagnostic_profile
+      );
+      assert.equal(
+        formativeSessionRow.current_profile_evidence_sufficiency,
+        soundProfile.evidence_sufficiency
+      );
+      assert.equal(
+        teacherDetail.formative_conversations[0].learning_outcome,
+        formativeSessionRow.validated_formative_outcome,
+        "Teacher and research projections must read the same persisted transition."
       );
       const sessionRows = parse(file("sessions.csv"), {
         columns: true,
@@ -1141,6 +1848,110 @@ async function main() {
       );
       assert.equal(sessionRow.active_activity_id, "");
       assert.equal(sessionRow.formative_activity_completion_status, "");
+      assert.equal(
+        sessionRow.formative_activity_attempt_count,
+        "0",
+        "Historical activity-era records must not inflate the current formative-conversation activity count."
+      );
+      const formativeTurnRows = parse(
+        file("formative_conversation_turns.csv"),
+        {
+          columns: true,
+          skip_empty_lines: true
+        }
+      ) as Array<Record<string, string>>;
+      const formativeEventRows = parse(
+        file("formative_conversation_events.csv"),
+        {
+          columns: true,
+          skip_empty_lines: true
+        }
+      ) as Array<Record<string, string>>;
+      const formativeLlmRows = parse(
+        file("formative_conversation_llm_calls.csv"),
+        {
+          columns: true,
+          skip_empty_lines: true
+        }
+      ) as Array<Record<string, string>>;
+      assert.deepEqual(
+        formativeTurnRows.map((row) =>
+          Number(row.conversation_local_turn_sequence_index)
+        ),
+        formativeTurnRows.map((_, index) => index + 1)
+      );
+      assert.deepEqual(
+        formativeEventRows.map((row) =>
+          Number(row.conversation_local_event_sequence_index)
+        ),
+        formativeEventRows.map((_, index) => index + 1)
+      );
+      assert(
+        formativeTurnRows.some(
+          (row) =>
+            row.paste_event_count === "1" &&
+            row.paste_character_count === "18"
+        ),
+        "Formative turn export must preserve paste event and character counts without pasted text."
+      );
+      const exportedAgentCallIds = new Set(
+        formativeLlmRows.map((row) => row.agent_call_public_id)
+      );
+      assert(
+        formativeTurnRows
+          .filter((row) => row.actor_type === "agent")
+          .every((row) =>
+            exportedAgentCallIds.has(row.agent_call_public_id)
+          ),
+        "Every tutor turn must join to the formative LLM-call export through a safe public AgentCall key."
+      );
+      assert(
+        transitionRows.every((row) =>
+          exportedAgentCallIds.has(
+            row.source_agent_call_public_id
+          )
+        ),
+        "Every profile transition must join to its formative LLM call through the same public key."
+      );
+      assert.equal(
+        Object.hasOwn(
+          transitionRows[0],
+          "source_agent_invocation_key"
+        ),
+        false,
+        "Transition exports must not expose internal invocation keys."
+      );
+      const agentActivityRows = parse(
+        file("agent_activity_records.csv"),
+        {
+          columns: true,
+          skip_empty_lines: true
+        }
+      ) as Array<Record<string, string>>;
+      const legacyFollowupRows = agentActivityRows.filter(
+        (row) => row.record_type === "legacy_followup_round"
+      );
+      assert.equal(legacyFollowupRows.length, 1);
+      assert.equal(
+        legacyFollowupRows[0].authority_status,
+        "legacy_non_authoritative"
+      );
+      assert.equal(
+        agentActivityRows.some(
+          (row) =>
+            row.record_type === "activity_attempt" &&
+            row.activity_type === "followup_round"
+        ),
+        false,
+        "FollowupRound records must not be emitted as active activity attempts."
+      );
+      assert.equal(
+        exportResult.row_counts[
+          "formative_conversation_turns.csv"
+        ],
+        formativeTurnRows.length,
+        "Multiline tutor text must not inflate serialized CSV row counts."
+      );
       const exportedText = exportResult.files
         .filter((entry) => entry.path.startsWith("formative_conversation_"))
         .map((entry) => entry.data)
@@ -1151,6 +1962,25 @@ async function main() {
       assert(!exportedText.includes("raw_output"));
       assert(!exportedText.includes("system_prompt"));
       assert(!exportedText.includes("chain_of_thought"));
+      assert(!exportedText.includes("provider_request_id"));
+      assert(!exportedText.includes("client_request_id"));
+      assert(!exportedText.includes("agent_invocation_key"));
+      assert(!exportedText.includes("agent_call_db_id"));
+      assert(!exportedText.includes("source_agent_call_db_id"));
+      const internalAgentCallIds = await prisma.agentCall.findMany({
+        where: {
+          formative_conversation_session_db_id: conversation.id
+        },
+        select: {
+          id: true
+        }
+      });
+      assert(
+        internalAgentCallIds.every(
+          (call) => !exportedText.includes(call.id)
+        ),
+        "Formative exports must not expose internal AgentCall database IDs."
+      );
     } finally {
       if (previousPseudonymizationKey === undefined) {
         delete process.env.RESEARCH_PSEUDONYMIZATION_KEY;
@@ -1167,6 +1997,9 @@ async function main() {
           smoke: "student-formative-conversation-runtime",
           assertions: [
             "automatic_session_creation_after_initial_profile",
+            "opening_write_gate_before_assistant_persistence",
+            "typed_configuration_failure_and_retry_state",
+            "configuration_failure_before_agent_call",
             "assistant_first_opening_and_opening_language_validation",
             "idempotent_opening_refresh_resume",
             "student_and_tutor_message_persistence",
@@ -1175,14 +2008,29 @@ async function main() {
             "validated_agent_result_resume",
             "idempotent_duplicate_message",
             "append_only_agent_owned_profile_evolution",
+            "complete_canonical_profile_field_updates",
+            "stale_misconception_removal",
+            "evidence_backed_field_retention",
+            "structured_assessment_evidence_retention",
+            "continue_conversation_evidence_without_transition",
+            "no_heuristic_formative_outcome",
             "profile_transition_turn_call_and_assessment_provenance",
             "student_conversation_projection_and_privacy_isolation",
             "student_pause_and_resume_lifecycle",
+            "conversation_leave_pause_end_attempt_lifecycle_distinction",
+            "profile_outcome_does_not_end_conversation",
             "teacher_research_access_and_privacy_separation",
             "teacher_formative_trajectory_review",
             "teacher_profile_timeline_rendering",
+            "teacher_and_export_transition_consistency",
             "phase_separated_research_export_and_dictionary",
             "assessment_formative_outcome_export_integrity",
+            "safe_public_agent_call_export_joins",
+            "conversation_local_turn_and_event_ordering",
+            "paste_character_count_without_pasted_text",
+            "legacy_non_authoritative_activity_classification",
+            "multiline_csv_record_count_integrity",
+            "new_export_fields_documented_in_emitted_dictionaries",
             "markdown_source_preserved_in_research_export",
             "legacy_topic_dialogue_preserved"
           ],
