@@ -84,6 +84,7 @@ import {
   getStudentActivityRuntimeState,
   reopenFormativeEpisodeAfterTransferFailure
 } from "@/lib/services/student-assessment/activity-runtime-ui";
+import { getStudentFormativeConversationProjection } from "@/lib/services/student-assessment/formative-conversation";
 import {
   assertChatNativeActionAllowed,
   type ChatNativeAssessmentAction,
@@ -3101,7 +3102,14 @@ export async function getStudentSessionState(input: {
           item_db_id: currentItem.id
         })
       : null;
-  const activityRuntime = assessmentState === "FORMATIVE_ACTIVITY"
+  const formativeConversation = latestStudentProfile
+    ? await getStudentFormativeConversationProjection({
+        student_user_db_id: input.student_user_db_id,
+        session_public_id: input.session_public_id
+      })
+    : null;
+  const activityRuntime =
+    assessmentState === "FORMATIVE_ACTIVITY" && !formativeConversation
       ? await getStudentActivityRuntimeState({
           student_user_db_id: input.student_user_db_id,
           session_public_id: input.session_public_id,
@@ -3191,6 +3199,7 @@ export async function getStudentSessionState(input: {
           }
         : null,
     activity_runtime: activityRuntime,
+    formative_conversation: formativeConversation,
     package_results:
       shouldExposeLearningProfileToStudent({
         assessment_state: assessmentState,

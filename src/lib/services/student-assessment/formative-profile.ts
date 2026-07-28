@@ -60,6 +60,10 @@ import {
   createActivityRuntimeAttemptFromEvidenceIntegratedRouter,
   type CreateEvidenceIntegratedActivityRuntimeAttemptInput
 } from "@/lib/services/student-assessment/activity-runtime-loop";
+import {
+  createOrGetFormativeConversationSession,
+  createOrGetFormativeConversationSessionInTransaction
+} from "@/lib/services/student-assessment/formative-conversation/service";
 import { StudentAssessmentServiceError } from "./errors";
 import {
   resolveTopicDialogueExecutionPlan,
@@ -3286,6 +3290,20 @@ async function persistProfileDecisionAndActivity(input: {
   });
 
   if (existingRoundBeforeCommunication) {
+    const conceptUnitSession = await prisma.conceptUnitSession.findUniqueOrThrow({
+      where: { id: input.concept_unit_session_db_id },
+      select: { latest_student_profile_db_id: true }
+    });
+    if (conceptUnitSession.latest_student_profile_db_id) {
+      await createOrGetFormativeConversationSession({
+        assessment_session_db_id: input.assessment_session_db_id,
+        concept_unit_session_db_id: input.concept_unit_session_db_id,
+        initial_student_profile_db_id:
+          conceptUnitSession.latest_student_profile_db_id,
+        current_student_profile_db_id:
+          conceptUnitSession.latest_student_profile_db_id
+      });
+    }
     return {
       status: "already_created" as const,
       round: existingRoundBeforeCommunication
@@ -3323,6 +3341,20 @@ async function persistProfileDecisionAndActivity(input: {
     });
 
     if (existingRound) {
+      const conceptUnitSession = await tx.conceptUnitSession.findUniqueOrThrow({
+        where: { id: input.concept_unit_session_db_id },
+        select: { latest_student_profile_db_id: true }
+      });
+      if (conceptUnitSession.latest_student_profile_db_id) {
+        await createOrGetFormativeConversationSessionInTransaction(tx, {
+          assessment_session_db_id: input.assessment_session_db_id,
+          concept_unit_session_db_id: input.concept_unit_session_db_id,
+          initial_student_profile_db_id:
+            conceptUnitSession.latest_student_profile_db_id,
+          current_student_profile_db_id:
+            conceptUnitSession.latest_student_profile_db_id
+        });
+      }
       return {
         status: "already_created" as const,
         round: existingRound
@@ -3495,6 +3527,12 @@ async function persistProfileDecisionAndActivity(input: {
         followup_started_at: now,
         followup_round_count: { increment: 1 }
       }
+    });
+    await createOrGetFormativeConversationSessionInTransaction(tx, {
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      initial_student_profile_db_id: profile.id,
+      current_student_profile_db_id: profile.id
     });
 
     const postPackageSummary = evidenceBundle

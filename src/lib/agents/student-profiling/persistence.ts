@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { AgentOutputByName } from "@/lib/agents/contracts";
 import { toPrismaJson } from "@/lib/services/json";
+import { createOrGetFormativeConversationSessionInTransaction } from "@/lib/services/student-assessment/formative-conversation/service";
 
 type StudentProfileOutput = AgentOutputByName["student_profiling_agent"];
 
@@ -45,6 +46,10 @@ export async function persistInitialStudentProfile(input: {
   output: StudentProfileOutput;
 }) {
   return prisma.$transaction(async (tx) => {
+    const conceptUnitSession = await tx.conceptUnitSession.findUniqueOrThrow({
+      where: { id: input.concept_unit_session_db_id },
+      select: { assessment_session_db_id: true }
+    });
     const profile = await tx.studentProfile.create({
       data: studentProfileCreateData(input),
       include: {
@@ -74,6 +79,12 @@ export async function persistInitialStudentProfile(input: {
       data: {
         latest_student_profile_db_id: profile.id
       }
+    });
+    await createOrGetFormativeConversationSessionInTransaction(tx, {
+      assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      initial_student_profile_db_id: profile.id,
+      current_student_profile_db_id: profile.id
     });
 
     return profile;

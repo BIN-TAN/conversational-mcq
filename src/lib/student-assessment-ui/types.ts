@@ -166,6 +166,42 @@ export const PackageResultsSchema = z.object({
 });
 export type PackageResults = z.infer<typeof PackageResultsSchema>;
 
+export const StudentFormativeConversationSchema = z.object({
+  conversation_public_id: z.string(),
+  status: z.enum([
+    "active",
+    "paused",
+    "completed",
+    "teacher_assistance_recommended",
+    "ended"
+  ]),
+  started_at: z.string(),
+  last_activity_at: z.string(),
+  paused_at: z.string().nullable(),
+  completed_at: z.string().nullable(),
+  can_send: z.boolean(),
+  can_pause: z.boolean(),
+  can_resume: z.boolean(),
+  can_end: z.boolean(),
+  message_max_chars: z.number().int().positive(),
+  transcript: z.array(
+    z.object({
+      turn_id: z.string(),
+      sequence_index: z.number().int().positive(),
+      actor: z.enum(["student", "tutor"]),
+      message_text: z.string(),
+      created_at: z.string(),
+      agent_name: z.string().nullable(),
+      generation_source: z.string().nullable(),
+      validator_status: z.string().nullable(),
+      fallback_used: z.boolean()
+    })
+  )
+});
+export type StudentFormativeConversation = z.infer<
+  typeof StudentFormativeConversationSchema
+>;
+
 export const StudentSessionStateSchema = z.object({
   session_public_id: z.string(),
   session_status: z.string(),
@@ -257,6 +293,7 @@ export const StudentSessionStateSchema = z.object({
     .nullable()
     .optional(),
   activity_runtime: StudentActivityRuntimeProjectionSchema.nullable().optional(),
+  formative_conversation: StudentFormativeConversationSchema.nullable().optional(),
   package_results: PackageResultsSchema.nullable().optional(),
   progression: StudentProgressionSchema.nullable().optional(),
   learning_profile: StudentLearningProfileSchema.nullable().optional(),

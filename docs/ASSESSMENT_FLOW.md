@@ -159,6 +159,30 @@ Present the transfer item and collect answer, reason, confidence, and tempting o
 
 Mark the session complete when the assessment workflow is finished.
 
+## Persistent Formative Conversation Cutover
+
+For sessions with a `FormativeConversationSession`, the authoritative
+post-profile path is:
+
+`INITIAL PACKAGE -> REVIEW YOUR ANSWERS -> INITIAL LEARNING PROFILE -> FORMATIVE CONVERSATION`
+
+The conversation is not organized around activity cards, activity families, or
+a fixed follow-up sequence. A student message is persisted before context
+compilation. The backend then compiles the full visible formative transcript,
+administered assessment evidence, profile history, observable telemetry
+summary, intervention history, and safe teacher guidance; calls
+`formative_conversation_agent`; validates the structured response; and persists
+one visible tutor turn linked to the agent call.
+
+Refresh and sign-in resume the same conversation and transcript. Duplicate
+client message IDs replay the persisted receipt and cannot create a second
+provider call or tutor turn. Pause, resume, and end affect the formative
+conversation lifecycle without rewriting assessment evidence.
+
+Legacy `FORMATIVE_ACTIVITY`, topic-dialogue, revision, and next-choice records
+remain available for historical sessions. They are not the active UX when a
+formative conversation session exists.
+
 ## Backend Authority
 
 The application owns:
@@ -169,11 +193,14 @@ The application owns:
 - answer-key protection;
 - timing and process-event capture;
 - package construction;
-- LLM call boundaries;
+- LLM call boundaries and safety validation;
 - feedback eligibility;
-- completion.
+- conversation lifecycle and completion.
 
-The LLM may produce language and structured interpretations, but backend validation must decide what is stored, shown, and used for progression.
+During assessment, backend validation decides what is stored, shown, and used
+for progression. During formative conversation, the LLM owns teaching content
+and conversational strategy while the backend validates safety, persistence,
+and any recommended profile transition.
 
 ## Phase 30a Loop Policy
 

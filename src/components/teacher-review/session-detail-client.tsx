@@ -52,6 +52,7 @@ import {
 
 const tabs = [
   "overview",
+  "formative_conversation",
   "item_responses",
   "readable_transcript",
   "conversation_transcript",
@@ -160,6 +161,9 @@ const eventTypes = [
 type Tab = (typeof tabs)[number];
 
 function tabLabel(tab: Tab) {
+  if (tab === "formative_conversation") {
+    return "Formative conversation";
+  }
   if (tab === "readable_transcript") {
     return "Readable transcript";
   }
@@ -556,6 +560,9 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
           {activeTab === "item_responses" && itemResponses ? (
             <ItemResponsesSection data={itemResponses} />
           ) : null}
+          {activeTab === "formative_conversation" ? (
+            <FormativeConversationEvidenceSection detail={detail} />
+          ) : null}
           {activeTab === "readable_transcript" && readableTranscript ? (
             <ReadableTranscriptSection
               data={readableTranscript}
@@ -595,6 +602,177 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
         </>
       ) : null}
     </div>
+  );
+}
+
+function FormativeConversationEvidenceSection({
+  detail
+}: {
+  detail: SessionDetailResponse;
+}) {
+  if (detail.formative_conversations.length === 0) {
+    return (
+      <EmptyState title="No formative conversation evidence is recorded for this session." />
+    );
+  }
+  return (
+    <section className="space-y-5" data-testid="teacher-formative-conversation-review">
+      {detail.formative_conversations.map((conversation) => (
+        <article
+          className="rounded-lg border border-line bg-white p-5 shadow-soft"
+          key={conversation.conversation_public_id}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold text-ink">
+                Formative learning trajectory
+              </h3>
+              <p className="mt-1 text-xs text-muted">
+                Conversation ID: {conversation.conversation_public_id}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <StatusPill value={conversation.status} />
+              <StatusPill
+                value={conversation.learning_outcome ?? "outcome_not_yet_determined"}
+                tone={
+                  conversation.learning_outcome === "sound"
+                    ? "good"
+                    : conversation.learning_outcome ===
+                        "teacher_assistance_recommended"
+                      ? "warn"
+                      : "neutral"
+                }
+              />
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <div>
+              <h4 className="text-sm font-semibold text-ink">
+                Initial learning profile
+              </h4>
+              {conversation.initial_learning_profile ? (
+                <div className="mt-3">
+                  <ProfileDetails profile={conversation.initial_learning_profile} />
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-muted">Not recorded.</p>
+              )}
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-ink">
+                Current learning profile
+              </h4>
+              {conversation.current_learning_profile ? (
+                <div className="mt-3">
+                  <ProfileDetails profile={conversation.current_learning_profile} />
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-muted">Not recorded.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <h4 className="text-sm font-semibold text-ink">
+              Conversation timeline
+            </h4>
+            <div className="mt-3 space-y-3">
+              {conversation.timeline.map((turn) => (
+                <div
+                  className="rounded-lg border border-line bg-slate-50 p-3"
+                  key={turn.turn_id}
+                >
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-accent">
+                      {turn.actor === "student" ? "Student" : "Tutor"} · Turn{" "}
+                      {turn.sequence_index}
+                    </span>
+                    <time className="text-xs text-muted">
+                      {formatDate(turn.created_at)}
+                    </time>
+                  </div>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+                    {turn.message_text}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <div>
+              <h4 className="text-sm font-semibold text-ink">
+                Profile evolution
+              </h4>
+              {conversation.profile_evolution.length > 0 ? (
+                <ol className="mt-3 space-y-2">
+                  {conversation.profile_evolution.map((transition) => (
+                    <li
+                      className="border-l-2 border-accent pl-3 text-sm text-ink"
+                      key={transition.transition_public_id}
+                    >
+                      <p>
+                        {label(
+                          transition.prior_profile
+                            .integrated_diagnostic_profile
+                        )}{" "}
+                        to{" "}
+                        {label(
+                          transition.updated_profile
+                            .integrated_diagnostic_profile
+                        )}
+                      </p>
+                      <p className="mt-1 text-xs text-muted">
+                        {formatDate(transition.transitioned_at)}
+                        {transition.source_turn_sequence_index
+                          ? ` · Turn ${transition.source_turn_sequence_index}`
+                          : ""}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="mt-2 text-sm text-muted">
+                  No validated profile transition is recorded yet.
+                </p>
+              )}
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-ink">
+                Intervention history
+              </h4>
+              {conversation.intervention_history.length > 0 ? (
+                <ol className="mt-3 space-y-2">
+                  {conversation.intervention_history.map((intervention) => (
+                    <li
+                      className="border-l-2 border-[#c99700] pl-3 text-sm text-ink"
+                      key={intervention.intervention_public_id}
+                    >
+                      <p className="font-medium">
+                        {label(intervention.strategy_type)}
+                      </p>
+                      <p className="mt-1 text-muted">
+                        {intervention.targeted_evidence_gap}
+                      </p>
+                      <p className="mt-1 text-xs text-muted">
+                        {label(intervention.status)} ·{" "}
+                        {formatDate(intervention.started_at)}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="mt-2 text-sm text-muted">
+                  No intervention history is recorded yet.
+                </p>
+              )}
+            </div>
+          </div>
+        </article>
+      ))}
+    </section>
   );
 }
 
@@ -1419,7 +1597,7 @@ function SessionEvidenceAuditSection({ data }: { data: SessionDataAuditResponse 
       </section>
 
       <section className="rounded-lg border border-line bg-white p-5">
-        <h3 className="font-semibold text-ink">Evidence packet and runtime summaries</h3>
+        <h3 className="font-semibold text-ink">Evidence summaries</h3>
         <div className="mt-4 grid gap-3 md:grid-cols-4">
           <Fact
             labelText="Engagement packet"
@@ -1442,10 +1620,7 @@ function SessionEvidenceAuditSection({ data }: { data: SessionDataAuditResponse 
             labelText="Uncertainty markers"
             value={data.correctness_inflation_summary.uncertainty_marker_count}
           />
-          <Fact labelText="Activity attempts" value={data.activity_runtime_summary.attempt_count} />
-          <Fact labelText="Post-activity evidence records" value={data.misconception_evidence_summary.record_count} />
           <Fact labelText="Diagnostic snapshots" value={data.diagnostic_snapshot_summary.snapshot_count} />
-          <Fact labelText="Failed-closed activity attempts" value={data.activity_runtime_summary.failed_closed_count} />
           <Fact labelText="Agent calls" value={data.agent_audit_summary.call_count} />
           <Fact labelText="Failed agent calls" value={data.agent_audit_summary.failed_call_count} />
         </div>
@@ -1465,14 +1640,6 @@ function SessionEvidenceAuditSection({ data }: { data: SessionDataAuditResponse 
                 <CountList counts={data.correctness_inflation_summary.estimated_guessing_risk_counts} />
               </div>
             </div>
-          </div>
-          <div className="rounded-lg border border-line p-4">
-            <h4 className="text-sm font-semibold text-ink">Activity runtime states</h4>
-            <CountList counts={data.activity_runtime_summary.status_counts} />
-          </div>
-          <div className="rounded-lg border border-line p-4">
-            <h4 className="text-sm font-semibold text-ink">Activity student choices</h4>
-            <CountList counts={data.activity_runtime_summary.student_choice_state_counts} />
           </div>
           <div className="rounded-lg border border-line p-4">
             <h4 className="text-sm font-semibold text-ink">Evidence update statuses</h4>
@@ -1501,7 +1668,6 @@ function SessionEvidenceAuditSection({ data }: { data: SessionDataAuditResponse 
             response_evidence_summary: data.response_evidence_summary,
             engagement_process_data_limitations:
               data.engagement_evidence_summary.process_data_limitation_flags,
-            activity_runtime_limitations: data.activity_runtime_summary.limitations,
             agent_audit_summary: data.agent_audit_summary,
             no_live_provider_call_made: data.no_live_provider_call_made,
             generated_at: data.generated_at

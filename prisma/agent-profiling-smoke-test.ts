@@ -94,6 +94,26 @@ async function cleanup(prefix: string, fixture?: Fixture) {
       select: { id: true }
     });
     const conceptUnitSessionIds = conceptUnitSessions.map((session) => session.id);
+    const formativeConversations =
+      await prisma.formativeConversationSession.findMany({
+        where: {
+          concept_unit_session_db_id: { in: conceptUnitSessionIds }
+        },
+        select: { id: true }
+      });
+    const formativeConversationIds = formativeConversations.map(
+      (conversation) => conversation.id
+    );
+    await prisma.formativeConversationLifecycleEvent.deleteMany({
+      where: {
+        formative_conversation_session_db_id: {
+          in: formativeConversationIds
+        }
+      }
+    });
+    await prisma.formativeConversationSession.deleteMany({
+      where: { id: { in: formativeConversationIds } }
+    });
 
     await prisma.conceptUnitSession.updateMany({
       where: { id: { in: conceptUnitSessionIds } },

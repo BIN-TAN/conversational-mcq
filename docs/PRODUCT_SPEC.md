@@ -172,3 +172,23 @@ as "what", "which item do you mean", or "what happens next". The dialogue scope
 is limited to the current assessment content and how to use the assessment
 interface. It must not expose raw IDs, teacher-only notes, hidden prompts,
 unadministered item keys, or operational implementation details.
+
+## Formative Conversation Runtime
+
+After the initial package and learning profile are available, new student
+sessions enter one persistent `FormativeConversationSession`. This supersedes
+activity-owned controls as the active student experience. Historical activity
+and topic-dialogue records remain readable for audit and compatibility.
+
+The `formative_conversation_agent` hosts the learning conversation. It may
+explain administered answers, teach directly, work examples, provide hints,
+answer follow-up questions, change explanation strategy, and move beyond the
+original activity when pedagogically useful. It does not return a fixed
+pedagogical action enum.
+
+The platform retains authority over authentication, transcript persistence,
+idempotency, privacy, safety, unadministered-item protection, conversation
+lifecycle, and validated learning-profile transitions. The approved
+`topic_dialogue_agent` execution role supplies the model and live-call boundary
+until a separately approved model role is introduced; audit records still use
+`agent_name=formative_conversation_agent`.

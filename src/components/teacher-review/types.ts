@@ -146,6 +146,43 @@ export type SessionDetailResponse = {
     response_package_count: number;
     assessment_content_locked: boolean;
   };
+  formative_conversations: Array<{
+    conversation_public_id: string;
+    status: string;
+    started_at: string | null;
+    last_activity_at: string | null;
+    paused_at: string | null;
+    completed_at: string | null;
+    learning_outcome:
+      | "sound"
+      | "largely_improved"
+      | "teacher_assistance_recommended"
+      | null;
+    initial_learning_profile: TeacherStudentProfile | null;
+    current_learning_profile: TeacherStudentProfile | null;
+    timeline: Array<{
+      turn_id: string;
+      sequence_index: number;
+      actor: "student" | "tutor";
+      message_text: string;
+      created_at: string | null;
+    }>;
+    profile_evolution: Array<{
+      transition_public_id: string;
+      prior_profile: TeacherStudentProfile;
+      updated_profile: TeacherStudentProfile;
+      source_turn_sequence_index: number | null;
+      transitioned_at: string | null;
+    }>;
+    intervention_history: Array<{
+      intervention_public_id: string;
+      strategy_type: string;
+      targeted_evidence_gap: string;
+      status: string;
+      started_at: string | null;
+      completed_at: string | null;
+    }>;
+  }>;
   future_agent_data: {
     student_profile_count: number;
     formative_decision_count: number;

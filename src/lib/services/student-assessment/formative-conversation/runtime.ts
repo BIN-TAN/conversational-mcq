@@ -1,0 +1,572 @@
+import { createHash } from "node:crypto";
+import { Prisma } from "@prisma/client";
+import { z } from "zod";
+import { assertNoProhibitedProviderInput, redactForAudit } from "@/lib/agents/redaction";
+import { prisma } from "@/lib/db";
+import { toPrismaJson } from "@/lib/services/json";
+import {
+  FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
+  FORMATIVE_CONVERSATION_AGENT_NAME,
+  FORMATIVE_CONVERSATION_CONTEXT_VERSION,
+  FormativeConversationAgentOutputSchema,
+  type FormativeConversationAdministeredItem,
+  type FormativeConversationAgentInput,
+  type FormativeConversationProfileEvidence
+} from "./agent-contract";
+import { compilePersistedFormativeConversationContext } from "./context";
+import { recordFormativeConversationProfileEvidenceReferences } from "./evidence-references";
+import { recordFormativeConversationProfileTransitionRecommendation } from "./profile-update";
+import {
+  persistFormativeConversationAssistantMessage,
+  reserveAndPersistFormativeConversationStudentMessage
+} from "./service";
+import {
+  recordFormativeConversationInputTelemetry,
+  recordFormativeConversationLifecycleEvent,
+  recordFormativeConversationTurnTelemetry
+} from "./telemetry";
+
+const FormativeConversationAgentIdentitySchema = z
+  .object({
+    agent_name: z.literal(FORMATIVE_CONVERSATION_AGENT_NAME),
+    agent_version: z.string().min(1),
+    model_name: z.string().min(1),
+    provider: z.string().min(1),
+    prompt_version: z.string().min(1),
+    schema_version: z.literal(FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION),
+    prompt_hash: z.string().min(1),
+    reasoning_effort: z.string().min(1).nullable().optional(),
+    max_output_tokens: z.number().int().positive().nullable().optional(),
+    live_call_allowed: z.boolean()
+  })
+  .strict();
+
+const FormativeConversationAgentExecutionSchema = z
+  .object({
+    output: z.unknown(),
+    raw_output: z.unknown().optional(),
+    generation_source: z.string().min(1),
+    provider_request_id: z.string().min(1).nullable().optional(),
+    provider_response_id: z.string().min(1).nullable().optional(),
+    client_request_id: z.string().min(1).nullable().optional(),
+    retry_count: z.number().int().nonnegative(),
+    latency_ms: z.number().int().nonnegative(),
+    input_tokens: z.number().int().nonnegative().nullable().optional(),
+    output_tokens: z.number().int().nonnegative().nullable().optional(),
+    total_tokens: z.number().int().nonnegative().nullable().optional(),
+    estimated_cost: z.number().nonnegative().nullable().optional(),
+    started_at: z.coerce.date(),
+    completed_at: z.coerce.date()
+  })
+  .strict()
+  .refine((value) => value.completed_at >= value.started_at, {
+    message: "completed_at must not precede started_at",
+    path: ["completed_at"]
+  });
+
+export type FormativeConversationAgentIdentity = z.infer<
+  typeof FormativeConversationAgentIdentitySchema
+>;
+export type FormativeConversationAgentExecution = z.input<
+  typeof FormativeConversationAgentExecutionSchema
+>;
+
+export interface FormativeConversationAgentRunner {
+  identity: FormativeConversationAgentIdentity;
+  execute(input: {
+    agent_call_db_id: string;
+    invocation_key: string;
+    context: FormativeConversationAgentInput;
+  }): Promise<FormativeConversationAgentExecution>;
+}
+
+export type FormativeConversationRuntimeContextSeed = {
+  assessment_public_id: string;
+  concept_unit_public_id: string;
+  administered_items: FormativeConversationAdministeredItem[];
+  initial_profile: FormativeConversationProfileEvidence;
+  current_profile: FormativeConversationProfileEvidence;
+};
+
+export type FormativeConversationObservableInputTelemetry = {
+  turn_started_at?: Date | null;
+  submitted_at: Date;
+  response_time_ms?: number | null;
+  typing_started_at?: Date | null;
+  typing_ended_at?: Date | null;
+  typing_duration_ms?: number | null;
+  typing_duration_method?:
+    | "active_intervals"
+    | "elapsed_first_input_to_submit"
+    | null;
+  edit_count: number;
+  backspace_count: number;
+  paste_event_count: number;
+};
+
+export class FormativeConversationRuntimeError extends Error {
+  constructor(
+    public readonly code:
+      | "agent_call_in_progress"
+      | "agent_call_failed"
+      | "agent_output_invalid",
+    message: string
+  ) {
+    super(message);
+    this.name = "FormativeConversationRuntimeError";
+  }
+}
+
+function prismaJson(value: unknown): Prisma.InputJsonValue {
+  return (toPrismaJson(value) ?? {}) as Prisma.InputJsonValue;
+}
+
+export function formativeConversationInvocationKey(
+  conversationPublicId: string,
+  clientMessageId: string
+) {
+  const digest = createHash("sha256")
+    .update(`${conversationPublicId}:${clientMessageId}`)
+    .digest("hex");
+  return `formative_conversation:${digest}`;
+}
+
+function eventId(clientMessageId: string, eventType: string) {
+  const digest = createHash("sha256").update(clientMessageId).digest("hex").slice(0, 24);
+  return `${eventType}:${digest}`;
+}
+
+function asObject(value: Prisma.JsonValue | null): Record<string, unknown> {
+  if (!value || Array.isArray(value) || typeof value !== "object") {
+    return {};
+  }
+  return value as Record<string, unknown>;
+}
+
+async function recordRuntimeEvent(input: {
+  conversation_public_id: string;
+  client_message_id: string;
+  event_type:
+    | "student_message_persisted"
+    | "agent_call_started"
+    | "agent_call_completed"
+    | "tutor_message_persisted";
+  event_source: "backend" | "agent";
+  occurred_at: Date;
+}) {
+  return recordFormativeConversationLifecycleEvent({
+    conversation_public_id: input.conversation_public_id,
+    client_event_id: eventId(input.client_message_id, input.event_type),
+    event_type: input.event_type,
+    event_source: input.event_source,
+    observed_interval_duration_ms: null,
+    client_instance_id: null,
+    occurred_at: input.occurred_at
+  });
+}
+
+async function loadRuntimeIdentity(conversationPublicId: string) {
+  return prisma.formativeConversationSession.findUniqueOrThrow({
+    where: { conversation_public_id: conversationPublicId },
+    select: {
+      id: true,
+      assessment_session_db_id: true,
+      concept_unit_session_db_id: true,
+      current_student_profile_db_id: true
+    }
+  });
+}
+
+async function createStartedAgentCall(input: {
+  session: Awaited<ReturnType<typeof loadRuntimeIdentity>>;
+  invocation_key: string;
+  context: FormativeConversationAgentInput;
+  runner: FormativeConversationAgentRunner;
+}) {
+  const identity = FormativeConversationAgentIdentitySchema.parse(input.runner.identity);
+  const existing = await prisma.agentCall.findUnique({
+    where: { agent_invocation_key: input.invocation_key }
+  });
+  if (existing) {
+    return { agent_call: existing, created: false };
+  }
+
+  try {
+    const agentCall = await prisma.agentCall.create({
+      data: {
+        assessment_session_db_id: input.session.assessment_session_db_id,
+        concept_unit_session_db_id: input.session.concept_unit_session_db_id,
+        formative_conversation_session_db_id: input.session.id,
+        formative_conversation_context_version:
+          FORMATIVE_CONVERSATION_CONTEXT_VERSION,
+        agent_name: identity.agent_name,
+        agent_version: identity.agent_version,
+        model_name: identity.model_name,
+        provider: identity.provider,
+        agent_invocation_key: input.invocation_key,
+        prompt_hash: identity.prompt_hash,
+        reasoning_effort: identity.reasoning_effort ?? null,
+        max_output_tokens: identity.max_output_tokens ?? null,
+        prompt_version: identity.prompt_version,
+        schema_version: identity.schema_version,
+        input_payload: prismaJson(redactForAudit(input.context)),
+        live_call_allowed: identity.live_call_allowed,
+        call_status: "started",
+        started_at: new Date()
+      }
+    });
+    return { agent_call: agentCall, created: true };
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const agentCall = await prisma.agentCall.findUniqueOrThrow({
+        where: { agent_invocation_key: input.invocation_key }
+      });
+      return { agent_call: agentCall, created: false };
+    }
+    throw error;
+  }
+}
+
+async function executeOrResumeAgentCall(input: {
+  conversation_public_id: string;
+  client_message_id: string;
+  context: FormativeConversationAgentInput;
+  runner: FormativeConversationAgentRunner;
+}) {
+  const session = await loadRuntimeIdentity(input.conversation_public_id);
+  const key = formativeConversationInvocationKey(
+    input.conversation_public_id,
+    input.client_message_id
+  );
+  const started = await createStartedAgentCall({
+    session,
+    invocation_key: key,
+    context: input.context,
+    runner: input.runner
+  });
+
+  if (!started.created) {
+    if (
+      started.agent_call.call_status === "succeeded" &&
+      started.agent_call.output_validated &&
+      started.agent_call.output_payload
+    ) {
+      await recordRuntimeEvent({
+        conversation_public_id: input.conversation_public_id,
+        client_message_id: input.client_message_id,
+        event_type: "agent_call_started",
+        event_source: "agent",
+        occurred_at:
+          started.agent_call.started_at ?? started.agent_call.created_at
+      });
+      return {
+        agent_call: started.agent_call,
+        output: FormativeConversationAgentOutputSchema.parse(
+          started.agent_call.output_payload
+        ),
+        generation_source:
+          typeof asObject(started.agent_call.usage_guard_snapshot)
+            .generation_source === "string"
+            ? (asObject(started.agent_call.usage_guard_snapshot)
+                .generation_source as string)
+            : started.agent_call.provider === "mock"
+              ? "deterministic_test"
+              : "live_llm",
+        resumed: true
+      };
+    }
+    if (started.agent_call.call_status === "started") {
+      throw new FormativeConversationRuntimeError(
+        "agent_call_in_progress",
+        "The formative conversation agent call is already in progress."
+      );
+    }
+    throw new FormativeConversationRuntimeError(
+      "agent_call_failed",
+      "The existing formative conversation agent call did not succeed."
+    );
+  }
+
+  await recordRuntimeEvent({
+    conversation_public_id: input.conversation_public_id,
+    client_message_id: input.client_message_id,
+    event_type: "agent_call_started",
+    event_source: "agent",
+    occurred_at: started.agent_call.started_at ?? started.agent_call.created_at
+  });
+
+  let execution: z.infer<typeof FormativeConversationAgentExecutionSchema>;
+  try {
+    execution = FormativeConversationAgentExecutionSchema.parse(
+      await input.runner.execute({
+        agent_call_db_id: started.agent_call.id,
+        invocation_key: key,
+        context: input.context
+      })
+    );
+  } catch (error) {
+    await prisma.agentCall.update({
+      where: { id: started.agent_call.id },
+      data: {
+        call_status: "failed",
+        output_validated: false,
+        error_category: "formative_conversation_agent_execution",
+        completed_at: new Date()
+      }
+    });
+    throw error;
+  }
+
+  const parsedOutput = FormativeConversationAgentOutputSchema.safeParse(
+    execution.output
+  );
+  if (!parsedOutput.success) {
+    await prisma.agentCall.update({
+      where: { id: started.agent_call.id },
+      data: {
+        provider_request_id: execution.provider_request_id ?? null,
+        provider_response_id: execution.provider_response_id ?? null,
+        client_request_id: execution.client_request_id ?? null,
+        raw_output: prismaJson(
+          redactForAudit(execution.raw_output ?? execution.output)
+        ),
+        output_validated: false,
+        validation_error: JSON.stringify({
+          category: "schema_validation",
+          issue_count: parsedOutput.error.issues.length,
+          field_paths: parsedOutput.error.issues.map((issue) =>
+            issue.path.join(".")
+          )
+        }),
+        call_status: "invalid_output",
+        latency_ms: execution.latency_ms,
+        retry_count: execution.retry_count,
+        input_tokens: execution.input_tokens ?? null,
+        output_tokens: execution.output_tokens ?? null,
+        total_tokens: execution.total_tokens ?? null,
+        completed_at: execution.completed_at
+      }
+    });
+    throw new FormativeConversationRuntimeError(
+      "agent_output_invalid",
+      "The formative conversation agent output failed schema validation."
+    );
+  }
+
+  const agentCall = await prisma.agentCall.update({
+    where: { id: started.agent_call.id },
+    data: {
+      provider_request_id: execution.provider_request_id ?? null,
+      provider_response_id: execution.provider_response_id ?? null,
+      client_request_id: execution.client_request_id ?? null,
+      raw_output: prismaJson(
+        redactForAudit(execution.raw_output ?? execution.output)
+      ),
+      output_payload: prismaJson(parsedOutput.data),
+      output_validated: true,
+      validation_error: null,
+      usage_guard_snapshot: prismaJson({
+        generation_source: execution.generation_source
+      }),
+      retry_count: execution.retry_count,
+      call_status: "succeeded",
+      latency_ms: execution.latency_ms,
+      input_tokens: execution.input_tokens ?? null,
+      output_tokens: execution.output_tokens ?? null,
+      total_tokens: execution.total_tokens ?? null,
+      token_usage: prismaJson({
+        input_tokens: execution.input_tokens ?? null,
+        output_tokens: execution.output_tokens ?? null,
+        total_tokens: execution.total_tokens ?? null
+      }),
+      estimated_cost: execution.estimated_cost ?? null,
+      started_at: execution.started_at,
+      completed_at: execution.completed_at
+    }
+  });
+  await recordRuntimeEvent({
+    conversation_public_id: input.conversation_public_id,
+    client_message_id: input.client_message_id,
+    event_type: "agent_call_completed",
+    event_source: "agent",
+    occurred_at: execution.completed_at
+  });
+
+  return {
+    agent_call: agentCall,
+    output: parsedOutput.data,
+    generation_source: execution.generation_source,
+    resumed: false
+  };
+}
+
+export async function processFormativeConversationStudentMessage(
+  input: {
+    conversation_public_id: string;
+    client_message_id: string;
+    message_text: string;
+    context: FormativeConversationRuntimeContextSeed;
+    observable_input_telemetry?: FormativeConversationObservableInputTelemetry;
+  },
+  dependencies: {
+    runner: FormativeConversationAgentRunner;
+  }
+) {
+  const reservation =
+    await reserveAndPersistFormativeConversationStudentMessage({
+      conversation_public_id: input.conversation_public_id,
+      client_message_id: input.client_message_id,
+      message_text: input.message_text
+    });
+  const studentTurn = reservation.receipt.student_turn;
+  if (!studentTurn) {
+    throw new Error("formative_conversation_student_turn_missing");
+  }
+
+  await recordRuntimeEvent({
+    conversation_public_id: input.conversation_public_id,
+    client_message_id: input.client_message_id,
+    event_type: "student_message_persisted",
+    event_source: "backend",
+    occurred_at: studentTurn.created_at
+  });
+  const submittedAt =
+    input.observable_input_telemetry?.submitted_at ?? studentTurn.created_at;
+  await recordFormativeConversationTurnTelemetry({
+    conversation_public_id: input.conversation_public_id,
+    conversation_turn_db_id: studentTurn.id,
+    turn_started_at:
+      input.observable_input_telemetry?.turn_started_at ?? null,
+    turn_submitted_at: submittedAt,
+    response_time_ms:
+      input.observable_input_telemetry?.response_time_ms ?? null,
+    message_length_chars: studentTurn.message_text?.length ?? 0,
+    input_token_count: null,
+    output_token_count: null
+  });
+  if (input.observable_input_telemetry) {
+    await recordFormativeConversationInputTelemetry({
+      conversation_public_id: input.conversation_public_id,
+      conversation_turn_db_id: studentTurn.id,
+      client_message_id: input.client_message_id,
+      typing_started_at:
+        input.observable_input_telemetry.typing_started_at ?? null,
+      typing_ended_at:
+        input.observable_input_telemetry.typing_ended_at ?? null,
+      typing_duration_ms:
+        input.observable_input_telemetry.typing_duration_ms ?? null,
+      typing_duration_method:
+        input.observable_input_telemetry.typing_duration_method ?? null,
+      edit_count: input.observable_input_telemetry.edit_count,
+      backspace_count: input.observable_input_telemetry.backspace_count,
+      paste_event_count: input.observable_input_telemetry.paste_event_count,
+      final_message_length_chars: studentTurn.message_text?.length ?? 0,
+      submitted_at: submittedAt
+    });
+  }
+
+  if (reservation.receipt.assistant_turn) {
+    const existingCall = await prisma.agentCall.findUnique({
+      where: {
+        agent_invocation_key: formativeConversationInvocationKey(
+          input.conversation_public_id,
+          input.client_message_id
+        )
+      }
+    });
+    const evidenceReferences = existingCall
+      ? await prisma.formativeConversationProfileEvidenceReference.findMany({
+          where: { source_agent_call_db_id: existingCall.id },
+          orderBy: { evidence_observation_index: "asc" }
+        })
+      : [];
+    return {
+      receipt: reservation.receipt,
+      student_turn: studentTurn,
+      tutor_turn: reservation.receipt.assistant_turn,
+      agent_call: existingCall,
+      evidence_references: evidenceReferences,
+      replayed: true,
+      resumed: false
+    };
+  }
+
+  const compiled = await compilePersistedFormativeConversationContext({
+    conversation_public_id: input.conversation_public_id,
+    ...input.context
+  });
+  assertNoProhibitedProviderInput(compiled.context);
+  const agentResult = await executeOrResumeAgentCall({
+    conversation_public_id: input.conversation_public_id,
+    client_message_id: input.client_message_id,
+    context: compiled.context,
+    runner: dependencies.runner
+  });
+  if (agentResult.resumed) {
+    await recordRuntimeEvent({
+      conversation_public_id: input.conversation_public_id,
+      client_message_id: input.client_message_id,
+      event_type: "agent_call_completed",
+      event_source: "agent",
+      occurred_at:
+        agentResult.agent_call.completed_at ?? agentResult.agent_call.updated_at
+    });
+  }
+
+  const tutorMessage = await persistFormativeConversationAssistantMessage({
+    conversation_public_id: input.conversation_public_id,
+    client_message_id: input.client_message_id,
+    message_text: agentResult.output.student_visible_message,
+    generation_source: agentResult.generation_source,
+    validator_status: "passed",
+    agent_call_db_id: agentResult.agent_call.id,
+    fallback_used: false
+  });
+  await recordFormativeConversationTurnTelemetry({
+    conversation_public_id: input.conversation_public_id,
+    conversation_turn_db_id: tutorMessage.assistant_turn.id,
+    agent_call_db_id: agentResult.agent_call.id,
+    turn_started_at: agentResult.agent_call.started_at,
+    turn_submitted_at: agentResult.agent_call.completed_at,
+    response_time_ms: agentResult.agent_call.latency_ms,
+    message_length_chars: tutorMessage.assistant_turn.message_text?.length ?? 0,
+    input_token_count: agentResult.agent_call.input_tokens,
+    output_token_count: agentResult.agent_call.output_tokens
+  });
+  await recordRuntimeEvent({
+    conversation_public_id: input.conversation_public_id,
+    client_message_id: input.client_message_id,
+    event_type: "tutor_message_persisted",
+    event_source: "backend",
+    occurred_at: tutorMessage.assistant_turn.created_at
+  });
+
+  const evidence = await recordFormativeConversationProfileEvidenceReferences({
+    conversation_public_id: input.conversation_public_id,
+    source_agent_call_db_id: agentResult.agent_call.id,
+    source_tutor_turn_db_id: tutorMessage.assistant_turn.id,
+    evidence_observations: agentResult.output.evidence_observations
+  });
+  const profileTransitionRecommendation =
+    agentResult.output.profile_transition_recommendation
+      ? await recordFormativeConversationProfileTransitionRecommendation({
+          conversation_public_id: input.conversation_public_id,
+          source_tutor_turn_db_id: tutorMessage.assistant_turn.id,
+          recommendation: agentResult.output.profile_transition_recommendation
+        })
+      : null;
+
+  return {
+    receipt: tutorMessage.receipt,
+    student_turn: studentTurn,
+    tutor_turn: tutorMessage.assistant_turn,
+    agent_call: agentResult.agent_call,
+    evidence_references: evidence.references,
+    profile_transition_recommendation: profileTransitionRecommendation,
+    replayed: false,
+    resumed: agentResult.resumed
+  };
+}

@@ -232,6 +232,110 @@ const analysisSessionSelect = {
       created_at: true
     }
   },
+  formative_conversation_sessions: {
+    orderBy: { started_at: "asc" },
+    include: {
+      concept_unit_session: {
+        select: {
+          concept_unit: {
+            select: {
+              concept_unit_public_id: true
+            }
+          }
+        }
+      },
+      initial_student_profile: {
+        select: {
+          integrated_diagnostic_profile: true,
+          evidence_sufficiency: true,
+          created_at: true
+        }
+      },
+      current_student_profile: {
+        select: {
+          integrated_diagnostic_profile: true,
+          evidence_sufficiency: true,
+          created_at: true
+        }
+      },
+      conversation_turns: {
+        where: {
+          actor_type: { in: ["student", "agent"] },
+          message_text: { not: null }
+        },
+        orderBy: { sequence_index: "asc" },
+        include: {
+          formative_conversation_turn_telemetry: true,
+          formative_conversation_input_telemetry: true
+        }
+      },
+      lifecycle_events: {
+        orderBy: { sequence_index: "asc" }
+      },
+      agent_calls: {
+        orderBy: { created_at: "asc" },
+        select: {
+          agent_name: true,
+          agent_version: true,
+          provider: true,
+          model_name: true,
+          prompt_version: true,
+          schema_version: true,
+          formative_conversation_context_version: true,
+          call_status: true,
+          output_validated: true,
+          retry_count: true,
+          latency_ms: true,
+          input_tokens: true,
+          output_tokens: true,
+          total_tokens: true,
+          started_at: true,
+          completed_at: true,
+          created_at: true
+        }
+      },
+      profile_transitions: {
+        orderBy: { transitioned_at: "asc" },
+        include: {
+          prior_student_profile: {
+            select: {
+              integrated_diagnostic_profile: true,
+              evidence_sufficiency: true,
+              created_at: true
+            }
+          },
+          updated_student_profile: {
+            select: {
+              integrated_diagnostic_profile: true,
+              evidence_sufficiency: true,
+              created_at: true
+            }
+          },
+          source_turn: {
+            select: {
+              sequence_index: true
+            }
+          },
+          source_agent_call: {
+            select: {
+              agent_name: true
+            }
+          }
+        }
+      },
+      interventions: {
+        orderBy: { started_at: "asc" },
+        select: {
+          intervention_public_id: true,
+          strategy_type: true,
+          targeted_evidence_gap: true,
+          status: true,
+          started_at: true,
+          completed_at: true
+        }
+      }
+    }
+  },
   workflow_jobs: {
     orderBy: [{ created_at: "asc" }],
     select: {
@@ -251,6 +355,129 @@ const analysisSessionSelect = {
 type AnalysisSession = Prisma.AssessmentSessionGetPayload<{ select: typeof analysisSessionSelect }>;
 
 type SupplementalRecords = Awaited<ReturnType<typeof loadSupplementalRecords>>;
+
+const FORMATIVE_CONVERSATION_SESSION_COLUMNS = [
+  "session_public_id",
+  "research_student_id",
+  "assessment_public_id",
+  "concept_unit_public_id",
+  "conversation_public_id",
+  "conversation_status",
+  "started_at",
+  "last_activity_at",
+  "paused_at",
+  "completed_at",
+  "ended_at",
+  "wall_clock_duration_ms",
+  "turn_count",
+  "lifecycle_event_count",
+  "agent_call_count",
+  "intervention_count",
+  "profile_transition_count",
+  "initial_learning_profile",
+  "initial_profile_evidence_sufficiency",
+  "current_learning_profile",
+  "current_profile_evidence_sufficiency"
+] as const;
+
+const FORMATIVE_CONVERSATION_TURN_COLUMNS = [
+  "session_public_id",
+  "research_student_id",
+  "conversation_public_id",
+  "turn_sequence_index",
+  "actor_type",
+  "actor_name",
+  "message_text",
+  "generation_source",
+  "validator_status",
+  "fallback_used",
+  "created_at",
+  "turn_started_at",
+  "turn_submitted_at",
+  "response_time_ms",
+  "message_length_chars",
+  "input_token_count",
+  "output_token_count",
+  "typing_started_at",
+  "typing_ended_at",
+  "typing_duration_ms",
+  "typing_duration_method",
+  "edit_count",
+  "backspace_count",
+  "paste_event_count",
+  "final_message_length_chars"
+] as const;
+
+const FORMATIVE_CONVERSATION_EVENT_COLUMNS = [
+  "event_public_id",
+  "session_public_id",
+  "research_student_id",
+  "conversation_public_id",
+  "event_sequence_index",
+  "event_type",
+  "event_source",
+  "observed_interval_duration_ms",
+  "occurred_at",
+  "created_at"
+] as const;
+
+const FORMATIVE_CONVERSATION_LLM_COLUMNS = [
+  "session_public_id",
+  "research_student_id",
+  "conversation_public_id",
+  "agent_call_index",
+  "agent_name",
+  "agent_version",
+  "provider",
+  "model_name",
+  "prompt_version",
+  "schema_version",
+  "context_version",
+  "call_status",
+  "output_validated",
+  "retry_count",
+  "latency_ms",
+  "input_tokens",
+  "output_tokens",
+  "total_tokens",
+  "started_at",
+  "completed_at"
+] as const;
+
+const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_COLUMNS = [
+  "transition_public_id",
+  "session_public_id",
+  "research_student_id",
+  "conversation_public_id",
+  "prior_learning_profile",
+  "prior_evidence_sufficiency",
+  "updated_learning_profile",
+  "updated_evidence_sufficiency",
+  "source_turn_sequence_index",
+  "source_agent_name",
+  "transitioned_at"
+] as const;
+
+const FORMATIVE_CONVERSATION_INTERVENTION_COLUMNS = [
+  "intervention_public_id",
+  "session_public_id",
+  "research_student_id",
+  "conversation_public_id",
+  "strategy_type",
+  "targeted_evidence_gap",
+  "status",
+  "started_at",
+  "completed_at"
+] as const;
+
+const FORMATIVE_CONVERSATION_DICTIONARY_COLUMNS = [
+  "dataset",
+  "variable",
+  "definition",
+  "source_nature",
+  "analysis_phase",
+  "interpretation_caution"
+] as const;
 
 function iso(value?: Date | null) {
   return value ? value.toISOString() : null;
@@ -1333,6 +1560,317 @@ function assessmentContentRows(sessions: AnalysisSession[], includeRestricted: b
   );
 }
 
+function formativeConversationSessionRows(sessions: AnalysisSession[]) {
+  return sessions.flatMap((session) =>
+    session.formative_conversation_sessions.map((conversation) => ({
+      session_public_id: session.session_public_id,
+      research_student_id: researchStudentId(session.user.user_id),
+      assessment_public_id: session.assessment.assessment_public_id,
+      concept_unit_public_id:
+        conversation.concept_unit_session.concept_unit.concept_unit_public_id,
+      conversation_public_id: conversation.conversation_public_id,
+      conversation_status: conversation.status,
+      started_at: iso(conversation.started_at),
+      last_activity_at: iso(conversation.last_activity_at),
+      paused_at: iso(conversation.paused_at),
+      completed_at: iso(conversation.completed_at),
+      ended_at: iso(conversation.ended_at),
+      wall_clock_duration_ms: diff(
+        ms(conversation.started_at),
+        ms(
+          conversation.completed_at ??
+            conversation.ended_at ??
+            conversation.last_activity_at
+        )
+      ),
+      turn_count: conversation.conversation_turns.length,
+      lifecycle_event_count: conversation.lifecycle_events.length,
+      agent_call_count: conversation.agent_calls.length,
+      intervention_count: conversation.interventions.length,
+      profile_transition_count: conversation.profile_transitions.length,
+      initial_learning_profile:
+        conversation.initial_student_profile?.integrated_diagnostic_profile ??
+        null,
+      initial_profile_evidence_sufficiency:
+        conversation.initial_student_profile?.evidence_sufficiency ?? null,
+      current_learning_profile:
+        conversation.current_student_profile?.integrated_diagnostic_profile ??
+        null,
+      current_profile_evidence_sufficiency:
+        conversation.current_student_profile?.evidence_sufficiency ?? null
+    }))
+  );
+}
+
+function formativeConversationTurnRows(sessions: AnalysisSession[]) {
+  return sessions.flatMap((session) =>
+    session.formative_conversation_sessions.flatMap((conversation) =>
+      conversation.conversation_turns.map((turn) => {
+        const telemetry = turn.formative_conversation_turn_telemetry;
+        const inputTelemetry = turn.formative_conversation_input_telemetry;
+        const payload = asRecord(turn.structured_payload);
+        return {
+          session_public_id: session.session_public_id,
+          research_student_id: researchStudentId(session.user.user_id),
+          conversation_public_id: conversation.conversation_public_id,
+          turn_sequence_index: turn.sequence_index,
+          actor_type: turn.actor_type,
+          actor_name:
+            turn.actor_type === "agent"
+              ? turn.agent_name ?? "formative_conversation_agent"
+              : "student",
+          message_text: turn.message_text,
+          generation_source:
+            typeof payload.generation_source === "string"
+              ? payload.generation_source
+              : null,
+          validator_status:
+            typeof payload.validator_status === "string"
+              ? payload.validator_status
+              : null,
+          fallback_used:
+            typeof payload.fallback_used === "boolean"
+              ? payload.fallback_used
+              : null,
+          created_at: iso(turn.created_at),
+          turn_started_at: iso(telemetry?.turn_started_at),
+          turn_submitted_at: iso(telemetry?.turn_submitted_at),
+          response_time_ms: telemetry?.response_time_ms ?? null,
+          message_length_chars:
+            telemetry?.message_length_chars ?? turn.message_text?.length ?? 0,
+          input_token_count: telemetry?.input_token_count ?? null,
+          output_token_count: telemetry?.output_token_count ?? null,
+          typing_started_at: iso(inputTelemetry?.typing_started_at),
+          typing_ended_at: iso(inputTelemetry?.typing_ended_at),
+          typing_duration_ms: inputTelemetry?.typing_duration_ms ?? null,
+          typing_duration_method:
+            inputTelemetry?.typing_duration_method ?? null,
+          edit_count: inputTelemetry?.edit_count ?? null,
+          backspace_count: inputTelemetry?.backspace_count ?? null,
+          paste_event_count: inputTelemetry?.paste_event_count ?? null,
+          final_message_length_chars:
+            inputTelemetry?.final_message_length_chars ?? null
+        };
+      })
+    )
+  );
+}
+
+function formativeConversationEventRows(sessions: AnalysisSession[]) {
+  return sessions.flatMap((session) =>
+    session.formative_conversation_sessions.flatMap((conversation) =>
+      conversation.lifecycle_events.map((event) => ({
+        event_public_id: event.event_public_id,
+        session_public_id: session.session_public_id,
+        research_student_id: researchStudentId(session.user.user_id),
+        conversation_public_id: conversation.conversation_public_id,
+        event_sequence_index: event.sequence_index,
+        event_type: event.event_type,
+        event_source: event.event_source,
+        observed_interval_duration_ms:
+          event.observed_interval_duration_ms,
+        occurred_at: iso(event.occurred_at),
+        created_at: iso(event.created_at)
+      }))
+    )
+  );
+}
+
+function formativeConversationLlmRows(sessions: AnalysisSession[]) {
+  return sessions.flatMap((session) =>
+    session.formative_conversation_sessions.flatMap((conversation) =>
+      conversation.agent_calls.map((call, index) => ({
+        session_public_id: session.session_public_id,
+        research_student_id: researchStudentId(session.user.user_id),
+        conversation_public_id: conversation.conversation_public_id,
+        agent_call_index: index + 1,
+        agent_name: call.agent_name,
+        agent_version: call.agent_version,
+        provider: call.provider,
+        model_name: call.model_name,
+        prompt_version: call.prompt_version,
+        schema_version: call.schema_version,
+        context_version: call.formative_conversation_context_version,
+        call_status: call.call_status,
+        output_validated: call.output_validated,
+        retry_count: call.retry_count,
+        latency_ms: call.latency_ms,
+        input_tokens: call.input_tokens,
+        output_tokens: call.output_tokens,
+        total_tokens: call.total_tokens,
+        started_at: iso(call.started_at ?? call.created_at),
+        completed_at: iso(call.completed_at)
+      }))
+    )
+  );
+}
+
+function formativeConversationProfileTransitionRows(
+  sessions: AnalysisSession[]
+) {
+  return sessions.flatMap((session) =>
+    session.formative_conversation_sessions.flatMap((conversation) =>
+      conversation.profile_transitions.map((transition) => ({
+        transition_public_id: transition.transition_public_id,
+        session_public_id: session.session_public_id,
+        research_student_id: researchStudentId(session.user.user_id),
+        conversation_public_id: conversation.conversation_public_id,
+        prior_learning_profile:
+          transition.prior_student_profile.integrated_diagnostic_profile,
+        prior_evidence_sufficiency:
+          transition.prior_student_profile.evidence_sufficiency,
+        updated_learning_profile:
+          transition.updated_student_profile.integrated_diagnostic_profile,
+        updated_evidence_sufficiency:
+          transition.updated_student_profile.evidence_sufficiency,
+        source_turn_sequence_index:
+          transition.source_turn?.sequence_index ?? null,
+        source_agent_name:
+          transition.source_agent_call?.agent_name ?? null,
+        transitioned_at: iso(transition.transitioned_at)
+      }))
+    )
+  );
+}
+
+function formativeConversationInterventionRows(sessions: AnalysisSession[]) {
+  return sessions.flatMap((session) =>
+    session.formative_conversation_sessions.flatMap((conversation) =>
+      conversation.interventions.map((intervention) => ({
+        intervention_public_id: intervention.intervention_public_id,
+        session_public_id: session.session_public_id,
+        research_student_id: researchStudentId(session.user.user_id),
+        conversation_public_id: conversation.conversation_public_id,
+        strategy_type: intervention.strategy_type,
+        targeted_evidence_gap: intervention.targeted_evidence_gap,
+        status: intervention.status,
+        started_at: iso(intervention.started_at),
+        completed_at: iso(intervention.completed_at)
+      }))
+    )
+  );
+}
+
+function formativeConversationDataDictionaryRows() {
+  const tables: Array<{
+    dataset: string;
+    columns: readonly string[];
+    phase: string;
+  }> = [
+    {
+      dataset: "formative_conversation_sessions",
+      columns: FORMATIVE_CONVERSATION_SESSION_COLUMNS,
+      phase: "formative_conversation"
+    },
+    {
+      dataset: "formative_conversation_turns",
+      columns: FORMATIVE_CONVERSATION_TURN_COLUMNS,
+      phase: "formative_conversation"
+    },
+    {
+      dataset: "formative_conversation_events",
+      columns: FORMATIVE_CONVERSATION_EVENT_COLUMNS,
+      phase: "formative_conversation"
+    },
+    {
+      dataset: "formative_conversation_llm_calls",
+      columns: FORMATIVE_CONVERSATION_LLM_COLUMNS,
+      phase: "formative_conversation"
+    },
+    {
+      dataset: "formative_conversation_profile_transitions",
+      columns: FORMATIVE_CONVERSATION_PROFILE_TRANSITION_COLUMNS,
+      phase: "profile_transition"
+    },
+    {
+      dataset: "formative_conversation_interventions",
+      columns: FORMATIVE_CONVERSATION_INTERVENTION_COLUMNS,
+      phase: "formative_conversation"
+    }
+  ];
+  const definition = (dataset: string, variable: string) => {
+    if (variable === "message_text") {
+      return "Exact visible student or tutor message persisted in chronological order.";
+    }
+    if (variable === "typing_duration_ms") {
+      return "Observed elapsed or active typing duration using the accompanying typing_duration_method.";
+    }
+    if (variable === "edit_count") {
+      return "Count of observed input-change events before the student submitted the message.";
+    }
+    if (variable === "backspace_count") {
+      return "Count of observed Backspace or Delete key events before submission.";
+    }
+    if (variable === "paste_event_count") {
+      return "Count of observed paste events; pasted text is not stored in this field.";
+    }
+    if (variable.includes("learning_profile")) {
+      return "Validated assessment-specific learning-profile category at the named point in the conversation.";
+    }
+    if (variable.includes("evidence_sufficiency")) {
+      return "Validated evidence-sufficiency category associated with the named profile.";
+    }
+    if (variable === "wall_clock_duration_ms") {
+      return "Elapsed milliseconds from conversation start to completion, end, or latest recorded activity.";
+    }
+    if (variable.endsWith("_count")) {
+      return `Count of ${variable.replace(/_count$/, "").replaceAll("_", " ")} records linked to the conversation.`;
+    }
+    if (variable.endsWith("_at")) {
+      return `Timestamp for ${variable.replace(/_at$/, "").replaceAll("_", " ")} in the ${dataset.replaceAll("_", " ")} record.`;
+    }
+    if (variable.includes("token")) {
+      return "Provider-reported token usage for the formative conversation agent call.";
+    }
+    if (variable === "latency_ms") {
+      return "Observed end-to-end provider call latency in milliseconds.";
+    }
+    if (variable === "event_type") {
+      return "Allow-listed observable formative conversation lifecycle or navigation event.";
+    }
+    if (variable === "event_source") {
+      return "Component that directly recorded the observable event.";
+    }
+    return `${variable.replaceAll("_", " ")} for one ${dataset.replaceAll("_", " ")} record.`;
+  };
+  const rows = tables.flatMap((table) =>
+    table.columns.map((variable) => ({
+      dataset: table.dataset,
+      variable,
+      definition: definition(table.dataset, variable),
+      source_nature:
+        table.phase === "profile_transition" ||
+        /learning_profile|evidence_sufficiency/.test(variable)
+          ? "validated_derived_interpretation"
+          : /wall_clock_duration|_count$/.test(variable)
+            ? "derived_from_persisted_observations"
+            : "directly_recorded_observable_or_operational",
+      analysis_phase: table.phase,
+      interpretation_caution:
+        table.phase === "profile_transition"
+          ? "Profile transitions are validated interpretations with explicit evidence provenance, not raw observations or stable traits."
+          : "Observable conversation and process fields must not be treated as help seeking, learning strategy, conversational depth, motivation, or misconception resolution without a separate documented derivation."
+    }))
+  );
+  return [
+    ...rows,
+    ...[
+      "help_seeking",
+      "learning_strategy",
+      "conversational_depth",
+      "misconception_resolution"
+    ].map((variable) => ({
+      dataset: "derived_variables_not_stored",
+      variable,
+      definition: `${variable.replaceAll("_", " ")} may be derived later from documented transcript, telemetry, and profile-transition evidence.`,
+      source_nature: "derive_later_not_runtime",
+      analysis_phase: "post_export_analysis",
+      interpretation_caution:
+        "This construct is not recorded as raw runtime data and requires a separate validated derivation method."
+    }))
+  ];
+}
+
 function assertAnalysisReadySafety(files: Array<{ path: string; data: string }>, includeRestricted: boolean) {
   for (const file of files) {
     const patterns =
@@ -1375,6 +1913,13 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
         "process_events.csv",
         "conversation_turns.csv",
         "agent_activity_records.csv",
+        "formative_conversation_sessions.csv",
+        "formative_conversation_turns.csv",
+        "formative_conversation_events.csv",
+        "formative_conversation_llm_calls.csv",
+        "formative_conversation_profile_transitions.csv",
+        "formative_conversation_interventions.csv",
+        "formative_conversation_data_dictionary.csv",
         "assessment_content.csv",
         "assessment_summary.csv",
         "research_data_dictionary.csv",
@@ -1422,6 +1967,17 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
             started_at: iso(call.started_at),
             completed_at: iso(call.completed_at)
           })),
+          formative_conversations:
+            session.formative_conversation_sessions.map((conversation) => ({
+              conversation_public_id: conversation.conversation_public_id,
+              status: conversation.status,
+              turn_count: conversation.conversation_turns.length,
+              event_count: conversation.lifecycle_events.length,
+              agent_call_count: conversation.agent_calls.length,
+              profile_transition_count:
+                conversation.profile_transitions.length,
+              intervention_count: conversation.interventions.length
+            })),
           workflow_jobs: session.workflow_jobs.map((job) => ({
             job_public_id: job.job_public_id,
             job_type: job.job_type,
@@ -1503,6 +2059,55 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
     {
       path: "agent_activity_records.csv",
       data: csv(AGENT_ACTIVITY_RECORDS_COLUMNS, agentAndActivityRows(sessions, supplemental))
+    },
+    {
+      path: "formative_conversation_sessions.csv",
+      data: csv(
+        FORMATIVE_CONVERSATION_SESSION_COLUMNS,
+        formativeConversationSessionRows(sessions)
+      )
+    },
+    {
+      path: "formative_conversation_turns.csv",
+      data: csv(
+        FORMATIVE_CONVERSATION_TURN_COLUMNS,
+        formativeConversationTurnRows(sessions)
+      )
+    },
+    {
+      path: "formative_conversation_events.csv",
+      data: csv(
+        FORMATIVE_CONVERSATION_EVENT_COLUMNS,
+        formativeConversationEventRows(sessions)
+      )
+    },
+    {
+      path: "formative_conversation_llm_calls.csv",
+      data: csv(
+        FORMATIVE_CONVERSATION_LLM_COLUMNS,
+        formativeConversationLlmRows(sessions)
+      )
+    },
+    {
+      path: "formative_conversation_profile_transitions.csv",
+      data: csv(
+        FORMATIVE_CONVERSATION_PROFILE_TRANSITION_COLUMNS,
+        formativeConversationProfileTransitionRows(sessions)
+      )
+    },
+    {
+      path: "formative_conversation_interventions.csv",
+      data: csv(
+        FORMATIVE_CONVERSATION_INTERVENTION_COLUMNS,
+        formativeConversationInterventionRows(sessions)
+      )
+    },
+    {
+      path: "formative_conversation_data_dictionary.csv",
+      data: csv(
+        FORMATIVE_CONVERSATION_DICTIONARY_COLUMNS,
+        formativeConversationDataDictionaryRows()
+      )
     },
     {
       path: "assessment_content.csv",

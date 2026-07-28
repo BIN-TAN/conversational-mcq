@@ -7,12 +7,14 @@ import {
   StartSessionResponseSchema,
   StudentReviewResponseSchema,
   StudentActivityRuntimeProjectionSchema,
+  StudentFormativeConversationSchema,
   StudentSessionStateSchema,
   StudentTranscriptResponseSchema,
   type AvailableAssessmentsResponse,
   type ConfidenceRating,
   type StartSessionResponse,
   type StudentActivityRuntimeProjection,
+  type StudentFormativeConversation,
   type StructuredStudentApiError,
   type StudentReviewResponse,
   type StudentSessionState,
@@ -81,6 +83,96 @@ export function newClientActionId(prefix: string) {
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   return `${prefix}-${random}`;
+}
+
+export function fetchFormativeConversation(
+  sessionPublicId: string
+): Promise<StudentFormativeConversation | null> {
+  return get(
+    `/api/student/sessions/${sessionPublicId}/formative-conversation`,
+    (value) =>
+      StudentFormativeConversationSchema.nullable().parse(
+        (value as { formative_conversation: unknown }).formative_conversation
+      )
+  );
+}
+
+export function sendFormativeConversationMessage(input: {
+  sessionPublicId: string;
+  conversationPublicId: string;
+  messageText: string;
+  clientMessageId: string;
+  observableInputTelemetry: {
+    turn_started_at?: string | null;
+    submitted_at: string;
+    response_time_ms?: number | null;
+    typing_started_at?: string | null;
+    typing_ended_at?: string | null;
+    typing_duration_ms?: number | null;
+    typing_duration_method?: "active_intervals" | "elapsed_first_input_to_submit" | null;
+    edit_count: number;
+    backspace_count: number;
+    paste_event_count: number;
+  };
+}): Promise<StudentFormativeConversation | null> {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/formative-conversation/messages`,
+    {
+      conversation_public_id: input.conversationPublicId,
+      client_message_id: input.clientMessageId,
+      message_text: input.messageText,
+      observable_input_telemetry: input.observableInputTelemetry
+    },
+    (value) =>
+      StudentFormativeConversationSchema.nullable().parse(
+        (value as { formative_conversation: unknown }).formative_conversation
+      )
+  );
+}
+
+export function sendFormativeConversationEvent(input: {
+  sessionPublicId: string;
+  conversationPublicId: string;
+  clientEventId: string;
+  eventType:
+    | "page_visible"
+    | "page_hidden"
+    | "left"
+    | "reentered"
+    | "refreshed"
+    | "disconnected"
+    | "reconnected";
+  occurredAt: string;
+  observedIntervalDurationMs?: number | null;
+  clientInstanceId?: string | null;
+}) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/formative-conversation/events`,
+    {
+      conversation_public_id: input.conversationPublicId,
+      client_event_id: input.clientEventId,
+      event_type: input.eventType,
+      occurred_at: input.occurredAt,
+      observed_interval_duration_ms:
+        input.observedIntervalDurationMs ?? null,
+      client_instance_id: input.clientInstanceId ?? null
+    },
+    (value) => value as { recorded: boolean }
+  );
+}
+
+export function updateFormativeConversationLifecycle(input: {
+  sessionPublicId: string;
+  action: "pause" | "resume" | "end";
+}): Promise<StudentFormativeConversation | null> {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/formative-conversation/lifecycle`,
+    { action: input.action },
+    (value) =>
+      StudentFormativeConversationSchema.nullable().parse(
+        (value as { formative_conversation: unknown }).formative_conversation
+      )
+  );
 }
 
 async function parseResponse<T>(

@@ -238,6 +238,61 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
           }
         }
       },
+      formative_conversation_sessions: {
+        orderBy: { started_at: "asc" },
+        include: {
+          initial_student_profile: true,
+          current_student_profile: true,
+          conversation_turns: {
+            where: {
+              actor_type: { in: ["student", "agent"] },
+              message_text: { not: null }
+            },
+            orderBy: { sequence_index: "asc" },
+            select: {
+              id: true,
+              sequence_index: true,
+              actor_type: true,
+              message_text: true,
+              created_at: true
+            }
+          },
+          interventions: {
+            orderBy: { created_at: "asc" },
+            select: {
+              intervention_public_id: true,
+              strategy_type: true,
+              targeted_evidence_gap: true,
+              status: true,
+              started_at: true,
+              completed_at: true
+            }
+          },
+          profile_transitions: {
+            orderBy: { transitioned_at: "asc" },
+            include: {
+              prior_student_profile: true,
+              updated_student_profile: true,
+              source_turn: {
+                select: {
+                  sequence_index: true
+                }
+              }
+            }
+          },
+          review_signals: {
+            orderBy: { created_at: "asc" },
+            select: {
+              signal_public_id: true,
+              signal_type: true,
+              reason_code: true,
+              status: true,
+              evidence_summary: true,
+              created_at: true
+            }
+          }
+        }
+      },
       workflow_jobs: {
         orderBy: [{ created_at: "desc" }]
       },
@@ -365,6 +420,81 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
   const developmentControlsEnabled = getServerEnv().DEVELOPMENT_ACTIVE_SESSION_CONTROLS_ENABLED;
   const hasFailedWorkflowJob =
     Boolean(session.automation_exception_reason) || latestWorkflowJob?.status === "failed";
+  const formativeConversations = session.formative_conversation_sessions.map(
+    (conversation) => {
+      const profileChanged =
+        Boolean(conversation.initial_student_profile) &&
+        Boolean(conversation.current_student_profile) &&
+        conversation.initial_student_profile?.id !==
+          conversation.current_student_profile?.id;
+      const currentIntegratedProfile =
+        conversation.current_student_profile?.integrated_diagnostic_profile;
+      const learningOutcome =
+        conversation.status === "teacher_assistance_recommended" ||
+        conversation.review_signals.some(
+          (signal) =>
+            signal.reason_code === "teacher_assistance_recommended" &&
+            signal.status === "open"
+        )
+          ? "teacher_assistance_recommended"
+          : currentIntegratedProfile === "robust_understanding_ready_for_transfer"
+            ? "sound"
+            : profileChanged
+              ? "largely_improved"
+              : null;
+
+      return {
+        conversation_public_id: conversation.conversation_public_id,
+        status: conversation.status,
+        started_at: serializeDate(conversation.started_at),
+        last_activity_at: serializeDate(conversation.last_activity_at),
+        paused_at: serializeDate(conversation.paused_at),
+        completed_at: serializeDate(conversation.completed_at),
+        learning_outcome: learningOutcome,
+        initial_learning_profile: conversation.initial_student_profile
+          ? serializeStudentProfileForTeacher(
+              conversation.initial_student_profile
+            )
+          : null,
+        current_learning_profile: conversation.current_student_profile
+          ? serializeStudentProfileForTeacher(
+              conversation.current_student_profile
+            )
+          : null,
+        timeline: conversation.conversation_turns.map((turn) => ({
+          turn_id: turn.id,
+          sequence_index: turn.sequence_index,
+          actor: turn.actor_type === "student" ? "student" : "tutor",
+          message_text: turn.message_text ?? "",
+          created_at: serializeDate(turn.created_at)
+        })),
+        profile_evolution: conversation.profile_transitions.map(
+          (transition) => ({
+            transition_public_id: transition.transition_public_id,
+            prior_profile: serializeStudentProfileForTeacher(
+              transition.prior_student_profile
+            ),
+            updated_profile: serializeStudentProfileForTeacher(
+              transition.updated_student_profile
+            ),
+            source_turn_sequence_index:
+              transition.source_turn?.sequence_index ?? null,
+            transitioned_at: serializeDate(transition.transitioned_at)
+          })
+        ),
+        intervention_history: conversation.interventions.map(
+          (intervention) => ({
+            intervention_public_id: intervention.intervention_public_id,
+            strategy_type: intervention.strategy_type,
+            targeted_evidence_gap: intervention.targeted_evidence_gap,
+            status: intervention.status,
+            started_at: serializeDate(intervention.started_at),
+            completed_at: serializeDate(intervention.completed_at)
+          })
+        )
+      };
+    }
+  );
 
   return {
     session: {
@@ -508,6 +638,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       response_package_count: responsePackageCount,
       assessment_content_locked: serializeAssessmentContentState(session.assessment).is_content_locked
     },
+    formative_conversations: formativeConversations,
     future_agent_data: {
       student_profile_count: studentProfileCount,
       formative_decision_count: formativeDecisionCount,

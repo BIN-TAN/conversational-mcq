@@ -88,6 +88,14 @@ export async function cleanupSmokeStudentSessions(input: {
     select: { id: true }
   });
   const conceptUnitSessionIds = conceptUnitSessions.map((session) => session.id);
+  const formativeConversations =
+    await input.prisma.formativeConversationSession.findMany({
+      where: { assessment_session_db_id: { in: sessionIds } },
+      select: { id: true }
+    });
+  const formativeConversationIds = formativeConversations.map(
+    (conversation) => conversation.id
+  );
 
   await input.prisma.workflowJob.deleteMany({
     where: { assessment_session_db_id: { in: sessionIds } }
@@ -97,6 +105,72 @@ export async function cleanupSmokeStudentSessions(input: {
   });
   await input.prisma.studentActionIdempotencyKey.deleteMany({
     where: { assessment_session_db_id: { in: sessionIds } }
+  });
+  await input.prisma.formativeConversationProfileEvidenceReference.deleteMany({
+    where: {
+      formative_conversation_session_db_id: {
+        in: formativeConversationIds
+      }
+    }
+  });
+  await input.prisma.formativeConversationProfileTransition.deleteMany({
+    where: {
+      formative_conversation_session_db_id: {
+        in: formativeConversationIds
+      }
+    }
+  });
+  await input.prisma.formativeConversationInputTelemetry.deleteMany({
+    where: {
+      formative_conversation_session_db_id: {
+        in: formativeConversationIds
+      }
+    }
+  });
+  await input.prisma.formativeConversationTurnTelemetry.deleteMany({
+    where: {
+      formative_conversation_session_db_id: {
+        in: formativeConversationIds
+      }
+    }
+  });
+  await input.prisma.formativeConversationLifecycleEvent.deleteMany({
+    where: {
+      formative_conversation_session_db_id: {
+        in: formativeConversationIds
+      }
+    }
+  });
+  await input.prisma.formativeConversationReviewSignal.deleteMany({
+    where: {
+      formative_conversation_session_db_id: {
+        in: formativeConversationIds
+      }
+    }
+  });
+  await input.prisma.formativeConversationIntervention.deleteMany({
+    where: {
+      formative_conversation_session_db_id: {
+        in: formativeConversationIds
+      }
+    }
+  });
+  await input.prisma.formativeConversationMemorySnapshot.deleteMany({
+    where: {
+      formative_conversation_session_db_id: {
+        in: formativeConversationIds
+      }
+    }
+  });
+  await input.prisma.formativeConversationMessageReceipt.deleteMany({
+    where: {
+      formative_conversation_session_db_id: {
+        in: formativeConversationIds
+      }
+    }
+  });
+  await input.prisma.formativeConversationSession.deleteMany({
+    where: { id: { in: formativeConversationIds } }
   });
   await input.prisma.activityRuntimeAttempt.deleteMany({
     where: { session_public_id: { in: input.sessionPublicIds } }

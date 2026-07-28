@@ -370,6 +370,13 @@ The research dataset ZIP contains:
 | `assessment_summary.csv` | One row per student-assessment attempt summary | Includes safe session counts, status, timing, latest student-safe diagnostic signals, and explicit limitations. |
 | `research_data_dictionary.csv` | One row per ordinary or restricted research dataset variable | Documents qualified variable name, dataset/table, measurement level, source nature, source-code reference, source service/function, source-verification status, missing/zero/false semantics, privacy, export policy, timing formulas, applicable record types, and interpretation cautions. |
 | `process_event_codebook.csv` | One row per allow-listed process-event type | Documents event trigger, actor/source, scope, timestamp meaning, allow-listed payload fields, derived variables, source-code reference, source-verification status, and interpretation cautions. |
+| `formative_conversation_sessions.csv` | One row per persistent formative conversation | Separates conversation lifecycle and starting/current profile references from assessment item administration. |
+| `formative_conversation_turns.csv` | One row per visible formative student or tutor turn | Includes observable turn and input telemetry; does not include hidden prompts or provider payloads. |
+| `formative_conversation_events.csv` | One row per observable formative lifecycle/navigation event | Includes visibility, refresh, pause/resume, reconnect, and persisted message/call milestones. |
+| `formative_conversation_llm_calls.csv` | One row per formative conversation agent call | Includes model, prompt/context/schema versions, validation, retries, latency, and token counts without raw prompts or outputs. |
+| `formative_conversation_profile_transitions.csv` | One row per validated profile transition | Preserves prior/current profile categories, timestamp, source turn, and source agent provenance. |
+| `formative_conversation_interventions.csv` | One row per persisted intervention record | Documents strategy history and targeted evidence gap without claiming an inferred student trait. |
+| `formative_conversation_data_dictionary.csv` | One row per formative-conversation export variable | Identifies raw observable fields versus derived/validated profile fields and states interpretation cautions. |
 
 The standard research dataset ZIP does not include the internal source-schema
 appendix or platform/excluded field inventory. Those are documentation and

@@ -9,6 +9,7 @@ import type {
   StudentReviewItem,
   StudentReviewResponse,
   StudentActivityRuntimeProjection,
+  StudentFormativeConversation,
   StudentSafeMediaAsset,
   StudentSafeItem,
   StudentSessionState,
@@ -32,6 +33,8 @@ import {
   saveTemptingOption,
   selectNextChoice,
   sendFollowupMessage,
+  sendFormativeConversationEvent,
+  sendFormativeConversationMessage,
   sendProcessEvents,
   sendRevisionResponse,
   startStudentActivityRuntime,
@@ -40,6 +43,7 @@ import {
   submitTopicDialogueResponse,
   stopFollowup,
   updateInFlowItem,
+  updateFormativeConversationLifecycle,
   updatePackageReviewItem
 } from "./api";
 import { useStudentProcessEvents } from "./process-events";
@@ -218,6 +222,155 @@ function ChatBubble({ entry }: { entry: StudentTranscriptEntry }) {
         </time>
       </div>
     </div>
+  );
+}
+
+function FormativeConversationBubble({
+  turn
+}: {
+  turn: StudentFormativeConversation["transcript"][number];
+}) {
+  const isTutor = turn.actor === "tutor";
+  return (
+    <div className={isTutor ? "flex justify-start" : "flex justify-end"}>
+      <div
+        className={
+          isTutor
+            ? "max-w-[86%] rounded-2xl rounded-bl-md border border-line bg-white px-4 py-3 shadow-sm sm:max-w-[78%]"
+            : "max-w-[72%] rounded-2xl rounded-br-md bg-[#23312d] px-3 py-2 text-white shadow-sm sm:max-w-[62%]"
+        }
+        data-testid={
+          isTutor
+            ? "formative-conversation-tutor-message"
+            : "formative-conversation-student-message"
+        }
+      >
+        <p
+          className={
+            isTutor
+              ? "mb-1 text-[0.68rem] font-semibold uppercase tracking-wide text-accent"
+              : "mb-1 text-right text-[0.68rem] font-semibold uppercase tracking-wide text-white/65"
+          }
+        >
+          {isTutor ? STUDENT_FACING_TUTOR_LABEL : "You"}
+        </p>
+        <p className="whitespace-pre-wrap text-sm leading-6">
+          {turn.message_text}
+        </p>
+        <time className="sr-only" dateTime={turn.created_at}>
+          {formatTranscriptTimestamp(turn.created_at)}
+        </time>
+      </div>
+    </div>
+  );
+}
+
+function FormativeConversationControls(input: {
+  conversation: StudentFormativeConversation;
+  draft: string;
+  isBusy: boolean;
+  onBackspace: () => void;
+  onChange: (value: string) => void;
+  onEnd: () => void;
+  onPaste: () => void;
+  onPause: () => void;
+  onResume: () => void;
+  onSend: () => void;
+}) {
+  const { conversation } = input;
+  return (
+    <section
+      aria-label="Learning conversation controls"
+      className="rounded-lg border border-line bg-white p-4 shadow-sm"
+      data-testid="formative-conversation-controls"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-ink">Learning conversation</h2>
+          <p className="mt-1 text-xs text-muted">
+            Ask a question or explain what you are thinking.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {conversation.can_pause ? (
+            <button
+              className="rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:opacity-60"
+              disabled={input.isBusy}
+              onClick={input.onPause}
+              type="button"
+            >
+              Pause
+            </button>
+          ) : null}
+          {conversation.can_resume ? (
+            <button
+              className="rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:opacity-60"
+              disabled={input.isBusy}
+              onClick={input.onResume}
+              type="button"
+            >
+              Resume
+            </button>
+          ) : null}
+          {conversation.can_end ? (
+            <button
+              className="rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-red-300 disabled:opacity-60"
+              disabled={input.isBusy}
+              onClick={input.onEnd}
+              type="button"
+            >
+              End conversation
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {conversation.can_send ? (
+        <div className="mt-4 flex items-end gap-2">
+          <label className="flex-1">
+            <span className="sr-only">Message the assessment tutor</span>
+            <textarea
+              className="min-h-24 w-full resize-y rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/15"
+              data-testid="formative-conversation-input"
+              disabled={input.isBusy}
+              maxLength={conversation.message_max_chars}
+              onChange={(event) => input.onChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Backspace" || event.key === "Delete") {
+                  input.onBackspace();
+                }
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  input.onSend();
+                }
+              }}
+              onPaste={input.onPaste}
+              placeholder="Type your message..."
+              value={input.draft}
+            />
+          </label>
+          <button
+            aria-label="Send message"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-accent text-white hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+            data-testid="send-formative-conversation-message"
+            disabled={input.isBusy || !input.draft.trim()}
+            onClick={input.onSend}
+            type="button"
+          >
+            {input.isBusy ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Send className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
+        </div>
+      ) : (
+        <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted">
+          {conversation.status === "paused"
+            ? "This conversation is paused."
+            : "This conversation has ended."}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -2021,6 +2174,8 @@ export function AssessmentSessionClient({
   const [temptingReasonDraft, setTemptingReasonDraft] = useState("");
   const [followupDraft, setFollowupDraft] = useState("");
   const [formativeActivityDraft, setFormativeActivityDraft] = useState("");
+  const [formativeConversationDraft, setFormativeConversationDraft] =
+    useState("");
   const [revisionDraft, setRevisionDraft] = useState("");
   const [inFlowEditDraft, setInFlowEditDraft] = useState<InFlowEditDraft | null>(null);
   const [editingReviewItemId, setEditingReviewItemId] = useState<string | null>(null);
@@ -2028,11 +2183,64 @@ export function AssessmentSessionClient({
   const [endAssessmentDialogOpen, setEndAssessmentDialogOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const displayAcknowledgementRef = useRef<Set<string>>(new Set());
+  const formativeMessageIdRef = useRef<string | null>(null);
+  const formativeTypingStartedAtRef = useRef<Date | null>(null);
+  const formativeEditCountRef = useRef(0);
+  const formativeBackspaceCountRef = useRef(0);
+  const formativePasteCountRef = useRef(0);
+  const formativeClientInstanceIdRef = useRef<string | null>(null);
+  const formativeConversationPublicId =
+    state?.formative_conversation?.conversation_public_id ?? null;
+  const activeSessionPublicId =
+    state?.session_public_id ?? resolvedInitialSessionPublicId ?? null;
 
   useStudentProcessEvents({
     sessionPublicId: state?.session_public_id ?? resolvedInitialSessionPublicId ?? "pending-session",
     currentItemPublicId: state?.current_item?.item_public_id
   });
+
+  useEffect(() => {
+    if (!activeSessionPublicId || !formativeConversationPublicId) {
+      return;
+    }
+    formativeClientInstanceIdRef.current ??=
+      newClientActionId("formative-conversation-client");
+    const clientInstanceId = formativeClientInstanceIdRef.current;
+    const record = (
+      eventType:
+        | "page_visible"
+        | "page_hidden"
+        | "refreshed"
+        | "disconnected"
+        | "reconnected"
+    ) => {
+      const occurredAt = new Date();
+      void sendFormativeConversationEvent({
+        sessionPublicId: activeSessionPublicId,
+        conversationPublicId: formativeConversationPublicId,
+        clientEventId: newClientActionId(`formative-${eventType}`),
+        eventType,
+        occurredAt: occurredAt.toISOString(),
+        clientInstanceId
+      }).catch(() => undefined);
+    };
+    record("refreshed");
+    const onVisibilityChange = () =>
+      record(document.visibilityState === "hidden" ? "page_hidden" : "page_visible");
+    const onOffline = () => record("disconnected");
+    const onOnline = () => record("reconnected");
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [
+    activeSessionPublicId,
+    formativeConversationPublicId
+  ]);
 
   async function refreshSecondaryData(sessionPublicId: string) {
     const [transcriptResult, reviewResult] = await Promise.allSettled([
@@ -2061,6 +2269,108 @@ export function AssessmentSessionClient({
 
     setError(apiError);
     setFailedAction({ label, retry });
+  }
+
+  function handleFormativeConversationDraft(value: string) {
+    if (!formativeTypingStartedAtRef.current && value.length > 0) {
+      formativeTypingStartedAtRef.current = new Date();
+    }
+    if (formativeConversationDraft.length > 0) {
+      formativeEditCountRef.current += 1;
+    }
+    setFormativeConversationDraft(value);
+  }
+
+  function resetFormativeInputTelemetry() {
+    formativeTypingStartedAtRef.current = null;
+    formativeEditCountRef.current = 0;
+    formativeBackspaceCountRef.current = 0;
+    formativePasteCountRef.current = 0;
+  }
+
+  async function handleSendFormativeConversationMessage() {
+    const conversation = state?.formative_conversation;
+    const message = formativeConversationDraft.trim();
+    if (!state || !conversation || !message || isBusy) {
+      return;
+    }
+    const clientMessageId =
+      formativeMessageIdRef.current ??
+      newClientActionId("formative-conversation-message");
+    formativeMessageIdRef.current = clientMessageId;
+    const submittedAt = new Date();
+    const typingStartedAt = formativeTypingStartedAtRef.current;
+    setIsBusy(true);
+    setError(null);
+    setFailedAction(null);
+    try {
+      const nextConversation = await sendFormativeConversationMessage({
+        sessionPublicId: state.session_public_id,
+        conversationPublicId: conversation.conversation_public_id,
+        messageText: message,
+        clientMessageId,
+        observableInputTelemetry: {
+          turn_started_at: typingStartedAt?.toISOString() ?? null,
+          submitted_at: submittedAt.toISOString(),
+          response_time_ms: typingStartedAt
+            ? Math.max(0, submittedAt.getTime() - typingStartedAt.getTime())
+            : null,
+          typing_started_at: typingStartedAt?.toISOString() ?? null,
+          typing_ended_at: submittedAt.toISOString(),
+          typing_duration_ms: typingStartedAt
+            ? Math.max(0, submittedAt.getTime() - typingStartedAt.getTime())
+            : null,
+          typing_duration_method: typingStartedAt
+            ? "elapsed_first_input_to_submit"
+            : null,
+          edit_count: formativeEditCountRef.current,
+          backspace_count: formativeBackspaceCountRef.current,
+          paste_event_count: formativePasteCountRef.current
+        }
+      });
+      setState((current) =>
+        current
+          ? { ...current, formative_conversation: nextConversation }
+          : current
+      );
+      setFormativeConversationDraft("");
+      formativeMessageIdRef.current = null;
+      resetFormativeInputTelemetry();
+    } catch (errorValue) {
+      handleError(errorValue, "message", () => {
+        void handleSendFormativeConversationMessage();
+      });
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function handleFormativeConversationLifecycle(
+    action: "pause" | "resume" | "end"
+  ) {
+    if (!state || isBusy) {
+      return;
+    }
+    setIsBusy(true);
+    setError(null);
+    setFailedAction(null);
+    try {
+      const nextConversation = await updateFormativeConversationLifecycle({
+        sessionPublicId: state.session_public_id,
+        action
+      });
+      setState((current) =>
+        current
+          ? { ...current, formative_conversation: nextConversation }
+          : current
+      );
+    } catch (errorValue) {
+      handleError(errorValue, action, () => {
+        void handleFormativeConversationLifecycle(action);
+      });
+    } finally {
+      setIsBusy(false);
+    }
   }
 
   async function runAction(label: string, action: () => Promise<StudentSessionState>) {
@@ -2259,7 +2569,6 @@ export function AssessmentSessionClient({
     }
   }, [state?.assessment_state]);
 
-  const activeSessionPublicId = state?.session_public_id ?? resolvedInitialSessionPublicId;
   const currentItem = state?.current_item ?? null;
 
   function handleBeginConceptUnit() {
@@ -2900,7 +3209,24 @@ export function AssessmentSessionClient({
     );
   }
 
-  const activePrompt = activeItemPrompt({
+  const activePrompt = state.formative_conversation ? (
+    <FormativeConversationControls
+      conversation={state.formative_conversation}
+      draft={formativeConversationDraft}
+      isBusy={isBusy}
+      onBackspace={() => {
+        formativeBackspaceCountRef.current += 1;
+      }}
+      onChange={handleFormativeConversationDraft}
+      onEnd={() => void handleFormativeConversationLifecycle("end")}
+      onPaste={() => {
+        formativePasteCountRef.current += 1;
+      }}
+      onPause={() => void handleFormativeConversationLifecycle("pause")}
+      onResume={() => void handleFormativeConversationLifecycle("resume")}
+      onSend={() => void handleSendFormativeConversationMessage()}
+    />
+  ) : activeItemPrompt({
     state,
     activityRuntime,
     review,
@@ -2945,8 +3271,13 @@ export function AssessmentSessionClient({
     onRequestProgression: handleRequestProgression,
     onProgressionChoice: handleProgressionChoice
   });
+  const formativeTurnIds = new Set(
+    state.formative_conversation?.transcript.map((turn) => turn.turn_id) ?? []
+  );
   const visibleTranscript = transcript.filter(
-    (entry) => !shouldHideActiveAgentTranscriptEntry(entry, state)
+    (entry) =>
+      !formativeTurnIds.has(entry.turn_id) &&
+      !shouldHideActiveAgentTranscriptEntry(entry, state)
   );
   const showPackageResults = shouldShowLearningProfile(state) && Boolean(state.package_results);
   const {
@@ -2983,6 +3314,9 @@ export function AssessmentSessionClient({
           ) : null}
           {afterPackageResults.map((entry) => (
             <ChatBubble entry={entry} key={entry.turn_id} />
+          ))}
+          {state.formative_conversation?.transcript.map((turn) => (
+            <FormativeConversationBubble key={turn.turn_id} turn={turn} />
           ))}
           {activePrompt}
           {isBusy ? (
