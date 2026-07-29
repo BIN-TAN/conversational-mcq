@@ -7,6 +7,7 @@ import {
 import {
   buildFormativeConversationRuntimeContextSeed,
   createLiveFormativeConversationAgentRunner,
+  FormativeConversationResponseGenerationError,
   getStudentFormativeConversationProjection,
   processFormativeConversationStudentMessage
 } from "@/lib/services/student-assessment/formative-conversation";
@@ -88,43 +89,49 @@ export async function POST(
       conversation_public_id: body.conversation_public_id,
       student_user_db_id: auth.user.user_db_id
     });
-    await processFormativeConversationStudentMessage(
-      {
-        conversation_public_id: body.conversation_public_id,
-        client_message_id: body.client_message_id,
-        message_text: body.message_text,
-        context: seed,
-        observable_input_telemetry: body.observable_input_telemetry
-          ? {
-              turn_started_at: body.observable_input_telemetry.turn_started_at
-                ? new Date(body.observable_input_telemetry.turn_started_at)
-                : null,
-              submitted_at: new Date(
-                body.observable_input_telemetry.submitted_at
-              ),
-              response_time_ms:
-                body.observable_input_telemetry.response_time_ms ?? null,
-              typing_started_at: body.observable_input_telemetry.typing_started_at
-                ? new Date(body.observable_input_telemetry.typing_started_at)
-                : null,
-              typing_ended_at: body.observable_input_telemetry.typing_ended_at
-                ? new Date(body.observable_input_telemetry.typing_ended_at)
-                : null,
-              typing_duration_ms:
-                body.observable_input_telemetry.typing_duration_ms ?? null,
-              typing_duration_method:
-                body.observable_input_telemetry.typing_duration_method ?? null,
-              edit_count: body.observable_input_telemetry.edit_count,
-              backspace_count: body.observable_input_telemetry.backspace_count,
-              paste_event_count:
-                body.observable_input_telemetry.paste_event_count,
-              paste_character_count:
-                body.observable_input_telemetry.paste_character_count
-            }
-          : undefined
-      },
-      { runner: createLiveFormativeConversationAgentRunner() }
-    );
+    try {
+      await processFormativeConversationStudentMessage(
+        {
+          conversation_public_id: body.conversation_public_id,
+          client_message_id: body.client_message_id,
+          message_text: body.message_text,
+          context: seed,
+          observable_input_telemetry: body.observable_input_telemetry
+            ? {
+                turn_started_at: body.observable_input_telemetry.turn_started_at
+                  ? new Date(body.observable_input_telemetry.turn_started_at)
+                  : null,
+                submitted_at: new Date(
+                  body.observable_input_telemetry.submitted_at
+                ),
+                response_time_ms:
+                  body.observable_input_telemetry.response_time_ms ?? null,
+                typing_started_at: body.observable_input_telemetry.typing_started_at
+                  ? new Date(body.observable_input_telemetry.typing_started_at)
+                  : null,
+                typing_ended_at: body.observable_input_telemetry.typing_ended_at
+                  ? new Date(body.observable_input_telemetry.typing_ended_at)
+                  : null,
+                typing_duration_ms:
+                  body.observable_input_telemetry.typing_duration_ms ?? null,
+                typing_duration_method:
+                  body.observable_input_telemetry.typing_duration_method ?? null,
+                edit_count: body.observable_input_telemetry.edit_count,
+                backspace_count: body.observable_input_telemetry.backspace_count,
+                paste_event_count:
+                  body.observable_input_telemetry.paste_event_count,
+                paste_character_count:
+                  body.observable_input_telemetry.paste_character_count
+              }
+            : undefined
+        },
+        { runner_factory: createLiveFormativeConversationAgentRunner }
+      );
+    } catch (error) {
+      if (!(error instanceof FormativeConversationResponseGenerationError)) {
+        throw error;
+      }
+    }
     const conversation = await getStudentFormativeConversationProjection({
       student_user_db_id: auth.user.user_db_id,
       session_public_id: sessionPublicId

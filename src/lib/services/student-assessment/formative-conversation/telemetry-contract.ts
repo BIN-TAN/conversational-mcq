@@ -13,6 +13,8 @@ export const FormativeConversationLifecycleEventInputSchema = z
       "student_message_persisted",
       "agent_call_started",
       "agent_call_completed",
+      "agent_call_failed",
+      "assistant_response_failed",
       "tutor_message_persisted",
       "page_visible",
       "page_hidden",
@@ -27,6 +29,10 @@ export const FormativeConversationLifecycleEventInputSchema = z
       "conversation_ended"
     ]),
     event_source: z.enum(["frontend", "backend", "agent", "system"]),
+    agent_call_db_id: z.string().uuid().nullable().optional(),
+    agent_name: z.string().min(1).max(200).nullable().optional(),
+    failure_category: z.string().min(1).max(200).nullable().optional(),
+    retry_count: z.number().int().nonnegative().nullable().optional(),
     observed_interval_duration_ms: z
       .number()
       .int()
@@ -36,7 +42,34 @@ export const FormativeConversationLifecycleEventInputSchema = z
     client_instance_id: z.string().min(1).max(200).nullable().optional(),
     occurred_at: z.coerce.date()
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      (value.event_type === "agent_call_failed" ||
+        value.event_type === "assistant_response_failed") &&
+      (!value.agent_name ||
+        !value.failure_category ||
+        value.retry_count === null ||
+        value.retry_count === undefined)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["event_type"],
+        message:
+          "response failure events require the agent, safe failure category, and retry count"
+      });
+    }
+    if (
+      value.event_type === "agent_call_failed" &&
+      !value.agent_call_db_id
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["agent_call_db_id"],
+        message: "agent_call_failed requires an AgentCall"
+      });
+    }
+  });
 
 export const FormativeConversationTurnTelemetryInputSchema = z
   .object({

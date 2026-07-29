@@ -168,6 +168,14 @@ export type SessionDetailResponse = {
       actor: "student" | "tutor";
       message_text: string;
       created_at: string | null;
+      assistant_response_status:
+        | "pending"
+        | "completed"
+        | "failed"
+        | "retrying"
+        | null;
+      assistant_response_retry_count: number;
+      assistant_response_last_failed_at: string | null;
     }>;
     profile_evolution: Array<{
       transition_public_id: string;

@@ -28,6 +28,8 @@ import {
 import { recordFormativeConversationProfileTransitionRecommendation } from "./profile-update";
 import {
   persistFormativeConversationAssistantMessage,
+  prepareFormativeConversationAssistantResponseAttempt,
+  recordFormativeConversationAssistantResponseFailure,
   recordFormativeConversationOpeningFailure,
   reserveFormativeConversationOpening,
   reserveAndPersistFormativeConversationStudentMessage
@@ -134,6 +136,21 @@ export class FormativeConversationRuntimeError extends Error {
   }
 }
 
+export class FormativeConversationResponseGenerationError extends Error {
+  constructor(
+    public readonly response_status: "failed" | "pending" | "retrying",
+    public readonly receipt_public_id: string,
+    public readonly retryable: boolean
+  ) {
+    super(
+      response_status === "failed"
+        ? "The tutor response could not be generated."
+        : "The tutor response is still being generated."
+    );
+    this.name = "FormativeConversationResponseGenerationError";
+  }
+}
+
 function prismaJson(value: unknown): Prisma.InputJsonValue {
   return (toPrismaJson(value) ?? {}) as Prisma.InputJsonValue;
 }
@@ -151,8 +168,16 @@ export function formativeConversationInvocationKey(
   return `formative_conversation:${digest}`;
 }
 
-function eventId(clientMessageId: string, eventType: string) {
-  const digest = createHash("sha256").update(clientMessageId).digest("hex").slice(0, 24);
+function eventId(
+  clientMessageId: string,
+  eventType: string,
+  attemptIndex?: number
+) {
+  const identity =
+    attemptIndex === undefined
+      ? clientMessageId
+      : `${clientMessageId}:attempt:${attemptIndex}`;
+  const digest = createHash("sha256").update(identity).digest("hex").slice(0, 24);
   return `${eventType}:${digest}`;
 }
 
@@ -195,15 +220,30 @@ async function recordRuntimeEvent(input: {
     | "student_message_persisted"
     | "agent_call_started"
     | "agent_call_completed"
+    | "agent_call_failed"
+    | "assistant_response_failed"
     | "tutor_message_persisted";
   event_source: "backend" | "agent";
   occurred_at: Date;
+  attempt_index?: number;
+  agent_call_db_id?: string | null;
+  agent_name?: string | null;
+  failure_category?: string | null;
+  retry_count?: number | null;
 }) {
   return recordFormativeConversationLifecycleEvent({
     conversation_public_id: input.conversation_public_id,
-    client_event_id: eventId(input.client_message_id, input.event_type),
+    client_event_id: eventId(
+      input.client_message_id,
+      input.event_type,
+      input.attempt_index
+    ),
     event_type: input.event_type,
     event_source: input.event_source,
+    agent_call_db_id: input.agent_call_db_id ?? null,
+    agent_name: input.agent_name ?? null,
+    failure_category: input.failure_category ?? null,
+    retry_count: input.retry_count ?? null,
     observed_interval_duration_ms: null,
     client_instance_id: null,
     occurred_at: input.occurred_at
@@ -224,6 +264,7 @@ async function loadRuntimeIdentity(conversationPublicId: string) {
 
 async function createStartedAgentCall(input: {
   session: Awaited<ReturnType<typeof loadRuntimeIdentity>>;
+  message_receipt_db_id: string;
   invocation_key: string;
   context: FormativeConversationAgentInput;
   runner: FormativeConversationAgentRunner;
@@ -233,7 +274,27 @@ async function createStartedAgentCall(input: {
     where: { agent_invocation_key: input.invocation_key }
   });
   if (existing) {
-    return { agent_call: existing, created: false };
+    if (
+      existing.formative_conversation_message_receipt_db_id &&
+      existing.formative_conversation_message_receipt_db_id !==
+        input.message_receipt_db_id
+    ) {
+      throw new FormativeConversationRuntimeError(
+        "agent_call_failed",
+        "The formative conversation AgentCall belongs to another message receipt."
+      );
+    }
+    const bound =
+      existing.formative_conversation_message_receipt_db_id
+        ? existing
+        : await prisma.agentCall.update({
+            where: { id: existing.id },
+            data: {
+              formative_conversation_message_receipt_db_id:
+                input.message_receipt_db_id
+            }
+          });
+    return { agent_call: bound, created: false };
   }
 
   try {
@@ -242,6 +303,8 @@ async function createStartedAgentCall(input: {
         assessment_session_db_id: input.session.assessment_session_db_id,
         concept_unit_session_db_id: input.session.concept_unit_session_db_id,
         formative_conversation_session_db_id: input.session.id,
+        formative_conversation_message_receipt_db_id:
+          input.message_receipt_db_id,
         formative_conversation_context_version:
           FORMATIVE_CONVERSATION_CONTEXT_VERSION,
         agent_name: identity.agent_name,
@@ -269,7 +332,27 @@ async function createStartedAgentCall(input: {
       const agentCall = await prisma.agentCall.findUniqueOrThrow({
         where: { agent_invocation_key: input.invocation_key }
       });
-      return { agent_call: agentCall, created: false };
+      if (
+        agentCall.formative_conversation_message_receipt_db_id &&
+        agentCall.formative_conversation_message_receipt_db_id !==
+          input.message_receipt_db_id
+      ) {
+        throw new FormativeConversationRuntimeError(
+          "agent_call_failed",
+          "The formative conversation AgentCall belongs to another message receipt."
+        );
+      }
+      const bound =
+        agentCall.formative_conversation_message_receipt_db_id
+          ? agentCall
+          : await prisma.agentCall.update({
+              where: { id: agentCall.id },
+              data: {
+                formative_conversation_message_receipt_db_id:
+                  input.message_receipt_db_id
+              }
+            });
+      return { agent_call: bound, created: false };
     }
     throw error;
   }
@@ -278,6 +361,7 @@ async function createStartedAgentCall(input: {
 async function executeOrResumeAgentCall(input: {
   conversation_public_id: string;
   client_message_id: string;
+  message_receipt_db_id: string;
   context: FormativeConversationAgentInput;
   runner: FormativeConversationAgentRunner;
   attempt_index?: number;
@@ -290,6 +374,7 @@ async function executeOrResumeAgentCall(input: {
   );
   const started = await createStartedAgentCall({
     session,
+    message_receipt_db_id: input.message_receipt_db_id,
     invocation_key: key,
     context: input.context,
     runner: input.runner
@@ -306,6 +391,10 @@ async function executeOrResumeAgentCall(input: {
         client_message_id: input.client_message_id,
         event_type: "agent_call_started",
         event_source: "agent",
+        attempt_index: input.attempt_index ?? 1,
+        agent_call_db_id: started.agent_call.id,
+        agent_name: started.agent_call.agent_name,
+        retry_count: started.agent_call.retry_count,
         occurred_at:
           started.agent_call.started_at ?? started.agent_call.created_at
       });
@@ -342,6 +431,10 @@ async function executeOrResumeAgentCall(input: {
     client_message_id: input.client_message_id,
     event_type: "agent_call_started",
     event_source: "agent",
+    attempt_index: input.attempt_index ?? 1,
+    agent_call_db_id: started.agent_call.id,
+    agent_name: started.agent_call.agent_name,
+    retry_count: started.agent_call.retry_count,
     occurred_at: started.agent_call.started_at ?? started.agent_call.created_at
   });
 
@@ -439,6 +532,10 @@ async function executeOrResumeAgentCall(input: {
     client_message_id: input.client_message_id,
     event_type: "agent_call_completed",
     event_source: "agent",
+    attempt_index: input.attempt_index ?? 1,
+    agent_call_db_id: agentCall.id,
+    agent_name: agentCall.agent_name,
+    retry_count: agentCall.retry_count,
     occurred_at: execution.completed_at
   });
 
@@ -448,6 +545,76 @@ async function executeOrResumeAgentCall(input: {
     generation_source: execution.generation_source,
     resumed: false
   };
+}
+
+function safeAssistantResponseFailureCategory(error: unknown) {
+  if (formativeConversationUnavailableFromConfiguration(error)) {
+    return "configuration_unavailable";
+  }
+  if (error instanceof FormativeConversationRuntimeError) {
+    if (error.code === "agent_output_invalid") {
+      return "agent_output_validation_failure";
+    }
+    if (error.code === "agent_call_failed") {
+      return "agent_execution_failure";
+    }
+  }
+  if (error instanceof z.ZodError) {
+    return "agent_output_validation_failure";
+  }
+  return "agent_execution_failure";
+}
+
+async function persistTerminalAssistantResponseFailure(input: {
+  conversation_public_id: string;
+  client_message_id: string;
+  receipt_public_id: string;
+  attempt_index: number;
+  retry_count: number;
+  failure_category: string;
+  agent_call?: {
+    id: string;
+    agent_name: string;
+    call_status: string;
+    completed_at: Date | null;
+    updated_at: Date;
+  } | null;
+}) {
+  const failedAt =
+    input.agent_call?.completed_at ??
+    input.agent_call?.updated_at ??
+    new Date();
+  await recordFormativeConversationAssistantResponseFailure({
+    conversation_public_id: input.conversation_public_id,
+    client_message_id: input.client_message_id,
+    failure_category: input.failure_category,
+    failed_at: failedAt
+  });
+  await recordRuntimeEvent({
+    conversation_public_id: input.conversation_public_id,
+    client_message_id: input.client_message_id,
+    event_type:
+      input.agent_call &&
+      ["failed", "invalid_output", "blocked"].includes(
+        input.agent_call.call_status
+      )
+        ? "agent_call_failed"
+        : "assistant_response_failed",
+    event_source: input.agent_call ? "agent" : "backend",
+    attempt_index: input.attempt_index,
+    agent_call_db_id: input.agent_call?.id ?? null,
+    agent_name:
+      input.agent_call?.agent_name ??
+      FORMATIVE_CONVERSATION_AGENT_NAME,
+    failure_category: input.failure_category,
+    retry_count: input.retry_count,
+    occurred_at: failedAt
+  });
+  return new FormativeConversationResponseGenerationError(
+    "failed",
+    input.receipt_public_id,
+    true
+  );
 }
 
 export async function processFormativeConversationOpening(
@@ -559,6 +726,7 @@ export async function processFormativeConversationOpening(
     agentResult = await executeOrResumeAgentCall({
       conversation_public_id: input.conversation_public_id,
       client_message_id: FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
+      message_receipt_db_id: reservation.receipt.id,
       context: compiled.context,
       runner,
       attempt_index: reservation.opening_attempt
@@ -583,6 +751,10 @@ export async function processFormativeConversationOpening(
       client_message_id: FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
       event_type: "agent_call_completed",
       event_source: "agent",
+      attempt_index: reservation.opening_attempt,
+      agent_call_db_id: agentResult.agent_call.id,
+      agent_name: agentResult.agent_call.agent_name,
+      retry_count: agentResult.agent_call.retry_count,
       occurred_at:
         agentResult.agent_call.completed_at ?? agentResult.agent_call.updated_at
     });
@@ -676,7 +848,8 @@ export async function processFormativeConversationStudentMessage(
     observable_input_telemetry?: FormativeConversationObservableInputTelemetry;
   },
   dependencies: {
-    runner: FormativeConversationAgentRunner;
+    runner?: FormativeConversationAgentRunner;
+    runner_factory?: () => FormativeConversationAgentRunner;
   }
 ) {
   const reservation =
@@ -699,19 +872,31 @@ export async function processFormativeConversationStudentMessage(
   });
   const submittedAt =
     input.observable_input_telemetry?.submitted_at ?? studentTurn.created_at;
-  await recordFormativeConversationTurnTelemetry({
-    conversation_public_id: input.conversation_public_id,
-    conversation_turn_db_id: studentTurn.id,
-    turn_started_at:
-      input.observable_input_telemetry?.turn_started_at ?? null,
-    turn_submitted_at: submittedAt,
-    response_time_ms:
-      input.observable_input_telemetry?.response_time_ms ?? null,
-    message_length_chars: studentTurn.message_text?.length ?? 0,
-    input_token_count: null,
-    output_token_count: null
-  });
-  if (input.observable_input_telemetry) {
+  const existingTurnTelemetry =
+    await prisma.formativeConversationTurnTelemetry.findUnique({
+      where: { conversation_turn_db_id: studentTurn.id },
+      select: { id: true }
+    });
+  if (!existingTurnTelemetry) {
+    await recordFormativeConversationTurnTelemetry({
+      conversation_public_id: input.conversation_public_id,
+      conversation_turn_db_id: studentTurn.id,
+      turn_started_at:
+        input.observable_input_telemetry?.turn_started_at ?? null,
+      turn_submitted_at: submittedAt,
+      response_time_ms:
+        input.observable_input_telemetry?.response_time_ms ?? null,
+      message_length_chars: studentTurn.message_text?.length ?? 0,
+      input_token_count: null,
+      output_token_count: null
+    });
+  }
+  const existingInputTelemetry =
+    await prisma.formativeConversationInputTelemetry.findUnique({
+      where: { conversation_turn_db_id: studentTurn.id },
+      select: { id: true }
+    });
+  if (input.observable_input_telemetry && !existingInputTelemetry) {
     await recordFormativeConversationInputTelemetry({
       conversation_public_id: input.conversation_public_id,
       conversation_turn_db_id: studentTurn.id,
@@ -734,12 +919,19 @@ export async function processFormativeConversationStudentMessage(
     });
   }
 
-  if (reservation.receipt.assistant_turn) {
+  const responseAttempt =
+    await prepareFormativeConversationAssistantResponseAttempt({
+      conversation_public_id: input.conversation_public_id,
+      client_message_id: input.client_message_id
+    });
+  const responseReceipt = responseAttempt.receipt;
+  if (responseReceipt.assistant_turn) {
     const existingCall = await prisma.agentCall.findUnique({
       where: {
         agent_invocation_key: formativeConversationInvocationKey(
           input.conversation_public_id,
-          input.client_message_id
+          input.client_message_id,
+          responseAttempt.attempt_index
         )
       }
     });
@@ -756,7 +948,7 @@ export async function processFormativeConversationStudentMessage(
         ? await persistAgentProfileEvidence({
             conversation_public_id: input.conversation_public_id,
             source_agent_call_db_id: existingCall.id,
-            source_tutor_turn_db_id: reservation.receipt.assistant_turn.id,
+            source_tutor_turn_db_id: responseReceipt.assistant_turn.id,
             output: existingOutput.data
           })
         : null;
@@ -769,9 +961,9 @@ export async function processFormativeConversationStudentMessage(
           })
         : []);
     return {
-      receipt: reservation.receipt,
+      receipt: responseReceipt,
       student_turn: studentTurn,
-      tutor_turn: reservation.receipt.assistant_turn,
+      tutor_turn: responseReceipt.assistant_turn,
       agent_call: existingCall,
       evidence_references: evidenceReferences,
       profile_transition_recommendation:
@@ -781,37 +973,136 @@ export async function processFormativeConversationStudentMessage(
     };
   }
 
-  const compiled = await compilePersistedFormativeConversationContext({
-    conversation_public_id: input.conversation_public_id,
-    ...input.context
-  });
-  assertNoProhibitedProviderInput(compiled.context);
-  const agentResult = await executeOrResumeAgentCall({
-    conversation_public_id: input.conversation_public_id,
-    client_message_id: input.client_message_id,
-    context: compiled.context,
-    runner: dependencies.runner
-  });
+  let compiled: Awaited<
+    ReturnType<typeof compilePersistedFormativeConversationContext>
+  >;
+  try {
+    compiled = await compilePersistedFormativeConversationContext({
+      conversation_public_id: input.conversation_public_id,
+      ...input.context
+    });
+    assertNoProhibitedProviderInput(compiled.context);
+  } catch {
+    throw await persistTerminalAssistantResponseFailure({
+      conversation_public_id: input.conversation_public_id,
+      client_message_id: input.client_message_id,
+      receipt_public_id: responseReceipt.receipt_public_id,
+      attempt_index: responseAttempt.attempt_index,
+      retry_count: responseReceipt.assistant_response_retry_count,
+      failure_category: "context_compilation_failure"
+    });
+  }
+
+  let runner: FormativeConversationAgentRunner;
+  try {
+    runner =
+      dependencies.runner ??
+      dependencies.runner_factory?.() ??
+      (() => {
+        throw new FormativeConversationRuntimeError(
+          "agent_call_failed",
+          "The formative conversation runner is unavailable."
+        );
+      })();
+  } catch (error) {
+    throw await persistTerminalAssistantResponseFailure({
+      conversation_public_id: input.conversation_public_id,
+      client_message_id: input.client_message_id,
+      receipt_public_id: responseReceipt.receipt_public_id,
+      attempt_index: responseAttempt.attempt_index,
+      retry_count: responseReceipt.assistant_response_retry_count,
+      failure_category: safeAssistantResponseFailureCategory(error)
+    });
+  }
+
+  let agentResult: Awaited<ReturnType<typeof executeOrResumeAgentCall>>;
+  try {
+    agentResult = await executeOrResumeAgentCall({
+      conversation_public_id: input.conversation_public_id,
+      client_message_id: input.client_message_id,
+      message_receipt_db_id: responseReceipt.id,
+      context: compiled.context,
+      runner,
+      attempt_index: responseAttempt.attempt_index
+    });
+  } catch (error) {
+    if (
+      error instanceof FormativeConversationRuntimeError &&
+      error.code === "agent_call_in_progress"
+    ) {
+      throw new FormativeConversationResponseGenerationError(
+        responseReceipt.assistant_response_status === "retrying"
+          ? "retrying"
+          : "pending",
+        responseReceipt.receipt_public_id,
+        false
+      );
+    }
+    const failedCall = await prisma.agentCall.findUnique({
+      where: {
+        agent_invocation_key: formativeConversationInvocationKey(
+          input.conversation_public_id,
+          input.client_message_id,
+          responseAttempt.attempt_index
+        )
+      },
+      select: {
+        id: true,
+        agent_name: true,
+        call_status: true,
+        completed_at: true,
+        updated_at: true
+      }
+    });
+    throw await persistTerminalAssistantResponseFailure({
+      conversation_public_id: input.conversation_public_id,
+      client_message_id: input.client_message_id,
+      receipt_public_id: responseReceipt.receipt_public_id,
+      attempt_index: responseAttempt.attempt_index,
+      retry_count: responseReceipt.assistant_response_retry_count,
+      failure_category: safeAssistantResponseFailureCategory(error),
+      agent_call: failedCall
+    });
+  }
   if (agentResult.resumed) {
     await recordRuntimeEvent({
       conversation_public_id: input.conversation_public_id,
       client_message_id: input.client_message_id,
       event_type: "agent_call_completed",
       event_source: "agent",
+      attempt_index: responseAttempt.attempt_index,
+      agent_call_db_id: agentResult.agent_call.id,
+      agent_name: agentResult.agent_call.agent_name,
+      retry_count: agentResult.agent_call.retry_count,
       occurred_at:
         agentResult.agent_call.completed_at ?? agentResult.agent_call.updated_at
     });
   }
 
-  const tutorMessage = await persistFormativeConversationAssistantMessage({
-    conversation_public_id: input.conversation_public_id,
-    client_message_id: input.client_message_id,
-    message_text: agentResult.output.student_visible_message,
-    generation_source: agentResult.generation_source,
-    validator_status: "passed",
-    agent_call_db_id: agentResult.agent_call.id,
-    fallback_used: false
-  });
+  let tutorMessage: Awaited<
+    ReturnType<typeof persistFormativeConversationAssistantMessage>
+  >;
+  try {
+    tutorMessage = await persistFormativeConversationAssistantMessage({
+      conversation_public_id: input.conversation_public_id,
+      client_message_id: input.client_message_id,
+      message_text: agentResult.output.student_visible_message,
+      generation_source: agentResult.generation_source,
+      validator_status: "passed",
+      agent_call_db_id: agentResult.agent_call.id,
+      fallback_used: false
+    });
+  } catch {
+    throw await persistTerminalAssistantResponseFailure({
+      conversation_public_id: input.conversation_public_id,
+      client_message_id: input.client_message_id,
+      receipt_public_id: responseReceipt.receipt_public_id,
+      attempt_index: responseAttempt.attempt_index,
+      retry_count: responseReceipt.assistant_response_retry_count,
+      failure_category: "assistant_response_persistence_failure",
+      agent_call: agentResult.agent_call
+    });
+  }
   await recordFormativeConversationTurnTelemetry({
     conversation_public_id: input.conversation_public_id,
     conversation_turn_db_id: tutorMessage.assistant_turn.id,

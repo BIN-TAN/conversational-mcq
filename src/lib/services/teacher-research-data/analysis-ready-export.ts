@@ -281,8 +281,36 @@ const analysisSessionSelect = {
           formative_conversation_input_telemetry: true
         }
       },
+      message_receipts: {
+        where: {
+          student_turn_db_id: { not: null }
+        },
+        orderBy: { created_at: "asc" },
+        select: {
+          receipt_public_id: true,
+          student_turn_db_id: true,
+          assistant_response_status: true,
+          assistant_response_retry_count: true,
+          assistant_response_last_failure_category: true,
+          assistant_response_last_failed_at: true,
+          agent_calls: {
+            orderBy: { created_at: "desc" },
+            take: 1,
+            select: {
+              agent_call_public_id: true
+            }
+          }
+        }
+      },
       lifecycle_events: {
-        orderBy: { sequence_index: "asc" }
+        orderBy: { sequence_index: "asc" },
+        include: {
+          agent_call: {
+            select: {
+              agent_call_public_id: true
+            }
+          }
+        }
       },
       agent_calls: {
         orderBy: { created_at: "asc" },
@@ -304,7 +332,12 @@ const analysisSessionSelect = {
           total_tokens: true,
           started_at: true,
           completed_at: true,
-          created_at: true
+          created_at: true,
+          formative_conversation_message_receipt: {
+            select: {
+              receipt_public_id: true
+            }
+          }
         }
       },
       profile_transitions: {
@@ -429,6 +462,7 @@ const FORMATIVE_CONVERSATION_TURN_COLUMNS = [
   "session_public_id",
   "research_student_id",
   "conversation_public_id",
+  "response_receipt_public_id",
   "agent_call_public_id",
   "turn_sequence_index",
   "conversation_local_turn_sequence_index",
@@ -438,6 +472,10 @@ const FORMATIVE_CONVERSATION_TURN_COLUMNS = [
   "generation_source",
   "validator_status",
   "fallback_used",
+  "assistant_response_status",
+  "assistant_response_retry_count",
+  "assistant_response_failure_category",
+  "assistant_response_failed_at",
   "created_at",
   "turn_started_at",
   "turn_submitted_at",
@@ -465,6 +503,10 @@ const FORMATIVE_CONVERSATION_EVENT_COLUMNS = [
   "conversation_local_event_sequence_index",
   "event_type",
   "event_source",
+  "agent_call_public_id",
+  "agent_name",
+  "failure_category",
+  "retry_count",
   "observed_interval_duration_ms",
   "occurred_at",
   "created_at"
@@ -474,6 +516,7 @@ const FORMATIVE_CONVERSATION_LLM_COLUMNS = [
   "session_public_id",
   "research_student_id",
   "conversation_public_id",
+  "response_receipt_public_id",
   "agent_call_public_id",
   "agent_call_index",
   "agent_name",
@@ -1758,17 +1801,32 @@ function formativeConversationSessionRows(sessions: AnalysisSession[]) {
 
 function formativeConversationTurnRows(sessions: AnalysisSession[]) {
   return sessions.flatMap((session) =>
-    session.formative_conversation_sessions.flatMap((conversation) =>
-      conversation.conversation_turns.map((turn) => {
+    session.formative_conversation_sessions.flatMap((conversation) => {
+      const receiptByStudentTurnId = new Map(
+        conversation.message_receipts.flatMap((receipt) =>
+          receipt.student_turn_db_id
+            ? [[receipt.student_turn_db_id, receipt] as const]
+            : []
+        )
+      );
+      return conversation.conversation_turns.map((turn) => {
         const telemetry = turn.formative_conversation_turn_telemetry;
         const inputTelemetry = turn.formative_conversation_input_telemetry;
         const payload = asRecord(turn.structured_payload);
+        const responseReceipt =
+          turn.actor_type === "student"
+            ? receiptByStudentTurnId.get(turn.id) ?? null
+            : null;
         return {
           session_public_id: session.session_public_id,
           research_student_id: researchStudentId(session.user.user_id),
           conversation_public_id: conversation.conversation_public_id,
+          response_receipt_public_id:
+            responseReceipt?.receipt_public_id ?? null,
           agent_call_public_id:
-            telemetry?.agent_call?.agent_call_public_id ?? null,
+            telemetry?.agent_call?.agent_call_public_id ??
+            responseReceipt?.agent_calls[0]?.agent_call_public_id ??
+            null,
           turn_sequence_index: turn.sequence_index,
           conversation_local_turn_sequence_index:
             telemetry?.conversation_local_turn_sequence_index ?? null,
@@ -1790,6 +1848,16 @@ function formativeConversationTurnRows(sessions: AnalysisSession[]) {
             typeof payload.fallback_used === "boolean"
               ? payload.fallback_used
               : null,
+          assistant_response_status:
+            responseReceipt?.assistant_response_status ?? null,
+          assistant_response_retry_count:
+            responseReceipt?.assistant_response_retry_count ?? null,
+          assistant_response_failure_category:
+            responseReceipt
+              ?.assistant_response_last_failure_category ?? null,
+          assistant_response_failed_at: iso(
+            responseReceipt?.assistant_response_last_failed_at
+          ),
           created_at: iso(turn.created_at),
           turn_started_at: iso(telemetry?.turn_started_at),
           turn_submitted_at: iso(telemetry?.turn_submitted_at),
@@ -1811,8 +1879,8 @@ function formativeConversationTurnRows(sessions: AnalysisSession[]) {
           final_message_length_chars:
             inputTelemetry?.final_message_length_chars ?? null
         };
-      })
-    )
+      });
+    })
   );
 }
 
@@ -1829,6 +1897,11 @@ function formativeConversationEventRows(sessions: AnalysisSession[]) {
           event.conversation_local_event_sequence_index,
         event_type: event.event_type,
         event_source: event.event_source,
+        agent_call_public_id:
+          event.agent_call?.agent_call_public_id ?? null,
+        agent_name: event.agent_name,
+        failure_category: event.failure_category,
+        retry_count: event.retry_count,
         observed_interval_duration_ms:
           event.observed_interval_duration_ms,
         occurred_at: iso(event.occurred_at),
@@ -1845,6 +1918,9 @@ function formativeConversationLlmRows(sessions: AnalysisSession[]) {
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
         conversation_public_id: conversation.conversation_public_id,
+        response_receipt_public_id:
+          call.formative_conversation_message_receipt
+            ?.receipt_public_id ?? null,
         agent_call_public_id: call.agent_call_public_id,
         agent_call_index: index + 1,
         agent_name: call.agent_name,
@@ -2044,6 +2120,27 @@ function formativeConversationDataDictionaryRows() {
     }
     if (variable === "agent_call_public_id" || variable === "source_agent_call_public_id") {
       return "Opaque public join key for the persisted formative conversation AgentCall; provider request identifiers and internal database IDs are excluded.";
+    }
+    if (variable === "response_receipt_public_id") {
+      return "Opaque public join key for the persisted student-message response lifecycle; client message IDs and internal database IDs are excluded.";
+    }
+    if (variable === "assistant_response_status") {
+      return "Persisted lifecycle state for the tutor response associated with a student message: pending, retrying, failed, or completed.";
+    }
+    if (variable === "assistant_response_retry_count") {
+      return "Count of idempotent tutor-generation retries after the initial generation attempt for this persisted student message.";
+    }
+    if (variable === "assistant_response_failure_category") {
+      return "Safe terminal failure category for the latest unsuccessful tutor-generation attempt; raw provider errors and payloads are excluded.";
+    }
+    if (variable === "assistant_response_failed_at") {
+      return "Timestamp of the latest terminal tutor-generation failure for this persisted student message.";
+    }
+    if (variable === "failure_category") {
+      return "Safe operational category recorded for a terminal formative response failure; it excludes raw provider errors and payloads.";
+    }
+    if (variable === "retry_count") {
+      return "Persisted retry count applicable to the formative response lifecycle or agent call represented by the row.";
     }
     if (variable === "conversation_local_turn_sequence_index") {
       return "One-based persisted turn-telemetry order within this formative conversation.";

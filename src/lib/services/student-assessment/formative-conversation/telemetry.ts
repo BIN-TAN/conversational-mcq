@@ -107,6 +107,10 @@ export async function recordFormativeConversationLifecycleEvent(
   const eventHash = hashValue({
     event_type: parsed.event_type,
     event_source: parsed.event_source,
+    agent_call_db_id: parsed.agent_call_db_id ?? null,
+    agent_name: parsed.agent_name ?? null,
+    failure_category: parsed.failure_category ?? null,
+    retry_count: parsed.retry_count ?? null,
     observed_interval_duration_ms:
       parsed.observed_interval_duration_ms ?? null,
     client_instance_id: parsed.client_instance_id ?? null,
@@ -131,6 +135,23 @@ export async function recordFormativeConversationLifecycleEvent(
     );
   }
 
+  if (parsed.agent_call_db_id) {
+    const agentCall = await prisma.agentCall.findUnique({
+      where: { id: parsed.agent_call_db_id },
+      select: {
+        formative_conversation_session_db_id: true
+      }
+    });
+    if (
+      agentCall?.formative_conversation_session_db_id !== session.id
+    ) {
+      throw new FormativeConversationTelemetryError(
+        "telemetry_agent_call_mismatch",
+        "The formative conversation event AgentCall does not belong to the conversation."
+      );
+    }
+  }
+
   try {
     const conversationLocalEventSequenceIndex =
       await allocateConversationLocalEventSequence(session.id);
@@ -143,6 +164,10 @@ export async function recordFormativeConversationLifecycleEvent(
         event_hash: eventHash,
         event_type: parsed.event_type,
         event_source: parsed.event_source,
+        agent_call_db_id: parsed.agent_call_db_id ?? null,
+        agent_name: parsed.agent_name ?? null,
+        failure_category: parsed.failure_category ?? null,
+        retry_count: parsed.retry_count ?? null,
         observed_interval_duration_ms:
           parsed.observed_interval_duration_ms ?? null,
         client_instance_id: parsed.client_instance_id ?? null,

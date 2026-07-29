@@ -340,10 +340,23 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
             },
             orderBy: { sequence_index: "asc" },
             select: {
+              id: true,
               sequence_index: true,
               actor_type: true,
               message_text: true,
               created_at: true
+            }
+          },
+          message_receipts: {
+            where: {
+              student_turn_db_id: { not: null }
+            },
+            orderBy: { created_at: "asc" },
+            select: {
+              student_turn_db_id: true,
+              assistant_response_status: true,
+              assistant_response_retry_count: true,
+              assistant_response_last_failed_at: true
             }
           },
           interventions: {
@@ -538,6 +551,13 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       const canonicalCurrentProfile =
         latestTransition?.updated_student_profile ??
         conversation.initial_student_profile;
+      const responseByStudentTurnId = new Map(
+        conversation.message_receipts.flatMap((receipt) =>
+          receipt.student_turn_db_id
+            ? [[receipt.student_turn_db_id, receipt] as const]
+            : []
+        )
+      );
 
       return {
         conversation_public_id: conversation.conversation_public_id,
@@ -570,7 +590,24 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
               ? ("student" as const)
               : ("tutor" as const),
           message_text: turn.message_text ?? "",
-          created_at: serializeDate(turn.created_at)
+          created_at: serializeDate(turn.created_at),
+          assistant_response_status:
+            turn.actor_type === "student"
+              ? responseByStudentTurnId.get(turn.id)
+                  ?.assistant_response_status ?? null
+              : null,
+          assistant_response_retry_count:
+            turn.actor_type === "student"
+              ? responseByStudentTurnId.get(turn.id)
+                  ?.assistant_response_retry_count ?? 0
+              : 0,
+          assistant_response_last_failed_at:
+            turn.actor_type === "student"
+              ? serializeDate(
+                  responseByStudentTurnId.get(turn.id)
+                    ?.assistant_response_last_failed_at
+                )
+              : null
         })),
         profile_evolution: conversation.profile_transitions.map(
           (transition) => ({

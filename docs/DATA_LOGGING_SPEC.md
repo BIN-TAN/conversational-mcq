@@ -371,9 +371,9 @@ The research dataset ZIP contains:
 | `research_data_dictionary.csv` | One row per ordinary or restricted research dataset variable | Documents qualified variable name, dataset/table, measurement level, source nature, source-code reference, source service/function, source-verification status, missing/zero/false semantics, privacy, export policy, timing formulas, applicable record types, and interpretation cautions. |
 | `process_event_codebook.csv` | One row per allow-listed process-event type | Documents event trigger, actor/source, scope, timestamp meaning, allow-listed payload fields, derived variables, source-code reference, source-verification status, and interpretation cautions. |
 | `formative_conversation_sessions.csv` | One row per persistent formative conversation | Separates conversation lifecycle and starting/current profile references from assessment item administration. |
-| `formative_conversation_turns.csv` | One row per visible formative student or tutor turn | Includes a conversation-local turn index and observable turn/input telemetry: timestamps, response time, message length, token counts, typing-duration method, edit count, backspace count, paste event count, and paste character count. Pasted text is not stored. Tutor rows carry an opaque public AgentCall join key. |
-| `formative_conversation_events.csv` | One row per observable formative lifecycle/navigation event | Includes a conversation-local event index and distinguishes enter/re-enter, leave, visibility changes, refresh, pause/resume, reconnect, conversation end, and persisted message/call milestones. |
-| `formative_conversation_llm_calls.csv` | One row per formative conversation agent call | Includes the same opaque public AgentCall join key plus model, prompt/context/schema versions, validation, retries, latency, and token counts without provider request IDs, raw prompts, or outputs. |
+| `formative_conversation_turns.csv` | One row per visible formative student or tutor turn | Includes a conversation-local turn index and observable turn/input telemetry: timestamps, response time, message length, token counts, typing-duration method, edit count, backspace count, paste event count, and paste character count. Pasted text is not stored. Tutor rows carry an opaque public AgentCall join key. Student rows carry the public response-receipt join, assistant-response lifecycle, retry count, and latest safe failure category/timestamp. |
+| `formative_conversation_events.csv` | One row per observable formative lifecycle/navigation/operational event | Includes a conversation-local event index and distinguishes enter/re-enter, leave, visibility changes, refresh, pause/resume, reconnect, conversation end, persisted message/call milestones, and terminal assistant-generation failures. Failure rows contain only the safe category, agent name, retry count, timestamp, and optional public AgentCall join. |
+| `formative_conversation_llm_calls.csv` | One row per formative conversation agent call | Includes the same opaque public AgentCall join key, the public response-receipt join when the call responds to a student message, and model, prompt/context/schema versions, validation, retries, latency, and token counts without provider request IDs, raw prompts, or outputs. Failed attempts remain in this file and do not create or count as tutor turns. |
 | `formative_conversation_profile_transitions.csv` | One row per validated profile transition | Preserves the agent-authored outcome and interpretation, prior/updated profile versions, supporting student/tutor turns, evidence-reference public IDs, initial assessment-profile provenance, timestamp, and source public AgentCall join key without hidden prompts, provider request IDs, or chain-of-thought. |
 | `formative_conversation_interventions.csv` | One row per persisted intervention record | Documents strategy history and targeted evidence gap without claiming an inferred student trait. |
 | `formative_conversation_data_dictionary.csv` | One row per formative-conversation export variable | Identifies raw observable fields versus derived/validated profile fields and states interpretation cautions. |
@@ -414,6 +414,14 @@ Formative conversation lifecycle events have separate meanings:
 A validated profile outcome does not automatically end the formative
 conversation. Conversation termination requires its own explicit lifecycle
 action.
+
+Assistant-response lifecycle is recorded independently from the raw transcript.
+`pending`, `retrying`, and `failed` student turns remain visible and auditable
+without being treated as completed exchanges. `completed` requires one
+persisted tutor turn. Retry reuses the persisted student message and response
+receipt while creating a distinct AgentCall attempt; safe failure events retain
+the agent name, category, retry count, and time without raw provider errors,
+prompts, payloads, credentials, or secrets.
 
 Runtime research-consent collection and external form integration are outside
 the current implementation. A future research-data eligibility layer may link

@@ -147,6 +147,24 @@ export function retryFormativeConversationOpening(input: {
   );
 }
 
+export function retryFormativeConversationResponse(input: {
+  sessionPublicId: string;
+  conversationPublicId: string;
+  receiptPublicId: string;
+}): Promise<StudentFormativeConversation | null> {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/formative-conversation/messages/retry`,
+    {
+      conversation_public_id: input.conversationPublicId,
+      receipt_public_id: input.receiptPublicId
+    },
+    (value) =>
+      StudentFormativeConversationSchema.nullable().parse(
+        (value as { formative_conversation: unknown }).formative_conversation
+      )
+  );
+}
+
 export function sendFormativeConversationEvent(input: {
   sessionPublicId: string;
   conversationPublicId: string;

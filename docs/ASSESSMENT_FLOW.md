@@ -179,6 +179,14 @@ client message IDs replay the persisted receipt and cannot create a second
 provider call or tutor turn. Pause, resume, and end affect the formative
 conversation lifecycle without rewriting assessment evidence.
 
+Each persisted student message has an explicit assistant-response lifecycle:
+`pending`, `retrying`, `failed`, or `completed`. A failed generation preserves
+the student turn, failed `AgentCall`, and safe terminal failure telemetry, but it
+does not count as a completed tutor turn. The student may retry that same
+persisted message idempotently; retries use a new generation attempt identity
+and can create at most one visible tutor turn. Normal failure recovery never
+substitutes deterministic teaching text.
+
 Legacy `FORMATIVE_ACTIVITY`, topic-dialogue, revision, and next-choice records
 remain available for historical sessions. They are not the active UX when a
 formative conversation session exists.

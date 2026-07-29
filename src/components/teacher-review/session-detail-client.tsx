@@ -770,6 +770,12 @@ export function FormativeConversationEvidenceSection({
   return (
     <section className="space-y-5" data-testid="teacher-formative-conversation-review">
       {conversations.map((conversation) => {
+        const latestTransition =
+          conversation.profile_evolution[
+            conversation.profile_evolution.length - 1
+          ] ?? null;
+        const remainingConcerns =
+          latestTransition?.updated_profile.misconception_evidence ?? [];
         const administeredResponses = (
           itemResponses?.concept_units ?? []
         )
@@ -817,9 +823,6 @@ export function FormativeConversationEvidenceSection({
                 </h3>
                 <p className="mt-1 text-sm text-muted">
                   {conversation.concept_unit_title}
-                </p>
-                <p className="mt-1 text-xs text-muted">
-                  Conversation ID: {conversation.conversation_public_id}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -978,13 +981,92 @@ export function FormativeConversationEvidenceSection({
                           message={turn.message_text}
                         />
                       ) : (
-                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
-                          {turn.message_text}
-                        </p>
+                        <>
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+                            {turn.message_text}
+                          </p>
+                          {turn.assistant_response_status &&
+                          turn.assistant_response_status !== "completed" ? (
+                            <div
+                              className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+                              data-testid="teacher-incomplete-tutor-generation"
+                            >
+                              <p className="font-semibold">
+                                {turn.assistant_response_status === "failed"
+                                  ? "Tutor response incomplete"
+                                  : "Tutor response pending"}
+                              </p>
+                              <p className="mt-1">
+                                The student message is preserved, but no
+                                completed tutor turn is recorded
+                                {turn.assistant_response_last_failed_at
+                                  ? ` as of ${formatDate(
+                                      turn.assistant_response_last_failed_at
+                                    )}`
+                                  : ""}
+                                .
+                              </p>
+                            </div>
+                          ) : null}
+                        </>
                       )}
                     </div>
                   );
                 })}
+              </div>
+            </section>
+
+            <section
+              className="mt-6 border-t border-line pt-5"
+              data-testid="teacher-formative-learning-summary"
+            >
+              <h4 className="text-base font-semibold text-ink">
+                Latest validated learning summary
+              </h4>
+              <div className="mt-3 grid gap-5 lg:grid-cols-3">
+                <div>
+                  <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                    What changed
+                  </h5>
+                  <p className="mt-1 text-sm leading-6 text-ink">
+                    {latestTransition?.evidence_interpretation ||
+                      latestTransition?.learning_observations[0] ||
+                      "No validated learning change yet. Evidence collection continues."}
+                  </p>
+                </div>
+                <div>
+                  <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                    Remaining concern
+                  </h5>
+                  {remainingConcerns.length > 0 ? (
+                    <ul className="mt-1 list-disc space-y-1 pl-5 text-sm leading-6 text-ink">
+                      {remainingConcerns.map((concern, index) => (
+                        <li key={`${conversation.conversation_public_id}-concern-${index}`}>
+                          {concern}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-1 text-sm leading-6 text-ink">
+                      {latestTransition
+                        ? "No remaining misconception evidence is recorded in the latest validated profile."
+                        : "No validated learning change yet. Evidence collection continues."}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                    Suggested teacher attention
+                  </h5>
+                  <p className="mt-1 text-sm leading-6 text-ink">
+                    {conversation.learning_outcome ===
+                    "teacher_assistance_recommended"
+                      ? "The latest validated profile transition recommends further teacher support."
+                      : latestTransition
+                        ? "No teacher-assistance recommendation is recorded in the latest validated transition."
+                        : "No validated teacher-attention recommendation yet."}
+                  </p>
+                </div>
               </div>
             </section>
 

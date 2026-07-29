@@ -191,6 +191,14 @@ export const StudentFormativeConversationSchema = z.object({
   can_resume: z.boolean(),
   can_end: z.boolean(),
   message_max_chars: z.number().int().positive(),
+  assistant_response: z
+    .object({
+      receipt_public_id: z.string(),
+      status: z.enum(["pending", "completed", "failed", "retrying"]),
+      retry_count: z.number().int().nonnegative(),
+      can_retry: z.boolean()
+    })
+    .nullable(),
   transcript: z.array(
     z.object({
       turn_id: z.string(),
@@ -201,7 +209,12 @@ export const StudentFormativeConversationSchema = z.object({
       agent_name: z.string().nullable(),
       generation_source: z.string().nullable(),
       validator_status: z.string().nullable(),
-      fallback_used: z.boolean()
+      fallback_used: z.boolean(),
+      response_receipt_public_id: z.string().nullable(),
+      assistant_response_status: z
+        .enum(["pending", "completed", "failed", "retrying"])
+        .nullable(),
+      assistant_response_retry_count: z.number().int().nonnegative()
     })
   )
 });

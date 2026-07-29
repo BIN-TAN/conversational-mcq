@@ -193,6 +193,12 @@ lifecycle, and validated learning-profile transitions. The approved
 live-call boundary. Historical `topic_dialogue_agent` records and routes remain
 available for legacy sessions, but they do not own the new conversation.
 
+Tutor generation reliability is tracked per persisted student message. A
+student turn remains append-only while its assistant response moves through
+`pending`, `retrying`, `failed`, or `completed`. Failed generation is shown as
+an incomplete exchange with an idempotent retry action; it is retained for
+teacher/research audit and never replaced by deterministic instructional text.
+
 Learning-profile evolution in this phase is append-only. The conversation agent
 authors learning observations, evidence interpretation, and any recommended
 outcome (`sound`, `largely_improved`, or

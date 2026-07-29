@@ -54,6 +54,27 @@ function openingAttemptFromReceipt(receipt: {
     : 1;
 }
 
+function assistantResponsePayload(input: {
+  existing: Prisma.JsonValue | null;
+  status: "pending" | "completed" | "failed" | "retrying";
+  retry_count: number;
+  failure_category?: string | null;
+  failed_at?: Date | null;
+}) {
+  return {
+    ...jsonRecord(input.existing),
+    assistant_response: {
+      status: input.status,
+      agent_name: "formative_conversation_agent",
+      retry_count: input.retry_count,
+      failure_category: input.failure_category ?? null,
+      failed_at: input.failed_at?.toISOString() ?? null,
+      lifecycle_version:
+        "formative-conversation-assistant-response-lifecycle-v1"
+    }
+  };
+}
+
 function isStudentVisiblePayload(value: Prisma.JsonValue | null) {
   return (
     value !== null &&
@@ -321,6 +342,7 @@ export async function reserveAndPersistFormativeConversationStudentMessage(input
           client_message_id: input.client_message_id,
           request_hash: requestHash,
           status: "student_turn_persisted",
+          assistant_response_status: "pending",
           student_turn_db_id: studentTurn.id
         },
         include: { student_turn: true, assistant_turn: true }
@@ -401,7 +423,15 @@ export async function reserveFormativeConversationOpening(
               where: { id: existing.id },
               data: {
                 status: "reserved",
+                assistant_response_status: "retrying",
+                assistant_response_retry_count: { increment: 1 },
                 response_payload: {
+                  ...assistantResponsePayload({
+                    existing: existing.response_payload,
+                    status: "retrying",
+                    retry_count:
+                      existing.assistant_response_retry_count + 1
+                  }),
                   opening_attempt: openingAttempt,
                   retry_started: true
                 },
@@ -430,8 +460,18 @@ export async function reserveFormativeConversationOpening(
             FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
           request_hash: requestHash,
           status: "reserved",
+          assistant_response_status: "pending",
           response_payload: {
-            opening_attempt: 1
+            opening_attempt: 1,
+            assistant_response: {
+              status: "pending",
+              agent_name: "formative_conversation_agent",
+              retry_count: 0,
+              failure_category: null,
+              failed_at: null,
+              lifecycle_version:
+                "formative-conversation-assistant-response-lifecycle-v1"
+            }
           }
         },
         include: { student_turn: true, assistant_turn: true }
@@ -483,7 +523,17 @@ export async function recordFormativeConversationOpeningFailure(input: {
       data: {
         status: "failed",
         failure_code: input.failure_code,
+        assistant_response_status: "failed",
+        assistant_response_last_failure_category: input.failure_code,
+        assistant_response_last_failed_at: new Date(),
         response_payload: {
+          ...assistantResponsePayload({
+            existing: receipt.response_payload,
+            status: "failed",
+            retry_count: receipt.assistant_response_retry_count,
+            failure_category: input.failure_code,
+            failed_at: new Date()
+          }),
           opening_attempt: openingAttemptFromReceipt(receipt),
           retryable: input.retryable,
           failure_record_version:
@@ -495,6 +545,191 @@ export async function recordFormativeConversationOpeningFailure(input: {
     });
     return { receipt: updated, replayed: false };
   });
+}
+
+export async function prepareFormativeConversationAssistantResponseAttempt(input: {
+  conversation_public_id: string;
+  client_message_id: string;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const session = await getConversationPhase(
+      tx,
+      input.conversation_public_id
+    );
+    const receipt =
+      await tx.formativeConversationMessageReceipt.findUniqueOrThrow({
+        where: {
+          formative_conversation_session_db_id_client_message_id: {
+            formative_conversation_session_db_id: session.session_id,
+            client_message_id: input.client_message_id
+          }
+        },
+        include: {
+          student_turn: true,
+          assistant_turn: true
+        }
+      });
+
+    if (receipt.assistant_turn) {
+      return {
+        receipt,
+        attempt_index: receipt.assistant_response_retry_count + 1,
+        response_completed: true
+      };
+    }
+
+    if (receipt.assistant_response_status === "failed") {
+      const shouldReuseCompletedCall =
+        receipt.assistant_response_last_failure_category ===
+        "assistant_response_persistence_failure";
+      const nextRetryCount =
+        receipt.assistant_response_retry_count +
+        (shouldReuseCompletedCall ? 0 : 1);
+      const claimed =
+        await tx.formativeConversationMessageReceipt.updateMany({
+          where: {
+            id: receipt.id,
+            assistant_turn_db_id: null,
+            assistant_response_status: "failed"
+          },
+          data: {
+            status: "student_turn_persisted",
+            assistant_response_status: "retrying",
+            assistant_response_retry_count: shouldReuseCompletedCall
+              ? receipt.assistant_response_retry_count
+              : { increment: 1 },
+            failure_code: null,
+            completed_at: null,
+            response_payload: assistantResponsePayload({
+              existing: receipt.response_payload,
+              status: "retrying",
+              retry_count: nextRetryCount
+            })
+          }
+        });
+      if (claimed.count === 1) {
+        const claimedReceipt =
+          await tx.formativeConversationMessageReceipt.findUniqueOrThrow({
+            where: { id: receipt.id },
+            include: {
+              student_turn: true,
+              assistant_turn: true
+            }
+          });
+        return {
+          receipt: claimedReceipt,
+          attempt_index:
+            claimedReceipt.assistant_response_retry_count + 1,
+          response_completed: false
+        };
+      }
+    }
+
+    const current =
+      await tx.formativeConversationMessageReceipt.findUniqueOrThrow({
+        where: { id: receipt.id },
+        include: {
+          student_turn: true,
+          assistant_turn: true
+        }
+      });
+    return {
+      receipt: current,
+      attempt_index: current.assistant_response_retry_count + 1,
+      response_completed: Boolean(current.assistant_turn)
+    };
+  });
+}
+
+export async function recordFormativeConversationAssistantResponseFailure(input: {
+  conversation_public_id: string;
+  client_message_id: string;
+  failure_category: string;
+  failed_at: Date;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const session = await getConversationPhase(
+      tx,
+      input.conversation_public_id
+    );
+    const receipt =
+      await tx.formativeConversationMessageReceipt.findUniqueOrThrow({
+        where: {
+          formative_conversation_session_db_id_client_message_id: {
+            formative_conversation_session_db_id: session.session_id,
+            client_message_id: input.client_message_id
+          }
+        },
+        include: {
+          student_turn: true,
+          assistant_turn: true
+        }
+      });
+    if (receipt.assistant_turn) {
+      return { receipt, replayed: true };
+    }
+
+    const updated =
+      await tx.formativeConversationMessageReceipt.update({
+        where: { id: receipt.id },
+        data: {
+          status: "failed",
+          failure_code: input.failure_category,
+          assistant_response_status: "failed",
+          assistant_response_last_failure_category:
+            input.failure_category,
+          assistant_response_last_failed_at: input.failed_at,
+          response_payload: assistantResponsePayload({
+            existing: receipt.response_payload,
+            status: "failed",
+            retry_count: receipt.assistant_response_retry_count,
+            failure_category: input.failure_category,
+            failed_at: input.failed_at
+          }),
+          completed_at: input.failed_at
+        },
+        include: {
+          student_turn: true,
+          assistant_turn: true
+        }
+      });
+    return { receipt: updated, replayed: false };
+  });
+}
+
+export async function getFormativeConversationStudentMessageForRetry(input: {
+  conversation_public_id: string;
+  receipt_public_id: string;
+}) {
+  const receipt =
+    await prisma.formativeConversationMessageReceipt.findFirst({
+      where: {
+        receipt_public_id: input.receipt_public_id,
+        formative_conversation_session: {
+          conversation_public_id: input.conversation_public_id
+        }
+      },
+      include: {
+        student_turn: true,
+        assistant_turn: true
+      }
+    });
+  if (
+    !receipt ||
+    receipt.client_message_id ===
+      FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID ||
+    !receipt.student_turn?.message_text
+  ) {
+    throw new FormativeConversationFoundationError(
+      "conversation_not_found",
+      "The formative conversation response was not found."
+    );
+  }
+  return {
+    receipt,
+    client_message_id: receipt.client_message_id,
+    message_text: receipt.student_turn.message_text
+  };
 }
 
 export async function persistFormativeConversationAssistantMessage(input: {
@@ -556,9 +791,15 @@ export async function persistFormativeConversationAssistantMessage(input: {
       where: { id: receipt.id },
       data: {
         status: "assistant_turn_persisted",
+        assistant_response_status: "completed",
         assistant_turn_db_id: assistantTurn.id,
         failure_code: null,
         response_payload: {
+          ...assistantResponsePayload({
+            existing: receipt.response_payload,
+            status: "completed",
+            retry_count: receipt.assistant_response_retry_count
+          }),
           agent_name: "formative_conversation_agent",
           agent_call_db_id: input.agent_call_db_id ?? null,
           generation_source: input.generation_source,

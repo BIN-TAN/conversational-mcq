@@ -72,6 +72,7 @@ async function main() {
       FORMATIVE_CONVERSATION_CANONICAL_PROFILE_VERSION,
       FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
       FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION,
+      FormativeConversationResponseGenerationError,
       FormativeConversationUnavailableError,
       FormativeConversationProfileEvidenceSchema,
       canonicalFormativeConversationProfileFromStudentProfile,
@@ -1331,15 +1332,54 @@ async function main() {
       "formative-conversation-input",
       "send-formative-conversation-message",
       "formative-conversation-opening-retry",
+      "formative-conversation-response-retry",
       "handleRetryFormativeConversationOpening",
+      "handleRetryFormativeConversationResponse",
       "handleSendFormativeConversationMessage",
-      "handleFormativeConversationLifecycle"
+      "handleFormativeConversationLifecycle",
+      "student-safe-error-message",
+      "end-conversation-dialog",
+      "confirm-end-conversation"
     ]) {
       assert(
         studentUiSource.includes(marker),
         `Student formative conversation UI is missing ${marker}.`
       );
     }
+    assert.equal(
+      studentUiSource.includes("{error.code}"),
+      false,
+      "Student-visible errors must not render internal API error codes."
+    );
+    assert(
+      studentUiSource.includes("This does not") &&
+        studentUiSource.includes("end the assessment attempt."),
+      "Ending a learning conversation must remain visibly distinct from ending the assessment attempt."
+    );
+    const formativeMessageRouteSource = readFileSync(
+      "src/app/api/student/sessions/[sessionPublicId]/formative-conversation/messages/route.ts",
+      "utf8"
+    );
+    const formativeRetryRouteSource = readFileSync(
+      "src/app/api/student/sessions/[sessionPublicId]/formative-conversation/messages/retry/route.ts",
+      "utf8"
+    );
+    assert(
+      formativeMessageRouteSource.includes(
+        "FormativeConversationResponseGenerationError"
+      ) &&
+        formativeMessageRouteSource.includes(
+          "runner_factory: createLiveFormativeConversationAgentRunner"
+        ),
+      "A terminal tutor-generation failure must return the persisted conversation state instead of a generic conflict."
+    );
+    assert(
+      formativeRetryRouteSource.includes("requireStudent()") &&
+        formativeRetryRouteSource.includes(
+          "getFormativeConversationStudentMessageForRetry"
+        ),
+      "Tutor-response retry must remain authenticated and reuse the persisted student message."
+    );
 
     const { updateStudentFormativeConversationLifecycle } = await import(
       "../src/lib/services/student-assessment/formative-conversation/projection"
@@ -1506,6 +1546,10 @@ async function main() {
       "Initial learning profile",
       "Student reasoning",
       "Formative conversation trajectory",
+      "Latest validated learning summary",
+      "What changed",
+      "Remaining concern",
+      "Suggested teacher attention",
       "Profile evolution",
       "Largely improved",
       "Sound",
@@ -1532,6 +1576,27 @@ async function main() {
         `Teacher trajectory rendering must not include ${prohibitedTeacherText}.`
       );
     }
+    assert.equal(
+      teacherTrajectoryMarkup.includes("Conversation ID:"),
+      false,
+      "Routine teacher review should not foreground a technical conversation identifier."
+    );
+    const noTransitionTeacherTrajectoryMarkup = renderToStaticMarkup(
+      React.createElement(FormativeConversationEvidenceSection, {
+        conversations: noTransitionTeacherDetail.formative_conversations,
+        itemResponses: teacherItemResponses,
+        sessionPublicId: fixture.session.session_public_id
+      })
+    );
+    assert(
+      noTransitionTeacherTrajectoryMarkup.includes(
+        "No validated learning change yet. Evidence collection continues."
+      ) &&
+        noTransitionTeacherTrajectoryMarkup.includes(
+          "No validated teacher-attention recommendation yet."
+        ),
+      "Teacher summary must report the absence of a persisted transition without inferring an outcome."
+    );
     const teacherReviewUiSource = readFileSync(
       "src/components/teacher-review/session-detail-client.tsx",
       "utf8"
@@ -1561,6 +1626,235 @@ async function main() {
         `Teacher review must not display legacy activity completion UI: ${legacyActivityReviewLabel}.`
       );
     }
+
+    const failedMessageId = `${prefix}_message_failed_generation`;
+    const failedMessage =
+      "Can you explain how the distinction applies here?";
+    let failedRunnerCallCount = 0;
+    const failedRunner: FormativeConversationAgentRunner = {
+      identity: runner.identity,
+      async execute() {
+        failedRunnerCallCount += 1;
+        throw new Error(
+          "provider payload and sensitive transport detail must not persist"
+        );
+      }
+    };
+    await assert.rejects(
+      processFormativeConversationStudentMessage(
+        {
+          conversation_public_id:
+            conversation.conversation_public_id,
+          client_message_id: failedMessageId,
+          message_text: failedMessage,
+          context
+        },
+        { runner: failedRunner }
+      ),
+      (error) =>
+        error instanceof
+          FormativeConversationResponseGenerationError &&
+        error.response_status === "failed" &&
+        error.retryable
+    );
+    assert.equal(failedRunnerCallCount, 1);
+    const failedReceipt =
+      await prisma.formativeConversationMessageReceipt.findFirstOrThrow({
+        where: {
+          formative_conversation_session_db_id: conversation.id,
+          client_message_id: failedMessageId
+        },
+        include: {
+          student_turn: true,
+          assistant_turn: true,
+          agent_calls: true
+        }
+      });
+    assert(failedReceipt.student_turn);
+    assert.equal(failedReceipt.assistant_turn, null);
+    assert.equal(failedReceipt.assistant_response_status, "failed");
+    assert.equal(failedReceipt.assistant_response_retry_count, 0);
+    assert.equal(
+      failedReceipt.assistant_response_last_failure_category,
+      "agent_execution_failure"
+    );
+    assert(failedReceipt.assistant_response_last_failed_at);
+    assert.equal(failedReceipt.agent_calls.length, 1);
+    assert.equal(failedReceipt.agent_calls[0].call_status, "failed");
+    assert.equal(
+      JSON.stringify(failedReceipt).includes(
+        "provider payload and sensitive transport detail"
+      ),
+      false,
+      "Response lifecycle state must not retain raw provider errors."
+    );
+    const failedEvent =
+      await prisma.formativeConversationLifecycleEvent.findFirstOrThrow({
+        where: {
+          formative_conversation_session_db_id: conversation.id,
+          event_type: "agent_call_failed",
+          agent_call_db_id: failedReceipt.agent_calls[0].id
+        }
+      });
+    assert.equal(
+      failedEvent.failure_category,
+      "agent_execution_failure"
+    );
+    assert.equal(
+      failedEvent.agent_name,
+      FORMATIVE_CONVERSATION_AGENT_NAME
+    );
+    assert.equal(failedEvent.retry_count, 0);
+    const failedProjection =
+      await getStudentFormativeConversationProjection({
+        student_user_db_id: fixture.student.id,
+        session_public_id: fixture.session.session_public_id
+      });
+    assert(failedProjection);
+    assert.equal(failedProjection.can_send, false);
+    assert.equal(failedProjection.assistant_response?.status, "failed");
+    assert.equal(failedProjection.assistant_response?.can_retry, true);
+    assert(
+      failedProjection.transcript.some(
+        (turn) =>
+          turn.message_text === failedMessage &&
+          turn.assistant_response_status === "failed"
+      ),
+      "An orphan student turn must project as failed rather than as a completed exchange."
+    );
+    const failedTeacherDetail = await getTeacherReviewSessionDetail(
+      fixture.session.session_public_id
+    );
+    const failedTeacherMarkup = renderToStaticMarkup(
+      React.createElement(FormativeConversationEvidenceSection, {
+        conversations:
+          failedTeacherDetail.formative_conversations,
+        itemResponses: teacherItemResponses,
+        sessionPublicId: fixture.session.session_public_id
+      })
+    );
+    assert(
+      failedTeacherMarkup.includes("Tutor response incomplete"),
+      "Teacher review must identify a preserved student turn without a completed tutor response."
+    );
+
+    let recoveryRunnerCallCount = 0;
+    const recoveryRunner: FormativeConversationAgentRunner = {
+      identity: runner.identity,
+      async execute() {
+        recoveryRunnerCallCount += 1;
+        const startedAt = new Date();
+        const completedAt = new Date(startedAt.getTime() + 30);
+        return {
+          output: {
+            contract_version:
+              FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
+            student_visible_message:
+              "Yes. Consistency asks whether scores hold together; validity asks whether the evidence supports how the scores will be interpreted and used.",
+            teaching_artifact: null,
+            evidence_observations: [],
+            profile_transition_recommendation: null,
+            teacher_assistance_recommendation: {
+              recommended: false,
+              reason_code: null
+            },
+            lifecycle_recommendation: "continue" as const
+          },
+          raw_output: {
+            fixture: "deterministic_response_recovery"
+          },
+          generation_source: "deterministic_test",
+          provider_request_id: "mock-request-runtime-recovery",
+          provider_response_id: "mock-response-runtime-recovery",
+          client_request_id: "mock-client-runtime-recovery",
+          retry_count: 0,
+          latency_ms: 30,
+          input_tokens: 80,
+          output_tokens: 25,
+          total_tokens: 105,
+          estimated_cost: 0,
+          started_at: startedAt,
+          completed_at: completedAt
+        };
+      }
+    };
+    const recovered = await processFormativeConversationStudentMessage(
+      {
+        conversation_public_id:
+          conversation.conversation_public_id,
+        client_message_id: failedMessageId,
+        message_text: failedMessage,
+        context
+      },
+      { runner: recoveryRunner }
+    );
+    assert.equal(recoveryRunnerCallCount, 1);
+    assert.equal(recovered.replayed, false);
+    assert(recovered.agent_call);
+    assert.equal(
+      recovered.agent_call.agent_invocation_key,
+      formativeConversationInvocationKey(
+        conversation.conversation_public_id,
+        failedMessageId,
+        2
+      )
+    );
+    const recoveredReceipt =
+      await prisma.formativeConversationMessageReceipt.findUniqueOrThrow({
+        where: { id: failedReceipt.id },
+        include: {
+          assistant_turn: true,
+          agent_calls: {
+            orderBy: { created_at: "asc" }
+          }
+        }
+      });
+    assert.equal(
+      recoveredReceipt.assistant_response_status,
+      "completed"
+    );
+    assert.equal(recoveredReceipt.assistant_response_retry_count, 1);
+    assert(recoveredReceipt.assistant_turn);
+    assert.equal(recoveredReceipt.agent_calls.length, 2);
+    assert.deepEqual(
+      recoveredReceipt.agent_calls.map((call) => call.call_status),
+      ["failed", "succeeded"]
+    );
+    const recoveredReplay =
+      await processFormativeConversationStudentMessage(
+        {
+          conversation_public_id:
+            conversation.conversation_public_id,
+          client_message_id: failedMessageId,
+          message_text: failedMessage,
+          context
+        },
+        { runner: recoveryRunner }
+      );
+    assert.equal(recoveredReplay.replayed, true);
+    assert.equal(
+      recoveryRunnerCallCount,
+      1,
+      "A completed retry must replay without another provider attempt."
+    );
+    assert.equal(
+      await prisma.conversationTurn.count({
+        where: {
+          formative_conversation_session_db_id: conversation.id,
+          id: recoveredReceipt.assistant_turn?.id
+        }
+      }),
+      1,
+      "Retry recovery must persist exactly one tutor turn."
+    );
+    const recoveredProjection =
+      await getStudentFormativeConversationProjection({
+        student_user_db_id: fixture.student.id,
+        session_public_id: fixture.session.session_public_id
+      });
+    assert(recoveredProjection);
+    assert.equal(recoveredProjection.assistant_response, null);
+    assert.equal(recoveredProjection.can_send, true);
 
     const assessmentLifecycleBeforeConversationEnd =
       await prisma.assessmentSession.findUniqueOrThrow({
@@ -1679,6 +1973,12 @@ async function main() {
       for (const requiredVariable of [
         "agent_call_public_id",
         "source_agent_call_public_id",
+        "response_receipt_public_id",
+        "assistant_response_status",
+        "assistant_response_retry_count",
+        "assistant_response_failure_category",
+        "assistant_response_failed_at",
+        "failure_category",
         "conversation_local_turn_sequence_index",
         "conversation_local_event_sequence_index",
         "message_length_chars",
@@ -1913,6 +2213,59 @@ async function main() {
         ),
         "Every profile transition must join to its formative LLM call through the same public key."
       );
+      const recoveredStudentRow = formativeTurnRows.find(
+        (row) =>
+          row.actor_type === "student" &&
+          row.message_text === failedMessage
+      );
+      assert(recoveredStudentRow);
+      assert.equal(
+        recoveredStudentRow.response_receipt_public_id,
+        failedReceipt.receipt_public_id
+      );
+      assert.equal(
+        recoveredStudentRow.assistant_response_status,
+        "completed"
+      );
+      assert.equal(
+        recoveredStudentRow.assistant_response_retry_count,
+        "1"
+      );
+      assert.equal(
+        recoveredStudentRow.assistant_response_failure_category,
+        "agent_execution_failure"
+      );
+      const failedLlmRow = formativeLlmRows.find(
+        (row) =>
+          row.agent_call_public_id ===
+          failedReceipt.agent_calls[0].agent_call_public_id
+      );
+      assert(failedLlmRow);
+      assert.equal(failedLlmRow.call_status, "failed");
+      assert.equal(
+        failedLlmRow.response_receipt_public_id,
+        failedReceipt.receipt_public_id
+      );
+      const failedEventRow = formativeEventRows.find(
+        (row) =>
+          row.event_type === "agent_call_failed" &&
+          row.agent_call_public_id ===
+            failedReceipt.agent_calls[0].agent_call_public_id
+      );
+      assert(failedEventRow);
+      assert.equal(
+        failedEventRow.failure_category,
+        "agent_execution_failure"
+      );
+      assert.equal(
+        formativeTurnRows.filter(
+          (row) => row.actor_type === "agent"
+        ).length,
+        formativeLlmRows.filter(
+          (row) => row.call_status === "succeeded"
+        ).length,
+        "Failed generations must remain in the call/event audit without being counted as completed tutor turns."
+      );
       assert.equal(
         Object.hasOwn(
           transitionRows[0],
@@ -2007,6 +2360,12 @@ async function main() {
             "agent_call_binding",
             "validated_agent_result_resume",
             "idempotent_duplicate_message",
+            "failed_agent_call_response_lifecycle",
+            "idempotent_failed_response_retry",
+            "no_orphan_completed_exchange",
+            "safe_terminal_failure_telemetry",
+            "teacher_incomplete_generation_rendering",
+            "failed_generation_export_integrity",
             "append_only_agent_owned_profile_evolution",
             "complete_canonical_profile_field_updates",
             "stale_misconception_removal",

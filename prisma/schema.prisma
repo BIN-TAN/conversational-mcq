@@ -137,6 +137,13 @@ enum FormativeConversationReceiptStatus {
   failed
 }
 
+enum FormativeConversationAssistantResponseStatus {
+  pending
+  completed
+  failed
+  retrying
+}
+
 enum FormativeConversationInterventionStatus {
   active
   completed
@@ -155,6 +162,8 @@ enum FormativeConversationLifecycleEventType {
   student_message_persisted
   agent_call_started
   agent_call_completed
+  agent_call_failed
+  assistant_response_failed
   tutor_message_persisted
   page_visible
   page_hidden
@@ -455,30 +464,30 @@ enum EvalRunStatus {
 }
 
 model User {
-  id                    String            @id @default(uuid()) @db.Uuid
-  user_id               String            @unique
-  user_id_normalized    String            @unique
-  display_name          String?
-  email                 String?
-  email_normalized      String?
-  email_verified_at     DateTime?         @db.Timestamptz(6)
-  pending_email         String?
-  pending_email_normalized String?
-  email_change_requested_at DateTime?     @db.Timestamptz(6)
-  role                  UserRole
-  password_hash         String?
-  access_code_hash      String?
-  account_status        UserAccountStatus @default(active)
-  auth_version          Int               @default(1)
-  must_change_password  Boolean           @default(false)
-  deactivated_at        DateTime?         @db.Timestamptz(6)
-  credential_updated_at DateTime?         @db.Timestamptz(6)
-  credential_reset_at   DateTime?         @db.Timestamptz(6)
-  password_changed_at   DateTime?         @db.Timestamptz(6)
-  last_login_at         DateTime?         @db.Timestamptz(6)
-  created_by_teacher_user_id String?      @db.Uuid
-  created_at            DateTime          @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime          @updatedAt @db.Timestamptz(6)
+  id                         String            @id @default(uuid()) @db.Uuid
+  user_id                    String            @unique
+  user_id_normalized         String            @unique
+  display_name               String?
+  email                      String?
+  email_normalized           String?
+  email_verified_at          DateTime?         @db.Timestamptz(6)
+  pending_email              String?
+  pending_email_normalized   String?
+  email_change_requested_at  DateTime?         @db.Timestamptz(6)
+  role                       UserRole
+  password_hash              String?
+  access_code_hash           String?
+  account_status             UserAccountStatus @default(active)
+  auth_version               Int               @default(1)
+  must_change_password       Boolean           @default(false)
+  deactivated_at             DateTime?         @db.Timestamptz(6)
+  credential_updated_at      DateTime?         @db.Timestamptz(6)
+  credential_reset_at        DateTime?         @db.Timestamptz(6)
+  password_changed_at        DateTime?         @db.Timestamptz(6)
+  last_login_at              DateTime?         @db.Timestamptz(6)
+  created_by_teacher_user_id String?           @db.Uuid
+  created_at                 DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime          @updatedAt @db.Timestamptz(6)
 
   created_assessments                       Assessment[]                  @relation("AssessmentCreator")
   assessment_sessions                       AssessmentSession[]
@@ -550,14 +559,14 @@ model AccountSecurityRateLimit {
 }
 
 model AccountSecurityEvent {
-  id                    String   @id @default(uuid()) @db.Uuid
-  event_public_id       String   @unique @default(cuid())
-  user_db_id            String?  @db.Uuid
-  performed_by_user_db_id String? @db.Uuid
-  event_type            String
-  status                String
-  metadata_json         Json?
-  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  id                      String   @id @default(uuid()) @db.Uuid
+  event_public_id         String   @unique @default(cuid())
+  user_db_id              String?  @db.Uuid
+  performed_by_user_db_id String?  @db.Uuid
+  event_type              String
+  status                  String
+  metadata_json           Json?
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
 
   user         User? @relation("AccountSecurityEvents", fields: [user_db_id], references: [id], onDelete: SetNull)
   performed_by User? @relation("AccountSecurityEventPerformer", fields: [performed_by_user_db_id], references: [id], onDelete: SetNull)
@@ -585,9 +594,9 @@ model Assessment {
   created_at               DateTime               @default(now()) @db.Timestamptz(6)
   updated_at               DateTime               @updatedAt @db.Timestamptz(6)
 
-  created_by          User                @relation("AssessmentCreator", fields: [created_by_user_db_id], references: [id], onDelete: Restrict)
-  concept_units       ConceptUnit[]
-  assessment_sessions AssessmentSession[]
+  created_by              User                 @relation("AssessmentCreator", fields: [created_by_user_db_id], references: [id], onDelete: Restrict)
+  concept_units           ConceptUnit[]
+  assessment_sessions     AssessmentSession[]
   mcq_item_import_batches McqItemImportBatch[]
 
   @@index([created_by_user_db_id])
@@ -717,9 +726,9 @@ model AssessmentSession {
   created_at                        DateTime               @default(now()) @db.Timestamptz(6)
   updated_at                        DateTime               @updatedAt @db.Timestamptz(6)
 
-  user                            User                          @relation(fields: [user_db_id], references: [id], onDelete: Restrict)
-  assessment                      Assessment                    @relation(fields: [assessment_db_id], references: [id], onDelete: Restrict)
-  current_concept_unit            ConceptUnit?                  @relation("CurrentConceptUnit", fields: [current_concept_unit_db_id], references: [id], onDelete: SetNull)
+  user                            User                           @relation(fields: [user_db_id], references: [id], onDelete: Restrict)
+  assessment                      Assessment                     @relation(fields: [assessment_db_id], references: [id], onDelete: Restrict)
+  current_concept_unit            ConceptUnit?                   @relation("CurrentConceptUnit", fields: [current_concept_unit_db_id], references: [id], onDelete: SetNull)
   concept_unit_sessions           ConceptUnitSession[]
   conversation_turns              ConversationTurn[]
   process_events                  ProcessEvent[]
@@ -743,31 +752,31 @@ model AssessmentSession {
 }
 
 model AssessmentLifecycleOperation {
-  id                            String   @id @default(uuid()) @db.Uuid
-  operation_public_id           String   @unique
-  command_type                  String
-  actor_type                    String
-  target_assessment_public_id   String?
-  target_session_public_id      String?
-  request_id                    String?
-  requested_at                  DateTime @default(now()) @db.Timestamptz(6)
-  prior_canonical_status        String?
-  prior_lifecycle_version       String?
-  mutation_committed            Boolean  @default(false)
-  resulting_session_public_id   String?
-  resulting_attempt_number      Int?
-  resulting_canonical_status    String?
-  already_satisfied             Boolean  @default(false)
-  recovered                     Boolean  @default(false)
-  safe_failure_stage            String?
-  safe_failure_code             String?
-  http_status                   Int?
-  safe_response_code            String?
-  response_payload              Json?
-  completed_at                  DateTime? @db.Timestamptz(6)
-  created_at                    DateTime @default(now()) @db.Timestamptz(6)
-  updated_at                    DateTime @updatedAt @db.Timestamptz(6)
-  assessment_session_db_id      String?  @db.Uuid
+  id                          String    @id @default(uuid()) @db.Uuid
+  operation_public_id         String    @unique
+  command_type                String
+  actor_type                  String
+  target_assessment_public_id String?
+  target_session_public_id    String?
+  request_id                  String?
+  requested_at                DateTime  @default(now()) @db.Timestamptz(6)
+  prior_canonical_status      String?
+  prior_lifecycle_version     String?
+  mutation_committed          Boolean   @default(false)
+  resulting_session_public_id String?
+  resulting_attempt_number    Int?
+  resulting_canonical_status  String?
+  already_satisfied           Boolean   @default(false)
+  recovered                   Boolean   @default(false)
+  safe_failure_stage          String?
+  safe_failure_code           String?
+  http_status                 Int?
+  safe_response_code          String?
+  response_payload            Json?
+  completed_at                DateTime? @db.Timestamptz(6)
+  created_at                  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime  @updatedAt @db.Timestamptz(6)
+  assessment_session_db_id    String?   @db.Uuid
 
   assessment_session AssessmentSession? @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
 
@@ -794,22 +803,22 @@ model ConceptUnitSession {
   created_at                      DateTime                 @default(now()) @db.Timestamptz(6)
   updated_at                      DateTime                 @updatedAt @db.Timestamptz(6)
 
-  assessment_session          AssessmentSession          @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
-  concept_unit                ConceptUnit                @relation(fields: [concept_unit_db_id], references: [id], onDelete: Restrict)
-  latest_student_profile      StudentProfile?            @relation("LatestStudentProfile", fields: [latest_student_profile_db_id], references: [id], onDelete: SetNull)
-  latest_formative_decision   FormativeDecision?         @relation("LatestFormativeDecision", fields: [latest_formative_decision_db_id], references: [id], onDelete: SetNull)
-  item_responses              ItemResponse[]
-  conversation_turns          ConversationTurn[]
-  process_events              ProcessEvent[]
-  agent_calls                 AgentCall[]
-  response_packages           ResponsePackage[]
-  student_profiles            StudentProfile[]           @relation("ConceptUnitSessionProfiles")
-  formative_decisions         FormativeDecision[]        @relation("ConceptUnitSessionFormativeDecisions")
-  followup_rounds             FollowupRound[]
-  workflow_jobs               WorkflowJob[]
-  workflow_overrides          WorkflowOverride[]
-  followup_update_cycles      FollowupUpdateCycle[]
-  concept_progression_records ConceptProgressionRecord[]
+  assessment_session             AssessmentSession             @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit                   ConceptUnit                   @relation(fields: [concept_unit_db_id], references: [id], onDelete: Restrict)
+  latest_student_profile         StudentProfile?               @relation("LatestStudentProfile", fields: [latest_student_profile_db_id], references: [id], onDelete: SetNull)
+  latest_formative_decision      FormativeDecision?            @relation("LatestFormativeDecision", fields: [latest_formative_decision_db_id], references: [id], onDelete: SetNull)
+  item_responses                 ItemResponse[]
+  conversation_turns             ConversationTurn[]
+  process_events                 ProcessEvent[]
+  agent_calls                    AgentCall[]
+  response_packages              ResponsePackage[]
+  student_profiles               StudentProfile[]              @relation("ConceptUnitSessionProfiles")
+  formative_decisions            FormativeDecision[]           @relation("ConceptUnitSessionFormativeDecisions")
+  followup_rounds                FollowupRound[]
+  workflow_jobs                  WorkflowJob[]
+  workflow_overrides             WorkflowOverride[]
+  followup_update_cycles         FollowupUpdateCycle[]
+  concept_progression_records    ConceptProgressionRecord[]
   formative_conversation_session FormativeConversationSession?
 
   @@unique([assessment_session_db_id, concept_unit_db_id])
@@ -876,37 +885,37 @@ model StudentActionIdempotencyKey {
 }
 
 model ConversationTurn {
-  id                         String          @id @default(uuid()) @db.Uuid
-  sequence_index             Int             @unique @default(autoincrement())
-  assessment_session_db_id   String          @db.Uuid
-  concept_unit_session_db_id String?         @db.Uuid
-  item_db_id                 String?         @db.Uuid
-  followup_round_db_id       String?         @db.Uuid
-  formative_conversation_session_db_id String? @db.Uuid
-  phase                      AssessmentPhase
-  actor_type                 ActorType
-  agent_name                 String?
-  message_text               String?         @db.Text
-  structured_payload         Json?
-  created_at                 DateTime        @default(now()) @db.Timestamptz(6)
+  id                                   String          @id @default(uuid()) @db.Uuid
+  sequence_index                       Int             @unique @default(autoincrement())
+  assessment_session_db_id             String          @db.Uuid
+  concept_unit_session_db_id           String?         @db.Uuid
+  item_db_id                           String?         @db.Uuid
+  followup_round_db_id                 String?         @db.Uuid
+  formative_conversation_session_db_id String?         @db.Uuid
+  phase                                AssessmentPhase
+  actor_type                           ActorType
+  agent_name                           String?
+  message_text                         String?         @db.Text
+  structured_payload                   Json?
+  created_at                           DateTime        @default(now()) @db.Timestamptz(6)
 
-  assessment_session                         AssessmentSession     @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
-  concept_unit_session                       ConceptUnitSession?   @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
-  item                                       Item?                 @relation(fields: [item_db_id], references: [id], onDelete: Restrict)
-  followup_round                             FollowupRound?        @relation(fields: [followup_round_db_id], references: [id], onDelete: Restrict)
-  formative_conversation_session             FormativeConversationSession? @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: SetNull)
-  formative_conversation_receipts_as_student FormativeConversationMessageReceipt[] @relation("FormativeConversationReceiptStudentTurn")
-  formative_conversation_receipts_as_assistant FormativeConversationMessageReceipt[] @relation("FormativeConversationReceiptAssistantTurn")
-  formative_conversation_memory_snapshots    FormativeConversationMemorySnapshot[] @relation("FormativeConversationMemoryCutoffTurn")
-  formative_conversation_interventions_started FormativeConversationIntervention[] @relation("FormativeConversationInterventionStartTurn")
-  formative_conversation_interventions_completed FormativeConversationIntervention[] @relation("FormativeConversationInterventionEndTurn")
-  formative_conversation_review_signals      FormativeConversationReviewSignal[] @relation("FormativeConversationReviewSignalTurn")
-  formative_conversation_turn_telemetry       FormativeConversationTurnTelemetry?
-  formative_conversation_input_telemetry      FormativeConversationInputTelemetry?
-  formative_conversation_profile_transitions_source FormativeConversationProfileTransition[] @relation("FormativeConversationProfileTransitionSourceTurn")
+  assessment_session                                        AssessmentSession                                     @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit_session                                      ConceptUnitSession?                                   @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  item                                                      Item?                                                 @relation(fields: [item_db_id], references: [id], onDelete: Restrict)
+  followup_round                                            FollowupRound?                                        @relation(fields: [followup_round_db_id], references: [id], onDelete: Restrict)
+  formative_conversation_session                            FormativeConversationSession?                         @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: SetNull)
+  formative_conversation_receipts_as_student                FormativeConversationMessageReceipt[]                 @relation("FormativeConversationReceiptStudentTurn")
+  formative_conversation_receipts_as_assistant              FormativeConversationMessageReceipt[]                 @relation("FormativeConversationReceiptAssistantTurn")
+  formative_conversation_memory_snapshots                   FormativeConversationMemorySnapshot[]                 @relation("FormativeConversationMemoryCutoffTurn")
+  formative_conversation_interventions_started              FormativeConversationIntervention[]                   @relation("FormativeConversationInterventionStartTurn")
+  formative_conversation_interventions_completed            FormativeConversationIntervention[]                   @relation("FormativeConversationInterventionEndTurn")
+  formative_conversation_review_signals                     FormativeConversationReviewSignal[]                   @relation("FormativeConversationReviewSignalTurn")
+  formative_conversation_turn_telemetry                     FormativeConversationTurnTelemetry?
+  formative_conversation_input_telemetry                    FormativeConversationInputTelemetry?
+  formative_conversation_profile_transitions_source         FormativeConversationProfileTransition[]              @relation("FormativeConversationProfileTransitionSourceTurn")
   formative_conversation_profile_transition_turn_references FormativeConversationProfileTransitionTurnReference[]
-  formative_conversation_profile_evidence_references FormativeConversationProfileEvidenceReference[] @relation("FormativeConversationProfileEvidenceReferenceTutorTurn")
-  evidence_cutoff_for_followup_update_cycles FollowupUpdateCycle[] @relation("FollowupUpdateEvidenceCutoff")
+  formative_conversation_profile_evidence_references        FormativeConversationProfileEvidenceReference[]       @relation("FormativeConversationProfileEvidenceReferenceTutorTurn")
+  evidence_cutoff_for_followup_update_cycles                FollowupUpdateCycle[]                                 @relation("FollowupUpdateEvidenceCutoff")
 
   @@index([assessment_session_db_id, sequence_index])
   @@index([assessment_session_db_id, created_at])
@@ -994,75 +1003,79 @@ model WorkflowOverride {
 }
 
 model AgentCall {
-  id                         String          @id @default(uuid()) @db.Uuid
-  agent_call_public_id       String          @unique @default(cuid())
-  assessment_session_db_id   String?         @db.Uuid
-  concept_unit_session_db_id String?         @db.Uuid
-  followup_round_db_id       String?         @db.Uuid
-  formative_conversation_session_db_id String? @db.Uuid
-  formative_conversation_context_version String?
-  agent_name                 String
-  agent_version              String
-  model_name                 String
-  provider                   String          @default("mock")
-  provider_response_id       String?
-  provider_request_id        String?
-  client_request_id          String?
-  agent_invocation_key       String?         @unique
-  prompt_hash                String?
-  temperature                Decimal?        @db.Decimal(4, 2)
-  reasoning_effort           String?
-  verbosity                  String?
-  max_output_tokens          Int?
-  prompt_version             String
-  schema_version             String
-  input_payload              Json
-  raw_output                 Json?
-  output_payload             Json?
-  output_validated           Boolean         @default(false)
-  validation_error           String?         @db.Text
-  refusal_text               String?         @db.Text
-  incomplete_reason          String?         @db.Text
-  error_category             String?
-  blocked_reason             String?
-  usage_guard_snapshot       Json?
-  live_call_allowed          Boolean         @default(false)
-  usage_window_start         DateTime?       @db.Timestamptz(6)
-  usage_window_end           DateTime?       @db.Timestamptz(6)
-  retry_count                Int             @default(0)
-  call_status                AgentCallStatus @default(started)
-  latency_ms                 Int?
-  input_tokens               Int?
-  output_tokens              Int?
-  total_tokens               Int?
-  token_usage                Json?
-  estimated_cost             Decimal?        @db.Decimal(12, 6)
-  started_at                 DateTime?       @db.Timestamptz(6)
-  completed_at               DateTime?       @db.Timestamptz(6)
-  created_at                 DateTime        @default(now()) @db.Timestamptz(6)
-  updated_at                 DateTime        @updatedAt @db.Timestamptz(6)
+  id                                           String          @id @default(uuid()) @db.Uuid
+  agent_call_public_id                         String          @unique @default(cuid())
+  assessment_session_db_id                     String?         @db.Uuid
+  concept_unit_session_db_id                   String?         @db.Uuid
+  followup_round_db_id                         String?         @db.Uuid
+  formative_conversation_session_db_id         String?         @db.Uuid
+  formative_conversation_message_receipt_db_id String?         @db.Uuid
+  formative_conversation_context_version       String?
+  agent_name                                   String
+  agent_version                                String
+  model_name                                   String
+  provider                                     String          @default("mock")
+  provider_response_id                         String?
+  provider_request_id                          String?
+  client_request_id                            String?
+  agent_invocation_key                         String?         @unique
+  prompt_hash                                  String?
+  temperature                                  Decimal?        @db.Decimal(4, 2)
+  reasoning_effort                             String?
+  verbosity                                    String?
+  max_output_tokens                            Int?
+  prompt_version                               String
+  schema_version                               String
+  input_payload                                Json
+  raw_output                                   Json?
+  output_payload                               Json?
+  output_validated                             Boolean         @default(false)
+  validation_error                             String?         @db.Text
+  refusal_text                                 String?         @db.Text
+  incomplete_reason                            String?         @db.Text
+  error_category                               String?
+  blocked_reason                               String?
+  usage_guard_snapshot                         Json?
+  live_call_allowed                            Boolean         @default(false)
+  usage_window_start                           DateTime?       @db.Timestamptz(6)
+  usage_window_end                             DateTime?       @db.Timestamptz(6)
+  retry_count                                  Int             @default(0)
+  call_status                                  AgentCallStatus @default(started)
+  latency_ms                                   Int?
+  input_tokens                                 Int?
+  output_tokens                                Int?
+  total_tokens                                 Int?
+  token_usage                                  Json?
+  estimated_cost                               Decimal?        @db.Decimal(12, 6)
+  started_at                                   DateTime?       @db.Timestamptz(6)
+  completed_at                                 DateTime?       @db.Timestamptz(6)
+  created_at                                   DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at                                   DateTime        @updatedAt @db.Timestamptz(6)
 
-  assessment_session              AssessmentSession?                @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
-  concept_unit_session            ConceptUnitSession?               @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
-  followup_round                  FollowupRound?                    @relation(fields: [followup_round_db_id], references: [id], onDelete: Restrict)
-  formative_conversation_session FormativeConversationSession?     @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: SetNull)
-  student_profiles                StudentProfile[]                  @relation("StudentProfileAgentCall")
-  formative_decisions             FormativeDecision[]               @relation("FormativeDecisionAgentCall")
-  followup_profile_update_cycles  FollowupUpdateCycle[]             @relation("FollowupProfileAgentCall")
-  followup_planning_update_cycles FollowupUpdateCycle[]             @relation("FollowupPlanningAgentCall")
-  followup_opening_update_cycles  FollowupUpdateCycle[]             @relation("FollowupOpeningAgentCall")
-  item_verification_runs          ItemVerificationRun[]             @relation("ItemVerificationAgentCall")
-  operational_effective_results   OperationalAgentEffectiveResult[]
-  operational_live_canary_dispatch_attempts OperationalLiveCanaryDispatchAttempt[]
-  activity_misconception_evidence_records ActivityMisconceptionEvidenceRecord[] @relation("ActivityMisconceptionEvidenceAgentCall")
-  formative_conversation_turn_telemetry FormativeConversationTurnTelemetry?
-  formative_conversation_profile_transitions_source FormativeConversationProfileTransition[] @relation("FormativeConversationProfileTransitionSourceAgentCall")
+  assessment_session                                 AssessmentSession?                              @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit_session                               ConceptUnitSession?                             @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  followup_round                                     FollowupRound?                                  @relation(fields: [followup_round_db_id], references: [id], onDelete: Restrict)
+  formative_conversation_session                     FormativeConversationSession?                   @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: SetNull)
+  formative_conversation_message_receipt             FormativeConversationMessageReceipt?            @relation(fields: [formative_conversation_message_receipt_db_id], references: [id], onDelete: SetNull)
+  student_profiles                                   StudentProfile[]                                @relation("StudentProfileAgentCall")
+  formative_decisions                                FormativeDecision[]                             @relation("FormativeDecisionAgentCall")
+  followup_profile_update_cycles                     FollowupUpdateCycle[]                           @relation("FollowupProfileAgentCall")
+  followup_planning_update_cycles                    FollowupUpdateCycle[]                           @relation("FollowupPlanningAgentCall")
+  followup_opening_update_cycles                     FollowupUpdateCycle[]                           @relation("FollowupOpeningAgentCall")
+  item_verification_runs                             ItemVerificationRun[]                           @relation("ItemVerificationAgentCall")
+  operational_effective_results                      OperationalAgentEffectiveResult[]
+  operational_live_canary_dispatch_attempts          OperationalLiveCanaryDispatchAttempt[]
+  activity_misconception_evidence_records            ActivityMisconceptionEvidenceRecord[]           @relation("ActivityMisconceptionEvidenceAgentCall")
+  formative_conversation_turn_telemetry              FormativeConversationTurnTelemetry?
+  formative_conversation_profile_transitions_source  FormativeConversationProfileTransition[]        @relation("FormativeConversationProfileTransitionSourceAgentCall")
   formative_conversation_profile_evidence_references FormativeConversationProfileEvidenceReference[] @relation("FormativeConversationProfileEvidenceReferenceAgentCall")
+  formative_conversation_lifecycle_events            FormativeConversationLifecycleEvent[]           @relation("FormativeConversationLifecycleEventAgentCall")
 
   @@index([assessment_session_db_id, created_at])
   @@index([concept_unit_session_db_id, created_at])
   @@index([followup_round_db_id, created_at])
   @@index([formative_conversation_session_db_id, created_at])
+  @@index([formative_conversation_message_receipt_db_id, created_at])
   @@index([agent_name, call_status])
   @@index([provider, created_at])
   @@index([client_request_id])
@@ -1072,32 +1085,32 @@ model AgentCall {
 }
 
 model StudentCommunication {
-  id                         String   @id @default(uuid()) @db.Uuid
-  communication_public_id    String   @unique @default(cuid())
-  assessment_session_db_id   String   @db.Uuid
-  concept_unit_session_db_id String?  @db.Uuid
-  purpose                    String
-  communication_key          String   @unique
-  generation_source          String
-  runtime_servable_to_student Boolean @default(true)
-  review_only                Boolean  @default(false)
-  provider                   String
-  model_name                 String?
-  agent_call_db_id           String?  @db.Uuid
-  prompt_version             String
-  input_schema_version       String
-  output_schema_version      String
-  validation_status          String
-  fallback_used              Boolean  @default(false)
-  fallback_reason            String?
-  source_evidence_hash       String?
-  communication_input        Json
-  communication_output       Json
-  fact_validation_result     Json?
-  language_validation_result Json?
-  warnings                   Json?
-  created_at                 DateTime @default(now()) @db.Timestamptz(6)
-  updated_at                 DateTime @updatedAt @db.Timestamptz(6)
+  id                          String   @id @default(uuid()) @db.Uuid
+  communication_public_id     String   @unique @default(cuid())
+  assessment_session_db_id    String   @db.Uuid
+  concept_unit_session_db_id  String?  @db.Uuid
+  purpose                     String
+  communication_key           String   @unique
+  generation_source           String
+  runtime_servable_to_student Boolean  @default(true)
+  review_only                 Boolean  @default(false)
+  provider                    String
+  model_name                  String?
+  agent_call_db_id            String?  @db.Uuid
+  prompt_version              String
+  input_schema_version        String
+  output_schema_version       String
+  validation_status           String
+  fallback_used               Boolean  @default(false)
+  fallback_reason             String?
+  source_evidence_hash        String?
+  communication_input         Json
+  communication_output        Json
+  fact_validation_result      Json?
+  language_validation_result  Json?
+  warnings                    Json?
+  created_at                  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime @updatedAt @db.Timestamptz(6)
 
   @@index([assessment_session_db_id, created_at])
   @@index([concept_unit_session_db_id, created_at])
@@ -1165,31 +1178,31 @@ model TopicDialogueTurn {
 }
 
 model ActivityRuntimeAttempt {
-  id                                  String    @id @default(uuid()) @db.Uuid
+  id                                   String    @id @default(uuid()) @db.Uuid
   formative_conversation_session_db_id String?   @db.Uuid
-  activity_attempt_public_id          String    @unique @default(cuid())
-  session_public_id                   String
-  student_public_id                   String
-  assessment_public_id                String
-  concept_unit_id                     String
-  source_activity_packet_ref          Json
-  activity_family                     String
-  diagnostic_purpose                  String
-  generation_source                   String
-  first_turn_agent_call_db_id         String?   @db.Uuid
-  reviewer_agent_call_db_id           String?   @db.Uuid
-  repair_agent_call_db_id             String?   @db.Uuid
-  status                              String
-  started_at                          DateTime  @default(now()) @db.Timestamptz(6)
-  completed_at                        DateTime? @db.Timestamptz(6)
-  latest_activity_response_reference  Json?
-  latest_evidence_record_public_id    String?
-  latest_snapshot_public_id           String?
-  limitations                         Json
-  created_at                          DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at                          DateTime  @updatedAt @db.Timestamptz(6)
+  activity_attempt_public_id           String    @unique @default(cuid())
+  session_public_id                    String
+  student_public_id                    String
+  assessment_public_id                 String
+  concept_unit_id                      String
+  source_activity_packet_ref           Json
+  activity_family                      String
+  diagnostic_purpose                   String
+  generation_source                    String
+  first_turn_agent_call_db_id          String?   @db.Uuid
+  reviewer_agent_call_db_id            String?   @db.Uuid
+  repair_agent_call_db_id              String?   @db.Uuid
+  status                               String
+  started_at                           DateTime  @default(now()) @db.Timestamptz(6)
+  completed_at                         DateTime? @db.Timestamptz(6)
+  latest_activity_response_reference   Json?
+  latest_evidence_record_public_id     String?
+  latest_snapshot_public_id            String?
+  limitations                          Json
+  created_at                           DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                           DateTime  @updatedAt @db.Timestamptz(6)
 
-  formative_conversation_session      FormativeConversationSession? @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: SetNull)
+  formative_conversation_session       FormativeConversationSession?       @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: SetNull)
   formative_conversation_interventions FormativeConversationIntervention[]
 
   @@index([formative_conversation_session_db_id, created_at])
@@ -1203,47 +1216,47 @@ model ActivityRuntimeAttempt {
 }
 
 model FormativeConversationSession {
-  id                              String                      @id @default(uuid()) @db.Uuid
-  conversation_public_id          String                      @unique @default(cuid())
-  assessment_session_db_id        String                      @db.Uuid
-  concept_unit_session_db_id      String                      @unique @db.Uuid
-  initial_student_profile_db_id   String?                     @db.Uuid
-  current_student_profile_db_id   String?                     @db.Uuid
-  status                          FormativeConversationStatus @default(active)
-  host_agent_name                 String                      @default("formative_conversation_agent")
-  agent_contract_version          String                      @default("formative-conversation-agent-contract-v1")
-  context_contract_version        String                      @default("formative-conversation-context-v1")
-  memory_contract_version         String                      @default("formative-conversation-memory-v1")
-  safety_boundary_version         String                      @default("formative-conversation-safety-boundary-v1")
-  concurrency_version             Int                         @default(0)
-  telemetry_turn_sequence_counter Int                         @default(0)
-  telemetry_event_sequence_counter Int                        @default(0)
-  last_processed_turn_sequence    Int?
-  lifecycle_reason                String?
-  started_at                      DateTime                    @default(now()) @db.Timestamptz(6)
-  last_activity_at                DateTime                    @default(now()) @db.Timestamptz(6)
-  paused_at                       DateTime?                   @db.Timestamptz(6)
-  completed_at                    DateTime?                   @db.Timestamptz(6)
-  ended_at                        DateTime?                   @db.Timestamptz(6)
-  created_at                      DateTime                    @default(now()) @db.Timestamptz(6)
-  updated_at                      DateTime                    @updatedAt @db.Timestamptz(6)
+  id                               String                      @id @default(uuid()) @db.Uuid
+  conversation_public_id           String                      @unique @default(cuid())
+  assessment_session_db_id         String                      @db.Uuid
+  concept_unit_session_db_id       String                      @unique @db.Uuid
+  initial_student_profile_db_id    String?                     @db.Uuid
+  current_student_profile_db_id    String?                     @db.Uuid
+  status                           FormativeConversationStatus @default(active)
+  host_agent_name                  String                      @default("formative_conversation_agent")
+  agent_contract_version           String                      @default("formative-conversation-agent-contract-v1")
+  context_contract_version         String                      @default("formative-conversation-context-v1")
+  memory_contract_version          String                      @default("formative-conversation-memory-v1")
+  safety_boundary_version          String                      @default("formative-conversation-safety-boundary-v1")
+  concurrency_version              Int                         @default(0)
+  telemetry_turn_sequence_counter  Int                         @default(0)
+  telemetry_event_sequence_counter Int                         @default(0)
+  last_processed_turn_sequence     Int?
+  lifecycle_reason                 String?
+  started_at                       DateTime                    @default(now()) @db.Timestamptz(6)
+  last_activity_at                 DateTime                    @default(now()) @db.Timestamptz(6)
+  paused_at                        DateTime?                   @db.Timestamptz(6)
+  completed_at                     DateTime?                   @db.Timestamptz(6)
+  ended_at                         DateTime?                   @db.Timestamptz(6)
+  created_at                       DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                       DateTime                    @updatedAt @db.Timestamptz(6)
 
-  assessment_session              AssessmentSession          @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
-  concept_unit_session            ConceptUnitSession         @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Cascade)
-  initial_student_profile         StudentProfile?            @relation("FormativeConversationInitialProfile", fields: [initial_student_profile_db_id], references: [id], onDelete: SetNull)
-  current_student_profile         StudentProfile?            @relation("FormativeConversationCurrentProfile", fields: [current_student_profile_db_id], references: [id], onDelete: SetNull)
-  conversation_turns              ConversationTurn[]
-  agent_calls                     AgentCall[]
-  activity_runtime_attempts       ActivityRuntimeAttempt[]
-  message_receipts                FormativeConversationMessageReceipt[]
-  memory_snapshots                FormativeConversationMemorySnapshot[]
-  interventions                   FormativeConversationIntervention[]
-  review_signals                  FormativeConversationReviewSignal[]
-  lifecycle_events                FormativeConversationLifecycleEvent[]
-  turn_telemetry                  FormativeConversationTurnTelemetry[]
-  input_telemetry                 FormativeConversationInputTelemetry[]
-  profile_transitions             FormativeConversationProfileTransition[]
-  profile_evidence_references     FormativeConversationProfileEvidenceReference[]
+  assessment_session          AssessmentSession                               @relation(fields: [assessment_session_db_id], references: [id], onDelete: Restrict)
+  concept_unit_session        ConceptUnitSession                              @relation(fields: [concept_unit_session_db_id], references: [id], onDelete: Cascade)
+  initial_student_profile     StudentProfile?                                 @relation("FormativeConversationInitialProfile", fields: [initial_student_profile_db_id], references: [id], onDelete: SetNull)
+  current_student_profile     StudentProfile?                                 @relation("FormativeConversationCurrentProfile", fields: [current_student_profile_db_id], references: [id], onDelete: SetNull)
+  conversation_turns          ConversationTurn[]
+  agent_calls                 AgentCall[]
+  activity_runtime_attempts   ActivityRuntimeAttempt[]
+  message_receipts            FormativeConversationMessageReceipt[]
+  memory_snapshots            FormativeConversationMemorySnapshot[]
+  interventions               FormativeConversationIntervention[]
+  review_signals              FormativeConversationReviewSignal[]
+  lifecycle_events            FormativeConversationLifecycleEvent[]
+  turn_telemetry              FormativeConversationTurnTelemetry[]
+  input_telemetry             FormativeConversationInputTelemetry[]
+  profile_transitions         FormativeConversationProfileTransition[]
+  profile_evidence_references FormativeConversationProfileEvidenceReference[]
 
   @@index([assessment_session_db_id, status])
   @@index([initial_student_profile_db_id])
@@ -1253,23 +1266,29 @@ model FormativeConversationSession {
 }
 
 model FormativeConversationMessageReceipt {
-  id                                      String                              @id @default(uuid()) @db.Uuid
-  receipt_public_id                       String                              @unique @default(cuid())
-  formative_conversation_session_db_id    String                              @db.Uuid
-  client_message_id                       String
-  request_hash                            String
-  status                                  FormativeConversationReceiptStatus @default(reserved)
-  student_turn_db_id                      String?                             @unique @db.Uuid
-  assistant_turn_db_id                    String?                             @unique @db.Uuid
-  response_payload                        Json?
-  failure_code                            String?
-  created_at                              DateTime                            @default(now()) @db.Timestamptz(6)
-  updated_at                              DateTime                            @updatedAt @db.Timestamptz(6)
-  completed_at                            DateTime?                           @db.Timestamptz(6)
+  id                                       String                                       @id @default(uuid()) @db.Uuid
+  receipt_public_id                        String                                       @unique @default(cuid())
+  formative_conversation_session_db_id     String                                       @db.Uuid
+  client_message_id                        String
+  request_hash                             String
+  status                                   FormativeConversationReceiptStatus           @default(reserved)
+  student_turn_db_id                       String?                                      @unique @db.Uuid
+  assistant_turn_db_id                     String?                                      @unique @db.Uuid
+  response_payload                         Json?
+  failure_code                             String?
+  assistant_response_status                FormativeConversationAssistantResponseStatus @default(pending)
+  assistant_response_retry_count           Int                                          @default(0)
+  assistant_response_agent_name            String                                       @default("formative_conversation_agent")
+  assistant_response_last_failure_category String?
+  assistant_response_last_failed_at        DateTime?                                    @db.Timestamptz(6)
+  created_at                               DateTime                                     @default(now()) @db.Timestamptz(6)
+  updated_at                               DateTime                                     @updatedAt @db.Timestamptz(6)
+  completed_at                             DateTime?                                    @db.Timestamptz(6)
 
   formative_conversation_session FormativeConversationSession @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade)
-  student_turn                    ConversationTurn?            @relation("FormativeConversationReceiptStudentTurn", fields: [student_turn_db_id], references: [id], onDelete: SetNull)
-  assistant_turn                  ConversationTurn?            @relation("FormativeConversationReceiptAssistantTurn", fields: [assistant_turn_db_id], references: [id], onDelete: SetNull)
+  student_turn                   ConversationTurn?            @relation("FormativeConversationReceiptStudentTurn", fields: [student_turn_db_id], references: [id], onDelete: SetNull)
+  assistant_turn                 ConversationTurn?            @relation("FormativeConversationReceiptAssistantTurn", fields: [assistant_turn_db_id], references: [id], onDelete: SetNull)
+  agent_calls                    AgentCall[]
 
   @@unique([formative_conversation_session_db_id, client_message_id])
   @@index([formative_conversation_session_db_id, status, created_at])
@@ -1277,15 +1296,15 @@ model FormativeConversationMessageReceipt {
 }
 
 model FormativeConversationMemorySnapshot {
-  id                                      String   @id @default(uuid()) @db.Uuid
-  snapshot_public_id                      String   @unique @default(cuid())
-  formative_conversation_session_db_id    String   @db.Uuid
-  snapshot_index                          Int
-  schema_version                          String
-  through_turn_db_id                      String?  @db.Uuid
-  source_transcript_hash                  String
-  summary_payload                         Json
-  created_at                              DateTime @default(now()) @db.Timestamptz(6)
+  id                                   String   @id @default(uuid()) @db.Uuid
+  snapshot_public_id                   String   @unique @default(cuid())
+  formative_conversation_session_db_id String   @db.Uuid
+  snapshot_index                       Int
+  schema_version                       String
+  through_turn_db_id                   String?  @db.Uuid
+  source_transcript_hash               String
+  summary_payload                      Json
+  created_at                           DateTime @default(now()) @db.Timestamptz(6)
 
   formative_conversation_session FormativeConversationSession @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade)
   through_turn                   ConversationTurn?            @relation("FormativeConversationMemoryCutoffTurn", fields: [through_turn_db_id], references: [id], onDelete: SetNull)
@@ -1297,26 +1316,26 @@ model FormativeConversationMemorySnapshot {
 }
 
 model FormativeConversationIntervention {
-  id                                      String                                  @id @default(uuid()) @db.Uuid
-  intervention_public_id                  String                                  @unique @default(cuid())
-  formative_conversation_session_db_id    String                                  @db.Uuid
-  activity_runtime_attempt_db_id          String?                                 @db.Uuid
-  strategy_type                           String
-  targeted_evidence_gap                   String                                  @db.Text
-  status                                  FormativeConversationInterventionStatus @default(active)
-  started_by_turn_db_id                   String?                                 @db.Uuid
-  completed_by_turn_db_id                 String?                                 @db.Uuid
-  outcome_evidence                        Json?
-  adaptation_history                      Json
-  started_at                              DateTime                                @default(now()) @db.Timestamptz(6)
-  completed_at                            DateTime?                               @db.Timestamptz(6)
-  created_at                              DateTime                                @default(now()) @db.Timestamptz(6)
-  updated_at                              DateTime                                @updatedAt @db.Timestamptz(6)
+  id                                   String                                  @id @default(uuid()) @db.Uuid
+  intervention_public_id               String                                  @unique @default(cuid())
+  formative_conversation_session_db_id String                                  @db.Uuid
+  activity_runtime_attempt_db_id       String?                                 @db.Uuid
+  strategy_type                        String
+  targeted_evidence_gap                String                                  @db.Text
+  status                               FormativeConversationInterventionStatus @default(active)
+  started_by_turn_db_id                String?                                 @db.Uuid
+  completed_by_turn_db_id              String?                                 @db.Uuid
+  outcome_evidence                     Json?
+  adaptation_history                   Json
+  started_at                           DateTime                                @default(now()) @db.Timestamptz(6)
+  completed_at                         DateTime?                               @db.Timestamptz(6)
+  created_at                           DateTime                                @default(now()) @db.Timestamptz(6)
+  updated_at                           DateTime                                @updatedAt @db.Timestamptz(6)
 
   formative_conversation_session FormativeConversationSession @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade)
   activity_runtime_attempt       ActivityRuntimeAttempt?      @relation(fields: [activity_runtime_attempt_db_id], references: [id], onDelete: SetNull)
-  started_by_turn               ConversationTurn?            @relation("FormativeConversationInterventionStartTurn", fields: [started_by_turn_db_id], references: [id], onDelete: SetNull)
-  completed_by_turn             ConversationTurn?            @relation("FormativeConversationInterventionEndTurn", fields: [completed_by_turn_db_id], references: [id], onDelete: SetNull)
+  started_by_turn                ConversationTurn?            @relation("FormativeConversationInterventionStartTurn", fields: [started_by_turn_db_id], references: [id], onDelete: SetNull)
+  completed_by_turn              ConversationTurn?            @relation("FormativeConversationInterventionEndTurn", fields: [completed_by_turn_db_id], references: [id], onDelete: SetNull)
 
   @@index([formative_conversation_session_db_id, status, created_at])
   @@index([activity_runtime_attempt_db_id])
@@ -1326,19 +1345,19 @@ model FormativeConversationIntervention {
 }
 
 model FormativeConversationReviewSignal {
-  id                                      String                              @id @default(uuid()) @db.Uuid
-  signal_public_id                        String                              @unique @default(cuid())
-  formative_conversation_session_db_id    String                              @db.Uuid
-  source_student_profile_db_id            String?                             @db.Uuid
-  source_turn_db_id                       String?                             @db.Uuid
-  signal_type                             String
-  reason_code                             String
-  status                                  FormativeConversationReviewStatus @default(open)
-  evidence_summary                        Json
-  created_at                              DateTime                            @default(now()) @db.Timestamptz(6)
-  acknowledged_at                         DateTime?                           @db.Timestamptz(6)
-  resolved_at                             DateTime?                           @db.Timestamptz(6)
-  updated_at                              DateTime                            @updatedAt @db.Timestamptz(6)
+  id                                   String                            @id @default(uuid()) @db.Uuid
+  signal_public_id                     String                            @unique @default(cuid())
+  formative_conversation_session_db_id String                            @db.Uuid
+  source_student_profile_db_id         String?                           @db.Uuid
+  source_turn_db_id                    String?                           @db.Uuid
+  signal_type                          String
+  reason_code                          String
+  status                               FormativeConversationReviewStatus @default(open)
+  evidence_summary                     Json
+  created_at                           DateTime                          @default(now()) @db.Timestamptz(6)
+  acknowledged_at                      DateTime?                         @db.Timestamptz(6)
+  resolved_at                          DateTime?                         @db.Timestamptz(6)
+  updated_at                           DateTime                          @updatedAt @db.Timestamptz(6)
 
   formative_conversation_session FormativeConversationSession @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade)
   source_student_profile         StudentProfile?              @relation("FormativeConversationReviewSignalProfile", fields: [source_student_profile_db_id], references: [id], onDelete: SetNull)
@@ -1351,70 +1370,76 @@ model FormativeConversationReviewSignal {
 }
 
 model FormativeConversationLifecycleEvent {
-  id                                      String                                   @id @default(uuid()) @db.Uuid
-  sequence_index                          Int                                      @unique @default(autoincrement())
-  event_public_id                         String                                   @unique @default(cuid())
-  formative_conversation_session_db_id    String                                   @db.Uuid
+  id                                      String                                  @id @default(uuid()) @db.Uuid
+  sequence_index                          Int                                     @unique @default(autoincrement())
+  event_public_id                         String                                  @unique @default(cuid())
+  formative_conversation_session_db_id    String                                  @db.Uuid
   conversation_local_event_sequence_index Int
   client_event_id                         String
   event_hash                              String
   event_type                              FormativeConversationLifecycleEventType
   event_source                            EventSource
+  agent_call_db_id                        String?                                 @db.Uuid
+  agent_name                              String?
+  failure_category                        String?
+  retry_count                             Int?
   observed_interval_duration_ms           Int?
   client_instance_id                      String?
-  occurred_at                             DateTime                                 @db.Timestamptz(6)
-  created_at                              DateTime                                 @default(now()) @db.Timestamptz(6)
+  occurred_at                             DateTime                                @db.Timestamptz(6)
+  created_at                              DateTime                                @default(now()) @db.Timestamptz(6)
 
   formative_conversation_session FormativeConversationSession @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade)
+  agent_call                     AgentCall?                   @relation("FormativeConversationLifecycleEventAgentCall", fields: [agent_call_db_id], references: [id], onDelete: SetNull)
 
   @@unique([formative_conversation_session_db_id, client_event_id])
   @@unique([formative_conversation_session_db_id, conversation_local_event_sequence_index], map: "fc_lifecycle_session_local_sequence_key")
   @@index([formative_conversation_session_db_id, sequence_index], map: "fc_lifecycle_session_sequence_idx")
   @@index([formative_conversation_session_db_id, occurred_at], map: "formative_conversation_lifecycle_events_session_time_idx")
+  @@index([agent_call_db_id, occurred_at])
   @@index([event_type, occurred_at])
   @@map("formative_conversation_lifecycle_events")
 }
 
 model FormativeConversationTurnTelemetry {
-  id                                      String                       @id @default(uuid()) @db.Uuid
-  formative_conversation_session_db_id    String                       @db.Uuid
-  conversation_turn_db_id                 String                       @unique @db.Uuid
-  agent_call_db_id                        String?                      @unique @db.Uuid
-  turn_sequence_index                     Int
-  conversation_local_turn_sequence_index  Int
-  turn_started_at                         DateTime?                    @db.Timestamptz(6)
-  turn_submitted_at                       DateTime?                    @db.Timestamptz(6)
-  response_time_ms                        Int?
-  message_length_chars                    Int
-  input_token_count                       Int?
-  output_token_count                      Int?
-  created_at                              DateTime                     @default(now()) @db.Timestamptz(6)
+  id                                     String    @id @default(uuid()) @db.Uuid
+  formative_conversation_session_db_id   String    @db.Uuid
+  conversation_turn_db_id                String    @unique @db.Uuid
+  agent_call_db_id                       String?   @unique @db.Uuid
+  turn_sequence_index                    Int
+  conversation_local_turn_sequence_index Int
+  turn_started_at                        DateTime? @db.Timestamptz(6)
+  turn_submitted_at                      DateTime? @db.Timestamptz(6)
+  response_time_ms                       Int?
+  message_length_chars                   Int
+  input_token_count                      Int?
+  output_token_count                     Int?
+  created_at                             DateTime  @default(now()) @db.Timestamptz(6)
 
   formative_conversation_session FormativeConversationSession @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade)
   conversation_turn              ConversationTurn             @relation(fields: [conversation_turn_db_id], references: [id], onDelete: Cascade)
-  agent_call                     AgentCall?                    @relation(fields: [agent_call_db_id], references: [id], onDelete: SetNull)
+  agent_call                     AgentCall?                   @relation(fields: [agent_call_db_id], references: [id], onDelete: SetNull)
 
-  @@index([formative_conversation_session_db_id, turn_sequence_index])
   @@unique([formative_conversation_session_db_id, conversation_local_turn_sequence_index], map: "fc_turn_telemetry_session_local_sequence_key")
+  @@index([formative_conversation_session_db_id, turn_sequence_index])
   @@map("formative_conversation_turn_telemetry")
 }
 
 model FormativeConversationInputTelemetry {
-  id                                      String                                      @id @default(uuid()) @db.Uuid
-  formative_conversation_session_db_id    String                                      @db.Uuid
-  conversation_turn_db_id                 String                                      @unique @db.Uuid
-  client_message_id                       String
-  typing_started_at                       DateTime?                                   @db.Timestamptz(6)
-  typing_ended_at                         DateTime?                                   @db.Timestamptz(6)
-  typing_duration_ms                      Int?
-  typing_duration_method                  FormativeConversationTypingDurationMethod?
-  edit_count                              Int                                         @default(0)
-  backspace_count                         Int                                         @default(0)
-  paste_event_count                       Int                                         @default(0)
-  paste_character_count                   Int                                         @default(0)
-  final_message_length_chars              Int
-  submitted_at                            DateTime                                    @db.Timestamptz(6)
-  created_at                              DateTime                                    @default(now()) @db.Timestamptz(6)
+  id                                   String                                     @id @default(uuid()) @db.Uuid
+  formative_conversation_session_db_id String                                     @db.Uuid
+  conversation_turn_db_id              String                                     @unique @db.Uuid
+  client_message_id                    String
+  typing_started_at                    DateTime?                                  @db.Timestamptz(6)
+  typing_ended_at                      DateTime?                                  @db.Timestamptz(6)
+  typing_duration_ms                   Int?
+  typing_duration_method               FormativeConversationTypingDurationMethod?
+  edit_count                           Int                                        @default(0)
+  backspace_count                      Int                                        @default(0)
+  paste_event_count                    Int                                        @default(0)
+  paste_character_count                Int                                        @default(0)
+  final_message_length_chars           Int
+  submitted_at                         DateTime                                   @db.Timestamptz(6)
+  created_at                           DateTime                                   @default(now()) @db.Timestamptz(6)
 
   formative_conversation_session FormativeConversationSession @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade)
   conversation_turn              ConversationTurn             @relation(fields: [conversation_turn_db_id], references: [id], onDelete: Cascade)
@@ -1425,28 +1450,28 @@ model FormativeConversationInputTelemetry {
 }
 
 model FormativeConversationProfileTransition {
-  id                                      String                                @id @default(uuid()) @db.Uuid
-  transition_public_id                    String                                @unique @default(cuid())
-  formative_conversation_session_db_id    String                                @db.Uuid
-  prior_student_profile_db_id             String                                @db.Uuid
-  updated_student_profile_db_id           String                                @db.Uuid
-  assessment_student_profile_db_id        String?                               @db.Uuid
-  source_turn_db_id                       String?                               @db.Uuid
-  source_agent_call_db_id                 String?                               @db.Uuid
-  transition_version                      String                                @default("formative-conversation-profile-transition-v1")
-  learning_outcome                        FormativeConversationLearningOutcome?
-  learning_observations                   Json?
-  evidence_interpretation                 String?                               @db.Text
-  profile_snapshot                        Json?
-  transitioned_at                         DateTime                              @db.Timestamptz(6)
-  created_at                              DateTime                              @default(now()) @db.Timestamptz(6)
+  id                                   String                                @id @default(uuid()) @db.Uuid
+  transition_public_id                 String                                @unique @default(cuid())
+  formative_conversation_session_db_id String                                @db.Uuid
+  prior_student_profile_db_id          String                                @db.Uuid
+  updated_student_profile_db_id        String                                @db.Uuid
+  assessment_student_profile_db_id     String?                               @db.Uuid
+  source_turn_db_id                    String?                               @db.Uuid
+  source_agent_call_db_id              String?                               @db.Uuid
+  transition_version                   String                                @default("formative-conversation-profile-transition-v1")
+  learning_outcome                     FormativeConversationLearningOutcome?
+  learning_observations                Json?
+  evidence_interpretation              String?                               @db.Text
+  profile_snapshot                     Json?
+  transitioned_at                      DateTime                              @db.Timestamptz(6)
+  created_at                           DateTime                              @default(now()) @db.Timestamptz(6)
 
-  formative_conversation_session FormativeConversationSession @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade)
-  prior_student_profile          StudentProfile                @relation("FormativeConversationPriorProfile", fields: [prior_student_profile_db_id], references: [id], onDelete: Cascade)
-  updated_student_profile        StudentProfile                @relation("FormativeConversationUpdatedProfile", fields: [updated_student_profile_db_id], references: [id], onDelete: Cascade)
-  assessment_student_profile     StudentProfile?               @relation("FormativeConversationAssessmentProfile", fields: [assessment_student_profile_db_id], references: [id], onDelete: SetNull)
-  source_turn                    ConversationTurn?             @relation("FormativeConversationProfileTransitionSourceTurn", fields: [source_turn_db_id], references: [id], onDelete: SetNull)
-  source_agent_call              AgentCall?                    @relation("FormativeConversationProfileTransitionSourceAgentCall", fields: [source_agent_call_db_id], references: [id], onDelete: SetNull)
+  formative_conversation_session FormativeConversationSession                          @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade)
+  prior_student_profile          StudentProfile                                        @relation("FormativeConversationPriorProfile", fields: [prior_student_profile_db_id], references: [id], onDelete: Cascade)
+  updated_student_profile        StudentProfile                                        @relation("FormativeConversationUpdatedProfile", fields: [updated_student_profile_db_id], references: [id], onDelete: Cascade)
+  assessment_student_profile     StudentProfile?                                       @relation("FormativeConversationAssessmentProfile", fields: [assessment_student_profile_db_id], references: [id], onDelete: SetNull)
+  source_turn                    ConversationTurn?                                     @relation("FormativeConversationProfileTransitionSourceTurn", fields: [source_turn_db_id], references: [id], onDelete: SetNull)
+  source_agent_call              AgentCall?                                            @relation("FormativeConversationProfileTransitionSourceAgentCall", fields: [source_agent_call_db_id], references: [id], onDelete: SetNull)
   supporting_turn_references     FormativeConversationProfileTransitionTurnReference[]
   profile_evidence_references    FormativeConversationProfileEvidenceReference[]
 
@@ -1461,11 +1486,11 @@ model FormativeConversationProfileTransition {
 }
 
 model FormativeConversationProfileTransitionTurnReference {
-  id                               String   @id @default(uuid()) @db.Uuid
-  profile_transition_db_id         String   @db.Uuid
-  conversation_turn_db_id          String   @db.Uuid
-  evidence_role                    String
-  created_at                       DateTime @default(now()) @db.Timestamptz(6)
+  id                       String   @id @default(uuid()) @db.Uuid
+  profile_transition_db_id String   @db.Uuid
+  conversation_turn_db_id  String   @db.Uuid
+  evidence_role            String
+  created_at               DateTime @default(now()) @db.Timestamptz(6)
 
   profile_transition FormativeConversationProfileTransition @relation(fields: [profile_transition_db_id], references: [id], onDelete: Cascade, map: "fc_profile_transition_turn_transition_fkey")
   conversation_turn  ConversationTurn                       @relation(fields: [conversation_turn_db_id], references: [id], onDelete: Cascade, map: "fc_profile_transition_turn_turn_fkey")
@@ -1476,20 +1501,20 @@ model FormativeConversationProfileTransitionTurnReference {
 }
 
 model FormativeConversationProfileEvidenceReference {
-  id                                      String   @id @default(uuid()) @db.Uuid
-  evidence_reference_public_id            String   @unique @default(cuid())
-  formative_conversation_session_db_id    String   @db.Uuid
-  profile_transition_db_id                String?  @db.Uuid
-  source_agent_call_db_id                 String   @db.Uuid
-  source_tutor_turn_db_id                 String   @db.Uuid
-  evidence_observation_index              Int
-  source_turn_sequence_indexes            Json
-  created_at                              DateTime @default(now()) @db.Timestamptz(6)
+  id                                   String   @id @default(uuid()) @db.Uuid
+  evidence_reference_public_id         String   @unique @default(cuid())
+  formative_conversation_session_db_id String   @db.Uuid
+  profile_transition_db_id             String?  @db.Uuid
+  source_agent_call_db_id              String   @db.Uuid
+  source_tutor_turn_db_id              String   @db.Uuid
+  evidence_observation_index           Int
+  source_turn_sequence_indexes         Json
+  created_at                           DateTime @default(now()) @db.Timestamptz(6)
 
-  formative_conversation_session FormativeConversationSession @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade, map: "fc_profile_evidence_session_fkey")
+  formative_conversation_session FormativeConversationSession            @relation(fields: [formative_conversation_session_db_id], references: [id], onDelete: Cascade, map: "fc_profile_evidence_session_fkey")
   profile_transition             FormativeConversationProfileTransition? @relation(fields: [profile_transition_db_id], references: [id], onDelete: SetNull, map: "fc_profile_evidence_transition_fkey")
-  source_agent_call             AgentCall                    @relation("FormativeConversationProfileEvidenceReferenceAgentCall", fields: [source_agent_call_db_id], references: [id], onDelete: Cascade, map: "fc_profile_evidence_agent_call_fkey")
-  source_tutor_turn             ConversationTurn             @relation("FormativeConversationProfileEvidenceReferenceTutorTurn", fields: [source_tutor_turn_db_id], references: [id], onDelete: Cascade, map: "fc_profile_evidence_tutor_turn_fkey")
+  source_agent_call              AgentCall                               @relation("FormativeConversationProfileEvidenceReferenceAgentCall", fields: [source_agent_call_db_id], references: [id], onDelete: Cascade, map: "fc_profile_evidence_agent_call_fkey")
+  source_tutor_turn              ConversationTurn                        @relation("FormativeConversationProfileEvidenceReferenceTutorTurn", fields: [source_tutor_turn_db_id], references: [id], onDelete: Cascade, map: "fc_profile_evidence_tutor_turn_fkey")
 
   @@unique([source_agent_call_db_id, evidence_observation_index])
   @@index([formative_conversation_session_db_id, created_at])
@@ -1527,7 +1552,7 @@ model ActivityMisconceptionEvidenceRecord {
   evidence_hash                       String
   created_at                          DateTime @default(now()) @db.Timestamptz(6)
 
-  source_evaluator_agent_call AgentCall? @relation("ActivityMisconceptionEvidenceAgentCall", fields: [source_evaluator_agent_call_db_id], references: [id], onDelete: SetNull)
+  source_evaluator_agent_call AgentCall?                       @relation("ActivityMisconceptionEvidenceAgentCall", fields: [source_evaluator_agent_call_db_id], references: [id], onDelete: SetNull)
   diagnostic_snapshots        PostActivityDiagnosticSnapshot[]
 
   @@unique([activity_attempt_id, evidence_hash, production_mode], map: "activity_misconception_evidence_attempt_hash_mode_key")
@@ -1695,78 +1720,78 @@ model OperationalLiveCanaryStep {
 }
 
 model OperationalLiveCanaryDispatchAttempt {
-  id                       String    @id @default(uuid()) @db.Uuid
-  dispatch_public_id       String    @unique
-  run_db_id                String    @db.Uuid
-  step_db_id               String    @db.Uuid
-  agent_call_db_id         String?   @db.Uuid
-  logical_invocation_key   String
-  attempt_index            Int
-  dispatch_key             String    @unique
-  provider                 String
-  transport                String?
-  adapter_version          String?
-  network_dispatch_expected Boolean   @default(false)
-  network_dispatch_started Boolean   @default(false)
-  transport_adapter_entered Boolean   @default(false)
-  request_serialization_completed Boolean @default(false)
-  fetch_invoked            Boolean   @default(false)
-  response_headers_received Boolean  @default(false)
-  response_body_received   Boolean   @default(false)
-  network_request_attempt_count Int   @default(0)
-  provider_acknowledged_request_count Int @default(0)
-  accounting_complete      Boolean   @default(false)
-  model_snapshot           String
-  reasoning_effort         String
-  execution_path           String
-  provenance_type          String
-  lifecycle_status         String
-  last_completed_stage     String?
-  failure_stage            String?
-  typed_failure_reason     String?
-  original_error_class     String?
-  stage_trace_json         Json?
-  transport_objective_json Json?
-  request_reserved_at      DateTime? @db.Timestamptz(6)
-  dispatch_started_at      DateTime? @db.Timestamptz(6)
-  response_received_at     DateTime? @db.Timestamptz(6)
-  usage_verified_at        DateTime? @db.Timestamptz(6)
-  finalized_at             DateTime? @db.Timestamptz(6)
-  provider_request_id      String?
-  provider_response_id     String?
-  http_status              Int?
-  provider_error_code      String?
-  provider_error_type      String?
-  provider_error_param     String?
-  provider_request_header_id String?
-  retry_after_ms           Int?
-  normalized_failure_json  Json?
-  sanitized_response_metadata_json Json?
-  usage_source_paths_json  Json?
-  response_status          String?
-  response_status_details_json Json?
-  transport_outcome        String?
-  raw_output_outcome       String?
-  effective_system_outcome String?
-  fallback_reason          String?
-  credential_fingerprint   String?
-  credential_source        String?
-  credential_resolver_version String?
-  client_dispatch_id       String    @unique
-  raw_response_hash        String?
-  input_tokens             Int?
-  cached_input_tokens      Int?
-  output_tokens            Int?
-  reasoning_tokens         Int?
-  total_tokens             Int?
-  pricing_registry_version String?
-  estimated_cost_usd       Decimal?  @db.Decimal(12, 6)
-  usage_status             String
-  cost_status              String    @default("unknown")
-  error_category           String?
-  sanitized_error_message  String?   @db.Text
-  created_at               DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at               DateTime  @updatedAt @db.Timestamptz(6)
+  id                                  String    @id @default(uuid()) @db.Uuid
+  dispatch_public_id                  String    @unique
+  run_db_id                           String    @db.Uuid
+  step_db_id                          String    @db.Uuid
+  agent_call_db_id                    String?   @db.Uuid
+  logical_invocation_key              String
+  attempt_index                       Int
+  dispatch_key                        String    @unique
+  provider                            String
+  transport                           String?
+  adapter_version                     String?
+  network_dispatch_expected           Boolean   @default(false)
+  network_dispatch_started            Boolean   @default(false)
+  transport_adapter_entered           Boolean   @default(false)
+  request_serialization_completed     Boolean   @default(false)
+  fetch_invoked                       Boolean   @default(false)
+  response_headers_received           Boolean   @default(false)
+  response_body_received              Boolean   @default(false)
+  network_request_attempt_count       Int       @default(0)
+  provider_acknowledged_request_count Int       @default(0)
+  accounting_complete                 Boolean   @default(false)
+  model_snapshot                      String
+  reasoning_effort                    String
+  execution_path                      String
+  provenance_type                     String
+  lifecycle_status                    String
+  last_completed_stage                String?
+  failure_stage                       String?
+  typed_failure_reason                String?
+  original_error_class                String?
+  stage_trace_json                    Json?
+  transport_objective_json            Json?
+  request_reserved_at                 DateTime? @db.Timestamptz(6)
+  dispatch_started_at                 DateTime? @db.Timestamptz(6)
+  response_received_at                DateTime? @db.Timestamptz(6)
+  usage_verified_at                   DateTime? @db.Timestamptz(6)
+  finalized_at                        DateTime? @db.Timestamptz(6)
+  provider_request_id                 String?
+  provider_response_id                String?
+  http_status                         Int?
+  provider_error_code                 String?
+  provider_error_type                 String?
+  provider_error_param                String?
+  provider_request_header_id          String?
+  retry_after_ms                      Int?
+  normalized_failure_json             Json?
+  sanitized_response_metadata_json    Json?
+  usage_source_paths_json             Json?
+  response_status                     String?
+  response_status_details_json        Json?
+  transport_outcome                   String?
+  raw_output_outcome                  String?
+  effective_system_outcome            String?
+  fallback_reason                     String?
+  credential_fingerprint              String?
+  credential_source                   String?
+  credential_resolver_version         String?
+  client_dispatch_id                  String    @unique
+  raw_response_hash                   String?
+  input_tokens                        Int?
+  cached_input_tokens                 Int?
+  output_tokens                       Int?
+  reasoning_tokens                    Int?
+  total_tokens                        Int?
+  pricing_registry_version            String?
+  estimated_cost_usd                  Decimal?  @db.Decimal(12, 6)
+  usage_status                        String
+  cost_status                         String    @default("unknown")
+  error_category                      String?
+  sanitized_error_message             String?   @db.Text
+  created_at                          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                          DateTime  @updatedAt @db.Timestamptz(6)
 
   run        OperationalLiveCanaryRun  @relation(fields: [run_db_id], references: [id], onDelete: Restrict)
   step       OperationalLiveCanaryStep @relation(fields: [step_db_id], references: [id], onDelete: Restrict)
@@ -1817,25 +1842,25 @@ model OperationalLiveCanaryCredentialCheck {
 }
 
 model OperationalLiveCanaryReviewAnnotation {
-  id                      String    @id @default(uuid()) @db.Uuid
-  annotation_public_id    String    @unique
-  run_db_id               String    @db.Uuid
-  review_item_id          String
-  annotation_source       String    @default("ai_agent_review")
-  annotation_status       String    @default("ai_confirmed")
-  review_target           String    @default("operational_effective_output")
-  reviewer_model          String?
-  review_method           String?   @default("blind_review")
-  reviewed_at             DateTime? @db.Timestamptz(6)
-  annotation_file_hash    String?
-  reference_file_hash     String?
-  pass_fail               String?
-  overall_rating          Int?
-  rubric_scores           Json?
-  safety_flags            Json?
-  notes                   String?   @db.Text
-  created_at              DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at              DateTime  @updatedAt @db.Timestamptz(6)
+  id                   String    @id @default(uuid()) @db.Uuid
+  annotation_public_id String    @unique
+  run_db_id            String    @db.Uuid
+  review_item_id       String
+  annotation_source    String    @default("ai_agent_review")
+  annotation_status    String    @default("ai_confirmed")
+  review_target        String    @default("operational_effective_output")
+  reviewer_model       String?
+  review_method        String?   @default("blind_review")
+  reviewed_at          DateTime? @db.Timestamptz(6)
+  annotation_file_hash String?
+  reference_file_hash  String?
+  pass_fail            String?
+  overall_rating       Int?
+  rubric_scores        Json?
+  safety_flags         Json?
+  notes                String?   @db.Text
+  created_at           DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime  @updatedAt @db.Timestamptz(6)
 
   run OperationalLiveCanaryRun @relation(fields: [run_db_id], references: [id], onDelete: Restrict)
 
@@ -2170,18 +2195,18 @@ model StudentProfile {
   based_on_agent_call_db_id       String?                      @db.Uuid
   created_at                      DateTime                     @default(now()) @db.Timestamptz(6)
 
-  concept_unit_session               ConceptUnitSession         @relation("ConceptUnitSessionProfiles", fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
-  based_on_agent_call                AgentCall?                 @relation("StudentProfileAgentCall", fields: [based_on_agent_call_db_id], references: [id], onDelete: SetNull)
-  latest_for_concept_unit_sessions   ConceptUnitSession[]       @relation("LatestStudentProfile")
-  formative_decisions                FormativeDecision[]        @relation("DecisionProfile")
-  updated_followup_rounds            FollowupRound[]            @relation("UpdatedStudentProfile")
-  source_followup_update_cycles      FollowupUpdateCycle[]      @relation("SourceStudentProfile")
-  source_concept_progression_records ConceptProgressionRecord[] @relation("SourceStudentProfileProgression")
-  initial_for_formative_conversations FormativeConversationSession[] @relation("FormativeConversationInitialProfile")
-  current_for_formative_conversations FormativeConversationSession[] @relation("FormativeConversationCurrentProfile")
-  formative_conversation_review_signals FormativeConversationReviewSignal[] @relation("FormativeConversationReviewSignalProfile")
-  prior_formative_conversation_profile_transitions FormativeConversationProfileTransition[] @relation("FormativeConversationPriorProfile")
-  updated_formative_conversation_profile_transitions FormativeConversationProfileTransition[] @relation("FormativeConversationUpdatedProfile")
+  concept_unit_session                                  ConceptUnitSession                       @relation("ConceptUnitSessionProfiles", fields: [concept_unit_session_db_id], references: [id], onDelete: Restrict)
+  based_on_agent_call                                   AgentCall?                               @relation("StudentProfileAgentCall", fields: [based_on_agent_call_db_id], references: [id], onDelete: SetNull)
+  latest_for_concept_unit_sessions                      ConceptUnitSession[]                     @relation("LatestStudentProfile")
+  formative_decisions                                   FormativeDecision[]                      @relation("DecisionProfile")
+  updated_followup_rounds                               FollowupRound[]                          @relation("UpdatedStudentProfile")
+  source_followup_update_cycles                         FollowupUpdateCycle[]                    @relation("SourceStudentProfile")
+  source_concept_progression_records                    ConceptProgressionRecord[]               @relation("SourceStudentProfileProgression")
+  initial_for_formative_conversations                   FormativeConversationSession[]           @relation("FormativeConversationInitialProfile")
+  current_for_formative_conversations                   FormativeConversationSession[]           @relation("FormativeConversationCurrentProfile")
+  formative_conversation_review_signals                 FormativeConversationReviewSignal[]      @relation("FormativeConversationReviewSignalProfile")
+  prior_formative_conversation_profile_transitions      FormativeConversationProfileTransition[] @relation("FormativeConversationPriorProfile")
+  updated_formative_conversation_profile_transitions    FormativeConversationProfileTransition[] @relation("FormativeConversationUpdatedProfile")
   assessment_formative_conversation_profile_transitions FormativeConversationProfileTransition[] @relation("FormativeConversationAssessmentProfile")
 
   @@index([concept_unit_session_db_id, created_at])
@@ -2438,27 +2463,27 @@ model RosterImportBatch {
 }
 
 model McqItemImportBatch {
-  id                     String   @id @default(uuid()) @db.Uuid
-  batch_public_id        String   @unique @default(cuid())
-  assessment_db_id       String   @db.Uuid
-  uploaded_by_user_db_id String   @db.Uuid
+  id                     String    @id @default(uuid()) @db.Uuid
+  batch_public_id        String    @unique @default(cuid())
+  assessment_db_id       String    @db.Uuid
+  uploaded_by_user_db_id String    @db.Uuid
   source_type            String
   source_file_name       String?
   source_checksum        String
-  status                 String   @default("previewed")
-  candidate_count        Int      @default(0)
-  imported_count         Int      @default(0)
-  rejected_count         Int      @default(0)
-  key_missing_count      Int      @default(0)
-  llm_suggestion_count   Int      @default(0)
-  duplicate_count        Int      @default(0)
+  status                 String    @default("previewed")
+  candidate_count        Int       @default(0)
+  imported_count         Int       @default(0)
+  rejected_count         Int       @default(0)
+  key_missing_count      Int       @default(0)
+  llm_suggestion_count   Int       @default(0)
+  duplicate_count        Int       @default(0)
   validation_summary     Json
   candidates_payload     Json
   suggestion_payload     Json?
   import_summary         Json?
-  created_at             DateTime @default(now()) @db.Timestamptz(6)
+  created_at             DateTime  @default(now()) @db.Timestamptz(6)
   committed_at           DateTime? @db.Timestamptz(6)
-  updated_at             DateTime @updatedAt @db.Timestamptz(6)
+  updated_at             DateTime  @updatedAt @db.Timestamptz(6)
 
   assessment  Assessment @relation(fields: [assessment_db_id], references: [id], onDelete: Restrict)
   uploaded_by User       @relation("McqItemImportUploader", fields: [uploaded_by_user_db_id], references: [id], onDelete: Restrict)
@@ -2506,15 +2531,15 @@ model StudentAccountDeletionEvent {
 }
 
 model AssessmentDeletionEvent {
-  id                            String   @id @default(uuid()) @db.Uuid
-  deletion_public_id            String   @unique @default(cuid())
-  deleted_assessment_public_id  String
+  id                             String   @id @default(uuid()) @db.Uuid
+  deletion_public_id             String   @unique @default(cuid())
+  deleted_assessment_public_id   String
   deleted_assessment_public_hash String
-  assessment_title_snapshot     String
-  performed_by_user_db_id       String   @db.Uuid
-  deletion_mode                 String
-  deletion_summary              Json
-  created_at                    DateTime @default(now()) @db.Timestamptz(6)
+  assessment_title_snapshot      String
+  performed_by_user_db_id        String   @db.Uuid
+  deletion_mode                  String
+  deletion_summary               Json
+  created_at                     DateTime @default(now()) @db.Timestamptz(6)
 
   performed_by User @relation("AssessmentDeletionEventPerformer", fields: [performed_by_user_db_id], references: [id], onDelete: Restrict)
 

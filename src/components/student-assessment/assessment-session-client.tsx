@@ -35,6 +35,7 @@ import {
   newClientActionId,
   requestProgression,
   retryFormativeConversationOpening,
+  retryFormativeConversationResponse,
   saveConfidence,
   saveOption,
   saveReasoning,
@@ -175,8 +176,9 @@ function ErrorNotice({ error }: { error: StructuredStudentApiError | null }) {
       <div className="flex gap-2">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <div>
-          <p className="font-semibold">{error.message}</p>
-          <p className="mt-1 text-xs uppercase tracking-wide text-red-700">{error.code}</p>
+          <p className="font-semibold" data-testid="student-safe-error-message">
+            {error.message}
+          </p>
         </div>
       </div>
     </div>
@@ -266,9 +268,24 @@ function FormativeConversationBubble({
         {isTutor ? (
           <SafeTutorMessageMarkdown message={turn.message_text} />
         ) : (
-          <p className="whitespace-pre-wrap text-sm leading-6">
-            {turn.message_text}
-          </p>
+          <>
+            <p className="whitespace-pre-wrap text-sm leading-6">
+              {turn.message_text}
+            </p>
+            {turn.assistant_response_status &&
+            turn.assistant_response_status !== "completed" ? (
+              <p
+                className="mt-2 text-xs text-white/75"
+                data-testid={`formative-response-${turn.assistant_response_status}`}
+              >
+                {turn.assistant_response_status === "failed"
+                  ? "Your message is saved, but the tutor has not responded."
+                  : turn.assistant_response_status === "retrying"
+                    ? "Trying the tutor response again..."
+                    : "Waiting for the tutor response..."}
+              </p>
+            ) : null}
+          </>
         )}
         <time className="sr-only" dateTime={turn.created_at}>
           {formatTranscriptTimestamp(turn.created_at)}
@@ -288,6 +305,7 @@ function FormativeConversationControls(input: {
   onPaste: (pastedCharacterCount: number) => void;
   onPause: () => void;
   onRetryOpening: () => void;
+  onRetryResponse: () => void;
   onResume: () => void;
   onSend: () => void;
 }) {
@@ -338,7 +356,40 @@ function FormativeConversationControls(input: {
           ) : null}
         </div>
       </div>
-      {conversation.can_send ? (
+      {conversation.assistant_response ? (
+        conversation.assistant_response.status === "failed" &&
+        conversation.assistant_response.can_retry ? (
+          <div
+            className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2"
+            data-testid="formative-conversation-response-retry"
+          >
+            <p className="text-sm text-amber-950">
+              Your message is saved. The tutor could not respond just now.
+            </p>
+            <button
+              className="inline-flex items-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:opacity-60"
+              disabled={input.isBusy}
+              onClick={input.onRetryResponse}
+              type="button"
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Try tutor response again
+            </button>
+          </div>
+        ) : (
+          <p
+            aria-live="polite"
+            className="mt-4 flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted"
+            data-testid="formative-conversation-response-pending"
+            role="status"
+          >
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            {conversation.assistant_response.status === "retrying"
+              ? "Trying the tutor response again..."
+              : "Waiting for the tutor response..."}
+          </p>
+        )
+      ) : conversation.can_send ? (
         <div className="mt-4 flex items-end gap-2">
           <label className="flex-1">
             <span className="sr-only">Message the assessment tutor</span>
@@ -383,8 +434,10 @@ function FormativeConversationControls(input: {
         </div>
       ) : conversation.opening_status === "preparing" ? (
         <p
+          aria-live="polite"
           className="mt-4 flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted"
           data-testid="formative-conversation-opening-preparing"
+          role="status"
         >
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           Preparing your learning conversation...
@@ -395,7 +448,7 @@ function FormativeConversationControls(input: {
           data-testid="formative-conversation-opening-retry"
         >
           <p className="text-sm text-muted">
-            The learning conversation is not available yet.
+            The tutor could not start the conversation yet.
           </p>
           <button
             className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:opacity-60"
@@ -412,13 +465,14 @@ function FormativeConversationControls(input: {
           className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted"
           data-testid="formative-conversation-opening-unavailable"
         >
-          The learning conversation is temporarily unavailable.
+          The tutor is temporarily unavailable. You can pause and leave, then
+          return later.
         </p>
       ) : (
         <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted">
           {conversation.status === "paused"
-            ? "This conversation is paused."
-            : "This conversation has ended."}
+            ? "This conversation is paused. Resume it when you are ready to continue."
+            : "This conversation has ended. Use End attempt when you are ready to finish the assessment."}
         </p>
       )}
     </section>
@@ -2231,6 +2285,8 @@ export function AssessmentSessionClient({
   const [inFlowEditDraft, setInFlowEditDraft] = useState<InFlowEditDraft | null>(null);
   const [editingReviewItemId, setEditingReviewItemId] = useState<string | null>(null);
   const [reviewEditDraft, setReviewEditDraft] = useState<PackageReviewEditDraft | null>(null);
+  const [endConversationDialogOpen, setEndConversationDialogOpen] =
+    useState(false);
   const [endAssessmentDialogOpen, setEndAssessmentDialogOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const displayAcknowledgementRef = useRef<Set<string>>(new Set());
@@ -2443,6 +2499,42 @@ export function AssessmentSessionClient({
         void handleRetryFormativeConversationOpening();
       });
       setFailedAction(null);
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function handleRetryFormativeConversationResponse() {
+    const conversation = state?.formative_conversation;
+    const response = conversation?.assistant_response;
+    if (
+      !state ||
+      !conversation ||
+      !response?.can_retry ||
+      isBusy
+    ) {
+      return;
+    }
+    setIsBusy(true);
+    setError(null);
+    setFailedAction(null);
+    try {
+      const nextConversation =
+        await retryFormativeConversationResponse({
+          sessionPublicId: state.session_public_id,
+          conversationPublicId:
+            conversation.conversation_public_id,
+          receiptPublicId: response.receipt_public_id
+        });
+      setState((current) =>
+        current
+          ? { ...current, formative_conversation: nextConversation }
+          : current
+      );
+    } catch (errorValue) {
+      handleError(errorValue, "tutor response", () => {
+        void handleRetryFormativeConversationResponse();
+      });
     } finally {
       setIsBusy(false);
     }
@@ -3327,7 +3419,7 @@ export function AssessmentSessionClient({
         formativeBackspaceCountRef.current += 1;
       }}
       onChange={handleFormativeConversationDraft}
-      onEnd={() => void handleFormativeConversationLifecycle("end")}
+      onEnd={() => setEndConversationDialogOpen(true)}
       onPaste={(pastedCharacterCount) => {
         formativePasteCountRef.current += 1;
         formativePasteCharacterCountRef.current +=
@@ -3335,6 +3427,7 @@ export function AssessmentSessionClient({
       }}
       onPause={() => void handleFormativeConversationLifecycle("pause")}
       onRetryOpening={() => void handleRetryFormativeConversationOpening()}
+      onRetryResponse={() => void handleRetryFormativeConversationResponse()}
       onResume={() => void handleFormativeConversationLifecycle("resume")}
       onSend={() => void handleSendFormativeConversationMessage()}
     />
@@ -3442,6 +3535,50 @@ export function AssessmentSessionClient({
           <div ref={scrollRef} />
         </ChatTranscript>
       </div>
+      {endConversationDialogOpen ? (
+        <div
+          aria-labelledby="end-conversation-dialog-title"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/35 px-4"
+          data-testid="end-conversation-dialog"
+          role="dialog"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-line bg-white p-5 shadow-xl">
+            <h2
+              className="text-lg font-semibold text-ink"
+              id="end-conversation-dialog-title"
+            >
+              End the learning conversation?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              You will not be able to send more messages here. This does not
+              end the assessment attempt.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isBusy}
+                onClick={() => setEndConversationDialogOpen(false)}
+                type="button"
+              >
+                Keep talking
+              </button>
+              <button
+                className="rounded-full bg-[#c99700] px-4 py-2 text-sm font-semibold text-ink hover:bg-[#d6aa1c] disabled:cursor-not-allowed disabled:opacity-60"
+                data-testid="confirm-end-conversation"
+                disabled={isBusy}
+                onClick={() => {
+                  setEndConversationDialogOpen(false);
+                  void handleFormativeConversationLifecycle("end");
+                }}
+                type="button"
+              >
+                End conversation
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {endAssessmentDialogOpen ? (
         <div
           aria-labelledby="end-assessment-dialog-title"

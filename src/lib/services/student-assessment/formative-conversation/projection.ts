@@ -22,7 +22,11 @@ function turnProjection(turn: {
   message_text: string | null;
   structured_payload: unknown;
   created_at: Date;
-}) {
+}, response?: {
+  receipt_public_id: string;
+  assistant_response_status: "pending" | "completed" | "failed" | "retrying";
+  assistant_response_retry_count: number;
+} | null) {
   const payload =
     turn.structured_payload &&
     typeof turn.structured_payload === "object" &&
@@ -47,7 +51,19 @@ function turnProjection(turn: {
     fallback_used:
       typeof payload.fallback_used === "boolean"
         ? payload.fallback_used
-        : false
+        : false,
+    response_receipt_public_id:
+      turn.actor_type === "student"
+        ? response?.receipt_public_id ?? null
+        : null,
+    assistant_response_status:
+      turn.actor_type === "student"
+        ? response?.assistant_response_status ?? null
+        : null,
+    assistant_response_retry_count:
+      turn.actor_type === "student"
+        ? response?.assistant_response_retry_count ?? 0
+        : 0
   };
 }
 
@@ -71,12 +87,9 @@ export async function getStudentFormativeConversationProjection(input: {
         orderBy: { sequence_index: "asc" }
       },
       message_receipts: {
-        where: {
-          client_message_id:
-            FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID
-        },
-        take: 1,
+        orderBy: { created_at: "asc" },
         include: {
+          student_turn: true,
           assistant_turn: true
         }
       }
@@ -85,7 +98,12 @@ export async function getStudentFormativeConversationProjection(input: {
   if (!conversation) {
     return null;
   }
-  const openingReceipt = conversation.message_receipts[0] ?? null;
+  const openingReceipt =
+    conversation.message_receipts.find(
+      (receipt) =>
+        receipt.client_message_id ===
+        FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID
+    ) ?? null;
   const persistedOpening =
     openingReceipt?.assistant_turn ??
     conversation.conversation_turns.find(
@@ -111,6 +129,28 @@ export async function getStudentFormativeConversationProjection(input: {
   const canRetryOpening =
     conversation.status === "active" &&
     openingStatus === "retry_available";
+  const responseReceipts =
+    conversation.message_receipts.filter(
+      (receipt) =>
+        receipt.client_message_id !==
+          FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID &&
+        Boolean(receipt.student_turn)
+    );
+  const responseByStudentTurnId = new Map(
+    responseReceipts.flatMap((receipt) =>
+      receipt.student_turn_db_id
+        ? [[receipt.student_turn_db_id, receipt] as const]
+        : []
+    )
+  );
+  const incompleteResponse =
+    [...responseReceipts]
+      .reverse()
+      .find(
+        (receipt) =>
+          !receipt.assistant_turn &&
+          receipt.assistant_response_status !== "completed"
+      ) ?? null;
 
   return {
     conversation_public_id: conversation.conversation_public_id,
@@ -121,12 +161,31 @@ export async function getStudentFormativeConversationProjection(input: {
     completed_at: conversation.completed_at?.toISOString() ?? null,
     opening_status: openingStatus,
     can_retry_opening: canRetryOpening,
-    can_send: conversation.status === "active" && openingReady,
+    can_send:
+      conversation.status === "active" &&
+      openingReady &&
+      !incompleteResponse,
     can_pause: conversation.status === "active",
     can_resume: conversation.status === "paused",
     can_end: ["active", "paused"].includes(conversation.status),
     message_max_chars: 5_000,
-    transcript: conversation.conversation_turns.map(turnProjection)
+    assistant_response: incompleteResponse
+      ? {
+          receipt_public_id: incompleteResponse.receipt_public_id,
+          status: incompleteResponse.assistant_response_status,
+          retry_count:
+            incompleteResponse.assistant_response_retry_count,
+          can_retry:
+            conversation.status === "active" &&
+            incompleteResponse.assistant_response_status === "failed"
+        }
+      : null,
+    transcript: conversation.conversation_turns.map((turn) =>
+      turnProjection(
+        turn,
+        responseByStudentTurnId.get(turn.id) ?? null
+      )
+    )
   };
 }
 
