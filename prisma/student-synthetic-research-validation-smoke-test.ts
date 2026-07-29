@@ -96,13 +96,23 @@ async function main() {
       "synthetic-validation-smoke-pseudonym-key";
     process.env.RESEARCH_PSEUDONYMIZATION_VERSION = "hmac_sha256_v1";
 
-    assert.equal(SYNTHETIC_STUDENT_PERSONAS.length, 6);
+    assert.equal(SYNTHETIC_STUDENT_PERSONAS.length, 12);
     for (const persona of SYNTHETIC_STUDENT_PERSONAS) {
       assert(SyntheticStudentPersonaSchema.safeParse(persona).success);
+      assert(persona.initial_knowledge_state.length > 0);
+      assert(persona.response_behavior.length > 0);
+      assert(persona.reasoning_style.length > 0);
+      assert(persona.confidence_pattern.length > 0);
+      assert(persona.interaction_behavior.length > 0);
+      assert(persona.process_behavior.length > 0);
+      assert(persona.validation_purpose.length > 0);
       const serialized = JSON.stringify(persona);
       assert(!serialized.includes("expected_outcome"));
+      assert(!serialized.includes("expected_improvement"));
+      assert(!serialized.includes("expected_transition"));
       assert(!serialized.includes("target_profile"));
       assert(!serialized.includes("fixed_tutor_response"));
+      assert(!serialized.includes("activity_sequence"));
     }
 
     const runner = contractRunner();
@@ -121,9 +131,13 @@ async function main() {
       );
 
     assert.equal(transportBoundaryCount, 0);
-    assert.equal(result.report.persona_count, 6);
+    assert.equal(result.report.persona_count, 12);
     assert.equal(result.report.mode, "contract_test");
-    assert.equal(result.report.pedagogical_evaluation_valid, false);
+    assert.equal(
+      result.report.validation_scope,
+      "system_validation_not_learning_effectiveness"
+    );
+    assert.equal(result.report.live_execution_evidence_valid, false);
     assert.equal(result.report.provider_calls_authorized, false);
     assert.equal(
       result.report.export_validation.status,
@@ -147,6 +161,75 @@ async function main() {
       true
     );
     assert.equal(result.report.export_validation.reproducible, true);
+    assert.equal(
+      result.report.export_validation.agent_call_join_failure_count,
+      0
+    );
+    assert.equal(
+      result.report.export_validation.profile_provenance_failure_count,
+      0
+    );
+    assert.equal(
+      result.report.technical_reliability_report.total_sessions,
+      12
+    );
+    assert.equal(
+      result.report.technical_reliability_report.successful_sessions,
+      12
+    );
+    assert.equal(
+      result.report.technical_reliability_report.failed_sessions,
+      0
+    );
+    assert.equal(
+      result.report.technical_reliability_report.agent_failure_count,
+      0
+    );
+    assert.equal(
+      result.report.technical_reliability_report.retry_event_count,
+      0
+    );
+    assert.equal(
+      result.report.technical_reliability_report
+        .missing_telemetry_count,
+      0
+    );
+    assert.equal(
+      result.report.behavioral_coverage_report.length,
+      12
+    );
+    assert.equal(
+      result.report.architecture_review
+        .deterministic_pedagogy_leakage_detected,
+      false
+    );
+    assert.equal(
+      result.report.architecture_review
+        .activity_runtime_contamination_count,
+      0
+    );
+    assert.equal(
+      result.report.architecture_review
+        .topic_dialogue_contamination_count,
+      0
+    );
+    assert.equal(
+      result.report.architecture_review
+        .profile_heuristic_behavior_detected,
+      false
+    );
+    assert(
+      result.report.qualitative_examples
+        .strongest_successful_interaction
+    );
+    assert(
+      result.report.qualitative_examples
+        .most_challenging_interaction
+    );
+    assert.equal(
+      result.report.qualitative_examples.unexpected_behavior,
+      null
+    );
 
     for (const student of result.report.students) {
       assert(student.initial_profile);
@@ -154,8 +237,15 @@ async function main() {
       assert.equal(student.conversation_length.tutor_turns, 4);
       assert.equal(student.agent_calls.total, 4);
       assert.equal(student.agent_calls.failed, 0);
+      assert.equal(student.agent_calls.retry_count, 0);
       assert.equal(student.telemetry_summary.input_telemetry_count, 3);
       assert.equal(student.final_profile_transition, null);
+      assert.equal(student.profile_transition_occurred, false);
+      assert.equal(student.unresolved_issue_codes.length, 0);
+      assert.equal(
+        student.tutor_response_behavior.visible_tutor_turn_count,
+        4
+      );
       assert.equal(student.execution_error, null);
     }
 
@@ -196,7 +286,7 @@ async function main() {
           export_validation:
             result.report.export_validation.status,
           assertions: [
-            "six_configurable_personas",
+            "twelve_configurable_personas",
             "assessment_evidence_and_process_telemetry_persisted",
             "assistant_first_formative_conversation_persisted",
             "agent_calls_and_turn_telemetry_bound",
@@ -204,6 +294,10 @@ async function main() {
             "research_export_complete_and_reproducible",
             "safe_agent_call_joins",
             "profile_provenance_validator",
+            "technical_reliability_report",
+            "behavioral_coverage_report",
+            "architecture_contamination_review",
+            "observable_qualitative_examples",
             "no_expected_learning_outcomes",
             "no_activity_routing",
             "no_openai_transport"

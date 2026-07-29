@@ -51,6 +51,71 @@ export type MockProviderMode =
 
 const attemptsByRequest = new Map<string, number>();
 
+function jsonRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function jsonRecords(value: unknown) {
+  return Array.isArray(value)
+    ? value
+        .map(jsonRecord)
+        .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+    : [];
+}
+
+function profilingResponseItems(value: unknown) {
+  const input = jsonRecord(value);
+  const responsePackage = jsonRecord(input?.initial_response_package);
+  const payload = jsonRecord(responsePackage?.payload);
+  const itemEvidence = jsonRecords(responsePackage?.item_evidence).map((item) => ({
+    item,
+    response: jsonRecord(item.response) ?? item
+  }));
+  const payloadItems = jsonRecords(payload?.item_responses).map((item) => ({
+    item,
+    response: item
+  }));
+  const merged = new Map<
+    string,
+    {
+      item_public_id: string;
+      correctness: string | null;
+      confidence_rating: "low" | "medium" | "high" | null;
+    }
+  >();
+
+  for (const entry of [...itemEvidence, ...payloadItems]) {
+    const itemPublicId =
+      typeof entry.item.item_public_id === "string"
+        ? entry.item.item_public_id
+        : typeof entry.response.item_public_id === "string"
+          ? entry.response.item_public_id
+          : null;
+    if (!itemPublicId) {
+      continue;
+    }
+
+    const confidence =
+      entry.response.confidence_rating === "low" ||
+      entry.response.confidence_rating === "medium" ||
+      entry.response.confidence_rating === "high"
+        ? entry.response.confidence_rating
+        : null;
+    merged.set(itemPublicId, {
+      item_public_id: itemPublicId,
+      correctness:
+        typeof entry.response.correctness === "string"
+          ? entry.response.correctness
+          : null,
+      confidence_rating: confidence
+    });
+  }
+
+  return [...merged.values()];
+}
+
 function failedResult<TOutput>(
   request: StructuredAgentRequest<unknown, TOutput>,
   error: SanitizedAgentError,
@@ -755,6 +820,88 @@ export class MockLlmProvider implements LlmProvider {
 
     if (request.agent_name === "student_profiling_agent") {
       const input = request.input as Record<string, unknown>;
+      const responseItems = profilingResponseItems(input);
+      const correctCount = responseItems.filter(
+        (item) => item.correctness === "correct"
+      ).length;
+      const incorrectCount = responseItems.filter(
+        (item) => item.correctness === "incorrect"
+      ).length;
+      const allCorrect =
+        responseItems.length > 0 && correctCount === responseItems.length;
+      const noGroundedItems = responseItems.length === 0;
+      const firstIncorrect =
+        responseItems.find((item) => item.correctness === "incorrect") ?? null;
+
+      output.item_level_evidence = responseItems.map((item) => ({
+        item_public_id: item.item_public_id,
+        evidence_summary: `Mock grounded evidence recorded a ${item.correctness ?? "not classified"} response.`,
+        correctness: item.correctness,
+        reasoning_quality:
+          "Mock provider output records the supplied reasoning as observable evidence only.",
+        confidence_rating: item.confidence_rating
+      }));
+      output.ability_profile = noGroundedItems
+        ? "insufficient_evidence"
+        : allCorrect
+          ? "fragile_correct_understanding"
+          : incorrectCount === responseItems.length
+            ? "misconception_based_understanding"
+            : "partial_understanding";
+      output.ability_pattern_flags = noGroundedItems
+        ? ["no_clear_pattern"]
+        : allCorrect
+          ? ["correct_answer_weak_reasoning"]
+          : incorrectCount === responseItems.length
+            ? [
+                "misconception_indicator_present",
+                "distractor_aligned_reasoning"
+              ]
+            : ["incorrect_answer_strong_partial_reasoning"];
+      output.integrated_diagnostic_profile = noGroundedItems
+        ? "insufficient_evidence_for_formative_decision"
+        : allCorrect
+          ? "correct_but_fragile_understanding"
+          : incorrectCount === responseItems.length
+            ? "misconception_with_sufficient_engagement"
+            : "developing_understanding_with_productive_engagement";
+      output.integrated_profile_rationale = noGroundedItems
+        ? "Observed response evidence is unavailable. Diagnostic inference remains insufficient, and recommended next evidence should include grounded responses."
+        : "Observed response, reasoning, and confidence fields support this mock profile fixture. Diagnostic inference remains limited to no-provider infrastructure testing.";
+      output.evidence_sufficiency = noGroundedItems ? "insufficient" : "adequate";
+      output.confidence_alignment = noGroundedItems
+        ? "insufficient_evidence"
+        : "mixed";
+      output.independence_interpretability = noGroundedItems
+        ? "insufficient_evidence"
+        : "independent_understanding_uncertain";
+      output.misconception_indicators = firstIncorrect
+        ? [
+            {
+              indicator: "mock_grounded_incorrect_response_pattern",
+              evidence_reference: firstIncorrect.item_public_id,
+              confidence: "low",
+              rationale:
+                "Mock misconception indicator is grounded to a supplied incorrect response."
+            }
+          ]
+        : [];
+      output.reasoning_quality_summary =
+        "Mock output treats supplied reasoning as observable evidence and makes no validated research inference.";
+      output.engagement_summary =
+        "Mock output treats supplied process context as evidence context only.";
+      output.profile_confidence = noGroundedItems ? "low" : "medium";
+      output.rationale = noGroundedItems
+        ? "Observed evidence is insufficient. Recommended next evidence should supply item responses."
+        : "Observed evidence grounds this mock diagnostic inference. Recommended next evidence should test the same interpretation.";
+      output.recommended_next_evidence = [
+        {
+          evidence_type: "clarify_reasoning",
+          reason:
+            "Mock next evidence should remain linked to the supplied response package.",
+          item_public_id: responseItems[0]?.item_public_id ?? null
+        }
+      ];
 
       if (input.profile_type === "updated") {
         output.profile_type = "updated";

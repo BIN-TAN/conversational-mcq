@@ -4,7 +4,10 @@ import type { AgentInputByName, AgentOutputByName } from "../src/lib/agents/cont
 import { validateFollowupSemantics } from "../src/lib/agents/followup/semantic-validation";
 import { validateItemVerificationOutputSemantics } from "../src/lib/agents/item-verification/semantic-validation";
 import { validateResponseCollectionOutputSemantics } from "../src/lib/agents/response-collection/semantic-validation";
-import { validateStudentProfileOutputSemantics } from "../src/lib/agents/student-profiling/semantic-validation";
+import {
+  STUDENT_PROFILE_EVIDENCE_CONSISTENCY_VERSION,
+  validateStudentProfileOutputSemantics
+} from "../src/lib/agents/student-profiling/semantic-validation";
 import { getFollowupContextConfig } from "../src/lib/agents/followup/context";
 import {
   EVAL_SAFETY_VALIDATOR_VERSION,
@@ -458,6 +461,11 @@ async function main() {
   });
   assert(!evalSemantic.ok, "Central semantic validator should use targeted profiling rules.");
   assert(evalSemantic.metadata?.evaluator_version === EVAL_SEMANTIC_VALIDATOR_VERSION, "Semantic evaluator version missing.");
+  assert(
+    evalSemantic.metadata?.evidence_consistency_version ===
+      STUDENT_PROFILE_EVIDENCE_CONSISTENCY_VERSION,
+    "Profile evidence consistency validator version missing."
+  );
   assert(safeHint.metadata?.evaluator_version === EVAL_SAFETY_VALIDATOR_VERSION, "Safety evaluator version missing.");
 
   console.log("Targeted quality regression smoke test passed. No OpenAI call was made.");

@@ -367,7 +367,11 @@ export function semanticValidateAgentOutput(input: {
           ok: issues.length === 0 && semantic.ok,
           issues: [...issues, ...semantic.issues],
           warnings: semantic.warnings,
-          metadata: { evaluator_version: EVAL_SEMANTIC_VALIDATOR_VERSION }
+          metadata: {
+            evaluator_version: EVAL_SEMANTIC_VALIDATOR_VERSION,
+            evidence_consistency_version: semantic.evidence_consistency.version,
+            evidence_consistency: semantic.evidence_consistency.classification
+          }
         };
       }
 

@@ -193,7 +193,10 @@ async function main() {
         {
           status:
             result.report.export_validation.status === "passed" &&
-            result.report.pedagogical_evaluation_valid
+            result.report.live_execution_evidence_valid &&
+            result.report.technical_reliability_report.failed_sessions ===
+              0 &&
+            result.report.architecture_review.issue_codes.length === 0
               ? "passed"
               : "completed_with_findings",
           run_public_id: runPublicId,
@@ -202,6 +205,19 @@ async function main() {
           research_export_path: exportPath,
           report_sha256: reportHash,
           export_validation: result.report.export_validation.status,
+          successful_sessions:
+            result.report.technical_reliability_report
+              .successful_sessions,
+          failed_sessions:
+            result.report.technical_reliability_report.failed_sessions,
+          agent_failures:
+            result.report.technical_reliability_report
+              .agent_failure_count,
+          retry_events:
+            result.report.technical_reliability_report
+              .retry_event_count,
+          architecture_issue_codes:
+            result.report.architecture_review.issue_codes,
           fixtures_retained: !options.cleanup
         },
         null,

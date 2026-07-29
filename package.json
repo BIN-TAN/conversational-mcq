@@ -1180,6 +1180,7 @@
     "eval:ai-review-confirmation-smoke": "tsx prisma/eval-ai-review-confirmation-smoke-test.ts",
     "eval:confirmed-annotation-amendment-smoke": "tsx prisma/eval-confirmed-annotation-amendment-smoke-test.ts",
     "eval:targeted-quality-regression-smoke": "tsx prisma/eval-targeted-quality-regression-smoke-test.ts",
+    "student:profiling-semantic-validation-smoke": "tsx prisma/student-profiling-semantic-validation-smoke-test.ts",
     "eval:live-canary-runner-smoke": "tsx prisma/eval-live-canary-runner-smoke-test.ts",
     "eval:structured-output-compat-smoke": "tsx prisma/eval-structured-output-compat-smoke-test.ts",
     "eval:usage-parser-smoke": "tsx prisma/eval-usage-parser-smoke-test.ts",

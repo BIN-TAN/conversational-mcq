@@ -149,7 +149,7 @@ type SyntheticFixture = {
 type SyntheticStudentExecution = {
   persona: SyntheticStudentPersona;
   session_public_id: string;
-  conversation_public_id: string;
+  conversation_public_id: string | null;
   execution_error: string | null;
 };
 
@@ -212,7 +212,13 @@ function reproducibleCsvContent(data: string) {
   );
 }
 
-function safeExecutionError() {
+function safeExecutionError(error: unknown) {
+  if (error instanceof Error) {
+    const candidate = error.message.split(":", 1)[0];
+    if (/^[a-z0-9_]{3,120}$/.test(candidate)) {
+      return candidate;
+    }
+  }
   return "synthetic_formative_conversation_execution_failed";
 }
 
@@ -222,6 +228,33 @@ function estimatedLogicalCalls(personas: readonly SyntheticStudentPersona[]) {
       total + 1 + 1 + persona.conversation_behavior.length,
     0
   );
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values)];
+}
+
+function messageExcerpt(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length <= 600
+    ? normalized
+    : `${normalized.slice(0, 597)}...`;
+}
+
+function average(values: number[]) {
+  if (values.length === 0) {
+    return 0;
+  }
+  return values.reduce((total, value) => total + value, 0) / values.length;
 }
 
 async function createSyntheticAssessmentFixture(input: {
@@ -622,72 +655,74 @@ async function runSyntheticStudent(input: {
   runner_factory: () => FormativeConversationAgentRunner;
 }) {
   const assessment = await persistSyntheticAssessmentEvidence(input);
-  const profileResult = await runInitialStudentProfiling({
-    concept_unit_session_db_id: assessment.concept_unit_session_db_id,
-    invocation_reason: `${input.fixture.run_public_id}:${input.persona.persona_id}:initial_profile`
-  });
-  if (
-    profileResult.status !== "profile_created" &&
-    profileResult.status !== "already_profiled"
-  ) {
-    throw new Error("synthetic_initial_profile_not_created");
-  }
-  if (input.mode === "live_llm") {
-    const initialProfile =
-      await prisma.studentProfile.findFirstOrThrow({
-        where: {
-          concept_unit_session_db_id:
-            assessment.concept_unit_session_db_id,
-          profile_type: "initial"
-        },
-        orderBy: { created_at: "desc" },
-        include: {
-          based_on_agent_call: {
-            select: {
-              provider: true,
-              live_call_allowed: true,
-              call_status: true,
-              output_validated: true
-            }
-          }
-        }
-      });
-    if (
-      initialProfile.based_on_agent_call?.provider !== "openai" ||
-      !initialProfile.based_on_agent_call.live_call_allowed ||
-      initialProfile.based_on_agent_call.call_status !== "succeeded" ||
-      !initialProfile.based_on_agent_call.output_validated
-    ) {
-      throw new Error("synthetic_initial_profile_not_live_validated");
-    }
-  }
-  const conversation =
-    await prisma.formativeConversationSession.findUniqueOrThrow({
-      where: {
-        concept_unit_session_db_id:
-          assessment.concept_unit_session_db_id
-      }
-    });
-  const clientInstanceId = `${input.fixture.run_public_id}:${input.persona.persona_id}`;
-  await recordFormativeConversationLifecycleEvent({
-    conversation_public_id: conversation.conversation_public_id,
-    client_event_id: `${clientInstanceId}:session_started`,
-    event_type: "session_started",
-    event_source: "backend",
-    client_instance_id: clientInstanceId,
-    occurred_at: new Date()
-  });
-  await recordFormativeConversationLifecycleEvent({
-    conversation_public_id: conversation.conversation_public_id,
-    client_event_id: `${clientInstanceId}:page_visible`,
-    event_type: "page_visible",
-    event_source: "frontend",
-    client_instance_id: clientInstanceId,
-    occurred_at: new Date()
-  });
-
+  let conversationPublicId: string | null = null;
   let executionError: string | null = null;
   try {
+    const profileResult = await runInitialStudentProfiling({
+      concept_unit_session_db_id: assessment.concept_unit_session_db_id,
+      invocation_reason: `${input.fixture.run_public_id}:${input.persona.persona_id}:initial_profile`
+    });
+    if (
+      profileResult.status !== "profile_created" &&
+      profileResult.status !== "already_profiled"
+    ) {
+      throw new Error("synthetic_initial_profile_not_created");
+    }
+    if (input.mode === "live_llm") {
+      const initialProfile =
+        await prisma.studentProfile.findFirstOrThrow({
+          where: {
+            concept_unit_session_db_id:
+              assessment.concept_unit_session_db_id,
+            profile_type: "initial"
+          },
+          orderBy: { created_at: "desc" },
+          include: {
+            based_on_agent_call: {
+              select: {
+                provider: true,
+                live_call_allowed: true,
+                call_status: true,
+                output_validated: true
+              }
+            }
+          }
+        });
+      if (
+        initialProfile.based_on_agent_call?.provider !== "openai" ||
+        !initialProfile.based_on_agent_call.live_call_allowed ||
+        initialProfile.based_on_agent_call.call_status !== "succeeded" ||
+        !initialProfile.based_on_agent_call.output_validated
+      ) {
+        throw new Error("synthetic_initial_profile_not_live_validated");
+      }
+    }
+    const conversation =
+      await prisma.formativeConversationSession.findUniqueOrThrow({
+        where: {
+          concept_unit_session_db_id:
+            assessment.concept_unit_session_db_id
+        }
+      });
+    conversationPublicId = conversation.conversation_public_id;
+    const clientInstanceId = `${input.fixture.run_public_id}:${input.persona.persona_id}`;
+    await recordFormativeConversationLifecycleEvent({
+      conversation_public_id: conversation.conversation_public_id,
+      client_event_id: `${clientInstanceId}:session_started`,
+      event_type: "session_started",
+      event_source: "backend",
+      client_instance_id: clientInstanceId,
+      occurred_at: new Date()
+    });
+    await recordFormativeConversationLifecycleEvent({
+      conversation_public_id: conversation.conversation_public_id,
+      client_event_id: `${clientInstanceId}:page_visible`,
+      event_type: "page_visible",
+      event_source: "frontend",
+      client_instance_id: clientInstanceId,
+      occurred_at: new Date()
+    });
+
     const openingContext =
       await buildFormativeConversationRuntimeContextSeed({
         conversation_public_id: conversation.conversation_public_id,
@@ -741,14 +776,26 @@ async function runSyntheticStudent(input: {
         { runner_factory: input.runner_factory }
       );
     }
-  } catch {
-    executionError = safeExecutionError();
+  } catch (error) {
+    executionError = safeExecutionError(error);
+    if (!conversationPublicId) {
+      const persistedConversation =
+        await prisma.formativeConversationSession.findUnique({
+          where: {
+            concept_unit_session_db_id:
+              assessment.concept_unit_session_db_id
+          },
+          select: { conversation_public_id: true }
+        });
+      conversationPublicId =
+        persistedConversation?.conversation_public_id ?? null;
+    }
   }
 
   return {
     persona: input.persona,
     session_public_id: assessment.session_public_id,
-    conversation_public_id: conversation.conversation_public_id,
+    conversation_public_id: conversationPublicId,
     execution_error: executionError
   } satisfies SyntheticStudentExecution;
 }
@@ -820,27 +867,30 @@ function validateResearchExport(input: {
       .map((row) => row.agent_call_public_id)
       .filter(Boolean)
   );
-  const agentCallJoinsValid = turnRows
+  const invalidAgentCallJoinRows = turnRows
     .filter((row) => row.actor_type === "agent")
-    .every(
+    .filter(
       (row) =>
-        Boolean(row.agent_call_public_id) &&
-        exportedAgentCallIds.has(row.agent_call_public_id)
+        !row.agent_call_public_id ||
+        !exportedAgentCallIds.has(row.agent_call_public_id)
     );
+  const agentCallJoinsValid = invalidAgentCallJoinRows.length === 0;
   if (!agentCallJoinsValid) {
     issues.push("agent_call_join_invalid");
   }
 
-  const profileProvenanceValid = transitionRows.every(
+  const invalidProfileProvenanceRows = transitionRows.filter(
     (row) =>
-      Boolean(row.transition_public_id) &&
-      Boolean(row.prior_profile_created_at) &&
-      Boolean(row.updated_profile_created_at) &&
-      Boolean(row.supporting_turn_sequence_indexes) &&
-      Boolean(row.evidence_reference_public_ids) &&
-      Boolean(row.source_agent_call_public_id) &&
-      exportedAgentCallIds.has(row.source_agent_call_public_id)
+      !row.transition_public_id ||
+      !row.prior_profile_created_at ||
+      !row.updated_profile_created_at ||
+      !row.supporting_turn_sequence_indexes ||
+      !row.evidence_reference_public_ids ||
+      !row.source_agent_call_public_id ||
+      !exportedAgentCallIds.has(row.source_agent_call_public_id)
   );
+  const profileProvenanceValid =
+    invalidProfileProvenanceRows.length === 0;
   if (!profileProvenanceValid) {
     issues.push("profile_provenance_invalid");
   }
@@ -866,6 +916,9 @@ function validateResearchExport(input: {
     agent_call_joins_valid: agentCallJoinsValid,
     profile_provenance_valid: profileProvenanceValid,
     reproducible,
+    agent_call_join_failure_count: invalidAgentCallJoinRows.length,
+    profile_provenance_failure_count:
+      invalidProfileProvenanceRows.length,
     file_row_counts: input.first.row_counts,
     issue_codes: issues
   };
@@ -875,108 +928,263 @@ async function buildStudentReport(execution: SyntheticStudentExecution) {
   const [teacherDetail, itemResponses, conversation] = await Promise.all([
     getTeacherReviewSessionDetail(execution.session_public_id),
     getTeacherReviewItemResponses(execution.session_public_id),
-    prisma.formativeConversationSession.findUniqueOrThrow({
-      where: {
-        conversation_public_id: execution.conversation_public_id
-      },
-      include: {
-        conversation_turns: {
-          orderBy: { sequence_index: "asc" }
-        },
-        agent_calls: {
-          orderBy: { created_at: "asc" },
-          select: {
-            agent_call_public_id: true,
-            call_status: true,
-            input_tokens: true,
-            output_tokens: true
-          }
-        },
-        lifecycle_events: true,
-        turn_telemetry: true,
-        input_telemetry: true,
-        profile_transitions: {
-          orderBy: { transitioned_at: "desc" },
-          take: 1,
+    execution.conversation_public_id
+      ? prisma.formativeConversationSession.findUnique({
+          where: {
+            conversation_public_id: execution.conversation_public_id
+          },
           include: {
-            source_agent_call: {
+            conversation_turns: {
+              orderBy: { sequence_index: "asc" }
+            },
+            agent_calls: {
+              orderBy: { created_at: "asc" },
               select: {
-                agent_call_public_id: true
+                agent_call_public_id: true,
+                call_status: true,
+                retry_count: true,
+                input_tokens: true,
+                output_tokens: true
               }
             },
-            supporting_turn_references: true,
-            _count: {
+            lifecycle_events: true,
+            turn_telemetry: true,
+            input_telemetry: true,
+            message_receipts: {
               select: {
-                profile_evidence_references: true
+                assistant_response_status: true,
+                assistant_response_retry_count: true
+              }
+            },
+            profile_transitions: {
+              orderBy: { transitioned_at: "desc" },
+              take: 1,
+              include: {
+                source_agent_call: {
+                  select: {
+                    agent_call_public_id: true
+                  }
+                },
+                supporting_turn_references: true,
+                _count: {
+                  select: {
+                    profile_evidence_references: true
+                  }
+                }
               }
             }
           }
-        }
-      }
-    })
+        })
+      : Promise.resolve(null)
   ]);
   const teacherConversation = teacherDetail.formative_conversations.find(
     (entry) =>
       entry.conversation_public_id === execution.conversation_public_id
   );
-  if (!teacherConversation) {
-    throw new Error("synthetic_teacher_trajectory_missing");
-  }
-  const latestTransition = conversation.profile_transitions[0] ?? null;
-  const totalResponseTimeMs = conversation.turn_telemetry.reduce(
+  const latestTransition =
+    conversation?.profile_transitions[0] ?? null;
+  const totalResponseTimeMs = (conversation?.turn_telemetry ?? []).reduce(
     (total, entry) => total + (entry.response_time_ms ?? 0),
     0
   );
-  const totalTypingDurationMs = conversation.input_telemetry.reduce(
+  const totalTypingDurationMs = (
+    conversation?.input_telemetry ?? []
+  ).reduce(
     (total, entry) => total + (entry.typing_duration_ms ?? 0),
     0
   );
-  const totalInputTokens = conversation.agent_calls.reduce(
+  const totalInputTokens = (conversation?.agent_calls ?? []).reduce(
     (total, entry) => total + (entry.input_tokens ?? 0),
     0
   );
-  const totalOutputTokens = conversation.agent_calls.reduce(
+  const totalOutputTokens = (conversation?.agent_calls ?? []).reduce(
     (total, entry) => total + (entry.output_tokens ?? 0),
     0
   );
+  const persistedResponses = itemResponses.concept_units.flatMap(
+    (conceptUnit) => conceptUnit.item_responses
+  );
+  const confidenceCounts = { low: 0, medium: 0, high: 0 };
+  for (const response of persistedResponses) {
+    if (
+      response.confidence_rating === "low" ||
+      response.confidence_rating === "medium" ||
+      response.confidence_rating === "high"
+    ) {
+      confidenceCounts[response.confidence_rating] += 1;
+    }
+  }
+  const initialEvidenceSummary = {
+    selected_options: persistedResponses.flatMap((response) =>
+      response.selected_option ? [response.selected_option] : []
+    ),
+    correct_response_count: persistedResponses.filter(
+      (response) => response.correctness === "correct"
+    ).length,
+    confidence_counts: confidenceCounts,
+    total_response_time_ms: persistedResponses.reduce(
+      (total, response) =>
+        total + (response.item_response_time_ms ?? 0),
+      0
+    ),
+    total_time_to_first_action_ms:
+      execution.persona.assessment_response_behavior.reduce(
+        (total, response) =>
+          total + response.time_to_first_action_ms,
+        0
+      ),
+    total_reasoning_character_count: persistedResponses.reduce(
+      (total, response) =>
+        total + (response.reasoning_text?.length ?? 0),
+      0
+    ),
+    total_reasoning_revision_count: persistedResponses.reduce(
+      (total, response) => total + response.revision_count,
+      0
+    ),
+    navigation_event_count:
+      execution.persona.assessment_response_behavior.reduce(
+        (total, response) =>
+          total + response.navigation_observations.length,
+        0
+      )
+  };
+  const conversationTurns = conversation?.conversation_turns ?? [];
+  const studentTurns = conversationTurns.filter(
+    (turn) => turn.actor_type === "student"
+  );
+  const tutorTurns = conversationTurns.filter(
+    (turn) => turn.actor_type === "agent"
+  );
+  const tutorMessageLengths = tutorTurns.map(
+    (turn) => turn.message_text?.length ?? 0
+  );
+  const generationSources = uniqueStrings(
+    tutorTurns.map((turn) => {
+      const payload = asRecord(turn.structured_payload);
+      return typeof payload.generation_source === "string"
+        ? payload.generation_source
+        : "unknown";
+    })
+  );
+  const fallbackCount = tutorTurns.filter(
+    (turn) => asRecord(turn.structured_payload).fallback_used === true
+  ).length;
+  const tutorResponseBehavior = {
+    visible_tutor_turn_count: tutorTurns.length,
+    average_message_length_chars: average(tutorMessageLengths),
+    minimum_message_length_chars:
+      tutorMessageLengths.length > 0
+        ? Math.min(...tutorMessageLengths)
+        : 0,
+    maximum_message_length_chars:
+      tutorMessageLengths.length > 0
+        ? Math.max(...tutorMessageLengths)
+        : 0,
+    generation_sources: generationSources,
+    fallback_count: fallbackCount,
+    sample_student_messages: studentTurns
+      .slice(0, 3)
+      .flatMap((turn) =>
+        messageExcerpt(turn.message_text)
+          ? [messageExcerpt(turn.message_text) as string]
+          : []
+      ),
+    sample_tutor_messages: tutorTurns
+      .slice(0, 3)
+      .flatMap((turn) =>
+        messageExcerpt(turn.message_text)
+          ? [messageExcerpt(turn.message_text) as string]
+          : []
+      )
+  };
+  const unresolvedIssueCodes: string[] = [];
+  if (execution.execution_error) {
+    unresolvedIssueCodes.push(execution.execution_error);
+  }
+  if (!conversation) {
+    unresolvedIssueCodes.push("formative_conversation_missing");
+  }
+  if (!teacherConversation?.initial_learning_profile) {
+    unresolvedIssueCodes.push("initial_profile_missing");
+  }
+  if (
+    studentTurns.length !==
+    execution.persona.conversation_behavior.length
+  ) {
+    unresolvedIssueCodes.push("student_turn_count_mismatch");
+  }
+  if (
+    (conversation?.input_telemetry.length ?? 0) !==
+    execution.persona.conversation_behavior.length
+  ) {
+    unresolvedIssueCodes.push("input_telemetry_count_mismatch");
+  }
+  if (
+    !execution.execution_error &&
+    tutorTurns.length !==
+      execution.persona.conversation_behavior.length + 1
+  ) {
+    unresolvedIssueCodes.push("tutor_turn_count_mismatch");
+  }
+  if (
+    (conversation?.agent_calls ?? []).some(
+      (call) => call.call_status !== "succeeded"
+    )
+  ) {
+    unresolvedIssueCodes.push("formative_agent_call_failed");
+  }
+  if (
+    execution.conversation_public_id &&
+    !teacherConversation
+  ) {
+    unresolvedIssueCodes.push("teacher_trajectory_missing");
+  }
 
   return {
     persona_id: execution.persona.persona_id,
     session_public_id: execution.session_public_id,
     conversation_public_id: execution.conversation_public_id,
-    initial_profile: teacherConversation.initial_learning_profile,
+    initial_evidence_summary: initialEvidenceSummary,
+    initial_profile:
+      teacherConversation?.initial_learning_profile ?? null,
     conversation_length: {
-      total_turns: conversation.conversation_turns.length,
-      student_turns: conversation.conversation_turns.filter(
-        (turn) => turn.actor_type === "student"
-      ).length,
-      tutor_turns: conversation.conversation_turns.filter(
-        (turn) => turn.actor_type === "agent"
-      ).length
+      total_turns: conversationTurns.length,
+      student_turns: studentTurns.length,
+      tutor_turns: tutorTurns.length
     },
     agent_calls: {
-      total: conversation.agent_calls.length,
-      succeeded: conversation.agent_calls.filter(
+      total: conversation?.agent_calls.length ?? 0,
+      succeeded: (conversation?.agent_calls ?? []).filter(
         (call) => call.call_status === "succeeded"
       ).length,
-      failed: conversation.agent_calls.filter(
+      failed: (conversation?.agent_calls ?? []).filter(
         (call) => call.call_status !== "succeeded"
       ).length,
-      public_ids: conversation.agent_calls.map(
+      retry_count: (conversation?.agent_calls ?? []).reduce(
+        (total, call) => total + call.retry_count,
+        0
+      ),
+      public_ids: (conversation?.agent_calls ?? []).map(
         (call) => call.agent_call_public_id
       )
     },
+    tutor_response_behavior: tutorResponseBehavior,
     telemetry_summary: {
-      lifecycle_event_count: conversation.lifecycle_events.length,
-      turn_telemetry_count: conversation.turn_telemetry.length,
-      input_telemetry_count: conversation.input_telemetry.length,
+      lifecycle_event_count:
+        conversation?.lifecycle_events.length ?? 0,
+      turn_telemetry_count:
+        conversation?.turn_telemetry.length ?? 0,
+      input_telemetry_count:
+        conversation?.input_telemetry.length ?? 0,
       total_response_time_ms: totalResponseTimeMs,
       total_typing_duration_ms: totalTypingDurationMs,
       total_input_tokens: totalInputTokens,
       total_output_tokens: totalOutputTokens
     },
     final_profile_transition:
-      teacherConversation.profile_evolution.at(-1) ?? null,
+      teacherConversation?.profile_evolution.at(-1) ?? null,
+    profile_transition_occurred: Boolean(latestTransition),
     transition_evidence: {
       supporting_turn_count:
         latestTransition?.supporting_turn_references.length ?? 0,
@@ -986,26 +1194,151 @@ async function buildStudentReport(execution: SyntheticStudentExecution) {
         latestTransition?.source_agent_call?.agent_call_public_id ?? null
     },
     teacher_trajectory: {
-      starting_evidence: itemResponses.concept_units.flatMap(
-        (conceptUnit) =>
-          conceptUnit.item_responses.map((response) => ({
-            item_public_id: response.item_public_id,
-            correctness: response.correctness,
-            reasoning_text: response.reasoning_text,
-            confidence_rating: response.confidence_rating,
-            item_response_time_ms: response.item_response_time_ms,
-            revision_count: response.revision_count
-          }))
-      ),
-      learning_conversation: teacherConversation.timeline,
+      starting_evidence: persistedResponses.map((response) => ({
+        item_public_id: response.item_public_id,
+        selected_option: response.selected_option,
+        correctness: response.correctness,
+        reasoning_text: response.reasoning_text,
+        confidence_rating: response.confidence_rating,
+        item_response_time_ms: response.item_response_time_ms,
+        revision_count: response.revision_count
+      })),
+      learning_conversation: teacherConversation?.timeline ?? [],
       validated_change:
-        teacherConversation.profile_evolution.at(-1) ?? null,
+        teacherConversation?.profile_evolution.at(-1) ?? null,
       current_learning_profile:
-        teacherConversation.current_learning_profile,
-      learning_outcome: teacherConversation.learning_outcome
+        teacherConversation?.current_learning_profile ?? null,
+      learning_outcome:
+        teacherConversation?.learning_outcome ?? null
     },
+    unresolved_issue_codes: uniqueStrings(unresolvedIssueCodes),
     execution_error: execution.execution_error
   };
+}
+
+type SyntheticStudentReportEntry = Awaited<
+  ReturnType<typeof buildStudentReport>
+>;
+
+function buildBehavioralCoverageReport(
+  students: SyntheticStudentReportEntry[]
+) {
+  return students.map((student) => ({
+    persona_id: student.persona_id,
+    initial_evidence_summary: student.initial_evidence_summary,
+    conversation_length: student.conversation_length,
+    tutor_response_behavior: student.tutor_response_behavior,
+    profile_transition_occurred:
+      student.profile_transition_occurred,
+    transition_evidence: student.transition_evidence,
+    unresolved_issue_codes: student.unresolved_issue_codes
+  }));
+}
+
+function buildQualitativeExample(
+  student: SyntheticStudentReportEntry,
+  selectionBasis: string,
+  observation: string
+) {
+  return {
+    persona_id: student.persona_id,
+    session_public_id: student.session_public_id,
+    selection_basis: selectionBasis,
+    student_message_excerpt:
+      student.tutor_response_behavior.sample_student_messages.at(-1) ??
+      null,
+    tutor_message_excerpt:
+      student.tutor_response_behavior.sample_tutor_messages.at(-1) ??
+      null,
+    observation
+  };
+}
+
+function buildQualitativeExamples(
+  students: SyntheticStudentReportEntry[]
+) {
+  const successful = students
+    .filter(
+      (student) =>
+        student.execution_error === null &&
+        student.agent_calls.failed === 0
+    )
+    .sort(
+      (left, right) =>
+        right.transition_evidence.evidence_reference_count -
+          left.transition_evidence.evidence_reference_count ||
+        right.transition_evidence.supporting_turn_count -
+          left.transition_evidence.supporting_turn_count ||
+        right.conversation_length.tutor_turns -
+          left.conversation_length.tutor_turns
+    );
+  const challenging = [...students].sort(
+    (left, right) => {
+      const score = (student: SyntheticStudentReportEntry) =>
+        (student.execution_error ? 100_000 : 0) +
+        student.agent_calls.failed * 10_000 +
+        student.agent_calls.retry_count * 1_000 +
+        student.unresolved_issue_codes.length * 100 +
+        student.telemetry_summary.total_response_time_ms / 1_000;
+      return score(right) - score(left);
+    }
+  );
+  const unexpected = students.find(
+    (student) =>
+      student.execution_error !== null ||
+      student.agent_calls.failed > 0 ||
+      student.tutor_response_behavior.fallback_count > 0 ||
+      student.unresolved_issue_codes.length > 0
+  );
+  const strongestStudent = successful[0] ?? null;
+  const challengingStudent = challenging[0] ?? null;
+
+  return {
+    strongest_successful_interaction: strongestStudent
+      ? buildQualitativeExample(
+          strongestStudent,
+          "Selected from error-free sessions by persisted transition evidence references, supporting turns, then completed tutor turns.",
+          strongestStudent.profile_transition_occurred
+            ? "This interaction produced a persisted transition with traceable evidence. This is a system-trace observation, not proof of learning effectiveness."
+            : "This interaction produced the most complete successful trace under the selection rule without a forced profile transition."
+        )
+      : null,
+    most_challenging_interaction: challengingStudent
+      ? buildQualitativeExample(
+          challengingStudent,
+          "Selected by observable execution failures, failed calls, retries, unresolved validation issues, then total recorded student response time.",
+          challengingStudent.unresolved_issue_codes.length > 0
+            ? `Observable issue codes: ${challengingStudent.unresolved_issue_codes.join(", ")}.`
+            : "No execution anomaly was present; this was the longest recorded student-response trace among otherwise clean sessions."
+        )
+      : null,
+    unexpected_behavior: unexpected
+      ? buildQualitativeExample(
+          unexpected,
+          "First persisted operational, fallback, telemetry, or projection anomaly in persona order.",
+          `Observable issue codes: ${
+            unexpected.unresolved_issue_codes.join(", ") ||
+            "fallback_or_agent_failure_observed"
+          }.`
+        )
+      : null,
+    selection_note:
+      "Examples are selected from observable system records only. They do not rank teaching quality, student learning, or persona validity."
+  };
+}
+
+function profileHeuristicBehaviorDetected(
+  students: SyntheticStudentReportEntry[]
+) {
+  return students.some((student) => {
+    const transition = asRecord(student.final_profile_transition);
+    const teacherTrajectory = asRecord(student.teacher_trajectory);
+    const projectedOutcome = teacherTrajectory.learning_outcome;
+    if (!student.profile_transition_occurred) {
+      return projectedOutcome !== null && projectedOutcome !== undefined;
+    }
+    return transition.learning_outcome !== projectedOutcome;
+  });
 }
 
 export function buildSyntheticStudentValidationPlan(
@@ -1020,6 +1353,13 @@ export function buildSyntheticStudentValidationPlan(
     personas: personas.map((persona) => ({
       persona_id: persona.persona_id,
       display_name: persona.display_name,
+      initial_knowledge_state: persona.initial_knowledge_state,
+      response_behavior: persona.response_behavior,
+      reasoning_style: persona.reasoning_style,
+      confidence_pattern: persona.confidence_pattern,
+      interaction_behavior: persona.interaction_behavior,
+      process_behavior: persona.process_behavior,
+      validation_purpose: persona.validation_purpose,
       assessment_response_count:
         persona.assessment_response_behavior.length,
       conversation_turn_count: persona.conversation_behavior.length,
@@ -1075,6 +1415,48 @@ export async function runSyntheticStudentResearchValidation(
   for (const execution of executions) {
     students.push(await buildStudentReport(execution));
   }
+  const exportValidation = validateResearchExport({
+    first: firstExport,
+    second: secondExport
+  });
+  const sessionPublicIds = students.map(
+    (student) => student.session_public_id
+  );
+  const assessmentSessions = await prisma.assessmentSession.findMany({
+    where: {
+      session_public_id: { in: sessionPublicIds }
+    },
+    select: { id: true }
+  });
+  const assessmentSessionDbIds = assessmentSessions.map(
+    (session) => session.id
+  );
+  const [allAgentCalls, activityRuntimeContaminationCount, topicDialogueContaminationCount] =
+    await Promise.all([
+      prisma.agentCall.findMany({
+        where: {
+          assessment_session_db_id: {
+            in: assessmentSessionDbIds
+          }
+        },
+        select: {
+          call_status: true,
+          retry_count: true
+        }
+      }),
+      prisma.activityRuntimeAttempt.count({
+        where: {
+          session_public_id: { in: sessionPublicIds }
+        }
+      }),
+      prisma.topicDialogue.count({
+        where: {
+          assessment_session_db_id: {
+            in: assessmentSessionDbIds
+          }
+        }
+      })
+    ]);
   const liveFormativeCalls =
     options.mode === "live_llm"
       ? await prisma.agentCall.findMany({
@@ -1107,12 +1489,73 @@ export async function runSyntheticStudentResearchValidation(
           call.call_status === "succeeded" &&
           call.output_validated
       ));
+  const deterministicPedagogyLeakageDetected =
+    activityRuntimeContaminationCount > 0 ||
+    topicDialogueContaminationCount > 0 ||
+    (options.mode === "live_llm" &&
+      students.some(
+        (student) =>
+          student.tutor_response_behavior.fallback_count > 0 ||
+          student.tutor_response_behavior.generation_sources.some(
+            (source) => source !== "live_llm"
+          )
+      ));
+  const heuristicProfileBehavior =
+    profileHeuristicBehaviorDetected(students);
+  const architectureIssueCodes = [
+    ...(deterministicPedagogyLeakageDetected
+      ? ["deterministic_pedagogy_leakage_detected"]
+      : []),
+    ...(activityRuntimeContaminationCount > 0
+      ? ["activity_runtime_contamination"]
+      : []),
+    ...(topicDialogueContaminationCount > 0
+      ? ["topic_dialogue_contamination"]
+      : []),
+    ...(heuristicProfileBehavior
+      ? ["profile_heuristic_projection_detected"]
+      : []),
+    ...(exportValidation.status !== "passed"
+      ? ["research_data_loss_detected"]
+      : [])
+  ];
+  const missingTelemetryIssueCodes = students.flatMap((student) =>
+    student.unresolved_issue_codes
+      .filter(
+        (code) =>
+          code.includes("telemetry") ||
+          code.includes("turn_count_mismatch") ||
+          code === "formative_conversation_missing"
+      )
+      .map((code) => `${student.persona_id}:${code}`)
+  );
+  const successfulStudents = students.filter(
+    (student) =>
+      student.execution_error === null &&
+      student.agent_calls.failed === 0 &&
+      student.unresolved_issue_codes.length === 0
+  );
+  const successfulSessionIds = new Set(
+    successfulStudents.map((student) => student.session_public_id)
+  );
+  const failedStudents = students.filter(
+    (student) => !successfulSessionIds.has(student.session_public_id)
+  );
+  const allAgentFailureCount = allAgentCalls.filter(
+    (call) => call.call_status !== "succeeded"
+  ).length;
+  const retryEventCount = allAgentCalls.reduce(
+    (total, call) => total + call.retry_count,
+    0
+  );
   const report = SyntheticResearchValidationReportSchema.parse({
     report_version: SYNTHETIC_STUDENT_VALIDATION_VERSION,
     run_public_id: runPublicId,
     mode: options.mode,
     generated_at: new Date().toISOString(),
-    pedagogical_evaluation_valid:
+    validation_scope:
+      "system_validation_not_learning_effectiveness",
+    live_execution_evidence_valid:
       options.mode === "live_llm" &&
       executions.every((execution) => execution.execution_error === null) &&
       liveFormativeExecutionValid,
@@ -1122,15 +1565,50 @@ export async function runSyntheticStudentResearchValidation(
       options.personas
     ),
     students,
-    export_validation: validateResearchExport({
-      first: firstExport,
-      second: secondExport
-    }),
+    technical_reliability_report: {
+      total_sessions: students.length,
+      successful_sessions: successfulStudents.length,
+      failed_sessions: failedStudents.length,
+      successful_session_public_ids: successfulStudents.map(
+        (student) => student.session_public_id
+      ),
+      failed_session_public_ids: failedStudents.map(
+        (student) => student.session_public_id
+      ),
+      total_agent_calls: allAgentCalls.length,
+      agent_failure_count: allAgentFailureCount,
+      retry_event_count: retryEventCount,
+      missing_telemetry_count: missingTelemetryIssueCodes.length,
+      missing_telemetry_issue_codes:
+        missingTelemetryIssueCodes,
+      export_issue_count: exportValidation.issue_codes.length,
+      export_issue_codes: exportValidation.issue_codes,
+      join_failure_count:
+        exportValidation.agent_call_join_failure_count
+    },
+    behavioral_coverage_report:
+      buildBehavioralCoverageReport(students),
+    export_validation: exportValidation,
+    architecture_review: {
+      deterministic_pedagogy_leakage_detected:
+        deterministicPedagogyLeakageDetected,
+      activity_runtime_contamination_count:
+        activityRuntimeContaminationCount,
+      topic_dialogue_contamination_count:
+        topicDialogueContaminationCount,
+      profile_heuristic_behavior_detected:
+        heuristicProfileBehavior,
+      research_data_loss_detected:
+        exportValidation.status !== "passed",
+      issue_codes: architectureIssueCodes
+    },
+    qualitative_examples: buildQualitativeExamples(students),
     safeguards: {
       expected_learning_outcomes_absent: true,
       fixed_tutor_responses_absent: true,
       deterministic_activity_routing_absent: true,
-      raw_provider_payloads_excluded: true
+      raw_provider_payloads_excluded: true,
+      profile_outcomes_not_forced: true
     },
     limitations:
       options.mode === "live_llm"

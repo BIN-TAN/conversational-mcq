@@ -261,7 +261,10 @@ async function executeProfilingBuiltInput(input: {
         agent_name: "student_profiling_agent",
         result_status: "semantic_validation_failed",
         agent_call_id: result.agent_call_id,
-        semantic_issues: semantic.issues
+        semantic_issues: semantic.issues,
+        semantic_warnings: semantic.warnings,
+        evidence_consistency_version: semantic.evidence_consistency.version,
+        evidence_consistency: semantic.evidence_consistency.classification
       }
     });
 
@@ -280,7 +283,10 @@ async function executeProfilingBuiltInput(input: {
     event_type: "schema_validation_succeeded",
     payload: {
       agent_name: "student_profiling_agent",
-      agent_call_id: result.agent_call_id
+      agent_call_id: result.agent_call_id,
+      semantic_warnings: semantic.warnings,
+      evidence_consistency_version: semantic.evidence_consistency.version,
+      evidence_consistency: semantic.evidence_consistency.classification
     }
   });
   await logAgentEvent({
@@ -551,7 +557,10 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
         agent_name: "student_profiling_agent",
         result_status: "semantic_validation_failed",
         agent_call_id: result.agent_call_id,
-        semantic_issues: semantic.issues
+        semantic_issues: semantic.issues,
+        semantic_warnings: semantic.warnings,
+        evidence_consistency_version: semantic.evidence_consistency.version,
+        evidence_consistency: semantic.evidence_consistency.classification
       }
     });
 
@@ -569,7 +578,10 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
     event_type: "schema_validation_succeeded",
     payload: {
       agent_name: "student_profiling_agent",
-      agent_call_id: result.agent_call_id
+      agent_call_id: result.agent_call_id,
+      semantic_warnings: semantic.warnings,
+      evidence_consistency_version: semantic.evidence_consistency.version,
+      evidence_consistency: semantic.evidence_consistency.classification
     }
   });
 
