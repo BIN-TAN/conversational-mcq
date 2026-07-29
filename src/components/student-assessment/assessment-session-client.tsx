@@ -295,10 +295,72 @@ function FormativeConversationBubble({
   );
 }
 
+export function FormativeOpeningStatus({
+  isBusy = false,
+  onRetry,
+  status
+}: {
+  isBusy?: boolean;
+  onRetry?: () => void;
+  status: "preparing" | "retry_available" | "unavailable";
+}) {
+  if (status === "preparing") {
+    return (
+      <p
+        aria-live="polite"
+        className="mt-4 flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted"
+        data-testid="formative-conversation-opening-preparing"
+        role="status"
+      >
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        Reviewing your responses and preparing personalized learning support...
+      </p>
+    );
+  }
+
+  if (status === "retry_available") {
+    return (
+      <div
+        className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2"
+        data-testid="formative-conversation-opening-retry"
+      >
+        <p className="text-sm text-muted">
+          Your responses are saved. Personalized learning support is not ready
+          yet.
+        </p>
+        <button
+          className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:opacity-60"
+          disabled={isBusy}
+          onClick={onRetry}
+          type="button"
+        >
+          {isBusy ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          )}
+          {isBusy ? "Trying again..." : "Try again"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <p
+      className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted"
+      data-testid="formative-conversation-opening-unavailable"
+    >
+      Personalized learning support is temporarily unavailable. Your responses
+      are saved. You can pause and return later.
+    </p>
+  );
+}
+
 function FormativeConversationControls(input: {
   conversation: StudentFormativeConversation;
   draft: string;
   isBusy: boolean;
+  isRetryingOpening: boolean;
   onBackspace: () => void;
   onChange: (value: string) => void;
   onEnd: () => void;
@@ -433,41 +495,15 @@ function FormativeConversationControls(input: {
           </button>
         </div>
       ) : conversation.opening_status === "preparing" ? (
-        <p
-          aria-live="polite"
-          className="mt-4 flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted"
-          data-testid="formative-conversation-opening-preparing"
-          role="status"
-        >
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Preparing your learning conversation...
-        </p>
+        <FormativeOpeningStatus status="preparing" />
       ) : conversation.can_retry_opening ? (
-        <div
-          className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2"
-          data-testid="formative-conversation-opening-retry"
-        >
-          <p className="text-sm text-muted">
-            The tutor could not start the conversation yet.
-          </p>
-          <button
-            className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:opacity-60"
-            disabled={input.isBusy}
-            onClick={input.onRetryOpening}
-            type="button"
-          >
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            Try again
-          </button>
-        </div>
+        <FormativeOpeningStatus
+          isBusy={input.isRetryingOpening}
+          onRetry={input.onRetryOpening}
+          status="retry_available"
+        />
       ) : conversation.opening_status === "unavailable" ? (
-        <p
-          className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted"
-          data-testid="formative-conversation-opening-unavailable"
-        >
-          The tutor is temporarily unavailable. You can pause and leave, then
-          return later.
-        </p>
+        <FormativeOpeningStatus status="unavailable" />
       ) : (
         <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted">
           {conversation.status === "paused"
@@ -867,6 +903,7 @@ function TextComposer({
 function PackageReviewMessage({
   review,
   isBusy,
+  isCompletingPackage,
   editingItemId,
   editDraft,
   onCancelEdit,
@@ -877,6 +914,7 @@ function PackageReviewMessage({
 }: {
   review: StudentReviewResponse | null;
   isBusy: boolean;
+  isCompletingPackage: boolean;
   editingItemId: string | null;
   editDraft: PackageReviewEditDraft | null;
   onCancelEdit: () => void;
@@ -1124,8 +1162,18 @@ function PackageReviewMessage({
         onClick={onContinue}
         type="button"
       >
-        Finish review
+        {isCompletingPackage ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            Reviewing responses...
+          </>
+        ) : (
+          "Finish review"
+        )}
       </button>
+      {isCompletingPackage ? (
+        <FormativeOpeningStatus status="preparing" />
+      ) : null}
     </AgentMessage>
   );
 }
@@ -1952,6 +2000,7 @@ function activeItemPrompt(input: {
   activityRuntime: StudentActivityRuntimeProjection | null;
   review: StudentReviewResponse | null;
   isBusy: boolean;
+  isCompletingPackage: boolean;
   reasoningDraft: string;
   temptingReasonDraft: string;
   followupDraft: string;
@@ -2160,6 +2209,7 @@ function activeItemPrompt(input: {
         editDraft={input.reviewEditDraft}
         editingItemId={input.editingReviewItemId}
         isBusy={isBusy}
+        isCompletingPackage={input.isCompletingPackage}
         onCancelEdit={input.onCancelReviewEdit}
         onContinue={input.onContinuePackage}
         onEditDraftChange={input.setReviewEditDraft}
@@ -2273,6 +2323,8 @@ export function AssessmentSessionClient({
   const [review, setReview] = useState<StudentReviewResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
+  const [isCompletingPackage, setIsCompletingPackage] = useState(false);
+  const [isRetryingOpening, setIsRetryingOpening] = useState(false);
   const [error, setError] = useState<StructuredStudentApiError | null>(null);
   const [failedAction, setFailedAction] = useState<FailedAction | null>(null);
   const [reasoningDraft, setReasoningDraft] = useState("");
@@ -2482,6 +2534,7 @@ export function AssessmentSessionClient({
       return;
     }
     setIsBusy(true);
+    setIsRetryingOpening(true);
     setError(null);
     setFailedAction(null);
     try {
@@ -2500,6 +2553,7 @@ export function AssessmentSessionClient({
       });
       setFailedAction(null);
     } finally {
+      setIsRetryingOpening(false);
       setIsBusy(false);
     }
   }
@@ -2642,7 +2696,12 @@ export function AssessmentSessionClient({
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [transcript.length, state?.assessment_state, state?.current_item?.item_public_id]);
+  }, [
+    isCompletingPackage,
+    transcript.length,
+    state?.assessment_state,
+    state?.current_item?.item_public_id
+  ]);
 
   useEffect(() => {
     setReasoningDraft("");
@@ -2943,6 +3002,7 @@ export function AssessmentSessionClient({
 
     void (async () => {
       setIsBusy(true);
+      setIsCompletingPackage(true);
       setError(null);
       setFailedAction(null);
 
@@ -2982,6 +3042,7 @@ export function AssessmentSessionClient({
           void handleCompletePackage();
         });
       } finally {
+        setIsCompletingPackage(false);
         setIsBusy(false);
       }
     })();
@@ -3415,6 +3476,7 @@ export function AssessmentSessionClient({
       conversation={state.formative_conversation}
       draft={formativeConversationDraft}
       isBusy={isBusy}
+      isRetryingOpening={isRetryingOpening}
       onBackspace={() => {
         formativeBackspaceCountRef.current += 1;
       }}
@@ -3436,6 +3498,7 @@ export function AssessmentSessionClient({
     activityRuntime,
     review,
     isBusy,
+    isCompletingPackage,
     reasoningDraft,
     temptingReasonDraft,
     followupDraft,
@@ -3524,7 +3587,9 @@ export function AssessmentSessionClient({
             <FormativeConversationBubble key={turn.turn_id} turn={turn} />
           ))}
           {activePrompt}
-          {isBusy ? (
+          {isBusy &&
+          !isCompletingPackage &&
+          !isRetryingOpening ? (
             <div className="flex justify-start">
               <div className="rounded-full border border-line bg-white px-4 py-2 text-sm text-muted shadow-sm">
                 <Loader2 className="mr-2 inline h-4 w-4 animate-spin" aria-hidden="true" />

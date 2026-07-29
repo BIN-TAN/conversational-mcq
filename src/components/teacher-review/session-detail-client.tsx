@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { BrainCircuit, ChevronLeft, Loader2, Octagon, Pause, Play, RefreshCw, RotateCcw } from "lucide-react";
+import {
+  BrainCircuit,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Octagon,
+  Pause,
+  Play,
+  RefreshCw,
+  RotateCcw
+} from "lucide-react";
 import Link from "next/link";
 import {
   errorFromUnknown,
@@ -841,13 +851,35 @@ export function FormativeConversationEvidenceSection({
                 </a>
               </div>
             </div>
+            <ol
+              aria-label="Formative learning trajectory stages"
+              className="mt-5 flex flex-wrap items-center gap-2 border-y border-line py-3 text-sm font-semibold text-ink"
+              data-testid="teacher-formative-learning-path"
+            >
+              {[
+                "Starting evidence",
+                "Conversation",
+                "Validated change",
+                "Remaining concern"
+              ].map((stage, index) => (
+                <li className="flex items-center gap-2" key={stage}>
+                  {index > 0 ? (
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="h-4 w-4 text-muted"
+                    />
+                  ) : null}
+                  <span>{stage}</span>
+                </li>
+              ))}
+            </ol>
 
             <section
               className="mt-6 border-t border-line pt-5"
               data-testid="teacher-initial-assessment-evidence"
             >
               <h4 className="text-base font-semibold text-ink">
-                Initial assessment evidence
+                Starting evidence
               </h4>
               <p className="mt-1 text-sm text-muted">
                 Administered responses establish the starting evidence for the
@@ -945,7 +977,7 @@ export function FormativeConversationEvidenceSection({
               data-testid="teacher-formative-conversation-trajectory"
             >
               <h4 className="text-base font-semibold text-ink">
-                Formative conversation trajectory
+                Conversation
               </h4>
               <div className="mt-3 space-y-3">
                 {conversation.timeline.map((turn) => {
@@ -1021,7 +1053,7 @@ export function FormativeConversationEvidenceSection({
               data-testid="teacher-formative-learning-summary"
             >
               <h4 className="text-base font-semibold text-ink">
-                Latest validated learning summary
+                Validated change
               </h4>
               <div className="mt-3 grid gap-5 lg:grid-cols-3">
                 <div>
@@ -1199,7 +1231,27 @@ export function FormativeConversationEvidenceSection({
   );
 }
 
-function Overview({
+export function formativeConversationPhaseLabel(status: string) {
+  if (status === "active") {
+    return "conversation_in_progress";
+  }
+
+  if (status === "paused") {
+    return "conversation_paused";
+  }
+
+  if (status === "teacher_assistance_recommended") {
+    return "teacher_support_recommended";
+  }
+
+  if (status === "completed" || status === "ended") {
+    return "conversation_ended";
+  }
+
+  return "formative_conversation";
+}
+
+export function Overview({
   attemptAction,
   automationAction,
   detail,
@@ -1212,6 +1264,19 @@ function Overview({
   onCloseAttempt: () => void;
   onAutomationAction: (action: "pause" | "resume" | "retry" | "stop_followup") => void;
 }) {
+  const formativeConversation =
+    detail.formative_conversations.find(
+      (conversation) =>
+        conversation.concept_unit_public_id ===
+        detail.current_concept_unit?.concept_unit_public_id
+    ) ??
+    detail.formative_conversations.find(
+      (conversation) => conversation.status === "active"
+    ) ??
+    detail.formative_conversations[0] ??
+    null;
+  const usesFormativeConversation = Boolean(formativeConversation);
+
   return (
     <section className="space-y-5">
       <div className="grid gap-3 md:grid-cols-3">
@@ -1228,7 +1293,21 @@ function Overview({
         />
         <Fact labelText="Attempt" value={detail.session.attempt_number} />
         <Fact labelText="Status" value={<StatusPill value={detail.session.status} />} />
-        <Fact labelText="Current phase" value={<StatusPill value={detail.session.current_phase} tone="warn" />} />
+        <Fact
+          labelText={usesFormativeConversation ? "Learning phase" : "Current phase"}
+          value={
+            <StatusPill
+              value={
+                formativeConversation
+                  ? formativeConversationPhaseLabel(
+                      formativeConversation.status
+                    )
+                  : detail.session.current_phase
+              }
+              tone="warn"
+            />
+          }
+        />
         <Fact labelText="Started" value={<time title={detail.session.started_at ?? undefined}>{formatDate(detail.session.started_at)}</time>} />
         <Fact labelText="Last activity" value={<time title={detail.session.last_activity_at ?? undefined}>{formatDate(detail.session.last_activity_at)}</time>} />
         <Fact labelText="Completed" value={<time title={detail.session.completed_at ?? undefined}>{formatDate(detail.session.completed_at)}</time>} />
@@ -1311,7 +1390,9 @@ function Overview({
           <div>
             <h3 className="font-semibold text-ink">Automation</h3>
             <p className="mt-1 text-sm leading-6 text-muted">
-              Automatic jobs prepare profiling, planning, and follow-up startup after the initial item set. Manual sessions keep teacher-triggered controls.
+              {usesFormativeConversation
+                ? "Background processing records are retained for audit. The active learning path is shown under Formative conversation."
+                : "Automatic jobs prepare profiling, planning, and follow-up startup after the initial item set. Manual sessions keep teacher-triggered controls."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1362,7 +1443,8 @@ function Overview({
               Retry current step
             </button>
           ) : null}
-          {detail.automation.can_stop_followup ? (
+          {!usesFormativeConversation &&
+          detail.automation.can_stop_followup ? (
             <button
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-900 transition hover:border-red-300 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={automationAction?.action === "stop_followup" && automationAction.status === "running"}
@@ -1443,37 +1525,72 @@ function Overview({
                 <th className="px-4 py-3">Topic</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Initial completed</th>
-                <th className="px-4 py-3">Follow-up</th>
+                <th className="px-4 py-3">
+                  {usesFormativeConversation ? "Conversation" : "Follow-up"}
+                </th>
                 <th className="px-4 py-3">Responses</th>
                 <th className="px-4 py-3">Packages</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {detail.concept_unit_sessions.map((conceptUnitSession) => (
-                <tr key={conceptUnitSession.concept_unit_public_id}>
-                  <td className="px-4 py-3">{conceptUnitSession.order_index}</td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-ink">{conceptUnitSession.title}</p>
-                    <p className="mt-1 text-xs text-muted">
-                      {conceptUnitSession.concept_unit_public_id}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusPill value={conceptUnitSession.status} />
-                  </td>
-                  <td className="px-4 py-3">
-                    {formatDate(conceptUnitSession.initial_completed_at)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusPill value={conceptUnitSession.followup_status} />
-                    <p className="mt-1 text-xs text-muted">
-                      {conceptUnitSession.followup_round_count} rounds
-                    </p>
-                  </td>
-                  <td className="px-4 py-3">{conceptUnitSession.item_response_count}</td>
-                  <td className="px-4 py-3">{conceptUnitSession.response_package_count}</td>
-                </tr>
-              ))}
+              {detail.concept_unit_sessions.map((conceptUnitSession) => {
+                const conceptConversation =
+                  detail.formative_conversations.find(
+                    (conversation) =>
+                      conversation.concept_unit_public_id ===
+                      conceptUnitSession.concept_unit_public_id
+                  ) ?? null;
+
+                return (
+                  <tr key={conceptUnitSession.concept_unit_public_id}>
+                    <td className="px-4 py-3">
+                      {conceptUnitSession.order_index}
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-ink">
+                        {conceptUnitSession.title}
+                      </p>
+                      <p className="mt-1 text-xs text-muted">
+                        {conceptUnitSession.concept_unit_public_id}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusPill value={conceptUnitSession.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      {formatDate(conceptUnitSession.initial_completed_at)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {usesFormativeConversation ? (
+                        conceptConversation ? (
+                          <StatusPill
+                            value={formativeConversationPhaseLabel(
+                              conceptConversation.status
+                            )}
+                          />
+                        ) : (
+                          <StatusPill value="not_started" />
+                        )
+                      ) : (
+                        <>
+                          <StatusPill
+                            value={conceptUnitSession.followup_status}
+                          />
+                          <p className="mt-1 text-xs text-muted">
+                            {conceptUnitSession.followup_round_count} rounds
+                          </p>
+                        </>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {conceptUnitSession.item_response_count}
+                    </td>
+                    <td className="px-4 py-3">
+                      {conceptUnitSession.response_package_count}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

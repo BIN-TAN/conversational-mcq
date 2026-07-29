@@ -1356,6 +1356,21 @@ async function main() {
         studentUiSource.includes("end the assessment attempt."),
       "Ending a learning conversation must remain visibly distinct from ending the assessment attempt."
     );
+    assert(
+      studentUiSource.includes(
+        "Reviewing your responses and preparing personalized learning support..."
+      ) &&
+        studentUiSource.includes("setIsCompletingPackage(true)") &&
+        studentUiSource.includes(
+          "<FormativeOpeningStatus status=\"preparing\" />"
+        ),
+      "The package-completion wait must use the natural personalized-support status."
+    );
+    assert.equal(
+      studentUiSource.includes("Preparing your learning conversation"),
+      false,
+      "Student waiting copy must not expose a learning-conversation workflow label."
+    );
     const formativeMessageRouteSource = readFileSync(
       "src/app/api/student/sessions/[sessionPublicId]/formative-conversation/messages/route.ts",
       "utf8"
@@ -1531,8 +1546,54 @@ async function main() {
     const React = await import("react");
     Object.assign(globalThis, { React: React.default });
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const { FormativeConversationEvidenceSection } = await import(
+    const {
+      FormativeConversationEvidenceSection,
+      Overview
+    } = await import(
       "../src/components/teacher-review/session-detail-client"
+    );
+    const { FormativeOpeningStatus } = await import(
+      "../src/components/student-assessment/assessment-session-client"
+    );
+    const preparingOpeningMarkup = renderToStaticMarkup(
+      React.createElement(FormativeOpeningStatus, {
+        status: "preparing"
+      })
+    );
+    assert(
+      preparingOpeningMarkup.includes(
+        "Reviewing your responses and preparing personalized learning support..."
+      ),
+      "The opening wait state must describe its student-facing purpose."
+    );
+    const retryOpeningMarkup = renderToStaticMarkup(
+      React.createElement(FormativeOpeningStatus, {
+        status: "retry_available",
+        isBusy: false,
+        onRetry: () => undefined
+      })
+    );
+    assert(
+      retryOpeningMarkup.includes("Your responses are saved.") &&
+        retryOpeningMarkup.includes(
+          "Personalized learning support is not ready yet."
+        ) &&
+        retryOpeningMarkup.includes("Try again"),
+      "The opening retry state must preserve the student's work and expose a clear retry."
+    );
+    const unavailableOpeningMarkup = renderToStaticMarkup(
+      React.createElement(FormativeOpeningStatus, {
+        status: "unavailable"
+      })
+    );
+    assert(
+      unavailableOpeningMarkup.includes(
+        "Personalized learning support is temporarily unavailable."
+      ) &&
+        unavailableOpeningMarkup.includes(
+          "You can pause and return later."
+        ),
+      "The unavailable state must explain safe recovery without generating tutor content."
     );
     const teacherTrajectoryMarkup = renderToStaticMarkup(
       React.createElement(FormativeConversationEvidenceSection, {
@@ -1542,11 +1603,11 @@ async function main() {
       })
     );
     for (const requiredTeacherText of [
-      "Initial assessment evidence",
+      "Starting evidence",
       "Initial learning profile",
       "Student reasoning",
-      "Formative conversation trajectory",
-      "Latest validated learning summary",
+      "Conversation",
+      "Validated change",
       "What changed",
       "Remaining concern",
       "Suggested teacher attention",
@@ -1561,6 +1622,68 @@ async function main() {
         `Teacher trajectory rendering must include ${requiredTeacherText}.`
       );
     }
+    const formativeOverviewDetail = {
+      ...teacherDetail,
+      session: {
+        ...teacherDetail.session,
+        current_phase: "planning_completed"
+      },
+      concept_unit_sessions: teacherDetail.concept_unit_sessions.map(
+        (conceptUnitSession, index) =>
+          index === 0
+            ? {
+                ...conceptUnitSession,
+                followup_status: "active",
+                followup_round_count: 1
+              }
+            : conceptUnitSession
+      )
+    };
+    const formativeOverviewMarkup = renderToStaticMarkup(
+      React.createElement(Overview, {
+        attemptAction: null,
+        automationAction: null,
+        detail: formativeOverviewDetail,
+        onCloseAttempt: () => undefined,
+        onAutomationAction: () => undefined
+      })
+    );
+    assert(
+      formativeOverviewMarkup.includes("Learning phase") &&
+        formativeOverviewMarkup.includes("conversation in progress") &&
+        formativeOverviewMarkup.includes(">Conversation<"),
+      "Conversation-backed sessions must use the current formative terminology."
+    );
+    for (const legacyOverviewText of [
+      "planning completed",
+      ">Follow-up<",
+      "1 rounds"
+    ]) {
+      assert.equal(
+        formativeOverviewMarkup.includes(legacyOverviewText),
+        false,
+        `Conversation-backed overview must not display ${legacyOverviewText}.`
+      );
+    }
+    const legacyOverviewMarkup = renderToStaticMarkup(
+      React.createElement(Overview, {
+        attemptAction: null,
+        automationAction: null,
+        detail: {
+          ...formativeOverviewDetail,
+          formative_conversations: []
+        },
+        onCloseAttempt: () => undefined,
+        onAutomationAction: () => undefined
+      })
+    );
+    assert(
+      legacyOverviewMarkup.includes("Current phase") &&
+        legacyOverviewMarkup.includes("planning completed") &&
+        legacyOverviewMarkup.includes(">Follow-up<") &&
+        legacyOverviewMarkup.includes("1 rounds"),
+      "Legacy sessions without a formative conversation must retain their historical labels."
+    );
     for (const prohibitedTeacherText of [
       "Based-on agent call metadata",
       "prompt_version",
@@ -2354,6 +2477,7 @@ async function main() {
             "typed_configuration_failure_and_retry_state",
             "configuration_failure_before_agent_call",
             "assistant_first_opening_and_opening_language_validation",
+            "student_opening_wait_retry_and_unavailable_states",
             "idempotent_opening_refresh_resume",
             "student_and_tutor_message_persistence",
             "observable_event_ordering",
@@ -2380,6 +2504,7 @@ async function main() {
             "profile_outcome_does_not_end_conversation",
             "teacher_research_access_and_privacy_separation",
             "teacher_formative_trajectory_review",
+            "teacher_formative_terminology_and_legacy_compatibility",
             "teacher_profile_timeline_rendering",
             "teacher_and_export_transition_consistency",
             "phase_separated_research_export_and_dictionary",
