@@ -1,0 +1,306 @@
+{
+  "protocol_version": "formative-conversation-host-v5-executable-evaluation-v5",
+  "protocol_status": "frozen_executable_not_run",
+  "no_provider_call_during_freeze": true,
+  "candidate_manifest_path": "config/operational-candidates/formative-conversation-host-v5-executable-v5/candidate-manifest.json",
+  "fixture_manifest_path": "config/operational-candidates/formative-conversation-host-v5-executable-v5/fixture-manifest.json",
+  "compiled_execution_plan_path": "config/operational-candidates/formative-conversation-host-v5-executable-v5/compiled-execution-plan.json",
+  "target_role": "formative_conversation_agent",
+  "prior_incomplete_protocol": {
+    "path": "config/operational-candidates/formative-conversation-host-v5/evaluation-protocol.json",
+    "protocol_hash": "d8906ab23522b2e52ac14a6edb3ca7ff1a3862c65a75de2e9e75dda612dcb817",
+    "preserved": true,
+    "executable": false,
+    "approval_eligible": false
+  },
+  "failed_v2_execution": {
+    "protocol_hash": "7e69059ad46bd60cc0e3eccb22442a98027e93d93d329ea1724bd23948f6c85a",
+    "provider_run_id": "fcv5_provider_20260730065909_a48dd06a",
+    "derived_evaluation_id": "fcv5_derived_20260730065909_51ed25da",
+    "dispatch_checkpoint_path": ".data/operational-formative-conversation-v5-evaluation/runs/dispatch/7e69059ad46bd60cc0e3eccb22442a98027e93d93d329ea1724bd23948f6c85a.json",
+    "dispatch_checkpoint_sha256": "1ddbe8504f0a86205b5793e114bbf03dbe15c687c95aa523e633f3662a94f824",
+    "execution_status": "not_exercised",
+    "approval_eligible": false,
+    "rerunnable": false,
+    "preserved_immutable": true
+  },
+  "target_identity": {
+    "runtime_candidate_hash": "a408b08c39aa614d967552e1fd321fabf0b83c96a3d83c82a7bd381fa8e899b3",
+    "model_snapshot": "gpt-5.6-sol",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 3500,
+    "prompt_version": "formative-conversation-host-v5",
+    "prompt_hash": "f1aef959b9238472989a205efe56b29dfb1cd5e4ba376695cd5e99e083af67f1",
+    "schema_version": "formative-conversation-agent-contract-v1",
+    "context_version": "formative-conversation-context-v1",
+    "safety_version": "formative-conversation-safety-boundary-v1",
+    "memory_version": "formative-conversation-memory-v1",
+    "opening_validator_version": "formative-conversation-opening-v2",
+    "profile_transition_version": "formative-conversation-profile-transition-v3",
+    "provider_failure_taxonomy_version": "provider-failure-taxonomy-v2",
+    "provider_request_tracing_version": "provider-request-tracing-policy-v2"
+  },
+  "execution_policy": {
+    "runner_version": "formative-conversation-v5-protocol-runner-v5",
+    "fixed_case_order": [
+      "fcv5_01_assistant_first_opening",
+      "fcv5_02_first_principles_adaptation",
+      "fcv5_03_direct_answer_handling",
+      "fcv5_04_related_concept_discussion",
+      "fcv5_05_sound_profile_transition",
+      "fcv5_06_largely_improved_temporal",
+      "fcv5_07_persistent_barrier_teacher_assistance",
+      "fcv5_08_mixed_resolved_evidence"
+    ],
+    "protocol_specific_case_schema_required": true,
+    "shared_persona_schema_forbidden": true,
+    "full_compilation_before_dispatch_required": true,
+    "plan_live_compilation_parity_required": true,
+    "checkpoint_immediately_before_first_generation_request": true,
+    "fresh_isolated_session_per_case": true,
+    "frozen_student_messages_only": true,
+    "second_llm_student_forbidden": true,
+    "logical_call_issued_once": true,
+    "manual_case_rerun_permitted": false,
+    "selective_case_rerun_permitted": false,
+    "continue_after_case_failure": true,
+    "prior_evidence_immutable": true,
+    "case_statuses": [
+      "passed",
+      "failed",
+      "invalid",
+      "not_exercised"
+    ]
+  },
+  "runner_implementation": {
+    "aggregate_hash": "ae815d02b3e466067431191c9cb26b0a6c128f875c56297f92e3063b427c7da6",
+    "files": [
+      {
+        "role": "secure_process_local_injector",
+        "path": "scripts/operational-formative-conversation-v5-v5-process-local-runner.mjs",
+        "sha256": "b950c7d1d94af3cc501a58b4aa0d32c633a5b9e90e3914cec831e5e5f7784b32"
+      },
+      {
+        "role": "launcher",
+        "path": "scripts/operational-formative-conversation-v5-v5-launcher.mjs",
+        "sha256": "5f66a218e19b17ac7632723958c6a7c6320ac0f9801b0c0517489106851e3cd4"
+      },
+      {
+        "role": "cli",
+        "path": "prisma/operational-formative-conversation-v5-v5-evaluate.ts",
+        "sha256": "6ddf2ca38c1a16cd6c1ae0aa3885bb24c4ab81f085d2928a0de2eeba0479ee4b"
+      },
+      {
+        "role": "orchestration_service",
+        "path": "src/lib/operational/formative-conversation-v5-evaluation-v5/service.ts",
+        "sha256": "93fbc551241905d3651de2939507566ee763c3ade95f6133a8c4d4372cb0e8f6"
+      },
+      {
+        "role": "environment_parity_validator",
+        "path": "src/lib/operational/formative-conversation-v5-evaluation-v5/live-environment.ts",
+        "sha256": "740e8f070667f1acbcfbab236207ba4935fae87d5d6b6bd27efa937a7c6d548a"
+      },
+      {
+        "role": "environment_contract",
+        "path": "config/operational-candidates/formative-conversation-host-v5-executable-v5/live-environment-contract.json",
+        "sha256": "29cd8932093d5abc888339500464e3cc89f45ddabb4bb0b8bb520a665ab354a9"
+      },
+      {
+        "role": "candidate_transport_runner",
+        "path": "src/lib/operational/formative-conversation-v5-evaluation-v5/candidate-runner.ts",
+        "sha256": "7192bbe1174082dc65be2781f9ba0ee4e7bae45eb7e2a507695b419462d16635"
+      },
+      {
+        "role": "package_validator",
+        "path": "src/lib/operational/formative-conversation-v5-evaluation-v5/package.ts",
+        "sha256": "6ab0f596d4f5733499df32c7273314931f7eccf308d3d736411f7d8e7e747e1b"
+      },
+      {
+        "role": "contract_schemas",
+        "path": "src/lib/operational/formative-conversation-v5-evaluation-v5/contracts.ts",
+        "sha256": "a8566af62bff08f59a9f2121154f83e9b6ae27e92fa9db7a9f4e5f360adfb405"
+      },
+      {
+        "role": "case_compiler",
+        "path": "src/lib/operational/formative-conversation-v5-evaluation-v5/compiler.ts",
+        "sha256": "2007c49222f04b2f845edf0c77bbe57ba98b9bb36c1abb85ad61f78c11c35094"
+      },
+      {
+        "role": "production_execution_harness",
+        "path": "src/lib/evaluation/synthetic-student-validation/framework.ts",
+        "sha256": "8c275b6d495f4daa2c320d7ab6b07550e4cf6ea568ffdd2c84398ca8267cef47"
+      },
+      {
+        "role": "provider_retry_policy",
+        "path": "src/lib/llm/provider-transport-retry.ts",
+        "sha256": "ebb93c35fa9e62c0c381cd2f89706bf47ff1774da8e5382a9a141f5d97a779d6"
+      },
+      {
+        "role": "opening_validator",
+        "path": "src/lib/services/student-assessment/formative-conversation/opening-contract.ts",
+        "sha256": "2f8ae078e68e448ff7af75f159df9ff1f0017afa4d7c3441747658b05fe1b471"
+      },
+      {
+        "role": "profile_transition_persistence",
+        "path": "src/lib/services/student-assessment/formative-conversation/profile-update.ts",
+        "sha256": "55d6816369c1d0a4cf38ab9ab67a8a96f398bc4c038f3733f23330ae6b8841f2"
+      },
+      {
+        "role": "formative_runtime",
+        "path": "src/lib/services/student-assessment/formative-conversation/runtime.ts",
+        "sha256": "3d55af821ca7500abff1acfe82dba566e15837987cd9953574cc2dd6fa7db1d0"
+      },
+      {
+        "role": "correction_evidence",
+        "path": "config/operational-candidates/formative-conversation-host-v5-executable-v5/v3-failure-analysis.json",
+        "sha256": "36b41e893a7e1c3292a5caa7b0617c043f1e1b47148d57fc1be41c9fbc2a54d8"
+      },
+      {
+        "role": "human_review_advisory",
+        "path": "config/operational-candidates/formative-conversation-host-v5-executable-v5/v3-human-review-advisory.json",
+        "sha256": "7c759dbb6339afbde33bce29c4fc19c4fc317530bc084fe28861ee124fa7b29d"
+      },
+      {
+        "role": "regression_evidence",
+        "path": "config/operational-candidates/formative-conversation-host-v5-executable-v5/regressions/case7-opening-output.json",
+        "sha256": "4c54b8716ba833f1ebefdec2b95db47ae3dcdeb182fa931213820a8173a12997"
+      },
+      {
+        "role": "failed_pre_dispatch_evidence",
+        "path": "config/operational-candidates/formative-conversation-host-v5-executable-v5/preserved-v4-pre-dispatch-failure.json",
+        "sha256": "0c5e0f9d86dcb04c1f5da0393516f5af29e052a3dd68711b6b5c105f64690a8e"
+      }
+    ]
+  },
+  "budget": {
+    "expected_logical_call_count": 21,
+    "maximum_logical_call_count": 21,
+    "expected_provider_attempt_count": 21,
+    "maximum_provider_attempt_count": 63,
+    "maximum_transport_retries_per_logical_call": 2,
+    "maximum_input_token_count": 900000,
+    "maximum_output_token_count": 73500,
+    "maximum_total_token_count": 973500,
+    "maximum_wall_clock_duration_ms": 7200000,
+    "maximum_concurrency": 1,
+    "maximum_cost_usd": 30,
+    "pricing_metadata_status": "unavailable",
+    "cost_enforcement": "operator_ceiling_required_actual_estimate_recorded_when_available"
+  },
+  "isolation": {
+    "mechanism": "protocol_specific_synthetic_research_validation_namespace",
+    "provider_run_id_template": "fcv5v5_provider_<timestamp>_<random>",
+    "derived_evaluation_id_template": "fcv5v5_derived_<timestamp>_<random>",
+    "run_namespace_template": "<provider_run_id>",
+    "case_namespace_template": "<provider_run_id>:<case_id>",
+    "classroom_collision_forbidden": true,
+    "ordinary_teacher_summary_inclusion_forbidden": true,
+    "export_markers_required": true,
+    "retention_policy": "retain_by_default_cleanup_only_by_explicit_run_id",
+    "approval_activation_forbidden": true
+  },
+  "live_authorization_template": "I authorize one live execution of formative-conversation-host-v5-executable-v5 for runtime candidate hash <runtime_candidate_hash> and evaluation protocol hash <evaluation_protocol_hash>, using exactly 8 isolated synthetic cases with at most 21 logical calls, 63 provider attempts, 900000 input tokens, 73500 output tokens, 973500 total tokens, 7200000 milliseconds wall-clock time, concurrency 1, and a USD 30 ceiling.",
+  "required_live_environment_flag": "FORMATIVE_CONVERSATION_V5_V5_LIVE_EVALUATION_ENABLED=true",
+  "intended_artifacts": [
+    "source-provider-run.json",
+    "cases/<case_id>-transcript.json",
+    "cases/<case_id>-validation.json",
+    "aggregate-evaluation.json",
+    "derived-evaluation.json",
+    "provenance-manifest.json",
+    "human-review-package.json",
+    "artifact-hash-manifest.json"
+  ],
+  "artifact_contract": {
+    "contract_version": "formative-conversation-v5-live-artifact-contract-v2",
+    "source_provider_run_required_fields": [
+      "provider_run_id",
+      "runtime_candidate_hash",
+      "evaluation_protocol_hash",
+      "aggregate_fixture_hash",
+      "budget_ledger",
+      "provider_attempt_traces"
+    ],
+    "per_case_required_fields": [
+      "case_id",
+      "fixture_hash",
+      "public_agent_call_ids",
+      "model_and_role",
+      "candidate_fingerprints",
+      "generation_source",
+      "output_validation",
+      "safety_validation",
+      "latency_and_token_usage",
+      "provider_attempt_count",
+      "typed_failures",
+      "student_visible_tutor_outputs",
+      "profile_recommendation",
+      "persisted_transition",
+      "supporting_evidence_references",
+      "teacher_projection",
+      "export_projection"
+    ],
+    "human_review_required_fields": [
+      "all_student_visible_tutor_outputs",
+      "case_assertions",
+      "persisted_transition",
+      "explicit_human_decision"
+    ],
+    "prohibited_fields": [
+      "api_keys",
+      "credentials",
+      "hidden_chain_of_thought",
+      "raw_provider_payloads",
+      "internal_database_ids"
+    ],
+    "artifact_hash_manifest_required": true,
+    "all_student_visible_tutor_outputs_in_human_review": true
+  },
+  "approval_boundaries": {
+    "automatic_approval_permitted": false,
+    "activation_permitted": false,
+    "render_update_permitted": false,
+    "human_review_required": true,
+    "all_student_visible_outputs_require_review": true
+  },
+  "failed_v3_execution": {
+    "protocol_hash": "13186b2e5dc54486864b216292afd02774c832340a548c77585886a53c7642b5",
+    "provider_run_id": "fcv5v3_provider_20260730082804_8bf128c4",
+    "derived_evaluation_id": "fcv5v3_derived_20260730082804_abbbd408",
+    "dispatch_checkpoint_path": ".data/operational-formative-conversation-v5-evaluation-v3/runs/dispatch/13186b2e5dc54486864b216292afd02774c832340a548c77585886a53c7642b5.json",
+    "dispatch_checkpoint_sha256": "e5ffbe30eb61ce28013eda37e74bcd3717f9f1f563b641b7eb0480b49d580b9e",
+    "source_provider_run_sha256": "02f85dc620059e24cc45a13aa5064fbef6087bcd997a31af6d3d46e0c2fe1e7d",
+    "derived_evaluation_sha256": "5198a16fe570d82c1b074f0fca93e87d930706dd94968778174ece922a2438de",
+    "execution_status": "completed_failed",
+    "approval_eligible": false,
+    "rerunnable": false,
+    "preserved_immutable": true
+  },
+  "live_environment_contract_path": "config/operational-candidates/formative-conversation-host-v5-executable-v5/live-environment-contract.json",
+  "live_environment_contract_hash": "5da91ae82a0c672cad65bf8ef6643447be0e5fda7a39f0b8692d986db46f6c6f",
+  "failed_v4_pre_dispatch": {
+    "source_commit_sha": "c9082e8457c1f3a11a5fd9acbd1ca250e889363c",
+    "runtime_candidate_hash": "a408b08c39aa614d967552e1fd321fabf0b83c96a3d83c82a7bd381fa8e899b3",
+    "protocol_hash": "662a9e2e9ec2929147bd7ec0150708186f07e32ff2029f606de6b0e9d502c84e",
+    "sandbox_launcher_failure": "tsx_ipc_socket_eperm",
+    "live_environment_failure": "approved_config_hash_mismatch",
+    "dispatch_checkpoint_created": false,
+    "provider_run_created": false,
+    "generation_request_created": false,
+    "provider_calls": 0,
+    "source_plan_artifacts": [
+      {
+        "path": ".data/operational-formative-conversation-v5-evaluation-v4/plans/fcv5_plan_20260730095417_dee56813.json",
+        "sha256": "9b9be1c503999c8b3bc0629759b4a45ccade7ee471ed8b4281d418cff2784f77"
+      },
+      {
+        "path": ".data/operational-formative-conversation-v5-evaluation-v4/plans/fcv5_plan_20260730103510_32dd5b3c.json",
+        "sha256": "7e70f72e890563599af5c833663727c258e3c5887d9a352a55ab99dbe62dbbff"
+      }
+    ],
+    "evidence_path": "config/operational-candidates/formative-conversation-host-v5-executable-v5/preserved-v4-pre-dispatch-failure.json",
+    "evidence_sha256": "0c5e0f9d86dcb04c1f5da0393516f5af29e052a3dd68711b6b5c105f64690a8e",
+    "preserved_immutable": true,
+    "rerunnable": false
+  }
+}
