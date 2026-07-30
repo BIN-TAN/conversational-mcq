@@ -1,0 +1,55 @@
+{
+  "artifact_version": "formative-conversation-v5-executable-source-configuration-v1",
+  "captured_from_application_git_commit": "ff56f1c2fa99bef73bfe251e2c05250a582297ba",
+  "source_candidate_manifest": {
+    "path": "config/operational-candidates/formative-conversation-host-v5/candidate-manifest.json",
+    "canonical_hash": "04d05fdc9da2703b72d609f5d481c8a3a0281e0ef16e8f4fa14ba7fb4dc49ef4",
+    "file_sha256": "69d42e2ab62ab7511be2d734ed5d0fe67e9d3008544f7cdfa6ec0d33b86c4a51"
+  },
+  "source_runtime_identity": {
+    "runtime_candidate_hash": "eb10a75438b00706857a9b11d4d799d82cd27b251a34ff1943459c9060222267",
+    "candidate_active_configuration_hash": "da0fa3fc00f1a3a6a2c00a70d9f8bbe140e297ccce9669bebd6dc3e7f8a5b86d",
+    "role_count": 18
+  },
+  "target_role_configuration": {
+    "agent_name": "formative_conversation_agent",
+    "model_name": "gpt-5.6-sol",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 3500,
+    "prompt_version": "formative-conversation-host-v5",
+    "prompt_hash": "f1aef959b9238472989a205efe56b29dfb1cd5e4ba376695cd5e99e083af67f1",
+    "schema_version": "formative-conversation-agent-contract-v1",
+    "context_version": "formative-conversation-context-v1",
+    "safety_version": "formative-conversation-safety-boundary-v1",
+    "memory_version": "formative-conversation-memory-v1",
+    "opening_validator_version": "formative-conversation-opening-v1",
+    "live_calls_enabled": true,
+    "instructional_fallback": "none"
+  },
+  "required_environment": {
+    "OPENAI_MODEL_FORMATIVE_CONVERSATION": "gpt-5.6-sol",
+    "OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION": "medium",
+    "OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION": 3500,
+    "FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED": true,
+    "FORMATIVE_CONVERSATION_V5_LIVE_EVALUATION_ENABLED": true,
+    "OPENAI_REQUEST_TIMEOUT_MS": 90000,
+    "OPENAI_MAX_RETRIES": 2
+  },
+  "preserved_governance": {
+    "active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+    "rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+    "rollback_manifest_sha256": "3f2a7a0756ace96ff9d4a589b6a12312a79f8257d220ec5abca74a273480ec8c",
+    "prior_incomplete_protocol_path": "config/operational-candidates/formative-conversation-host-v5/evaluation-protocol.json",
+    "prior_incomplete_protocol_hash": "d8906ab23522b2e52ac14a6edb3ca7ff1a3862c65a75de2e9e75dda612dcb817",
+    "prior_incomplete_protocol_file_sha256": "1d6d231fbf9e5010953e55ff4b3215df75eef585a6af551fb649aa8dec24c995"
+  },
+  "source_code_references": {
+    "runtime_prompt_and_identity": "src/lib/services/student-assessment/formative-conversation/live-runner.ts",
+    "output_contract": "src/lib/services/student-assessment/formative-conversation/agent-contract.ts",
+    "context_compiler": "src/lib/services/student-assessment/formative-conversation/context.ts",
+    "memory": "src/lib/services/student-assessment/formative-conversation/memory.ts",
+    "safety_boundary": "src/lib/services/student-assessment/formative-conversation/safety-boundary.ts",
+    "opening_validator": "src/lib/services/student-assessment/formative-conversation/opening-contract.ts",
+    "protocol_runner": "src/lib/operational/formative-conversation-v5-evaluation/service.ts"
+  }
+}

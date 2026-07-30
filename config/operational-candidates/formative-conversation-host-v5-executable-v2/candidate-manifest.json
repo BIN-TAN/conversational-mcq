@@ -1,0 +1,32 @@
+{
+  "manifest_version": "formative-conversation-host-v5-executable-candidate-revision-v2",
+  "approval_state": "candidate_not_approved",
+  "activation_permitted": false,
+  "runtime_behavior_changed": false,
+  "source_candidate_manifest": {
+    "path": "config/operational-candidates/formative-conversation-host-v5/candidate-manifest.json",
+    "canonical_hash": "04d05fdc9da2703b72d609f5d481c8a3a0281e0ef16e8f4fa14ba7fb4dc49ef4",
+    "file_sha256": "69d42e2ab62ab7511be2d734ed5d0fe67e9d3008544f7cdfa6ec0d33b86c4a51"
+  },
+  "runtime_candidate_hash": "eb10a75438b00706857a9b11d4d799d82cd27b251a34ff1943459c9060222267",
+  "runtime_candidate_hash_unchanged": true,
+  "executable_protocol_path": "config/operational-candidates/formative-conversation-host-v5-executable-v2/executable-evaluation-protocol.json",
+  "fixture_manifest_path": "config/operational-candidates/formative-conversation-host-v5-executable-v2/fixture-manifest.json",
+  "target_role": "formative_conversation_agent",
+  "target_role_identity": {
+    "agent_name": "formative_conversation_agent",
+    "model_snapshot": "gpt-5.6-sol",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 3500,
+    "prompt_version": "formative-conversation-host-v5",
+    "prompt_hash": "f1aef959b9238472989a205efe56b29dfb1cd5e4ba376695cd5e99e083af67f1",
+    "schema_version": "formative-conversation-agent-contract-v1",
+    "context_version": "formative-conversation-context-v1",
+    "safety_version": "formative-conversation-safety-boundary-v1",
+    "memory_version": "formative-conversation-memory-v1",
+    "opening_validator_version": "formative-conversation-opening-v1"
+  },
+  "preserved_active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "preserved_rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "prior_incomplete_protocol_hash": "d8906ab23522b2e52ac14a6edb3ca7ff1a3862c65a75de2e9e75dda612dcb817"
+}

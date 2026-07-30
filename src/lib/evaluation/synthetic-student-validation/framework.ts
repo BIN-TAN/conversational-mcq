@@ -1,12 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
 import { parse } from "csv-parse/sync";
 import { Prisma } from "@prisma/client";
+import type { AgentOutputByName } from "@/lib/agents/contracts";
 import { runInitialStudentProfiling } from "@/lib/agents/student-profiling/service";
+import { persistInitialStudentProfile } from "@/lib/agents/student-profiling/persistence";
 import { prisma } from "@/lib/db";
 import { hashSecret } from "@/lib/password";
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { generatePublicId } from "@/lib/services/ids";
 import { normalizeUserId } from "@/lib/services/student-accounts/validation";
+import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
 import {
   buildFormativeConversationRuntimeContextSeed
 } from "@/lib/services/student-assessment/formative-conversation/runtime-context";
@@ -38,7 +41,7 @@ const REQUIRED_RESEARCH_FILES = [
   "formative_conversation_data_dictionary.csv"
 ] as const;
 
-const SYNTHETIC_ASSESSMENT_ITEMS = [
+export const SYNTHETIC_ASSESSMENT_ITEMS = [
   {
     item_order: 1,
     item_stem:
@@ -158,6 +161,14 @@ export type SyntheticResearchValidationRunOptions = {
   personas: readonly SyntheticStudentPersona[];
   runner_factory: () => FormativeConversationAgentRunner;
   run_public_id?: string;
+  frozen_initial_profiles?: Readonly<
+    Partial<
+      Record<
+        SyntheticStudentPersona["persona_id"],
+        AgentOutputByName["student_profiling_agent"]
+      >
+    >
+  >;
 };
 
 export type SyntheticResearchValidationRunResult = {
@@ -222,10 +233,16 @@ function safeExecutionError(error: unknown) {
   return "synthetic_formative_conversation_execution_failed";
 }
 
-function estimatedLogicalCalls(personas: readonly SyntheticStudentPersona[]) {
+function estimatedLogicalCalls(
+  personas: readonly SyntheticStudentPersona[],
+  includeProductionProfiling = true
+) {
   return personas.reduce(
     (total, persona) =>
-      total + 1 + 1 + persona.conversation_behavior.length,
+      total +
+      (includeProductionProfiling ? 1 : 0) +
+      1 +
+      persona.conversation_behavior.length,
     0
   );
 }
@@ -582,6 +599,36 @@ async function persistSyntheticAssessmentEvidence(input: {
         occurred_at: itemSubmittedAt
       }
     );
+    if (behavior.tempting_option) {
+      events.push({
+        assessment_session_db_id: session.id,
+        concept_unit_session_db_id: conceptUnitSession.id,
+        item_db_id: item.id,
+        event_type: "tempting_option_submitted",
+        event_category: "initial_administration",
+        event_source: "frontend",
+        payload: {
+          item_public_id: item.item_public_id,
+          tempting_option: behavior.tempting_option
+        },
+        occurred_at: addMilliseconds(itemSubmittedAt, -750)
+      });
+    }
+    if (behavior.tempting_option_reason) {
+      events.push({
+        assessment_session_db_id: session.id,
+        concept_unit_session_db_id: conceptUnitSession.id,
+        item_db_id: item.id,
+        event_type: "tempting_option_reason_submitted",
+        event_category: "initial_administration",
+        event_source: "frontend",
+        payload: {
+          item_public_id: item.item_public_id,
+          reason_length: behavior.tempting_option_reason.length
+        },
+        occurred_at: addMilliseconds(itemSubmittedAt, -500)
+      });
+    }
     for (const observation of behavior.navigation_observations) {
       events.push({
         assessment_session_db_id: session.id,
@@ -653,22 +700,54 @@ async function runSyntheticStudent(input: {
   persona_index: number;
   mode: Exclude<SyntheticValidationMode, "plan_only">;
   runner_factory: () => FormativeConversationAgentRunner;
+  frozen_initial_profile?:
+    | AgentOutputByName["student_profiling_agent"]
+    | null;
 }) {
   const assessment = await persistSyntheticAssessmentEvidence(input);
   let conversationPublicId: string | null = null;
   let executionError: string | null = null;
   try {
-    const profileResult = await runInitialStudentProfiling({
-      concept_unit_session_db_id: assessment.concept_unit_session_db_id,
-      invocation_reason: `${input.fixture.run_public_id}:${input.persona.persona_id}:initial_profile`
-    });
-    if (
-      profileResult.status !== "profile_created" &&
-      profileResult.status !== "already_profiled"
-    ) {
-      throw new Error("synthetic_initial_profile_not_created");
+    if (input.frozen_initial_profile) {
+      await persistInitialStudentProfile({
+        concept_unit_session_db_id:
+          assessment.concept_unit_session_db_id,
+        based_on_agent_call_db_id: null,
+        output: input.frozen_initial_profile
+      });
+      await updateAssessmentSessionPhase({
+        assessment_session_db_id:
+          (
+            await prisma.conceptUnitSession.findUniqueOrThrow({
+              where: {
+                id: assessment.concept_unit_session_db_id
+              },
+              select: { assessment_session_db_id: true }
+            })
+          ).assessment_session_db_id,
+        to_phase: "profiling_completed",
+        reason: "frozen_synthetic_profile_context_persisted",
+        payload: {
+          validation_version:
+            SYNTHETIC_STUDENT_VALIDATION_VERSION,
+          persona_id: input.persona.persona_id,
+          synthetic_only: true
+        }
+      });
+    } else {
+      const profileResult = await runInitialStudentProfiling({
+        concept_unit_session_db_id:
+          assessment.concept_unit_session_db_id,
+        invocation_reason: `${input.fixture.run_public_id}:${input.persona.persona_id}:initial_profile`
+      });
+      if (
+        profileResult.status !== "profile_created" &&
+        profileResult.status !== "already_profiled"
+      ) {
+        throw new Error("synthetic_initial_profile_not_created");
+      }
     }
-    if (input.mode === "live_llm") {
+    if (input.mode === "live_llm" && !input.frozen_initial_profile) {
       const initialProfile =
         await prisma.studentProfile.findFirstOrThrow({
           where: {
@@ -1394,7 +1473,11 @@ export async function runSyntheticStudentResearchValidation(
         persona: options.personas[index],
         persona_index: index,
         mode: options.mode,
-        runner_factory: options.runner_factory
+        runner_factory: options.runner_factory,
+        frozen_initial_profile:
+          options.frozen_initial_profiles?.[
+            options.personas[index].persona_id
+          ] ?? null
       })
     );
   }
@@ -1562,7 +1645,8 @@ export async function runSyntheticStudentResearchValidation(
     provider_calls_authorized: options.mode === "live_llm",
     persona_count: options.personas.length,
     estimated_logical_generation_calls: estimatedLogicalCalls(
-      options.personas
+      options.personas,
+      !options.frozen_initial_profiles
     ),
     students,
     technical_reliability_report: {

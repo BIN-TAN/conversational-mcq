@@ -46,6 +46,8 @@ export const SyntheticAssessmentResponseBehaviorSchema = z
     item_number: z.number().int().min(1).max(3),
     selected_option: z.enum(["A", "B", "C"]),
     prior_option_selections: z.array(z.enum(["A", "B", "C"])).max(4),
+    tempting_option: z.enum(["A", "B", "C"]).nullable().optional(),
+    tempting_option_reason: z.string().min(1).max(2_000).nullable().optional(),
     reasoning_text: z.string().min(1).max(4_000),
     confidence_rating: z.enum(["low", "medium", "high"]),
     response_time_ms: z.number().int().positive(),

@@ -1,0 +1,79 @@
+{
+  "manifest_version": "formative-conversation-v5-fixture-manifest-v1",
+  "fixture_hash_semantics": "stable_hash_of_fixture_with_fixture_hash_omitted",
+  "fixture_count": 8,
+  "fixed_case_order": [
+    "fcv5_01_assistant_first_opening",
+    "fcv5_02_first_principles_adaptation",
+    "fcv5_03_direct_answer_handling",
+    "fcv5_04_related_concept_discussion",
+    "fcv5_05_sound_profile_transition",
+    "fcv5_06_largely_improved_temporal",
+    "fcv5_07_persistent_barrier_teacher_assistance",
+    "fcv5_08_mixed_resolved_evidence"
+  ],
+  "fixtures": [
+    {
+      "case_id": "fcv5_01_assistant_first_opening",
+      "order": 1,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v2/fixtures/fcv5_01_assistant_first_opening.json",
+      "fixture_hash": "7383601f98778844942ec1ea6d6626a753d2a777446b5d8d0fb91f27d12a1df5",
+      "file_sha256": "cd71c9be520cbacb2c771bee90efb4daf84d499fe923b4a504daa0dbed95c7ab"
+    },
+    {
+      "case_id": "fcv5_02_first_principles_adaptation",
+      "order": 2,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v2/fixtures/fcv5_02_first_principles_adaptation.json",
+      "fixture_hash": "868182dfe32b4617e5970c8fa69250efabead14c147270e6a767da02b0568a55",
+      "file_sha256": "4a2baaca104a7aa3905934e6035708622121f444f483862e1b60e3fa92a4e9d5"
+    },
+    {
+      "case_id": "fcv5_03_direct_answer_handling",
+      "order": 3,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v2/fixtures/fcv5_03_direct_answer_handling.json",
+      "fixture_hash": "72b4583c16d454d28efac11dcd741c8ca97323d5a559292ac36ba46921d62701",
+      "file_sha256": "7f417ea77d6b6af304e2f249cf2c50049197179205223bb4cb874366163c8e08"
+    },
+    {
+      "case_id": "fcv5_04_related_concept_discussion",
+      "order": 4,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v2/fixtures/fcv5_04_related_concept_discussion.json",
+      "fixture_hash": "cb2f7cef935f83f60e034dd6518798fb7495a2a1f4e7de750e46d1c3f7332f68",
+      "file_sha256": "30112dc61141d491fbbb13d0caf8e1e7d698784fc28f5d5b93315ffa29d9ef63"
+    },
+    {
+      "case_id": "fcv5_05_sound_profile_transition",
+      "order": 5,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v2/fixtures/fcv5_05_sound_profile_transition.json",
+      "fixture_hash": "198a30d60025db216fd3930d7c33e848e6b8e6ecccc0d60cd4c2c03315c2fa1f",
+      "file_sha256": "5fc811d36ccd47968c67a9c84718f812e1e393ab5cd7943e5da9865386fa36df"
+    },
+    {
+      "case_id": "fcv5_06_largely_improved_temporal",
+      "order": 6,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v2/fixtures/fcv5_06_largely_improved_temporal.json",
+      "fixture_hash": "7d0c5c3002eb644433263f548ce5cd3dafe28563e7f2615c5cdd89f3d4022dd8",
+      "file_sha256": "e1c312ffdea5fb08a3ac61bf2151675273786d57dc50406d84a7bd58911c0a23"
+    },
+    {
+      "case_id": "fcv5_07_persistent_barrier_teacher_assistance",
+      "order": 7,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v2/fixtures/fcv5_07_persistent_barrier_teacher_assistance.json",
+      "fixture_hash": "3a69f025df748d5db0be4940e3fc3094fd7cd4932b2c26475d539ec4cf79b6f1",
+      "file_sha256": "0fe4a1577a31c8f5a436604c8172f944be4afcaafeac45b9f5ec887cd01fd951"
+    },
+    {
+      "case_id": "fcv5_08_mixed_resolved_evidence",
+      "order": 8,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v2/fixtures/fcv5_08_mixed_resolved_evidence.json",
+      "fixture_hash": "80d9f88e7dd073a42f7235ad273c1f256316b681faa055d26a254adcf5bf6fff",
+      "file_sha256": "02bbc8afa48323313aac2328087c56b4cb8fe978767cf66ed50b346877dcdc2d"
+    }
+  ],
+  "aggregate_fixture_hash": "09ba2f7d1ae2243852611a4ea54c2c37195eda12b29bbfd73126ff7d06b73c67",
+  "execution_engine": "formative-conversation-v5-protocol-runner-v1",
+  "forbidden_runner_substitutions": [
+    "operational_model_upgrade_legacy_21_case_runner",
+    "synthetic_student_persona_cli"
+  ]
+}
