@@ -138,6 +138,7 @@ type SyntheticFixture = {
   assessment_db_id: string;
   concept_unit_db_id: string;
   concept_unit_public_id: string;
+  assessment_definition: FormativeConversationValidationAssessmentDefinition;
   items: Array<{
     id: string;
     item_public_id: string;
@@ -150,10 +151,61 @@ type SyntheticFixture = {
 };
 
 type SyntheticStudentExecution = {
-  persona: SyntheticStudentPersona;
+  subject: FormativeConversationValidationSubject;
   session_public_id: string;
   conversation_public_id: string | null;
   execution_error: string | null;
+};
+
+export type FormativeConversationValidationSubject = {
+  subject_id: SyntheticStudentPersona["persona_id"];
+  display_name: string;
+  assessment_response_behavior:
+    SyntheticStudentPersona["assessment_response_behavior"];
+  conversation_behavior: Array<
+    SyntheticStudentPersona["conversation_behavior"][number]
+  >;
+};
+
+export type FormativeConversationValidationAssessmentDefinition = {
+  title: string;
+  description: string;
+  diagnostic_focus: string;
+  concept_title: string;
+  learning_objective: string;
+  related_concept_description: string;
+  assessment_boundary: string;
+  administered_items: Array<{
+    item_alias: string;
+    item_order: number;
+    item_stem: string;
+    options: Array<{
+      label: "A" | "B" | "C";
+      text: string;
+    }>;
+    correct_option: "A" | "B" | "C";
+    answer_explanation: string;
+    distractor_rationales: Record<string, string>;
+    expected_reasoning_patterns: string[];
+    item_version: number;
+  }>;
+};
+
+export type FormativeConversationProtocolValidationRunOptions = {
+  mode: Exclude<SyntheticValidationMode, "plan_only">;
+  subjects: readonly FormativeConversationValidationSubject[];
+  assessment_definition: FormativeConversationValidationAssessmentDefinition;
+  runner_factory: () => FormativeConversationAgentRunner;
+  run_public_id: string;
+  include_production_profiling: boolean;
+  frozen_initial_profiles: Readonly<
+    Partial<
+      Record<
+        FormativeConversationValidationSubject["subject_id"],
+        AgentOutputByName["student_profiling_agent"]
+      >
+    >
+  >;
 };
 
 export type SyntheticResearchValidationRunOptions = {
@@ -178,6 +230,35 @@ export type SyntheticResearchValidationRunResult = {
     buffer: Buffer;
   };
 };
+
+const DEFAULT_SYNTHETIC_ASSESSMENT_DEFINITION: FormativeConversationValidationAssessmentDefinition =
+  {
+    title: "synthetic validation assessment",
+    description:
+      "Synthetic research validation fixture for the assessment-to-formative-conversation pipeline.",
+    diagnostic_focus:
+      "Distinguish reliability, measurement error, and validity evidence.",
+    concept_title: "Measurement evidence and score interpretation",
+    learning_objective:
+      "Explain how reliability, measurement error, and validity evidence support different claims about scores.",
+    related_concept_description:
+      "Measurement-theory distinctions used in score interpretation.",
+    assessment_boundary:
+      "Only administered measurement-theory items and directly related concepts may be discussed.",
+    administered_items: SYNTHETIC_ASSESSMENT_ITEMS.map((item) => ({
+      item_alias: `synthetic_item_${item.item_order}`,
+      item_order: item.item_order,
+      item_stem: item.item_stem,
+      options: item.options.map((option) => ({ ...option })),
+      correct_option: item.correct_option,
+      answer_explanation: item.explanation,
+      distractor_rationales: { ...item.distractor_rationales },
+      expected_reasoning_patterns: [
+        ...item.expected_reasoning_patterns
+      ],
+      item_version: 1
+    }))
+  };
 
 function json(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
@@ -247,6 +328,20 @@ function estimatedLogicalCalls(
   );
 }
 
+function estimatedSubjectLogicalCalls(
+  subjects: readonly FormativeConversationValidationSubject[],
+  includeProductionProfiling: boolean
+) {
+  return subjects.reduce(
+    (total, subject) =>
+      total +
+      (includeProductionProfiling ? 1 : 0) +
+      1 +
+      subject.conversation_behavior.length,
+    0
+  );
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -276,7 +371,7 @@ function average(values: number[]) {
 
 async function createSyntheticAssessmentFixture(input: {
   run_public_id: string;
-  personas: readonly SyntheticStudentPersona[];
+  assessment_definition: FormativeConversationValidationAssessmentDefinition;
 }) {
   const teacherUserId = `${input.run_public_id}_teacher`;
   const teacher = await prisma.user.create({
@@ -291,11 +386,10 @@ async function createSyntheticAssessmentFixture(input: {
   const assessment = await prisma.assessment.create({
     data: {
       assessment_public_id: generatePublicId("assessment"),
-      title: `${input.run_public_id} synthetic validation assessment`,
-      description:
-        "Synthetic research validation fixture for the assessment-to-formative-conversation pipeline.",
+      title: `${input.run_public_id} ${input.assessment_definition.title}`,
+      description: input.assessment_definition.description,
       diagnostic_focus:
-        "Distinguish reliability, measurement error, and validity evidence.",
+        input.assessment_definition.diagnostic_focus,
       status: "published",
       workflow_mode: "manual_review",
       response_collection_mode: "deterministic",
@@ -306,13 +400,15 @@ async function createSyntheticAssessmentFixture(input: {
     data: {
       concept_unit_public_id: generatePublicId("concept_unit"),
       assessment_db_id: assessment.id,
-      title: "Measurement evidence and score interpretation",
+      title: input.assessment_definition.concept_title,
       learning_objective:
-        "Explain how reliability, measurement error, and validity evidence support different claims about scores.",
+        input.assessment_definition.learning_objective,
       related_concept_description:
-        "Measurement-theory distinctions used in score interpretation.",
+        input.assessment_definition.related_concept_description,
       administration_rules: {
-        no_feedback_during_initial_administration: true
+        no_feedback_during_initial_administration: true,
+        assessment_boundary:
+          input.assessment_definition.assessment_boundary
       },
       order_index: 1,
       status: "published",
@@ -320,7 +416,7 @@ async function createSyntheticAssessmentFixture(input: {
     }
   });
   const items = [];
-  for (const definition of SYNTHETIC_ASSESSMENT_ITEMS) {
+  for (const definition of input.assessment_definition.administered_items) {
     items.push(
       await prisma.item.create({
         data: {
@@ -342,7 +438,7 @@ async function createSyntheticAssessmentFixture(input: {
           },
           included_in_published_set: true,
           status: "published",
-          version: 1
+          version: definition.item_version
         }
       })
     );
@@ -355,24 +451,25 @@ async function createSyntheticAssessmentFixture(input: {
     assessment_db_id: assessment.id,
     concept_unit_db_id: conceptUnit.id,
     concept_unit_public_id: conceptUnit.concept_unit_public_id,
+    assessment_definition: input.assessment_definition,
     items
   } satisfies SyntheticFixture;
 }
 
 async function persistSyntheticAssessmentEvidence(input: {
   fixture: SyntheticFixture;
-  persona: SyntheticStudentPersona;
+  subject: FormativeConversationValidationSubject;
   persona_index: number;
 }) {
-  const userId = `${input.fixture.run_public_id}_${input.persona.persona_id}`;
+  const userId = `${input.fixture.run_public_id}_${input.subject.subject_id}`;
   const student = await prisma.user.create({
     data: {
       user_id: userId,
       user_id_normalized: normalizeUserId(userId),
-      display_name: input.persona.display_name,
+      display_name: input.subject.display_name,
       role: "student",
       access_code_hash: await hashSecret(
-        `${input.fixture.run_public_id}_${input.persona.persona_id}_secret`
+        `${input.fixture.run_public_id}_${input.subject.subject_id}_secret`
       )
     }
   });
@@ -408,11 +505,12 @@ async function persistSyntheticAssessmentEvidence(input: {
   });
 
   let itemCursor = base;
-  for (const behavior of input.persona.assessment_response_behavior) {
+  for (const behavior of input.subject.assessment_response_behavior) {
     const item = input.fixture.items.find(
       (entry) => entry.item_order === behavior.item_number
     );
-    const definition = SYNTHETIC_ASSESSMENT_ITEMS.find(
+    const definition =
+      input.fixture.assessment_definition.administered_items.find(
       (entry) => entry.item_order === behavior.item_number
     );
     if (!item || !definition) {
@@ -463,7 +561,8 @@ async function persistSyntheticAssessmentEvidence(input: {
         answer_explanation_revealed: true,
         revealed_at: itemSubmittedAt,
         reveal_trigger: "initial_package_completed",
-        explanation_version: "synthetic-validation-item-explanation-v1",
+        explanation_version:
+          "synthetic-validation-item-explanation-v1",
         student_display_acknowledged_at: itemSubmittedAt,
         item_version_snapshot: item.version,
         item_snapshot: json({
@@ -473,9 +572,10 @@ async function persistSyntheticAssessmentEvidence(input: {
           correct_option: item.correct_option,
           expected_reasoning_patterns:
             definition.expected_reasoning_patterns,
-          student_safe_answer_explanation: definition.explanation
+          student_safe_answer_explanation:
+            definition.answer_explanation
         }),
-        client_submission_id: `${input.fixture.run_public_id}:${input.persona.persona_id}:item:${behavior.item_number}`
+        client_submission_id: `${input.fixture.run_public_id}:${input.subject.subject_id}:item:${behavior.item_number}`
       }
     });
 
@@ -696,7 +796,7 @@ async function persistSyntheticAssessmentEvidence(input: {
 
 async function runSyntheticStudent(input: {
   fixture: SyntheticFixture;
-  persona: SyntheticStudentPersona;
+  subject: FormativeConversationValidationSubject;
   persona_index: number;
   mode: Exclude<SyntheticValidationMode, "plan_only">;
   runner_factory: () => FormativeConversationAgentRunner;
@@ -730,7 +830,7 @@ async function runSyntheticStudent(input: {
         payload: {
           validation_version:
             SYNTHETIC_STUDENT_VALIDATION_VERSION,
-          persona_id: input.persona.persona_id,
+          persona_id: input.subject.subject_id,
           synthetic_only: true
         }
       });
@@ -738,7 +838,7 @@ async function runSyntheticStudent(input: {
       const profileResult = await runInitialStudentProfiling({
         concept_unit_session_db_id:
           assessment.concept_unit_session_db_id,
-        invocation_reason: `${input.fixture.run_public_id}:${input.persona.persona_id}:initial_profile`
+        invocation_reason: `${input.fixture.run_public_id}:${input.subject.subject_id}:initial_profile`
       });
       if (
         profileResult.status !== "profile_created" &&
@@ -784,7 +884,7 @@ async function runSyntheticStudent(input: {
         }
       });
     conversationPublicId = conversation.conversation_public_id;
-    const clientInstanceId = `${input.fixture.run_public_id}:${input.persona.persona_id}`;
+    const clientInstanceId = `${input.fixture.run_public_id}:${input.subject.subject_id}`;
     await recordFormativeConversationLifecycleEvent({
       conversation_public_id: conversation.conversation_public_id,
       client_event_id: `${clientInstanceId}:session_started`,
@@ -817,10 +917,10 @@ async function runSyntheticStudent(input: {
 
     for (
       let turnIndex = 0;
-      turnIndex < input.persona.conversation_behavior.length;
+      turnIndex < input.subject.conversation_behavior.length;
       turnIndex += 1
     ) {
-      const behavior = input.persona.conversation_behavior[turnIndex];
+      const behavior = input.subject.conversation_behavior[turnIndex];
       const submittedAt = new Date();
       const context = await buildFormativeConversationRuntimeContextSeed({
         conversation_public_id: conversation.conversation_public_id,
@@ -872,7 +972,7 @@ async function runSyntheticStudent(input: {
   }
 
   return {
-    persona: input.persona,
+    subject: input.subject,
     session_public_id: assessment.session_public_id,
     conversation_public_id: conversationPublicId,
     execution_error: executionError
@@ -1107,7 +1207,7 @@ async function buildStudentReport(execution: SyntheticStudentExecution) {
       0
     ),
     total_time_to_first_action_ms:
-      execution.persona.assessment_response_behavior.reduce(
+      execution.subject.assessment_response_behavior.reduce(
         (total, response) =>
           total + response.time_to_first_action_ms,
         0
@@ -1122,7 +1222,7 @@ async function buildStudentReport(execution: SyntheticStudentExecution) {
       0
     ),
     navigation_event_count:
-      execution.persona.assessment_response_behavior.reduce(
+      execution.subject.assessment_response_behavior.reduce(
         (total, response) =>
           total + response.navigation_observations.length,
         0
@@ -1189,20 +1289,20 @@ async function buildStudentReport(execution: SyntheticStudentExecution) {
   }
   if (
     studentTurns.length !==
-    execution.persona.conversation_behavior.length
+    execution.subject.conversation_behavior.length
   ) {
     unresolvedIssueCodes.push("student_turn_count_mismatch");
   }
   if (
     (conversation?.input_telemetry.length ?? 0) !==
-    execution.persona.conversation_behavior.length
+    execution.subject.conversation_behavior.length
   ) {
     unresolvedIssueCodes.push("input_telemetry_count_mismatch");
   }
   if (
     !execution.execution_error &&
     tutorTurns.length !==
-      execution.persona.conversation_behavior.length + 1
+      execution.subject.conversation_behavior.length + 1
   ) {
     unresolvedIssueCodes.push("tutor_turn_count_mismatch");
   }
@@ -1221,7 +1321,7 @@ async function buildStudentReport(execution: SyntheticStudentExecution) {
   }
 
   return {
-    persona_id: execution.persona.persona_id,
+    persona_id: execution.subject.subject_id,
     session_public_id: execution.session_public_id,
     conversation_public_id: execution.conversation_public_id,
     initial_evidence_summary: initialEvidenceSummary,
@@ -1454,30 +1554,30 @@ export function buildSyntheticStudentValidationPlan(
   };
 }
 
-export async function runSyntheticStudentResearchValidation(
-  options: SyntheticResearchValidationRunOptions
+async function runFormativeConversationValidationSubjects(
+  options: FormativeConversationProtocolValidationRunOptions
 ): Promise<SyntheticResearchValidationRunResult> {
-  if (options.personas.length === 0) {
-    throw new Error("synthetic_persona_selection_empty");
+  if (options.subjects.length === 0) {
+    throw new Error("formative_conversation_validation_subjects_empty");
   }
-  const runPublicId = options.run_public_id ?? reportRunPublicId();
+  const runPublicId = options.run_public_id;
   const fixture = await createSyntheticAssessmentFixture({
     run_public_id: runPublicId,
-    personas: options.personas
+    assessment_definition: options.assessment_definition
   });
   const executions: SyntheticStudentExecution[] = [];
-  for (let index = 0; index < options.personas.length; index += 1) {
+  for (let index = 0; index < options.subjects.length; index += 1) {
+    const subject = options.subjects[index];
     executions.push(
       await runSyntheticStudent({
         fixture,
-        persona: options.personas[index],
+        subject,
         persona_index: index,
         mode: options.mode,
         runner_factory: options.runner_factory,
         frozen_initial_profile:
-          options.frozen_initial_profiles?.[
-            options.personas[index].persona_id
-          ] ?? null
+          options.frozen_initial_profiles[subject.subject_id] ??
+          null
       })
     );
   }
@@ -1557,9 +1657,9 @@ export async function runSyntheticStudentResearchValidation(
           }
         })
       : [];
-  const expectedFormativeCallCount = options.personas.reduce(
-    (total, persona) =>
-      total + 1 + persona.conversation_behavior.length,
+  const expectedFormativeCallCount = options.subjects.reduce(
+    (total, subject) =>
+      total + 1 + subject.conversation_behavior.length,
     0
   );
   const liveFormativeExecutionValid =
@@ -1643,11 +1743,12 @@ export async function runSyntheticStudentResearchValidation(
       executions.every((execution) => execution.execution_error === null) &&
       liveFormativeExecutionValid,
     provider_calls_authorized: options.mode === "live_llm",
-    persona_count: options.personas.length,
-    estimated_logical_generation_calls: estimatedLogicalCalls(
-      options.personas,
-      !options.frozen_initial_profiles
-    ),
+    persona_count: options.subjects.length,
+    estimated_logical_generation_calls:
+      estimatedSubjectLogicalCalls(
+        options.subjects,
+        options.include_production_profiling
+      ),
     students,
     technical_reliability_report: {
       total_sessions: students.length,
@@ -1715,6 +1816,35 @@ export async function runSyntheticStudentResearchValidation(
       buffer: firstExport.buffer
     }
   };
+}
+
+export async function runSyntheticStudentResearchValidation(
+  options: SyntheticResearchValidationRunOptions
+) {
+  return runFormativeConversationValidationSubjects({
+    mode: options.mode,
+    subjects: options.personas.map((persona) => ({
+      subject_id: persona.persona_id,
+      display_name: persona.display_name,
+      assessment_response_behavior:
+        persona.assessment_response_behavior,
+      conversation_behavior: persona.conversation_behavior
+    })),
+    assessment_definition:
+      DEFAULT_SYNTHETIC_ASSESSMENT_DEFINITION,
+    runner_factory: options.runner_factory,
+    run_public_id: options.run_public_id ?? reportRunPublicId(),
+    include_production_profiling:
+      !options.frozen_initial_profiles,
+    frozen_initial_profiles:
+      options.frozen_initial_profiles ?? {}
+  });
+}
+
+export async function runFormativeConversationProtocolValidation(
+  options: FormativeConversationProtocolValidationRunOptions
+) {
+  return runFormativeConversationValidationSubjects(options);
 }
 
 export async function cleanupSyntheticStudentValidationRun(
