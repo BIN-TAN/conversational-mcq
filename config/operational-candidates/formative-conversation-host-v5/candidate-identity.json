@@ -1,0 +1,31 @@
+{
+  "artifact_version": "formative-conversation-operational-candidate-identity-v1",
+  "approval_state": "candidate_not_approved",
+  "activation_permitted": false,
+  "no_provider_call": true,
+  "candidate_manifest_path": "config/operational-candidates/formative-conversation-host-v5/candidate-manifest.json",
+  "candidate_configuration_hash": "04d05fdc9da2703b72d609f5d481c8a3a0281e0ef16e8f4fa14ba7fb4dc49ef4",
+  "runtime_candidate_hash": "eb10a75438b00706857a9b11d4d799d82cd27b251a34ff1943459c9060222267",
+  "candidate_active_configuration_hash": "da0fa3fc00f1a3a6a2c00a70d9f8bbe140e297ccce9669bebd6dc3e7f8a5b86d",
+  "candidate_manifest_sha256": "69d42e2ab62ab7511be2d734ed5d0fe67e9d3008544f7cdfa6ec0d33b86c4a51",
+  "evaluation_protocol": {
+    "path": "config/operational-candidates/formative-conversation-host-v5/evaluation-protocol.json",
+    "protocol_hash": "d8906ab23522b2e52ac14a6edb3ca7ff1a3862c65a75de2e9e75dda612dcb817",
+    "sha256": "1d6d231fbf9e5010953e55ff4b3215df75eef585a6af551fb649aa8dec24c995"
+  },
+  "source_configuration": {
+    "path": "config/operational-candidates/formative-conversation-host-v5/source-configuration.json",
+    "sha256": "263e9518a1fd86009ed5580a362890f41248fd32f40b957ce4da88cf8127e41a"
+  },
+  "preserved_active_approval": {
+    "runtime_candidate_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+    "role_count": 17,
+    "modified": false
+  },
+  "preserved_rollback": {
+    "approved_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+    "modified": false
+  },
+  "candidate_role_count": 18,
+  "added_role": "formative_conversation_agent"
+}

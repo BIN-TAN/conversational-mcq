@@ -1,0 +1,47 @@
+{
+  "artifact_version": "formative-conversation-host-v5-approval-evidence-placeholder-v1",
+  "artifact_state": "placeholder_not_approval_evidence",
+  "candidate_manifest_path": "config/operational-candidates/formative-conversation-host-v5/candidate-manifest.json",
+  "evaluation_protocol_path": "config/operational-candidates/formative-conversation-host-v5/evaluation-protocol.json",
+  "runtime_candidate_hash": "eb10a75438b00706857a9b11d4d799d82cd27b251a34ff1943459c9060222267",
+  "evaluation_protocol_hash": "d8906ab23522b2e52ac14a6edb3ca7ff1a3862c65a75de2e9e75dda612dcb817",
+  "provider_evaluation": {
+    "status": "not_run",
+    "source_provider_run_id": null,
+    "case_results_path": null,
+    "usage_summary": null,
+    "latency_summary": null,
+    "failure_summary": null
+  },
+  "human_review": {
+    "status": "not_started",
+    "reviewer": null,
+    "reviewed_at": null,
+    "decision": null,
+    "student_facing_outputs_reviewed": false,
+    "profile_transition_semantics_reviewed": false,
+    "privacy_and_answer_visibility_reviewed": false,
+    "review_artifact_path": null,
+    "review_artifact_sha256": null
+  },
+  "required_evidence": [
+    "immutable provider evaluation outputs for every frozen protocol case",
+    "schema and validator results",
+    "prompt, context, safety, memory, and opening-validator identity matches",
+    "token, latency, retry, and failure accounting",
+    "answer-key, hidden-prompt, teacher-note, and unsupported-claim safety results",
+    "profile-transition and AgentCall provenance results",
+    "human review of every student-facing output",
+    "explicit human approval decision"
+  ],
+  "approval": {
+    "eligible": false,
+    "approved_at": null,
+    "approval_evidence_hash": null,
+    "exact_operational_approved_config_hash": null
+  },
+  "activation": {
+    "permitted": false,
+    "activated_at": null
+  }
+}

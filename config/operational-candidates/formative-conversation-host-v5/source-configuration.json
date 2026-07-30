@@ -1,0 +1,46 @@
+{
+  "artifact_version": "formative-conversation-operational-source-configuration-v1",
+  "captured_from_application_git_commit": "5df245cea243cda706321ed21e3c756f7e1fc797",
+  "no_provider_call": true,
+  "source_active_approval": {
+    "bundle_version": "operational-active-approval-bundle-v1",
+    "manifest_version": "phase31at-gpt-5.6-full-v2-candidate-v6",
+    "runtime_candidate_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+    "evaluation_protocol_hash": "c2f4ae7cf46cb592dd29ef8bb406de52c2dc7cdf86eddeae476bbf4d8dfecc2d",
+    "role_count": 17,
+    "formative_conversation_compatibility_source_role": "topic_dialogue_agent"
+  },
+  "preserved_rollback": {
+    "approved_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+    "manifest_path": "config/approved-operational-agent-config.json"
+  },
+  "formative_conversation_agent": {
+    "agent_name": "formative_conversation_agent",
+    "agent_version": "formative-conversation-runtime-v2",
+    "model_snapshot": "gpt-5.6-sol",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 3500,
+    "prompt_version": "formative-conversation-host-v5",
+    "prompt_hash": "f1aef959b9238472989a205efe56b29dfb1cd5e4ba376695cd5e99e083af67f1",
+    "schema_version": "formative-conversation-agent-contract-v1",
+    "context_version": "formative-conversation-context-v1",
+    "safety_version": "formative-conversation-safety-boundary-v1",
+    "memory_version": "formative-conversation-memory-v1",
+    "opening_validator_version": "formative-conversation-opening-v1",
+    "live_calls_enabled": true,
+    "instructional_fallback": "none"
+  },
+  "source_environment_assertions": {
+    "OPENAI_MODEL_FORMATIVE_CONVERSATION": "gpt-5.6-sol",
+    "OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION": "medium",
+    "OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION": 3500,
+    "FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED": true
+  },
+  "source_code_references": {
+    "runtime_identity": "src/lib/services/student-assessment/formative-conversation/live-runner.ts",
+    "agent_contract": "src/lib/services/student-assessment/formative-conversation/agent-contract.ts",
+    "opening_validator": "src/lib/services/student-assessment/formative-conversation/opening-contract.ts",
+    "approval_boundary": "src/lib/operational/active-approval-bundle.ts",
+    "model_resolution": "src/lib/llm/config.ts"
+  }
+}
