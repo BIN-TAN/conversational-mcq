@@ -251,7 +251,10 @@ async function main() {
     const fieldEvidenceFor = (
       priorProfile: typeof initialCanonicalProfile,
       updatedProfile: typeof initialCanonicalProfile,
-      sourceTurnSequenceIndex: number
+      sourceTurnSequenceIndex: number,
+      retainedExtensionFields: Array<
+        (typeof FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS)[number]
+      > = []
     ) => {
       const changedFields =
         FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS.filter(
@@ -259,20 +262,41 @@ async function main() {
             JSON.stringify(priorProfile[field]) !==
             JSON.stringify(updatedProfile[field])
         );
+      const retainedExtensions = changedFields.filter((field) =>
+        retainedExtensionFields.includes(field)
+      );
+      const conversationUpdatedFields = changedFields.filter(
+        (field) => !retainedExtensions.includes(field)
+      );
       const retainedFields =
         FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS.filter(
           (field) => !changedFields.includes(field)
         );
       return [
-        ...(changedFields.length > 0
+        ...(conversationUpdatedFields.length > 0
           ? [
               {
-                profile_fields: changedFields,
+                profile_fields: conversationUpdatedFields,
                 disposition:
                   "updated_from_conversation_evidence" as const,
                 evidence_basis: "conversation_evidence" as const,
                 rationale:
                   "The cited student response provides new evidence for these profile fields.",
+                source_turn_sequence_indexes: [
+                  sourceTurnSequenceIndex
+                ]
+              }
+            ]
+          : []),
+        ...(retainedExtensions.length > 0
+          ? [
+              {
+                profile_fields: retainedExtensions,
+                disposition:
+                  "retained_evidence_remains_valid" as const,
+                evidence_basis: "combined" as const,
+                rationale:
+                  "Prior cautions remain intact and the cited student response supports one additional limitation.",
                 source_turn_sequence_indexes: [
                   sourceTurnSequenceIndex
                 ]
@@ -315,6 +339,10 @@ async function main() {
       profile_confidence: "medium" as const,
       rationale:
         "The updated profile reflects the cited conversation evidence.",
+      process_interpretation_cautions: [
+        ...initialCanonicalProfile.process_interpretation_cautions,
+        "Independent transfer has not yet been observed in the conversation."
+      ],
       recommended_next_evidence: [
         "Apply the distinction independently to a new score-use claim."
       ]
@@ -500,7 +528,8 @@ async function main() {
               field_evidence: fieldEvidenceFor(
                 initialCanonicalProfile,
                 largelyImprovedProfile,
-                latestStudentTurn.sequence_index
+                latestStudentTurn.sequence_index,
+                ["process_interpretation_cautions"]
               )
             },
             lifecycle_recommendation: "continue"
@@ -598,6 +627,17 @@ async function main() {
         `Conceptual or hypothetical score language must remain valid: ${allowedOpening}`
       );
     }
+    const immutableCase7Opening =
+      "Now that you’ve looked through the results, let’s organize the three ideas around one principle: measurement evidence usually supports a limited claim, not absolute certainty.\n\n- **Reliability/internal consistency:** scores behave consistently, but that alone does not show that a particular interpretation or use is valid.\n- **Standard error of measurement (SEM):** estimates uncertainty around an observed score; it does not turn that score into an exact true score.\n- **Validity:** evidence supports a specific interpretation and use of scores in a particular context; it is not simply a permanent property of a test.\n\nImagine a bathroom scale that gives you the same reading every time. What can you conclude from that consistency, and what would you still need to investigate before trusting the reading as accurate?";
+    const immutableCase7Validation =
+      validateFormativeConversationOpeningOutput(
+        openingOutput(immutableCase7Opening)
+      );
+    assert.equal(
+      immutableCase7Validation.valid,
+      true,
+      "The exact immutable v3 Case 7 opening must be accepted as a natural assessment acknowledgement."
+    );
     for (const rejectedOpening of [
       "You've reviewed your answers. Your score was 2 out of 3.",
       "You've reviewed your answers. You answered two questions correctly and one incorrectly.",
@@ -851,7 +891,7 @@ async function main() {
     assert.equal(firstTransition.learning_outcome, "largely_improved");
     assert.equal(
       firstTransition.transition_version,
-      "formative-conversation-profile-transition-v2"
+      "formative-conversation-profile-transition-v3"
     );
     assert.equal(
       firstTransition.assessment_student_profile_db_id,
@@ -883,6 +923,12 @@ async function main() {
       firstTransition.updated_student_profile.item_level_evidence,
       firstTransition.prior_student_profile.item_level_evidence,
       "Explicitly retained structured assessment evidence must not be replaced by its normalized agent-context summary."
+    );
+    assert.deepEqual(
+      firstTransition.updated_student_profile
+        .process_interpretation_cautions,
+      largelyImprovedProfile.process_interpretation_cautions,
+      "A retained list may preserve all prior evidence while appending a student-cited caution."
     );
     const firstProfileSnapshot =
       FormativeConversationProfileEvidenceSchema.parse(
@@ -2451,7 +2497,7 @@ async function main() {
         transitionRows.every(
           (row) =>
             row.transition_version ===
-              "formative-conversation-profile-transition-v2" &&
+              "formative-conversation-profile-transition-v3" &&
             row.prior_profile_created_at.length > 0 &&
             row.updated_profile_created_at.length > 0 &&
             row.supporting_turn_sequence_indexes.length > 0 &&

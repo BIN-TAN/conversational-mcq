@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Prisma, type StudentProfile } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { toPrismaJson } from "@/lib/services/json";
@@ -11,7 +12,7 @@ import {
 } from "./agent-contract";
 
 export const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VERSION =
-  "formative-conversation-profile-transition-v2";
+  "formative-conversation-profile-transition-v3";
 
 export type FormativeConversationProfileEvidenceHookInput = {
   conversation_public_id: string;
@@ -48,6 +49,67 @@ export class FormativeConversationProfileTransitionError extends Error {
     super(message);
     this.name = "FormativeConversationProfileTransitionError";
   }
+}
+
+export async function recordFormativeConversationProfileTransitionRejection(
+  input: {
+    conversation_public_id: string;
+    source_agent_call_db_id: string;
+    source_tutor_turn_db_id: string;
+    proposed_outcome: string;
+    error: FormativeConversationProfileTransitionError;
+  }
+) {
+  const [session, agentCall] = await Promise.all([
+    prisma.formativeConversationSession.findUniqueOrThrow({
+      where: {
+        conversation_public_id: input.conversation_public_id
+      },
+      select: {
+        id: true,
+        initial_student_profile_db_id: true,
+        current_student_profile_db_id: true
+      }
+    }),
+    prisma.agentCall.findUniqueOrThrow({
+      where: { id: input.source_agent_call_db_id },
+      select: { agent_call_public_id: true }
+    })
+  ]);
+  const signalPublicId = `fcptr_${createHash("sha256")
+    .update(
+      [
+        input.conversation_public_id,
+        input.source_agent_call_db_id,
+        input.error.code
+      ].join(":")
+    )
+    .digest("hex")
+    .slice(0, 24)}`;
+
+  return prisma.formativeConversationReviewSignal.upsert({
+    where: { signal_public_id: signalPublicId },
+    update: {},
+    create: {
+      signal_public_id: signalPublicId,
+      formative_conversation_session_db_id: session.id,
+      source_student_profile_db_id:
+        session.current_student_profile_db_id ??
+        session.initial_student_profile_db_id,
+      source_turn_db_id: input.source_tutor_turn_db_id,
+      signal_type: "profile_transition_rejected",
+      reason_code: input.error.code,
+      evidence_summary: jsonInput({
+        terminal_result: "rejected",
+        transition_version:
+          FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VERSION,
+        proposed_outcome: input.proposed_outcome,
+        source_agent_call_public_id:
+          agentCall.agent_call_public_id,
+        validation_code: input.error.code
+      })
+    }
+  });
 }
 
 type AgentTransitionRecommendation = NonNullable<
@@ -212,6 +274,31 @@ function profileFieldValue(
 
 function profileValuesEqual(left: unknown, right: unknown) {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function retainedStringListExtension(
+  priorValue: unknown,
+  updatedValue: unknown
+) {
+  if (
+    !Array.isArray(priorValue) ||
+    !Array.isArray(updatedValue) ||
+    !priorValue.every((entry) => typeof entry === "string") ||
+    !updatedValue.every((entry) => typeof entry === "string") ||
+    updatedValue.length <= priorValue.length
+  ) {
+    return false;
+  }
+
+  const unmatchedUpdated = [...updatedValue];
+  for (const priorEntry of priorValue) {
+    const matchIndex = unmatchedUpdated.indexOf(priorEntry);
+    if (matchIndex < 0) {
+      return false;
+    }
+    unmatchedUpdated.splice(matchIndex, 1);
+  }
+  return unmatchedUpdated.length > 0;
 }
 
 async function existingTransitionForAgentCall(
@@ -409,24 +496,36 @@ export async function recordFormativeConversationProfileTransitionRecommendation
           profileFieldValue(priorCanonicalProfile, field),
           profileFieldValue(updatedCanonicalProfile, field)
         );
-        if (
-          changed &&
-          fieldEvidence.disposition !==
-            "updated_from_conversation_evidence"
-        ) {
-          throw new FormativeConversationProfileTransitionError(
-            "profile_transition_field_evidence_invalid",
-            `The changed ${field} field is not supported as a conversation evidence update.`
-          );
-        }
-        if (
-          fieldEvidence.disposition ===
-            "updated_from_conversation_evidence" &&
-          !fieldEvidence.source_turn_sequence_indexes.some(
+        const citesStudentTurn =
+          fieldEvidence.source_turn_sequence_indexes.some(
             (sequenceIndex) =>
               citedTurnsBySequence.get(sequenceIndex)?.actor_type ===
               "student"
-          )
+          );
+        const evidenceBackedRetainedExtension =
+          changed &&
+          fieldEvidence.disposition ===
+            "retained_evidence_remains_valid" &&
+          fieldEvidence.evidence_basis !== "prior_profile_evidence" &&
+          citesStudentTurn &&
+          retainedStringListExtension(
+            profileFieldValue(priorCanonicalProfile, field),
+            profileFieldValue(updatedCanonicalProfile, field)
+          );
+        if (
+          changed &&
+          fieldEvidence.disposition !==
+            "updated_from_conversation_evidence" &&
+          !evidenceBackedRetainedExtension
+        ) {
+          throw new FormativeConversationProfileTransitionError(
+            "profile_transition_field_evidence_invalid",
+            `The changed ${field} field is neither a conversation evidence update nor an evidence-backed retained-list extension.`
+          );
+        }
+        if (
+          changed &&
+          !citesStudentTurn
         ) {
           throw new FormativeConversationProfileTransitionError(
             "profile_transition_field_evidence_invalid",
@@ -434,11 +533,15 @@ export async function recordFormativeConversationProfileTransitionRecommendation
           );
         }
       }
-      const retainedProfileField = (
+      const usePriorStoredField = (
         field: (typeof FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS)[number]
       ) =>
         fieldEvidenceByField.get(field)?.disposition ===
-        "retained_evidence_remains_valid";
+          "retained_evidence_remains_valid" &&
+        profileValuesEqual(
+          profileFieldValue(priorCanonicalProfile, field),
+          profileFieldValue(updatedCanonicalProfile, field)
+        );
       const learningObservations = input.agent_evidence_observations.map(
         (observation) => ({
           evidence_type: observation.evidence_type,
@@ -453,13 +556,13 @@ export async function recordFormativeConversationProfileTransitionRecommendation
           profile_type: "updated",
           ability_profile: updatedCanonicalProfile.ability_profile,
           ability_pattern_flags: jsonInput(
-            retainedProfileField("ability_pattern_flags")
+            usePriorStoredField("ability_pattern_flags")
               ? priorProfile.ability_pattern_flags
               : updatedCanonicalProfile.ability_pattern_flags
           ),
           engagement_profile: updatedCanonicalProfile.engagement_profile,
           engagement_pattern_flags: jsonInput(
-            retainedProfileField("engagement_pattern_flags")
+            usePriorStoredField("engagement_pattern_flags")
               ? priorProfile.engagement_pattern_flags
               : updatedCanonicalProfile.engagement_pattern_flags
           ),
@@ -476,12 +579,12 @@ export async function recordFormativeConversationProfileTransitionRecommendation
           independence_interpretability:
             updatedCanonicalProfile.independence_interpretability,
           misconception_indicators: jsonInput(
-            retainedProfileField("misconception_indicators")
+            usePriorStoredField("misconception_indicators")
               ? priorProfile.misconception_indicators
               : updatedCanonicalProfile.misconception_indicators
           ),
           item_level_evidence: jsonInput(
-            retainedProfileField("item_level_evidence")
+            usePriorStoredField("item_level_evidence")
               ? priorProfile.item_level_evidence
               : updatedCanonicalProfile.item_level_evidence
           ),
@@ -490,14 +593,14 @@ export async function recordFormativeConversationProfileTransitionRecommendation
           engagement_summary:
             updatedCanonicalProfile.engagement_summary,
           process_interpretation_cautions: jsonInput(
-            retainedProfileField("process_interpretation_cautions")
+            usePriorStoredField("process_interpretation_cautions")
               ? priorProfile.process_interpretation_cautions
               : updatedCanonicalProfile.process_interpretation_cautions
           ),
           profile_confidence: updatedCanonicalProfile.profile_confidence,
           rationale: updatedCanonicalProfile.rationale,
           recommended_next_evidence: jsonInput(
-            retainedProfileField("recommended_next_evidence")
+            usePriorStoredField("recommended_next_evidence")
               ? priorProfile.recommended_next_evidence
               : updatedCanonicalProfile.recommended_next_evidence
           ),

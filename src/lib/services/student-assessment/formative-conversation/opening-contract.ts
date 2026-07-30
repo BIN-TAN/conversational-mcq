@@ -3,8 +3,8 @@ import {
   type FormativeConversationAgentOutput
 } from "./agent-contract";
 
-export const FORMATIVE_CONVERSATION_OPENING_VERSION =
-  "formative-conversation-opening-v1";
+export const FORMATIVE_CONVERSATION_OPENING_VERSION: string =
+  "formative-conversation-opening-v2";
 export const FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID =
   "assistant-opening:formative-conversation-opening-v1";
 
@@ -54,6 +54,11 @@ const studentAssessmentResultPatterns = [
   /\b(?:the|this)\s+assessment\s+(?:score|result)\s+(?:was|is)\s+(?:\d+(?:\.\d+)?%?|\d+\s+(?:of|out of)\s+\d+)\b/i
 ] as const;
 
+const assessmentAcknowledgementPatterns = [
+  /\b(?:review(?:ed|ing)?|answers?|questions?|assessment)\b/i,
+  /\b(?:look(?:ed|ing)?|went|go(?:ing)?)\s+(?:back\s+)?(?:through|over)\s+(?:the|your)\s+(?:answers?|results?)\b/i
+] as const;
+
 function repeatsStudentAssessmentResult(message: string) {
   return message
     .split(/(?:[.!?]\s+|\n+)/)
@@ -87,7 +92,11 @@ export function validateFormativeConversationOpeningOutput(
   if (repeatsStudentAssessmentResult(message)) {
     issues.add("opening_repeats_score");
   }
-  if (!/\b(?:review(?:ed)?|answers?|questions?|assessment)\b/i.test(message)) {
+  if (
+    !assessmentAcknowledgementPatterns.some((pattern) =>
+      pattern.test(message)
+    )
+  ) {
     issues.add("opening_assessment_acknowledgement_missing");
   }
   if (parsed.data.evidence_observations.length > 0) {

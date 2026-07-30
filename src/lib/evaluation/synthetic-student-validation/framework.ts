@@ -18,6 +18,7 @@ import {
   processFormativeConversationStudentMessage,
   type FormativeConversationAgentRunner
 } from "@/lib/services/student-assessment/formative-conversation/runtime";
+import { FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID } from "@/lib/services/student-assessment/formative-conversation/opening-contract";
 import { recordFormativeConversationLifecycleEvent } from "@/lib/services/student-assessment/formative-conversation/telemetry";
 import { getTeacherReviewItemResponses } from "@/lib/services/teacher-review/item-responses";
 import { getTeacherReviewSessionDetail } from "@/lib/services/teacher-review/session-detail";
@@ -154,6 +155,7 @@ type SyntheticStudentExecution = {
   subject: FormativeConversationValidationSubject;
   session_public_id: string;
   conversation_public_id: string | null;
+  student_message_submission_attempt_count: number;
   execution_error: string | null;
 };
 
@@ -807,6 +809,7 @@ async function runSyntheticStudent(input: {
   const assessment = await persistSyntheticAssessmentEvidence(input);
   let conversationPublicId: string | null = null;
   let executionError: string | null = null;
+  let studentMessageSubmissionAttemptCount = 0;
   try {
     if (input.frozen_initial_profile) {
       await persistInitialStudentProfile({
@@ -926,6 +929,7 @@ async function runSyntheticStudent(input: {
         conversation_public_id: conversation.conversation_public_id,
         student_user_db_id: assessment.student_user_db_id
       });
+      studentMessageSubmissionAttemptCount += 1;
       await processFormativeConversationStudentMessage(
         {
           conversation_public_id: conversation.conversation_public_id,
@@ -975,6 +979,8 @@ async function runSyntheticStudent(input: {
     subject: input.subject,
     session_public_id: assessment.session_public_id,
     conversation_public_id: conversationPublicId,
+    student_message_submission_attempt_count:
+      studentMessageSubmissionAttemptCount,
     execution_error: executionError
   } satisfies SyntheticStudentExecution;
 }
@@ -1103,6 +1109,45 @@ function validateResearchExport(input: {
   };
 }
 
+export function formativeConversationMessageAccountingIssues(input: {
+  execution_error: string | null;
+  planned_student_messages: number;
+  submission_attempts: number;
+  persisted_student_messages: number;
+  completed_student_exchanges: number;
+  input_telemetry_count: number;
+  tutor_turn_count: number;
+}) {
+  const issues: string[] = [];
+  if (
+    !input.execution_error &&
+    input.persisted_student_messages !== input.planned_student_messages
+  ) {
+    issues.push("student_turn_count_mismatch");
+  }
+  if (
+    input.input_telemetry_count !== input.persisted_student_messages
+  ) {
+    issues.push("input_telemetry_count_mismatch");
+  }
+  if (input.submission_attempts !== input.persisted_student_messages) {
+    issues.push("student_message_submission_persistence_mismatch");
+  }
+  if (
+    !input.execution_error &&
+    input.tutor_turn_count !== input.planned_student_messages + 1
+  ) {
+    issues.push("tutor_turn_count_mismatch");
+  }
+  if (
+    input.completed_student_exchanges >
+    input.persisted_student_messages
+  ) {
+    issues.push("completed_student_exchange_count_invalid");
+  }
+  return issues;
+}
+
 async function buildStudentReport(execution: SyntheticStudentExecution) {
   const [teacherDetail, itemResponses, conversation] = await Promise.all([
     getTeacherReviewSessionDetail(execution.session_public_id),
@@ -1131,6 +1176,7 @@ async function buildStudentReport(execution: SyntheticStudentExecution) {
             input_telemetry: true,
             message_receipts: {
               select: {
+                client_message_id: true,
                 assistant_response_status: true,
                 assistant_response_retry_count: true
               }
@@ -1249,6 +1295,18 @@ async function buildStudentReport(execution: SyntheticStudentExecution) {
   const fallbackCount = tutorTurns.filter(
     (turn) => asRecord(turn.structured_payload).fallback_used === true
   ).length;
+  const studentMessageReceipts = (
+    conversation?.message_receipts ?? []
+  ).filter(
+    (receipt) =>
+      receipt.client_message_id !==
+      FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID
+  );
+  const completedStudentExchangeCount =
+    studentMessageReceipts.filter(
+      (receipt) =>
+        receipt.assistant_response_status === "completed"
+    ).length;
   const tutorResponseBehavior = {
     visible_tutor_turn_count: tutorTurns.length,
     average_message_length_chars: average(tutorMessageLengths),
@@ -1287,25 +1345,20 @@ async function buildStudentReport(execution: SyntheticStudentExecution) {
   if (!teacherConversation?.initial_learning_profile) {
     unresolvedIssueCodes.push("initial_profile_missing");
   }
-  if (
-    studentTurns.length !==
-    execution.subject.conversation_behavior.length
-  ) {
-    unresolvedIssueCodes.push("student_turn_count_mismatch");
-  }
-  if (
-    (conversation?.input_telemetry.length ?? 0) !==
-    execution.subject.conversation_behavior.length
-  ) {
-    unresolvedIssueCodes.push("input_telemetry_count_mismatch");
-  }
-  if (
-    !execution.execution_error &&
-    tutorTurns.length !==
-      execution.subject.conversation_behavior.length + 1
-  ) {
-    unresolvedIssueCodes.push("tutor_turn_count_mismatch");
-  }
+  unresolvedIssueCodes.push(
+    ...formativeConversationMessageAccountingIssues({
+      execution_error: execution.execution_error,
+      planned_student_messages:
+        execution.subject.conversation_behavior.length,
+      submission_attempts:
+        execution.student_message_submission_attempt_count,
+      persisted_student_messages: studentTurns.length,
+      completed_student_exchanges: completedStudentExchangeCount,
+      input_telemetry_count:
+        conversation?.input_telemetry.length ?? 0,
+      tutor_turn_count: tutorTurns.length
+    })
+  );
   if (
     (conversation?.agent_calls ?? []).some(
       (call) => call.call_status !== "succeeded"
@@ -1331,6 +1384,15 @@ async function buildStudentReport(execution: SyntheticStudentExecution) {
       total_turns: conversationTurns.length,
       student_turns: studentTurns.length,
       tutor_turns: tutorTurns.length
+    },
+    message_execution: {
+      planned_student_messages:
+        execution.subject.conversation_behavior.length,
+      submission_attempts:
+        execution.student_message_submission_attempt_count,
+      persisted_student_messages: studentTurns.length,
+      completed_student_exchanges:
+        completedStudentExchangeCount
     },
     agent_calls: {
       total: conversation?.agent_calls.length ?? 0,

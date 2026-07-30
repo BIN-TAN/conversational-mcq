@@ -1,0 +1,38 @@
+{
+  "manifest_version": "formative-conversation-host-v5-executable-candidate-revision-v4",
+  "approval_state": "candidate_not_approved",
+  "activation_permitted": false,
+  "runtime_behavior_changed": true,
+  "source_candidate_manifest": {
+    "path": "config/operational-candidates/formative-conversation-host-v5-executable-v4/runtime-candidate-manifest.json",
+    "canonical_hash": "8b24a87a478580319f1ddfd02ea3e5c361aa0774d3c1304af8703d67ddb0e0f0",
+    "file_sha256": "db22692d081c0600b9c3389ee365830710dc5421c5ac3b55ab92802be73a94cc"
+  },
+  "runtime_candidate_hash": "a408b08c39aa614d967552e1fd321fabf0b83c96a3d83c82a7bd381fa8e899b3",
+  "runtime_candidate_hash_unchanged": false,
+  "executable_protocol_path": "config/operational-candidates/formative-conversation-host-v5-executable-v4/executable-evaluation-protocol.json",
+  "fixture_manifest_path": "config/operational-candidates/formative-conversation-host-v5-executable-v4/fixture-manifest.json",
+  "compiled_execution_plan_path": "config/operational-candidates/formative-conversation-host-v5-executable-v4/compiled-execution-plan.json",
+  "target_role": "formative_conversation_agent",
+  "target_role_identity": {
+    "agent_name": "formative_conversation_agent",
+    "model_snapshot": "gpt-5.6-sol",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 3500,
+    "prompt_version": "formative-conversation-host-v5",
+    "prompt_hash": "f1aef959b9238472989a205efe56b29dfb1cd5e4ba376695cd5e99e083af67f1",
+    "schema_version": "formative-conversation-agent-contract-v1",
+    "context_version": "formative-conversation-context-v1",
+    "safety_version": "formative-conversation-safety-boundary-v1",
+    "memory_version": "formative-conversation-memory-v1",
+    "opening_validator_version": "formative-conversation-opening-v2",
+    "profile_transition_version": "formative-conversation-profile-transition-v3",
+    "provider_failure_taxonomy_version": "provider-failure-taxonomy-v2",
+    "provider_request_tracing_version": "provider-request-tracing-policy-v2"
+  },
+  "preserved_active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "preserved_rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "prior_incomplete_protocol_hash": "d8906ab23522b2e52ac14a6edb3ca7ff1a3862c65a75de2e9e75dda612dcb817",
+  "failed_v2_protocol_hash": "7e69059ad46bd60cc0e3eccb22442a98027e93d93d329ea1724bd23948f6c85a",
+  "failed_v3_protocol_hash": "13186b2e5dc54486864b216292afd02774c832340a548c77585886a53c7642b5"
+}

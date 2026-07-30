@@ -166,6 +166,15 @@ const ConversationLengthSchema = z
   })
   .strict();
 
+const MessageExecutionSummarySchema = z
+  .object({
+    planned_student_messages: z.number().int().nonnegative(),
+    submission_attempts: z.number().int().nonnegative(),
+    persisted_student_messages: z.number().int().nonnegative(),
+    completed_student_exchanges: z.number().int().nonnegative()
+  })
+  .strict();
+
 const AgentCallSummarySchema = z
   .object({
     total: z.number().int().nonnegative(),
@@ -230,6 +239,7 @@ export const SyntheticResearchValidationReportSchema = z
           initial_evidence_summary: InitialEvidenceSummarySchema,
           initial_profile: z.record(z.string(), z.unknown()).nullable(),
           conversation_length: ConversationLengthSchema,
+          message_execution: MessageExecutionSummarySchema,
           agent_calls: AgentCallSummarySchema,
           tutor_response_behavior: TutorResponseBehaviorSchema,
           telemetry_summary: z

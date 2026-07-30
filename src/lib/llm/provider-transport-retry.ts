@@ -2,15 +2,16 @@ import { randomUUID } from "node:crypto";
 import { stableHash } from "@/lib/operational/stable-hash";
 import type {
   LlmProvider,
+  OpenAITransportMilestone,
   StructuredAgentRequest,
   StructuredAgentResult
 } from "@/lib/llm/providers/types";
 
-export const PROVIDER_FAILURE_TAXONOMY_VERSION = "provider-failure-taxonomy-v1";
+export const PROVIDER_FAILURE_TAXONOMY_VERSION = "provider-failure-taxonomy-v2";
 export const PROVIDER_TRANSPORT_RETRY_POLICY_VERSION =
   "bounded-provider-transport-retry-v1";
 export const PROVIDER_REQUEST_TRACING_POLICY_VERSION =
-  "provider-request-tracing-policy-v1";
+  "provider-request-tracing-policy-v2";
 export const EXACTLY_ONCE_SEMANTIC_EFFECTS_POLICY_VERSION =
   "exactly-once-semantic-effects-policy-v1";
 
@@ -33,6 +34,7 @@ export type ProviderFailureCategory =
   | "network_timeout"
   | "upstream_timeout"
   | "connection_reset"
+  | "connection_interrupted_before_response"
   | "temporary_dns_failure"
   | "tls_failure"
   | "retryable_rate_limit"
@@ -128,6 +130,30 @@ export function classifyProviderFailure<TOutput>(
       typed_failure_reason: typedReason,
       normalized_error_category: errorCategory,
       rationale: `HTTP ${httpStatus} is an unenumerated retryable provider 5xx response.`
+    });
+  }
+
+  const interruptedBeforeResponse =
+    typedReason === "unknown_transport_error" &&
+    (errorCategory === "network" ||
+      errorCategory === "unexpected_provider_response") &&
+    normalized?.before_request_serialization === false &&
+    normalized.fetch_invoked &&
+    !normalized.response_headers_received &&
+    !normalized.response_body_received &&
+    !normalized.has_http_response &&
+    httpStatus === null;
+  if (interruptedBeforeResponse) {
+    return classification({
+      category: "connection_interrupted_before_response",
+      domain: "provider_infrastructure_transport",
+      retryable_transport_failure: true,
+      semantic_regeneration_eligible: false,
+      http_status: null,
+      typed_failure_reason: typedReason,
+      normalized_error_category: errorCategory,
+      rationale:
+        "The serialized request reached fetch, but no response headers, body, HTTP status, or provider acknowledgement were received."
     });
   }
 
@@ -339,6 +365,14 @@ export type ProviderTransportAttemptTrace = {
   provider_request_id: string | null;
   provider_response_id: string | null;
   http_status: number | null;
+  transport_milestones: OpenAITransportMilestone | null;
+  normalized_failure_evidence: {
+    typed_failure_reason: string | null;
+    network_category: string | null;
+    node_cause_code: string | null;
+    has_http_response: boolean;
+    before_request_serialization: boolean;
+  } | null;
   result_status: StructuredAgentResult<unknown>["status"];
   classification: ProviderFailureClassification | null;
   retry_decision: "accepted" | "retry" | "do_not_retry";
@@ -551,6 +585,39 @@ export async function executeWithBoundedProviderTransportRetry<TInput, TOutput>(
         result.transport_telemetry?.normalized_error?.http_status ??
         result.transport_telemetry?.http_status ??
         null,
+      transport_milestones: result.transport_telemetry
+        ? {
+            transport_adapter_entered:
+              result.transport_telemetry.transport_adapter_entered,
+            request_serialization_completed:
+              result.transport_telemetry.request_serialization_completed,
+            fetch_invoked: result.transport_telemetry.fetch_invoked,
+            response_headers_received:
+              result.transport_telemetry.response_headers_received,
+            response_body_received:
+              result.transport_telemetry.response_body_received
+          }
+        : null,
+      normalized_failure_evidence:
+        result.transport_telemetry?.normalized_error
+          ? {
+              typed_failure_reason:
+                result.transport_telemetry.normalized_error
+                  .typed_failure_reason,
+              network_category:
+                result.transport_telemetry.normalized_error
+                  .network_category,
+              node_cause_code:
+                result.transport_telemetry.normalized_error
+                  .node_cause_code,
+              has_http_response:
+                result.transport_telemetry.normalized_error
+                  .has_http_response,
+              before_request_serialization:
+                result.transport_telemetry.normalized_error
+                  .before_request_serialization
+            }
+          : null,
       result_status: result.status,
       classification: classificationValue,
       retry_decision: accepted ? "accepted" : canRetry ? "retry" : "do_not_retry",

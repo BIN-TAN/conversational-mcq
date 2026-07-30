@@ -25,7 +25,11 @@ import {
   FORMATIVE_CONVERSATION_OPENING_VERSION,
   validateFormativeConversationOpeningOutput
 } from "./opening-contract";
-import { recordFormativeConversationProfileTransitionRecommendation } from "./profile-update";
+import {
+  FormativeConversationProfileTransitionError,
+  recordFormativeConversationProfileTransitionRecommendation,
+  recordFormativeConversationProfileTransitionRejection
+} from "./profile-update";
 import {
   persistFormativeConversationAssistantMessage,
   prepareFormativeConversationAssistantResponseAttempt,
@@ -200,17 +204,41 @@ async function persistAgentProfileEvidence(input: {
     source_tutor_turn_db_id: input.source_tutor_turn_db_id,
     evidence_observations: input.output.evidence_observations
   });
-  const profileTransition = input.output.profile_transition_recommendation
-    ? await recordFormativeConversationProfileTransitionRecommendation({
-        conversation_public_id: input.conversation_public_id,
-        source_agent_call_db_id: input.source_agent_call_db_id,
-        source_tutor_turn_db_id: input.source_tutor_turn_db_id,
-        agent_evidence_observations: input.output.evidence_observations,
-        recommendation: input.output.profile_transition_recommendation
-      })
-    : null;
+  let profileTransition = null;
+  let profileTransitionRejection = null;
+  if (input.output.profile_transition_recommendation) {
+    try {
+      profileTransition =
+        await recordFormativeConversationProfileTransitionRecommendation({
+          conversation_public_id: input.conversation_public_id,
+          source_agent_call_db_id: input.source_agent_call_db_id,
+          source_tutor_turn_db_id: input.source_tutor_turn_db_id,
+          agent_evidence_observations: input.output.evidence_observations,
+          recommendation:
+            input.output.profile_transition_recommendation
+        });
+    } catch (error) {
+      if (!(error instanceof FormativeConversationProfileTransitionError)) {
+        throw error;
+      }
+      profileTransitionRejection =
+        await recordFormativeConversationProfileTransitionRejection({
+          conversation_public_id: input.conversation_public_id,
+          source_agent_call_db_id: input.source_agent_call_db_id,
+          source_tutor_turn_db_id: input.source_tutor_turn_db_id,
+          proposed_outcome:
+            input.output.profile_transition_recommendation
+              .proposed_outcome,
+          error
+        });
+    }
+  }
 
-  return { evidence, profile_transition: profileTransition };
+  return {
+    evidence,
+    profile_transition: profileTransition,
+    profile_transition_rejection: profileTransitionRejection
+  };
 }
 
 async function recordRuntimeEvent(input: {
@@ -968,6 +996,8 @@ export async function processFormativeConversationStudentMessage(
       evidence_references: evidenceReferences,
       profile_transition_recommendation:
         persistedEvidence?.profile_transition ?? null,
+      profile_transition_rejection:
+        persistedEvidence?.profile_transition_rejection ?? null,
       replayed: true,
       resumed: false
     };
@@ -1137,6 +1167,8 @@ export async function processFormativeConversationStudentMessage(
     evidence_references: persistedEvidence.evidence.references,
     profile_transition_recommendation:
       persistedEvidence.profile_transition,
+    profile_transition_rejection:
+      persistedEvidence.profile_transition_rejection,
     replayed: false,
     resumed: agentResult.resumed
   };
