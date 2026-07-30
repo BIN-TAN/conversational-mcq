@@ -213,6 +213,21 @@ outcome from activity completion, conversation status, profile pointers, or
 fixed thresholds. Insufficient evidence leaves the conversation active and
 records evidence without forcing a profile transition.
 
+Outcome interpretation is qualitative and remains owned by the conversation
+agent. `sound` means that the student's own explanation or application supports
+clear conceptual understanding. `largely_improved` means that conversation
+evidence shows meaningful improvement from the initial assessment evidence
+while limitations remain. `teacher_assistance_recommended` means that a
+meaningful barrier remains despite supportive interaction and human support may
+be useful. These interpretations do not impose turn counts, required
+activities, or fixed instructional sequences.
+
+The profile-transition proposed outcome is the authoritative teacher-assistance
+decision. Any compatibility field carrying a teacher-assistance recommendation
+must mirror that outcome and may not independently create or suppress it.
+Conversation lifecycle remains separate; a profile outcome does not
+automatically end the conversation.
+
 Teacher review presents this evidence as one readable trajectory: administered
 item responses and the initial profile, the visible student/tutor conversation,
 and each validated profile transition with its supporting turns. It does not

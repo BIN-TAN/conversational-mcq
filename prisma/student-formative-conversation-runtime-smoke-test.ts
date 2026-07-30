@@ -70,8 +70,12 @@ async function main() {
       FORMATIVE_CONVERSATION_AGENT_NAME,
       FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS,
       FORMATIVE_CONVERSATION_CANONICAL_PROFILE_VERSION,
+      FORMATIVE_CONVERSATION_DECISION_COHERENCE_VERSION,
+      FORMATIVE_CONVERSATION_INSTRUCTIONS,
       FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
+      FORMATIVE_CONVERSATION_PROMPT_VERSION,
       FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION,
+      FormativeConversationAgentOutputSchema,
       FormativeConversationResponseGenerationError,
       FormativeConversationUnavailableError,
       FormativeConversationProfileEvidenceSchema,
@@ -87,6 +91,26 @@ async function main() {
     } = await import(
       "../src/lib/services/student-assessment/formative-conversation/index"
     );
+    assert.equal(
+      FORMATIVE_CONVERSATION_DECISION_COHERENCE_VERSION,
+      "formative-conversation-decision-coherence-v1"
+    );
+    assert.equal(
+      FORMATIVE_CONVERSATION_PROMPT_VERSION,
+      "formative-conversation-host-v5"
+    );
+    for (const requiredGuidance of [
+      "sound_understanding means",
+      "largely_improved_understanding means",
+      "teacher_assistance_recommended means",
+      "Do not use a required turn count",
+      "single authoritative profile decision"
+    ]) {
+      assert(
+        FORMATIVE_CONVERSATION_INSTRUCTIONS.includes(requiredGuidance),
+        `Formative conversation guidance must include ${requiredGuidance}.`
+      );
+    }
     assert.equal(
       persistedFormativeConversationOutcome([]),
       null,
@@ -546,6 +570,57 @@ async function main() {
       true,
       "Opening validation must not impose a fixed question or invitation format."
     );
+    const openingOutput = (studentVisibleMessage: string) => ({
+      contract_version: FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
+      student_visible_message: studentVisibleMessage,
+      teaching_artifact: null,
+      evidence_observations: [],
+      profile_transition_recommendation: null,
+      teacher_assistance_recommendation: {
+        recommended: false,
+        reason_code: null
+      },
+      lifecycle_recommendation: "continue" as const
+    });
+    for (const allowedOpening of [
+      "You've reviewed your answers. An observed score is an estimate, so we can begin by separating precision from exactness.",
+      "You've reviewed your answers. A person scores 80 on a test with an SEM of 3; let us examine what that uncertainty means.",
+      "You've reviewed your answers. A small SEM narrows uncertainty around a score without making the score exact.",
+      "You've reviewed your answers. Suppose you scored 80% on a hypothetical measure; the percentage alone would not settle how the score should be interpreted."
+    ]) {
+      const validation =
+        validateFormativeConversationOpeningOutput(
+          openingOutput(allowedOpening)
+        );
+      assert.equal(
+        validation.valid,
+        true,
+        `Conceptual or hypothetical score language must remain valid: ${allowedOpening}`
+      );
+    }
+    for (const rejectedOpening of [
+      "You've reviewed your answers. Your score was 2 out of 3.",
+      "You've reviewed your answers. You answered two questions correctly and one incorrectly.",
+      "You've reviewed your answers. On this assessment, you got 67%.",
+      "You've reviewed your answers. Your answer to Item 2 was incorrect.",
+      "You've reviewed your answers. Two of your three answers were correct.",
+      "You've reviewed your answers. Your overall score was high.",
+      "You've reviewed your answers. Most of your answers were correct."
+    ]) {
+      const validation =
+        validateFormativeConversationOpeningOutput(
+          openingOutput(rejectedOpening)
+        );
+      assert.equal(
+        validation.valid,
+        false,
+        `Student-result reporting must be rejected: ${rejectedOpening}`
+      );
+      assert(
+        validation.issue_codes.includes("opening_repeats_score"),
+        "Student-result reporting must use the opening_repeats_score issue code."
+      );
+    }
 
     const beforeOpeningProjection =
       await getStudentFormativeConversationProjection({
@@ -1979,6 +2054,190 @@ async function main() {
     assert.equal(recoveredProjection.assistant_response, null);
     assert.equal(recoveredProjection.can_send, true);
 
+    const teacherAssistanceProfile: typeof initialCanonicalProfile = {
+      ...soundProfile,
+      ability_profile: "partial_understanding" as const,
+      ability_pattern_flags: [
+        "The latest student explanation continues to treat reliability as sufficient validity evidence."
+      ],
+      integrated_diagnostic_profile:
+        "misconception_with_sufficient_engagement" as const,
+      integrated_profile_confidence: "high" as const,
+      integrated_profile_rationale:
+        "The latest cited conversation evidence shows a persistent conceptual barrier despite supportive explanations.",
+      evidence_sufficiency: "strong" as const,
+      confidence_alignment: "mixed" as const,
+      misconception_indicators: [
+        "Reliability is still treated as proof that an intended interpretation is valid."
+      ],
+      reasoning_quality_summary:
+        "The student continues to state the original misconception and cannot yet explain why separate validity evidence is needed.",
+      profile_confidence: "high" as const,
+      rationale:
+        "The updated profile preserves the latest student evidence and the agent's recommendation that human support may be useful.",
+      recommended_next_evidence: [
+        "A teacher-guided explanation using the student's course context may provide useful additional evidence."
+      ]
+    };
+    const teacherAssistanceOutputFor = (sourceTurnSequenceIndex: number) => ({
+      contract_version: FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
+      student_visible_message:
+        "This distinction is still getting in the way. It may help to work through it with your instructor using an example from your course.",
+      teaching_artifact: null,
+      evidence_observations: [
+        {
+          evidence_type: "persistent_conceptual_barrier",
+          observation:
+            "The student continues to treat reliability as sufficient validity evidence after supportive explanations.",
+          source_turn_sequence_indexes: [sourceTurnSequenceIndex]
+        }
+      ],
+      profile_transition_recommendation: {
+        recommendation_version:
+          FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION,
+        recommended: true,
+        proposed_outcome: "teacher_assistance_recommended" as const,
+        rationale:
+          "A meaningful conceptual barrier remains, and additional human support may be useful.",
+        source_turn_sequence_indexes: [sourceTurnSequenceIndex],
+        updated_profile: teacherAssistanceProfile,
+        field_evidence: fieldEvidenceFor(
+          soundProfile,
+          teacherAssistanceProfile,
+          sourceTurnSequenceIndex
+        )
+      },
+      teacher_assistance_recommendation: {
+        recommended: true,
+        reason_code: "persistent_conceptual_barrier"
+      },
+      lifecycle_recommendation: "continue" as const
+    });
+    const contradictoryTeacherAssistanceOutput =
+      FormativeConversationAgentOutputSchema.safeParse({
+        ...teacherAssistanceOutputFor(1),
+        teacher_assistance_recommendation: {
+          recommended: false,
+          reason_code: null
+        }
+      });
+    assert.equal(
+      contradictoryTeacherAssistanceOutput.success,
+      false,
+      "The compatibility recommendation must not contradict the authoritative teacher-assistance outcome."
+    );
+
+    let teacherAssistanceRunnerCallCount = 0;
+    const teacherAssistanceRunner: FormativeConversationAgentRunner = {
+      identity: runner.identity,
+      async execute(input) {
+        teacherAssistanceRunnerCallCount += 1;
+        const latestStudentTurn = [...input.context.visible_transcript]
+          .reverse()
+          .find((turn) => turn.actor === "student");
+        assert(latestStudentTurn);
+        const startedAt = new Date();
+        const completedAt = new Date(startedAt.getTime() + 25);
+        return {
+          output: FormativeConversationAgentOutputSchema.parse(
+            teacherAssistanceOutputFor(latestStudentTurn.sequence_index)
+          ),
+          raw_output: {
+            fixture: "deterministic_teacher_assistance_recommendation"
+          },
+          generation_source: "deterministic_test",
+          provider_request_id: null,
+          provider_response_id: null,
+          client_request_id: null,
+          retry_count: 0,
+          latency_ms: 25,
+          input_tokens: 90,
+          output_tokens: 30,
+          total_tokens: 120,
+          estimated_cost: 0,
+          started_at: startedAt,
+          completed_at: completedAt
+        };
+      }
+    };
+    const teacherAssistanceClientMessageId =
+      `${prefix}_message_teacher_assistance`;
+    const teacherAssistanceMessage =
+      "Even after the different explanations, I still think consistent scores prove that the interpretation is valid, and I cannot explain why separate validity evidence would be needed.";
+    const teacherAssistanceResult =
+      await processFormativeConversationStudentMessage(
+        {
+          conversation_public_id:
+            conversation.conversation_public_id,
+          client_message_id: teacherAssistanceClientMessageId,
+          message_text: teacherAssistanceMessage,
+          context
+        },
+        { runner: teacherAssistanceRunner }
+      );
+    assert(teacherAssistanceResult.agent_call);
+    assert(teacherAssistanceResult.profile_transition_recommendation);
+    const teacherAssistanceTransition =
+      teacherAssistanceResult.profile_transition_recommendation.transition;
+    assert.equal(
+      teacherAssistanceTransition.learning_outcome,
+      "teacher_assistance_recommended"
+    );
+    assert.equal(
+      (
+        await prisma.formativeConversationSession.findUniqueOrThrow({
+          where: { id: conversation.id },
+          select: { status: true }
+        })
+      ).status,
+      "active",
+      "A teacher-assistance profile outcome must not automatically end the conversation."
+    );
+    const replayedTeacherAssistance =
+      await processFormativeConversationStudentMessage(
+        {
+          conversation_public_id:
+            conversation.conversation_public_id,
+          client_message_id: teacherAssistanceClientMessageId,
+          message_text: teacherAssistanceMessage,
+          context
+        },
+        { runner: teacherAssistanceRunner }
+      );
+    assert.equal(replayedTeacherAssistance.replayed, true);
+    assert.equal(
+      teacherAssistanceRunnerCallCount,
+      1,
+      "Teacher-assistance replay must not append another transition or call the agent again."
+    );
+    assert.equal(
+      await prisma.formativeConversationProfileTransition.count({
+        where: {
+          formative_conversation_session_db_id: conversation.id
+        }
+      }),
+      3
+    );
+    const teacherAssistanceTeacherDetail =
+      await getTeacherReviewSessionDetail(
+        fixture.session.session_public_id
+      );
+    assert.equal(
+      teacherAssistanceTeacherDetail.formative_conversations[0]
+        .learning_outcome,
+      "teacher_assistance_recommended"
+    );
+    assert.equal(
+      teacherAssistanceTeacherDetail.formative_conversations[0]
+        .current_learning_profile?.assessment_specific_understanding,
+      teacherAssistanceProfile.ability_profile
+    );
+    assert.deepEqual(
+      teacherAssistanceTeacherDetail.formative_conversations[0]
+        .profile_evolution.map((transition) => transition.learning_outcome),
+      ["largely_improved", "sound", "teacher_assistance_recommended"]
+    );
+
     const assessmentLifecycleBeforeConversationEnd =
       await prisma.assessmentSession.findUniqueOrThrow({
         where: { id: fixture.session.id },
@@ -2182,7 +2441,11 @@ async function main() {
       ) as Array<Record<string, string>>;
       assert.deepEqual(
         transitionRows.map((row) => row.formative_outcome),
-        ["largely_improved", "sound"]
+        [
+          "largely_improved",
+          "sound",
+          "teacher_assistance_recommended"
+        ]
       );
       assert(
         transitionRows.every(
@@ -2217,11 +2480,11 @@ async function main() {
       );
       const latestTransitionSnapshot =
         FormativeConversationProfileEvidenceSchema.parse(
-          JSON.parse(transitionRows[1].canonical_profile_snapshot)
+          JSON.parse(transitionRows[2].canonical_profile_snapshot)
         );
       assert.deepEqual(
         latestTransitionSnapshot.canonical_profile,
-        soundProfile
+        teacherAssistanceProfile
       );
       const formativeSessionRows = parse(
         file("formative_conversation_sessions.csv"),
@@ -2241,19 +2504,23 @@ async function main() {
       );
       assert.equal(
         formativeSessionRow.latest_profile_transition_public_id,
-        profileTransitions[1].transition_public_id
+        teacherAssistanceTransition.transition_public_id
       );
-      assert.equal(formativeSessionRow.validated_formative_outcome, "sound");
+      assert.equal(
+        formativeSessionRow.validated_formative_outcome,
+        "teacher_assistance_recommended"
+      );
       assert.equal(
         formativeSessionRow.current_learning_profile,
-        soundProfile.integrated_diagnostic_profile
+        teacherAssistanceProfile.integrated_diagnostic_profile
       );
       assert.equal(
         formativeSessionRow.current_profile_evidence_sufficiency,
-        soundProfile.evidence_sufficiency
+        teacherAssistanceProfile.evidence_sufficiency
       );
       assert.equal(
-        teacherDetail.formative_conversations[0].learning_outcome,
+        teacherAssistanceTeacherDetail.formative_conversations[0]
+          .learning_outcome,
         formativeSessionRow.validated_formative_outcome,
         "Teacher and research projections must read the same persisted transition."
       );

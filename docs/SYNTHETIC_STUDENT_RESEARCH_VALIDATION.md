@@ -113,6 +113,9 @@ recommends one and the existing transition service validates and persists it.
 ## Interpretation limits
 
 - Scripted student messages do not adapt semantically to each tutor response.
+- Selected scenarios include evidence-bearing student turns for conceptual
+  application, temporal learning change, and a persistent barrier. They expose
+  those observable conditions without assigning an expected profile outcome.
 - A run validates orchestration and evidence traceability; it does not establish
   psychometric validity or instructional effectiveness.
 - A null final transition means available conversation evidence did not produce

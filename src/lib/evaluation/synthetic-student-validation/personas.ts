@@ -594,7 +594,7 @@ export const SYNTHETIC_STUDENT_PERSONAS = [
     process_behavior:
       "Moderate response times, one option revision, and a short visibility interruption.",
     validation_purpose:
-      "Test whether cross-item inconsistency remains visible to profiling, conversation, and research traces without prescribing a profile label.",
+      "Test whether cross-item inconsistency and a later independent application remain visible to profiling, conversation, and research traces without prescribing a profile label.",
     assessment_response_behavior: [
       {
         item_number: 1,
@@ -670,7 +670,7 @@ export const SYNTHETIC_STUDENT_PERSONAS = [
       {
         intent: "reflection",
         message_text:
-          "Maybe consistency does not make a score exact and does not settle whether a particular use is supported. Is that the common boundary?",
+          "A small SEM narrows uncertainty but does not make an observed score exact, and reliable scores still need separate evidence for a particular use. For a placement decision, I would report the uncertainty and ask for validity evidence instead of treating consistency as proof.",
         response_time_ms: 23_000,
         typing_duration_ms: 13_000,
         edit_count: 3,
@@ -1046,7 +1046,7 @@ export const SYNTHETIC_STUDENT_PERSONAS = [
       {
         intent: "reflection",
         message_text:
-          "A test can produce consistent scores and still fail to support the intended use. Reliability addresses consistency, measurement error leaves uncertainty around observed scores, and validity needs evidence for the interpretation and context.",
+          "A test can produce consistent scores and still fail to support the intended use. For example, an admissions test could reliably measure reading difficulty instead of readiness. Measurement error leaves uncertainty around observed scores, and validity needs evidence for the interpretation and context.",
         response_time_ms: 31_000,
         typing_duration_ms: 18_000,
         edit_count: 5,
@@ -1139,7 +1139,7 @@ export const SYNTHETIC_STUDENT_PERSONAS = [
       {
         intent: "reflection",
         message_text:
-          "I still think that if the scores are consistent, the test has shown that its interpretation is valid.",
+          "Even after the different explanations, I still think consistent scores prove that the interpretation is valid, and I cannot explain why separate validity evidence would be needed.",
         response_time_ms: 10_000,
         typing_duration_ms: 5_000,
         edit_count: 0,

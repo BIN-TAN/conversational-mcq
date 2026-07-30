@@ -395,6 +395,12 @@ and aligned supporting-turn sequence, actor, and evidence-role columns so the
 profile timeline can be reconstructed without exporting hidden prompts or raw
 provider payloads.
 
+The persisted profile-transition outcome is the sole authoritative
+teacher-assistance decision. A compatibility recommendation in the agent output
+must mirror that outcome and cannot independently create a teacher-facing or
+research outcome. The platform validates this coherence without applying a
+turn-count or other deterministic pedagogical threshold.
+
 The latest persisted transition is the only authoritative formative outcome
 for teacher and research projections. Conversation status, review signals,
 narrative text, and current-profile pointers must not be used to infer

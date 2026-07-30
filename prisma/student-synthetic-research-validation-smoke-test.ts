@@ -114,6 +114,32 @@ async function main() {
       assert(!serialized.includes("fixed_tutor_response"));
       assert(!serialized.includes("activity_sequence"));
     }
+    const personaById = new Map(
+      SYNTHETIC_STUDENT_PERSONAS.map((persona) => [
+        persona.persona_id,
+        persona
+      ])
+    );
+    const finalStudentMessage = (
+      personaId: (typeof SYNTHETIC_STUDENT_PERSONAS)[number]["persona_id"]
+    ) =>
+      personaById.get(personaId)?.conversation_behavior.at(-1)
+        ?.message_text ?? "";
+    assert.match(
+      finalStudentMessage("fragmented_inconsistent"),
+      /SEM narrows uncertainty.*placement decision.*validity evidence/i,
+      "The fragmented scenario must include an observable cross-concept application without assigning an outcome."
+    );
+    assert.match(
+      finalStudentMessage("sudden_improvement"),
+      /admissions test.*reliably measure.*validity needs evidence/i,
+      "The sudden-improvement scenario must include an observable temporal learning-change application without assigning an outcome."
+    );
+    assert.match(
+      finalStudentMessage("persistent_non_improvement"),
+      /even after the different explanations.*still think.*cannot explain/i,
+      "The persistent scenario must retain observable barrier evidence without forcing teacher assistance."
+    );
 
     const runner = contractRunner();
     const result =

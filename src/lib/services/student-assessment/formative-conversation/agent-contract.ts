@@ -15,6 +15,8 @@ export const FORMATIVE_CONVERSATION_CANONICAL_PROFILE_VERSION =
   "formative-conversation-learning-profile-v1";
 export const FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION =
   "formative-conversation-profile-recommendation-v2";
+export const FORMATIVE_CONVERSATION_DECISION_COHERENCE_VERSION =
+  "formative-conversation-decision-coherence-v1";
 
 export const FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS = [
   "ability_profile",
@@ -493,7 +495,45 @@ export const FormativeConversationAgentOutputSchema = z
       .strict(),
     lifecycle_recommendation: z.enum(["continue", "pause", "complete"])
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const teacherAssistanceIsAuthoritativeOutcome =
+      value.profile_transition_recommendation?.proposed_outcome ===
+      "teacher_assistance_recommended";
+    if (
+      value.teacher_assistance_recommendation.recommended !==
+      teacherAssistanceIsAuthoritativeOutcome
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["teacher_assistance_recommendation", "recommended"],
+        message:
+          "teacher assistance must mirror the authoritative profile transition outcome"
+      });
+    }
+    if (
+      teacherAssistanceIsAuthoritativeOutcome &&
+      value.teacher_assistance_recommendation.reason_code === null
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["teacher_assistance_recommendation", "reason_code"],
+        message:
+          "teacher assistance requires a reason code when it is the proposed profile outcome"
+      });
+    }
+    if (
+      !teacherAssistanceIsAuthoritativeOutcome &&
+      value.teacher_assistance_recommendation.reason_code !== null
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["teacher_assistance_recommendation", "reason_code"],
+        message:
+          "teacher assistance reason code must be null when assistance is not the proposed profile outcome"
+      });
+    }
+  });
 
 export type FormativeConversationAgentInput = z.infer<
   typeof FormativeConversationAgentInputSchema

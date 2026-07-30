@@ -223,6 +223,16 @@ append a profile version. No activity-completion rule, fixed threshold, legacy
 topic-dialogue route, conversation status, or current-profile pointer determines
 the formative learning outcome.
 
+The conversation agent interprets terminal outcomes qualitatively from
+observable student evidence. Sound understanding requires a supported
+explanation or application; largely improved understanding reflects meaningful
+change with remaining limitations; teacher assistance may be recommended when a
+meaningful barrier persists despite supportive interaction and human support
+may be useful. These interpretations do not require a minimum number of turns,
+an activity sequence, or a fixed instructional path. The profile-transition
+proposed outcome is authoritative, and any teacher-assistance compatibility
+field must agree with it.
+
 Teacher and research projections use the same latest persisted transition as
 the authoritative formative result. If no transition exists, the displayed
 state is `No validated profile change yet`; projections must not infer

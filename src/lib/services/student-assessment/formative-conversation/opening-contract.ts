@@ -19,11 +19,6 @@ const forbiddenOpeningPatterns: Array<{
   pattern: RegExp;
 }> = [
   {
-    issue_code: "opening_repeats_score",
-    pattern:
-      /\b(?:your|assessment|overall)\s+score\b|\bscore\s+(?:was|is)\b|\btotal correct\b|\b\d+\s+(?:of|out of)\s+\d+\b|\b\d+(?:\.\d+)?%\b|\byou\s+(?:answered|got).{0,50}\b(?:correct|incorrect)\b/i
-  },
-  {
     issue_code: "opening_exposes_profile_language",
     pattern: /\b(?:learning profile|response profile|profile status|profile)\b/i
   },
@@ -41,6 +36,33 @@ const forbiddenOpeningPatterns: Array<{
       /\b(?:recommended activity|next activity|matched activity|try this next|complete this activity|activity family)\b/i
   }
 ];
+
+const hypotheticalResultContext =
+  /\b(?:for example|suppose|imagine|hypothetical(?:ly)?|consider (?:a|an|the)|if (?:a student|a person|someone|you) (?:scores?|scored|answers?|answered|gets?|got))\b/i;
+
+const studentAssessmentResultPatterns = [
+  /\byour\s+(?:(?:assessment|overall)\s+)?score\s+(?:was|is)\s+(?:\d+(?:\.\d+)?%?|\d+\s+(?:of|out of)\s+\d+|high|low|strong|weak|excellent|poor)\b/i,
+  /\byour\s+(?:assessment\s+)?(?:results?|performance)\b.{0,80}\b(?:\d+(?:\.\d+)?%|\d+\s+(?:of|out of)\s+\d+|correct|incorrect|right|wrong|high|low|strong|weak|excellent|poor)\b/i,
+  /\byour\s+(?:answer|response)\s+(?:to|for|on)\b.{0,50}\b(?:was|is)\s+(?:correct|incorrect|right|wrong)\b/i,
+  /\byou\s+(?:got|answered|had)\b.{0,80}\b(?:correct(?:ly)?|incorrect(?:ly)?|right|wrong)\b/i,
+  /\byou\s+(?:scored|earned|got)\s+(?:\d+(?:\.\d+)?%|\d+\s+(?:of|out of)\s+\d+)\b/i,
+  /\b(?:one|two|three|\d+)\s+(?:of|out of)\s+your\s+(?:(?:one|two|three|\d+)\s+)?(?:answers?|items?|questions?)\b.{0,50}\b(?:was|were)?\s*(?:correct|incorrect|right|wrong)\b/i,
+  /\b(?:most|all|some|none)\s+of\s+your\s+(?:answers?|items?|questions?)\b.{0,50}\b(?:was|were)?\s*(?:correct|incorrect|right|wrong)\b/i,
+  /\boverall\b.{0,40}\b(?:one|two|three|\d+)\s+(?:of|out of)\s+(?:one|two|three|\d+)\b.{0,50}\b(?:correct|incorrect|right|wrong)\b/i,
+  /\byou\s+(?:did|performed)\s+(?:well|poorly|strongly)\b.{0,50}\b(?:assessment|answers?|items?|questions?)\b/i,
+  /\b(?:on|in)\s+(?:this|the)\s+assessment\b.{0,80}\b(?:you|your)\b.{0,80}\b(?:scored|earned|got|answered|correct|incorrect|result|performance)\b/i,
+  /\b(?:the|this)\s+assessment\s+(?:score|result)\s+(?:was|is)\s+(?:\d+(?:\.\d+)?%?|\d+\s+(?:of|out of)\s+\d+)\b/i
+] as const;
+
+function repeatsStudentAssessmentResult(message: string) {
+  return message
+    .split(/(?:[.!?]\s+|\n+)/)
+    .some(
+      (clause) =>
+        !hypotheticalResultContext.test(clause) &&
+        studentAssessmentResultPatterns.some((pattern) => pattern.test(clause))
+    );
+}
 
 export function validateFormativeConversationOpeningOutput(
   value: unknown
@@ -61,6 +83,9 @@ export function validateFormativeConversationOpeningOutput(
     if (entry.pattern.test(message)) {
       issues.add(entry.issue_code);
     }
+  }
+  if (repeatsStudentAssessmentResult(message)) {
+    issues.add("opening_repeats_score");
   }
   if (!/\b(?:review(?:ed)?|answers?|questions?|assessment)\b/i.test(message)) {
     issues.add("opening_assessment_acknowledgement_missing");
