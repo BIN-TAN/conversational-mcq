@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { APIError } from "openai";
 import { resolveOpenAICredentialFromEnv } from "@/lib/llm/openai-credential-resolver";
+import { OPENAI_RESPONSES_ADAPTER_VERSION } from "@/lib/llm/providers/openai-responses-adapter-version";
 import type {
   OpenAITransportMilestone,
   OpenAITransportTypedFailureReason,
@@ -306,7 +307,7 @@ export function createOpenAITransportEnvironmentReport() {
     proxy_configured: proxyActive,
     node_fetch_available: typeof fetch === "function",
     openai_sdk_package_version: openaiSdkVersion(),
-    openai_sdk_adapter_version: "openai-responses-adapter-v3",
+    openai_sdk_adapter_version: OPENAI_RESPONSES_ADAPTER_VERSION,
     responses_transport_available: true,
     api_key_configured: configured,
     api_key_basic_shape_valid: shapeValid,

@@ -123,6 +123,12 @@ export type OpenAITransportTelemetry = OpenAITransportMilestone & {
   usage_status?: string;
   usage_source_paths?: string[];
   raw_response_hash?: string;
+  structured_output_validation_status?:
+    | "valid"
+    | "missing_output_text"
+    | "invalid_json"
+    | "schema_invalid";
+  structured_output_validation_issue_paths?: string[];
   credential_fingerprint?: string;
   credential_source?: string;
   credential_resolver_version?: string;

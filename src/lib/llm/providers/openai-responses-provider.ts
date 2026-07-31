@@ -1,4 +1,5 @@
 import { zodTextFormat } from "openai/helpers/zod";
+import type { ZodType } from "zod";
 import {
   createOpenAIClient,
   type OpenAIClientTransportInstrumentation
@@ -21,8 +22,15 @@ import type {
   StructuredAgentRequest,
   StructuredAgentResult
 } from "./types";
+import {
+  OPENAI_RESPONSES_ADAPTER_VERSION,
+  type OpenAIResponsesAdapterVersion
+} from "./openai-responses-adapter-version";
 
-export const OPENAI_RESPONSES_ADAPTER_VERSION = "openai-responses-adapter-v3";
+export {
+  OPENAI_RESPONSES_ADAPTER_VERSION,
+  type OpenAIResponsesAdapterVersion
+} from "./openai-responses-adapter-version";
 
 export type OpenAIResponsesProviderOptions = {
   isolated_evaluation_runtime?: NonNullable<
@@ -33,7 +41,7 @@ export type OpenAIResponsesProviderOptions = {
 export type OpenAIResponsesTransportBoundaryEvent = {
   provider: "openai";
   transport: "openai_responses";
-  adapter_version: typeof OPENAI_RESPONSES_ADAPTER_VERSION;
+  adapter_version: OpenAIResponsesAdapterVersion;
   network_dispatch_expected: true;
   event_type:
     | "transport_adapter_entered"
@@ -119,6 +127,100 @@ function rawAuditResponse(response: Record<string, unknown>) {
     incomplete_details: response.incomplete_details,
     error: response.error,
     usage: response.usage
+  };
+}
+
+export type OpenAIResponsesStructuredOutputParseResult<TOutput> =
+  | {
+      success: true;
+      data: TOutput;
+      status: "valid";
+      issue_paths: [];
+    }
+  | {
+      success: false;
+      data: null;
+      status:
+        | "missing_output_text"
+        | "invalid_json"
+        | "schema_invalid";
+      issue_paths: string[];
+    };
+
+function responseOutputText(response: Record<string, unknown>) {
+  if (typeof response.output_text === "string") {
+    return response.output_text;
+  }
+  if (!Array.isArray(response.output)) {
+    return null;
+  }
+  const textParts: string[] = [];
+  for (const item of response.output) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const content = (item as { content?: unknown }).content;
+    if (!Array.isArray(content)) {
+      continue;
+    }
+    for (const entry of content) {
+      if (
+        entry &&
+        typeof entry === "object" &&
+        (entry as { type?: unknown }).type === "output_text" &&
+        typeof (entry as { text?: unknown }).text === "string"
+      ) {
+        textParts.push((entry as { text: string }).text);
+      }
+    }
+  }
+  return textParts.length > 0 ? textParts.join("") : null;
+}
+
+export function parseOpenAIResponsesStructuredOutput<TOutput>(
+  response: Record<string, unknown>,
+  outputSchema: ZodType<TOutput>
+): OpenAIResponsesStructuredOutputParseResult<TOutput> {
+  const outputText = responseOutputText(response);
+  if (outputText === null) {
+    return {
+      success: false,
+      data: null,
+      status: "missing_output_text",
+      issue_paths: []
+    };
+  }
+
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(outputText);
+  } catch {
+    return {
+      success: false,
+      data: null,
+      status: "invalid_json",
+      issue_paths: []
+    };
+  }
+
+  const parsed = outputSchema.safeParse(decoded);
+  if (!parsed.success) {
+    return {
+      success: false,
+      data: null,
+      status: "schema_invalid",
+      issue_paths: [
+        ...new Set(
+          parsed.error.issues.map((issue) => issue.path.join("."))
+        )
+      ].sort()
+    };
+  }
+  return {
+    success: true,
+    data: parsed.data,
+    status: "valid",
+    issue_paths: []
   };
 }
 
@@ -276,7 +378,7 @@ export class OpenAIResponsesProvider implements LlmProvider {
         throw new Error("test_only_transport_hook_active_before_fetch");
       }
       const { data, request_id: requestId } = await client.responses
-        .parse(body as Parameters<typeof client.responses.parse>[0], {
+        .create(body as Parameters<typeof client.responses.create>[0], {
           timeout: request.timeout_ms,
           maxRetries: 0,
           idempotencyKey:
@@ -300,7 +402,8 @@ export class OpenAIResponsesProvider implements LlmProvider {
         modelSnapshot: request.model_config.model_name
       });
       const status = String(response.status ?? "completed");
-      const refusal = normalized.rawOutput.refusal ?? refusalFromResponse(data);
+      const refusal =
+        normalized.rawOutput.refusal ?? refusalFromResponse(response);
       const telemetry = {
         ...transportTelemetry(),
         provider_request_id: requestId ?? undefined,
@@ -322,6 +425,15 @@ export class OpenAIResponsesProvider implements LlmProvider {
         "reason" in response.incomplete_details
           ? String((response.incomplete_details as { reason?: unknown }).reason ?? "")
           : undefined;
+      const structuredOutput = parseOpenAIResponsesStructuredOutput(
+        response,
+        request.output_schema
+      );
+      const structuredOutputTelemetry = {
+        structured_output_validation_status: structuredOutput.status,
+        structured_output_validation_issue_paths:
+          structuredOutput.issue_paths
+      };
 
       if (refusal) {
         return {
@@ -343,7 +455,10 @@ export class OpenAIResponsesProvider implements LlmProvider {
               }
             : undefined,
           latency_ms: Date.now() - startedAt,
-          transport_telemetry: telemetry
+          transport_telemetry: {
+            ...telemetry,
+            ...structuredOutputTelemetry
+          }
         };
       }
 
@@ -367,7 +482,10 @@ export class OpenAIResponsesProvider implements LlmProvider {
               }
             : undefined,
           latency_ms: Date.now() - startedAt,
-          transport_telemetry: telemetry
+          transport_telemetry: {
+            ...telemetry,
+            ...structuredOutputTelemetry
+          }
         };
       }
 
@@ -390,10 +508,52 @@ export class OpenAIResponsesProvider implements LlmProvider {
               }
             : undefined,
           latency_ms: Date.now() - startedAt,
-          transport_telemetry: telemetry,
+          transport_telemetry: {
+            ...telemetry,
+            ...structuredOutputTelemetry
+          },
           error: {
             category: "unexpected_provider_response",
             message: `OpenAI response ended with status ${status}.`,
+            retryable: false
+          }
+        };
+      }
+
+      if (!structuredOutput.success) {
+        return {
+          provider: "openai",
+          client_request_id: request.client_request_id,
+          provider_request_id: requestId ?? undefined,
+          provider_response_id:
+            typeof response.id === "string" ? response.id : undefined,
+          status: "failed",
+          raw_output: rawAuditResponse(response),
+          usage:
+            normalized.usage.status === "usage_verified"
+              ? {
+                  input_tokens:
+                    normalized.usage.inputTokens ?? undefined,
+                  output_tokens:
+                    normalized.usage.outputTokens ?? undefined,
+                  total_tokens:
+                    normalized.usage.totalTokens ?? undefined,
+                  reasoning_tokens:
+                    normalized.usage.reasoningTokens ?? undefined,
+                  cached_input_tokens:
+                    normalized.usage.cachedInputTokens ?? undefined,
+                  raw: response.usage
+                }
+              : undefined,
+          latency_ms: Date.now() - startedAt,
+          transport_telemetry: {
+            ...telemetry,
+            ...structuredOutputTelemetry
+          },
+          error: {
+            category: "schema_validation",
+            message:
+              "OpenAI structured output failed local schema validation.",
             retryable: false
           }
         };
@@ -405,7 +565,7 @@ export class OpenAIResponsesProvider implements LlmProvider {
         provider_request_id: requestId ?? undefined,
         provider_response_id: typeof response.id === "string" ? response.id : undefined,
         status: "completed",
-        parsed_output: data.output_parsed as TOutput,
+        parsed_output: structuredOutput.data,
         raw_output: rawAuditResponse(response),
         usage: normalized.usage.status === "usage_verified"
           ? {
@@ -418,7 +578,10 @@ export class OpenAIResponsesProvider implements LlmProvider {
             }
           : undefined,
         latency_ms: Date.now() - startedAt,
-        transport_telemetry: telemetry
+        transport_telemetry: {
+          ...telemetry,
+          ...structuredOutputTelemetry
+        }
       };
     } catch (error) {
       const normalized = normalizeOpenAITransportError(error, milestones, {
