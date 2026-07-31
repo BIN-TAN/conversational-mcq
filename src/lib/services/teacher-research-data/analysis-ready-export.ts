@@ -15,6 +15,7 @@ import {
   timingLimitationsText
 } from "@/lib/services/student-assessment/timing-contract";
 import {
+  canonicalPersistedFormativeConversationProfileTransitions,
   latestPersistedFormativeConversationProfileTransition,
   persistedFormativeConversationOutcome
 } from "@/lib/services/student-assessment/formative-conversation/profile-projection";
@@ -343,26 +344,8 @@ const analysisSessionSelect = {
       profile_transitions: {
         orderBy: { transitioned_at: "asc" },
         include: {
-          prior_student_profile: {
-            select: {
-              ability_profile: true,
-              integrated_diagnostic_profile: true,
-              evidence_sufficiency: true,
-              confidence_alignment: true,
-              misconception_indicators: true,
-              created_at: true
-            }
-          },
-          updated_student_profile: {
-            select: {
-              ability_profile: true,
-              integrated_diagnostic_profile: true,
-              evidence_sufficiency: true,
-              confidence_alignment: true,
-              misconception_indicators: true,
-              created_at: true
-            }
-          },
+          prior_student_profile: true,
+          updated_student_profile: true,
           source_turn: {
             select: {
               sequence_index: true
@@ -1743,9 +1726,13 @@ function assessmentContentRows(sessions: AnalysisSession[], includeRestricted: b
 function formativeConversationSessionRows(sessions: AnalysisSession[]) {
   return sessions.flatMap((session) =>
     session.formative_conversation_sessions.map((conversation) => {
+      const canonicalTransitions =
+        canonicalPersistedFormativeConversationProfileTransitions(
+          conversation.profile_transitions
+        );
       const latestTransition =
         latestPersistedFormativeConversationProfileTransition(
-          conversation.profile_transitions
+          canonicalTransitions
         );
       const canonicalCurrentProfile =
         latestTransition?.updated_student_profile ??
@@ -1777,12 +1764,12 @@ function formativeConversationSessionRows(sessions: AnalysisSession[]) {
         agent_call_count: conversation.agent_calls.length,
         intervention_count: conversation.interventions.length,
         profile_transition_count:
-          conversation.profile_transitions.length,
+          canonicalTransitions.length,
         latest_profile_transition_public_id:
           latestTransition?.transition_public_id ?? null,
         validated_formative_outcome:
           persistedFormativeConversationOutcome(
-            conversation.profile_transitions
+            canonicalTransitions
           ),
         initial_learning_profile:
           conversation.initial_student_profile
@@ -1949,7 +1936,9 @@ function formativeConversationProfileTransitionRows(
 ) {
   return sessions.flatMap((session) =>
     session.formative_conversation_sessions.flatMap((conversation) =>
-      conversation.profile_transitions.map((transition) => ({
+      canonicalPersistedFormativeConversationProfileTransitions(
+        conversation.profile_transitions
+      ).map((transition) => ({
         transition_public_id: transition.transition_public_id,
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
@@ -2381,7 +2370,9 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
               event_count: conversation.lifecycle_events.length,
               agent_call_count: conversation.agent_calls.length,
               profile_transition_count:
-                conversation.profile_transitions.length,
+                canonicalPersistedFormativeConversationProfileTransitions(
+                  conversation.profile_transitions
+                ).length,
               intervention_count: conversation.interventions.length
             })),
           workflow_jobs: session.workflow_jobs.map((job) => ({

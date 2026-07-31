@@ -23,6 +23,18 @@ export type OpenAIClientTransportInstrumentation = {
     request_id: string | null;
     retry_after_ms: number | null;
   }) => void | Promise<void>;
+  onResponseBodyStarted?: (input: {
+    url: string;
+    bytes_received: number;
+  }) => void | Promise<void>;
+  onResponseBodyProgress?: (input: {
+    url: string;
+    bytes_received: number;
+  }) => void | Promise<void>;
+  onResponseBodyCompleted?: (input: {
+    url: string;
+    bytes_received: number;
+  }) => void | Promise<void>;
 };
 
 function retryAfterMs(headers: Headers) {
@@ -35,6 +47,62 @@ function retryAfterMs(headers: Headers) {
     return Number(retryAfter) * 1000;
   }
   return null;
+}
+
+export async function instrumentOpenAIResponseBody(
+  response: Response,
+  url: string,
+  instrumentation?: OpenAIClientTransportInstrumentation
+) {
+  if (!response.body) {
+    await instrumentation?.onResponseBodyCompleted?.({
+      url,
+      bytes_received: 0
+    });
+    return response;
+  }
+
+  const reader = response.body.getReader();
+  let bytesReceived = 0;
+  let bodyStarted = false;
+  const observedBody = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const chunk = await reader.read();
+        if (chunk.done) {
+          await instrumentation?.onResponseBodyCompleted?.({
+            url,
+            bytes_received: bytesReceived
+          });
+          controller.close();
+          return;
+        }
+        bytesReceived += chunk.value.byteLength;
+        if (!bodyStarted) {
+          bodyStarted = true;
+          await instrumentation?.onResponseBodyStarted?.({
+            url,
+            bytes_received: bytesReceived
+          });
+        }
+        await instrumentation?.onResponseBodyProgress?.({
+          url,
+          bytes_received: bytesReceived
+        });
+        controller.enqueue(chunk.value);
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    async cancel(reason) {
+      await reader.cancel(reason);
+    }
+  });
+  return new Response(observedBody, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers
+  });
 }
 
 export function createOpenAIClient(instrumentation?: OpenAIClientTransportInstrumentation) {
@@ -89,7 +157,11 @@ export function createOpenAIClient(instrumentation?: OpenAIClientTransportInstru
       request_id: response.headers.get("x-request-id") ?? response.headers.get("request-id"),
       retry_after_ms: retryAfterMs(response.headers)
     });
-    return response;
+    return instrumentOpenAIResponseBody(
+      response,
+      url,
+      instrumentation
+    );
   };
 
   return new OpenAI({

@@ -1,0 +1,26 @@
+{
+  "artifact_version": "formative-conversation-v5-v4-pre-dispatch-evidence-v1",
+  "source_commit_sha": "c9082e8457c1f3a11a5fd9acbd1ca250e889363c",
+  "runtime_candidate_hash": "a408b08c39aa614d967552e1fd321fabf0b83c96a3d83c82a7bd381fa8e899b3",
+  "protocol_hash": "662a9e2e9ec2929147bd7ec0150708186f07e32ff2029f606de6b0e9d502c84e",
+  "source_plan_artifacts": [
+    {
+      "path": ".data/operational-formative-conversation-v5-evaluation-v4/plans/fcv5_plan_20260730095417_dee56813.json",
+      "sha256": "9b9be1c503999c8b3bc0629759b4a45ccade7ee471ed8b4281d418cff2784f77"
+    },
+    {
+      "path": ".data/operational-formative-conversation-v5-evaluation-v4/plans/fcv5_plan_20260730103510_32dd5b3c.json",
+      "sha256": "7e70f72e890563599af5c833663727c258e3c5887d9a352a55ab99dbe62dbbff"
+    }
+  ],
+  "sandbox_launcher_failure": "tsx_ipc_socket_eperm",
+  "approved_execution_failure": "approved_config_hash_mismatch",
+  "dispatch_checkpoint_created": false,
+  "provider_run_created": false,
+  "generation_request_created": false,
+  "provider_calls": 0,
+  "secrets_displayed": false,
+  "secrets_persisted": false,
+  "preserved_immutable": true,
+  "rerunnable": false
+}

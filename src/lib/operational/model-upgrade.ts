@@ -51,7 +51,14 @@ const CandidateRoleVersionMetadataSchema = z.object({
   safety_validator_version: z.string().min(1).optional(),
   fallback_version: z.string().min(1).optional(),
   canonicalization_version: z.string().min(1).optional(),
-  deterministic_guard_version: z.string().min(1).optional()
+  deterministic_guard_version: z.string().min(1).optional(),
+  profile_transition_version: z.string().min(1).optional(),
+  profile_transition_validator_version: z.string().min(1).optional(),
+  student_output_format_version: z.string().min(1).optional(),
+  provider_failure_taxonomy_version: z.string().min(1).optional(),
+  provider_transport_retry_policy_version: z.string().min(1).optional(),
+  provider_request_tracing_version: z.string().min(1).optional(),
+  provider_adapter_version: z.string().min(1).optional()
 }).strict();
 
 const CandidateRuntimePolicySchema = z.object({

@@ -54,6 +54,31 @@ async function addUnansweredPromptForLatencyLimitTest() {
   const conceptUnitSession = session.concept_unit_sessions[0];
   assert(conceptUnitSession, "Fixture missing concept-unit session.");
 
+  await prisma.conversationTurn.createMany({
+    data: [
+      {
+        assessment_session_db_id: session.id,
+        concept_unit_session_db_id: conceptUnitSession.id,
+        phase: "initial_item_administration",
+        actor_type: "agent",
+        agent_name: "item_administration_tutor_agent",
+        message_text: "Please explain the reasoning behind your answer.",
+        structured_payload: { prompt_type: "reasoning_prompt" },
+        created_at: new Date("2026-06-19T14:58:00.000Z")
+      },
+      {
+        assessment_session_db_id: session.id,
+        concept_unit_session_db_id: conceptUnitSession.id,
+        phase: "initial_item_administration",
+        actor_type: "student",
+        agent_name: null,
+        message_text:
+          "My reasoning compares the score interpretation with the evidence provided.",
+        structured_payload: { response_type: "reasoning_response" },
+        created_at: new Date("2026-06-19T14:59:00.000Z")
+      }
+    ]
+  });
   await prisma.conversationTurn.create({
     data: {
       assessment_session_db_id: session.id,

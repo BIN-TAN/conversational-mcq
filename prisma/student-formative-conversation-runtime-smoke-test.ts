@@ -97,7 +97,7 @@ async function main() {
     );
     assert.equal(
       FORMATIVE_CONVERSATION_PROMPT_VERSION,
-      "formative-conversation-host-v5"
+      "formative-conversation-host-v5.1"
     );
     for (const requiredGuidance of [
       "sound_understanding means",
@@ -293,10 +293,10 @@ async function main() {
               {
                 profile_fields: retainedExtensions,
                 disposition:
-                  "retained_evidence_remains_valid" as const,
+                  "updated_from_conversation_evidence" as const,
                 evidence_basis: "combined" as const,
                 rationale:
-                  "Prior cautions remain intact and the cited student response supports one additional limitation.",
+                  "Prior cautions remain represented and the cited student response supports the appended limitation.",
                 source_turn_sequence_indexes: [
                   sourceTurnSequenceIndex
                 ]
@@ -891,7 +891,7 @@ async function main() {
     assert.equal(firstTransition.learning_outcome, "largely_improved");
     assert.equal(
       firstTransition.transition_version,
-      "formative-conversation-profile-transition-v3"
+      "formative-conversation-profile-transition-v4"
     );
     assert.equal(
       firstTransition.assessment_student_profile_db_id,
@@ -2497,7 +2497,7 @@ async function main() {
         transitionRows.every(
           (row) =>
             row.transition_version ===
-              "formative-conversation-profile-transition-v3" &&
+              "formative-conversation-profile-transition-v4" &&
             row.prior_profile_created_at.length > 0 &&
             row.updated_profile_created_at.length > 0 &&
             row.supporting_turn_sequence_indexes.length > 0 &&

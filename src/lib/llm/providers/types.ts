@@ -59,6 +59,9 @@ export type OpenAITransportMilestone = {
   request_serialization_completed: boolean;
   fetch_invoked: boolean;
   response_headers_received: boolean;
+  response_body_started?: boolean;
+  response_body_completed?: boolean;
+  response_body_bytes_received?: number;
   response_body_received: boolean;
 };
 
@@ -91,6 +94,9 @@ export type SanitizedOpenAITransportError = {
   before_request_serialization: boolean;
   fetch_invoked: boolean;
   response_headers_received: boolean;
+  response_body_started?: boolean;
+  response_body_completed?: boolean;
+  response_body_bytes_received?: number;
   response_body_received: boolean;
 };
 

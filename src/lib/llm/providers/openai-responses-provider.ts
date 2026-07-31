@@ -22,7 +22,7 @@ import type {
   StructuredAgentResult
 } from "./types";
 
-export const OPENAI_RESPONSES_ADAPTER_VERSION = "openai-responses-adapter-v2";
+export const OPENAI_RESPONSES_ADAPTER_VERSION = "openai-responses-adapter-v3";
 
 export type OpenAIResponsesProviderOptions = {
   isolated_evaluation_runtime?: NonNullable<
@@ -40,12 +40,15 @@ export type OpenAIResponsesTransportBoundaryEvent = {
     | "request_serialization_completed"
     | "fetch_invoked"
     | "response_headers_received"
+    | "response_body_started"
+    | "response_body_completed"
     | "response_body_received";
   client_request_id: string;
   model_name: string;
   http_status?: number;
   provider_request_id?: string | null;
   retry_after_ms?: number | null;
+  response_body_bytes_received?: number;
   metadata?: Record<string, string>;
   logical_call_id?: string;
   adapter_attempt_id?: string;
@@ -125,6 +128,9 @@ function initialMilestones(): OpenAITransportMilestone {
     request_serialization_completed: false,
     fetch_invoked: false,
     response_headers_received: false,
+    response_body_started: false,
+    response_body_completed: false,
+    response_body_bytes_received: 0,
     response_body_received: false
   };
 }
@@ -140,6 +146,9 @@ export class OpenAIResponsesProvider implements LlmProvider {
     const baseURL = resolveOpenAIBaseUrl();
     const baseUrlHost = openAIBaseUrlHost(baseURL);
     const baseURLApproved = isApprovedOpenAIBaseUrl(baseURL);
+    let observedResponseStatus: number | null = null;
+    let observedProviderRequestId: string | null = null;
+    let observedRetryAfterMs: number | null = null;
     const resolvedCredential =
       currentResolvedOpenAICredential() ??
       (() => {
@@ -169,7 +178,13 @@ export class OpenAIResponsesProvider implements LlmProvider {
 
     const emit = async (
       event_type: OpenAIResponsesTransportBoundaryEvent["event_type"],
-      extra?: Pick<OpenAIResponsesTransportBoundaryEvent, "http_status" | "provider_request_id" | "retry_after_ms">
+      extra?: Pick<
+        OpenAIResponsesTransportBoundaryEvent,
+        | "http_status"
+        | "provider_request_id"
+        | "retry_after_ms"
+        | "response_body_bytes_received"
+      >
     ) => emitTransportBoundary({
       provider: "openai",
       transport: "openai_responses",
@@ -201,10 +216,30 @@ export class OpenAIResponsesProvider implements LlmProvider {
       },
       onResponseHeadersReceived: async ({ status, request_id, retry_after_ms }) => {
         milestones.response_headers_received = true;
+        observedResponseStatus = status;
+        observedProviderRequestId = request_id;
+        observedRetryAfterMs = retry_after_ms;
         await emit("response_headers_received", {
           http_status: status,
           provider_request_id: request_id,
           retry_after_ms
+        });
+      },
+      onResponseBodyStarted: async ({ bytes_received }) => {
+        milestones.response_body_started = true;
+        milestones.response_body_bytes_received = bytes_received;
+        await emit("response_body_started", {
+          response_body_bytes_received: bytes_received
+        });
+      },
+      onResponseBodyProgress: ({ bytes_received }) => {
+        milestones.response_body_bytes_received = bytes_received;
+      },
+      onResponseBodyCompleted: async ({ bytes_received }) => {
+        milestones.response_body_completed = true;
+        milestones.response_body_bytes_received = bytes_received;
+        await emit("response_body_completed", {
+          response_body_bytes_received: bytes_received
         });
       }
     });
@@ -386,7 +421,11 @@ export class OpenAIResponsesProvider implements LlmProvider {
         transport_telemetry: telemetry
       };
     } catch (error) {
-      const normalized = normalizeOpenAITransportError(error, milestones);
+      const normalized = normalizeOpenAITransportError(error, milestones, {
+        status: observedResponseStatus,
+        provider_request_id: observedProviderRequestId,
+        retry_after_ms: observedRetryAfterMs
+      });
       return {
         provider: "openai",
         client_request_id: request.client_request_id,

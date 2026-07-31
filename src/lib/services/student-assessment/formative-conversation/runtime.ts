@@ -25,6 +25,7 @@ import {
   FORMATIVE_CONVERSATION_OPENING_VERSION,
   validateFormativeConversationOpeningOutput
 } from "./opening-contract";
+import { validateFormativeConversationAgentOutputForContext } from "./output-format";
 import {
   FormativeConversationProfileTransitionError,
   recordFormativeConversationProfileTransitionRecommendation,
@@ -133,7 +134,8 @@ export class FormativeConversationRuntimeError extends Error {
       | "agent_call_failed"
       | "agent_output_invalid"
       | "opening_requires_empty_transcript",
-    message: string
+    message: string,
+    public readonly reason_code: string | null = null
   ) {
     super(message);
     this.name = "FormativeConversationRuntimeError";
@@ -414,6 +416,21 @@ async function executeOrResumeAgentCall(input: {
       started.agent_call.output_validated &&
       started.agent_call.output_payload
     ) {
+      const output = FormativeConversationAgentOutputSchema.parse(
+        started.agent_call.output_payload
+      );
+      const contextualValidation =
+        validateFormativeConversationAgentOutputForContext({
+          output,
+          context: input.context
+        });
+      if (!contextualValidation.valid) {
+        throw new FormativeConversationRuntimeError(
+          "agent_output_invalid",
+          "The resumed formative conversation output failed canonical validation.",
+          contextualValidation.issues[0]?.code ?? null
+        );
+      }
       await recordRuntimeEvent({
         conversation_public_id: input.conversation_public_id,
         client_message_id: input.client_message_id,
@@ -428,9 +445,7 @@ async function executeOrResumeAgentCall(input: {
       });
       return {
         agent_call: started.agent_call,
-        output: FormativeConversationAgentOutputSchema.parse(
-          started.agent_call.output_payload
-        ),
+        output,
         generation_source:
           typeof asObject(started.agent_call.usage_guard_snapshot)
             .generation_source === "string"
@@ -521,6 +536,46 @@ async function executeOrResumeAgentCall(input: {
     throw new FormativeConversationRuntimeError(
       "agent_output_invalid",
       "The formative conversation agent output failed schema validation."
+    );
+  }
+
+  const contextualValidation =
+    validateFormativeConversationAgentOutputForContext({
+      output: parsedOutput.data,
+      context: input.context
+    });
+  if (!contextualValidation.valid) {
+    await prisma.agentCall.update({
+      where: { id: started.agent_call.id },
+      data: {
+        provider_request_id: execution.provider_request_id ?? null,
+        provider_response_id: execution.provider_response_id ?? null,
+        client_request_id: execution.client_request_id ?? null,
+        raw_output: prismaJson(
+          redactForAudit(execution.raw_output ?? execution.output)
+        ),
+        output_validated: false,
+        validation_error: JSON.stringify({
+          category: "formative_conversation_output_contract",
+          validator_version:
+            "formative-conversation-output-context-validation-v1",
+          issue_count: contextualValidation.issues.length,
+          issues: contextualValidation.issues
+        }),
+        error_category: "formative_conversation_output_contract",
+        call_status: "invalid_output",
+        latency_ms: execution.latency_ms,
+        retry_count: execution.retry_count,
+        input_tokens: execution.input_tokens ?? null,
+        output_tokens: execution.output_tokens ?? null,
+        total_tokens: execution.total_tokens ?? null,
+        completed_at: execution.completed_at
+      }
+    });
+    throw new FormativeConversationRuntimeError(
+      "agent_output_invalid",
+      "The formative conversation agent output failed canonical validation.",
+      contextualValidation.issues[0]?.code ?? null
     );
   }
 

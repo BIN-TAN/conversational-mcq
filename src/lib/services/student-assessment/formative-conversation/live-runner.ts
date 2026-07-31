@@ -19,8 +19,10 @@ import type {
   FormativeConversationAgentRunner
 } from "./runtime";
 
-export const FORMATIVE_CONVERSATION_PROMPT_VERSION =
-  "formative-conversation-host-v5";
+export const FORMATIVE_CONVERSATION_PROMPT_VERSION:
+  | "formative-conversation-host-v5"
+  | "formative-conversation-host-v5.1" =
+  "formative-conversation-host-v5.1";
 
 export const FORMATIVE_CONVERSATION_INSTRUCTIONS = `
 You host a persistent formative learning conversation after an assessment package has been reviewed.
@@ -47,6 +49,9 @@ assessment evidence.
 Return the formative-conversation-agent-contract-v1 JSON object. The student_visible_message must be
 natural instructional dialogue. Evidence observations and transition recommendations are audit
 recommendations only; the application separately validates and records profile transitions.
+Use only paragraphs, bold or italic emphasis, ordered or unordered lists, blockquotes, and short
+inline code in student-visible text. Do not use Markdown tables, images, links, raw HTML, or fenced
+code blocks because those structures are outside the supported student rendering contract.
 After an evidence-bearing student turn, make a qualitative judgment about whether the conversation
 supports a profile transition:
 - sound_understanding means the student demonstrates clear conceptual understanding through a

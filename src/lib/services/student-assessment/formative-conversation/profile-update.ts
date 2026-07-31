@@ -10,9 +10,16 @@ import {
   type FormativeConversationCanonicalProfile,
   type FormativeConversationProfileEvidence
 } from "./agent-contract";
+import {
+  FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VALIDATOR_VERSION,
+  validateFormativeConversationProfileTransition,
+  type FormativeConversationProfileTransitionValidationIssueCode
+} from "./profile-transition-validator";
 
-export const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VERSION =
-  "formative-conversation-profile-transition-v3";
+export const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VERSION:
+  | "formative-conversation-profile-transition-v3"
+  | "formative-conversation-profile-transition-v4" =
+  "formative-conversation-profile-transition-v4";
 
 export type FormativeConversationProfileEvidenceHookInput = {
   conversation_public_id: string;
@@ -43,7 +50,8 @@ export class FormativeConversationProfileTransitionError extends Error {
       | "profile_transition_evidence_missing"
       | "profile_transition_updated_profile_missing"
       | "profile_transition_field_evidence_invalid"
-      | "profile_transition_stale",
+      | "profile_transition_stale"
+      | FormativeConversationProfileTransitionValidationIssueCode,
     message: string
   ) {
     super(message);
@@ -155,6 +163,28 @@ export function parseFormativeConversationProfileSnapshot(
   return parsed.success ? parsed.data : null;
 }
 
+export type FormativeConversationCanonicalProfileSource = Pick<
+  StudentProfile,
+  | "ability_profile"
+  | "ability_pattern_flags"
+  | "engagement_profile"
+  | "engagement_pattern_flags"
+  | "integrated_diagnostic_profile"
+  | "integrated_profile_confidence"
+  | "integrated_profile_rationale"
+  | "evidence_sufficiency"
+  | "confidence_alignment"
+  | "independence_interpretability"
+  | "misconception_indicators"
+  | "item_level_evidence"
+  | "reasoning_quality_summary"
+  | "engagement_summary"
+  | "process_interpretation_cautions"
+  | "profile_confidence"
+  | "rationale"
+  | "recommended_next_evidence"
+>;
+
 function jsonInput(value: unknown): Prisma.InputJsonValue {
   return (toPrismaJson(value) ?? []) as Prisma.InputJsonValue;
 }
@@ -207,7 +237,7 @@ function normalizedProfileTextList(
 }
 
 export function canonicalFormativeConversationProfileFromStudentProfile(
-  profile: StudentProfile
+  profile: FormativeConversationCanonicalProfileSource
 ): FormativeConversationCanonicalProfile {
   return {
     schema_version: FORMATIVE_CONVERSATION_CANONICAL_PROFILE_VERSION,
@@ -263,42 +293,6 @@ export function canonicalFormativeConversationProfileFromStudentProfile(
       20
     )
   };
-}
-
-function profileFieldValue(
-  profile: FormativeConversationCanonicalProfile,
-  field: (typeof FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS)[number]
-) {
-  return profile[field];
-}
-
-function profileValuesEqual(left: unknown, right: unknown) {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
-
-function retainedStringListExtension(
-  priorValue: unknown,
-  updatedValue: unknown
-) {
-  if (
-    !Array.isArray(priorValue) ||
-    !Array.isArray(updatedValue) ||
-    !priorValue.every((entry) => typeof entry === "string") ||
-    !updatedValue.every((entry) => typeof entry === "string") ||
-    updatedValue.length <= priorValue.length
-  ) {
-    return false;
-  }
-
-  const unmatchedUpdated = [...updatedValue];
-  for (const priorEntry of priorValue) {
-    const matchIndex = unmatchedUpdated.indexOf(priorEntry);
-    if (matchIndex < 0) {
-      return false;
-    }
-    unmatchedUpdated.splice(matchIndex, 1);
-  }
-  return unmatchedUpdated.length > 0;
 }
 
 async function existingTransitionForAgentCall(
@@ -472,76 +466,41 @@ export async function recordFormativeConversationProfileTransitionRecommendation
         );
       }
 
-      const citedTurnsBySequence = new Map(
-        citedTurns.map((turn) => [turn.sequence_index, turn])
-      );
       const priorCanonicalProfile =
         canonicalFormativeConversationProfileFromStudentProfile(
           priorProfile
         );
+      const canonicalValidation =
+        validateFormativeConversationProfileTransition({
+          recommendation: input.recommendation,
+          prior_profile: priorCanonicalProfile,
+          evidence_observations: input.agent_evidence_observations,
+          available_turns: citedTurns.map((turn) => ({
+            sequence_index: turn.sequence_index,
+            actor:
+              turn.actor_type === "student"
+                ? ("student" as const)
+                : ("tutor" as const)
+          }))
+        });
+      if (!canonicalValidation.valid) {
+        const primaryIssue = canonicalValidation.issues[0];
+        throw new FormativeConversationProfileTransitionError(
+          primaryIssue?.code ?? "profile_transition_field_evidence_invalid",
+          primaryIssue?.message ??
+            "The profile transition failed canonical validation."
+        );
+      }
       const fieldEvidenceByField = new Map(
         input.recommendation.field_evidence.flatMap((evidence) =>
           evidence.profile_fields.map((field) => [field, evidence] as const)
         )
       );
-      for (const field of FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS) {
-        const fieldEvidence = fieldEvidenceByField.get(field);
-        if (!fieldEvidence) {
-          throw new FormativeConversationProfileTransitionError(
-            "profile_transition_field_evidence_invalid",
-            `The agent recommendation does not provide evidence provenance for ${field}.`
-          );
-        }
-        const changed = !profileValuesEqual(
-          profileFieldValue(priorCanonicalProfile, field),
-          profileFieldValue(updatedCanonicalProfile, field)
-        );
-        const citesStudentTurn =
-          fieldEvidence.source_turn_sequence_indexes.some(
-            (sequenceIndex) =>
-              citedTurnsBySequence.get(sequenceIndex)?.actor_type ===
-              "student"
-          );
-        const evidenceBackedRetainedExtension =
-          changed &&
-          fieldEvidence.disposition ===
-            "retained_evidence_remains_valid" &&
-          fieldEvidence.evidence_basis !== "prior_profile_evidence" &&
-          citesStudentTurn &&
-          retainedStringListExtension(
-            profileFieldValue(priorCanonicalProfile, field),
-            profileFieldValue(updatedCanonicalProfile, field)
-          );
-        if (
-          changed &&
-          fieldEvidence.disposition !==
-            "updated_from_conversation_evidence" &&
-          !evidenceBackedRetainedExtension
-        ) {
-          throw new FormativeConversationProfileTransitionError(
-            "profile_transition_field_evidence_invalid",
-            `The changed ${field} field is neither a conversation evidence update nor an evidence-backed retained-list extension.`
-          );
-        }
-        if (
-          changed &&
-          !citesStudentTurn
-        ) {
-          throw new FormativeConversationProfileTransitionError(
-            "profile_transition_field_evidence_invalid",
-            `The ${field} update does not cite a supporting student turn.`
-          );
-        }
-      }
       const usePriorStoredField = (
         field: (typeof FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS)[number]
       ) =>
         fieldEvidenceByField.get(field)?.disposition ===
-          "retained_evidence_remains_valid" &&
-        profileValuesEqual(
-          profileFieldValue(priorCanonicalProfile, field),
-          profileFieldValue(updatedCanonicalProfile, field)
-        );
+          "retained_evidence_remains_valid";
       const learningObservations = input.agent_evidence_observations.map(
         (observation) => ({
           evidence_type: observation.evidence_type,
@@ -713,6 +672,8 @@ export async function recordFormativeConversationProfileTransitionRecommendation
           reason_code: learningOutcome,
           evidence_summary: jsonInput({
             transition_public_id: transition.transition_public_id,
+            canonical_validator_version:
+              FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VALIDATOR_VERSION,
             recommendation_version:
               input.recommendation.recommendation_version,
             evidence_interpretation: input.recommendation.rationale,

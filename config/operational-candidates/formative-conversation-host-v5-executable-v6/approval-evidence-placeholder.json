@@ -1,0 +1,25 @@
+{
+  "artifact_version": "formative-conversation-v5-executable-approval-placeholder-v6",
+  "artifact_state": "placeholder_not_approval_evidence",
+  "runtime_candidate_hash": "494ed38226f655c19429e0f54dc78c78239a6492f39895cd5231fc5d22a87f59",
+  "evaluation_protocol_hash": "8dfc63e32166f9117b4cebef550d22bdc81e1b9f3377f5843d50c2dee679b625",
+  "provider_evaluation": {
+    "status": "not_run",
+    "source_provider_run_id": null,
+    "derived_evaluation_id": null
+  },
+  "human_review": {
+    "status": "not_started",
+    "student_facing_outputs_reviewed": false,
+    "decision": null
+  },
+  "approval": {
+    "eligible": false,
+    "approved_at": null,
+    "approval_evidence_hash": null
+  },
+  "activation": {
+    "permitted": false,
+    "activated_at": null
+  }
+}

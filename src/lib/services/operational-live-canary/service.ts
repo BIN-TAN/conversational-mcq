@@ -2971,6 +2971,12 @@ async function dispatchOperationalLiveCanaryStep(input: {
     if (event.metadata?.operational_live_canary_dispatch_public_id !== dispatchAttempt.dispatch_public_id) {
       return;
     }
+    if (
+      event.event_type === "response_body_started" ||
+      event.event_type === "response_body_completed"
+    ) {
+      return;
+    }
     await markTransportMilestone({
       prisma: input.prisma,
       dispatchId: dispatchAttempt.id,

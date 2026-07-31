@@ -7,11 +7,18 @@ import type {
   StructuredAgentResult
 } from "@/lib/llm/providers/types";
 
-export const PROVIDER_FAILURE_TAXONOMY_VERSION = "provider-failure-taxonomy-v2";
+export const PROVIDER_FAILURE_TAXONOMY_VERSION:
+  | "provider-failure-taxonomy-v1"
+  | "provider-failure-taxonomy-v2"
+  | "provider-failure-taxonomy-v3" = "provider-failure-taxonomy-v3";
 export const PROVIDER_TRANSPORT_RETRY_POLICY_VERSION =
-  "bounded-provider-transport-retry-v1";
+  "bounded-provider-transport-retry-v2" as
+    | "bounded-provider-transport-retry-v1"
+    | "bounded-provider-transport-retry-v2";
 export const PROVIDER_REQUEST_TRACING_POLICY_VERSION =
-  "provider-request-tracing-policy-v2";
+  "provider-request-tracing-policy-v3" as
+    | "provider-request-tracing-policy-v2"
+    | "provider-request-tracing-policy-v3";
 export const EXACTLY_ONCE_SEMANTIC_EFFECTS_POLICY_VERSION =
   "exactly-once-semantic-effects-policy-v1";
 
@@ -35,6 +42,7 @@ export type ProviderFailureCategory =
   | "upstream_timeout"
   | "connection_reset"
   | "connection_interrupted_before_response"
+  | "connection_interrupted_after_headers_before_body"
   | "temporary_dns_failure"
   | "tls_failure"
   | "retryable_rate_limit"
@@ -93,7 +101,7 @@ const retryableHttpCategories: Record<number, ProviderFailureCategory> = {
 function classification(
   input: Omit<ProviderFailureClassification, "taxonomy_version">
 ): ProviderFailureClassification {
-  return { taxonomy_version: PROVIDER_FAILURE_TAXONOMY_VERSION, ...input };
+  return { taxonomy_version: "provider-failure-taxonomy-v3", ...input };
 }
 
 export function classifyProviderFailure<TOutput>(
@@ -103,6 +111,22 @@ export function classifyProviderFailure<TOutput>(
   const httpStatus = normalized?.http_status ?? result.transport_telemetry?.http_status ?? null;
   const typedReason = normalized?.typed_failure_reason ?? null;
   const errorCategory = result.error?.category ?? null;
+  const responseHeadersReceived =
+    normalized?.response_headers_received ??
+    result.transport_telemetry?.response_headers_received ??
+    false;
+  const responseBodyStarted =
+    normalized?.response_body_started ??
+    result.transport_telemetry?.response_body_started ??
+    false;
+  const responseBodyCompleted =
+    normalized?.response_body_completed ??
+    result.transport_telemetry?.response_body_completed ??
+    false;
+  const responseBodyBytesReceived =
+    normalized?.response_body_bytes_received ??
+    result.transport_telemetry?.response_body_bytes_received ??
+    0;
 
   if (httpStatus !== null && retryableHttpCategories[httpStatus]) {
     return classification({
@@ -157,6 +181,44 @@ export function classifyProviderFailure<TOutput>(
     });
   }
 
+  const transientHeadersOnlyZeroBody =
+    normalized?.before_request_serialization === false &&
+    normalized.fetch_invoked &&
+    responseHeadersReceived &&
+    httpStatus !== null &&
+    httpStatus >= 200 &&
+    httpStatus < 300 &&
+    !responseBodyStarted &&
+    !responseBodyCompleted &&
+    responseBodyBytesReceived === 0 &&
+    !normalized.response_body_received &&
+    (typedReason === "unknown_transport_error" ||
+      typedReason === "openai_request_timeout" ||
+      typedReason === "openai_connection_failed" ||
+      typedReason === "openai_response_parse_failed") &&
+    (errorCategory === "network" ||
+      errorCategory === "timeout" ||
+      errorCategory === "unexpected_provider_response");
+  if (transientHeadersOnlyZeroBody) {
+    return classification({
+      category: "connection_interrupted_after_headers_before_body",
+      domain: "provider_infrastructure_transport",
+      retryable_transport_failure: true,
+      semantic_regeneration_eligible: false,
+      http_status: httpStatus,
+      typed_failure_reason: typedReason,
+      normalized_error_category: errorCategory,
+      rationale:
+        "A transient interruption followed successful 2xx headers, but no response body started, no bytes or semantic response were received, and no completed body was observed."
+    });
+  }
+
+  const bodyConsumptionStarted =
+    responseBodyStarted ||
+    responseBodyCompleted ||
+    responseBodyBytesReceived > 0 ||
+    normalized?.response_body_received === true;
+
   const transportCategory = (() => {
     if (typedReason === "openai_request_timeout" || errorCategory === "timeout") {
       return normalized?.has_http_response
@@ -190,12 +252,14 @@ export function classifyProviderFailure<TOutput>(
     return classification({
       category: transportCategory,
       domain: "provider_infrastructure_transport",
-      retryable_transport_failure: true,
+      retryable_transport_failure: !bodyConsumptionStarted,
       semantic_regeneration_eligible: false,
       http_status: httpStatus,
       typed_failure_reason: typedReason,
       normalized_error_category: errorCategory,
-      rationale: `${transportCategory} is retryable under the bounded transport policy.`
+      rationale: bodyConsumptionStarted
+        ? `${transportCategory} occurred after response body consumption began and must fail closed to avoid duplicating a possibly completed semantic response.`
+        : `${transportCategory} is retryable under the bounded transport policy.`
     });
   }
 
@@ -594,6 +658,12 @@ export async function executeWithBoundedProviderTransportRetry<TInput, TOutput>(
             fetch_invoked: result.transport_telemetry.fetch_invoked,
             response_headers_received:
               result.transport_telemetry.response_headers_received,
+            response_body_started:
+              result.transport_telemetry.response_body_started,
+            response_body_completed:
+              result.transport_telemetry.response_body_completed,
+            response_body_bytes_received:
+              result.transport_telemetry.response_body_bytes_received,
             response_body_received:
               result.transport_telemetry.response_body_received
           }
@@ -750,10 +820,11 @@ export class ExactlyOnceSemanticEffectGuard {
       this.receipts.set(input.logical_call_id, receipt);
       return { receipt, value };
     })();
-    this.inFlight.set(
-      input.logical_call_id,
-      operation.then((settled) => settled.receipt)
-    );
+    const pendingReceipt = operation.then((settled) => settled.receipt);
+    // The caller awaits `operation` below. Mark the derived receipt promise as
+    // handled as well when no concurrent caller is waiting on it.
+    pendingReceipt.catch(() => undefined);
+    this.inFlight.set(input.logical_call_id, pendingReceipt);
     try {
       const settled = await operation;
       return { status: "committed", ...settled };
@@ -778,6 +849,8 @@ export function providerFailureTaxonomyArtifact() {
     "network_timeout",
     "upstream_timeout",
     "connection_reset",
+    "connection_interrupted_before_response",
+    "connection_interrupted_after_headers_before_body",
     "temporary_dns_failure",
     "tls_failure",
     "retryable_rate_limit",

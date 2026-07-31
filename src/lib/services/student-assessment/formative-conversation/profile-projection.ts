@@ -1,3 +1,7 @@
+import type { Prisma, StudentProfile } from "@prisma/client";
+import { canonicalFormativeConversationProfileFromStudentProfile } from "./profile-update";
+import { validatePersistedFormativeConversationProfileTransition } from "./profile-transition-validator";
+
 export type PersistedFormativeConversationOutcome =
   | "sound"
   | "largely_improved"
@@ -8,6 +12,63 @@ type PersistedProfileTransition = {
   learning_outcome: PersistedFormativeConversationOutcome | null;
   transitioned_at: Date;
 };
+
+export type CanonicallyValidatablePersistedProfileTransition =
+  PersistedProfileTransition & {
+    prior_student_profile: StudentProfile;
+    updated_student_profile: StudentProfile;
+    profile_snapshot: Prisma.JsonValue;
+    learning_observations: Prisma.JsonValue;
+    evidence_interpretation: string | null;
+    supporting_turn_references: Array<{
+      conversation_turn: {
+        sequence_index: number;
+        actor_type: string;
+      };
+    }>;
+  };
+
+export function isCanonicalPersistedFormativeConversationProfileTransition(
+  transition: CanonicallyValidatablePersistedProfileTransition
+) {
+  if (transition.learning_outcome === null) {
+    return false;
+  }
+  return validatePersistedFormativeConversationProfileTransition({
+    prior_profile:
+      canonicalFormativeConversationProfileFromStudentProfile(
+        transition.prior_student_profile
+      ),
+    updated_profile:
+      canonicalFormativeConversationProfileFromStudentProfile(
+        transition.updated_student_profile
+      ),
+    profile_snapshot: transition.profile_snapshot,
+    learning_outcome: transition.learning_outcome,
+    learning_observations: transition.learning_observations,
+    evidence_interpretation: transition.evidence_interpretation,
+    supporting_turns: transition.supporting_turn_references.map(
+      (reference) => ({
+        sequence_index:
+          reference.conversation_turn.sequence_index,
+        actor:
+          reference.conversation_turn.actor_type === "student"
+            ? ("student" as const)
+            : ("tutor" as const)
+      })
+    )
+  }).valid;
+}
+
+export function canonicalPersistedFormativeConversationProfileTransitions<
+  Transition extends CanonicallyValidatablePersistedProfileTransition
+>(transitions: readonly Transition[]) {
+  return transitions.filter((transition) =>
+    isCanonicalPersistedFormativeConversationProfileTransition(
+      transition
+    )
+  );
+}
 
 export function latestPersistedFormativeConversationProfileTransition<
   Transition extends PersistedProfileTransition

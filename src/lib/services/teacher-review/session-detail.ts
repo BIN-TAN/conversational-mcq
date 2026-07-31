@@ -8,6 +8,7 @@ import { getServerEnv } from "@/lib/env";
 import { serializeProgressionForTeacher } from "@/lib/services/concept-progression/progression";
 import { serializeAssessmentContentState } from "@/lib/services/content/governance";
 import {
+  canonicalPersistedFormativeConversationProfileTransitions,
   latestPersistedFormativeConversationProfileTransition,
   persistedFormativeConversationOutcome
 } from "@/lib/services/student-assessment/formative-conversation/profile-projection";
@@ -541,12 +542,16 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
     Boolean(session.automation_exception_reason) || latestWorkflowJob?.status === "failed";
   const formativeConversations = session.formative_conversation_sessions.map(
     (conversation) => {
-      const latestTransition =
-        latestPersistedFormativeConversationProfileTransition(
+      const canonicalTransitions =
+        canonicalPersistedFormativeConversationProfileTransitions(
           conversation.profile_transitions
         );
+      const latestTransition =
+        latestPersistedFormativeConversationProfileTransition(
+          canonicalTransitions
+        );
       const learningOutcome = persistedFormativeConversationOutcome(
-        conversation.profile_transitions
+        canonicalTransitions
       );
       const canonicalCurrentProfile =
         latestTransition?.updated_student_profile ??
@@ -609,7 +614,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
                 )
               : null
         })),
-        profile_evolution: conversation.profile_transitions.map(
+        profile_evolution: canonicalTransitions.map(
           (transition) => ({
             transition_public_id: transition.transition_public_id,
             prior_profile: serializeFormativeLearningProfile(

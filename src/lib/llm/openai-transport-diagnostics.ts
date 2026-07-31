@@ -173,13 +173,18 @@ function typedReason(input: {
 
 export function normalizeOpenAITransportError(
   error: unknown,
-  milestones: OpenAITransportMilestone
+  milestones: OpenAITransportMilestone,
+  observedResponse?: {
+    status: number | null;
+    provider_request_id: string | null;
+    retry_after_ms: number | null;
+  }
 ): SanitizedOpenAITransportError {
   const message = sanitizeTransportMessage(error);
   const headers = headersFromError(error);
   const status = error instanceof APIError
-    ? error.status ?? null
-    : numberProperty(error, "status");
+    ? error.status ?? observedResponse?.status ?? null
+    : numberProperty(error, "status") ?? observedResponse?.status ?? null;
   const codeText = errorCodeText(error);
   const networkCategory = status ? "http_error" : classifyNetwork(error, message) ?? "unknown";
   const typed = typedReason({ status, codeText, networkCategory });
@@ -188,6 +193,7 @@ export function normalizeOpenAITransportError(
     headers?.get("x-request-id") ??
     headers?.get("request-id") ??
     stringProperty(error, "request_id") ??
+    observedResponse?.provider_request_id ??
     null;
 
   return {
@@ -204,7 +210,8 @@ export function normalizeOpenAITransportError(
       stringProperty(error, "param") ?? stringProperty((error as { error?: unknown })?.error, "param"),
     provider_request_id: stringProperty(error, "request_id"),
     provider_request_header_id: providerRequestHeaderId,
-    retry_after_ms: retryAfterMs(headers),
+    retry_after_ms:
+      retryAfterMs(headers) ?? observedResponse?.retry_after_ms ?? null,
     node_cause_name: cause instanceof Error ? cause.name : stringProperty(cause, "name"),
     node_cause_code: stringProperty(cause, "code"),
     network_category: networkCategory,
@@ -213,6 +220,10 @@ export function normalizeOpenAITransportError(
     before_request_serialization: !milestones.request_serialization_completed,
     fetch_invoked: milestones.fetch_invoked,
     response_headers_received: milestones.response_headers_received,
+    response_body_started: milestones.response_body_started ?? false,
+    response_body_completed: milestones.response_body_completed ?? false,
+    response_body_bytes_received:
+      milestones.response_body_bytes_received ?? 0,
     response_body_received: milestones.response_body_received
   };
 }
@@ -295,7 +306,7 @@ export function createOpenAITransportEnvironmentReport() {
     proxy_configured: proxyActive,
     node_fetch_available: typeof fetch === "function",
     openai_sdk_package_version: openaiSdkVersion(),
-    openai_sdk_adapter_version: "openai-responses-adapter-v2",
+    openai_sdk_adapter_version: "openai-responses-adapter-v3",
     responses_transport_available: true,
     api_key_configured: configured,
     api_key_basic_shape_valid: shapeValid,
