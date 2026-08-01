@@ -1,0 +1,23 @@
+{
+  "artifact_version": "formative-conversation-v5-v5-human-review-advisory-v1",
+  "source_provider_run_id": "fcv5v5_provider_20260730170219_4ac51142",
+  "source_derived_evaluation_id": "fcv5v5_derived_20260730170219_0a1eb734",
+  "source_execution_status": "completed_failed",
+  "candidate_approval_eligible": false,
+  "candidate_activation_permitted": false,
+  "case_7_tone": {
+    "classification": "advisory_quality_issue",
+    "review_note": "The final advice is more directive than the surrounding tutor dialogue, but it is accurate, relevant, and does not justify a teaching-prompt change by itself."
+  },
+  "case_8_rendering": {
+    "classification": "blocking_output_format_issue",
+    "review_note": "The exact Markdown table degrades into visible pipe syntax in the current safe student renderer. V6 rejects this unsupported format before persistence."
+  },
+  "required_future_review": [
+    "Review every v6 student-visible tutor output.",
+    "Confirm supported Markdown only.",
+    "Confirm conceptual accuracy and absence of unjustified mastery claims.",
+    "Confirm profile-transition recommendations preserve evidence provenance."
+  ],
+  "official_approval_evidence": false
+}

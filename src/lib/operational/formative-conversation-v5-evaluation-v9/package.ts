@@ -31,6 +31,15 @@ import {
   FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VERSION
 } from "@/lib/services/student-assessment/formative-conversation/profile-update";
 import { FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VALIDATOR_VERSION } from "@/lib/services/student-assessment/formative-conversation/profile-transition-validator";
+import { FORMATIVE_CONVERSATION_PROFILE_FIELD_SEMANTICS_VERSION } from "@/lib/services/student-assessment/formative-conversation/profile-field-semantics";
+import { FORMATIVE_CONVERSATION_PERSISTENCE_CONTRACT_VERSION } from "@/lib/services/student-assessment/formative-conversation/persistence-errors";
+import { FORMATIVE_CONVERSATION_PERSISTENCE_OBSERVABILITY_VERSION } from "@/lib/services/student-assessment/formative-conversation/persistence-observability";
+import {
+  EVALUATION_DATABASE_CONNECTION_OWNER_VERSION,
+  EVALUATION_DATABASE_READ_RECOVERY_VERSION
+} from "@/lib/operational/evaluation-database-connection-owner";
+import { EVALUATION_DATABASE_LIFECYCLE_VERSION } from "@/lib/operational/evaluation-database-lifecycle";
+import { EXACT_SECRET_ARTIFACT_SCANNER_VERSION } from "@/lib/operational/exact-secret-artifact-scanner";
 import {
   FORMATIVE_CONVERSATION_V5_COMPILED_PLAN_PATH,
   FORMATIVE_CONVERSATION_V5_APPROVAL_PLACEHOLDER_PATH,
@@ -57,6 +66,10 @@ import {
   FORMATIVE_CONVERSATION_V5_V7_FAILURE_ANALYSIS_PATH,
   FORMATIVE_CONVERSATION_V5_V7_HASH_MANIFEST_PATH,
   FORMATIVE_CONVERSATION_V5_V7_HUMAN_REVIEW_ADJUDICATION_PATH,
+  FORMATIVE_CONVERSATION_V5_V8_EVALUATION_EVIDENCE_PATH,
+  FORMATIVE_CONVERSATION_V5_V8_FAILURE_ANALYSIS_PATH,
+  FORMATIVE_CONVERSATION_V5_V8_HUMAN_REVIEW_ADVISORY_PATH,
+  FORMATIVE_CONVERSATION_V5_V9_REMOTE_CANARY_EVIDENCE_PATH,
   FORMATIVE_CONVERSATION_V5_V3_DISPATCH_PATH,
   FORMATIVE_CONVERSATION_V5_V3_RUN_ROOT,
   FormativeConversationV5ApprovalPlaceholderSchema,
@@ -83,6 +96,10 @@ import {
   FORMATIVE_CONVERSATION_V5_REQUIRED_INJECTED_ENVIRONMENT,
   FORMATIVE_CONVERSATION_V5_SECRET_ENVIRONMENT
 } from "./live-environment";
+import {
+  FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_CONTRACT_HASH,
+  FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_VERSION
+} from "./remote-database-canary";
 
 const RUNTIME_CANDIDATE_MANIFEST_PATH =
   "config/operational-candidates/formative-conversation-host-v5-executable-v9/runtime-candidate-manifest.json";
@@ -180,6 +197,24 @@ export function assertFormativeConversationV5RuntimeFingerprint(
         identity.provider_request_tracing_version &&
       OPENAI_RESPONSES_ADAPTER_VERSION ===
         identity.provider_adapter_version &&
+      FORMATIVE_CONVERSATION_PERSISTENCE_CONTRACT_VERSION ===
+        identity.persistence_contract_version &&
+      EVALUATION_DATABASE_LIFECYCLE_VERSION ===
+        identity.evaluation_database_lifecycle_version &&
+      FORMATIVE_CONVERSATION_PROFILE_FIELD_SEMANTICS_VERSION ===
+        identity.profile_field_semantics_version &&
+      FORMATIVE_CONVERSATION_PERSISTENCE_OBSERVABILITY_VERSION ===
+        identity.persistence_observability_version &&
+      EVALUATION_DATABASE_CONNECTION_OWNER_VERSION ===
+        identity.evaluation_database_connection_owner_version &&
+      EVALUATION_DATABASE_READ_RECOVERY_VERSION ===
+        identity.evaluation_database_read_recovery_version &&
+      EXACT_SECRET_ARTIFACT_SCANNER_VERSION ===
+        identity.exact_secret_artifact_scanner_version &&
+      FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_VERSION ===
+        identity.remote_database_canary_version &&
+      FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_CONTRACT_HASH ===
+        identity.remote_database_canary_contract_hash &&
       FORMATIVE_CONVERSATION_INSTRUCTIONS.trim().length > 0,
     "formative_conversation_v5_runtime_fingerprint_mismatch"
   );
@@ -313,6 +348,12 @@ export function loadFormativeConversationV5EvaluationPackage() {
     FormativeConversationV5FailedV4PreDispatchEvidenceSchema.parse(
       readJson(FORMATIVE_CONVERSATION_V5_V4_FAILURE_EVIDENCE_PATH)
     );
+  const failedV8Evidence = readJson(
+    FORMATIVE_CONVERSATION_V5_V8_EVALUATION_EVIDENCE_PATH
+  );
+  const remoteCanaryEvidence = readJson(
+    FORMATIVE_CONVERSATION_V5_V9_REMOTE_CANARY_EVIDENCE_PATH
+  );
   const committedCompiledPlan =
     FormativeConversationV5CompiledPlanSchema.parse(
       readJson(FORMATIVE_CONVERSATION_V5_COMPILED_PLAN_PATH)
@@ -483,6 +524,31 @@ export function loadFormativeConversationV5EvaluationPackage() {
       sourceConfiguration.preserved_governance
         .failed_v4_provider_calls === 0,
     "formative_conversation_v5_v4_failure_evidence_changed"
+  );
+  assertCondition(
+    formativeConversationV5FileSha256(
+      FORMATIVE_CONVERSATION_V5_V8_EVALUATION_EVIDENCE_PATH
+    ) === protocol.failed_v8_execution.evidence_sha256 &&
+      formativeConversationV5FileSha256(
+        FORMATIVE_CONVERSATION_V5_V8_FAILURE_ANALYSIS_PATH
+      ) === protocol.failed_v8_execution.failure_analysis_sha256 &&
+      formativeConversationV5FileSha256(
+        FORMATIVE_CONVERSATION_V5_V8_HUMAN_REVIEW_ADVISORY_PATH
+      ) === protocol.failed_v8_execution.human_review_advisory_sha256 &&
+      (failedV8Evidence as Record<string, unknown>).status ===
+        "completed_failed" &&
+      (failedV8Evidence as Record<string, unknown>).preserved_immutable ===
+        true,
+    "formative_conversation_v5_v8_failure_evidence_changed"
+  );
+  assertCondition(
+    formativeConversationV5FileSha256(
+      FORMATIVE_CONVERSATION_V5_V9_REMOTE_CANARY_EVIDENCE_PATH
+    ) === protocol.remote_database_canary.evidence_sha256 &&
+      (remoteCanaryEvidence as Record<string, unknown>).status === "passed" &&
+      (remoteCanaryEvidence as Record<string, unknown>).contract_hash ===
+        FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_CONTRACT_HASH,
+    "formative_conversation_v5_v9_remote_canary_evidence_changed"
   );
   assertCondition(
     failedV4PreDispatch.source_plan_artifacts.every(

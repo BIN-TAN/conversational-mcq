@@ -51,6 +51,14 @@ export const FORMATIVE_CONVERSATION_V5_V7_FAILURE_ANALYSIS_PATH =
   `${FORMATIVE_CONVERSATION_V5_EVALUATION_ROOT}/v7-failure-analysis.json`;
 export const FORMATIVE_CONVERSATION_V5_V7_HUMAN_REVIEW_ADJUDICATION_PATH =
   `${FORMATIVE_CONVERSATION_V5_EVALUATION_ROOT}/v7-human-review-adjudication.json`;
+export const FORMATIVE_CONVERSATION_V5_V8_EVALUATION_EVIDENCE_PATH =
+  `${FORMATIVE_CONVERSATION_V5_EVALUATION_ROOT}/immutable-v8-evaluation-evidence.json`;
+export const FORMATIVE_CONVERSATION_V5_V8_FAILURE_ANALYSIS_PATH =
+  `${FORMATIVE_CONVERSATION_V5_EVALUATION_ROOT}/v8-failure-analysis.json`;
+export const FORMATIVE_CONVERSATION_V5_V8_HUMAN_REVIEW_ADVISORY_PATH =
+  `${FORMATIVE_CONVERSATION_V5_EVALUATION_ROOT}/v8-human-review-advisory.json`;
+export const FORMATIVE_CONVERSATION_V5_V9_REMOTE_CANARY_EVIDENCE_PATH =
+  `${FORMATIVE_CONVERSATION_V5_EVALUATION_ROOT}/remote-database-canary-evidence.json`;
 export const FORMATIVE_CONVERSATION_V5_PLAN_OUTPUT_ROOT =
   ".data/operational-formative-conversation-v5-evaluation-v9/plans";
 export const FORMATIVE_CONVERSATION_V5_RUN_OUTPUT_ROOT =
@@ -1058,13 +1066,87 @@ export const FormativeConversationV5ProtocolSchema = z
           .strict()
       })
       .strict(),
+    failed_v8_execution: z
+      .object({
+        frozen_commit: z.literal(
+          "afd7422b9e88c324b0150475ccd2954ebad86f8e"
+        ),
+        runtime_candidate_hash: z.literal(
+          "132d69caab27b6e94f8bfa416c89d843da97676f41dcefb11c0e03ec95d3af80"
+        ),
+        protocol_hash: z.literal(
+          "6359d96e27ed727e0eb1797f621bb08b4e6877f8065f5d6d7be6492a1d8eac15"
+        ),
+        provider_run_id: z.literal(
+          "fcv5v8_provider_20260801134821_4d583c17"
+        ),
+        derived_evaluation_id: z.literal(
+          "fcv5v8_derived_20260801134821_7de783d0"
+        ),
+        execution_status: z.literal("completed_failed"),
+        passed: z.literal(6),
+        failed: z.literal(2),
+        invalid: z.literal(0),
+        not_exercised: z.literal(0),
+        actual_logical_calls: z.literal(18),
+        expected_logical_calls: z.literal(21),
+        approval_eligible: z.literal(false),
+        activation_permitted: z.literal(false),
+        rerunnable: z.literal(false),
+        preserved_immutable: z.literal(true),
+        evidence_path: z.literal(
+          FORMATIVE_CONVERSATION_V5_V8_EVALUATION_EVIDENCE_PATH
+        ),
+        evidence_sha256: HashSchema,
+        failure_analysis_path: z.literal(
+          FORMATIVE_CONVERSATION_V5_V8_FAILURE_ANALYSIS_PATH
+        ),
+        failure_analysis_sha256: HashSchema,
+        human_review_advisory_path: z.literal(
+          FORMATIVE_CONVERSATION_V5_V8_HUMAN_REVIEW_ADVISORY_PATH
+        ),
+        human_review_advisory_sha256: HashSchema,
+        root_cause_classification: z
+          .object({
+            cases_5_and_7: z.literal(
+              "database_connection_lifecycle_interrupt_after_valid_provider_output"
+            ),
+            case_8: z.literal(
+              "misconception_field_semantic_contract_defect"
+            ),
+            secret_scan: z.literal(
+              "exact_value_scan_lifecycle_incomplete"
+            )
+          })
+          .strict()
+      })
+      .strict(),
+    remote_database_canary: z
+      .object({
+        contract_hash: z.literal(
+          "046beb25c1e3b66c18f54e196dbc73762aae3915ed34207e13063b41b7266423"
+        ),
+        evidence_path: z.literal(
+          FORMATIVE_CONVERSATION_V5_V9_REMOTE_CANARY_EVIDENCE_PATH
+        ),
+        evidence_sha256: HashSchema,
+        status: z.literal("passed"),
+        real_waits_completed: z.literal(true),
+        provider_calls: z.literal(0),
+        model_auth_requests: z.literal(0),
+        dispatch_checkpoints: z.literal(0),
+        retained_synthetic_records: z.literal(0),
+        ordinary_classroom_records_used: z.literal(false),
+        exact_secret_scan_passed: z.literal(true)
+      })
+      .strict(),
     target_identity: z
       .object({
         runtime_candidate_hash: HashSchema,
         model_snapshot: z.literal("gpt-5.6-sol"),
         reasoning_effort: z.literal("medium"),
         max_output_tokens: z.literal(3500),
-        prompt_version: z.literal("formative-conversation-host-v5.2"),
+        prompt_version: z.literal("formative-conversation-host-v5.3"),
         prompt_hash: HashSchema,
         schema_version: z.literal(
           "formative-conversation-agent-contract-v1"
@@ -1085,7 +1167,7 @@ export const FormativeConversationV5ProtocolSchema = z
           "formative-conversation-profile-transition-v4"
         ),
         profile_transition_validator_version: z.literal(
-          "formative-conversation-profile-transition-validator-v4"
+          "formative-conversation-profile-transition-validator-v5"
         ),
         student_output_format_version: z.literal(
           "formative-conversation-student-output-format-v1"
@@ -1103,13 +1185,34 @@ export const FormativeConversationV5ProtocolSchema = z
           "openai-responses-adapter-v4"
         ),
         persistence_contract_version: z.literal(
-          "formative-conversation-persistence-contract-v1"
+          "formative-conversation-persistence-contract-v2"
         ),
         provider_persistence_boundary_version: z.literal(
           "formative-conversation-provider-persistence-boundary-v1"
         ),
         evaluation_database_lifecycle_version: z.literal(
           "evaluation-database-lifecycle-v2"
+        ),
+        profile_field_semantics_version: z.literal(
+          "formative-conversation-profile-field-semantics-v1"
+        ),
+        persistence_observability_version: z.literal(
+          "formative-conversation-persistence-observability-v1"
+        ),
+        evaluation_database_connection_owner_version: z.literal(
+          "evaluation-database-connection-owner-v1"
+        ),
+        evaluation_database_read_recovery_version: z.literal(
+          "evaluation-database-read-recovery-v1"
+        ),
+        exact_secret_artifact_scanner_version: z.literal(
+          "exact-secret-artifact-scanner-v1"
+        ),
+        remote_database_canary_version: z.literal(
+          "formative-conversation-v9-remote-database-lifecycle-canary-v2"
+        ),
+        remote_database_canary_contract_hash: z.literal(
+          "046beb25c1e3b66c18f54e196dbc73762aae3915ed34207e13063b41b7266423"
         )
       })
       .strict(),
@@ -1192,14 +1295,24 @@ export const FormativeConversationV5ProtocolSchema = z
                   "immutable_v7_case7_replay",
                   "immutable_v7_case8_replay",
                   "immutable_v7_failure_analysis",
-                  "immutable_v7_human_review"
+                  "immutable_v7_human_review",
+                  "profile_field_semantics",
+                  "persistence_observability",
+                  "database_connection_owner",
+                  "exact_secret_scanner",
+                  "remote_database_canary",
+                  "canary_environment_broker",
+                  "immutable_v8_evaluation",
+                  "immutable_v8_failure_analysis",
+                  "immutable_v8_human_review",
+                  "remote_database_canary_evidence"
                 ]),
                 path: z.string().min(1),
                 sha256: HashSchema
               })
               .strict()
           )
-          .length(42)
+          .length(52)
       })
       .strict(),
     budget: FormativeConversationV5BudgetSchema,
@@ -1315,7 +1428,19 @@ export const FormativeConversationV5CandidateManifestSchema = z
       "81a60273d33976409e7450bffa6156e89a62e17e36edb7059e30c44979892356"
     ),
     failed_v7_execution_status: z.literal("completed_failed"),
-    failed_v7_rerunnable: z.literal(false)
+    failed_v7_rerunnable: z.literal(false),
+    failed_v8_protocol_hash: z.literal(
+      "6359d96e27ed727e0eb1797f621bb08b4e6877f8065f5d6d7be6492a1d8eac15"
+    ),
+    failed_v8_runtime_candidate_hash: z.literal(
+      "132d69caab27b6e94f8bfa416c89d843da97676f41dcefb11c0e03ec95d3af80"
+    ),
+    failed_v8_execution_status: z.literal("completed_failed"),
+    failed_v8_rerunnable: z.literal(false),
+    remote_database_canary_contract_hash: z.literal(
+      "046beb25c1e3b66c18f54e196dbc73762aae3915ed34207e13063b41b7266423"
+    ),
+    remote_database_canary_status: z.literal("passed")
   })
   .strict();
 
@@ -1439,6 +1564,13 @@ export const FormativeConversationV5CandidateIdentitySchema = z
           .strict()
       )
       .length(5),
+    failed_v8_runtime_candidate_hash: HashSchema,
+    failed_v8_protocol_hash: HashSchema,
+    failed_v8_evidence_sha256: HashSchema,
+    failed_v8_failure_analysis_sha256: HashSchema,
+    failed_v8_human_review_advisory_sha256: HashSchema,
+    remote_database_canary_contract_hash: HashSchema,
+    remote_database_canary_evidence_sha256: HashSchema,
     source_application_git_commit: Sha40Schema
   })
   .strict();
@@ -1552,7 +1684,26 @@ export const FormativeConversationV5SourceConfigurationSchema = z
               })
               .strict()
           )
-          .length(5)
+          .length(5),
+        failed_v8_runtime_candidate_hash: HashSchema,
+        failed_v8_protocol_hash: HashSchema,
+        failed_v8_source_commit_sha: Sha40Schema,
+        failed_v8_provider_run_id: z.string().min(1),
+        failed_v8_derived_evaluation_id: z.string().min(1),
+        failed_v8_execution_status: z.literal("completed_failed"),
+        failed_v8_approval_eligible: z.literal(false),
+        failed_v8_activation_permitted: z.literal(false),
+        failed_v8_rerunnable: z.literal(false),
+        failed_v8_evidence_path: z.string().min(1),
+        failed_v8_evidence_sha256: HashSchema,
+        failed_v8_failure_analysis_path: z.string().min(1),
+        failed_v8_failure_analysis_sha256: HashSchema,
+        failed_v8_human_review_advisory_path: z.string().min(1),
+        failed_v8_human_review_advisory_sha256: HashSchema,
+        remote_database_canary_contract_hash: HashSchema,
+        remote_database_canary_evidence_path: z.string().min(1),
+        remote_database_canary_evidence_sha256: HashSchema,
+        remote_database_canary_status: z.literal("passed")
       })
       .strict(),
     source_code_references: z.record(z.string(), z.string().min(1))

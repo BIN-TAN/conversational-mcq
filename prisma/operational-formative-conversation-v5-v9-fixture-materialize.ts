@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  copyFileSync,
   mkdirSync,
   readFileSync,
   writeFileSync
@@ -43,6 +44,13 @@ import { FORMATIVE_CONVERSATION_PERSISTENCE_CONTRACT_VERSION } from "../src/lib/
 import { FORMATIVE_CONVERSATION_PROVIDER_PERSISTENCE_BOUNDARY_VERSION } from "../src/lib/services/student-assessment/formative-conversation/provider-persistence-boundary";
 import { EVALUATION_DATABASE_LIFECYCLE_VERSION } from "../src/lib/operational/evaluation-database-lifecycle";
 import {
+  EVALUATION_DATABASE_CONNECTION_OWNER_VERSION,
+  EVALUATION_DATABASE_READ_RECOVERY_VERSION
+} from "../src/lib/operational/evaluation-database-connection-owner";
+import { EXACT_SECRET_ARTIFACT_SCANNER_VERSION } from "../src/lib/operational/exact-secret-artifact-scanner";
+import { FORMATIVE_CONVERSATION_PROFILE_FIELD_SEMANTICS_VERSION } from "../src/lib/services/student-assessment/formative-conversation/profile-field-semantics";
+import { FORMATIVE_CONVERSATION_PERSISTENCE_OBSERVABILITY_VERSION } from "../src/lib/services/student-assessment/formative-conversation/persistence-observability";
+import {
   FORMATIVE_CONVERSATION_V5_APPROVAL_PLACEHOLDER_PATH,
   FORMATIVE_CONVERSATION_V5_CANDIDATE_IDENTITY_PATH,
   FORMATIVE_CONVERSATION_V5_CANDIDATE_MANIFEST_PATH,
@@ -69,6 +77,10 @@ import {
   FORMATIVE_CONVERSATION_V5_V7_FAILURE_ANALYSIS_PATH,
   FORMATIVE_CONVERSATION_V5_V7_HASH_MANIFEST_PATH,
   FORMATIVE_CONVERSATION_V5_V7_HUMAN_REVIEW_ADJUDICATION_PATH,
+  FORMATIVE_CONVERSATION_V5_V8_EVALUATION_EVIDENCE_PATH,
+  FORMATIVE_CONVERSATION_V5_V8_FAILURE_ANALYSIS_PATH,
+  FORMATIVE_CONVERSATION_V5_V8_HUMAN_REVIEW_ADVISORY_PATH,
+  FORMATIVE_CONVERSATION_V5_V9_REMOTE_CANARY_EVIDENCE_PATH,
   FORMATIVE_CONVERSATION_V5_CASE7_EXACT_REPLAY_PATH,
   FORMATIVE_CONVERSATION_V5_CASE8_EXACT_REPLAY_PATH,
   FormativeConversationV5FixtureSchema
@@ -86,6 +98,10 @@ import {
   FORMATIVE_CONVERSATION_V5_REQUIRED_INJECTED_ENVIRONMENT,
   FORMATIVE_CONVERSATION_V5_SECRET_ENVIRONMENT
 } from "../src/lib/operational/formative-conversation-v5-evaluation-v9/live-environment";
+import {
+  FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_CONTRACT_HASH,
+  FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_VERSION
+} from "../src/lib/operational/formative-conversation-v5-evaluation-v9/remote-database-canary";
 
 const FAILED_V5_RUNTIME_CANDIDATE_HASH =
   "a408b08c39aa614d967552e1fd321fabf0b83c96a3d83c82a7bd381fa8e899b3";
@@ -109,6 +125,16 @@ const FAILED_V7_PROVIDER_RUN_ID =
   "fcv5v7_provider_20260801013024_27f671a7";
 const FAILED_V7_DERIVED_EVALUATION_ID =
   "fcv5v7_derived_20260801013024_4da7a38f";
+const FAILED_V8_RUNTIME_CANDIDATE_HASH =
+  "132d69caab27b6e94f8bfa416c89d843da97676f41dcefb11c0e03ec95d3af80";
+const FAILED_V8_PROTOCOL_HASH =
+  "6359d96e27ed727e0eb1797f621bb08b4e6877f8065f5d6d7be6492a1d8eac15";
+const FAILED_V8_SOURCE_COMMIT =
+  "afd7422b9e88c324b0150475ccd2954ebad86f8e";
+const FAILED_V8_PROVIDER_RUN_ID =
+  "fcv5v8_provider_20260801134821_4d583c17";
+const FAILED_V8_DERIVED_EVALUATION_ID =
+  "fcv5v8_derived_20260801134821_7de783d0";
 const FAILED_V4_PROTOCOL_HASH =
   "662a9e2e9ec2929147bd7ec0150708186f07e32ff2029f606de6b0e9d502c84e";
 const FAILED_V4_SOURCE_COMMIT =
@@ -124,6 +150,18 @@ const V7_ROOT =
 const V7_RUNTIME_CANDIDATE_PATH = `${V7_ROOT}/runtime-candidate-manifest.json`;
 const V7_SOURCE_CONFIGURATION_PATH = `${V7_ROOT}/source-configuration.json`;
 const V7_PROTOCOL_PATH = `${V7_ROOT}/executable-evaluation-protocol.json`;
+const V8_ROOT =
+  "config/operational-candidates/formative-conversation-host-v5-executable-v8";
+const V8_RUNTIME_CANDIDATE_PATH = `${V8_ROOT}/runtime-candidate-manifest.json`;
+const V8_PROTOCOL_PATH = `${V8_ROOT}/executable-evaluation-protocol.json`;
+const V8_RUN_ROOT =
+  ".data/operational-formative-conversation-v5-evaluation-v8/runs/fcv5v8_provider_20260801134821_4d583c17";
+const V8_ARTIFACT_HASH_MANIFEST_PATH =
+  `${V8_RUN_ROOT}/artifact-hash-manifest.json`;
+const V9_REMOTE_CANARY_ROOT =
+  ".data/operational-formative-conversation-v5-evaluation-v9/remote-database-canaries/fcv5v9_db_canary_20260801174128495_b588b3f0";
+const V9_REMOTE_CANARY_REPORT_PATH = `${V9_REMOTE_CANARY_ROOT}/canary-report.json`;
+const V9_REMOTE_CANARY_EXPORT_PATH = `${V9_REMOTE_CANARY_ROOT}/research-export.zip`;
 const V4_ROOT =
   "config/operational-candidates/formative-conversation-host-v5-executable-v4";
 const V4_PROTOCOL_PATH =
@@ -179,14 +217,84 @@ function currentGitCommit() {
   }).trim();
 }
 
-const sourceCandidate =
-  readCandidateOperationalModelConfig(RUNTIME_CANDIDATE_PATH);
 const failedV5Candidate =
   readCandidateOperationalModelConfig(V5_RUNTIME_CANDIDATE_PATH);
 const failedV6Candidate =
   readCandidateOperationalModelConfig(V6_RUNTIME_CANDIDATE_PATH);
 const failedV7Candidate =
   readCandidateOperationalModelConfig(V7_RUNTIME_CANDIDATE_PATH);
+const failedV8Candidate =
+  readCandidateOperationalModelConfig(V8_RUNTIME_CANDIDATE_PATH);
+
+const runtimeCandidateDraft = structuredClone(failedV8Candidate);
+runtimeCandidateDraft.manifest_version =
+  "candidate-operational-agent-config-gpt-5.6-full-v2-formative-conversation-v9";
+runtimeCandidateDraft.candidate_profile_name =
+  "GPT-5.6 full operational stack with formative conversation V9 persistence and evidence semantics";
+const runtimeFingerprint = runtimeCandidateDraft.configuration_fingerprint;
+if (!runtimeFingerprint) {
+  throw new Error("formative_conversation_v5_v9_runtime_fingerprint_missing");
+}
+runtimeFingerprint.deterministic_guard_versions = {
+  ...runtimeFingerprint.deterministic_guard_versions,
+  formative_conversation_profile_transition_validator:
+    FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VALIDATOR_VERSION,
+  formative_conversation_persistence:
+    FORMATIVE_CONVERSATION_PERSISTENCE_CONTRACT_VERSION,
+  formative_conversation_profile_field_semantics:
+    FORMATIVE_CONVERSATION_PROFILE_FIELD_SEMANTICS_VERSION,
+  formative_conversation_persistence_observability:
+    FORMATIVE_CONVERSATION_PERSISTENCE_OBSERVABILITY_VERSION,
+  evaluation_database_connection_owner:
+    EVALUATION_DATABASE_CONNECTION_OWNER_VERSION,
+  evaluation_database_read_recovery:
+    EVALUATION_DATABASE_READ_RECOVERY_VERSION,
+  exact_secret_artifact_scanner: EXACT_SECRET_ARTIFACT_SCANNER_VERSION,
+  formative_conversation_remote_database_canary:
+    FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_VERSION
+};
+const formativeRoleMetadata =
+  runtimeFingerprint.role_version_metadata.formative_conversation_agent;
+if (!formativeRoleMetadata) {
+  throw new Error("formative_conversation_v5_v9_role_metadata_missing");
+}
+formativeRoleMetadata.prompt_version = FORMATIVE_CONVERSATION_PROMPT_VERSION;
+formativeRoleMetadata.prompt_hash = FORMATIVE_CONVERSATION_PROMPT_HASH;
+formativeRoleMetadata.profile_transition_version =
+  FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VERSION;
+formativeRoleMetadata.profile_transition_validator_version =
+  FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VALIDATOR_VERSION;
+writeJson(RUNTIME_CANDIDATE_PATH, runtimeCandidateDraft);
+
+const sourceCandidate =
+  readCandidateOperationalModelConfig(RUNTIME_CANDIDATE_PATH);
+
+const preservedV8RelativePaths = [
+  "v3-failure-analysis.json",
+  "v3-human-review-advisory.json",
+  "v5-failure-analysis.json",
+  "v5-human-review-advisory.json",
+  "v6-failure-analysis.json",
+  "v6-human-review-advisory.json",
+  "v7-failure-analysis.json",
+  "v7-human-review-adjudication.json",
+  "regressions/case7-opening-output.json",
+  "regressions/case7-exact-v5-output-replay.json",
+  "regressions/case8-exact-v5-output-replay.json",
+  "regressions/immutable-v7-aggregate-evaluation.json",
+  "regressions/immutable-v7-artifact-hash-manifest.json",
+  "regressions/immutable-v7-case5-transcript.json",
+  "regressions/immutable-v7-case7-transcript.json",
+  "regressions/immutable-v7-case8-transcript.json"
+] as const;
+for (const relativePath of preservedV8RelativePaths) {
+  const sourcePath = absolute(`${V8_ROOT}/${relativePath}`);
+  const targetPath = absolute(
+    `${FORMATIVE_CONVERSATION_V5_EVALUATION_ROOT}/${relativePath}`
+  );
+  mkdirSync(path.dirname(targetPath), { recursive: true });
+  copyFileSync(sourcePath, targetPath);
+}
 const sourceCandidateHash =
   candidateOperationalModelHash(sourceCandidate);
 const runtimeCandidateHash =
@@ -197,18 +305,22 @@ const failedV6RuntimeCandidateHash =
   candidateRuntimeConfigurationHash(failedV6Candidate);
 const failedV7RuntimeCandidateHash =
   candidateRuntimeConfigurationHash(failedV7Candidate);
+const failedV8RuntimeCandidateHash =
+  candidateRuntimeConfigurationHash(failedV8Candidate);
 const candidateActiveConfigurationHash =
   candidateActiveOperationalConfigHash(sourceCandidate);
 if (
   failedV5RuntimeCandidateHash !== FAILED_V5_RUNTIME_CANDIDATE_HASH ||
   failedV6RuntimeCandidateHash !== FAILED_V6_RUNTIME_CANDIDATE_HASH ||
   failedV7RuntimeCandidateHash !== FAILED_V7_RUNTIME_CANDIDATE_HASH ||
+  failedV8RuntimeCandidateHash !== FAILED_V8_RUNTIME_CANDIDATE_HASH ||
   runtimeCandidateHash === FAILED_V5_RUNTIME_CANDIDATE_HASH ||
   runtimeCandidateHash === FAILED_V6_RUNTIME_CANDIDATE_HASH ||
-  runtimeCandidateHash === FAILED_V7_RUNTIME_CANDIDATE_HASH
+  runtimeCandidateHash === FAILED_V7_RUNTIME_CANDIDATE_HASH ||
+  runtimeCandidateHash === FAILED_V8_RUNTIME_CANDIDATE_HASH
 ) {
   throw new Error(
-    "formative_conversation_v5_v8_runtime_candidate_identity_invalid"
+    "formative_conversation_v5_v9_runtime_candidate_identity_invalid"
   );
 }
 if (
@@ -223,10 +335,14 @@ if (
   JSON.stringify(sourceCandidate.roles) !==
     JSON.stringify(failedV7Candidate.roles) ||
   JSON.stringify(sourceCandidate.runtime_policy) !==
-    JSON.stringify(failedV7Candidate.runtime_policy)
+    JSON.stringify(failedV7Candidate.runtime_policy) ||
+  JSON.stringify(sourceCandidate.roles) !==
+    JSON.stringify(failedV8Candidate.roles) ||
+  JSON.stringify(sourceCandidate.runtime_policy) !==
+    JSON.stringify(failedV8Candidate.runtime_policy)
 ) {
   throw new Error(
-    "formative_conversation_v5_v8_model_or_runtime_policy_changed"
+    "formative_conversation_v5_v9_model_or_runtime_policy_changed"
   );
 }
 
@@ -249,6 +365,10 @@ if (stableHash(v7Protocol) !== FAILED_V7_PROTOCOL_HASH) {
   throw new Error(
     "formative_conversation_v5_v7_protocol_changed"
   );
+}
+const v8Protocol = readJson(V8_PROTOCOL_PATH);
+if (stableHash(v8Protocol) !== FAILED_V8_PROTOCOL_HASH) {
+  throw new Error("formative_conversation_v5_v8_protocol_changed");
 }
 for (const plan of V4_PLAN_ARTIFACTS) {
   if (fileSha(plan.path) !== plan.sha256) {
@@ -296,7 +416,21 @@ const targetRoleIdentity = {
   provider_persistence_boundary_version:
     FORMATIVE_CONVERSATION_PROVIDER_PERSISTENCE_BOUNDARY_VERSION,
   evaluation_database_lifecycle_version:
-    EVALUATION_DATABASE_LIFECYCLE_VERSION
+    EVALUATION_DATABASE_LIFECYCLE_VERSION,
+  profile_field_semantics_version:
+    FORMATIVE_CONVERSATION_PROFILE_FIELD_SEMANTICS_VERSION,
+  persistence_observability_version:
+    FORMATIVE_CONVERSATION_PERSISTENCE_OBSERVABILITY_VERSION,
+  evaluation_database_connection_owner_version:
+    EVALUATION_DATABASE_CONNECTION_OWNER_VERSION,
+  evaluation_database_read_recovery_version:
+    EVALUATION_DATABASE_READ_RECOVERY_VERSION,
+  exact_secret_artifact_scanner_version:
+    EXACT_SECRET_ARTIFACT_SCANNER_VERSION,
+  remote_database_canary_version:
+    FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_VERSION,
+  remote_database_canary_contract_hash:
+    FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_CONTRACT_HASH
 };
 
 const failedV4PreDispatch = {
@@ -437,6 +571,215 @@ if (
     "formative_conversation_v5_v7_failure_identity_invalid"
   );
 }
+
+const v8ArtifactHashManifest = readJson(
+  V8_ARTIFACT_HASH_MANIFEST_PATH
+) as {
+  artifact_version: string;
+  source_provider_run_id: string;
+  artifacts: Array<{ path: string; sha256: string }>;
+};
+if (
+  v8ArtifactHashManifest.artifact_version !==
+    "formative-conversation-v5-artifact-hash-manifest-v1" ||
+  v8ArtifactHashManifest.source_provider_run_id !==
+    FAILED_V8_PROVIDER_RUN_ID ||
+  v8ArtifactHashManifest.artifacts.length !== 23
+) {
+  throw new Error("formative_conversation_v5_v8_artifact_manifest_invalid");
+}
+for (const artifact of v8ArtifactHashManifest.artifacts) {
+  if (fileSha(`${V8_RUN_ROOT}/${artifact.path}`) !== artifact.sha256) {
+    throw new Error(
+      "formative_conversation_v5_v8_immutable_evidence_changed"
+    );
+  }
+}
+const failedV8Aggregate = readJson(`${V8_RUN_ROOT}/aggregate-evaluation.json`);
+if (
+  failedV8Aggregate.provider_run_id !== FAILED_V8_PROVIDER_RUN_ID ||
+  failedV8Aggregate.derived_evaluation_id !==
+    FAILED_V8_DERIVED_EVALUATION_ID ||
+  failedV8Aggregate.status !== "completed_failed" ||
+  failedV8Aggregate.case_count !== 8 ||
+  failedV8Aggregate.actual_logical_call_count !== 18
+) {
+  throw new Error("formative_conversation_v5_v8_failure_identity_invalid");
+}
+const immutableV8Evidence = {
+  artifact_version:
+    "formative-conversation-v5-v8-immutable-evaluation-evidence-v1",
+  source_commit_sha: FAILED_V8_SOURCE_COMMIT,
+  runtime_candidate_hash: FAILED_V8_RUNTIME_CANDIDATE_HASH,
+  protocol_hash: FAILED_V8_PROTOCOL_HASH,
+  provider_run_id: FAILED_V8_PROVIDER_RUN_ID,
+  derived_evaluation_id: FAILED_V8_DERIVED_EVALUATION_ID,
+  status: "completed_failed",
+  passed: 6,
+  failed: 2,
+  invalid: 0,
+  not_exercised: 0,
+  actual_logical_calls: 18,
+  expected_logical_calls: 21,
+  approval_eligible: false,
+  activation_permitted: false,
+  rerunnable: false,
+  artifact_hash_manifest_sha256: fileSha(V8_ARTIFACT_HASH_MANIFEST_PATH),
+  artifacts: v8ArtifactHashManifest.artifacts,
+  preserved_immutable: true
+};
+writeJson(
+  FORMATIVE_CONVERSATION_V5_V8_EVALUATION_EVIDENCE_PATH,
+  immutableV8Evidence
+);
+
+const v8FailureAnalysis = {
+  artifact_version: "formative-conversation-v5-v8-failure-analysis-v1",
+  source_runtime_candidate_hash: FAILED_V8_RUNTIME_CANDIDATE_HASH,
+  source_protocol_hash: FAILED_V8_PROTOCOL_HASH,
+  source_provider_run_id: FAILED_V8_PROVIDER_RUN_ID,
+  source_derived_evaluation_id: FAILED_V8_DERIVED_EVALUATION_ID,
+  execution_status: "completed_failed",
+  findings: [
+    {
+      cases: [
+        "fcv5_05_sound_profile_transition",
+        "fcv5_07_persistent_barrier_teacher_assistance"
+      ],
+      classification:
+        "database_connection_lifecycle_interrupt_after_valid_provider_output",
+      evidence:
+        "Provider bodies completed and validated before later database operations failed; subsequent cases recovered.",
+      correction:
+        "Evaluation-owned connection lifecycle, bounded stale-connection recovery, idempotent write reconciliation, and typed persistence diagnostics."
+    },
+    {
+      cases: ["fcv5_08_mixed_resolved_evidence"],
+      classification: "misconception_field_semantic_contract_defect",
+      evidence:
+        "The persisted recommendation used current misconception evidence for resolved evidence and a remaining question.",
+      correction:
+        "Shared field-semantics validation rejects semantically misplaced misconception evidence before persistence."
+    },
+    {
+      cases: ["all"],
+      classification: "exact_value_scan_lifecycle_incomplete",
+      evidence:
+        "Generic scanning completed, but exact secret values were cleared before an artifact-wide exact-value proof.",
+      correction:
+        "Exact values remain process-local through regular-file, ZIP-entry, and buffered-output scanning, then are cleared."
+    }
+  ],
+  candidate_output_defects: [
+    "case_8_misconception_field_semantics"
+  ],
+  runtime_environment_defects: [
+    "cases_5_and_7_database_connection_lifecycle",
+    "artifact_exact_secret_scan_ordering"
+  ],
+  teaching_prompt_changed: true,
+  teaching_prompt_change_scope:
+    "field-disposition and misconception-field semantics only",
+  provider_calls: 0,
+  approval_eligible: false,
+  activation_permitted: false
+};
+writeJson(
+  FORMATIVE_CONVERSATION_V5_V8_FAILURE_ANALYSIS_PATH,
+  v8FailureAnalysis
+);
+
+const v8HumanReviewAdvisory = {
+  artifact_version:
+    "formative-conversation-v5-v8-human-review-advisory-v1",
+  source_provider_run_id: FAILED_V8_PROVIDER_RUN_ID,
+  review_scope: "all_available_student_visible_tutor_outputs",
+  status: "diagnostic_advisory_not_approval",
+  findings: {
+    conceptual_accuracy: "no_blocking_error_identified_in_available_outputs",
+    adaptation: "present_in_completed_exchanges",
+    direct_answer_compliance: "acceptable",
+    related_concept_handling: "acceptable",
+    unjustified_mastery_claims: "not_identified",
+    excessive_praise: "not_identified",
+    directive_tone: "minor_review_only",
+    report_or_activity_language: "not_blocking",
+    internal_terminology: "not_identified",
+    markdown_support: "within_supported_contract",
+    privacy_and_answer_visibility: "passed"
+  },
+  runtime_failures_prevent_official_approval: true,
+  approval_eligible: false,
+  activation_permitted: false
+};
+writeJson(
+  FORMATIVE_CONVERSATION_V5_V8_HUMAN_REVIEW_ADVISORY_PATH,
+  v8HumanReviewAdvisory
+);
+
+const remoteCanaryReport = readJson(V9_REMOTE_CANARY_REPORT_PATH);
+const remoteCanaryReportSha = fileSha(V9_REMOTE_CANARY_REPORT_PATH);
+const remoteCanaryExportSha = fileSha(V9_REMOTE_CANARY_EXPORT_PATH);
+if (
+  remoteCanaryReportSha !==
+    "2e73b3ed454e4be8b063499c3fb20ea047810330966a5e913aba8af5b523333e" ||
+  remoteCanaryExportSha !==
+    "13827abcb36fa34efbb30dcd16d2e7da4cc3723b251e644a40f26793fc496f65" ||
+  remoteCanaryReport.contract_hash !==
+    FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_CONTRACT_HASH ||
+  remoteCanaryReport.status !== "passed" ||
+  remoteCanaryReport.provider_calls !== 0 ||
+  remoteCanaryReport.model_auth_requests !== 0 ||
+  remoteCanaryReport.dispatch_checkpoints !== 0 ||
+  remoteCanaryReport.ordinary_classroom_records_used !== false
+) {
+  throw new Error(
+    "formative_conversation_v5_v9_remote_canary_evidence_invalid"
+  );
+}
+const remoteCanaryEvidence = {
+  artifact_version:
+    "formative-conversation-v9-remote-database-canary-evidence-v1",
+  source_commit_sha: currentGitCommit(),
+  contract_hash:
+    FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_CONTRACT_HASH,
+  run_public_id: remoteCanaryReport.run_public_id,
+  status: "passed",
+  report_sha256: remoteCanaryReportSha,
+  research_export_sha256: remoteCanaryExportSha,
+  waits: remoteCanaryReport.waits,
+  connection_recovery: remoteCanaryReport.connection_recovery,
+  transaction_summary: remoteCanaryReport.transaction_summary,
+  persistence_integrity: remoteCanaryReport.persistence_integrity,
+  idempotency_replay: remoteCanaryReport.idempotency_replay,
+  outcomes: remoteCanaryReport.outcomes,
+  research_export: remoteCanaryReport.research_export,
+  artifact_secret_scan: remoteCanaryReport.artifact_secret_scan,
+  isolated_record_counts: remoteCanaryReport.isolated_record_counts,
+  cleanup: remoteCanaryReport.cleanup,
+  provider_calls: 0,
+  model_auth_requests: 0,
+  dispatch_checkpoints: 0,
+  ordinary_classroom_records_used: false,
+  secrets_recorded: false,
+  preserved_as_no_provider_gate_evidence: true
+};
+writeJson(
+  FORMATIVE_CONVERSATION_V5_V9_REMOTE_CANARY_EVIDENCE_PATH,
+  remoteCanaryEvidence
+);
+const failedV8EvidenceSha = fileSha(
+  FORMATIVE_CONVERSATION_V5_V8_EVALUATION_EVIDENCE_PATH
+);
+const failedV8FailureAnalysisSha = fileSha(
+  FORMATIVE_CONVERSATION_V5_V8_FAILURE_ANALYSIS_PATH
+);
+const failedV8HumanReviewAdvisorySha = fileSha(
+  FORMATIVE_CONVERSATION_V5_V8_HUMAN_REVIEW_ADVISORY_PATH
+);
+const remoteCanaryEvidenceSha = fileSha(
+  FORMATIVE_CONVERSATION_V5_V9_REMOTE_CANARY_EVIDENCE_PATH
+);
 
 const liveEnvironmentContract = {
   contract_version:
@@ -631,7 +974,36 @@ const sourceConfiguration = {
     failed_v7_approval_eligible: false,
     failed_v7_activation_permitted: false,
     failed_v7_rerunnable: false,
-    failed_v7_immutable_evidence: immutableV7Evidence
+    failed_v7_immutable_evidence: immutableV7Evidence,
+    failed_v8_runtime_candidate_hash:
+      FAILED_V8_RUNTIME_CANDIDATE_HASH,
+    failed_v8_protocol_hash: FAILED_V8_PROTOCOL_HASH,
+    failed_v8_source_commit_sha: FAILED_V8_SOURCE_COMMIT,
+    failed_v8_provider_run_id: FAILED_V8_PROVIDER_RUN_ID,
+    failed_v8_derived_evaluation_id:
+      FAILED_V8_DERIVED_EVALUATION_ID,
+    failed_v8_execution_status: "completed_failed",
+    failed_v8_approval_eligible: false,
+    failed_v8_activation_permitted: false,
+    failed_v8_rerunnable: false,
+    failed_v8_evidence_path:
+      FORMATIVE_CONVERSATION_V5_V8_EVALUATION_EVIDENCE_PATH,
+    failed_v8_evidence_sha256: failedV8EvidenceSha,
+    failed_v8_failure_analysis_path:
+      FORMATIVE_CONVERSATION_V5_V8_FAILURE_ANALYSIS_PATH,
+    failed_v8_failure_analysis_sha256:
+      failedV8FailureAnalysisSha,
+    failed_v8_human_review_advisory_path:
+      FORMATIVE_CONVERSATION_V5_V8_HUMAN_REVIEW_ADVISORY_PATH,
+    failed_v8_human_review_advisory_sha256:
+      failedV8HumanReviewAdvisorySha,
+    remote_database_canary_contract_hash:
+      FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_CONTRACT_HASH,
+    remote_database_canary_evidence_path:
+      FORMATIVE_CONVERSATION_V5_V9_REMOTE_CANARY_EVIDENCE_PATH,
+    remote_database_canary_evidence_sha256:
+      remoteCanaryEvidenceSha,
+    remote_database_canary_status: "passed"
   },
   source_code_references: {
     runtime_prompt_and_identity:
@@ -666,6 +1038,18 @@ const sourceConfiguration = {
       "src/lib/llm/openai-transport-diagnostics.ts",
     evaluation_database_lifecycle:
       "src/lib/operational/evaluation-database-lifecycle.ts",
+    evaluation_database_connection_owner:
+      "src/lib/operational/evaluation-database-connection-owner.ts",
+    persistence_observability:
+      "src/lib/services/student-assessment/formative-conversation/persistence-observability.ts",
+    profile_field_semantics:
+      "src/lib/services/student-assessment/formative-conversation/profile-field-semantics.ts",
+    exact_secret_artifact_scanner:
+      "src/lib/operational/exact-secret-artifact-scanner.ts",
+    remote_database_canary:
+      "src/lib/operational/formative-conversation-v5-evaluation-v9/remote-database-canary.ts",
+    canary_environment_broker:
+      "scripts/operational-formative-conversation-v5-v9-canary-environment-broker.mjs",
     formative_runtime:
       "src/lib/services/student-assessment/formative-conversation/runtime.ts",
     live_environment_parity:
@@ -724,7 +1108,15 @@ const candidateManifest = {
   failed_v7_runtime_candidate_hash:
     FAILED_V7_RUNTIME_CANDIDATE_HASH,
   failed_v7_execution_status: "completed_failed",
-  failed_v7_rerunnable: false
+  failed_v7_rerunnable: false,
+  failed_v8_protocol_hash: FAILED_V8_PROTOCOL_HASH,
+  failed_v8_runtime_candidate_hash:
+    FAILED_V8_RUNTIME_CANDIDATE_HASH,
+  failed_v8_execution_status: "completed_failed",
+  failed_v8_rerunnable: false,
+  remote_database_canary_contract_hash:
+    FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_CONTRACT_HASH,
+  remote_database_canary_status: "passed"
 };
 writeJson(
   FORMATIVE_CONVERSATION_V5_CANDIDATE_MANIFEST_PATH,
@@ -953,6 +1345,46 @@ const runnerImplementationFiles = [
   {
     role: "immutable_v7_human_review",
     path: FORMATIVE_CONVERSATION_V5_V7_HUMAN_REVIEW_ADJUDICATION_PATH
+  },
+  {
+    role: "profile_field_semantics",
+    path: "src/lib/services/student-assessment/formative-conversation/profile-field-semantics.ts"
+  },
+  {
+    role: "persistence_observability",
+    path: "src/lib/services/student-assessment/formative-conversation/persistence-observability.ts"
+  },
+  {
+    role: "database_connection_owner",
+    path: "src/lib/operational/evaluation-database-connection-owner.ts"
+  },
+  {
+    role: "exact_secret_scanner",
+    path: "src/lib/operational/exact-secret-artifact-scanner.ts"
+  },
+  {
+    role: "remote_database_canary",
+    path: "src/lib/operational/formative-conversation-v5-evaluation-v9/remote-database-canary.ts"
+  },
+  {
+    role: "canary_environment_broker",
+    path: "scripts/operational-formative-conversation-v5-v9-canary-environment-broker.mjs"
+  },
+  {
+    role: "immutable_v8_evaluation",
+    path: FORMATIVE_CONVERSATION_V5_V8_EVALUATION_EVIDENCE_PATH
+  },
+  {
+    role: "immutable_v8_failure_analysis",
+    path: FORMATIVE_CONVERSATION_V5_V8_FAILURE_ANALYSIS_PATH
+  },
+  {
+    role: "immutable_v8_human_review",
+    path: FORMATIVE_CONVERSATION_V5_V8_HUMAN_REVIEW_ADVISORY_PATH
+  },
+  {
+    role: "remote_database_canary_evidence",
+    path: FORMATIVE_CONVERSATION_V5_V9_REMOTE_CANARY_EVIDENCE_PATH
   }
 ].map((entry) => ({
   ...entry,
@@ -1080,6 +1512,55 @@ const protocol: Record<string, unknown> = {
         "fixture_overconstrained_sound_with_unresolved_sem"
     }
   },
+  failed_v8_execution: {
+    frozen_commit: FAILED_V8_SOURCE_COMMIT,
+    runtime_candidate_hash: FAILED_V8_RUNTIME_CANDIDATE_HASH,
+    protocol_hash: FAILED_V8_PROTOCOL_HASH,
+    provider_run_id: FAILED_V8_PROVIDER_RUN_ID,
+    derived_evaluation_id: FAILED_V8_DERIVED_EVALUATION_ID,
+    execution_status: "completed_failed",
+    passed: 6,
+    failed: 2,
+    invalid: 0,
+    not_exercised: 0,
+    actual_logical_calls: 18,
+    expected_logical_calls: 21,
+    approval_eligible: false,
+    activation_permitted: false,
+    rerunnable: false,
+    preserved_immutable: true,
+    evidence_path:
+      FORMATIVE_CONVERSATION_V5_V8_EVALUATION_EVIDENCE_PATH,
+    evidence_sha256: failedV8EvidenceSha,
+    failure_analysis_path:
+      FORMATIVE_CONVERSATION_V5_V8_FAILURE_ANALYSIS_PATH,
+    failure_analysis_sha256: failedV8FailureAnalysisSha,
+    human_review_advisory_path:
+      FORMATIVE_CONVERSATION_V5_V8_HUMAN_REVIEW_ADVISORY_PATH,
+    human_review_advisory_sha256:
+      failedV8HumanReviewAdvisorySha,
+    root_cause_classification: {
+      cases_5_and_7:
+        "database_connection_lifecycle_interrupt_after_valid_provider_output",
+      case_8: "misconception_field_semantic_contract_defect",
+      secret_scan: "exact_value_scan_lifecycle_incomplete"
+    }
+  },
+  remote_database_canary: {
+    contract_hash:
+      FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_CONTRACT_HASH,
+    evidence_path:
+      FORMATIVE_CONVERSATION_V5_V9_REMOTE_CANARY_EVIDENCE_PATH,
+    evidence_sha256: remoteCanaryEvidenceSha,
+    status: "passed",
+    real_waits_completed: true,
+    provider_calls: 0,
+    model_auth_requests: 0,
+    dispatch_checkpoints: 0,
+    retained_synthetic_records: 0,
+    ordinary_classroom_records_used: false,
+    exact_secret_scan_passed: true
+  },
   target_identity: {
     runtime_candidate_hash: runtimeCandidateHash,
     model_snapshot: targetRoleIdentity.model_snapshot,
@@ -1112,7 +1593,21 @@ const protocol: Record<string, unknown> = {
     provider_persistence_boundary_version:
       targetRoleIdentity.provider_persistence_boundary_version,
     evaluation_database_lifecycle_version:
-      targetRoleIdentity.evaluation_database_lifecycle_version
+      targetRoleIdentity.evaluation_database_lifecycle_version,
+    profile_field_semantics_version:
+      targetRoleIdentity.profile_field_semantics_version,
+    persistence_observability_version:
+      targetRoleIdentity.persistence_observability_version,
+    evaluation_database_connection_owner_version:
+      targetRoleIdentity.evaluation_database_connection_owner_version,
+    evaluation_database_read_recovery_version:
+      targetRoleIdentity.evaluation_database_read_recovery_version,
+    exact_secret_artifact_scanner_version:
+      targetRoleIdentity.exact_secret_artifact_scanner_version,
+    remote_database_canary_version:
+      targetRoleIdentity.remote_database_canary_version,
+    remote_database_canary_contract_hash:
+      targetRoleIdentity.remote_database_canary_contract_hash
   },
   execution_policy: {
     ...(v7Protocol.execution_policy as Record<string, unknown>),
@@ -1293,6 +1788,18 @@ const candidateIdentity = {
     FAILED_V7_RUNTIME_CANDIDATE_HASH,
   failed_v7_protocol_hash: FAILED_V7_PROTOCOL_HASH,
   failed_v7_immutable_evidence: immutableV7Evidence,
+  failed_v8_runtime_candidate_hash:
+    FAILED_V8_RUNTIME_CANDIDATE_HASH,
+  failed_v8_protocol_hash: FAILED_V8_PROTOCOL_HASH,
+  failed_v8_evidence_sha256: failedV8EvidenceSha,
+  failed_v8_failure_analysis_sha256:
+    failedV8FailureAnalysisSha,
+  failed_v8_human_review_advisory_sha256:
+    failedV8HumanReviewAdvisorySha,
+  remote_database_canary_contract_hash:
+    FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_CONTRACT_HASH,
+  remote_database_canary_evidence_sha256:
+    remoteCanaryEvidenceSha,
   source_application_git_commit:
     sourceConfiguration.captured_from_application_git_commit
 };
@@ -1327,7 +1834,16 @@ console.log(
         failedV6FailureAnalysisSha,
       failed_v6_human_review_advisory_sha256:
         failedV6HumanReviewAdvisorySha,
-      failed_v7_immutable_evidence: immutableV7Evidence
+      failed_v7_immutable_evidence: immutableV7Evidence,
+      failed_v8_evidence_sha256: failedV8EvidenceSha,
+      failed_v8_failure_analysis_sha256:
+        failedV8FailureAnalysisSha,
+      failed_v8_human_review_advisory_sha256:
+        failedV8HumanReviewAdvisorySha,
+      remote_database_canary_contract_hash:
+        FORMATIVE_CONVERSATION_V9_REMOTE_DATABASE_CANARY_CONTRACT_HASH,
+      remote_database_canary_evidence_sha256:
+        remoteCanaryEvidenceSha
     },
     null,
     2

@@ -1,0 +1,199 @@
+{
+  "artifact_version": "formative-conversation-v9-remote-database-canary-evidence-v1",
+  "source_commit_sha": "97636bbe35845f08bef02fcfa664c8afa695bf99",
+  "contract_hash": "046beb25c1e3b66c18f54e196dbc73762aae3915ed34207e13063b41b7266423",
+  "run_public_id": "fcv5v9_db_canary_20260801174128495_b588b3f0",
+  "status": "passed",
+  "report_sha256": "2e73b3ed454e4be8b063499c3fb20ea047810330966a5e913aba8af5b523333e",
+  "research_export_sha256": "13827abcb36fa34efbb30dcd16d2e7da4cc3723b251e644a40f26793fc496f65",
+  "waits": [
+    {
+      "subject_id": "sudden_improvement",
+      "requested_wait_ms": 10000,
+      "actual_wait_ms": 10002,
+      "started_at": "2026-08-01T17:42:19.788Z",
+      "completed_at": "2026-08-01T17:42:29.790Z",
+      "context_read_kind": "student_message",
+      "context_read_succeeded": true
+    },
+    {
+      "subject_id": "confident_misconception",
+      "requested_wait_ms": 60000,
+      "actual_wait_ms": 60001,
+      "started_at": "2026-08-01T17:43:59.721Z",
+      "completed_at": "2026-08-01T17:44:59.722Z",
+      "context_read_kind": "student_message",
+      "context_read_succeeded": true
+    },
+    {
+      "subject_id": "persistent_non_improvement",
+      "requested_wait_ms": 90000,
+      "actual_wait_ms": 90001,
+      "started_at": "2026-08-01T17:46:42.342Z",
+      "completed_at": "2026-08-01T17:48:12.343Z",
+      "context_read_kind": "student_message",
+      "context_read_succeeded": true
+    }
+  ],
+  "connection_recovery": {
+    "client_state_before_final_disconnect": {
+      "client_id": "formative-conversation-v9-evaluation-prisma",
+      "client_generation": 1,
+      "reconnect_count": 0,
+      "max_read_attempts": 2,
+      "final_disconnect_started": false,
+      "final_disconnect_completed": false,
+      "pool_state": "opaque_prisma_pool"
+    },
+    "final_disconnect_managed_by_evaluation_lifecycle": true,
+    "reconnect_attempts": 0,
+    "reconnect_results": []
+  },
+  "transaction_summary": {
+    "count": 15,
+    "minimum_duration_ms": 1639,
+    "maximum_duration_ms": 4517,
+    "exact_durations_ms": [
+      3304,
+      3084,
+      2592,
+      4517,
+      3292,
+      4263,
+      3036,
+      4416,
+      3348,
+      4199,
+      3029,
+      4488,
+      2750,
+      2616,
+      1639
+    ],
+    "timeout_ms": 30000,
+    "open_during_simulated_wait": false
+  },
+  "persistence_integrity": {
+    "partial_commit_detected": false,
+    "typed_failures": []
+  },
+  "idempotency_replay": {
+    "status": "passed",
+    "results": [
+      {
+        "subject_id": "sudden_improvement",
+        "replayed": true,
+        "tutor_turn_present": true,
+        "transition_public_id": "cmsantj22000wldkfz5g5094f"
+      },
+      {
+        "subject_id": "confident_misconception",
+        "replayed": true,
+        "tutor_turn_present": true,
+        "transition_public_id": "cmsanx0yz001vldkfezs8qr2a"
+      },
+      {
+        "subject_id": "persistent_non_improvement",
+        "replayed": true,
+        "tutor_turn_present": true,
+        "transition_public_id": "cmsao16ud002uldkf1oiqqf1a"
+      }
+    ],
+    "record_counts_unchanged": true,
+    "duplicate_counts": {
+      "agent_invocation_keys": 0,
+      "message_receipts": 0,
+      "lifecycle_events": 0,
+      "transition_agent_calls": 0,
+      "evidence_references": 0
+    }
+  },
+  "outcomes": [
+    {
+      "subject_id": "sudden_improvement",
+      "session_public_id": "sess_20260801_2om701k",
+      "conversation_public_id": "cmsanrubh0001ldkfckwwh27z",
+      "transition_public_id": "cmsantj22000wldkfz5g5094f",
+      "outcome": "sound",
+      "supporting_turn_count": 2,
+      "evidence_reference_count": 1,
+      "source_agent_call_public_id": "cmsant39l000nldkfsr0eju3t"
+    },
+    {
+      "subject_id": "confident_misconception",
+      "session_public_id": "sess_20260801_xp-aou4",
+      "conversation_public_id": "cmsantzrz0010ldkf3e1tuxrw",
+      "transition_public_id": "cmsanx0yz001vldkfezs8qr2a",
+      "outcome": "largely_improved",
+      "supporting_turn_count": 2,
+      "evidence_reference_count": 1,
+      "source_agent_call_public_id": "cmsanwjyp001mldkfwejep7sd"
+    },
+    {
+      "subject_id": "persistent_non_improvement",
+      "session_public_id": "sess_20260801_ea6nvpi",
+      "conversation_public_id": "cmsanxhan001zldkfst0fyc8g",
+      "transition_public_id": "cmsao16ud002uldkf1oiqqf1a",
+      "outcome": "teacher_assistance_recommended",
+      "supporting_turn_count": 2,
+      "evidence_reference_count": 1,
+      "source_agent_call_public_id": "cmsao0pat002lldkfa79ij9dg"
+    }
+  ],
+  "research_export": {
+    "validation_status": "passed",
+    "archive_path": "research-export.zip"
+  },
+  "artifact_secret_scan": {
+    "scanner_version": "exact-secret-artifact-scanner-v1",
+    "status": "passed",
+    "secrets_checked": 3,
+    "files_checked": 2,
+    "zip_entries_checked": 16,
+    "matches_found": 0,
+    "final_artifact_scan_revalidated": true
+  },
+  "isolated_record_counts": {
+    "users": 4,
+    "assessments": 1,
+    "assessment_sessions": 3,
+    "concept_unit_sessions": 3,
+    "formative_conversation_sessions": 3,
+    "item_responses": 9,
+    "assessment_process_events": 70,
+    "conversation_turns": 9,
+    "agent_calls": 6,
+    "message_receipts": 6,
+    "lifecycle_events": 30,
+    "turn_telemetry": 9,
+    "input_telemetry": 3,
+    "student_profiles": 6,
+    "profile_transitions": 3,
+    "transition_turn_references": 6,
+    "profile_evidence_references": 3,
+    "activity_runtime_attempts": 0,
+    "topic_dialogues": 0,
+    "duplicate_audit": {
+      "agent_invocation_keys": 0,
+      "message_receipts": 0,
+      "lifecycle_events": 0,
+      "transition_agent_calls": 0,
+      "evidence_references": 0
+    },
+    "transition_public_ids": [
+      "cmsantj22000wldkfz5g5094f",
+      "cmsanx0yz001vldkfezs8qr2a",
+      "cmsao16ud002uldkf1oiqqf1a"
+    ]
+  },
+  "cleanup": {
+    "status": "completed",
+    "retained_synthetic_database_records": 0
+  },
+  "provider_calls": 0,
+  "model_auth_requests": 0,
+  "dispatch_checkpoints": 0,
+  "ordinary_classroom_records_used": false,
+  "secrets_recorded": false,
+  "preserved_as_no_provider_gate_evidence": true
+}

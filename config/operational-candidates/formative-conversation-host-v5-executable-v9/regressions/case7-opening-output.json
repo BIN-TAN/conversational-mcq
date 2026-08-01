@@ -1,0 +1,19 @@
+{
+  "artifact_version": "formative-conversation-v5-exact-opening-regression-v1",
+  "source_protocol_hash": "13186b2e5dc54486864b216292afd02774c832340a548c77585886a53c7642b5",
+  "source_provider_run_id": "fcv5v3_provider_20260730082804_8bf128c4",
+  "source_case_id": "fcv5_07_persistent_barrier_teacher_assistance",
+  "source_agent_call_public_id": "cms7991660065ldv2r8wxjd94",
+  "opening_text": "Now that you’ve looked through the results, let’s organize the three ideas around one principle: measurement evidence usually supports a limited claim, not absolute certainty.\n\n- **Reliability/internal consistency:** scores behave consistently, but that alone does not show that a particular interpretation or use is valid.\n- **Standard error of measurement (SEM):** estimates uncertainty around an observed score; it does not turn that score into an exact true score.\n- **Validity:** evidence supports a specific interpretation and use of scores in a particular context; it is not simply a permanent property of a test.\n\nImagine a bathroom scale that gives you the same reading every time. What can you conclude from that consistency, and what would you still need to investigate before trusting the reading as accurate?",
+  "historical_validator_version": "formative-conversation-opening-v1",
+  "historical_finding": "opening_assessment_acknowledgement_missing",
+  "corrected_validator_version": "formative-conversation-opening-v2",
+  "expected_valid": true,
+  "prohibited_contracts_remain_enforced": [
+    "personal_score_or_correctness_reporting",
+    "assessment_report_language",
+    "internal_profile_or_diagnosis_terminology",
+    "activity_routing_language",
+    "unadministered_content"
+  ]
+}

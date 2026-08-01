@@ -1,0 +1,55 @@
+{
+  "artifact_version": "formative-conversation-v7-human-review-adjudication-v1",
+  "source_commit": "c0c05b60755ab1b9b293c8e12a2ac5645a952c17",
+  "source_runtime_candidate_hash": "81a60273d33976409e7450bffa6156e89a62e17e36edb7059e30c44979892356",
+  "source_protocol_hash": "620ee46412f8ae4389014905249d8ce8fc1004ff55025ec5255bbd005ab6c68d",
+  "provider_run_id": "fcv5v7_provider_20260801013024_27f671a7",
+  "derived_evaluation_id": "fcv5v7_derived_20260801013024_4da7a38f",
+  "student_visible_output_count": 16,
+  "review_scope": [
+    "appropriateness",
+    "tone",
+    "adaptation",
+    "excessive_praise",
+    "unjustified_mastery_claims",
+    "unsupported_markdown",
+    "privacy",
+    "answer_leakage"
+  ],
+  "outputs": [
+    { "case_id": "fcv5_01_assistant_first_opening", "call": 1, "message_sha256": "07733c314ffdcb3c444d83cdd2e48a1ecdf2660c75fd31db14ddd5bb2d4daa46", "character_count": 651, "result": "acceptable" },
+    { "case_id": "fcv5_02_first_principles_adaptation", "call": 1, "message_sha256": "62214a35b960375b15e0b56fcf02a0d40c54b792952d1f96648ec3552c118fa8", "character_count": 855, "result": "acceptable" },
+    { "case_id": "fcv5_02_first_principles_adaptation", "call": 2, "message_sha256": "b6d8b32f81c15b731beb7b2be052affb40d3193517cccd192bcdba5a8836c7aa", "character_count": 2652, "result": "acceptable_long_explanation" },
+    { "case_id": "fcv5_02_first_principles_adaptation", "call": 3, "message_sha256": "a04647ff8a49082b6069313b5381a50effaeb8c6abf40b7cec192e843ccba697", "character_count": 1617, "result": "acceptable_adaptive_reexplanation" },
+    { "case_id": "fcv5_04_related_concept_discussion", "call": 1, "message_sha256": "11838568eb7618b786233d25b58cf8b2e5602acbfc1e64d28e3504d9378e489f", "character_count": 530, "result": "acceptable" },
+    { "case_id": "fcv5_04_related_concept_discussion", "call": 2, "message_sha256": "d2955ac0d2e9cfcdf14fcb5ad5516cf2dd5fc010dc2f015ad6314e86c2249d85", "character_count": 1915, "result": "acceptable_related_context" },
+    { "case_id": "fcv5_05_sound_profile_transition", "call": 1, "message_sha256": "0e5c0d6f983b0fd62260fda35bd60c722b2544c293c095105c50723392fafca0", "character_count": 919, "result": "acceptable" },
+    { "case_id": "fcv5_05_sound_profile_transition", "call": 2, "message_sha256": "b4affddd8e8abf12fe9b148155cd668ced30bcbd945e36f51220cafb2ecf9fd0", "character_count": 1330, "result": "acceptable" },
+    { "case_id": "fcv5_05_sound_profile_transition", "call": 3, "message_sha256": "89e1d629b7b97eec7b7c19690ce71a507d6825434bf5faf4ed9fd94fa8f4b817", "character_count": 590, "result": "acceptable_restrained_transition" },
+    { "case_id": "fcv5_07_persistent_barrier_teacher_assistance", "call": 1, "message_sha256": "deb2dd69e2130006fcd08ce940d0116664e6e9a6800e4229d023748c348813c1", "character_count": 781, "result": "acceptable" },
+    { "case_id": "fcv5_07_persistent_barrier_teacher_assistance", "call": 2, "message_sha256": "a3d70cf0c96d1f143855956f3b601cada7c49bbbf700ff84da6009731e9ac691", "character_count": 1235, "result": "acceptable" },
+    { "case_id": "fcv5_07_persistent_barrier_teacher_assistance", "call": 3, "message_sha256": "8c74891983dff7ad7ebd5917b80bec02181e62d2217da390474a622831f1325c", "character_count": 1017, "result": "acceptable" },
+    { "case_id": "fcv5_07_persistent_barrier_teacher_assistance", "call": 4, "message_sha256": "15c5d431d28b8b6721bc8a1d8bee69efd3a6db3e8fcbfeb029822a02a61ed30e", "character_count": 1319, "result": "acceptable_supportive_handoff" },
+    { "case_id": "fcv5_08_mixed_resolved_evidence", "call": 1, "message_sha256": "b67e150461971e0342e627346f5189d554a8cb55dc3cd100ec12f3682c4450a7", "character_count": 689, "result": "acceptable" },
+    { "case_id": "fcv5_08_mixed_resolved_evidence", "call": 2, "message_sha256": "f7774ca1be330a485a8c7ac06debbed5009eb78f26386350e60285dd41119b5c", "character_count": 1623, "result": "acceptable" },
+    { "case_id": "fcv5_08_mixed_resolved_evidence", "call": 3, "message_sha256": "37c6df00ea73c5cd82ed96ea862f00a18b0329e71c4a62e7157b5edebb2749b1", "character_count": 1697, "result": "acceptable_restrained_transition" }
+  ],
+  "aggregate": {
+    "conceptually_appropriate": true,
+    "tone_appropriate": true,
+    "adaptive_across_turns": true,
+    "excessive_praise_detected": false,
+    "unjustified_mastery_claim_detected": false,
+    "unsupported_markdown_detected": false,
+    "privacy_issue_detected": false,
+    "unadministered_answer_leakage_detected": false,
+    "prompt_change_required": false
+  },
+  "limitations": [
+    "Cases 3 and 6 produced no student-visible V7 output because persistence failed before dispatch.",
+    "The direct-answer request was therefore not exercised in V7.",
+    "This adjudication does not change the immutable V7 failed status or make V8 approval-eligible."
+  ],
+  "approval_eligible": false,
+  "activation_permitted": false
+}

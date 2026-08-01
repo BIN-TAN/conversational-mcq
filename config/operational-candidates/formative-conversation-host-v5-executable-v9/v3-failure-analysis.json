@@ -1,0 +1,89 @@
+{
+  "artifact_version": "formative-conversation-v5-v3-failure-analysis-v1",
+  "analysis_mode": "offline_no_provider",
+  "provider_calls": 0,
+  "historical_result": {
+    "protocol_hash": "13186b2e5dc54486864b216292afd02774c832340a548c77585886a53c7642b5",
+    "provider_run_id": "fcv5v3_provider_20260730082804_8bf128c4",
+    "derived_evaluation_id": "fcv5v3_derived_20260730082804_abbbd408",
+    "execution_status": "completed_failed",
+    "approval_eligible": false,
+    "rerunnable": false,
+    "preserved_immutable": true
+  },
+  "immutable_evidence": {
+    "dispatch_checkpoint": {
+      "path": ".data/operational-formative-conversation-v5-evaluation-v3/runs/dispatch/13186b2e5dc54486864b216292afd02774c832340a548c77585886a53c7642b5.json",
+      "sha256": "e5ffbe30eb61ce28013eda37e74bcd3717f9f1f563b641b7eb0480b49d580b9e"
+    },
+    "source_provider_run": {
+      "path": ".data/operational-formative-conversation-v5-evaluation-v3/runs/fcv5v3_provider_20260730082804_8bf128c4/source-provider-run.json",
+      "sha256": "02f85dc620059e24cc45a13aa5064fbef6087bcd997a31af6d3d46e0c2fe1e7d"
+    },
+    "derived_evaluation": {
+      "path": ".data/operational-formative-conversation-v5-evaluation-v3/runs/fcv5v3_provider_20260730082804_8bf128c4/derived-evaluation.json",
+      "sha256": "5198a16fe570d82c1b074f0fca93e87d930706dd94968778174ece922a2438de"
+    },
+    "human_review_package": {
+      "path": ".data/operational-formative-conversation-v5-evaluation-v3/runs/fcv5v3_provider_20260730082804_8bf128c4/human-review-package.json",
+      "sha256": "589c77ea3dd4d03f0950d73a8bcda8723073929a77d632f1aecd6be7e5a70917"
+    },
+    "research_export": {
+      "path": ".data/operational-formative-conversation-v5-evaluation-v3/runs/fcv5v3_provider_20260730082804_8bf128c4/research-export.zip",
+      "sha256": "89cda117341e832a8b01068af76ee810727294cef95221bad13d2c0ed0ea24a0"
+    }
+  },
+  "case_findings": [
+    {
+      "case_id": "fcv5_05_sound_profile_transition",
+      "root_cause_classification": "provider/retry integration defect",
+      "observed_failure": "unknown_provider_failure",
+      "shared_retry_wrapper_used": true,
+      "adapter_attempt_count": 1,
+      "transport_retry_count": 0,
+      "partial_provider_response_present": false,
+      "student_turn_recoverable": true,
+      "finding": "The v3 trace lacks response headers, a body, a provider request identifier, usage, and partial output, but it also lacks the safe transport milestones needed to prove that the failure occurred after request serialization and fetch dispatch but before any response. The old taxonomy therefore treated the failure as non-retryable. Historical evidence is not retroactively reclassified.",
+      "correction": "Record safe transport milestones and retry only an unknown transport interruption proven to occur after serialization and fetch invocation but before response headers, body, HTTP response, or provider acknowledgement."
+    },
+    {
+      "case_id": "fcv5_06_largely_improved_temporal",
+      "root_cause_classification": "profile-transition persistence defect",
+      "observed_failure": "profile_transition_field_evidence_invalid",
+      "shared_retry_wrapper_used": true,
+      "validated_recommendation": "largely_improved_understanding",
+      "finding": "The validated recommendation retained process_interpretation_cautions while adding one student-cited caution. Persistence treated every changed retained field as invalid, even when the prior list was preserved and the addition had conversation evidence.",
+      "correction": "Permit only evidence-backed additive list extension for a retained field. Preserve all prior entries, require at least one added entry, require combined or conversation evidence basis, and require a cited student turn. Record a typed terminal rejection signal if transition persistence still fails."
+    },
+    {
+      "case_id": "fcv5_07_persistent_barrier_teacher_assistance",
+      "root_cause_classification": "output-validator defect",
+      "secondary_root_cause_classification": "telemetry/export accounting defect",
+      "observed_failure": "formative_conversation_opening_validation",
+      "opening_validator_finding": "opening_assessment_acknowledgement_missing",
+      "finding": "The opening naturally acknowledged that the student had looked through the results. The v1 matcher did not recognize that phrasing. The opening did not repeat a personal score, use assessment-report language, expose internal terminology, route an activity, or reveal unadministered content. Because opening validation failed before student-message submission, the harness also compared zero observed turns and telemetry with three planned fixture messages and produced false missing-telemetry findings.",
+      "correction": "Recognize natural review-result acknowledgements while preserving all prohibited-language checks. Account separately for planned messages, submission attempts, persisted messages, completed exchanges, and observable input telemetry."
+    },
+    {
+      "case_id": "fcv5_08_mixed_resolved_evidence",
+      "root_cause_classification": "provider/retry integration defect",
+      "observed_failure": "unknown_transport_error",
+      "shared_retry_wrapper_used": true,
+      "adapter_attempt_count": 1,
+      "transport_retry_count": 0,
+      "partial_provider_response_present": false,
+      "student_turn_recoverable": true,
+      "finding": "The failure has no provider request identifier, usage, partial output, response headers, or response body. As with Case 5, v3 did not preserve enough safe milestones to prove a transient pre-response interruption, so the historical failure remains non-retryable and unresolved.",
+      "correction": "Use the same bounded, milestone-gated transport classification and retry policy as Case 5."
+    }
+  ],
+  "candidate_output_defects": [],
+  "runtime_or_harness_defects": [
+    "provider/retry integration defect",
+    "profile-transition persistence defect",
+    "output-validator defect",
+    "telemetry/export accounting defect"
+  ],
+  "prompt_change_required": false,
+  "v3_result_changed": false
+}
